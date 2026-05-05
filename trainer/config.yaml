@@ -1,0 +1,23 @@
+model:
+  name: groot_1_7
+  pretrained_path: /workspace/checkpoints/groot1.7.pt
+  device: cuda
+
+data:
+  dataset_name: unitreerobotics/G1_Dex3_BlockStacking_Dataset
+  data_dir: /workspace/data/data_lerobot
+  seq_length: 32
+  batch_size: 8
+  num_workers: 4
+
+training:
+  epochs: 20
+  lr: 1e-4
+  weight_decay: 1e-5
+  save_dir: /workspace/output
+  log_interval: 10
+  save_interval: 1
+
+robot:
+  control_rate: 20
+  action_dim: 12

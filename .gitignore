@@ -1,8 +1,14 @@
 data/*
 !data/.gitkeep
 
-model/*
-!model/.gitkeep
+data_lerobot/*
+!data_lerobot/.gitkeep
+
+checkpoints/*
+!checkpoints/.gitkeep
 
 output/*
 !output/.gitkeep
+
+__pycache__/
+*.pyc

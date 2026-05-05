@@ -1,19 +1,11 @@
-version: "3.9"
+version: "3.8"
 
 services:
   trainer:
-    build: ./trainer
-
+    build: .
     volumes:
-      - ./data:/workspace/data
-      - ./output:/workspace/output
-      - ~/.cache/huggingface:/root/.cache/huggingface
-
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - capabilities: [gpu]
-
-    stdin_open: true
-    tty: true
+      - .:/workspace
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+    command: bash trainer/train.sh
