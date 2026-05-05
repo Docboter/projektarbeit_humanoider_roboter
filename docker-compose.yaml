@@ -1,11 +1,35 @@
-version: "3.8"
-
 services:
   trainer:
-    build: .
+    build:
+      context: .
+      dockerfile: trainer/Dockerfile
+
     volumes:
+      # Code
       - .:/workspace
-    runtime: nvidia
+
+      # RAW Daten
+      - ./data:/data/raw
+
+      # konvertierte Daten
+      - ./data_lerobot:/data/processed
+
+      # pretrained Modell
+      - ./modell:/models
+
+      # checkpoints
+      - ./checkpoints:/checkpoints
+
+      # finale Modelle
+      - ./output:/output
+
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
+
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
+
     command: bash trainer/train.sh

@@ -5,27 +5,29 @@ import numpy as np
 def convert_dataset(input_dir, output_dir):
     os.makedirs(output_dir, exist_ok=True)
 
-    episodes = sorted(os.listdir(input_dir))
-    for ep in episodes:
+    for ep in os.listdir(input_dir):
         ep_path = os.path.join(input_dir, ep)
         if not os.path.isdir(ep_path):
             continue
 
-        states = np.load(os.path.join(ep_path, "states.npy"))
-        actions = np.load(os.path.join(ep_path, "actions.npy"))
+        states_path = os.path.join(ep_path, "states.npy")
+        actions_path = os.path.join(ep_path, "actions.npy")
 
-        data = []
+        if not os.path.exists(states_path):
+            continue
+
+        states = np.load(states_path)
+        actions = np.load(actions_path)
+
+        out = []
         for s, a in zip(states, actions):
-            data.append({
+            out.append({
                 "state": s.tolist(),
                 "action": a.tolist()
             })
 
         with open(os.path.join(output_dir, f"{ep}.json"), "w") as f:
-            json.dump(data, f)
+            json.dump(out, f)
 
 if __name__ == "__main__":
-    convert_dataset(
-        input_dir="/workspace/data/raw",
-        output_dir="/workspace/data/data_lerobot"
-    )
+    convert_dataset("/data/raw", "/data/processed")

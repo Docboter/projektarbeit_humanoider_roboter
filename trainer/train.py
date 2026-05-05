@@ -1,3 +1,4 @@
+import os
 import yaml
 import torch
 import torch.nn as nn
@@ -27,6 +28,9 @@ def load_config(path):
 
 
 def train(cfg):
+    os.makedirs(cfg["training"]["checkpoint_dir"], exist_ok=True)
+    os.makedirs(cfg["training"]["output_dir"], exist_ok=True)
+
     dataset = RobotDataset(
         cfg["data"]["data_dir"],
         cfg["data"]["seq_length"]
@@ -42,6 +46,12 @@ def train(cfg):
     model = SimpleGroot(
         action_dim=cfg["robot"]["action_dim"]
     ).to(cfg["model"]["device"])
+
+    # pretrained laden (wenn vorhanden)
+    if os.path.exists(cfg["model"]["pretrained_path"]):
+        model.load_state_dict(
+            torch.load(cfg["model"]["pretrained_path"])
+        )
 
     optimizer = torch.optim.AdamW(
         model.parameters(),
@@ -66,11 +76,17 @@ def train(cfg):
             if i % cfg["training"]["log_interval"] == 0:
                 print(f"Epoch {epoch} Step {i} Loss {loss.item()}")
 
-        if epoch % cfg["training"]["save_interval"] == 0:
-            torch.save(
-                model.state_dict(),
-                f"{cfg['training']['save_dir']}/model_{epoch}.pt"
-            )
+        # Checkpoint speichern
+        torch.save(
+            model.state_dict(),
+            f"{cfg['training']['checkpoint_dir']}/epoch_{epoch}.pt"
+        )
+
+    # finales Modell
+    torch.save(
+        model.state_dict(),
+        f"{cfg['training']['output_dir']}/final_model.pt"
+    )
 
 
 if __name__ == "__main__":
