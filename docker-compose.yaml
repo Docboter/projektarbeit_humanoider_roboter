@@ -1,0 +1,19 @@
+version: "3.9"
+
+services:
+  trainer:
+    build: ./trainer
+
+    volumes:
+      - ./data:/workspace/data
+      - ./output:/workspace/output
+      - ~/.cache/huggingface:/root/.cache/huggingface
+
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
+
+    stdin_open: true
+    tty: true

@@ -1,0 +1,11 @@
+torch
+torchvision
+datasets
+huggingface_hub
+accelerate
+einops
+opencv-python
+imageio
+ffmpeg-python
+tqdm
+numpy
