@@ -1,0 +1,89 @@
+services:
+  groot-server:
+    image: gr00t:latest
+    build:
+      context: ${PROJECTS_DIR:-.}/repos/Isaac-GR00T
+      dockerfile: docker/Dockerfile
+    network_mode: host
+    ipc: host
+    shm_size: "16gb"
+    ulimits:
+      memlock: -1
+      stack: 67108864
+    gpus: all
+    environment:
+      NVIDIA_VISIBLE_DEVICES: ${GROOT_GPU:-0}
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+      HF_HOME: /cache/huggingface
+      UV_CACHE_DIR: /cache/uv
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - ${PROJECTS_DIR:-.}/repos/Isaac-GR00T/checkpoints:/workspace/checkpoints:ro
+      - groot_hf_cache:/cache/huggingface
+      - groot_uv_cache:/cache/uv
+    working_dir: /workspace
+    command: >
+      bash -lc '
+        exec /workspace/.venv/bin/python gr00t/eval/run_gr00t_server.py \
+          --model-path ${GROOT_MODEL_PATH:-checkpoints/GR00T-N1.6-G1-PnPAppleToPlate} \
+          --embodiment-tag ${GROOT_EMBODIMENT_TAG:-UNITREE_G1} \
+          --device cuda:0 \
+          --host 0.0.0.0 \
+          --port ${GROOT_PORT:-5555}
+      '
+
+  unitree-sim:
+    image: unitree-sim:latest
+    build:
+      context: ${PROJECTS_DIR:-.}/repos/unitree_sim_isaaclab
+      dockerfile: Dockerfile
+    network_mode: host
+    ipc: host
+    privileged: true
+    shm_size: "16gb"
+    gpus: all
+    environment:
+      NVIDIA_VISIBLE_DEVICES: ${SIM_GPU:-1}
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility,graphics,display,video
+      DISPLAY: ${DISPLAY:-:0}
+      VK_ICD_FILENAMES: /etc/vulkan/icd.d/nvidia_icd.json
+      OMNI_KIT_ALLOW_ROOT: "1"
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - ${PROJECTS_DIR:-.}/repos/unitree_sim_isaaclab:/home/code/unitree_sim_isaaclab
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - /etc/vulkan/icd.d:/etc/vulkan/icd.d:ro
+      - /usr/share/vulkan/icd.d:/usr/share/vulkan/icd.d:ro
+      - isaac_cache:/root/.cache/ov
+      - isaac_kit_cache:/root/.cache/Kit
+      - isaac_logs:/root/.nvidia-omniverse/logs
+    working_dir: /home/code/unitree_sim_isaaclab
+    command: >
+      conda run -n unitree_sim_env python3 sim_main.py
+        --headless
+        --device cuda
+        --enable_cameras
+        --task ${UNITREE_TASK:-Isaac-Move-Cylinder-G129-Dex3-Wholebody}
+        --robot_type g129
+        --enable_dex3_dds
+        --action_source groot
+        --enable_wholebody_dds
+        --minimal_scene
+        --camera_width ${CAMERA_WIDTH:-320}
+        --camera_height ${CAMERA_HEIGHT:-240}
+        --groot_host ${GROOT_HOST:-127.0.0.1}
+        --groot_port ${GROOT_PORT:-5555}
+        --groot_timeout_ms ${GROOT_TIMEOUT_MS:-120000}
+        --groot_action_step ${GROOT_ACTION_STEP:-0}
+        ${UNITREE_EXTRA_ARGS:-}
+        --prompt_fifo groot_prompt.pipe
+        --prompt_path groot_prompt.txt
+    depends_on:
+      - groot-server
+
+volumes:
+  groot_hf_cache:
+  groot_uv_cache:
+  isaac_cache:
+  isaac_kit_cache:
+  isaac_logs:
