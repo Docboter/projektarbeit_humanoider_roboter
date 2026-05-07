@@ -1,0 +1,8 @@
+[submodule "repos/unitree_sim_isaaclab"]
+	path = repos/unitree_sim_isaaclab
+	url = https://github.com/mspaeth313/unitree_sim_isaaclab.git
+	branch = integration/groot-action-provider
+[submodule "repos/Isaac-GR00T"]
+	path = repos/Isaac-GR00T
+	url = https://github.com/mspaeth313/Isaac-GR00T.git
+	branch = integration/groot-server-fix
