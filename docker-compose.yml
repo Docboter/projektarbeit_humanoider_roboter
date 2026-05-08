@@ -1,0 +1,13 @@
+services:
+  groot-training:
+    build: .
+    image: projektarbeit-humanoider-roboter:latest
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+    volumes:
+      - ./data:/data
+    ipc: host
+    stdin_open: true
+    tty: true
+    working_dir: /app/Groot-1.6
