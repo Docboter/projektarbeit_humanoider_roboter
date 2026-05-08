@@ -31,6 +31,18 @@
 # --- /root: enthält nur Tool-Configs & sensible Daten ---
 /root/
 
+# --- Groot-1.6: NVIDIA-Basis ignorieren, eigene Änderungen tracken ---
+/app/Groot-1.6/*
+!/app/Groot-1.6/examples/
+/app/Groot-1.6/examples/*
+!/app/Groot-1.6/examples/G1_DEX3/
+!/app/Groot-1.6/scripts/
+/app/Groot-1.6/scripts/*
+!/app/Groot-1.6/scripts/lerobot_conversion/
+/app/Groot-1.6/scripts/lerobot_conversion/*
+!/app/Groot-1.6/scripts/lerobot_conversion/convert_v3_to_v2_standalone.py
+!/app/Groot-1.6/uv.lock
+
 # --- Große Modell-Gewichte (>100 MB, GitHub-Limit) ---
 /data/models/
 *.safetensors
