@@ -1,6 +1,6 @@
 [submodule "app/Groot-1.6"]
 	path = app/Groot-1.6
-	url = https://github.com/NVIDIA/Isaac-GR00T
+	url = https://github.com/lucam06/Isaac-GR00T.git
 	branch = luca/g1-dex3
 
 [submodule "app/Isaac-GR00T"]
