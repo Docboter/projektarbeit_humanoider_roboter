@@ -1,0 +1,15 @@
+[submodule "app/Groot-1.6"]
+	path = app/Groot-1.6
+	url = https://github.com/NVIDIA/Isaac-GR00T
+
+[submodule "app/Isaac-GR00T"]
+	path = app/Isaac-GR00T
+	url = https://github.com/NVIDIA/Isaac-GR00T
+
+[submodule "app/lerobot"]
+	path = app/lerobot
+	url = https://github.com/huggingface/lerobot.git
+
+[submodule "app/unitree_sdk2_python"]
+	path = app/unitree_sdk2_python
+	url = https://github.com/unitreerobotics/unitree_sdk2_python.git

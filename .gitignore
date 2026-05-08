@@ -1,0 +1,65 @@
+# ============================================================
+# Projektarbeit Humanoider Roboter – Container .gitignore
+# ============================================================
+
+# --- System-Verzeichnisse ---
+/proc/
+/sys/
+/dev/
+/run/
+/srv/
+/boot/
+/media/
+/mnt/
+/usr/
+/lib
+/lib32
+/lib64
+/libx32
+/sbin
+/bin
+/etc/
+/opt/
+/tmp/
+/var/
+
+# --- Container-spezifisches ---
+/.dockerenv
+/NGC-DL-CONTAINER-LICENSE
+/cuda-keyring_1.0-1_all.deb
+
+# --- /root: enthält nur Tool-Configs & sensible Daten ---
+/root/
+
+# --- Große Modell-Gewichte (>100 MB, GitHub-Limit) ---
+/data/models/
+*.safetensors
+*.pt
+*.pth
+*.ckpt
+*.bin
+
+# --- Rohdatensätze (Videos & große Binärdaten) ---
+/data/unitreerobotics/
+*.mp4
+*.avi
+*.mov
+
+# --- HuggingFace Download-Cache ---
+**/.cache/huggingface/
+**/.cache/
+
+# --- Python Build-Artefakte ---
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.egg-info/
+**/dist/
+**/build/
+**/.eggs/
+
+# --- Tool-Caches ---
+**/.pytest_cache/
+**/wandb/
+**/.ipynb_checkpoints/
+**/.triton/
