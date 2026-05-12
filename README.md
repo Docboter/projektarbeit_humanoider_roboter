@@ -56,8 +56,7 @@ Dieses Repository dokumentiert das Fine-tuning von NVIDIAs **GR00T N1.6** Vision
 
 ```bash
 # Mit allen Submodulen klonen
-git clone --recurse-submodules \
-  https://github.com/Docboter/projektarbeit_humanoider_roboter.git
+git clone --recurse-submodules https://github.com/Docboter/projektarbeit_humanoider_roboter.git
 
 cd projektarbeit_humanoider_roboter
 git checkout training-luca
@@ -74,9 +73,6 @@ git submodule update --init --recursive
 | Pfad | Quelle | Inhalt |
 |---|---|---|
 | `app/Groot-1.6/` | `lucam06/Isaac-GR00T` (Branch `luca/g1-dex3`) | GR00T N1.6 + eigene G1/DEX3-Configs |
-| `app/Isaac-GR00T/` | `NVIDIA/Isaac-GR00T` | GR00T N1.7 (Referenz) |
-| `app/lerobot/` | `huggingface/lerobot` | LeRobot Trainings-Framework |
-| `app/unitree_sdk2_python/` | `unitreerobotics/unitree_sdk2_python` | Unitree Roboter-SDK |
 
 ---
 
@@ -103,15 +99,23 @@ Was dabei passiert:
 
 ### HuggingFace-Token setzen
 
+Da jeder `docker compose run --rm`-Aufruf einen frischen Container startet, muss der Token als Umgebungsvariable übergeben werden (nicht per `huggingface-cli login`):
+
 ```bash
-# Einmalig einloggen (Token von https://huggingface.co/settings/tokens)
-docker compose run --rm groot-training huggingface-cli login
+# Token von https://huggingface.co/settings/tokens (read-Berechtigung reicht)
+export HF_TOKEN=hf_...
+```
+
+Unter Windows (PowerShell):
+
+```powershell
+$env:HF_TOKEN = "hf_..."
 ```
 
 ### Download starten (~25 GB, einmalig)
 
 ```bash
-docker compose run --rm groot-training bash scripts/download_data.sh
+docker compose run --rm groot-training bash /scripts/download_data.sh
 ```
 
 Dies lädt herunter:
@@ -143,13 +147,13 @@ docker compose run --rm groot-training bash -c "
 
   # 2. GR00T-Modalitäts-Metadaten hinzufügen (4-Kamera-Konfiguration)
   cp examples/G1_DEX3/modality_4cam.json \
-     /data/unitreerobotics/G1_Dex3_BlockStacking_Dataset/meta/modality.json
+     /data/unitreerobotics/G1_Dex3_BlockStacking_Dataset_v3.0/meta/modality.json
 "
 ```
 
 Konvertierung erfolgreich, wenn diese Datei existiert:
 ```
-/data/unitreerobotics/G1_Dex3_BlockStacking_Dataset/meta/modality.json
+/data/unitreerobotics/G1_Dex3_BlockStacking_Dataset_v3.0/meta/modality.json
 ```
 
 ---
@@ -164,8 +168,8 @@ docker compose run --rm groot-training bash -c "
   CUDA_VISIBLE_DEVICES=0 uv run python gr00t/experiment/launch_finetune.py \
     --base-model-path     /data/models/GR00T-N1.6-3B \
     --data-config         examples/G1_DEX3/modality_4cam.json \
-    --dataset-path        /data/unitreerobotics/G1_Dex3_BlockStacking_Dataset \
-    --embodiment-tag      new_embodiment \
+    --dataset-path        /data/unitreerobotics/G1_Dex3_BlockStacking_Dataset_v3.0 \
+    --embodiment-tag      NEW_EMBODIMENT \
     --embodiment-config-module examples.G1_DEX3.g1_dex3_config \
     --output-dir          /data/g1_dex3_finetune/blockstacking/mein_run \
     --num-gpus            \${NUM_GPUS} \
@@ -217,17 +221,14 @@ watch -n 30 'ls -lht /data/g1_dex3_finetune/blockstacking/mein_run/ | head -10'
 ├── docker-compose.yml                  # GPU-Setup, Volume-Mounts
 ├── scripts/
 │   └── download_data.sh                # Modell & Datensatz von HuggingFace laden
-├── app/                                # Submodule (via git clone --recurse-submodules)
-│   ├── Groot-1.6/                      # GR00T N1.6 + eigene G1/DEX3-Erweiterungen
-│   │   └── examples/G1_DEX3/
-│   │       ├── g1_dex3_config.py       # Embodiment-Konfiguration (Gelenke, Kameras)
-│   │       ├── modality_4cam.json      # Modalitäts-Config (4 Kameras + DEX3-Hand)
-│   │       ├── modality_2cam.json      # Modalitäts-Config (2 Kameras, leichtgewichtig)
-│   │       ├── FINETUNING_GUIDE.md     # Schritt-für-Schritt Fine-tuning Anleitung
-│   │       └── SETUP_DOCUMENTATION.md  # Vollständige Setup-Dokumentation
-│   ├── Isaac-GR00T/                    # GR00T N1.7 (NVIDIA, Referenz)
-│   ├── lerobot/                        # HuggingFace LeRobot
-│   └── unitree_sdk2_python/            # Unitree SDK
+├── app/                                # Submodul (via git clone --recurse-submodules)
+│   └── Groot-1.6/                      # GR00T N1.6 + eigene G1/DEX3-Erweiterungen
+│       └── examples/G1_DEX3/
+│           ├── g1_dex3_config.py       # Embodiment-Konfiguration (Gelenke, Kameras)
+│           ├── modality_4cam.json      # Modalitäts-Config (4 Kameras + DEX3-Hand)
+│           ├── modality_2cam.json      # Modalitäts-Config (2 Kameras, leichtgewichtig)
+│           ├── FINETUNING_GUIDE.md     # Schritt-für-Schritt Fine-tuning Anleitung
+│           └── SETUP_DOCUMENTATION.md  # Vollständige Setup-Dokumentation
 └── data/                               # NICHT im Git (lokal, per Volume gemountet)
     ├── models/GR00T-N1.6-3B/           # Modellgewichte (~6 GB)
     ├── unitreerobotics/                 # Rohdatensatz (~18 GB)

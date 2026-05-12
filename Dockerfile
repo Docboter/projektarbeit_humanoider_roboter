@@ -46,20 +46,12 @@ RUN git clone https://github.com/lucam06/Isaac-GR00T.git /app/Groot-1.6 \
     && git -C /app/Groot-1.6 checkout c047ce2386eb11964548faf0c2cb53f895b11201 \
     && git -C /app/Groot-1.6 lfs pull
 
-RUN git clone https://github.com/NVIDIA/Isaac-GR00T.git /app/Isaac-GR00T \
-    && git -C /app/Isaac-GR00T checkout 4b1dca9d88d2a0b9ea5a65aa61c82ff89f5c4f0e
-
-RUN git clone https://github.com/huggingface/lerobot.git /app/lerobot \
-    && git -C /app/lerobot checkout 05a5223885bcd36064fc1a967620329696595a76
-
-RUN git clone https://github.com/unitreerobotics/unitree_sdk2_python.git /app/unitree_sdk2_python \
-    && git -C /app/unitree_sdk2_python checkout db9b2d210081387fcd1e7ed9ac4c56a02983bb85
-
 # Python-Abhängigkeiten installieren (aus gefrorenem uv.lock)
 WORKDIR /app/Groot-1.6
 RUN UV_PREVIEW=1 UV_HTTP_TIMEOUT=300 UV_CONCURRENT_DOWNLOADS=4 \
     uv sync --frozen --no-install-project --extra dev --no-cache
 RUN uv pip install --python /app/Groot-1.6/.venv/bin/python -e . --no-deps
+RUN uv pip install --python /app/Groot-1.6/.venv/bin/python jsonlines
 
 # EGL/Vulkan für headless Rendering (MuJoCo, PyOpenGL)
 RUN mkdir -p /usr/share/glvnd/egl_vendor.d && \

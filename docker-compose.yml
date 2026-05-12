@@ -5,8 +5,10 @@ services:
     runtime: nvidia
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
+      - HF_TOKEN
     volumes:
       - ./data:/data
+      - ./scripts:/scripts
     ipc: host
     stdin_open: true
     tty: true

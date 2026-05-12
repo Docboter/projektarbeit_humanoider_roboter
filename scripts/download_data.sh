@@ -8,6 +8,12 @@
 
 set -e
 
+if [[ -z "${HF_TOKEN}" ]]; then
+    echo "FEHLER: HF_TOKEN ist nicht gesetzt." >&2
+    echo "Bitte 'export HF_TOKEN=hf_...' vor dem Aufruf setzen." >&2
+    exit 1
+fi
+
 DATA_DIR="${DATA_DIR:-/data}"
 
 echo "==> Zielverzeichnis: $DATA_DIR"
@@ -23,7 +29,7 @@ huggingface-cli download nvidia/GR00T-N1.6-3B \
 echo "==> Lade G1_Dex3_BlockStacking_Dataset_v3.0..."
 huggingface-cli download unitreerobotics/G1_Dex3_BlockStacking_Dataset \
     --repo-type dataset \
-    --local-dir "$DATA_DIR/unitreerobotics/G1_Dex3_BlockStacking_Dataset_v3.0" \
+    --local-dir "$DATA_DIR/unitreerobotics/G1_Dex3_BlockStacking_Dataset" \
     --local-dir-use-symlinks False
 
 # Nur Metadaten (kein Video) – für schnellen Test
