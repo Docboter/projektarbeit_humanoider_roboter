@@ -1,4 +1,4 @@
-#!/usr/bin/env pwsh
+﻿#!/usr/bin/env pwsh
 # setup_and_train.ps1
 #
 # Vollstaendiges Setup-Skript fuer das GR00T N1.6 Fine-tuning Projekt.
@@ -77,7 +77,7 @@ function Invoke-Cmd {
 $REPO_URL    = "https://github.com/Docboter/projektarbeit_humanoider_roboter.git"
 $REPO_BRANCH = "training-luca"
 $REPO_DIR    = if ($env:REPO_DIR) { $env:REPO_DIR }
-               else { Join-Path (Get-Location).Path "projektarbeit_humanoider_roboter" }
+               else { Join-Path (Get-Location).Path "phr" }
 
 $MAX_STEPS         = if ($env:MAX_STEPS)         { $env:MAX_STEPS }         else { "30000" }
 $GLOBAL_BATCH_SIZE = if ($env:GLOBAL_BATCH_SIZE) { $env:GLOBAL_BATCH_SIZE } else { "8" }
@@ -87,7 +87,7 @@ $WANDB_PROJECT     = if ($env:WANDB_PROJECT)     { $env:WANDB_PROJECT }     else
 # ── Banner ────────────────────────────────────────────────────────────────────
 Write-Host ""
 Write-Host "╔══════════════════════════════════════════════════════════════════╗" -ForegroundColor Magenta
-Write-Host "║   GR00T N1.6 Fine-tuning — Unitree G1 DEX3 — Setup & Training   ║" -ForegroundColor Magenta
+Write-Host "║   GR00T N1.6 Fine-tuning — Unitree G1 DEX3 — Setup & Training    ║" -ForegroundColor Magenta
 Write-Host "╚══════════════════════════════════════════════════════════════════╝" -ForegroundColor Magenta
 Write-Host ""
 if ($DryRun) { Write-Warn "DRY-RUN aktiv — es werden keine Befehle ausgefuehrt." }
@@ -156,7 +156,10 @@ if ($SkipClone) {
     Invoke-Cmd @("git", "-C", $REPO_DIR, "submodule", "update", "--init", "--recursive")
 } else {
     Write-Log "Klone $REPO_URL -> $REPO_DIR"
+    git config --global core.longpaths true
+    $env:GIT_CLONE_PROTECTION_ACTIVE = "false"
     Invoke-Cmd @("git", "clone", "--recurse-submodules", "--branch", $REPO_BRANCH, $REPO_URL, $REPO_DIR)
+    Remove-Item Env:\GIT_CLONE_PROTECTION_ACTIVE -ErrorAction SilentlyContinue
 }
 
 Write-Ok "Repository bereit: $REPO_DIR"

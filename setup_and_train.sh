@@ -71,7 +71,7 @@ run() {
 # ── Konfiguration ─────────────────────────────────────────────────────────────
 REPO_URL="https://github.com/Docboter/projektarbeit_humanoider_roboter.git"
 REPO_BRANCH="training-luca"
-REPO_DIR="${REPO_DIR:-$(pwd)/projektarbeit_humanoider_roboter}"
+REPO_DIR="${REPO_DIR:-$(pwd)/phr}"
 
 MAX_STEPS="${MAX_STEPS:-30000}"
 GLOBAL_BATCH_SIZE="${GLOBAL_BATCH_SIZE:-8}"
@@ -140,7 +140,8 @@ else
         run git -C "$REPO_DIR" submodule update --init --recursive
     else
         log "Klone $REPO_URL  →  $REPO_DIR"
-        run git clone --recurse-submodules --branch "$REPO_BRANCH" "$REPO_URL" "$REPO_DIR"
+        git config --global core.longpaths true
+        GIT_CLONE_PROTECTION_ACTIVE=false run git clone --recurse-submodules --branch "$REPO_BRANCH" "$REPO_URL" "$REPO_DIR"
     fi
 fi
 
