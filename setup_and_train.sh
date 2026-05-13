@@ -277,8 +277,8 @@ printf "    %-25s %s\n" "NUM_GPUS"           "$NUM_GPUS"
 printf "    %-25s %s\n" "WANDB_PROJECT"      "$WANDB_PROJECT"
 printf "    %-25s %s\n" "Logs (Host)"        "./data/logs/"
 echo
-warn "Hinweis: Standard GLOBAL_BATCH_SIZE=2 (sicher für ~8 GB VRAM)"
-warn "         Mit 24+ GB VRAM → GLOBAL_BATCH_SIZE=8 oder höher"
+warn "Hinweis: Standard GLOBAL_BATCH_SIZE=8 (sicher für ~40 GB VRAM)"
+warn "         Mit 40+ GB VRAM → GLOBAL_BATCH_SIZE=8 oder höher"
 echo
 
 # WandB-Key

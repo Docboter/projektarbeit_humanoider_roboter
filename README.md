@@ -16,6 +16,7 @@ Dieses Repository dokumentiert das Fine-tuning von NVIDIAs **GR00T N1.6** Vision
 7. [Training beobachten](#7-training-beobachten)
 8. [Projektstruktur](#8-projektstruktur)
 9. [Häufige Probleme](#9-häufige-probleme)
+10. [Train-Test-Split](#10-train-test-split)
 
 ---
 
@@ -297,8 +298,22 @@ huggingface-cli download nvidia/GR00T-N1.6-3B \
 
 ---
 
+## 10. Train-Test-Split
+
+Der Datensatz ist in einen Trainings- und einen Test-Split aufgeteilt (80/20), damit das Modell nach dem Fine-tuning auf ungesehenen Episoden bewertet werden kann.
+
+| Split | Episoden | Anteil |
+|-------|----------|--------|
+| `train` | 241 | 80 % |
+| `test` | 60 | 20 % |
+
+Vollständige Beschreibung der Implementierung: [Train-Test-split.md](Train-Test-split.md)
+
+---
+
 ## Weiterführende Dokumentation
 
+- [`Train-Test-split.md`](Train-Test-split.md) — Implementierung und Nutzung des 80/20-Datensatz-Splits
 - [`app/Groot-1.6/examples/G1_DEX3/SETUP_DOCUMENTATION.md`](app/Groot-1.6/examples/G1_DEX3/SETUP_DOCUMENTATION.md) — Vollständige Analyse und Setup-Schritte
 - [`app/Groot-1.6/examples/G1_DEX3/FINETUNING_GUIDE.md`](app/Groot-1.6/examples/G1_DEX3/FINETUNING_GUIDE.md) — Detaillierter Fine-tuning Guide inkl. Inference & Troubleshooting
 - [NVIDIA Isaac GR00T Dokumentation](https://developer.nvidia.com/isaac/groot)
