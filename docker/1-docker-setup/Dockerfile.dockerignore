@@ -1,0 +1,22 @@
+# This ignore file is specific to docker/1-docker-setup/Dockerfile.
+# It keeps the Vast test image build context manageable.
+
+.git
+**/.git
+**/__pycache__
+**/*.pyc
+
+# Do not bake large checkpoints into the image by default.
+# Mount them at runtime under /workspace/Isaac-GR00T/checkpoints.
+repos/Isaac-GR00T/checkpoints
+repos/Isaac-GR00T/**/checkpoints
+
+# Runtime/generated data.
+**/.cache
+**/wandb
+**/runs
+**/logs
+**/*.log
+
+# Local Docker env files.
+docker/.env.groot-unitree

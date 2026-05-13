@@ -42,6 +42,11 @@ Docker-Services:
 
 Die Container nutzen `network_mode: host`, damit die Sim den GR00T-Server ueber `127.0.0.1:5555` erreicht.
 
+Fuer Vast.AI gibt es zusaetzlich ein experimentelles Single-Container-Setup
+unter [docker/1-docker-setup](docker/1-docker-setup/README.md). Dieses Image
+enthaelt beide Umgebungen, startet aber weiterhin zwei getrennte Prozesse:
+GR00T PolicyServer und Isaac/Unitree Sim.
+
 ## Wichtig vorab
 
 Der Checkpoint `GR00T-N1.6-G1-PnPAppleToPlate` ist ein HuggingFace/PyTorch-Checkpoint mit `.safetensors`. Das ist normal; es fehlt kein `.pt`-Modell.
