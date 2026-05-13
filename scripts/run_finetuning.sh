@@ -23,8 +23,8 @@ MODALITY_CONFIG="${MODALITY_CONFIG:-$GROOT_ROOT/examples/G1_DEX3/g1_dex3_config.
 EMBODIMENT_TAG="${EMBODIMENT_TAG:-NEW_EMBODIMENT}"
 
 MAX_STEPS="${MAX_STEPS:-30000}"
-GLOBAL_BATCH_SIZE="${GLOBAL_BATCH_SIZE:-2}" #8
-DATALOADER_WORKERS="${DATALOADER_WORKERS:-2}"
+GLOBAL_BATCH_SIZE="${GLOBAL_BATCH_SIZE:-8}" #8
+DATALOADER_WORKERS="${DATALOADER_WORKERS:-4}" #2
 SAVE_STEPS="${SAVE_STEPS:-1000}"
 SAVE_TOTAL_LIMIT="${SAVE_TOTAL_LIMIT:-5}"
 LEARNING_RATE="${LEARNING_RATE:-1e-4}"
@@ -86,7 +86,7 @@ TRAIN_CMD=(
     --modality_config_path   "$MODALITY_CONFIG"
     --output_dir             "$OUTPUT_DIR"
     --experiment_name        "$EXPERIMENT_NAME"
-    --num_gpus               1
+    --num_gpus               "${NUM_GPUS:-1}"
     --max_steps              "$MAX_STEPS"
     --save_steps             "$SAVE_STEPS"
     --save_total_limit       "$SAVE_TOTAL_LIMIT"
