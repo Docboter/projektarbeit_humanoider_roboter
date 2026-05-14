@@ -1,39 +1,40 @@
-﻿#!/usr/bin/env pwsh
+#!/usr/bin/env pwsh
 # setup_and_train_DockerHub-pull.ps1
 #
-# Vollstaendiges Setup-Skript fuer das GR00T N1.6 Fine-tuning Projekt.
-# Dieses Skript laeuft auf dem HOST (nicht im Container) und uebernimmt:
+# Schlankes Host-Skript: zieht das Image von Docker Hub und startet den
+# autonomen Container-Entrypoint. Alle eigentliche Arbeit (Download, Konvertierung,
+# Training) passiert IM Container — das gleiche Image laeuft so auch auf vast.ai
+# oder anderen Cloud-GPU-Plattformen ohne dieses Skript.
 #
-#   1. Voraussetzungen pruefen  (Docker, NVIDIA, Git, Git LFS)
-#   2. Repository klonen        (mit Submodulen)
-#   3. Docker-Image laden       (von Docker Hub: lucam03/projekt-humanoider-roboter:latest)
-#   4. HuggingFace-Login
-#   5. Modell & Datensatz laden (~25 GB)
-#   6. Datensatz konvertieren   (LeRobot v3.0 -> v2.1)
-#   7. Fine-tuning starten
+# Konzept: KEIN persistenter Storage auf dem Host.
+#   * Kein -v-Mount nach /data
+#   * Kein --rm — der Container bleibt nach `stop` bestehen
+#   * Daten und Checkpoints leben im Container-Filesystem
+#   * Bei -Destroy (oder docker rm) ist alles weg
 #
 # Verwendung:
-#   .\setup_and_train_DockerHub-pull.ps1                    # Interaktiv, alle Schritte
-#   .\setup_and_train_DockerHub-pull.ps1 -SkipClone        # Repo existiert bereits
-#   .\setup_and_train_DockerHub-pull.ps1 -SkipPull         # Image bereits vorhanden
-#   .\setup_and_train_DockerHub-pull.ps1 -SkipDownload     # Daten bereits vorhanden
-#   .\setup_and_train_DockerHub-pull.ps1 -OnlyTrain        # Nur Training starten
-#   .\setup_and_train_DockerHub-pull.ps1 -DryRun           # Befehle anzeigen, nichts ausfuehren
+#   $env:HF_TOKEN = "hf_..."; .\setup_and_train_DockerHub-pull.ps1
+#   .\setup_and_train_DockerHub-pull.ps1 -SkipPull            # Image schon lokal
+#   .\setup_and_train_DockerHub-pull.ps1 -Interactive         # Shell statt Training
+#   .\setup_and_train_DockerHub-pull.ps1 -Resume              # Bestehenden Container weiterlaufen lassen
+#   .\setup_and_train_DockerHub-pull.ps1 -Destroy             # Alten Container loeschen + neu starten
+#   .\setup_and_train_DockerHub-pull.ps1 -DryRun              # Nur Befehle anzeigen
 #
-# Umgebungsvariablen (optional, vor dem Aufruf setzen):
-#   $env:HF_TOKEN          = "hf_..."       HuggingFace-Token
-#   $env:WANDB_API_KEY     = "..."          WandB-Token
-#   $env:REPO_DIR          = "C:\pfad\..."  Zielverzeichnis (Standard: .\phr)
+# Umgebungsvariablen:
+#   $env:HF_TOKEN          = "hf_..."       HuggingFace-Token (Pflicht)
+#   $env:WANDB_API_KEY     = "..."          W&B-Key (optional)
 #   $env:MAX_STEPS         = "30000"
 #   $env:GLOBAL_BATCH_SIZE = "8"
 #   $env:NUM_GPUS          = "1"
+#   $env:WANDB_PROJECT     = "gr00t-g1-dex3"
+#   $env:CONTAINER_NAME    = "groot-train"
+#   $env:DOCKER_HUB_IMAGE  = "lucam03/projekt-humanoider-roboter:latest"
 
 param(
-    [switch]$SkipClone,
     [switch]$SkipPull,
-    [switch]$SkipDownload,
-    [switch]$SkipConvert,
-    [switch]$OnlyTrain,
+    [switch]$Interactive,
+    [switch]$Resume,
+    [switch]$Destroy,
     [switch]$DryRun,
     [switch]$Help
 )
@@ -47,292 +48,163 @@ function Write-Warn { param([string]$Msg) Write-Host "  ! $Msg" -ForegroundColor
 function Write-Err  { param([string]$Msg) Write-Host "!! $Msg"  -ForegroundColor Red }
 function Exit-Fatal { param([string]$Msg) Write-Err $Msg; exit 1 }
 
-# ── Hilfe ─────────────────────────────────────────────────────────────────────
 if ($Help) {
-    Get-Content $MyInvocation.MyCommand.Path | Select-Object -Skip 2 -First 27 | ForEach-Object { $_ -replace '^# ?', '' }
+    Get-Content $PSCommandPath | Select-Object -Skip 1 -First 30 | ForEach-Object { $_ -replace '^# ?','' }
     exit 0
 }
 
-# ── Flags vererben ────────────────────────────────────────────────────────────
-if ($OnlyTrain) {
-    $SkipClone    = $true
-    $SkipPull     = $true
-    $SkipDownload = $true
-    $SkipConvert  = $true
-}
-
-# ── Invoke-Cmd: fuehrt Befehl aus oder zeigt ihn im Dry-Run an ───────────────
 function Invoke-Cmd {
     param([string[]]$Cmd)
     if ($DryRun) {
         Write-Host "[dry-run] $($Cmd -join ' ')" -ForegroundColor Yellow
         return
     }
-    & $Cmd[0] $Cmd[1..($Cmd.Count - 1)]
-    if ($LASTEXITCODE -ne 0) {
-        Exit-Fatal "Befehl fehlgeschlagen (Exit-Code $LASTEXITCODE): $($Cmd -join ' ')"
-    }
+    & $Cmd[0] $Cmd[1..($Cmd.Length-1)]
+    if ($LASTEXITCODE -ne 0) { Exit-Fatal "Befehl fehlgeschlagen: $($Cmd -join ' ')" }
 }
 
 # ── Konfiguration ─────────────────────────────────────────────────────────────
-$REPO_URL    = "https://github.com/Docboter/projektarbeit_humanoider_roboter.git"
-$REPO_BRANCH = "training-luca"
-$REPO_DIR    = if ($env:REPO_DIR) { $env:REPO_DIR }
-               else { Join-Path (Get-Location).Path "phr" }
-
-$DOCKER_HUB_IMAGE  = "lucam03/projekt-humanoider-roboter:latest"
-$LOCAL_IMAGE_NAME  = "projektarbeit-humanoider-roboter:latest"
-
-$MAX_STEPS         = if ($env:MAX_STEPS)         { $env:MAX_STEPS }         else { "30000" }
-$GLOBAL_BATCH_SIZE = if ($env:GLOBAL_BATCH_SIZE) { $env:GLOBAL_BATCH_SIZE } else { "8" }
-$NUM_GPUS          = if ($env:NUM_GPUS)          { $env:NUM_GPUS }          else { "1" }
-$WANDB_PROJECT     = if ($env:WANDB_PROJECT)     { $env:WANDB_PROJECT }     else { "gr00t-g1-dex3" }
+$DockerHubImage = if ($env:DOCKER_HUB_IMAGE) { $env:DOCKER_HUB_IMAGE } else { "lucam03/projekt-humanoider-roboter:latest" }
+$ContainerName  = if ($env:CONTAINER_NAME)   { $env:CONTAINER_NAME }   else { "groot-train" }
+$MaxSteps         = if ($env:MAX_STEPS)         { $env:MAX_STEPS }         else { "30000" }
+$GlobalBatchSize  = if ($env:GLOBAL_BATCH_SIZE) { $env:GLOBAL_BATCH_SIZE } else { "8" }
+$NumGpus          = if ($env:NUM_GPUS)          { $env:NUM_GPUS }          else { "1" }
+$WandbProject     = if ($env:WANDB_PROJECT)     { $env:WANDB_PROJECT }     else { "gr00t-g1-dex3" }
 
 # ── Banner ────────────────────────────────────────────────────────────────────
 Write-Host ""
 Write-Host "╔══════════════════════════════════════════════════════════════════╗" -ForegroundColor Magenta
-Write-Host "║   GR00T N1.6 Fine-tuning — Unitree G1 DEX3 — Setup & Training    ║" -ForegroundColor Magenta
+Write-Host "║   GR00T N1.6 Fine-tuning — Host-Launcher (Container ist autonom) ║" -ForegroundColor Magenta
 Write-Host "╚══════════════════════════════════════════════════════════════════╝" -ForegroundColor Magenta
 Write-Host ""
 if ($DryRun) { Write-Warn "DRY-RUN aktiv — es werden keine Befehle ausgefuehrt." }
-Write-Host ""
 
-# ══════════════════════════════════════════════════════════════════════════════
-# SCHRITT 1 — Voraussetzungen pruefen
-# ══════════════════════════════════════════════════════════════════════════════
-Write-Log "Schritt 1/7 — Voraussetzungen pruefen"
-
-function Assert-Command {
-    param([string]$Name, [string]$InstallHint)
-    if (Get-Command $Name -ErrorAction SilentlyContinue) {
-        Write-Ok "$Name gefunden: $((Get-Command $Name).Source)"
-    } else {
-        Exit-Fatal "$Name nicht gefunden. Bitte installieren: $InstallHint"
-    }
+# ── 1. Voraussetzungen ────────────────────────────────────────────────────────
+Write-Log "Schritt 1/3 — Voraussetzungen pruefen"
+if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
+    Exit-Fatal "docker nicht gefunden. Installation: https://docs.docker.com/get-docker/"
 }
-
-Assert-Command "docker"   "https://docs.docker.com/get-docker/"
-Assert-Command "git"      "https://git-scm.com"
-Assert-Command "git-lfs"  "https://git-lfs.com — danach: git lfs install"
-
-# Docker-Daemon erreichbar?
-$dockerInfo = docker info 2>&1
-if ($LASTEXITCODE -ne 0) {
-    Exit-Fatal "Docker-Daemon nicht erreichbar. Ist Docker Desktop gestartet?"
-}
+docker info *> $null
+if ($LASTEXITCODE -ne 0) { Exit-Fatal "Docker-Daemon nicht erreichbar." }
 Write-Ok "Docker-Daemon laeuft"
 
-# NVIDIA Container Toolkit — leichtgewichtiger Test ohne Image-Pull
-$nvidiaOk = $false
-try {
-    $smiOut = docker run --rm --gpus all --entrypoint nvidia-smi `
-        "nvidia/cuda:12.8.0-base-ubuntu22.04" -L 2>&1
-    if ($LASTEXITCODE -eq 0) { $nvidiaOk = $true }
-} catch { }
-
-if ($nvidiaOk) {
+docker run --rm --gpus all --entrypoint nvidia-smi "nvidia/cuda:12.8.0-base-ubuntu22.04" -L *> $null
+if ($LASTEXITCODE -eq 0) {
     Write-Ok "NVIDIA Container Toolkit funktioniert"
 } else {
     Write-Warn "NVIDIA Container Toolkit nicht verfuegbar oder keine GPU erkannt."
-    Write-Warn "Training ohne GPU nicht moeglich."
-    Write-Warn "Installation: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html"
-    $ans = Read-Host "  Trotzdem fortfahren? (nur fuer Tests ohne GPU) [j/N]"
+    $ans = Read-Host "  Trotzdem fortfahren? [j/N]"
     if ($ans.ToLower() -ne "j") { Exit-Fatal "Abgebrochen." }
 }
 Write-Host ""
 
-# ══════════════════════════════════════════════════════════════════════════════
-# SCHRITT 2 — Repository klonen
-# ══════════════════════════════════════════════════════════════════════════════
-Write-Log "Schritt 2/7 — Repository klonen"
+# ── 2. Bestehenden Container behandeln ────────────────────────────────────────
+Write-Log "Schritt 2/3 — Container-Status pruefen ($ContainerName)"
 
-if ($SkipClone) {
-    Write-Warn "Clone uebersprungen (-SkipClone)."
-    if (-not (Test-Path $REPO_DIR -PathType Container)) {
-        Exit-Fatal "REPO_DIR existiert nicht: $REPO_DIR"
-    }
-} elseif (Test-Path (Join-Path $REPO_DIR ".git") -PathType Container) {
-    Write-Warn "Verzeichnis existiert bereits: $REPO_DIR"
-    Write-Warn "Submodule werden aktualisiert statt neu geklont."
-    Invoke-Cmd @("git", "-C", $REPO_DIR, "fetch", "origin")
-    Invoke-Cmd @("git", "-C", $REPO_DIR, "checkout", $REPO_BRANCH)
-    Invoke-Cmd @("git", "-C", $REPO_DIR, "pull", "origin", $REPO_BRANCH)
-    Invoke-Cmd @("git", "-C", $REPO_DIR, "submodule", "update", "--init", "--recursive")
-} else {
-    Write-Log "Klone $REPO_URL -> $REPO_DIR"
-    git config --global core.longpaths true
-    $env:GIT_CLONE_PROTECTION_ACTIVE = "false"
-    Invoke-Cmd @("git", "clone", "--recurse-submodules", "--branch", $REPO_BRANCH, $REPO_URL, $REPO_DIR)
-    Remove-Item Env:\GIT_CLONE_PROTECTION_ACTIVE -ErrorAction SilentlyContinue
+$existing = docker ps -a --format '{{.Names}}' | Where-Object { $_ -eq $ContainerName }
+$running  = docker ps    --format '{{.Names}}' | Where-Object { $_ -eq $ContainerName }
+
+if ($Destroy -and $existing) {
+    Write-Warn "Loesche bestehenden Container '$ContainerName' (-Destroy)."
+    Invoke-Cmd @("docker","rm","-f",$ContainerName)
+    $existing = $null
+    $running  = $null
 }
 
-Write-Ok "Repository bereit: $REPO_DIR"
+if ($running) {
+    Write-Warn "Container '$ContainerName' laeuft bereits."
+    Write-Log "Haenge an die laufende Konsole an (Ctrl+P, Ctrl+Q zum Loesen ohne Stop)…"
+    Invoke-Cmd @("docker","attach",$ContainerName)
+    exit 0
+}
+
+if ($existing) {
+    if ($Resume) {
+        Write-Log "Starte bestehenden Container '$ContainerName' (-Resume)…"
+        Invoke-Cmd @("docker","start","-ai",$ContainerName)
+        exit 0
+    } else {
+        Write-Warn "Container '$ContainerName' existiert bereits (gestoppt)."
+        Write-Warn "Optionen:"
+        Write-Warn "  -Resume   den Container weiterlaufen lassen (Daten + Checkpoints bleiben)"
+        Write-Warn "  -Destroy  Container loeschen, alles verwerfen und neu starten"
+        $ans = Read-Host "  Was tun? [r=resume / d=destroy / a=abbrechen]"
+        switch ($ans.ToLower()) {
+            "r" { Invoke-Cmd @("docker","start","-ai",$ContainerName); exit 0 }
+            "d" { Invoke-Cmd @("docker","rm","-f",$ContainerName); $existing = $null }
+            default { Exit-Fatal "Abgebrochen." }
+        }
+    }
+}
 Write-Host ""
 
-# Ab hier immer im Repo-Verzeichnis arbeiten
-Set-Location $REPO_DIR
+# ── 3. Pflicht-Env pruefen ────────────────────────────────────────────────────
+if (-not $Interactive) {
+    if (-not $env:HF_TOKEN) {
+        Write-Warn "Kein HF_TOKEN gesetzt."
+        $hfInput = Read-Host "  HuggingFace-Token eingeben"
+        if (-not $hfInput) { Exit-Fatal "HF_TOKEN ist Pflicht." }
+        $env:HF_TOKEN = $hfInput
+    }
+    Write-Ok "HF_TOKEN gesetzt"
 
-# ══════════════════════════════════════════════════════════════════════════════
-# SCHRITT 3 — Docker-Image von Docker Hub laden
-# ══════════════════════════════════════════════════════════════════════════════
-Write-Log "Schritt 3/7 — Docker-Image von Docker Hub laden"
+    if (-not $env:WANDB_API_KEY) {
+        Write-Warn "Kein WANDB_API_KEY gesetzt — Training laeuft ohne W&B-Logging."
+        $wandbInput = Read-Host "  WandB API-Key eingeben (leer lassen fuer ohne W&B)"
+        if ($wandbInput) { $env:WANDB_API_KEY = $wandbInput }
+    }
+}
+Write-Host ""
 
+# ── 4. Image ziehen ───────────────────────────────────────────────────────────
+Write-Log "Schritt 3/3 — Docker-Image laden und Container starten"
 if ($SkipPull) {
     Write-Warn "Pull uebersprungen (-SkipPull)."
 } else {
-    Write-Log "Lade Image von Docker Hub: $DOCKER_HUB_IMAGE ..."
-    Invoke-Cmd @("docker", "pull", $DOCKER_HUB_IMAGE)
-
-    Write-Log "Tagge Image als '$LOCAL_IMAGE_NAME' fuer docker compose ..."
-    Invoke-Cmd @("docker", "tag", $DOCKER_HUB_IMAGE, $LOCAL_IMAGE_NAME)
+    Invoke-Cmd @("docker","pull",$DockerHubImage)
 }
-
-Write-Ok "Image bereit: $LOCAL_IMAGE_NAME"
+Write-Ok "Image bereit: $DockerHubImage"
 Write-Host ""
 
-# ══════════════════════════════════════════════════════════════════════════════
-# SCHRITT 4 — HuggingFace-Login
-# ══════════════════════════════════════════════════════════════════════════════
-Write-Log "Schritt 4/7 — HuggingFace-Login"
+# ── 5. Container starten ──────────────────────────────────────────────────────
+# Bewusst KEIN --rm und KEIN -v.
+$runArgs = @("docker","run","--name",$ContainerName,"--gpus","all","--ipc=host","--shm-size=16g")
 
-if ($SkipDownload) {
-    Write-Warn "Login-Check uebersprungen (Daten werden nicht heruntergeladen)."
+if ($Interactive) {
+    Write-Log "Interaktive Shell — kein automatisches Training."
+    $runArgs += @("-it",$DockerHubImage,"bash")
 } else {
-    if ($env:HF_TOKEN) {
-        Write-Ok "HF_TOKEN gesetzt — ueberspringe interaktiven Login."
-    } else {
-        Write-Warn "Kein HF_TOKEN gesetzt."
-        Write-Warn "Du benoenigst einen HuggingFace-Account mit Zugriff auf:"
-        Write-Warn "  * nvidia/GR00T-N1.6-3B    (Lizenz auf HF akzeptieren!)"
-        Write-Warn "  * unitreerobotics/G1_Dex3_BlockStacking_Dataset"
-        Write-Host ""
-        $hfInput = Read-Host "  HuggingFace-Token eingeben (leer lassen fuer Login im Container)"
-        if ($hfInput) {
-            $env:HF_TOKEN = $hfInput
-            Write-Ok "Token gespeichert (nur fuer diese Sitzung)."
-        } else {
-            Write-Warn "Kein Token eingegeben — du wirst spaeter im Container gefragt."
-        }
-    }
-}
-Write-Host ""
+    Write-Host "  Trainings-Konfiguration:"
+    Write-Host ("    {0,-25} {1}" -f "MAX_STEPS",         $MaxSteps)
+    Write-Host ("    {0,-25} {1}" -f "GLOBAL_BATCH_SIZE", $GlobalBatchSize)
+    Write-Host ("    {0,-25} {1}" -f "NUM_GPUS",          $NumGpus)
+    Write-Host ("    {0,-25} {1}" -f "WANDB_PROJECT",     $WandbProject)
+    Write-Host ("    {0,-25} {1}" -f "CONTAINER_NAME",    $ContainerName)
+    Write-Host ""
 
-# ══════════════════════════════════════════════════════════════════════════════
-# SCHRITT 5 — Modell & Datensatz herunterladen (~25 GB)
-# ══════════════════════════════════════════════════════════════════════════════
-Write-Log "Schritt 5/7 — Modell & Datensatz herunterladen"
-
-$modalityFile = Join-Path $REPO_DIR "data\unitreerobotics\G1_Dex3_BlockStacking_Dataset\meta\modality.json"
-
-if ($SkipDownload) {
-    Write-Warn "Download uebersprungen (-SkipDownload)."
-} else {
-    if (Test-Path $modalityFile -PathType Leaf) {
-        Write-Warn "Daten scheinen bereits vorhanden zu sein (modality.json gefunden)."
-        $ans = Read-Host "  Erneut herunterladen? [j/N]"
-        if ($ans.ToLower() -ne "j") {
-            Write-Ok "Download uebersprungen."
-            $SkipDownload = $true
-        }
-    }
-
-    if (-not $SkipDownload) {
-        Write-Log "Download startet (~25 GB, kann lange dauern) ..."
-
-        $dockerArgs = @("compose", "run", "--rm", "--no-build")
-        if ($env:HF_TOKEN) { $dockerArgs += @("-e", "HF_TOKEN=$env:HF_TOKEN") }
-        $dockerArgs += @("groot-training", "bash", "/scripts/download_data.sh")
-
-        Invoke-Cmd (@("docker") + $dockerArgs)
-        Write-Ok "Download abgeschlossen."
-    }
-}
-Write-Host ""
-
-# ══════════════════════════════════════════════════════════════════════════════
-# SCHRITT 6 — Datensatz konvertieren (LeRobot v3.0 -> v2.1)
-# ══════════════════════════════════════════════════════════════════════════════
-Write-Log "Schritt 6/7 — Datensatz konvertieren (v3.0 -> v2.1)"
-
-if ($SkipConvert) {
-    Write-Warn "Konvertierung uebersprungen (-SkipConvert)."
-} elseif (Test-Path $modalityFile -PathType Leaf) {
-    Write-Ok "modality.json bereits vorhanden — Konvertierung wird uebersprungen."
-} else {
-    Write-Log "Konvertiere Datensatz und kopiere modality.json ..."
-
-    $convertScript = @"
-set -e
-cd /app/Groot-1.6
-echo '==> Konvertiere LeRobot v3.0 -> v2.1 ...'
-python scripts/lerobot_conversion/convert_v3_to_v2_standalone.py \
-    --repo-id unitreerobotics/G1_Dex3_BlockStacking_Dataset \
-    --root /data
-echo '==> Kopiere modality_4cam.json ...'
-cp examples/G1_DEX3/modality_4cam.json \
-   /data/unitreerobotics/G1_Dex3_BlockStacking_Dataset/meta/modality.json
-echo '==> Konvertierung fertig.'
-"@
-
-    Invoke-Cmd @("docker", "compose", "run", "--rm", "--no-build", "groot-training", "bash", "-c", $convertScript)
-    Write-Ok "Datensatz konvertiert."
-}
-Write-Host ""
-
-# ══════════════════════════════════════════════════════════════════════════════
-# SCHRITT 7 — Fine-tuning starten
-# ══════════════════════════════════════════════════════════════════════════════
-Write-Log "Schritt 7/7 — Fine-tuning starten"
-
-Write-Host ""
-Write-Host "  Trainings-Konfiguration:"
-Write-Host ("    {0,-25} {1}" -f "MAX_STEPS",         $MAX_STEPS)
-Write-Host ("    {0,-25} {1}" -f "GLOBAL_BATCH_SIZE", $GLOBAL_BATCH_SIZE)
-Write-Host ("    {0,-25} {1}" -f "NUM_GPUS",          $NUM_GPUS)
-Write-Host ("    {0,-25} {1}" -f "WANDB_PROJECT",     $WANDB_PROJECT)
-Write-Host ("    {0,-25} {1}" -f "Logs (Host)",       ".\data\logs\")
-Write-Host ""
-Write-Warn "Hinweis: Mit 8 GB VRAM  -> GLOBAL_BATCH_SIZE=8  (oder kleiner bei OOM)"
-Write-Warn "         Mit 16 GB VRAM -> GLOBAL_BATCH_SIZE=16"
-Write-Host ""
-
-# WandB-Key
-$wandbEnvArgs = @()
-if ($env:WANDB_API_KEY) {
-    $wandbEnvArgs = @("-e", "WANDB_API_KEY=$env:WANDB_API_KEY")
-    Write-Ok "WANDB_API_KEY gesetzt."
-} else {
-    Write-Warn "Kein WANDB_API_KEY gesetzt — du wirst im Container nach dem Key gefragt."
-    $wandbInput = Read-Host "  WandB API-Key eingeben (leer lassen fuer Login im Container)"
-    if ($wandbInput) {
-        $wandbEnvArgs = @("-e", "WANDB_API_KEY=$wandbInput")
-        Write-Ok "WandB-Key gespeichert (nur fuer diese Sitzung)."
-    }
+    $runArgs += @(
+        "-e","HF_TOKEN=$($env:HF_TOKEN)",
+        "-e","MAX_STEPS=$MaxSteps",
+        "-e","GLOBAL_BATCH_SIZE=$GlobalBatchSize",
+        "-e","NUM_GPUS=$NumGpus",
+        "-e","WANDB_PROJECT=$WandbProject"
+    )
+    if ($env:WANDB_API_KEY) { $runArgs += @("-e","WANDB_API_KEY=$($env:WANDB_API_KEY)") }
+    $runArgs += @("-it",$DockerHubImage)
 }
 
-Write-Host ""
-Write-Log "Starte Training ..."
-Write-Log "Training-Logs landen in .\data\logs\ (Host-sichtbar ueber Volume-Mount)"
-Write-Host ""
-
-$trainCmd = @(
-    "docker", "compose", "run", "--rm", "--no-build",
-    "-e", "MAX_STEPS=$MAX_STEPS",
-    "-e", "GLOBAL_BATCH_SIZE=$GLOBAL_BATCH_SIZE",
-    "-e", "NUM_GPUS=$NUM_GPUS",
-    "-e", "WANDB_PROJECT=$WANDB_PROJECT",
-    "-e", "USE_WANDB=1"
-)
-if ($wandbEnvArgs) { $trainCmd += $wandbEnvArgs }
-$trainCmd += @("groot-training", "bash", "/scripts/run_finetuning.sh")
-
-Invoke-Cmd $trainCmd
+Invoke-Cmd $runArgs
 
 Write-Host ""
-Write-Ok "Alle Schritte abgeschlossen."
+Write-Ok "Container beendet (nicht geloescht)."
 Write-Host ""
 Write-Host "  Naechste Schritte:"
-Write-Host "    * Training live verfolgen:  https://wandb.ai -> Projekt '$WANDB_PROJECT'"
-Write-Host "    * Checkpoints pruefen:      Get-ChildItem .\data\g1_dex3_finetune\blockstacking\"
-Write-Host "    * Logs lesen:               Get-Content .\data\logs\finetune-*.log -Wait"
+Write-Host "    * Container fortsetzen:  .\setup_and_train_DockerHub-pull.ps1 -Resume"
+Write-Host "    * Checkpoints sichern:   docker cp $ContainerName`:/data/g1_dex3_finetune .\checkpoints"
+Write-Host "    * Logs sichern:          docker cp $ContainerName`:/data/logs .\logs"
+Write-Host "    * Alles loeschen:        .\setup_and_train_DockerHub-pull.ps1 -Destroy"
+Write-Host ""
+Write-Host "  Hinweis: Auf vast.ai brauchst du dieses Skript NICHT — dort uebernimmt"
+Write-Host "  der vast.ai-Orchestrator die Container-Verwaltung. Du gibst nur das"
+Write-Host "  Image '$DockerHubImage' und die Env-Vars an."
 Write-Host ""

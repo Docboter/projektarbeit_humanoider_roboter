@@ -1,15 +1,32 @@
+# Optionale Dev-Variante — fuer den taeglichen Betrieb NICHT noetig.
+# Das Image ist autonom: `docker run lucam03/projekt-humanoider-roboter:latest`
+# (oder ./setup_and_train_DockerHub-pull.sh) startet alles selbst.
+#
+# Diese Datei ist nur fuer lokale Entwicklung gedacht, wenn du Skripte und Daten
+# vom Host bind-mounten willst statt das Image neu zu bauen.
+#
+# Bewusst KEIN `restart: always` und KEINE persistenten Volumes auf dem Host —
+# der Container-Filesystem ist die einzige Wahrheit (vast.ai-kompatibles Modell).
+# Wenn du den Container loeschst, sind Daten + Checkpoints weg.
+#
+# Aufruf:
+#   docker compose up                 # autonomer Lauf
+#   docker compose run --rm groot-training bash   # Shell
 services:
   groot-training:
-    build: .
-    image: projektarbeit-humanoider-roboter:latest
+    image: lucam03/projekt-humanoider-roboter:latest
+    container_name: groot-train
     runtime: nvidia
+    ipc: host
+    shm_size: "16gb"
+    stdin_open: true
+    tty: true
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
       - HF_TOKEN
-    volumes:
-      - ./data:/data
-      - ./scripts:/scripts
-    ipc: host
-    stdin_open: true
-    tty: true
+      - WANDB_API_KEY
+      - MAX_STEPS
+      - GLOBAL_BATCH_SIZE
+      - NUM_GPUS
+      - WANDB_PROJECT
     working_dir: /app/Groot-1.6

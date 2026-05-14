@@ -66,14 +66,20 @@ fi
 
 mkdir -p "$OUTPUT_DIR"
 
-# ── 4. W&B-Login (optional, einmalig) ─────────────────────────────────────────
+# ── 4. W&B-Login (nur via WANDB_API_KEY-Env-Var, kein interaktiver Fallback) ──
 if [[ "$USE_WANDB" == "1" ]]; then
+    if [[ -z "${WANDB_API_KEY:-}" ]]; then
+        err "USE_WANDB=1, aber WANDB_API_KEY ist nicht gesetzt."
+        err "Setze WANDB_API_KEY per Env-Var oder USE_WANDB=0 für Training ohne W&B."
+        exit 1
+    fi
     cd "$GROOT_ROOT"
-    if uv run wandb whoami &>/dev/null; then
-        log "W&B-Login OK ($(uv run wandb whoami 2>&1 | tail -1))"
+    # wandb liest WANDB_API_KEY automatisch — kein expliziter Login nötig.
+    if uv run wandb login --relogin "$WANDB_API_KEY" &>/dev/null; then
+        log "W&B-Login OK"
     else
-        log "W&B nicht eingeloggt — interaktiver Login (API-Key bereithalten):"
-        uv run wandb login
+        err "W&B-Login fehlgeschlagen — API-Key ungültig?"
+        exit 1
     fi
 fi
 

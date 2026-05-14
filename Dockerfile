@@ -4,10 +4,19 @@
 # Build:
 #   docker build -t projektarbeit-humanoider-roboter .
 #
-# Run (ohne docker-compose):
+# Run (autonom, z. B. auf vast.ai):
+#   docker run --rm --gpus all --ipc=host \
+#     -e HF_TOKEN=hf_... \
+#     -e WANDB_API_KEY=... \
+#     -e MAX_STEPS=30000 \
+#     -e GLOBAL_BATCH_SIZE=8 \
+#     -v /pfad/zu/data:/data \
+#     projektarbeit-humanoider-roboter
+#
+# Interaktive Shell (für Debugging):
 #   docker run -it --rm --gpus all --ipc=host \
 #     -v $(pwd)/data:/data \
-#     projektarbeit-humanoider-roboter
+#     projektarbeit-humanoider-roboter bash
 
 FROM nvidia/cuda:12.8.0-devel-ubuntu22.04
 
@@ -75,8 +84,28 @@ ENV PATH="/app/Groot-1.6/.venv/bin:${PATH}" \
     PYOPENGL_PLATFORM="egl" \
     __EGL_VENDOR_LIBRARY_FILENAMES="/usr/share/glvnd/egl_vendor.d/10_nvidia.json"
 
-# Datenverzeichnisse anlegen (werden per Volume gemountet)
-RUN mkdir -p /data/models /data/unitreerobotics /data/G1_Dex3_BlockStacking /data/g1_dex3_finetune
+# Datenverzeichnisse anlegen (werden i. d. R. per Volume gemountet)
+RUN mkdir -p /data/models /data/unitreerobotics /data/G1_Dex3_BlockStacking /data/g1_dex3_finetune /data/logs
+
+# Scripts ins Image kopieren — kein Volume-Mount mehr nötig
+COPY scripts/ /scripts/
+RUN chmod +x /scripts/*.sh
+
+# Defaults für autonomen Container-Lauf (vast.ai etc.)
+# HF_TOKEN und WANDB_API_KEY MÜSSEN beim docker run via -e gesetzt werden.
+ENV MAX_STEPS=30000 \
+    GLOBAL_BATCH_SIZE=8 \
+    NUM_GPUS=1 \
+    WANDB_PROJECT=gr00t-g1-dex3 \
+    DATA_DIR=/data \
+    SKIP_DOWNLOAD=0 \
+    SKIP_CONVERT=0 \
+    SKIP_TRAIN=0 \
+    SHELL_ON_ERROR=0
 
 WORKDIR /app/Groot-1.6
-CMD ["/bin/bash"]
+
+# Entrypoint orchestriert Download → Konvertierung → Training autonom.
+# Beim Aufruf mit Argumenten (z. B. `docker run … bash`) wird das Argument
+# stattdessen direkt ausgeführt — Entrypoint-Skript reicht durch.
+ENTRYPOINT ["/scripts/entrypoint.sh"]

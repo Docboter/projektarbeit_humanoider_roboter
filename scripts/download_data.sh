@@ -8,11 +8,15 @@
 
 set -e
 
-if [[ -z "${HF_TOKEN}" ]]; then
+if [[ -z "${HF_TOKEN:-}" && -z "${HUGGING_FACE_HUB_TOKEN:-}" ]]; then
     echo "FEHLER: HF_TOKEN ist nicht gesetzt." >&2
     echo "Bitte 'export HF_TOKEN=hf_...' vor dem Aufruf setzen." >&2
     exit 1
 fi
+
+# huggingface-cli erwartet HUGGING_FACE_HUB_TOKEN — beide Varianten unterstützen.
+export HUGGING_FACE_HUB_TOKEN="${HUGGING_FACE_HUB_TOKEN:-$HF_TOKEN}"
+export HF_TOKEN="${HF_TOKEN:-$HUGGING_FACE_HUB_TOKEN}"
 
 DATA_DIR="${DATA_DIR:-/data}"
 
