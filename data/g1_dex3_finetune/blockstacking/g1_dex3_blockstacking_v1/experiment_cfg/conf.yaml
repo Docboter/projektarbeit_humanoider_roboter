@@ -169,7 +169,7 @@ training:
   output_dir: /data/g1_dex3_finetune/blockstacking
   experiment_name: g1_dex3_blockstacking_v1
   max_steps: 30000
-  global_batch_size: 8
+  global_batch_size: 2
   batch_size: null
   gradient_accumulation_steps: 1
   learning_rate: 0.0001
@@ -192,12 +192,12 @@ training:
   upload_every: 1000
   upload_last_n_checkpoints: 5
   max_concurrent_uploads: 2
-  eval_strategy: 'no'
+  eval_strategy: steps
   eval_steps: 500
   eval_set_split_ratio: 0.1
   eval_batch_size: 2
-  save_best_eval_metric_name: ''
-  save_best_eval_metric_greater_is_better: true
+  save_best_eval_metric_name: eval_loss
+  save_best_eval_metric_greater_is_better: false
   deepspeed_stage: 2
   gradient_checkpointing: false
   transformers_trust_remote_code: true
@@ -207,7 +207,7 @@ training:
   use_ddp: false
   ddp_bucket_cap_mb: 100
   num_gpus: 1
-  dataloader_num_workers: 4
+  dataloader_num_workers: 2
   remove_unused_columns: false
   use_wandb: true
   wandb_project: gr00t-g1-dex3

@@ -57,6 +57,9 @@
 *.avi
 *.mov
 
+# --- Training-Logs ---
+/data/logs/
+
 # --- HuggingFace Download-Cache ---
 **/.cache/huggingface/
 **/.cache/
