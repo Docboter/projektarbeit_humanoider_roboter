@@ -42,9 +42,10 @@ log() { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 err() { printf '\033[1;31m!! \033[0m%s\n' "$*" >&2; }
 
 # ── 1. Laufumgebung verifizieren ──────────────────────────────────────────────
-if [[ ! -f /.dockerenv ]]; then
+if [[ ! -f /.dockerenv ]] && [[ -z "${APPTAINER_NAME:-}" ]] && [[ -z "${SINGULARITY_NAME:-}" ]]; then
     err "Dieses Skript muss im Container laufen. Starte z. B.:"
     err "    docker compose exec groot-training bash /scripts/run_finetuning.sh"
+    err "    apptainer run --nv projekt-humanoider-roboter.sif"
     exit 1
 fi
 
