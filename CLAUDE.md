@@ -6,9 +6,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Fine-tuning of **NVIDIA GR00T N1.6** (Vision-Language-Action model) on the **Unitree G1 + DEX3-Hand** for block-stacking tasks. The full environment runs in a **self-contained Docker container** (CUDA 12.8, Python 3.10, package manager: `uv`).
 
-The container is autonomous: launching the image triggers `scripts/entrypoint.sh`, which orchestrates download → conversion → training. The same image runs locally and on cloud-GPU platforms like vast.ai — configuration is via env vars only.
+The container is autonomous: launching the image triggers `scripts/entrypoint.sh`, which orchestrates download → conversion → training. The same image runs locally, on cloud-GPU platforms like vast.ai, and on the **KISSKI HPC cluster** (GWDG Göttingen) via Apptainer — configuration is via env vars only.
 
-**Storage model:** No host-side persistent storage. All data, checkpoints, and logs live in the container filesystem (`/data` is a regular directory inside the image, **not** a volume mount). The container is meant to be long-lived: `stop`/`start` preserves state; only `docker rm` destroys it. This matches the vast.ai semantics where one instance == one container.
+**Storage model:** No host-side persistent storage by default. All data, checkpoints, and logs live in the container filesystem (`/data` is a regular directory inside the image, **not** a volume mount). The container is meant to be long-lived: `stop`/`start` preserves state; only `docker rm` destroys it. This matches the vast.ai semantics where one instance == one container. **Exception — KISSKI:** the cluster uses Apptainer (not Docker) and bind-mounts `/scratch/$USER/data` to `/data` inside the container; data therefore persists on the cluster's scratch storage across job runs.
 
 Detailed guides:
 - **User-facing instructions (German):** [`Anleitung.md`](Anleitung.md)
@@ -42,6 +42,28 @@ docker exec -it groot-train bash         # shell into running container
 docker cp groot-train:/data/g1_dex3_finetune ./checkpoints   # extract artifacts
 docker rm -f groot-train                 # destroy everything
 ```
+
+### KISSKI HPC cluster (Apptainer + SLURM)
+
+```bash
+# One-time: convert Docker image to Apptainer SIF (on glogin-gpu.hpc.gwdg.de)
+module load apptainer
+apptainer pull $HOME/images/projekt-humanoider-roboter.sif \
+    docker://lucam03/projekt-humanoider-roboter:latest
+
+# Submit training job
+export HF_TOKEN=hf_... WANDB_API_KEY=... GLOBAL_BATCH_SIZE=32
+sbatch kisski_submit.sh
+
+# Monitor
+squeue -u $USER
+tail -f logs/slurm-<jobid>.out
+
+# Retrieve checkpoints
+rsync -avz <username>@transfer.hpc.gwdg.de:/scratch/<username>/data/g1_dex3_finetune/ ./checkpoints/
+```
+
+KISSKI partitions: `kisski` (A100 80 GB) and `kisski-h100` (H100 94 GB), max walltime 48 h.
 
 ### Build the image
 
@@ -101,6 +123,7 @@ Config: [`app/Groot-1.6/pyproject.toml`](app/Groot-1.6/pyproject.toml) under `[t
 / (project root = container root after build)
 ├── Dockerfile                          # Defines image; ENTRYPOINT = /scripts/entrypoint.sh
 ├── docker-compose.yml                  # Optional (dev convenience; no host volume mounts)
+├── kisski_submit.sh                    # SLURM batch script for KISSKI HPC cluster
 ├── setup_and_train_DockerHub-pull.sh   # Thin host launcher: docker pull + docker run
 ├── setup_and_train_DockerHub-pull.ps1  # Windows variant
 ├── scripts/                            # COPIED into image at /scripts/
@@ -129,8 +152,9 @@ At runtime, the container holds (no host mount):
 ### Important: scripts are COPIED into the image, no host-side data persistence
 
 - Changes to `scripts/*.sh` require a rebuild (no bind-mount).
-- All data (`/data`) lives only in the container filesystem.
+- All data (`/data`) lives only in the container filesystem (or on `/scratch` on KISSKI).
 - `docker run --rm` would destroy training results — never use it with this image.
+- `scripts/run_finetuning.sh` detects both Docker (`.dockerenv`) and Apptainer (`$APPTAINER_NAME` / `$SINGULARITY_NAME`) environments — no changes needed when running on KISSKI.
 - For dev iteration: bind-mount manually:
   ```bash
   docker run -it --name groot-dev -v $(pwd)/scripts:/scripts \
@@ -140,9 +164,11 @@ At runtime, the container holds (no host mount):
 
 ## VRAM constraints
 
-| VRAM | `GLOBAL_BATCH_SIZE` | `MAX_STEPS` |
-|---|---|---|
-| 8 GB  | 8  | 30 000 |
-| 16 GB | 16–32 | 50 000 |
+| VRAM | `GLOBAL_BATCH_SIZE` | `MAX_STEPS` | Platform |
+|---|---|---|---|
+| 8 GB  | 8   | 30 000 | Local (RTX 4070) |
+| 16 GB | 16–32 | 50 000 | Local (RTX 4090) |
+| 80 GB | 64–128 | 50 000+ | KISSKI A100 |
+| 94 GB | 128+ | 50 000+ | KISSKI H100 |
 
 Reduce batch size first on OOM. See [`app/Groot-1.6/examples/G1_DEX3/FINETUNING_GUIDE.md`](app/Groot-1.6/examples/G1_DEX3/FINETUNING_GUIDE.md) for full parameter reference.
