@@ -3,9 +3,9 @@
 
 Dieses Repository dokumentiert das Fine-tuning von NVIDIAs **GR00T N1.6** Vision-Language-Action-Modell auf den Unitree G1 Roboter mit DEX3-Hand für die Aufgabe Block-Stacking.
 
-Die Trainingsumgebung läuft **vollständig autonom in einem Docker-Container**: Image starten → Training läuft. Der gleiche Container läuft lokal *und* auf Cloud-GPU-Plattformen wie [vast.ai](https://vast.ai) — alle Schritte (Daten-Download, Konvertierung, Training) passieren im Container.
+Die Trainingsumgebung läuft **vollständig autonom in einem Container**: Container starten → Training läuft. Derselbe Container läuft lokal, auf Cloud-GPU-Plattformen wie [vast.ai](https://vast.ai) und auf dem **KISSKI HPC-Cluster** (GWDG Göttingen) — alle Schritte (Daten-Download, Konvertierung, Training) passieren im Container.
 
-> **Speicher-Modell:** Es gibt **keinen persistenten Storage auf dem Host**. Daten, Checkpoints und Logs leben ausschließlich im Container-Filesystem. Auf vast.ai entspricht ein Container genau einer Instanz — wird die Instanz/Container zerstört, ist alles weg. Das Container-Filesystem ist die einzige Wahrheit.
+> **Speicher-Modell:** Es gibt **keinen persistenten Storage auf dem Host**. Daten, Checkpoints und Logs leben ausschließlich im Container-Filesystem. Auf vast.ai entspricht ein Container genau einer Instanz — wird die Instanz/Container zerstört, ist alles weg. Auf KISSKI wird `/scratch` als externes Volume gemountet. Das Container-Filesystem ist die einzige Wahrheit.
 
 ---
 
@@ -14,17 +14,32 @@ Die Trainingsumgebung läuft **vollständig autonom in einem Docker-Container**:
 1. [Schnellstart](#1-schnellstart)
 2. [Voraussetzungen](#2-voraussetzungen)
 3. [Cloud-Training auf vast.ai](#3-cloud-training-auf-vastai)
-4. [Lokales Training](#4-lokales-training)
-5. [Konfiguration über Env-Vars](#5-konfiguration-über-env-vars)
-6. [Daten aus dem Container holen](#6-daten-aus-dem-container-holen)
-7. [Training beobachten](#7-training-beobachten)
-8. [Projektstruktur](#8-projektstruktur)
-9. [Häufige Probleme](#9-häufige-probleme)
-10. [Train-Test-Split](#10-train-test-split)
+4. [HPC-Training auf KISSKI](#4-hpc-training-auf-kisski)
+5. [Lokales Training](#5-lokales-training)
+6. [Konfiguration über Env-Vars](#6-konfiguration-über-env-vars)
+7. [Daten aus dem Container holen](#7-daten-aus-dem-container-holen)
+8. [Training beobachten](#8-training-beobachten)
+9. [Projektstruktur](#9-projektstruktur)
+10. [Häufige Probleme](#10-häufige-probleme)
+11. [Train-Test-Split](#11-train-test-split)
 
 ---
 
 ## 1. Schnellstart
+
+**Auf KISSKI (HPC-Cluster, empfohlen für langes Training):**
+```bash
+# Einmalig auf dem Cluster-Login-Knoten:
+module load apptainer
+apptainer pull $HOME/images/projekt-humanoider-roboter.sif \
+    docker://lucam03/projekt-humanoider-roboter:latest
+
+# Job einreichen:
+export HF_TOKEN=hf_...
+export WANDB_API_KEY=...
+sbatch kisski_submit.sh
+```
+→ Vollständige Anleitung: [Abschnitt 4](#4-hpc-training-auf-kisski)
 
 **Auf vast.ai:**
 1. Instanz mit Image `lucam03/projekt-humanoider-roboter:latest` starten
@@ -53,7 +68,7 @@ Detaillierte Schritt-für-Schritt-Anleitung: [Anleitung.md](Anleitung.md)
 | RAM | 32 GB | 32 GB |
 | Speicherplatz | 80 GB im Container-Filesystem | SSD empfohlen |
 
-> **Hinweis:** Mit 8 GB VRAM `GLOBAL_BATCH_SIZE=8` (oder kleiner). Mit 16 GB VRAM `GLOBAL_BATCH_SIZE=16`.
+> **Hinweis:** Mit 8 GB VRAM `GLOBAL_BATCH_SIZE=8` (oder kleiner). Mit 16 GB VRAM `GLOBAL_BATCH_SIZE=16`. Auf KISSKI stehen A100 (80 GB) zur Verfügung — dort passt `GLOBAL_BATCH_SIZE=32` oder höher.
 
 ### Software (nur für lokales Training)
 
@@ -63,7 +78,7 @@ Detaillierte Schritt-für-Schritt-Anleitung: [Anleitung.md](Anleitung.md)
 | NVIDIA Container Toolkit | aktuell | https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html |
 | NVIDIA Treiber | ≥ 570 (CUDA 12.8) | https://www.nvidia.com/drivers |
 
-Auf vast.ai sind diese vorinstalliert — du brauchst lokal nichts davon.
+Auf vast.ai und KISSKI sind diese vorinstalliert — du brauchst lokal nichts davon.
 
 ### Accounts
 
@@ -71,6 +86,7 @@ Auf vast.ai sind diese vorinstalliert — du brauchst lokal nichts davon.
   - [`nvidia/GR00T-N1.6-3B`](https://huggingface.co/nvidia/GR00T-N1.6-3B) (Lizenz akzeptieren!)
   - [`unitreerobotics/G1_Dex3_BlockStacking_Dataset`](https://huggingface.co/datasets/unitreerobotics/G1_Dex3_BlockStacking_Dataset)
 - **WandB** (optional, kostenlos) für Trainings-Logging: https://wandb.ai
+- **KISSKI-Account** (nur für HPC-Training): Beantragung über das [GWDG-Portal](https://docs.hpc.gwdg.de)
 
 ---
 
@@ -117,11 +133,153 @@ Bevor du die vast.ai-Instanz zerstörst (sonst sind die Checkpoints weg), per SS
 docker cp <container>:/data/g1_dex3_finetune ./checkpoints
 ```
 
-Oder direkt aus dem Container heraus per `huggingface-cli upload`, `rclone`, `scp` etc. — siehe [Abschnitt 6](#6-daten-aus-dem-container-holen).
+Oder direkt aus dem Container heraus per `huggingface-cli upload`, `rclone`, `scp` etc. — siehe [Abschnitt 7](#7-daten-aus-dem-container-holen).
 
 ---
 
-## 4. Lokales Training
+## 4. HPC-Training auf KISSKI
+
+KISSKI ist ein dedizierter GPU-Cluster der GWDG Göttingen. Er läuft **kein Docker**, sondern **Apptainer** (früher Singularity) als Container-Runtime und **SLURM** als Job-Scheduler. Das bedeutet: kein `docker run`, sondern `sbatch kisski_submit.sh`.
+
+### Verfügbare GPU-Partitionen
+
+| Partition | GPU | VRAM | Max. Walltime |
+|-----------|-----|------|---------------|
+| `kisski` | NVIDIA A100 | 80 GB | 48 h |
+| `kisski-h100` | NVIDIA H100 | 94 GB | 48 h |
+
+`kisski_submit.sh` verwendet standardmäßig `-p kisski` (A100). Für H100 in der Datei `#SBATCH -p kisski` auf `#SBATCH -p kisski-h100` und `-G A100:1` auf `-G H100:1` ändern.
+
+---
+
+### Schritt 1 — Image einmalig zu SIF konvertieren (auf dem Login-Knoten)
+
+Das Docker Hub-Image muss einmalig in das Apptainer-Format (`.sif`) umgewandelt werden. Dies geschieht **auf dem Login-Knoten** `glogin-gpu.hpc.gwdg.de` und dauert einige Minuten.
+
+```bash
+ssh <username>@glogin-gpu.hpc.gwdg.de
+
+module load apptainer
+mkdir -p $HOME/images
+
+apptainer pull $HOME/images/projekt-humanoider-roboter.sif \
+    docker://lucam03/projekt-humanoider-roboter:latest
+```
+
+Das erzeugt `$HOME/images/projekt-humanoider-roboter.sif` (~10–15 GB). Diese Datei nur neu erstellen, wenn ein neues Image auf Docker Hub gepusht wurde.
+
+---
+
+### Schritt 2 — Daten auf Scratch-Storage übertragen (einmalig oder bei Update)
+
+Der Cluster hat keinen dauerhaften `/data`-Ordner wie lokal. Große Dateien (Datensatz, Checkpoints) gehören auf den **Scratch-Storage** unter `/scratch/<username>/`.
+
+**Option A: Von deinem lokalen Rechner mit rsync**
+
+```bash
+# Struktur auf dem Cluster anlegen
+ssh <username>@transfer.hpc.gwdg.de "mkdir -p /scratch/<username>/data"
+
+# Datensatz + Modell übertragen (falls schon lokal vorhanden)
+rsync -avz --progress \
+    ./data/ \
+    <username>@transfer.hpc.gwdg.de:/scratch/<username>/data/
+```
+
+**Option B: Direkt vom Cluster aus herunterladen (empfohlen)**
+
+Gar nichts übertragen — `SKIP_DOWNLOAD=0` (der Standard) lassen. Der Entrypoint lädt Modell und Datensatz beim ersten Job-Lauf selbst von HuggingFace nach `/scratch/<username>/data/` herunter (~25 GB, dauert je nach Bandbreite 10–30 min). Bei allen weiteren Läufen erkennt der Entrypoint die vorhandenen Daten und überspringt den Download automatisch.
+
+---
+
+### Schritt 3 — Tokens setzen und Job einreichen
+
+```bash
+# Auf dem Login-Knoten:
+export HF_TOKEN=hf_...
+export WANDB_API_KEY=...       # optional, aber empfohlen
+
+# Optional: Trainings-Parameter überschreiben
+export MAX_STEPS=30000
+export GLOBAL_BATCH_SIZE=32    # A100 mit 80 GB VRAM verträgt deutlich mehr als 8
+
+# Job einreichen
+sbatch kisski_submit.sh
+```
+
+SLURM gibt die Job-ID aus, z. B. `Submitted batch job 12345678`.
+
+> **Tipp:** Tokens nicht dauerhaft in `.bashrc` speichern. Stattdessen vor jedem `sbatch` kurz exportieren oder in eine nicht-eingecheckte `.env`-Datei auf dem Cluster schreiben und dort sourcen.
+
+---
+
+### Job-Status verfolgen
+
+```bash
+# Eigene Jobs anzeigen
+squeue -u $USER
+
+# Logs live verfolgen (solange Job läuft oder danach)
+tail -f logs/slurm-<jobid>.out
+
+# Job abbrechen
+scancel <jobid>
+
+# Cluster-Auslastung anzeigen
+sinfo -p kisski
+```
+
+SLURM-Logs landen in `logs/slurm-<jobid>.out` und `logs/slurm-<jobid>.err` im Verzeichnis, aus dem `sbatch` aufgerufen wurde. Trainings-Logs schreibt der Container zusätzlich nach `/scratch/<username>/data/logs/`.
+
+---
+
+### Checkpoints nach dem Training sichern
+
+Checkpoints liegen nach dem Job in `/scratch/<username>/data/g1_dex3_finetune/blockstacking/` auf dem Cluster. Von dort auf deinen lokalen Rechner oder nach HuggingFace exportieren:
+
+```bash
+# Auf deinem lokalen Rechner
+rsync -avz --progress \
+    <username>@transfer.hpc.gwdg.de:/scratch/<username>/data/g1_dex3_finetune/ \
+    ./checkpoints/
+
+# Oder direkt vom Cluster aus nach HuggingFace pushen
+# (interaktiven Job starten, dann im Container):
+srun -p kisski:interactive -G 1g.10gb:1 --pty bash
+apptainer shell --nv \
+    --bind /scratch/$USER/data:/data \
+    $HOME/images/projekt-humanoider-roboter.sif
+# Innerhalb des Containers:
+huggingface-cli upload <dein-namespace>/g1-dex3-blockstacking \
+    /data/g1_dex3_finetune/blockstacking --repo-type=model
+```
+
+> **Achtung:** Scratch-Storage ist **nicht dauerhaft**. Auf GWDG-Clustern werden Dateien auf `/scratch` nach einer gewissen Zeit (i.d.R. 30–90 Tage) automatisch gelöscht. Checkpoints zeitnah exportieren.
+
+---
+
+### `kisski_submit.sh` anpassen
+
+Die wichtigsten Stellschrauben in [kisski_submit.sh](kisski_submit.sh):
+
+```bash
+#SBATCH -p kisski          # Partition: kisski (A100 80GB) oder kisski-h100 (H100 94GB)
+#SBATCH -G A100:1          # Anzahl GPUs — bei kisski-h100 auf H100:1 ändern
+#SBATCH -c 16              # CPU-Kerne
+#SBATCH --mem=64G          # RAM
+#SBATCH -t 48:00:00        # Walltime (max. 48h)
+```
+
+Und die Trainings-Parameter entweder vor `sbatch` als `export` setzen oder direkt im Script:
+
+```bash
+export GLOBAL_BATCH_SIZE=32   # A100 (80 GB) verträgt viel mehr als die Standard-8
+export MAX_STEPS=50000
+```
+
+---
+
+## 5. Lokales Training
 
 ### Variante A: Mit dem Launcher-Skript (empfohlen)
 
@@ -187,40 +345,40 @@ Wird beim Aufruf ein Befehl wie `bash` übergeben, wird der Entrypoint überspru
 
 ---
 
-## 5. Konfiguration über Env-Vars
+## 6. Konfiguration über Env-Vars
 
-Alle Parameter werden über Umgebungsvariablen gesteuert:
+Alle Parameter werden über Umgebungsvariablen gesteuert — auf vast.ai, KISSKI und lokal identisch:
 
 | Variable | Default | Beschreibung |
 |---|---|---|
 | `HF_TOKEN` | — | **Pflicht.** HuggingFace-Token (Lese-Berechtigung reicht) |
 | `WANDB_API_KEY` | — | Optional. W&B-Key. Ohne diesen läuft Training ohne W&B. |
 | `MAX_STEPS` | `30000` | Anzahl Trainings-Steps |
-| `GLOBAL_BATCH_SIZE` | `8` | Globale Batch-Size (8 für 8 GB VRAM, 16–32 für 16 GB) |
+| `GLOBAL_BATCH_SIZE` | `8` | Globale Batch-Size (8 für 8 GB VRAM, 32+ für A100 80 GB) |
 | `NUM_GPUS` | `1` | Anzahl genutzter GPUs |
 | `WANDB_PROJECT` | `gr00t-g1-dex3` | W&B-Projektname |
 | `DATA_DIR` | `/data` | Datenverzeichnis im Container |
-| `SKIP_DOWNLOAD` | `0` | Auf `1` setzen, wenn Daten schon im Container sind |
+| `SKIP_DOWNLOAD` | `0` | Auf `1` setzen, wenn Daten schon vorhanden sind |
 | `SKIP_CONVERT` | `0` | Auf `1` setzen, wenn `modality.json` schon existiert |
 | `SKIP_TRAIN` | `0` | Auf `1` setzen für reines Setup (fällt in Shell) |
 | `SHELL_ON_ERROR` | `0` | Auf `1` setzen für Debug-Shell bei Fehler |
 
 ### VRAM-Richtwerte
 
-| VRAM | `GLOBAL_BATCH_SIZE` | `MAX_STEPS` |
-|---|---|---|
-| 8 GB  | 8  | 30 000 |
-| 16 GB | 16–32 | 50 000 |
+| VRAM | `GLOBAL_BATCH_SIZE` | `MAX_STEPS` | Umgebung |
+|---|---|---|---|
+| 8 GB  | 8   | 30 000 | Lokal (RTX 4070) |
+| 16 GB | 16–32 | 50 000 | Lokal (RTX 4090) |
+| 40 GB | 32–64 | 50 000 | vast.ai A100 40GB |
+| 80 GB | 64–128 | 50 000+ | KISSKI A100 80GB |
 
 Reduziere bei `CUDA out of memory` zuerst `GLOBAL_BATCH_SIZE`. Volle Parameter-Referenz: [`app/Groot-1.6/examples/G1_DEX3/FINETUNING_GUIDE.md`](app/Groot-1.6/examples/G1_DEX3/FINETUNING_GUIDE.md)
 
 ---
 
-## 6. Daten aus dem Container holen
+## 7. Daten aus dem Container holen
 
-Da alles im Container lebt, musst du Checkpoints und Logs **vor dem Destroy** exportieren.
-
-### Lokal: `docker cp`
+### Lokal / vast.ai: `docker cp`
 
 ```bash
 docker cp groot-train:/data/g1_dex3_finetune ./checkpoints
@@ -229,23 +387,17 @@ docker cp groot-train:/data/logs ./logs
 
 Funktioniert auch, während der Container läuft.
 
-### Auf vast.ai
-
-Per SSH auf die Instanz, dort:
+### KISSKI: `rsync` vom Cluster
 
 ```bash
-# Container-Name herausfinden
-docker ps
-
-# Auf Host-Filesystem kopieren
-docker cp <container>:/data/g1_dex3_finetune /workspace/checkpoints
-
-# Von dort z. B. nach S3 / HuggingFace / lokal per scp
+rsync -avz --progress \
+    <username>@transfer.hpc.gwdg.de:/scratch/<username>/data/g1_dex3_finetune/ \
+    ./checkpoints/
 ```
 
-### Direkt aus dem Training-Container heraus
+### Direkt nach HuggingFace pushen
 
-Mit interaktiver Shell (siehe oben) z. B. nach HuggingFace pushen:
+Mit interaktiver Shell im Container:
 
 ```bash
 cd /data/g1_dex3_finetune/blockstacking
@@ -254,42 +406,51 @@ huggingface-cli upload <dein-namespace>/g1-dex3-blockstacking . --repo-type=mode
 
 ---
 
-## 7. Training beobachten
+## 8. Training beobachten
 
 ### WandB (empfohlen)
 
-Mit gesetztem `WANDB_API_KEY` läuft das Logging automatisch. Live verfolgen unter https://wandb.ai → Projekt `gr00t-g1-dex3` (bzw. dein `WANDB_PROJECT`).
+Mit gesetztem `WANDB_API_KEY` läuft das Logging automatisch. Live verfolgen unter https://wandb.ai → Projekt `gr00t-g1-dex3` (bzw. dein `WANDB_PROJECT`). Funktioniert auf vast.ai und KISSKI gleich — der Container baut die Verbindung nach außen auf.
 
-### Live-Logs im Terminal
+### Live-Logs
 
-`docker run -it …` zeigt stdout direkt. Bei `--detach` oder vast.ai:
-
+**Lokal / vast.ai:**
 ```bash
 docker logs -f groot-train
 ```
 
-### Logs im Container
-
-Werden in `/data/logs/finetune-<timestamp>.log` geschrieben:
-
+**KISSKI (SLURM-Logs):**
 ```bash
-docker exec groot-train tail -f /data/logs/finetune-*.log
+tail -f logs/slurm-<jobid>.out
+```
+
+**KISSKI (Trainings-Logs im Scratch):**
+```bash
+ssh <username>@glogin-gpu.hpc.gwdg.de \
+    "tail -f /scratch/<username>/data/logs/finetune-*.log"
 ```
 
 ### Checkpoints
 
+**Lokal / vast.ai:**
 ```bash
 docker exec groot-train ls -lht /data/g1_dex3_finetune/blockstacking/
 ```
 
+**KISSKI:**
+```bash
+ls -lht /scratch/<username>/data/g1_dex3_finetune/blockstacking/
+```
+
 ---
 
-## 8. Projektstruktur
+## 9. Projektstruktur
 
 ```
 /
 ├── Dockerfile                          # Container-Definition mit ENTRYPOINT
 ├── docker-compose.yml                  # Optional (lokale Dev-Variante)
+├── kisski_submit.sh                    # SLURM-Job-Script für KISSKI HPC-Cluster
 ├── setup_and_train_DockerHub-pull.sh   # Thin host-launcher (Linux/macOS/WSL2)
 ├── setup_and_train_DockerHub-pull.ps1  # Thin host-launcher (Windows PowerShell)
 ├── scripts/                            # In das Image kopiert
@@ -307,7 +468,7 @@ docker exec groot-train ls -lht /data/g1_dex3_finetune/blockstacking/
             └── SETUP_DOCUMENTATION.md
 ```
 
-Im Container (zur Laufzeit unter `/data/`, **kein Host-Mount**):
+Zur Laufzeit (lokal/vast.ai im Container-Filesystem, auf KISSKI unter `/scratch/<username>/data/`):
 ```
 /data/
 ├── models/GR00T-N1.6-3B/    # Modellgewichte (~6 GB)
@@ -318,11 +479,11 @@ Im Container (zur Laufzeit unter `/data/`, **kein Host-Mount**):
 
 ---
 
-## 9. Häufige Probleme
+## 10. Häufige Probleme
 
 ### `docker: Error response from daemon: could not select device driver "nvidia"`
 
-NVIDIA Container Toolkit fehlt. Auf vast.ai ist es vorinstalliert; lokal:
+NVIDIA Container Toolkit fehlt. Auf vast.ai und KISSKI ist es vorinstalliert; lokal:
 
 ```bash
 curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor \
@@ -344,7 +505,7 @@ sudo systemctl restart docker
 
 ### `HF_TOKEN ist nicht gesetzt`
 
-Entrypoint bricht ab, wenn kein Token gesetzt ist. Token erstellen auf https://huggingface.co/settings/tokens (Read-Berechtigung reicht) und per `-e HF_TOKEN=hf_...` mitgeben.
+Entrypoint bricht ab, wenn kein Token gesetzt ist. Token erstellen auf https://huggingface.co/settings/tokens (Read-Berechtigung reicht) und per `-e HF_TOKEN=hf_...` (Docker) oder `export HF_TOKEN=hf_...` (KISSKI) mitgeben.
 
 ### Container existiert bereits (`Conflict. The container name "/groot-train" is already in use`)
 
@@ -375,9 +536,27 @@ docker exec groot-train cp \
 
 `-e SHELL_ON_ERROR=1` mitgeben — bei Fehler im Entrypoint landest du in einer interaktiven Shell statt dass der Container beendet wird.
 
+### KISSKI: `SIF-Image nicht gefunden`
+
+Das Apptainer-Image wurde noch nicht erstellt. Einmalig auf dem Login-Knoten:
+```bash
+module load apptainer
+mkdir -p $HOME/images
+apptainer pull $HOME/images/projekt-humanoider-roboter.sif \
+    docker://lucam03/projekt-humanoider-roboter:latest
+```
+
+### KISSKI: Job bleibt in Status `PD` (Pending)
+
+Die Partition ist ausgelastet. Mit `squeue -p kisski` prüfen wie viele Jobs warten. Alternative: `kisski-h100`-Partition versuchen oder Walltime verkürzen (kürzere Jobs haben höhere Priorität).
+
+### KISSKI: `No space left on device` im Container
+
+Der Scratch-Storage ist voll. Mit `du -sh /scratch/$USER/*` prüfen. Alte Checkpoints unter `/scratch/$USER/data/g1_dex3_finetune/` aufräumen — `save_total_limit=5` im Training-Script sorgt dafür, dass maximal 5 Checkpoints gleichzeitig vorgehalten werden.
+
 ---
 
-## 10. Train-Test-Split
+## 11. Train-Test-Split
 
 Der Datensatz ist in einen Trainings- und einen Test-Split aufgeteilt (80/20), damit das Modell nach dem Fine-tuning auf ungesehenen Episoden bewertet werden kann.
 
@@ -396,5 +575,6 @@ Vollständige Beschreibung: [Train-Test-split.md](Train-Test-split.md)
 - [Train-Test-split.md](Train-Test-split.md) — Implementierung und Nutzung des 80/20-Splits
 - [`app/Groot-1.6/examples/G1_DEX3/SETUP_DOCUMENTATION.md`](app/Groot-1.6/examples/G1_DEX3/SETUP_DOCUMENTATION.md)
 - [`app/Groot-1.6/examples/G1_DEX3/FINETUNING_GUIDE.md`](app/Groot-1.6/examples/G1_DEX3/FINETUNING_GUIDE.md)
+- [GWDG HPC Dokumentation](https://docs.hpc.gwdg.de) — Offizielle Doku für KISSKI/Grete-Cluster
 - [NVIDIA Isaac GR00T](https://developer.nvidia.com/isaac/groot)
 - [LeRobot](https://github.com/huggingface/lerobot)

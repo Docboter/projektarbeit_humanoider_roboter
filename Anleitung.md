@@ -12,11 +12,12 @@ Diese Anleitung beschreibt Schritt für Schritt, wie du das Fine-tuning von **GR
 - Auf vast.ai entspricht ein Container genau einer Instanz: Stop/Start lässt den Container weiterleben, Destroy löscht alles.
 - Vor dem Destroy → Checkpoints exportieren (siehe Abschnitt [Daten retten](#daten-retten)).
 
-## Drei Wege zum Trainieren
+## Vier Wege zum Trainieren
 
 - **Weg A — vast.ai** (oder andere Cloud-GPU-Anbieter): du brauchst nur das Image und einige Env-Vars
 - **Weg B — Lokales Training mit dem Launcher-Skript**: bequem unter Linux/macOS/WSL2
 - **Weg C — Lokales Training mit `docker run`**: maximale Kontrolle, kein Skript
+- **Weg D — KISSKI HPC-Cluster**: langes Training auf A100/H100 per SLURM-Job
 
 ---
 
@@ -228,6 +229,69 @@ docker rm -f groot-train
 
 ---
 
+## Weg D — HPC-Training auf KISSKI
+
+Empfohlen für langes Training (> 30 000 Steps) oder wenn lokal keine ausreichende GPU vorhanden ist. KISSKI stellt A100 (80 GB) und H100 (94 GB) zur Verfügung.
+
+Der Cluster läuft **kein Docker**, sondern **Apptainer** als Container-Runtime und **SLURM** als Job-Scheduler. Das Docker Hub-Image wird einmalig in eine Apptainer-`.sif`-Datei umgewandelt — danach läuft alles unverändert.
+
+### D1. Zugang
+
+KISSKI-Account bei GWDG beantragen: https://docs.hpc.gwdg.de
+
+SSH-Login-Knoten: `glogin-gpu.hpc.gwdg.de`
+
+### D2. Image einmalig konvertieren (auf dem Login-Knoten)
+
+```bash
+module load apptainer
+mkdir -p $HOME/images
+apptainer pull $HOME/images/projekt-humanoider-roboter.sif \
+    docker://lucam03/projekt-humanoider-roboter:latest
+```
+
+Dauert einige Minuten. Nur wiederholen, wenn ein neues Image auf Docker Hub gepusht wurde.
+
+### D3. Job einreichen
+
+```bash
+# Tokens setzen
+export HF_TOKEN=hf_...
+export WANDB_API_KEY=...       # optional
+
+# Optional: Batch-Size für A100 hochsetzen
+export GLOBAL_BATCH_SIZE=32    # A100 mit 80 GB VRAM verträgt deutlich mehr als 8
+
+# Job einreichen
+sbatch kisski_submit.sh
+```
+
+Beim ersten Lauf lädt der Container Modell und Datensatz (~25 GB) selbst von HuggingFace nach `/scratch/$USER/data/` herunter. Bei Folgeläufen wird der Download automatisch übersprungen.
+
+### D4. Job-Status und Logs
+
+```bash
+squeue -u $USER                        # eigene Jobs anzeigen
+tail -f logs/slurm-<jobid>.out         # SLURM-Log live verfolgen
+scancel <jobid>                        # Job abbrechen
+```
+
+### D5. Checkpoints sichern
+
+Checkpoints liegen nach dem Job unter `/scratch/$USER/data/g1_dex3_finetune/`. Von dort lokal holen:
+
+```bash
+rsync -avz --progress \
+    <username>@transfer.hpc.gwdg.de:/scratch/<username>/data/g1_dex3_finetune/ \
+    ./checkpoints/
+```
+
+> **Achtung:** Scratch-Storage wird nach 30–90 Tagen automatisch gelöscht. Checkpoints zeitnah exportieren.
+
+Vollständige KISSKI-Anleitung: [README.md Abschnitt 4](README.md#4-hpc-training-auf-kisski)
+
+---
+
 ## Weg C — Lokales Training mit `docker run`
 
 Wenn du das Launcher-Skript überspringen willst.
@@ -302,6 +366,14 @@ docker cp <container>:/data/g1_dex3_finetune /workspace/ckpt    # auf Host kopie
 # Von /workspace dann z. B. per scp lokal abholen
 ```
 
+### 4. KISSKI: rsync vom Cluster
+
+```bash
+rsync -avz --progress \
+    <username>@transfer.hpc.gwdg.de:/scratch/<username>/data/g1_dex3_finetune/ \
+    ./checkpoints/
+```
+
 ---
 
 ## Konfigurationsreferenz (Env-Vars)
@@ -322,11 +394,12 @@ docker cp <container>:/data/g1_dex3_finetune /workspace/ckpt    # auf Host kopie
 
 ### VRAM-Richtwerte
 
-| VRAM | `GLOBAL_BATCH_SIZE` | `MAX_STEPS` |
-|---|---|---|
-| 8 GB  | 8  | 30 000 |
-| 16 GB | 16 | 30 000 – 50 000 |
-| 24 GB | 32 | 50 000 |
+| VRAM | `GLOBAL_BATCH_SIZE` | `MAX_STEPS` | Umgebung |
+|---|---|---|---|
+| 8 GB  | 8   | 30 000 | Lokal (RTX 4070) |
+| 16 GB | 16  | 30 000–50 000 | Lokal (RTX 4090) |
+| 24 GB | 32  | 50 000 | Lokal (RTX 4090) |
+| 80 GB | 64–128 | 50 000+ | KISSKI A100 |
 
 Bei `CUDA out of memory`: zuerst `GLOBAL_BATCH_SIZE` halbieren.
 
