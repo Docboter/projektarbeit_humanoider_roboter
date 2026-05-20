@@ -190,6 +190,23 @@ export PUBLIC_IP=<vast-public-ip>
 Start GR00T first. Wait until the log says the server is ready, then start
 Isaac/Unitree.
 
+## Checkpoints on Vast.AI
+
+The image expects the GR00T checkpoint at:
+
+```text
+/workspace/Isaac-GR00T/checkpoints/GR00T-N1.6-G1-PnPAppleToPlate
+```
+
+On Vast.AI, `/workspace` is the practical working directory used by the copy
+tools and examples. For one-off tests, copy the checkpoint into the running
+instance with `scp`, `sftp`, `rsync`, or `vast copy`. For repeated runs, prefer a
+Vast volume or external object storage and copy/sync the checkpoint into this
+path when the instance starts.
+
+Avoid copying model data into `/root` or `/`, because Vast's copy tooling and
+SSH setup expect those paths to keep their normal permissions.
+
 ## Prompt test
 
 After `unitree-sim` is running:

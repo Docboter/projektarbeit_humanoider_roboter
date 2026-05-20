@@ -30,6 +30,10 @@ ENV DEBIAN_FRONTEND=noninteractive \
     LD_LIBRARY_PATH=/usr/local/cuda/lib64:${LD_LIBRARY_PATH} \
     OMNI_KIT_ALLOW_ROOT=1 \
     OMNI_KIT_DISABLE_STARTUP=1 \
+    OMNI_KIT_ACCEPT_EULA=YES \
+    ACCEPT_EULA=Y \
+    PRIVACY_CONSENT=Y \
+    OMNI_ENV_PRIVACY_CONSENT=Y \
     CYCLONEDDS_HOME=/cyclonedds/install
 
 # -----------------------------------------------------------------------------
@@ -84,22 +88,22 @@ EOF
 #   repos/Isaac-GR00T/docker/Dockerfile
 # What this section installs:
 #   - GR00T source from repos/Isaac-GR00T
-#   - uv lockfile dependencies into /workspace/Isaac-GR00T/.venv
-#   - editable installs for Isaac-GR00T and groot_infra
+#   - uv dependencies into /workspace/Isaac-GR00T/.venv
+#   - editable install for Isaac-GR00T
 # Notes:
 #   - Checkpoints are excluded by Dockerfile.dockerignore and should be mounted
 #     at runtime unless you intentionally remove that ignore rule.
 # -----------------------------------------------------------------------------
 WORKDIR /workspace/Isaac-GR00T
 COPY repos/Isaac-GR00T/pyproject.toml repos/Isaac-GR00T/uv.lock ./
-COPY repos/Isaac-GR00T/groot_infra/pyproject.toml groot_infra/pyproject.toml
 
 RUN <<'EOF'
 set -e
+# This checkout does not contain the optional groot_infra workspace package.
+# Remove that workspace stanza before resolving the GR00T environment.
+sed -i '/^\[tool\.uv\.workspace\]/d; /^members = \["groot_infra"\]/d' pyproject.toml
 UV_HTTP_TIMEOUT=300 UV_CONCURRENT_DOWNLOADS=4 uv sync \
-    --frozen \
     --no-install-workspace \
-    --all-packages \
     --extra dev \
     --no-cache
 EOF
@@ -109,7 +113,6 @@ COPY repos/Isaac-GR00T/ /workspace/Isaac-GR00T/
 RUN <<'EOF'
 set -e
 uv pip install --python /workspace/Isaac-GR00T/.venv/bin/python -e . --no-deps
-uv pip install --python /workspace/Isaac-GR00T/.venv/bin/python -e groot_infra --no-deps
 EOF
 
 ENV GROOT_VENV=/workspace/Isaac-GR00T/.venv
@@ -217,6 +220,10 @@ WORKDIR /home/code
 RUN git clone https://github.com/isaac-sim/IsaacLab.git /home/code/IsaacLab && \
     cd /home/code/IsaacLab && \
     conda run -n unitree_sim_env ./isaaclab.sh --install
+
+RUN conda run -n unitree_sim_env pip install \
+        torchaudio==2.7.0 \
+        --index-url https://download.pytorch.org/whl/cu126
 
 RUN git clone https://github.com/eclipse-cyclonedds/cyclonedds -b releases/0.10.x /cyclonedds && \
     cd /cyclonedds && \
