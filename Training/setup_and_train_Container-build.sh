@@ -148,8 +148,11 @@ fi
 ok "Repository bereit: $REPO_DIR"
 echo
 
-# Ab hier immer im Repo-Verzeichnis arbeiten
+# Ab hier immer im Repo-Verzeichnis arbeiten (CWD = Repo-Root, damit die
+# ./data-Pfade unten stimmen). Die docker-compose.yml liegt seit dem Umbau
+# unter Training/ — über COMPOSE_FILE finden alle `docker compose`-Aufrufe sie.
 cd "$REPO_DIR"
+export COMPOSE_FILE="Training/docker-compose.yml"
 
 # ══════════════════════════════════════════════════════════════════════════════
 # SCHRITT 3 — Docker-Image bauen

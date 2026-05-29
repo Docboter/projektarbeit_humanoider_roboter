@@ -37,7 +37,7 @@ apptainer pull $HOME/images/projekt-humanoider-roboter.sif \
 # Job einreichen:
 export HF_TOKEN=hf_...
 export WANDB_API_KEY=...
-sbatch kisski_submit.sh
+sbatch Training/kisski_submit.sh
 ```
 → Vollständige Anleitung: [Abschnitt 4](#4-hpc-training-auf-kisski)
 
@@ -50,7 +50,7 @@ sbatch kisski_submit.sh
 ```bash
 export HF_TOKEN=hf_...
 export WANDB_API_KEY=...
-./setup_and_train_DockerHub-pull.sh
+./Training/setup_and_train_DockerHub-pull.sh
 ```
 
 Detaillierte Schritt-für-Schritt-Anleitung: [Anleitung.md](Anleitung.md)
@@ -139,7 +139,7 @@ Oder direkt aus dem Container heraus per `huggingface-cli upload`, `rclone`, `sc
 
 ## 4. HPC-Training auf KISSKI
 
-KISSKI ist ein dedizierter GPU-Cluster der GWDG Göttingen. Er läuft **kein Docker**, sondern **Apptainer** (früher Singularity) als Container-Runtime und **SLURM** als Job-Scheduler. Das bedeutet: kein `docker run`, sondern `sbatch kisski_submit.sh`.
+KISSKI ist ein dedizierter GPU-Cluster der GWDG Göttingen. Er läuft **kein Docker**, sondern **Apptainer** (früher Singularity) als Container-Runtime und **SLURM** als Job-Scheduler. Das bedeutet: kein `docker run`, sondern `sbatch Training/kisski_submit.sh`.
 
 ### Verfügbare GPU-Partitionen
 
@@ -204,7 +204,7 @@ export MAX_STEPS=30000
 export GLOBAL_BATCH_SIZE=32    # A100 mit 80 GB VRAM verträgt deutlich mehr als 8
 
 # Job einreichen
-sbatch kisski_submit.sh
+sbatch Training/kisski_submit.sh
 ```
 
 SLURM gibt die Job-ID aus, z. B. `Submitted batch job 12345678`.
@@ -260,7 +260,7 @@ huggingface-cli upload <dein-namespace>/g1-dex3-blockstacking \
 
 ### `kisski_submit.sh` anpassen
 
-Die wichtigsten Stellschrauben in [kisski_submit.sh](kisski_submit.sh):
+Die wichtigsten Stellschrauben in [Training/kisski_submit.sh](Training/kisski_submit.sh):
 
 ```bash
 #SBATCH -p kisski          # Partition: kisski (A100 80GB) oder kisski-h100 (H100 94GB)
@@ -291,7 +291,7 @@ git checkout training-luca
 export HF_TOKEN=hf_...
 export WANDB_API_KEY=...        # optional
 
-./setup_and_train_DockerHub-pull.sh
+./Training/setup_and_train_DockerHub-pull.sh
 ```
 
 Das Skript zieht das Image, startet einen Container namens `groot-train` (**ohne `--rm`** und **ohne `-v`-Mount**) und lässt den Entrypoint laufen.
@@ -329,7 +329,7 @@ docker rm -f groot-train          # Komplett löschen (alles weg)
 ```bash
 git clone --recurse-submodules https://github.com/Docboter/projektarbeit_humanoider_roboter.git
 cd projektarbeit_humanoider_roboter
-docker build -t projektarbeit-humanoider-roboter .
+docker build -t projektarbeit-humanoider-roboter Training/   # Build-Context = Training/
 ```
 
 Build dauert ~30 Minuten (PyTorch, flash-attn). Anschließend ein `docker run` wie in Variante B mit dem lokalen Image-Namen.
@@ -448,16 +448,25 @@ ls -lht /scratch/<username>/data/g1_dex3_finetune/blockstacking/
 
 ```
 /
-├── Dockerfile                          # Container-Definition mit ENTRYPOINT
-├── docker-compose.yml                  # Optional (lokale Dev-Variante)
-├── kisski_submit.sh                    # SLURM-Job-Script für KISSKI HPC-Cluster
-├── setup_and_train_DockerHub-pull.sh   # Thin host-launcher (Linux/macOS/WSL2)
-├── setup_and_train_DockerHub-pull.ps1  # Thin host-launcher (Windows PowerShell)
-├── scripts/                            # In das Image kopiert
-│   ├── entrypoint.sh                   # ENTRYPOINT — orchestriert Download → Convert → Train
-│   ├── download_data.sh                # HuggingFace-Download
-│   ├── run_finetuning.sh               # Trainings-Launcher (im Container)
-│   └── run_finetuning.ps1              # Trainings-Launcher (Windows-Variante)
+├── Training/                           # Alles rund ums Training (Build, Run, Doku)
+│   ├── Dockerfile                      # Container-Definition mit ENTRYPOINT
+│   │                                   #   Build-Context = Training/ (damit COPY scripts/ greift)
+│   ├── docker-compose.yml              # Optional (lokale Dev-Variante)
+│   ├── kisski_submit.sh                # SLURM-Job-Script für KISSKI HPC-Cluster
+│   ├── update_image.ps1                # Host-Build/Push-Tool (muss neben dem Dockerfile liegen)
+│   ├── setup_and_train_DockerHub-pull.sh   # Thin host-launcher (Linux/macOS/WSL2)
+│   ├── setup_and_train_DockerHub-pull.ps1  # Thin host-launcher (Windows PowerShell)
+│   ├── setup_and_train_Container-build.*   # Host-launcher mit lokalem Image-Build
+│   ├── Train-Test-split.md             # Datensatz-Split (80/20)
+│   ├── WANDB_OFFLINE_SYNC.md           # W&B-Offline-Sync auf KISSKI
+│   └── scripts/                        # In das Image kopiert (→ /scripts)
+│       ├── entrypoint.sh               # ENTRYPOINT — orchestriert Download → Convert → Train
+│       ├── download_data.sh            # HuggingFace-Download
+│       ├── run_finetuning.sh           # Trainings-Launcher (im Container)
+│       └── run_finetuning.ps1          # Trainings-Launcher (Windows-Variante)
+├── Simulation/                         # Closed-Loop-Sim-Eval (in Entwicklung)
+│   └── ISAAC_LAB_SIM_PLAN.md           # Implementierungsplan für die Isaac-Lab-Sim
+├── data/                               # Lokale Daten-/Checkpoint-Platzhalter (geteilt)
 └── app/                                # Git-Submodule (im Image bereits geklont)
     └── Groot-1.6/                      # GR00T N1.6 + eigene G1/DEX3-Configs
         └── examples/G1_DEX3/
@@ -511,8 +520,8 @@ Entrypoint bricht ab, wenn kein Token gesetzt ist. Token erstellen auf https://h
 
 Du hast schon einen Container aus einem früheren Lauf:
 ```bash
-./setup_and_train_DockerHub-pull.sh --resume    # Daten + Checkpoints behalten
-./setup_and_train_DockerHub-pull.sh --destroy   # alles verwerfen und neu starten
+./Training/setup_and_train_DockerHub-pull.sh --resume    # Daten + Checkpoints behalten
+./Training/setup_and_train_DockerHub-pull.sh --destroy   # alles verwerfen und neu starten
 ```
 
 ### Ich habe `--rm` benutzt und meine Checkpoints sind weg
@@ -565,14 +574,14 @@ Der Datensatz ist in einen Trainings- und einen Test-Split aufgeteilt (80/20), d
 | `train` | 241 | 80 % |
 | `test` | 60 | 20 % |
 
-Vollständige Beschreibung: [Train-Test-split.md](Train-Test-split.md)
+Vollständige Beschreibung: [Train-Test-split.md](Training/Train-Test-split.md)
 
 ---
 
 ## Weiterführende Dokumentation
 
 - [Anleitung.md](Anleitung.md) — Schritt-für-Schritt-Anleitung zur Nutzung der Umgebung
-- [Train-Test-split.md](Train-Test-split.md) — Implementierung und Nutzung des 80/20-Splits
+- [Train-Test-split.md](Training/Train-Test-split.md) — Implementierung und Nutzung des 80/20-Splits
 - [`app/Groot-1.6/examples/G1_DEX3/SETUP_DOCUMENTATION.md`](app/Groot-1.6/examples/G1_DEX3/SETUP_DOCUMENTATION.md)
 - [`app/Groot-1.6/examples/G1_DEX3/FINETUNING_GUIDE.md`](app/Groot-1.6/examples/G1_DEX3/FINETUNING_GUIDE.md)
 - [GWDG HPC Dokumentation](https://docs.hpc.gwdg.de) — Offizielle Doku für KISSKI/Grete-Cluster

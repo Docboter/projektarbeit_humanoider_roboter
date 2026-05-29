@@ -123,7 +123,7 @@ echo ""
 
 # ── Schritt 2: Container starten ─────────────────────────────────────────────
 # entrypoint.sh im Container lädt automatisch Modell + Datensatz von HuggingFace
-# (scripts/download_data.sh) und startet dann das Training.
+# (/scripts/download_data.sh im Container) und startet dann das Training.
 echo "==> Schritt 2/2 — Container starten (HF-Download + Training)"
 
 APPTAINER_ARGS=(
@@ -144,14 +144,14 @@ APPTAINER_ARGS=(
 # Repo-Skripte in den Container mounten, damit GitHub-Änderungen sofort wirken
 # (überschreibt die ins SIF-Image gebackenen Versionen ohne Image-Rebuild).
 # Pflicht: ohne diesen Mount laufen veraltete Container-Scripts (fehlendes --no-sync).
-if [[ ! -d "${REPO_DIR}/scripts" ]]; then
-    echo "FEHLER: ${REPO_DIR}/scripts nicht gefunden." >&2
+if [[ ! -d "${REPO_DIR}/Training/scripts" ]]; then
+    echo "FEHLER: ${REPO_DIR}/Training/scripts nicht gefunden." >&2
     echo "       Repo einmalig klonen:" >&2
     echo "       git clone --branch $GITHUB_BRANCH --depth 1 $GITHUB_REPO $REPO_DIR" >&2
     exit 1
 fi
-APPTAINER_ARGS+=(--bind "${REPO_DIR}/scripts:/scripts")
-echo "    Skripte aus Repo: ${REPO_DIR}/scripts"
+APPTAINER_ARGS+=(--bind "${REPO_DIR}/Training/scripts:/scripts")
+echo "    Skripte aus Repo: ${REPO_DIR}/Training/scripts"
 
 # G1_DEX3-Konfiguration + LeRobot-Konverter aus dem lucam06/Isaac-GR00T Fork mounten
 # (im Container-Image fehlen diese Dateien — nur die offizielle NVIDIA-Version ist eingebackt).

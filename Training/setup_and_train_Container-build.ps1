@@ -165,8 +165,11 @@ if ($SkipClone) {
 Write-Ok "Repository bereit: $REPO_DIR"
 Write-Host ""
 
-# Ab hier immer im Repo-Verzeichnis arbeiten
+# Ab hier immer im Repo-Verzeichnis arbeiten (CWD = Repo-Root, damit die
+# .\data-Pfade unten stimmen). Die docker-compose.yml liegt seit dem Umbau
+# unter Training\ — ueber COMPOSE_FILE finden alle `docker compose`-Aufrufe sie.
 Set-Location $REPO_DIR
+$env:COMPOSE_FILE = "Training/docker-compose.yml"
 
 # ══════════════════════════════════════════════════════════════════════════════
 # SCHRITT 3 — Docker-Image bauen

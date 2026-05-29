@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Fine-tuning of **NVIDIA GR00T N1.6** (Vision-Language-Action model) on the **Unitree G1 + DEX3-Hand** for block-stacking tasks. The full environment runs in a **self-contained Docker container** (CUDA 12.8, Python 3.10, package manager: `uv`).
 
-The container is autonomous: launching the image triggers `scripts/entrypoint.sh`, which orchestrates download → conversion → training. The same image runs locally, on cloud-GPU platforms like vast.ai, and on the **KISSKI HPC cluster** (GWDG Göttingen) via Apptainer — configuration is via env vars only.
+The container is autonomous: launching the image triggers `/scripts/entrypoint.sh` (source: `Training/scripts/entrypoint.sh`), which orchestrates download → conversion → training. The same image runs locally, on cloud-GPU platforms like vast.ai, and on the **KISSKI HPC cluster** (GWDG Göttingen) via Apptainer — configuration is via env vars only.
 
 **Storage model:** No host-side persistent storage by default. All data, checkpoints, and logs live in the container filesystem (`/data` is a regular directory inside the image, **not** a volume mount). The container is meant to be long-lived: `stop`/`start` preserves state; only `docker rm` destroys it. This matches the vast.ai semantics where one instance == one container. **Exception — KISSKI:** the cluster uses Apptainer (not Docker) and bind-mounts `/scratch/$USER/data` to `/data` inside the container; data therefore persists on the cluster's scratch storage across job runs.
 
@@ -23,7 +23,7 @@ Detailed guides:
 
 ```bash
 # Local: thin launcher (handles existing-container detection)
-HF_TOKEN=hf_... WANDB_API_KEY=... ./setup_and_train_DockerHub-pull.sh
+HF_TOKEN=hf_... WANDB_API_KEY=... ./Training/setup_and_train_DockerHub-pull.sh
 
 # Or manually — NO --rm, NO -v mount:
 docker run --name groot-train --gpus all --ipc=host --shm-size=16g \
@@ -53,7 +53,7 @@ apptainer pull $HOME/images/projekt-humanoider-roboter.sif \
 
 # Submit training job
 export HF_TOKEN=hf_... WANDB_API_KEY=... GLOBAL_BATCH_SIZE=32
-sbatch kisski_submit.sh
+sbatch Training/kisski_submit.sh
 
 # Monitor
 squeue -u $USER
@@ -68,7 +68,7 @@ KISSKI partitions: `kisski` (A100 80 GB) and `kisski-h100` (H100 94 GB), max wal
 ### Build the image
 
 ```bash
-docker build -t projektarbeit-humanoider-roboter .
+docker build -t projektarbeit-humanoider-roboter Training/   # build context = Training/
 # ~30 min first time (PyTorch, flash-attn). The Dockerfile clones the
 # Groot-1.6 submodule itself — no `git clone --recurse-submodules` needed
 # before building.
@@ -120,16 +120,25 @@ Config: [`app/Groot-1.6/pyproject.toml`](app/Groot-1.6/pyproject.toml) under `[t
 ## Architecture
 
 ```
-/ (project root = container root after build)
-├── Dockerfile                          # Defines image; ENTRYPOINT = /scripts/entrypoint.sh
-├── docker-compose.yml                  # Optional (dev convenience; no host volume mounts)
-├── kisski_submit.sh                    # SLURM batch script for KISSKI HPC cluster
-├── setup_and_train_DockerHub-pull.sh   # Thin host launcher: docker pull + docker run
-├── setup_and_train_DockerHub-pull.ps1  # Windows variant
-├── scripts/                            # COPIED into image at /scripts/
-│   ├── entrypoint.sh                   # Autonomous orchestrator (download→convert→train)
-│   ├── download_data.sh                # HuggingFace download (model + dataset)
-│   └── run_finetuning.sh               # Training launcher (called by entrypoint)
+repo root
+├── Training/                           # Everything training-related (build, run, docs)
+│   ├── Dockerfile                      # Defines image; ENTRYPOINT = /scripts/entrypoint.sh
+│   │                                   #   build context = Training/ (so COPY scripts/ works)
+│   ├── docker-compose.yml              # Optional (dev convenience; no host volume mounts)
+│   ├── kisski_submit.sh                # SLURM batch script for KISSKI HPC cluster
+│   ├── update_image.ps1                # Host build/push tool (must sit next to Dockerfile)
+│   ├── setup_and_train_DockerHub-pull.sh   # Thin host launcher: docker pull + docker run
+│   ├── setup_and_train_DockerHub-pull.ps1  # Windows variant
+│   ├── setup_and_train_Container-build.* # Host launcher that builds the image locally
+│   ├── Train-Test-split.md             # Dataset 80/20 split notes
+│   ├── WANDB_OFFLINE_SYNC.md           # W&B offline-sync guide for KISSKI
+│   └── scripts/                        # COPIED into image at /scripts/
+│       ├── entrypoint.sh               # Autonomous orchestrator (download→convert→train)
+│       ├── download_data.sh            # HuggingFace download (model + dataset)
+│       └── run_finetuning.sh           # Training launcher (called by entrypoint)
+├── Simulation/                         # Closed-loop sim eval (in development)
+│   └── ISAAC_LAB_SIM_PLAN.md           # Implementation plan for the Isaac Lab sim
+├── data/                               # Local-dev data/checkpoint placeholders (shared)
 └── app/                                # Git submodule, cloned in Dockerfile at build time
     └── Groot-1.6/                      # PRIMARY — custom fork (lucam06, pinned commit)
         ├── gr00t/experiment/launch_finetune.py  # Training entry point
@@ -151,13 +160,14 @@ At runtime, the container holds (no host mount):
 
 ### Important: scripts are COPIED into the image, no host-side data persistence
 
-- Changes to `scripts/*.sh` require a rebuild (no bind-mount).
+- Changes to `Training/scripts/*.sh` require a rebuild (no bind-mount).
 - All data (`/data`) lives only in the container filesystem (or on `/scratch` on KISSKI).
 - `docker run --rm` would destroy training results — never use it with this image.
-- `scripts/run_finetuning.sh` detects both Docker (`.dockerenv`) and Apptainer (`$APPTAINER_NAME` / `$SINGULARITY_NAME`) environments — no changes needed when running on KISSKI.
+- `Training/scripts/run_finetuning.sh` detects both Docker (`.dockerenv`) and Apptainer (`$APPTAINER_NAME` / `$SINGULARITY_NAME`) environments — no changes needed when running on KISSKI.
+- `kisski_submit.sh` bind-mounts `${REPO_DIR}/Training/scripts:/scripts` so repo changes take effect without an image rebuild.
 - For dev iteration: bind-mount manually:
   ```bash
-  docker run -it --name groot-dev -v $(pwd)/scripts:/scripts \
+  docker run -it --name groot-dev -v $(pwd)/Training/scripts:/scripts \
     --gpus all --ipc=host --shm-size=16g \
     lucam03/projekt-humanoider-roboter:latest bash
   ```

@@ -163,12 +163,12 @@ $env:WANDB_API_KEY = "dein_wandb_key"
 
 Linux / macOS / WSL2:
 ```bash
-./setup_and_train_DockerHub-pull.sh
+./Training/setup_and_train_DockerHub-pull.sh
 ```
 
 Windows PowerShell:
 ```powershell
-.\setup_and_train_DockerHub-pull.ps1
+.\Training\setup_and_train_DockerHub-pull.ps1
 ```
 
 Das Skript:
@@ -180,11 +180,11 @@ Das Skript:
 ### B5. Optionen
 
 ```bash
-./setup_and_train_DockerHub-pull.sh --skip-pull       # Image schon lokal
-./setup_and_train_DockerHub-pull.sh --interactive     # Shell statt Training
-./setup_and_train_DockerHub-pull.sh --resume          # Bestehenden Container weiterlaufen lassen
-./setup_and_train_DockerHub-pull.sh --destroy         # Alten Container loeschen + neu starten
-./setup_and_train_DockerHub-pull.sh --dry-run         # Nur Befehle anzeigen
+./Training/setup_and_train_DockerHub-pull.sh --skip-pull       # Image schon lokal
+./Training/setup_and_train_DockerHub-pull.sh --interactive     # Shell statt Training
+./Training/setup_and_train_DockerHub-pull.sh --resume          # Bestehenden Container weiterlaufen lassen
+./Training/setup_and_train_DockerHub-pull.sh --destroy         # Alten Container loeschen + neu starten
+./Training/setup_and_train_DockerHub-pull.sh --dry-run         # Nur Befehle anzeigen
 ```
 
 ### B6. Konfiguration anpassen
@@ -193,7 +193,7 @@ Trainings-Parameter über Env-Vars vor dem Skriptaufruf:
 ```bash
 export MAX_STEPS=50000
 export GLOBAL_BATCH_SIZE=16
-./setup_and_train_DockerHub-pull.sh
+./Training/setup_and_train_DockerHub-pull.sh
 ```
 
 ### B7. Training pausieren und fortsetzen
@@ -201,7 +201,7 @@ export GLOBAL_BATCH_SIZE=16
 ```bash
 # Mit Ctrl+C unterbrechen (oder `docker stop groot-train`)
 # Später:
-./setup_and_train_DockerHub-pull.sh --resume
+./Training/setup_and_train_DockerHub-pull.sh --resume
 # Alternativ direkt:
 docker start -ai groot-train
 ```
@@ -222,7 +222,7 @@ Funktioniert sowohl bei laufendem als auch bei gestopptem Container.
 ```bash
 docker rm -f groot-train
 # oder per Skript:
-./setup_and_train_DockerHub-pull.sh --destroy
+./Training/setup_and_train_DockerHub-pull.sh --destroy
 ```
 
 > **Vorsicht:** Damit sind ALLE Daten weg — vorher `docker cp` ausführen, falls du etwas behalten willst.
@@ -263,7 +263,7 @@ export WANDB_API_KEY=...       # optional
 export GLOBAL_BATCH_SIZE=32    # A100 mit 80 GB VRAM verträgt deutlich mehr als 8
 
 # Job einreichen
-sbatch kisski_submit.sh
+sbatch Training/kisski_submit.sh
 ```
 
 Beim ersten Lauf lädt der Container Modell und Datensatz (~25 GB) selbst von HuggingFace nach `/scratch/$USER/data/` herunter. Bei Folgeläufen wird der Download automatisch übersprungen.
@@ -328,7 +328,7 @@ docker logs -f groot-train       # Logs verfolgen
 ```bash
 git clone --recurse-submodules https://github.com/Docboter/projektarbeit_humanoider_roboter.git
 cd projektarbeit_humanoider_roboter
-docker build -t projektarbeit-humanoider-roboter .
+docker build -t projektarbeit-humanoider-roboter Training/   # Build-Context = Training/
 ```
 
 Build dauert ~30 Minuten (PyTorch + flash-attn). Dann ein `docker run` wie oben mit dem lokalen Image-Namen.
@@ -435,7 +435,7 @@ docker cp groot-train:/data/g1_dex3_finetune ./checkpoints
 
 ### Wie setze ich das Training nach einem Abbruch fort?
 
-Mit dem Launcher: `./setup_and_train_DockerHub-pull.sh --resume`. Manuell: `docker start -ai groot-train`. Der Entrypoint sieht, dass Daten vorhanden sind, und überspringt Download + Konvertierung.
+Mit dem Launcher: `./Training/setup_and_train_DockerHub-pull.sh --resume`. Manuell: `docker start -ai groot-train`. Der Entrypoint sieht, dass Daten vorhanden sind, und überspringt Download + Konvertierung.
 
 > **Hinweis:** Aktuell startet das Training jedes Mal von Step 0. Echtes Resume-from-Checkpoint ist eine Funktion von `launch_finetune.py` (`--resume_from_checkpoint`), die derzeit nicht im Entrypoint exponiert ist.
 
@@ -446,10 +446,10 @@ Dann ist nach Stop alles weg. **Niemals `--rm` mit diesem Image verwenden.** Das
 ### Wie ändere ich das Image?
 
 1. Code/Skripte ändern.
-2. `docker build -t lucam03/projekt-humanoider-roboter:latest .`
+2. `docker build -t lucam03/projekt-humanoider-roboter:latest Training/`
 3. `docker push lucam03/projekt-humanoider-roboter:latest` (für vast.ai)
 
-> `scripts/*.sh` werden ins Image **kopiert** (kein Bind-Mount mehr). Änderungen erfordern einen Rebuild — sonst läuft die alte Version weiter.
+> `Training/scripts/*.sh` werden ins Image **kopiert** (kein Bind-Mount mehr). Änderungen erfordern einen Rebuild — sonst läuft die alte Version weiter.
 
 ### Wie komme ich in eine Shell im laufenden Container?
 
@@ -474,13 +474,13 @@ Beliebig lange — solange du den Host nicht abschießt bzw. die vast.ai-Instanz
 
 ### Wie evaluiere ich das fertige Modell?
 
-Siehe [Train-Test-split.md](Train-Test-split.md) und den Inference-Abschnitt in [`app/Groot-1.6/examples/G1_DEX3/FINETUNING_GUIDE.md`](app/Groot-1.6/examples/G1_DEX3/FINETUNING_GUIDE.md).
+Siehe [Train-Test-split.md](Training/Train-Test-split.md) und den Inference-Abschnitt in [`app/Groot-1.6/examples/G1_DEX3/FINETUNING_GUIDE.md`](app/Groot-1.6/examples/G1_DEX3/FINETUNING_GUIDE.md).
 
 ---
 
 ## Weiterführende Dokumentation
 
 - [README.md](README.md) — Projekt-Übersicht
-- [Train-Test-split.md](Train-Test-split.md) — 80/20-Datensatz-Split
+- [Train-Test-split.md](Training/Train-Test-split.md) — 80/20-Datensatz-Split
 - [`app/Groot-1.6/examples/G1_DEX3/SETUP_DOCUMENTATION.md`](app/Groot-1.6/examples/G1_DEX3/SETUP_DOCUMENTATION.md)
 - [`app/Groot-1.6/examples/G1_DEX3/FINETUNING_GUIDE.md`](app/Groot-1.6/examples/G1_DEX3/FINETUNING_GUIDE.md)

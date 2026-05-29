@@ -1,8 +1,9 @@
 # syntax=docker/dockerfile:1
 # Projektarbeit Humanoider Roboter – Unitree G1 mit GR00T N1.6
 #
-# Build:
-#   docker build -t projektarbeit-humanoider-roboter .
+# Build (Build-Context ist der Training/-Ordner, der dieses Dockerfile + scripts/ enthält):
+#   docker build -t projektarbeit-humanoider-roboter Training/      # vom Repo-Root aus
+#   cd Training && docker build -t projektarbeit-humanoider-roboter .
 #
 # Run (autonom, z. B. auf vast.ai):
 #   docker run --rm --gpus all --ipc=host \
