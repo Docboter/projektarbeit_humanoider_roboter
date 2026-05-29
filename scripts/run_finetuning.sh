@@ -24,7 +24,7 @@ EMBODIMENT_TAG="${EMBODIMENT_TAG:-NEW_EMBODIMENT}"
 
 MAX_STEPS="${MAX_STEPS:-30000}"
 GLOBAL_BATCH_SIZE="${GLOBAL_BATCH_SIZE:-8}" #8
-DATALOADER_WORKERS="${DATALOADER_WORKERS:-4}" #2
+DATALOADER_WORKERS="${DATALOADER_WORKERS:-8}"
 SAVE_STEPS="${SAVE_STEPS:-1000}"
 SAVE_TOTAL_LIMIT="${SAVE_TOTAL_LIMIT:-5}"
 LEARNING_RATE="${LEARNING_RATE:-1e-4}"
@@ -74,13 +74,17 @@ if [[ "$USE_WANDB" == "1" ]]; then
         err "Setze WANDB_API_KEY per Env-Var oder USE_WANDB=0 für Training ohne W&B."
         exit 1
     fi
-    cd "$GROOT_ROOT"
-    # wandb liest WANDB_API_KEY automatisch — kein expliziter Login nötig.
-    if uv run --no-sync wandb login --relogin "$WANDB_API_KEY" &>/dev/null; then
-        log "W&B-Login OK"
+    if [[ "${WANDB_MODE:-}" == "offline" ]]; then
+        log "W&B Offline-Modus — Login übersprungen (kein Internet auf Compute-Node)."
     else
-        err "W&B-Login fehlgeschlagen — API-Key ungültig?"
-        exit 1
+        cd "$GROOT_ROOT"
+        # wandb liest WANDB_API_KEY automatisch — kein expliziter Login nötig.
+        if uv run --no-sync wandb login --relogin "$WANDB_API_KEY" &>/dev/null; then
+            log "W&B-Login OK"
+        else
+            err "W&B-Login fehlgeschlagen — API-Key ungültig?"
+            exit 1
+        fi
     fi
 fi
 

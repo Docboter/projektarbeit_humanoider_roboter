@@ -86,14 +86,18 @@ echo ""
 # ── HuggingFace-Token ─────────────────────────────────────────────────────────
 log "HuggingFace-Token prüfen"
 if [[ -z "${HF_TOKEN:-}" ]]; then
-    err "HF_TOKEN ist nicht gesetzt."
-    err "Auf vast.ai: im Feld 'Docker options' -e HF_TOKEN=hf_... eintragen."
-    exit 1
+    if [[ "${SKIP_DOWNLOAD:-0}" != "1" ]]; then
+        err "HF_TOKEN ist nicht gesetzt."
+        err "Auf vast.ai: im Feld 'Docker options' -e HF_TOKEN=hf_... eintragen."
+        exit 1
+    fi
+    warn "HF_TOKEN nicht gesetzt — kein Download möglich (SKIP_DOWNLOAD=1, wird toleriert)."
+else
+    # huggingface-cli liest HUGGING_FACE_HUB_TOKEN bzw. HF_TOKEN; wir setzen beide sicherheitshalber.
+    export HUGGING_FACE_HUB_TOKEN="$HF_TOKEN"
+    export HF_TOKEN
+    ok "HF_TOKEN gesetzt (${#HF_TOKEN} Zeichen)"
 fi
-# huggingface-cli liest HUGGING_FACE_HUB_TOKEN bzw. HF_TOKEN; wir setzen beide sicherheitshalber.
-export HUGGING_FACE_HUB_TOKEN="$HF_TOKEN"
-export HF_TOKEN
-ok "HF_TOKEN gesetzt (${#HF_TOKEN} Zeichen)"
 echo ""
 
 # ── Verzeichnisse anlegen ─────────────────────────────────────────────────────
@@ -150,7 +154,15 @@ echo ""
 if [[ -n "${WANDB_API_KEY:-}" ]]; then
     export USE_WANDB=1
     export WANDB_API_KEY
-    ok "WANDB_API_KEY gesetzt — Training loggt nach W&B (Projekt: $WANDB_PROJECT)."
+    # Compute-Nodes haben kein Internet → immer Offline-Modus.
+    # Runs werden nach $WANDB_DIR/wandb/offline-run-*/ geschrieben und
+    # nach dem Job auf dem Login-Node per "wandb sync" hochgeladen.
+    export WANDB_MODE="${WANDB_MODE:-offline}"
+    export WANDB_DIR="${WANDB_DIR:-/data/g1_dex3_finetune}"
+    mkdir -p "$WANDB_DIR"
+    ok "WANDB_API_KEY gesetzt — Offline-Modus (Projekt: $WANDB_PROJECT)."
+    ok "Runs werden gespeichert unter: $WANDB_DIR/wandb/"
+    warn "Nach dem Training auf dem Login-Node syncen: wandb sync $WANDB_DIR/wandb/offline-run-*/"
 else
     export USE_WANDB=0
     warn "Kein WANDB_API_KEY — Training läuft ohne W&B-Logging."
