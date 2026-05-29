@@ -76,7 +76,7 @@ if [[ "$USE_WANDB" == "1" ]]; then
     fi
     cd "$GROOT_ROOT"
     # wandb liest WANDB_API_KEY automatisch — kein expliziter Login nötig.
-    if uv run wandb login --relogin "$WANDB_API_KEY" &>/dev/null; then
+    if uv run --no-sync wandb login --relogin "$WANDB_API_KEY" &>/dev/null; then
         log "W&B-Login OK"
     else
         err "W&B-Login fehlgeschlagen — API-Key ungültig?"
@@ -86,7 +86,7 @@ fi
 
 # ── 5. Trainings-Befehl bauen ─────────────────────────────────────────────────
 TRAIN_CMD=(
-    uv run python "$GROOT_ROOT/gr00t/experiment/launch_finetune.py"
+    uv run --no-sync python "$GROOT_ROOT/gr00t/experiment/launch_finetune.py"
     --base_model_path        "$MODEL_PATH"
     --dataset_path           "$DATASET_PATH"
     --embodiment_tag         "$EMBODIMENT_TAG"

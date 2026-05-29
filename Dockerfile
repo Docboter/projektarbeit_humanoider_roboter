@@ -51,8 +51,10 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 RUN curl -LsSf https://astral.sh/uv/0.8.14/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh
 
 # Repositories klonen (gepinnte Commits für Reproduzierbarkeit)
-RUN git clone https://github.com/lucam06/Isaac-GR00T.git /app/Groot-1.6 \
-    && git -C /app/Groot-1.6 checkout c047ce2386eb11964548faf0c2cb53f895b11201 \
+# Branch: luca/g1-dex3 — enthält N1.6-kompatibles gr00t-Modul + korrektes uv.lock
+# Commit aktualisieren: .\update_image.ps1 -UpdateCommit
+RUN git clone --branch luca/g1-dex3 https://github.com/lucam06/Isaac-GR00T.git /app/Groot-1.6 \
+    && git -C /app/Groot-1.6 checkout 9508b498cb60c0048a8a3ce562b518b53f3d0bcf \
     && git -C /app/Groot-1.6 lfs pull
 
 # Python-Abhängigkeiten installieren (aus gefrorenem uv.lock)
@@ -82,7 +84,8 @@ ENV PATH="/app/Groot-1.6/.venv/bin:${PATH}" \
     VIRTUAL_ENV="/app/Groot-1.6/.venv" \
     MUJOCO_GL="egl" \
     PYOPENGL_PLATFORM="egl" \
-    __EGL_VENDOR_LIBRARY_FILENAMES="/usr/share/glvnd/egl_vendor.d/10_nvidia.json"
+    __EGL_VENDOR_LIBRARY_FILENAMES="/usr/share/glvnd/egl_vendor.d/10_nvidia.json" \
+    UV_PREVIEW=1
 
 # Datenverzeichnisse anlegen (werden i. d. R. per Volume gemountet)
 RUN mkdir -p /data/models /data/unitreerobotics /data/G1_Dex3_BlockStacking /data/g1_dex3_finetune /data/logs

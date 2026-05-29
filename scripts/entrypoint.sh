@@ -137,7 +137,7 @@ elif [[ -f "$MODALITY_FILE" ]]; then
 else
     cd "$GROOT_ROOT"
     log "Konvertiere Datensatz…"
-    uv run python scripts/lerobot_conversion/convert_v3_to_v2_standalone.py \
+    uv run --no-sync python scripts/lerobot_conversion/convert_v3_to_v2_standalone.py \
         --repo-id unitreerobotics/G1_Dex3_BlockStacking_Dataset \
         --root "$DATA_DIR"
     log "Kopiere modality_4cam.json → modality.json"
