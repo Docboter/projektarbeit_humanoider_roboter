@@ -1,0 +1,32 @@
+# LaTeX-Hilfsdateien
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.fdb_latexmk
+*.fls
+*.glg
+*.glo
+*.gls
+*.ist
+*.lof
+*.log
+*.lot
+*.nav
+*.out
+*.run.xml
+*.snm
+*.synctex.gz
+*.synctex(busy)
+*.toc
+*.xdv
+*.acn
+*.acr
+*.alg
+*.auxlock
+
+# minted-Cache
+_minted-*/
+
+# Kompiliertes PDF (optional – entfernen, wenn PDF versioniert werden soll)
+*.pdf

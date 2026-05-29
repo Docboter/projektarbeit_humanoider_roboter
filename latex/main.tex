@@ -1,0 +1,78 @@
+% !TEX program  = lualatex
+% !TEX encoding = UTF-8 Unicode
+%
+% Projektarbeit – Fine-Tuning von NVIDIA GR00T N1.6
+% Kompilierung (empfohlen):  latexmk main.tex
+% Manuell:                   lualatex -shell-escape main.tex
+%                            biber main
+%                            lualatex -shell-escape main.tex  (2×)
+
+\documentclass[
+  ngerman,            % Deutsche Sprachunterstützung
+  oneside,            % Einseitiger Druck
+  fontsize=12pt,      % Schriftgröße Fließtext
+  parskip=half,       % Absatz: halbe Zeile Abstand, kein Einzug
+  DIV=12,             % KOMA-Satzspiegelberechnung (≥ 10 → mehr Textbreite)
+  BCOR=0mm,           % Bindekorrektur (bei Klebebindung z.B. 10 mm)
+  headings=normal,    % Standard-Überschriftengrößen
+  numbers=noenddot,   % Kein Punkt nach Gliederungsziffern
+  bibliography=totoc, % Literaturverzeichnis im Inhaltsverzeichnis
+  listof=totoc,       % Abbildungs-/Tabellenverzeichnis im InhV
+]{scrreprt}
+
+% ── Preamble ─────────────────────────────────────────────────────────
+\input{preamble/packages}
+\input{preamble/settings}
+
+% ═════════════════════════════════════════════════════════════════════
+\begin{document}
+% ═════════════════════════════════════════════════════════════════════
+
+% ── Titelseite (keine Seitenzahl) ────────────────────────────────────
+\include{frontmatter/titelseite}
+
+% ── Verzeichnisse (Römische Seitenzahlen) ────────────────────────────
+\pagenumbering{roman}
+\setcounter{page}{1}
+
+\include{frontmatter/zusammenfassung}
+
+\tableofcontents
+\clearpage
+
+\listoffigures
+\listoftables
+\clearpage
+
+\printacronyms[
+  heading = chapter*,
+  name    = {Abkürzungsverzeichnis},
+]
+\addcontentsline{toc}{chapter}{Abkürzungsverzeichnis}
+\clearpage
+
+% ── Hauptteil (Arabische Seitenzahlen ab 1) ──────────────────────────
+\cleardoublepage
+\pagenumbering{arabic}
+
+\include{chapters/01_einleitung}
+\include{chapters/02_grundlagen}
+\include{chapters/03_methoden}
+\include{chapters/04_ergebnisse}
+\include{chapters/05_diskussion}
+\include{chapters/06_fazit}
+
+% ── Literaturverzeichnis ─────────────────────────────────────────────
+\printbibliography[
+  heading = bibintoc,
+  title   = {Literaturverzeichnis},
+]
+
+% ── Anhang ───────────────────────────────────────────────────────────
+\appendix
+\include{backmatter/anhang}
+
+% ── Ehrenwörtliche Erklärung ─────────────────────────────────────────
+\include{backmatter/erklaerung}
+
+\end{document}

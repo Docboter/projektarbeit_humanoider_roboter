@@ -1,0 +1,52 @@
+% chapters/05_diskussion.tex
+
+\chapter{Diskussion}
+\label{chap:diskussion}
+
+\section{Analyse der Ergebnisse}
+\label{sec:analyse}
+
+Die in \cref{chap:ergebnisse} präsentierten Ergebnisse zeigen~[TODO: Bewertung
+der Erfolgsrate einfügen].
+Besonders [TODO: positiver Befund] deutet darauf hin, dass~\dots
+
+Im Vergleich zu verwandten Arbeiten~\cite{openvla2024, groot2025} erzielt das
+fine-getunte Modell~[TODO: relativer Vergleich].
+
+\section{Limitierungen}
+\label{sec:limitierungen}
+
+\subsection{Datenmenge und -qualität}
+Die begrenzte Anzahl an Demonstrations-Episoden ($N = \num{[TODO]}$) kann zu
+\emph{compounding errors} führen (vgl.\ \cref{eq:bc-loss}).
+Eine Erweiterung des Datensatzes durch synthetische Demonstrationen aus der
+Simulation wäre ein vielversprechender Ansatz.
+
+\subsection{Sim-to-Real-Transfer}
+Die Evaluation in der NVIDIA-Isaac-Lab-Simulation unterscheidet sich in
+Kontakt-Dynamik und Reibungskoeffizienten von der realen Ausführung.
+Der tatsächliche Transfer auf den physischen Roboter wurde im Rahmen dieser
+Arbeit nicht vollständig evaluiert.
+
+\subsection{Rechenressourcen}
+Das Training auf dem KISSKI-Cluster (A100, \qty{80}{\giga\byte}~\ac{vram}) mit
+\texttt{GLOBAL\_BATCH\_SIZE=32} und \num{50000}~Schritten dauerte ca.\
+\qty{[TODO]}{\hour}.
+Auf lokaler Hardware (RTX 4070, \qty{8}{\giga\byte}~\ac{vram}) sind aufgrund der
+kleineren Batch-Größe deutlich mehr Schritte für vergleichbare Konvergenz nötig.
+
+\section{Ausblick auf Verbesserungen}
+\label{sec:verbesserungen}
+
+Folgende Ansätze erscheinen vielversprechend für zukünftige Iterationen:
+
+\begin{itemize}
+  \item \textbf{Datenerweiterung:} Synthese zusätzlicher Episoden in Isaac Lab
+    und Übernahme in den Trainings-Datensatz.
+  \item \textbf{\ac{rl}-Fine-Tuning:} Aufbauend auf dem \ac{il}-Checkpoint
+    könnte eine \ac{rl}-Phase in der Simulation die Robustheit verbessern.
+  \item \textbf{Multi-Task-Training:} Erweiterung auf weitere Aufgaben
+    (Würfeldrehen, Objekt-Ablegen) im selben Trainingslauf.
+  \item \textbf{Quantisierung:} Modell-Quantisierung (INT8) zur Reduktion der
+    \ac{vram}-Anforderungen für den Einsatz auf mobiler Hardware.
+\end{itemize}

@@ -1,0 +1,62 @@
+% chapters/01_einleitung.tex
+
+\chapter{Einleitung}
+\label{chap:einleitung}
+
+\section{Motivation}
+\label{sec:motivation}
+
+Humanoide Roboter stehen vor der Herausforderung, komplexe Manipulations-
+aufgaben in unstrukturierten Umgebungen auszuführen.
+Traditionelle Programmieransätze erfordern aufwändige manuelle Regelentwicklung
+und sind nur begrenzt auf neue Aufgaben übertragbar.
+Foundation-Modelle aus dem Bereich der künstlichen Intelligenz bieten einen
+vielversprechenden Ansatz, diesen Prozess durch \ac{il} zu vereinfachen:
+Ein einmal vortrainiertes \ac{vla}-Modell kann durch gezieltes Fine-Tuning auf
+wenigen Demonstrations-Episoden an neue Roboter und Aufgaben angepasst werden.
+
+\begin{infobox}[Projektziel]
+  Diese Projektarbeit untersucht, ob und wie das Modell NVIDIA GR00T N1.6 auf dem
+  Unitree G1 Humanoidroboter mit DEX3-Hand für Block-Stacking-Aufgaben mittels
+  Imitation Learning erfolgreich angepasst werden kann.
+\end{infobox}
+
+\section{Problemstellung}
+\label{sec:problemstellung}
+
+Das Block-Stacking mit einer humanoiden Hand stellt eine nicht-triviale
+Manipulation dar: Der Roboter muss Objekte präzise greifen, heben und stapeln,
+wobei Kamerasicht, Propriozeption und Kraft-Feedback in einer gemeinsamen
+Repräsentation verarbeitet werden müssen.
+Folgende Herausforderungen ergeben sich:
+
+\begin{itemize}
+  \item Hohe \ac{dof}-Anzahl des Systems (G1-Körper + DEX3-Hand)
+  \item Begrenzte Menge an Demonstrations-Daten
+  \item Rechenintensives Training auf \ac{gpu}-Clustern
+  \item Sim-to-Real-Gap bei der Evaluation
+\end{itemize}
+
+\section{Zielsetzung}
+\label{sec:zielsetzung}
+
+Ziele dieser Arbeit sind:
+
+\begin{enumerate}
+  \item Aufbau einer reproduzierbaren Trainingsinfrastruktur (Docker / Apptainer)
+  \item Fine-Tuning von GR00T N1.6 auf dem G1-Datensatz mittels LeRobot-Format
+  \item Quantitative Evaluation des trainierten Modells
+  \item Dokumentation und Übertragbarkeit der Pipeline auf weitere Aufgaben
+\end{enumerate}
+
+\section{Aufbau der Arbeit}
+\label{sec:aufbau}
+
+\Cref{chap:grundlagen} legt die theoretischen Grundlagen zu humanoider Robotik,
+\acp{vla} und \ac{il} dar.
+\Cref{chap:methoden} beschreibt den Datensatz, die Systemarchitektur und den
+Trainingsprozess.
+In \cref{chap:ergebnisse} werden die Trainings- und Evaluationsergebnisse
+vorgestellt.
+\Cref{chap:diskussion} diskutiert die Ergebnisse und Limitierungen.
+\Cref{chap:fazit} schließt die Arbeit mit einem Fazit und Ausblick ab.

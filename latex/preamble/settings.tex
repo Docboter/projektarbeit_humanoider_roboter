@@ -1,0 +1,195 @@
+% preamble/settings.tex — Einstellungen, Konfigurationen, Abkürzungen
+% ═════════════════════════════════════════════════════════════════════
+
+% ── Metadaten (hier anpassen!) ────────────────────────────────────────
+\newcommand{\docTitle}{Fine-Tuning von NVIDIA GR00T N1.6 für humanoide Roboter-Manipulation}
+\newcommand{\docSubtitle}{Block-Stacking mit dem Unitree G1 und DEX3-Hand}
+\newcommand{\docAuthor}{Luca Müncke}
+\newcommand{\docMatrikel}{u28320}
+\newcommand{\docBetreuer}{[Name des Betreuers]}
+\newcommand{\docHochschule}{[Name der Hochschule]}
+\newcommand{\docFachbereich}{[Fachbereich / Institut]}
+\newcommand{\docStudiengang}{[Studiengang]}
+\newcommand{\docAbgabedatum}{[TT.\,MM.\,JJJJ]}
+
+% ── Hyperref-Konfiguration ────────────────────────────────────────────
+\hypersetup{
+  colorlinks   = true,
+  linkcolor    = NavyBlue,
+  citecolor    = NavyBlue,
+  urlcolor     = BurntOrange,
+  filecolor    = NavyBlue,
+  pdftitle     = {\docTitle},
+  pdfauthor    = {\docAuthor},
+  pdfsubject   = {Projektarbeit},
+  pdfkeywords  = {Humanoider Roboter, GR00T, Fine-Tuning, Imitation Learning,
+                  Unitree G1, DEX3},
+  pdflang      = {de-DE},
+  pdfcreator   = {LuaLaTeX mit hyperref},
+}
+
+% ── cleveref-Bezeichnungen (Deutsch) ─────────────────────────────────
+\crefname{figure}{Abb.}{Abb.}
+\Crefname{figure}{Abbildung}{Abbildungen}
+\crefname{table}{Tab.}{Tab.}
+\Crefname{table}{Tabelle}{Tabellen}
+\crefname{equation}{Gl.}{Gl.}
+\Crefname{equation}{Gleichung}{Gleichungen}
+\crefname{chapter}{Kap.}{Kap.}
+\Crefname{chapter}{Kapitel}{Kapitel}
+\crefname{section}{Abschn.}{Abschn.}
+\Crefname{section}{Abschnitt}{Abschnitte}
+\crefname{listing}{Listing}{Listings}
+\Crefname{listing}{Listing}{Listings}
+\crefname{appendix}{Anh.}{Anh.}
+\Crefname{appendix}{Anhang}{Anhänge}
+
+% ── Caption-Stil ──────────────────────────────────────────────────────
+\captionsetup{
+  font      = small,
+  labelfont = {bf, sf},
+  labelsep  = period,
+  skip      = 6pt,
+}
+\captionsetup[sub]{
+  font      = footnotesize,
+  labelfont = sf,
+}
+
+% ── minted-Standardkonfiguration ─────────────────────────────────────
+\setminted{
+  bgcolor    = gray!8,
+  fontsize   = \small,
+  linenos    = true,
+  breaklines = true,
+  breakanywhere,
+  frame      = leftline,
+  framesep   = 2mm,
+  rulecolor  = NavyBlue!50,
+  numbersep  = 4pt,
+  tabsize    = 4,
+}
+
+% ── siunitx ──────────────────────────────────────────────────────────
+\sisetup{
+  output-decimal-marker = {,},
+  group-separator       = {\,},
+  group-minimum-digits  = 4,
+}
+
+% ── KOMA-Script Schriftsatz ───────────────────────────────────────────
+\setkomafont{chapter}{\LARGE\bfseries\sffamily}
+\setkomafont{section}{\large\bfseries\sffamily}
+\setkomafont{subsection}{\large\sffamily}
+\setkomafont{subsubsection}{\normalsize\itshape\sffamily}
+\setkomafont{disposition}{\sffamily}
+\addtokomafont{chapterprefix}{\color{NavyBlue!60}}
+\addtokomafont{chapter}{\color{NavyBlue}}
+
+% ── Kopf- und Fußzeile ────────────────────────────────────────────────
+\pagestyle{scrheadings}
+\clearpairofpagestyles
+\ihead{\headmark}
+\ofoot[\pagemark]{\pagemark}
+\setkomafont{pageheadfoot}{\small\sffamily}
+\setkomafont{pagenumber}{\sffamily}
+\automark[section]{chapter}
+
+% ── Aufzählungen ─────────────────────────────────────────────────────
+\setlist{noitemsep, topsep=0.5\baselineskip}
+\setlist[itemize,1]{label=\textbullet}
+\setlist[itemize,2]{label=\textendash}
+\setlist[enumerate,1]{label=\arabic*.}
+
+% ── tcolorbox-Umgebungen ─────────────────────────────────────────────
+\tcbuselibrary{breakable, skins}
+
+\newtcolorbox{infobox}[1][Hinweis]{
+  enhanced, breakable,
+  colback  = NavyBlue!5,
+  colframe = NavyBlue!60,
+  fonttitle = \bfseries\sffamily,
+  title    = {#1},
+}
+\newtcolorbox{warningbox}[1][Achtung]{
+  enhanced, breakable,
+  colback  = BrickRed!5,
+  colframe = BrickRed!60,
+  fonttitle = \bfseries\sffamily,
+  title    = {#1},
+}
+\newtcolorbox{tipbox}[1][Tipp]{
+  enhanced, breakable,
+  colback  = OliveGreen!5,
+  colframe = OliveGreen!60,
+  fonttitle = \bfseries\sffamily,
+  title    = {#1},
+}
+
+% ── acro-Konfiguration ────────────────────────────────────────────────
+\acsetup{make-links = true}
+
+\DeclareAcronym{vla}{
+  short = VLA,
+  long  = Vision-Language-Action,
+}
+\DeclareAcronym{llm}{
+  short = LLM,
+  long  = Large Language Model,
+}
+\DeclareAcronym{il}{
+  short = IL,
+  long  = Imitation Learning,
+}
+\DeclareAcronym{rl}{
+  short = RL,
+  long  = Reinforcement Learning,
+}
+\DeclareAcronym{gpu}{
+  short = GPU,
+  long  = Graphics Processing Unit,
+}
+\DeclareAcronym{hpc}{
+  short = HPC,
+  long  = High-Performance Computing,
+}
+\DeclareAcronym{slurm}{
+  short = SLURM,
+  long  = Simple Linux Utility for Resource Management,
+}
+\DeclareAcronym{api}{
+  short = API,
+  long  = Application Programming Interface,
+}
+\DeclareAcronym{vram}{
+  short = VRAM,
+  long  = Video Random Access Memory,
+}
+\DeclareAcronym{hf}{
+  short = HF,
+  long  = Hugging Face,
+}
+\DeclareAcronym{cnn}{
+  short = CNN,
+  long  = Convolutional Neural Network,
+}
+\DeclareAcronym{moe}{
+  short = MoE,
+  long  = Mixture of Experts,
+}
+\DeclareAcronym{vit}{
+  short = ViT,
+  long  = Vision Transformer,
+}
+\DeclareAcronym{dof}{
+  short = DoF,
+  long  = Degrees of Freedom,
+}
+\DeclareAcronym{fps}{
+  short = FPS,
+  long  = Frames per Second,
+}
+\DeclareAcronym{wandb}{
+  short = W\&B,
+  long  = Weights \& Biases,
+}

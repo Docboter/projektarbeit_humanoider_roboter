@@ -1,0 +1,48 @@
+% chapters/06_fazit.tex
+
+\chapter{Fazit und Ausblick}
+\label{chap:fazit}
+
+\section{Fazit}
+\label{sec:fazit}
+
+Diese Projektarbeit hat gezeigt, dass das Fine-Tuning des \ac{vla}-Modells
+NVIDIA GR00T N1.6 auf dem humanoiden Roboter Unitree G1 mit DEX3-Hand für
+Block-Stacking-Aufgaben prinzipiell möglich ist.
+
+Die zentralen Erkenntnisse lassen sich wie folgt zusammenfassen:
+
+\begin{itemize}
+  \item Die entwickelte Docker- / Apptainer-Infrastruktur ermöglicht ein
+    reproduzierbares Training lokal und auf dem \ac{hpc}-Cluster KISSKI.
+  \item \ac{il} mit Behavior Cloning konvergiert auf dem gegebenen Datensatz
+    innerhalb von~\num{[TODO]}~Schritten auf eine stabile Verlustfunktion.
+  \item Die Erfolgsrate von~\qty{[TODO]}{\percent} in der Simulation liegt
+    [über / unter / im Bereich von] vergleichbaren Arbeiten.
+  \item Die Pipeline ist modular aufgebaut und lässt sich auf weitere
+    Manipulationsaufgaben übertragen.
+\end{itemize}
+
+\section{Ausblick}
+\label{sec:ausblick}
+
+Auf Basis dieser Arbeit ergeben sich folgende Anschlussprojekte und
+offene Fragen:
+
+\paragraph{\ac{rl}-Verfeinerung}
+Ein \ac{rl}-Fine-Tuning-Schritt auf Basis des \ac{il}-Checkpoints könnte die
+Robustheit gegenüber Störungen und Variationen in der Szene erhöhen.
+
+\paragraph{Sim-to-Real-Evaluation}
+Eine systematische Evaluation auf dem physischen G1-Roboter steht noch aus
+und wird als nächster Meilenstein des Projekts angestrebt.
+
+\paragraph{Erweiterung des Datensatzes}
+Die Kombination von menschlichen und synthetischen Demonstrationen aus der
+NVIDIA-Isaac-Lab-Simulation könnte die Datenbasis erheblich vergrößern und
+die Generalisierungsfähigkeit des Modells verbessern.
+
+\paragraph{Multi-Embodiment-Training}
+GR00T N1.6 unterstützt prinzipiell das gleichzeitige Training auf mehreren
+Roboter-Plattformen; ein gemeinsames Modell für G1 und weitere humanoide
+Systeme wäre ein langfristiges Ziel.

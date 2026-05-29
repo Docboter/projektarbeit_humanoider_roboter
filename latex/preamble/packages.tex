@@ -1,0 +1,97 @@
+% preamble/packages.tex — Paketimporte
+% ═════════════════════════════════════════════════════════════════════
+
+% ── Sprache & Zeichenkodierung ────────────────────────────────────────
+\usepackage[ngerman]{babel}
+\usepackage[autostyle=true, german=guillemets]{csquotes}   % dt. Anführungszeichen
+
+% ── Schriften (LuaLaTeX + fontspec) ──────────────────────────────────
+% Libertinus: freie OpenType-Familie, in TeX Live 2020+ enthalten
+\usepackage{fontspec}
+\setmainfont{Libertinus Serif}
+\setsansfont{Libertinus Sans}
+\setmonofont[Scale=MatchLowercase]{Source Code Pro}         % für Code
+
+\usepackage{unicode-math}
+\setmathfont{Libertinus Math}                               % passend zur Serifenschrift
+
+% Mikrotypographie: Randausgleich, Unterschneidung, Wortzwischenräume
+\usepackage[
+  protrusion = true,
+  expansion  = true,
+  final,
+]{microtype}
+
+% ── Seitenlayout & Kopf-/Fußzeilen ───────────────────────────────────
+\usepackage{scrlayer-scrpage}   % KOMA-kompatible Kopf-/Fußzeilen
+
+% ── Farben ───────────────────────────────────────────────────────────
+\usepackage[dvipsnames, svgnames, x11names]{xcolor}
+
+% ── Grafiken & Abbildungen ────────────────────────────────────────────
+\usepackage{graphicx}
+\graphicspath{{figures/}}
+\usepackage{caption}
+\usepackage{subcaption}         % Teil-Abbildungen (a), (b) …
+\usepackage{float}              % [H]-Platzierung
+\usepackage{wrapfig}            % Text umfließt Abbildung
+
+% ── Tabellen ─────────────────────────────────────────────────────────
+\usepackage{booktabs}           % \toprule, \midrule, \bottomrule
+\usepackage{tabularx}           % Spalten mit variabler Breite (X)
+\usepackage{longtable}          % Mehrseitige Tabellen
+\usepackage{array}              % Erweiterte Spaltentypen
+\usepackage{multirow}           % Zellen über mehrere Zeilen
+
+% ── Quellcode-Listings ───────────────────────────────────────────────
+% Voraussetzung: Python + Pygments ("pip install Pygments")
+% Kompilierung mit lualatex -shell-escape
+\usepackage{minted}
+
+% ── Mathematik & Einheiten ───────────────────────────────────────────
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage[
+  locale              = DE,
+  separate-uncertainty,
+  per-mode            = symbol,
+]{siunitx}
+
+% ── Abkürzungsverzeichnis ─────────────────────────────────────────────
+\usepackage{acro}
+
+% ── Aufzählungen ─────────────────────────────────────────────────────
+\usepackage{enumitem}
+
+% ── Farbige Hinweis-Boxen ─────────────────────────────────────────────
+\usepackage[most]{tcolorbox}
+
+% ── Diagramme & Plots ─────────────────────────────────────────────────
+\usepackage{tikz}
+\usetikzlibrary{
+  arrows.meta,
+  positioning,
+  shapes.geometric,
+  fit,
+  calc,
+  decorations.pathreplacing,
+  backgrounds,
+}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+
+% ── Literaturverzeichnis ──────────────────────────────────────────────
+\usepackage[
+  style      = ieee,      % IEEE-Zitierstil (alternativ: authoryear, apa)
+  backend    = biber,     % Moderner BibTeX-Ersatz mit Unicode-Unterstützung
+  sortlocale = de_DE,
+  urldate    = long,
+  dashed     = false,
+  maxnames   = 6,
+  minnames   = 1,
+]{biblatex}
+\addbibresource{references.bib}
+
+% ── Links & PDF-Metadaten (IMMER als letztes Paket!) ─────────────────
+\usepackage{hyperref}
+\usepackage[ngerman]{cleveref}  % Intelligente Querverweise (\cref, \Cref)

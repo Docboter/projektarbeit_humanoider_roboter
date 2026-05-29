@@ -1,0 +1,142 @@
+% chapters/03_methoden.tex
+
+\chapter{Methoden}
+\label{chap:methoden}
+
+\section{Datensatz}
+\label{sec:datensatz}
+
+Der verwendete Datensatz \texttt{G1\_Dex3\_BlockStacking} enthält
+$N = \num{[TODO]}$~Episoden menschlicher Block-Stacking-Demonstrationen
+auf dem Unitree G1 mit DEX3-Hand.
+\Cref{tab:datensatz} fasst die wichtigsten Kennzahlen zusammen.
+
+\begin{table}[htb]
+  \centering
+  \caption{Eigenschaften des Trainings-Datensatzes}
+  \label{tab:datensatz}
+  \begin{tabularx}{\linewidth}{lX}
+    \toprule
+    \textbf{Eigenschaft}       & \textbf{Wert} \\
+    \midrule
+    Format                     & LeRobot v2.1 \\
+    Anzahl Episoden (gesamt)   & \num{[TODO]} \\
+    Anzahl Episoden (Training) & \num{[TODO]} \\
+    Anzahl Episoden (Test)     & \num{[TODO]} \\
+    Kameraauflösung            & $640 \times 480$\,px \\
+    Aufzeichnungsrate          & \qty{30}{\fps} \\
+    Mittlere Episodenlänge     & \qty{[TODO]}{\second} \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+Die Aufteilung in Trainings- und Testmenge folgt einem stratifizierten
+80\,/\,20-Split nach Episodenlänge und Aufnahmezeitpunkt~\cite{placeholder_datasplit}.
+
+\section{Systemarchitektur}
+\label{sec:systemarchitektur}
+
+\Cref{fig:system-overview} zeigt die Gesamtarchitektur der Trainings- und
+Inferenzpipeline.
+
+\begin{figure}[htb]
+  \centering
+  \begin{tikzpicture}[
+    node distance = 1.4cm and 2cm,
+    box/.style    = {
+      draw, rounded corners, fill=NavyBlue!8,
+      minimum width=3.2cm, minimum height=1cm,
+      font=\small\sffamily, align=center,
+    },
+    arrow/.style  = {-{Stealth[scale=1.1]}, thick, NavyBlue!70},
+  ]
+    \node[box] (data)     {Datensatz\\(LeRobot v2.1)};
+    \node[box] (convert)  [right=of data]   {Format-\\konverter};
+    \node[box] (train)    [right=of convert]{GR00T Fine-\\Tuning};
+    \node[box] (ckpt)     [right=of train]  {Checkpoint\\(/data/)};
+    \node[box] (eval)     [below=of ckpt]   {Evaluation\\(Simulation)};
+    \node[box] (robot)    [below=of train]  {Unitree G1\\Inferenz};
+
+    \draw[arrow] (data)    -- (convert);
+    \draw[arrow] (convert) -- (train);
+    \draw[arrow] (train)   -- (ckpt);
+    \draw[arrow] (ckpt)    -- (eval);
+    \draw[arrow] (ckpt)    -- (robot);
+  \end{tikzpicture}
+  \caption{Übersicht der Trainings- und Inferenzpipeline.}
+  \label{fig:system-overview}
+\end{figure}
+
+\section{Trainingsinfrastruktur}
+\label{sec:infrastruktur}
+
+Das Training wird in einem selbst-enthaltenen Docker-Container durchgeführt,
+der CUDA~12.8, Python~3.10 und alle Abhängigkeiten kapselt.
+Derselbe Container läuft als Apptainer-SIF-Image auf dem \ac{hpc}-Cluster KISSKI
+(\ac{slurm}-basiert) ohne Änderungen am Trainings-Code.
+
+\subsection{Hyperparameter}
+\label{subsec:hyperparameter}
+
+Die wichtigsten Trainings-Hyperparameter sind in \cref{tab:hparams} aufgeführt.
+Sie werden ausschließlich über Umgebungsvariablen konfiguriert.
+
+\begin{table}[htb]
+  \centering
+  \caption{Trainings-Hyperparameter}
+  \label{tab:hparams}
+  \begin{tabular}{llr}
+    \toprule
+    \textbf{Parameter}       & \textbf{Env-Variable}   & \textbf{Wert} \\
+    \midrule
+    Batch-Größe (global)     & \texttt{GLOBAL\_BATCH\_SIZE} & 32 \\
+    Trainingsschritte        & \texttt{MAX\_STEPS}          & \num{50000} \\
+    Lernrate                 & —                            & \num{1e-4} \\
+    Optimizer                & —                            & AdamW \\
+    GPU-Konfiguration        & \texttt{NUM\_GPUS}           & 1 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{SLURM-Job-Submission}
+\label{subsec:slurm}
+
+\Cref{lst:sbatch} zeigt den Aufruf des SLURM-Batch-Skripts auf KISSKI.
+
+\begin{listing}[htb]
+\begin{minted}{bash}
+export HF_TOKEN=hf_...
+export SIF_IMAGE=~/.project/dir.project/images/projekt-humanoider-roboter.sif
+export GLOBAL_BATCH_SIZE=32
+export MAX_STEPS=50000
+
+sbatch ~/.project/dir.project/kisski_submit.sh
+\end{minted}
+\caption{Einreichung eines Trainingsjobs auf dem KISSKI-Cluster.}
+\label{lst:sbatch}
+\end{listing}
+
+\section{Fine-Tuning-Prozess}
+\label{sec:finetuning}
+
+Das Fine-Tuning basiert auf dem GR00T-N1.6-Skript
+\texttt{gr00t/experiment/launch\_finetune.py}.
+Der Einstiegspunkt des Containers ruft nach dem Herunterladen des Datensatzes
+und der Format-Konvertierung automatisch dieses Skript auf
+(siehe \cref{lst:entrypoint}).
+
+\begin{listing}[htb]
+\begin{minted}{python}
+# Vereinfachter Ausschnitt aus run_finetuning.sh
+import subprocess, os
+
+subprocess.run([
+    "python", "gr00t/experiment/launch_finetune.py",
+    "--dataset-path", os.environ["DATA_DIR"],
+    "--max-steps", os.environ.get("MAX_STEPS", "30000"),
+    "--batch-size", os.environ.get("GLOBAL_BATCH_SIZE", "8"),
+], check=True)
+\end{minted}
+\caption{Vereinfachter Aufruf des Fine-Tuning-Skripts (illustrativ).}
+\label{lst:entrypoint}
+\end{listing}

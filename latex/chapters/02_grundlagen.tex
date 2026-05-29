@@ -1,0 +1,93 @@
+% chapters/02_grundlagen.tex
+
+\chapter{Grundlagen}
+\label{chap:grundlagen}
+
+\section{Humanoide Robotik}
+\label{sec:humanoide-robotik}
+
+Humanoide Roboter zeichnen sich durch eine dem Menschen ähnliche Körperstruktur
+aus, die eine intuitive Interaktion mit menschlichen Werkzeugen und Umgebungen
+ermöglicht~\cite{placeholder_humanoid}.
+Der \textbf{Unitree G1} verfügt über 43~\acp{dof} und wiegt ca.\ \qty{35}{\kg};
+die \textbf{DEX3-Hand} ergänzt diesen um 6~\acp{dof} pro Hand für Feinmanipulation
+(siehe \cref{tab:hardware}).
+
+\begin{table}[htb]
+  \centering
+  \caption{Hardware-Spezifikationen: Unitree G1 mit DEX3-Hand}
+  \label{tab:hardware}
+  \begin{tabularx}{\linewidth}{lX}
+    \toprule
+    \textbf{Eigenschaft}   & \textbf{Wert} \\
+    \midrule
+    Gesamtgewicht          & \qty{35}{\kg} \\
+    Körper-DoF             & 43 \\
+    DEX3-Hand-DoF (je)     & 6 \\
+    Kamera(s)              & Stereokamera + Head-Cam \\
+    Eigenfrequenz Regelung & \qty{500}{\Hz} \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+\section{Vision-Language-Action-Modelle}
+\label{sec:vla}
+
+\acp{vla} sind multimodale neuronale Netze, die Kamerabilder, Sprachbefehle und
+Roboterzustände gemeinsam verarbeiten und direkt Steuerungsbefehle ausgeben~\cite{openvla2024}.
+\textbf{GR00T N1.6} von NVIDIA folgt einer Dual-System-Architektur~\cite{groot2025}:
+
+\begin{description}
+  \item[System~1 (reaktiv)] Ein leichtgewichtiger \ac{vit}-basierter
+    Aktions-Tokenizer generiert flüssige Bewegungssequenzen mit niedriger Latenz.
+  \item[System~2 (kognition)] Ein großes Sprachmodell verarbeitet Sprachbefehle
+    und steuert die übergeordnete Planung (\ac{moe}-Architektur).
+\end{description}
+
+\begin{figure}[htb]
+  \centering
+  % \includegraphics[width=0.85\textwidth]{figures/groot_architecture}
+  \fbox{\parbox{0.85\textwidth}{\centering\vspace{2cm}
+    [Platzhalter: GR00T N1.6 Architektur-Diagramm]\vspace{2cm}}}
+  \caption{Dual-System-Architektur von GR00T N1.6 (nach \cite{groot2025}).
+    System~1 generiert Aktionen reaktiv; System~2 plant auf semantischer Ebene.}
+  \label{fig:groot-architecture}
+\end{figure}
+
+\section{Imitation Learning}
+\label{sec:imitation-learning}
+
+\ac{il} ermöglicht das Erlernen von Verhaltensweisen aus menschlichen
+Demonstrationen ohne explizite Belohnungsfunktion~\cite{hussein2017imitation}.
+Das Training minimiert die \emph{Behavior-Cloning}-Verlustfunktion:
+
+\begin{equation}
+  \mathcal{L}_{\text{BC}}(\theta)
+  = \mathbb{E}_{(s,a) \sim \mathcal{D}}
+    \bigl[\lVert \pi_\theta(s) - a \rVert^2\bigr],
+  \label{eq:bc-loss}
+\end{equation}
+
+wobei $\pi_\theta$ die Modellpolitik, $s$ den Zustand, $a$ die demonstrierte
+Aktion und $\mathcal{D}$ den Demonstrations-Datensatz bezeichnen.
+
+\begin{warningbox}[Compounding-Errors-Problem]
+  Bei reinem Behavior Cloning können sich kleine Fehler über Zeithorizonte
+  aufaddieren (\emph{compounding errors}), da das Modell keine Fähigkeit zur
+  Selbstkorrektur erlernt. Datenaugmentation und diverse Demonstrationen
+  können diesen Effekt abmildern.
+\end{warningbox}
+
+\section{Datensatzformat: LeRobot}
+\label{sec:lerobot}
+
+Der Demonstrations-Datensatz liegt im \textbf{LeRobot}-Format (v2.1) vor,
+einem von Hugging Face entwickelten Standard für Robot-Learning-Datensätze~\cite{lerobot2024}.
+Ein Datensatz besteht aus Episoden mit synchronisierten Kameraframes
+(RGB, \qty{30}{\fps}), Gelenkpositionen, Geschwindigkeiten und Aktionsvektoren.
+
+\begin{tipbox}
+  Das Format enthält eine \texttt{modality.json}, die alle Sensormodalitäten und
+  deren Dimensionen beschreibt. GR00T erwartet v2.1; der im Repository enthaltene
+  Konverter übersetzt v3.0~$\to$~v2.1 automatisch.
+\end{tipbox}

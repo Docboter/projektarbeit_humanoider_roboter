@@ -1,0 +1,81 @@
+% backmatter/anhang.tex
+
+\chapter{Datensatz-Details}
+\label{anh:datensatz}
+
+\section{Episodenstruktur}
+\label{anh:episodenstruktur}
+
+Jede Episode im LeRobot-Format besteht aus synchronisierten Kanälen gemäß
+\cref{tab:anh-modalitaeten}.
+
+\begin{table}[htb]
+  \centering
+  \caption{Modalitäten des G1\_Dex3\_BlockStacking-Datensatzes}
+  \label{tab:anh-modalitaeten}
+  \begin{tabularx}{\linewidth}{llX}
+    \toprule
+    \textbf{Kanal}       & \textbf{Dimension} & \textbf{Beschreibung} \\
+    \midrule
+    \texttt{observation.images.cam\_head}
+                         & $3 \times 480 \times 640$ & RGB-Kopfkamera \\
+    \texttt{observation.images.cam\_wrist\_left}
+                         & $3 \times 480 \times 640$ & RGB-Handgelenk links \\
+    \texttt{observation.state}
+                         & 37 & Gelenkpositionen \\
+    \texttt{action}      & 37 & Soll-Gelenkpositionen \\
+    \texttt{timestamp}   & 1  & Zeitstempel [s] \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+\chapter{SLURM-Batch-Skript (Auszug)}
+\label{anh:slurm}
+
+\begin{listing}[htb]
+\begin{minted}{bash}
+#!/usr/bin/env bash
+#SBATCH --job-name=groot-finetune
+#SBATCH --partition=kisski
+#SBATCH --gres=gpu:a100:1
+#SBATCH --time=48:00:00
+#SBATCH --mem=64G
+#SBATCH --cpus-per-task=8
+#SBATCH --output=%x-%j.out
+#SBATCH --error=%x-%j.err
+
+module load apptainer
+
+apptainer exec --nv \
+  --bind /scratch/${USER}/data:/data \
+  --env HF_TOKEN="${HF_TOKEN}" \
+  --env WANDB_API_KEY="${WANDB_API_KEY:-}" \
+  --env GLOBAL_BATCH_SIZE="${GLOBAL_BATCH_SIZE:-32}" \
+  --env MAX_STEPS="${MAX_STEPS:-50000}" \
+  "${SIF_IMAGE}" \
+  bash /scripts/entrypoint.sh
+\end{minted}
+\caption{Vereinfachter Auszug aus \texttt{kisski\_submit.sh} (SLURM-Batch-Skript).}
+\label{lst:anh-slurm}
+\end{listing}
+
+\chapter{Verwendete Software und Versionen}
+\label{anh:software}
+
+\begin{table}[htb]
+  \centering
+  \caption{Software-Versionen der Trainingsumgebung}
+  \label{tab:anh-software}
+  \begin{tabular}{ll}
+    \toprule
+    \textbf{Paket}       & \textbf{Version} \\
+    \midrule
+    Python               & 3.10 \\
+    CUDA                 & 12.8 \\
+    PyTorch              & [TODO] \\
+    GR00T (Fork)         & [Commit-Hash] \\
+    LeRobot              & [TODO] \\
+    Apptainer            & [TODO] \\
+    \bottomrule
+  \end{tabular}
+\end{table}
