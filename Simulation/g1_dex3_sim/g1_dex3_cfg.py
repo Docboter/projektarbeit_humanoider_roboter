@@ -9,7 +9,7 @@ Joint-Reihenfolge muss EXAKT mit g1_dex3_config.py aus dem GR00T-Fork
     right_arm [7:14] : (analog)
     left_dex3 [14:21]: Thumb0, Thumb1, Thumb2, Middle0, Middle1, Index0, Index1
     right_dex3[21:28]: Thumb0, Thumb1, Thumb2, Index0, Index1, Middle0, Middle1
-                       ↑ Achtung: Reihenfolge rechts ≠ links!
+                       ↑ Achtung: Reihenfolge rechts ≠ links (Quelle: dataset info.json)!
 
 Voraussetzung:
     Das kombinierte USD-Asset g1_dex3.usd muss vorhanden sein.
@@ -51,23 +51,23 @@ RIGHT_ARM_JOINTS = [
 
 # Dex3-Gelenke: exakte Reihenfolge aus g1_dex3_config.py
 LEFT_DEX3_JOINTS = [
-    "left_dex3_thumb_joint0",
-    "left_dex3_thumb_joint1",
-    "left_dex3_thumb_joint2",
-    "left_dex3_middle_joint0",
-    "left_dex3_middle_joint1",
-    "left_dex3_index_joint0",
-    "left_dex3_index_joint1",
+    "left_hand_thumb_0_joint",
+    "left_hand_thumb_1_joint",
+    "left_hand_thumb_2_joint",
+    "left_hand_middle_0_joint",
+    "left_hand_middle_1_joint",
+    "left_hand_index_0_joint",
+    "left_hand_index_1_joint",
 ]
 
 RIGHT_DEX3_JOINTS = [
-    "right_dex3_thumb_joint0",
-    "right_dex3_thumb_joint1",
-    "right_dex3_thumb_joint2",
-    "right_dex3_index_joint0",     # ← Reihenfolge rechts: Index vor Middle
-    "right_dex3_index_joint1",
-    "right_dex3_middle_joint0",
-    "right_dex3_middle_joint1",
+    "right_hand_thumb_0_joint",
+    "right_hand_thumb_1_joint",
+    "right_hand_thumb_2_joint",
+    "right_hand_index_0_joint",    # Achtung: rechts Index VOR Middle (≠ links)
+    "right_hand_index_1_joint",    # Quelle: g1_dex3_config.py + dataset info.json
+    "right_hand_middle_0_joint",
+    "right_hand_middle_1_joint",
 ]
 
 # Alle 28 Joints in der korrekten Reihenfolge (entspricht dem Action-Vektor)
@@ -83,7 +83,7 @@ G1_DEX3_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         # Pfad zum kombinierten G1+Dex3 USD-Asset.
         # Wird beim Env-Start per asset_path-Argument überschreibbar gemacht.
-        usd_path="/workspace/assets/g1_dex3.usd",
+        usd_path="/data/assets/g1_dex3.usd",
         activate_contact_sensors=False,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
@@ -122,7 +122,7 @@ G1_DEX3_CFG = ArticulationCfg(
             "right_wrist_pitch_joint": 0.0,
             "right_wrist_yaw_joint": 0.0,
             # Finger gestreckt
-            ".*dex3.*": 0.0,
+            ".*_hand_.*": 0.0,
         },
         joint_vel={".*": 0.0},
     ),
@@ -145,14 +145,14 @@ G1_DEX3_CFG = ArticulationCfg(
             damping=10.0,
         ),
         # Hände: positionsgeregelt (ABSOLUTE Targets aus GR00T-Aktionen)
-        "left_dex3": ImplicitActuatorCfg(
+        "left_hand": ImplicitActuatorCfg(
             joint_names_expr=LEFT_DEX3_JOINTS,
             effort_limit=5.0,
             velocity_limit=3.0,
             stiffness=20.0,
             damping=2.0,
         ),
-        "right_dex3": ImplicitActuatorCfg(
+        "right_hand": ImplicitActuatorCfg(
             joint_names_expr=RIGHT_DEX3_JOINTS,
             effort_limit=5.0,
             velocity_limit=3.0,

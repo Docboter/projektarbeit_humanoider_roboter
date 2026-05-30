@@ -27,15 +27,15 @@ ssh <username>@glogin-gpu.hpc.gwdg.de
 
 Cache-Verzeichnisse anlegen (verhindert Quota-Probleme beim Ziehen):
 ```bash
-export APPTAINER_CACHEDIR=/scratch/$USER/.apptainer_cache
-export APPTAINER_TMPDIR=/scratch/$USER/.apptainer_tmp
+export APPTAINER_CACHEDIR=/mnt/vast-kisski/projects/kisski-humrob/apptainer-cache
+export APPTAINER_TMPDIR=/mnt/vast-kisski/projects/kisski-humrob/apptainer-tmp
 mkdir -p "$APPTAINER_CACHEDIR" "$APPTAINER_TMPDIR"
 ```
 
 Diese Exports dauerhaft in `~/.bashrc` eintragen (damit sie nicht jedes Mal eingegeben werden müssen):
 ```bash
-echo 'export APPTAINER_CACHEDIR=/scratch/$USER/.apptainer_cache' >> ~/.bashrc
-echo 'export APPTAINER_TMPDIR=/scratch/$USER/.apptainer_tmp'     >> ~/.bashrc
+echo 'export APPTAINER_CACHEDIR=/mnt/vast-kisski/projects/kisski-humrob/apptainer-cache' >> ~/.bashrc
+echo 'export APPTAINER_TMPDIR=/mnt/vast-kisski/projects/kisski-humrob/apptainer-tmp'     >> ~/.bashrc
 ```
 
 Apptainer laden und SIF ziehen (~20–30 GB, dauert je nach Netz 15–45 Minuten):
@@ -220,7 +220,7 @@ ls /workspace/g1_dex3_sim/   # Eigener Sim-Code
 | Problem | Lösung |
 |---|---|
 | `createDLSSContext error` | RTX 5000 zu alt für isaac-lab:2.3.2 → ältere Version probieren |
-| `No space left` beim Pull | `APPTAINER_CACHEDIR` auf `/scratch` zeigt nicht — Schritt 1 wiederholen |
+| `No space left` beim Pull | `APPTAINER_CACHEDIR` zeigt nicht auf Projektspeicher — Schritt 1 wiederholen |
 | Session läuft ab | Laufzeit beim Start erhöhen; SIF bleibt im `.project`-Storage erhalten |
 | `Kit cache` Fehler | Bind-Mounts prüfen; `ISAAC_CACHE`-Verzeichnisse müssen existieren |
 | Lange Startzeit (~60 s) | Normal — Isaac Sim kompiliert Shader beim ersten Start; danach gecacht |
@@ -243,9 +243,48 @@ apptainer pull \
 
 ---
 
-## Nächste Phase nach erfolgreichem Phase-A-Test
+## Schritt 7 — Phase-B-Test: G1+Dex3 Articulation laden
 
-Wenn `print(1)` und Kamera-Test laufen:
+Prüft ob `g1_dex3.usd` korrekt in Isaac Lab lädt, alle 28 Joints vorhanden sind
+und Arm-Joints auf eine Testpose fahren können.
+
+**Voraussetzung:** `g1_dex3.usd` muss existieren (erzeugt mit `convert_urdf_to_usd.py`).
+
+```bash
+module load apptainer
+
+SIM_SIF=/user/luca.muecke/u28320/.project/dir.project/images/projekt-humanoider-roboter-sim.sif
+ISAAC_CACHE=/mnt/vast-kisski/projects/kisski-humrob/isaac-cache
+ASSETS=/mnt/vast-kisski/projects/kisski-humrob/assets
+SIM_CODE=/user/luca.muecke/u28320/.project/dir.project/repo/Simulation
+
+apptainer exec --nv \
+  --bind $ISAAC_CACHE/kit:/isaac-sim/kit/cache \
+  --bind $ISAAC_CACHE/kit_data:/isaac-sim/kit/data \
+  --bind $ISAAC_CACHE/ov:/root/.cache/ov \
+  --bind $ISAAC_CACHE/nv:/root/.cache/nvidia \
+  --bind $ISAAC_CACHE/pip:/root/.cache/pip \
+  --bind $ISAAC_CACHE/logs:/root/.local/share/ov/data/Kit/logs \
+  --bind $ASSETS:/data/assets \
+  --bind $SIM_CODE/g1_dex3_sim:/workspace/g1_dex3_sim \
+  --env ACCEPT_EULA=Y \
+  --env PRIVACY_CONSENT=Y \
+  "$SIM_SIF" \
+  bash -c '${ISAACLAB_PATH}/isaaclab.sh -p \
+    /workspace/g1_dex3_sim/phase_b_test.py \
+    --headless'
+```
+
+**Erwartet:**
+- Alle 28 Joints gelistet und verifiziert (`✓`)
+- Arm-Joints fahren zu Testpose ohne NaN
+- Ausgabe endet mit `Phase-B: ERFOLG ✓`
+
+---
+
+## Nächste Phase nach erfolgreichem Phase-A+B-Test
+
+Wenn `print(1)`, Kamera-Test und Phase-B-Test laufen:
 
 1. **Open-Loop-Eval** auf dem GR00T-Checkpoint (A100, `kisski`-Partition):
    ```bash

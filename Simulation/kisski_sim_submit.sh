@@ -14,8 +14,8 @@
 #       docker://lucam03/projekt-humanoider-roboter:latest
 #
 #   # 2. Sim-Client-SIF:
-#   export APPTAINER_CACHEDIR=/scratch/$USER/.apptainer_cache
-#   export APPTAINER_TMPDIR=/scratch/$USER/.apptainer_tmp
+#   export APPTAINER_CACHEDIR=/mnt/vast-kisski/projects/kisski-humrob/apptainer-cache
+#   export APPTAINER_TMPDIR=/mnt/vast-kisski/projects/kisski-humrob/apptainer-tmp
 #   mkdir -p "$APPTAINER_CACHEDIR" "$APPTAINER_TMPDIR"
 #   apptainer pull ~/.project/dir.project/images/projekt-humanoider-roboter-sim.sif \
 #       docker://lucam03/projekt-humanoider-roboter-sim:latest
@@ -79,7 +79,7 @@ if [[ ! -d "$CHECKPOINT_DIR" ]]; then
 fi
 
 mkdir -p logs
-mkdir -p "$ISAAC_CACHE"/{kit,ov,pip,nv,logs}
+mkdir -p "$ISAAC_CACHE"/{kit,kit_data,ov,pip,nv,logs}
 mkdir -p "$DATA_DIR/sim_videos"
 
 # ── Laufumgebung anzeigen ─────────────────────────────────────────────────────
@@ -98,14 +98,16 @@ echo ""
 
 module load apptainer
 
-export APPTAINER_CACHEDIR="/scratch/$USER/.apptainer_cache"
-export APPTAINER_TMPDIR="/scratch/$USER/.apptainer_tmp"
+export APPTAINER_CACHEDIR="/mnt/vast-kisski/projects/kisski-humrob/apptainer-cache"
+export APPTAINER_TMPDIR="/mnt/vast-kisski/projects/kisski-humrob/apptainer-tmp"
 mkdir -p "$APPTAINER_CACHEDIR" "$APPTAINER_TMPDIR"
 
 # ── 1) GR00T-Policy-Server im Hintergrund starten ────────────────────────────
 echo "==> Starte GR00T-Policy-Server (Hintergrund) …"
 
 GROOT_FORK_DIR="${GROOT_FORK_DIR:-/mnt/vast-kisski/projects/kisski-humrob/repo-groot}"
+ASSETS_DIR="${ASSETS_DIR:-/mnt/vast-kisski/projects/kisski-humrob/assets}"
+SIM_CODE="${SIM_CODE:-/user/luca.muecke/u28320/.project/dir.project/repo/Simulation}"
 
 GROOT_APPTAINER_ARGS=(
     --nv
@@ -125,7 +127,7 @@ apptainer exec "${GROOT_APPTAINER_ARGS[@]}" "$SERVER_SIF" \
     bash -lc "cd /app/Groot-1.6 && \
         .venv/bin/python gr00t/eval/run_gr00t_server.py \
             --model-path /data/g1_dex3_finetune \
-            --embodiment-tag new_embodiment \
+            --embodiment-tag NEW_EMBODIMENT \
             --embodiment-config-module examples.G1_DEX3.g1_dex3_config \
             --port $SERVER_PORT" \
     &
@@ -152,7 +154,7 @@ echo ""
 # ── 2) Isaac-Lab-Sim-Client (headless EGL) ───────────────────────────────────
 # Hinweis zu den Cache-Bind-Mounts:
 #   Isaac Sim schreibt beim Start viel in die Kit-/OmniVerse-Caches.
-#   Das SIF ist read-only, daher müssen diese Pfade auf beschreibbares scratch zeigen.
+#   Das SIF ist read-only, daher müssen diese Pfade auf beschreibbaren Projektspeicher zeigen.
 #   Die exakten Pfade können je nach Isaac-Sim-Version variieren — beim ersten
 #   interaktiven Run verifizieren: `apptainer shell --nv <sim.sif>`
 echo "==> Starte Isaac-Lab-Sim-Client (headless) …"
@@ -160,7 +162,10 @@ echo "==> Starte Isaac-Lab-Sim-Client (headless) …"
 SIM_APPTAINER_ARGS=(
     --nv
     --bind "$DATA_DIR:/data"
+    --bind "$ASSETS_DIR:/data/assets"
+    --bind "$SIM_CODE/g1_dex3_sim:/workspace/g1_dex3_sim"
     --bind "$ISAAC_CACHE/kit:/isaac-sim/kit/cache"
+    --bind "$ISAAC_CACHE/kit_data:/isaac-sim/kit/data"
     --bind "$ISAAC_CACHE/ov:/root/.cache/ov"
     --bind "$ISAAC_CACHE/nv:/root/.cache/nvidia"
     --bind "$ISAAC_CACHE/pip:/root/.cache/pip"
