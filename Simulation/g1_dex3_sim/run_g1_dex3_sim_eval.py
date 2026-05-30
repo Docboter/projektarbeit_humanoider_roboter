@@ -162,17 +162,19 @@ def run_episode(
                 chunk[t], dtype=torch.float32, device=env.device
             ).unsqueeze(0)  # (1, 28)
 
-            env.set_action_chunk_step(action_t)
-            _, _, terminated, time_out, info = env.step(action_t)
+            obs_step, _, terminated, time_out, info = env.step(action_t)
 
-            # Video-Frame erfassen (linke Kamera als Überblick)
+            # Video-Frame nach dem Step erfassen (frisches Bild, nicht das Chunk-Start-Bild)
             if record_video:
-                frame = obs_np["video.cam_left_high"]
+                frame = obs_step["video.cam_left_high"][0].cpu().numpy().astype(np.uint8)
                 frames.append(frame)
 
             step += 1
 
-            if env.episode_success and not success:
+            # Erfolg über das zurückgegebene `terminated` erkennen (robust gegen
+            # DirectRLEnv-Auto-Reset, der env.episode_success im selben Step löschen kann).
+            # terminated == _check_success() → Würfel erfolgreich gestapelt.
+            if terminated.any() and not success:
                 success = True
                 success_step = step
                 print(f"[Episode] Erfolg bei Step {step}!")

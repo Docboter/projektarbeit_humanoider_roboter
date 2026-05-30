@@ -36,8 +36,8 @@
 #SBATCH -c 16
 #SBATCH --mem=32G
 #SBATCH -t 04:00:00
-#SBATCH --output=logs/slurm-sim-%j.out
-#SBATCH --error=logs/slurm-sim-%j.err
+#SBATCH --output=/user/luca.muecke/u28320/.project/dir.project/logs/slurm-sim-%j.out
+#SBATCH --error=/user/luca.muecke/u28320/.project/dir.project/logs/slurm-sim-%j.err
 #SBATCH --export=ALL
 
 set -euo pipefail
@@ -78,7 +78,6 @@ if [[ ! -d "$CHECKPOINT_DIR" ]]; then
     echo "         GR00T-Server startet, wird aber fehlschlagen." >&2
 fi
 
-mkdir -p logs
 mkdir -p "$ISAAC_CACHE"/{kit,kit_data,ov,pip,nv,logs}
 mkdir -p "$DATA_DIR/sim_videos"
 
@@ -109,11 +108,15 @@ GROOT_FORK_DIR="${GROOT_FORK_DIR:-/mnt/vast-kisski/projects/kisski-humrob/repo-g
 ASSETS_DIR="${ASSETS_DIR:-/mnt/vast-kisski/projects/kisski-humrob/assets}"
 SIM_CODE="${SIM_CODE:-/user/luca.muecke/u28320/.project/dir.project/repo/Simulation}"
 
+# Spezifischer Checkpoint (nicht das übergeordnete Verzeichnis!)
+CHECKPOINT="${CHECKPOINT:-/data/g1_dex3_finetune/blockstacking/g1_dex3_blockstacking_v1/checkpoints/20260529/checkpoint-3000}"
+
 GROOT_APPTAINER_ARGS=(
     --nv
     --bind "$DATA_DIR:/data"
     --env "TMPDIR=/tmp"
     --env "UV_OFFLINE=1"
+    --env "PYTHONUNBUFFERED=1"
 )
 
 # gr00t-Modul aus Fork einbinden (analog zu kisski_submit.sh)
@@ -126,9 +129,10 @@ fi
 apptainer exec "${GROOT_APPTAINER_ARGS[@]}" "$SERVER_SIF" \
     bash -lc "cd /app/Groot-1.6 && \
         .venv/bin/python gr00t/eval/run_gr00t_server.py \
-            --model-path /data/g1_dex3_finetune \
+            --model-path $CHECKPOINT \
             --embodiment-tag NEW_EMBODIMENT \
-            --embodiment-config-module examples.G1_DEX3.g1_dex3_config \
+            --use-sim-policy-wrapper \
+            --no-flash-attn \
             --port $SERVER_PORT" \
     &
 SERVER_PID=$!
@@ -136,7 +140,7 @@ echo "    Server PID: $SERVER_PID"
 
 # Auf Server-Bereitschaft warten (TCP-Port aktiv pollen)
 echo "==> Warte auf GR00T-Server (Port $SERVER_PORT) …"
-MAX_WAIT=120
+MAX_WAIT=300
 WAITED=0
 while ! timeout 1 bash -c "echo > /dev/tcp/localhost/$SERVER_PORT" 2>/dev/null; do
     sleep 2
@@ -181,6 +185,7 @@ apptainer exec "${SIM_APPTAINER_ARGS[@]}" "$SIM_SIF" \
     bash -lc '${ISAACLAB_PATH}/isaaclab.sh -p \
         /workspace/g1_dex3_sim/run_g1_dex3_sim_eval.py \
         --headless \
+        --enable_cameras \
         --server tcp://localhost:'"$SERVER_PORT"' \
         --num-episodes '"$NUM_EPISODES"' \
         --execution-horizon '"$EXECUTION_HORIZON"' \

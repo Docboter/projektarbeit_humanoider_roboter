@@ -1,14 +1,14 @@
 """
-Vendorter GR00T-Policy-Client für den Isaac-Lab-Sim-Container.
+Vendored GR00T PolicyClient für den Isaac-Lab-Sim-Container.
 
-Dieser Client enthält NUR die Teile aus gr00t/policy/server_client.py,
-die für die ZMQ-Kommunikation benötigt werden — kein torch, kein gr00t-Import.
-So wird der Dependency-Clash mit Isaacs gebündeltem Python vermieden.
+Enthält nur die ZMQ-Kommunikation — kein torch, kein gr00t-Import.
+Serialisierung ist identisch mit gr00t/policy/server_client.py::MsgSerializer
+(Schlüssel "as_npy", nicht "data").
 
-Protokoll (REQ/REP über ZMQ):
+Protokoll:
     Request:  msgpack({ "endpoint": str, "data": dict })
-    Response: msgpack(result)  — numpy-Arrays als np.save()-Bytes serialisiert
-    Port:     5555 (konfigurierbar)
+    Response: msgpack(result)
+    Obs-Format: Gr00tSimPolicyWrapper flat-key format
 """
 
 from __future__ import annotations
@@ -22,30 +22,38 @@ import zmq
 
 
 # ---------------------------------------------------------------------------
-# Serialisierung (identisch mit gr00t/policy/server_client.py)
+# Serialisierung — exakte Kopie von gr00t/policy/server_client.py
 # ---------------------------------------------------------------------------
 
 class MsgSerializer:
+    """Identisch mit server-seitigem MsgSerializer für Protokoll-Kompatibilität."""
+
+    @staticmethod
+    def to_bytes(data) -> bytes:
+        return msgpack.packb(data, default=MsgSerializer._encode)
+
+    @staticmethod
+    def from_bytes(data: bytes):
+        return msgpack.unpackb(data, object_hook=MsgSerializer._decode)
+
+    @staticmethod
+    def _decode(obj):
+        if not isinstance(obj, dict):
+            return obj
+        # Beide Varianten abfangen (str-Keys in msgpack 1.0+, bytes-Keys in älteren Versionen)
+        if "__ndarray_class__" in obj:
+            return np.load(io.BytesIO(bytes(obj["as_npy"])), allow_pickle=False)
+        if b"__ndarray_class__" in obj:
+            return np.load(io.BytesIO(bytes(obj[b"as_npy"])), allow_pickle=False)
+        return obj
+
     @staticmethod
     def _encode(obj):
         if isinstance(obj, np.ndarray):
             buf = io.BytesIO()
-            np.save(buf, obj)
-            return {"__ndarray_class__": True, "data": buf.getvalue()}
+            np.save(buf, obj, allow_pickle=False)
+            return {"__ndarray_class__": True, "as_npy": buf.getvalue()}
         raise TypeError(f"Nicht serialisierbarer Typ: {type(obj)}")
-
-    @staticmethod
-    def _decode(obj: dict):
-        if "__ndarray_class__" in obj:
-            buf = io.BytesIO(bytes(obj["data"]))
-            return np.load(buf, allow_pickle=False)
-        return obj
-
-    def serialize(self, data) -> bytes:
-        return msgpack.packb(data, default=self._encode, use_bin_type=True)
-
-    def deserialize(self, raw: bytes):
-        return msgpack.unpackb(raw, object_hook=self._decode, raw=False)
 
 
 # ---------------------------------------------------------------------------
@@ -55,17 +63,21 @@ class MsgSerializer:
 class PolicyClient:
     """
     Schlanker ZMQ-REQ-Client, der mit dem GR00T-Policy-Server kommuniziert.
+    Spiegelt gr00t/policy/server_client.py::PolicyClient.
 
-    Args:
-        server_url:  ZMQ-Endpunkt des Servers, z.B. "tcp://localhost:5555"
-        timeout_ms:  Empfangs-/Sende-Timeout in Millisekunden
+    Observation-Format: Gr00tSimPolicyWrapper flat-key format
+        "video.*":   (1, 1, H, W, 3) uint8
+        "state.*":   (1, 1, D) float32 — pro Modalitätsgruppe separat
+        "annotation.human.task_description": ("task_str",) tuple
+
+    Action-Rückgabe: (CHUNK_SIZE, ACTION_DIM) = (16, 28) float32
     """
 
+    ACTION_KEYS = ["left_arm", "right_arm", "left_dex3", "right_dex3"]
     ACTION_DIM = 28
     CHUNK_SIZE = 16
 
     def __init__(self, server_url: str = "tcp://localhost:5555", timeout_ms: int = 15_000):
-        self._serializer = MsgSerializer()
         self._ctx = zmq.Context()
         self._sock = self._ctx.socket(zmq.REQ)
         self._sock.setsockopt(zmq.RCVTIMEO, timeout_ms)
@@ -74,70 +86,51 @@ class PolicyClient:
         self._sock.connect(server_url)
         print(f"[PolicyClient] Verbunden mit {server_url}")
 
-    # ------------------------------------------------------------------
-    # Interne Kommunikation
-    # ------------------------------------------------------------------
-
-    def _call(self, endpoint: str, data: dict | None = None):
-        payload = {"endpoint": endpoint, "data": data or {}}
-        self._sock.send(self._serializer.serialize(payload))
+    def _send_recv(self, request: dict):
+        self._sock.send(MsgSerializer.to_bytes(request))
         raw = self._sock.recv()
-        resp = self._serializer.deserialize(raw)
+        resp = MsgSerializer.from_bytes(raw)
         if isinstance(resp, dict) and "error" in resp:
-            raise RuntimeError(f"Server-Fehler [{endpoint}]: {resp['error']}")
+            raise RuntimeError(f"Server-Fehler: {resp['error']}")
         return resp
-
-    # ------------------------------------------------------------------
-    # Öffentliche API
-    # ------------------------------------------------------------------
 
     def ping(self, retries: int = 5, delay: float = 2.0) -> bool:
         """Wartet auf Server-Bereitschaft. Gibt True zurück wenn ok."""
         for attempt in range(1, retries + 1):
             try:
-                resp = self._call("ping")
+                resp = self._send_recv({"endpoint": "ping"})
                 print(f"[PolicyClient] ping ok (Versuch {attempt}): {resp}")
                 return True
             except zmq.error.Again:
-                print(f"[PolicyClient] Server noch nicht bereit (Versuch {attempt}/{retries}), warte {delay}s …")
+                print(f"[PolicyClient] Server nicht bereit (Versuch {attempt}/{retries}), warte {delay}s …")
                 time.sleep(delay)
         return False
 
     def reset(self) -> None:
         """Setzt den Server-internen Policy-State zurück (neue Episode)."""
-        self._call("reset")
+        self._send_recv({"endpoint": "reset", "data": {}})
 
-    def get_action(self, obs: dict[str, np.ndarray]) -> np.ndarray:
+    def get_action(self, obs: dict) -> np.ndarray:
         """
-        Sendet eine Observation und empfängt einen Action-Chunk.
+        Sendet eine Observation (im Gr00tSimPolicyWrapper-Format) und empfängt Action-Chunk.
 
         Args:
-            obs: Dict mit Schlüsseln:
-                "video.cam_left_high"   — (H, W, 3) uint8
-                "video.cam_right_high"  — (H, W, 3) uint8
-                "video.cam_left_wrist"  — (H, W, 3) uint8
-                "video.cam_right_wrist" — (H, W, 3) uint8
-                "state.joint_pos"       — (28,) float32
-                "annotation.human.task_description" — str (als bytes-Numpy-Array)
+            obs: Dict gebaut von build_obs() — flat keys, korrekte Shapes.
 
         Returns:
-            action_chunk: np.ndarray shape (CHUNK_SIZE, ACTION_DIM) = (16, 28)
+            (CHUNK_SIZE, ACTION_DIM) = (16, 28) float32
         """
-        resp = self._call("get_action", {"obs": obs})
+        resp = self._send_recv({
+            "endpoint": "get_action",
+            "data": {"observation": obs, "options": None},
+        })
 
-        # Server antwortet je nach Version direkt mit dem Array oder als Dict
-        if isinstance(resp, np.ndarray):
-            chunk = resp
-        elif isinstance(resp, dict):
-            # Mögliche Schlüssel: "action", "actions", "action_chunk"
-            for key in ("action_chunk", "actions", "action"):
-                if key in resp:
-                    chunk = np.asarray(resp[key], dtype=np.float32)
-                    break
-            else:
-                raise ValueError(f"Unbekanntes Response-Format: {list(resp.keys())}")
-        else:
-            chunk = np.asarray(resp, dtype=np.float32)
+        # Gr00tSimPolicyWrapper gibt flat action keys zurück:
+        # {"action.left_arm": (1,16,7), "action.right_arm": (1,16,7), ...}
+        chunk = np.concatenate([
+            np.asarray(resp[f"action.{k}"], dtype=np.float32)[0]  # (1,16,7) → (16,7)
+            for k in self.ACTION_KEYS
+        ], axis=-1)  # (16, 28)
 
         if chunk.shape != (self.CHUNK_SIZE, self.ACTION_DIM):
             raise ValueError(
@@ -158,7 +151,7 @@ class PolicyClient:
 
 
 # ---------------------------------------------------------------------------
-# Hilfsfunktionen für Observation-Aufbau
+# Observation-Builder
 # ---------------------------------------------------------------------------
 
 def build_obs(
@@ -168,23 +161,37 @@ def build_obs(
     cam_right_wrist: np.ndarray,
     joint_pos: np.ndarray,
     task_description: str = "stack the blocks",
-) -> dict[str, np.ndarray]:
+) -> dict:
     """
-    Baut das Observation-Dict im GR00T-Eingabeformat auf.
+    Baut das Observation-Dict im Gr00tSimPolicyWrapper flat-key Format auf.
 
-    Kamera-Arrays müssen uint8 RGB (H, W, 3) sein.
-    joint_pos muss float32 (28,) sein: [left_arm(7), right_arm(7), left_dex3(7), right_dex3(7)]
+    Args:
+        cam_*:         RGB-Arrays (H, W, 3) uint8
+        joint_pos:     (28,) float32: [left_arm(7), right_arm(7), left_dex3(7), right_dex3(7)]
+        task_description: Task-Prompt für das Language-Modell
+
+    Returns:
+        Dict mit:
+            "video.*":  (1, 1, H, W, 3) uint8   — Batch=1, Time=1
+            "state.*":  (1, 1, D) float32         — pro Joint-Gruppe separat
+            "annotation.human.task_description": ("task_str",) tuple
     """
-    # GR00T erwartet Bilder mit Batch-Dim: (1, H, W, 3) oder (H, W, 3)?
-    # Aus run_gr00t_server.py: direkte (H, W, 3)-Arrays, keine Batch-Dim.
+    def vid(arr: np.ndarray) -> np.ndarray:
+        return arr.astype(np.uint8)[np.newaxis, np.newaxis]   # → (1,1,H,W,3)
+
+    def sta(arr: np.ndarray) -> np.ndarray:
+        return arr.astype(np.float32)[np.newaxis, np.newaxis]  # → (1,1,D)
+
+    jp = np.asarray(joint_pos, dtype=np.float32)
     return {
-        "video.cam_left_high": cam_left_high.astype(np.uint8),
-        "video.cam_right_high": cam_right_high.astype(np.uint8),
-        "video.cam_left_wrist": cam_left_wrist.astype(np.uint8),
-        "video.cam_right_wrist": cam_right_wrist.astype(np.uint8),
-        "state.joint_pos": joint_pos.astype(np.float32),
-        # Task-Description als UTF-8-Bytes im ndarray
-        "annotation.human.task_description": np.frombuffer(
-            task_description.encode("utf-8"), dtype=np.uint8
-        ),
+        "video.cam_left_high":  vid(cam_left_high),
+        "video.cam_right_high": vid(cam_right_high),
+        "video.cam_left_wrist": vid(cam_left_wrist),
+        "video.cam_right_wrist": vid(cam_right_wrist),
+        "state.left_arm":   sta(jp[0:7]),
+        "state.right_arm":  sta(jp[7:14]),
+        "state.left_dex3":  sta(jp[14:21]),
+        "state.right_dex3": sta(jp[21:28]),
+        # Language: tuple of strings (Batch-Dim), NICHT ndarray
+        "annotation.human.task_description": (task_description,),
     }

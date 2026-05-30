@@ -50,12 +50,6 @@ from g1_dex3_cfg import (
 class G1Dex3BlockstackSceneCfg(InteractiveSceneCfg):
     """Szene: Roboter am Tisch mit 3 Würfeln."""
 
-    # Bodenfläche
-    ground = sim_utils.GroundPlaneCfg()
-
-    # Lichtquellen
-    dome_light = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
-
     # Tisch (einfache Box als Placeholder — für echten Tisch USD ersetzen)
     table: RigidObjectCfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/table",
@@ -202,11 +196,10 @@ class G1Dex3BlockstackEnvCfg(DirectRLEnvCfg):
     # Szene
     scene: G1Dex3BlockstackSceneCfg = G1Dex3BlockstackSceneCfg(num_envs=1, env_spacing=2.0)
 
-    # Gym-Spaces (für DirectRLEnv erforderlich, auch wenn wir sie nicht für RL nutzen)
-    # action_space = 28 (Arm-Deltas + Hand-Absolute)
-    # observation_space = 28 (Joint-Pos) + 4 * H * W * 3 (Bilder, flach)
-    num_actions: int = 28
-    num_observations: int = 28  # nur joints; Bilder gehen separat ans Modell
+    # Pflichtfelder von DirectRLEnvCfg
+    decimation: int = 7          # Physics-Sub-Steps pro Policy-Step (= render_interval)
+    action_space: int = 28       # Arm-Deltas + Hand-Absolute
+    observation_space: int = 28  # nur joints; Bilder gehen separat ans Modell
 
     # Task-Parameter
     episode_length_s: float = 20.0    # 600 Steps @ 30 Hz
@@ -259,6 +252,13 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
     # ------------------------------------------------------------------
 
     def _setup_scene(self):
+        # Boden und Licht manuell spawnen (GroundPlaneCfg/DomeLightCfg sind kein
+        # gültiger InteractiveSceneCfg-Asset-Typ und müssen direkt aufgerufen werden)
+        ground_cfg = sim_utils.GroundPlaneCfg()
+        ground_cfg.func("/World/defaultGroundPlane", ground_cfg)
+        light_cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
+        light_cfg.func("/World/Light", light_cfg)
+
         self.robot: Articulation = self.scene["robot"]
         self.table: RigidObject = self.scene["table"]
         self.blocks: list[RigidObject] = [
@@ -355,33 +355,36 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
     # Actions
     # ------------------------------------------------------------------
 
-    def _apply_action(self):
+    def _pre_physics_step(self, actions: torch.Tensor) -> None:
         """
-        Wendet den aktuell gespeicherten Action-Vektor (28-dim) an.
+        Setzt das absolute Positions-Target EINMALIG vor den Physics-Sub-Steps.
 
-        Arm-Joints (0:14): RELATIVE Delta → auf aktuelle Pos addieren
-        Hand-Joints (14:28): ABSOLUTE Target → direkt setzen
+        WICHTIG: Die GR00T-Policy liefert über den Server bereits ABSOLUTE
+        Gelenk-Targets für alle 28 Dimensionen. Der Server konvertiert relative
+        Aktionen intern via processor.decode_action() zurück in absolute Werte
+        (use_relative_action=true im Checkpoint, Referenz = beobachteter State).
+        Deshalb dürfen die Aktionen hier NICHT noch einmal auf current_pos
+        addiert werden — das würde die Verschiebung verdoppeln und die Arme
+        wegdriften lassen.
+
+        _apply_action() wird danach decimation-mal aufgerufen und hält dasselbe
+        Target.
         """
-        if not hasattr(self, "_current_action"):
-            return
+        if self._joint_ids is None:
+            self._joint_ids = self._build_joint_id_mapping()
 
-        action = self._current_action  # (num_envs, 28)
-        current_pos = self.robot.data.joint_pos[:, self._joint_ids]
-
-        target_pos = current_pos.clone()
-        target_pos[:, :14] = current_pos[:, :14] + action[:, :14]   # Arme: relativ
-        target_pos[:, 14:] = action[:, 14:]                           # Hände: absolut
-
-        # Zurückschreiben in Isaac-interne Joint-Reihenfolge
+        # actions sind bereits absolute Gelenkpositionen (alle 28 Dims) in
+        # Policy-Reihenfolge → in Isaac-interne Joint-Reihenfolge umschreiben
         full_target = self.robot.data.joint_pos.clone()
         for policy_idx, isaac_idx in enumerate(self._joint_ids):
-            full_target[:, isaac_idx] = target_pos[:, policy_idx]
+            full_target[:, isaac_idx] = actions[:, policy_idx]
+        self._full_target = full_target
 
-        self.robot.set_joint_position_target(full_target)
-
-    def set_action_chunk_step(self, action: torch.Tensor):
-        """Wird vom Eval-Runner aufgerufen, um einen einzelnen Step aus dem Chunk zu setzen."""
-        self._current_action = action
+    def _apply_action(self) -> None:
+        """Wendet das in _pre_physics_step berechnete Target an (render_interval-mal)."""
+        if not hasattr(self, "_full_target"):
+            return
+        self.robot.set_joint_position_target(self._full_target)
 
     # ------------------------------------------------------------------
     # Rewards & Termination
