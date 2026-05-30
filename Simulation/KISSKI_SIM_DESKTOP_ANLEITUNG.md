@@ -93,7 +93,7 @@ Das SIF ist read-only → Caches müssen auf beschreibbaren Projektspeicher zeig
 
 ```bash
 ISAAC_CACHE=/mnt/vast-kisski/projects/kisski-humrob/isaac-cache
-mkdir -p $ISAAC_CACHE/{kit,ov,pip,nv,logs}
+mkdir -p $ISAAC_CACHE/{kit,kit_data,ov,pip,nv,logs,cameras_output}
 ```
 
 ---
@@ -110,6 +110,7 @@ ISAAC_CACHE=/mnt/vast-kisski/projects/kisski-humrob/isaac-cache
 
 apptainer exec --nv \
   --bind $ISAAC_CACHE/kit:/isaac-sim/kit/cache \
+  --bind $ISAAC_CACHE/kit_data:/isaac-sim/kit/data \
   --bind $ISAAC_CACHE/ov:/root/.cache/ov \
   --bind $ISAAC_CACHE/nv:/root/.cache/nvidia \
   --bind $ISAAC_CACHE/pip:/root/.cache/pip \
@@ -131,16 +132,61 @@ Erst wenn 5a funktioniert:
 ```bash
 apptainer exec --nv \
   --bind $ISAAC_CACHE/kit:/isaac-sim/kit/cache \
+  --bind $ISAAC_CACHE/kit_data:/isaac-sim/kit/data \
   --bind $ISAAC_CACHE/ov:/root/.cache/ov \
   --bind $ISAAC_CACHE/nv:/root/.cache/nvidia \
   --bind $ISAAC_CACHE/pip:/root/.cache/pip \
   --bind $ISAAC_CACHE/logs:/root/.local/share/ov/data/Kit/logs \
+  --bind $ISAAC_CACHE/cameras_output:/workspace/isaaclab/scripts/demos/sensors/output \
   --env ACCEPT_EULA=Y \
   --env PRIVACY_CONSENT=Y \
   "$SIM_SIF" \
   bash -c '${ISAACLAB_PATH}/isaaclab.sh -p \
-    ${ISAACLAB_PATH}/../IsaacLab/scripts/demos/sensors/cameras.py \
-    --headless --enable_cameras'
+    ${ISAACLAB_PATH}/scripts/demos/sensors/cameras.py \
+    --headless --enable_cameras --num_envs 1'
+```
+
+Bilder prüfen nach dem Lauf:
+```bash
+ls $ISAAC_CACHE/cameras_output/
+```
+
+> **Hinweis:** `--num_envs 1` ist wichtig — der Default (4 Envs) erzeugt ein Terrain mit
+> ~3,9M Faces. Der RayCasterCamera-BVH-Build dafür dauert 30+ Minuten (single-threaded CPU).
+> Mit einem Env sinkt die Mesh-Größe auf ~¼.
+
+### 5c) Kamera-Rendering-Test mit GUI (optional, nur im JupyterHPC-Desktop)
+
+Nur im Desktop-Modus sinnvoll (`echo $DISPLAY` muss einen Wert zeigen):
+
+```bash
+apptainer exec --nv \
+  --bind /tmp/.X11-unix:/tmp/.X11-unix \
+  --bind $ISAAC_CACHE/kit:/isaac-sim/kit/cache \
+  --bind $ISAAC_CACHE/kit_data:/isaac-sim/kit/data \
+  --bind $ISAAC_CACHE/ov:/root/.cache/ov \
+  --bind $ISAAC_CACHE/nv:/root/.cache/nvidia \
+  --bind $ISAAC_CACHE/pip:/root/.cache/pip \
+  --bind $ISAAC_CACHE/logs:/root/.local/share/ov/data/Kit/logs \
+  --bind $ISAAC_CACHE/cameras_output:/workspace/isaaclab/scripts/demos/sensors/output \
+  --env DISPLAY=$DISPLAY \
+  --env ACCEPT_EULA=Y \
+  --env PRIVACY_CONSENT=Y \
+  "$SIM_SIF" \
+  bash -c '${ISAACLAB_PATH}/isaaclab.sh -p \
+    ${ISAACLAB_PATH}/scripts/demos/sensors/cameras.py \
+    --enable_cameras --num_envs 1'
+```
+
+> **Hinweis:** Der Desktop nutzt VirtualGL (`libdlfaker.so`/`libvglfaker.so`), das im Container
+> nicht verfügbar ist — Isaac Sim rendert trotzdem über Vulkan direkt. Falls kein Fenster
+> aufgeht, zurück zu 5b (headless).
+
+**Prozess beenden** (in einem zweiten Terminal):
+```bash
+pkill -9 -f "kit.sh"
+# falls das nicht reicht:
+kill -9 $(pgrep -f "apptainer|kit\.sh|omni\.kit|python3.*isaac") 2>/dev/null
 ```
 
 **Erwartet:** Kein `createDLSSContext`-Fehler, Kamera-Frames werden erzeugt.
@@ -154,6 +200,7 @@ Falls dieser Fehler auftritt → RTX 5000 zu alt für Isaac Lab 2.3.2, dann eine
 ```bash
 apptainer shell --nv \
   --bind $ISAAC_CACHE/kit:/isaac-sim/kit/cache \
+  --bind $ISAAC_CACHE/kit_data:/isaac-sim/kit/data \
   --bind $ISAAC_CACHE/ov:/root/.cache/ov \
   --bind $ISAAC_CACHE/nv:/root/.cache/nvidia \
   --env ACCEPT_EULA=Y \
