@@ -78,3 +78,9 @@
 **/wandb/
 **/.ipynb_checkpoints/
 **/.triton/
+
+# --- Build-Logs (mit Timestamp im Dateinamen) ---
+Simulation/build_sim_*.log
+
+# --- Graphify-Ausgaben (vollständig generiert, nicht tracken) ---
+graphify-out/

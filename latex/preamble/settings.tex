@@ -108,8 +108,12 @@
 \automark[chapter]{chapter}                    % Kopfmarke = Kapitelnummer + Titel
 \renewcommand*{\chaptermarkformat}{Kapitel~\thechapter\enskip}
 % Kopfzeile links: "Kapitel XX Kapitelname" + halbbreite Trennlinie darunter.
-% Erscheint nur im scrheadings-Stil – Kapitelanfangsseiten (plain) bleiben frei.
-\lhead{%
+% Optional-Arg setzt dasselbe für plain.scrheadings (Kapitelanfangsseiten).
+\ihead[{%
+  \rlap{\raisebox{-7pt}[0pt][0pt]{%
+    \textcolor{NavyBlue!35}{\rule{.5\textwidth}{.4pt}}}}%
+  \headmark%
+}]{%
   \rlap{\raisebox{-7pt}[0pt][0pt]{%
     \textcolor{NavyBlue!35}{\rule{.5\textwidth}{.4pt}}}}%
   \headmark%

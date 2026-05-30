@@ -28,12 +28,12 @@ FROM nvcr.io/nvidia/isaac-lab:2.3.2
 SHELL ["/bin/bash", "-c"]
 
 # EULA/Privacy non-interaktiv akzeptieren (sonst hängt der erste Isaac-Sim-Start)
+# EULA/Privacy non-interaktiv akzeptieren. Isaac Sim schreibt Cache-Daten;
+# Standard-Pfade auf /tmp umlenken, damit sie im Read-Only-SIF nicht fehlen.
+# Auf KISSKI: per --bind auf /scratch mounten (siehe kisski_sim_submit.sh).
 ENV ACCEPT_EULA=Y \
     PRIVACY_CONSENT=Y \
     NVIDIA_DRIVER_CAPABILITIES=all \
-    # Isaac Sim schreibt Cache-Daten; Standard-Pfade auf /tmp umlenken,
-    # damit sie im Read-Only-SIF-Container nicht fehlen.
-    # Auf KISSKI: per --bind auf /scratch mounten (siehe kisski_sim_submit.sh)
     OMNI_KIT_ACCEPT_EULA=yes \
     OMNI_CACHE=/tmp/omni_cache \
     NVCACHE_PATH=/tmp/nvcache

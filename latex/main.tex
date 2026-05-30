@@ -29,7 +29,8 @@
 % ═════════════════════════════════════════════════════════════════════
 
 % ── Titelseite (keine Seitenzahl) ────────────────────────────────────
-\include{frontmatter/titelseite}
+\input{frontmatter/titelseite}
+\thispagestyle{empty}        % verhindert Kopfzeile auf der Leerseite nach der Titelseite
 
 % ── Verzeichnisse (Große römische Seitenzahlen) ──────────────────────
 \pagenumbering{Roman}
@@ -49,7 +50,6 @@
   name    = {Abkürzungsverzeichnis},
 ]
 \addcontentsline{toc}{chapter}{Abkürzungsverzeichnis}
-\clearpage
 
 % ── Hauptteil (Arabische Seitenzahlen ab 1) ──────────────────────────
 \cleardoublepage

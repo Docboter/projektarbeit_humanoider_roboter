@@ -89,7 +89,7 @@ import torch
 
 from client import PolicyClient, build_obs
 from g1_dex3_blockstack_env import G1Dex3BlockstackEnv, G1Dex3BlockstackEnvCfg
-from g1_dex3_cfg import G1_DEX3_CFG
+from g1_dex3_cfg import CAMERA_CFG, G1_DEX3_CFG
 
 # ---------------------------------------------------------------------------
 # Video-Aufzeichnung
@@ -294,9 +294,6 @@ def main():
     env.close()
     simulation_app.close()
 
-
-# Import nach AppLauncher (oben bereits initialisiert)
-from g1_dex3_cfg import CAMERA_CFG
 
 if __name__ == "__main__":
     main()
