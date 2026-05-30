@@ -7,7 +7,7 @@
 \label{sec:trainingsverlauf}
 
 \Cref{fig:loss-curve} zeigt den Verlauf der Verlustfunktion über
-\num{[TODO]}~Trainingsschritte, aufgezeichnet mit \ac{wandb}.
+\TODO[Anzahl Trainingsschritte]~Trainingsschritte, aufgezeichnet mit \ac{wandb}.
 
 \begin{figure}[htb]
   \centering
@@ -50,7 +50,7 @@
 
 Die Evaluation erfolgt anhand der Erfolgsrate beim Block-Stacking in der
 Simulation (\emph{NVIDIA Isaac Lab}).
-Insgesamt wurden $n = \num{[TODO]}$~Episoden pro Checkpoint ausgewertet
+Insgesamt wurden $n = \TODO[Episodenzahl pro Checkpoint]$~Episoden pro Checkpoint ausgewertet
 (\cref{tab:eval-results}).
 
 \begin{table}[htb]
@@ -96,7 +96,7 @@ wurden drei Konfigurationen verglichen (je~\num{25000}~Schritte):
       ytick distance = 20,
       nodes near coords,
       nodes near coords align = {vertical},
-      grid         = y,
+      ymajorgrids  = true,
       grid style   = {line width=0.3pt, draw=gray!40},
       tick label style = {font=\small\sffamily},
       label style  = {font=\small\sffamily},
@@ -105,7 +105,8 @@ wurden drei Konfigurationen verglichen (je~\num{25000}~Schritte):
       draw         = NavyBlue,
     ]
       % Platzhalter-Daten:
-      \addplot coordinates {(BS=8,[TODO]) (BS=32,[TODO]) (BS=64,[TODO])};
+      % Platzhalter-Werte (0) ersetzen durch echte Erfolgsraten:
+      \addplot coordinates {(BS=8,0) (BS=32,0) (BS=64,0)};
     \end{axis}
   \end{tikzpicture}
   \caption{Einfluss der globalen Batch-Größe auf die Erfolgsrate nach

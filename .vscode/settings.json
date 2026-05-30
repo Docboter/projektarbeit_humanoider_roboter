@@ -1,0 +1,51 @@
+{
+  // ── LaTeX Workshop ────────────────────────────────────────────────────
+  "latex-workshop.latex.rootFile.doNotPrompt": true,
+  "latex-workshop.latex.rootFile.useSubFile": false,
+
+  // Rezept, das beim Speichern / beim manuellen Build ausgeführt wird
+  "latex-workshop.latex.recipe.default": "latexmk (LuaLaTeX + Biber)",
+
+  "latex-workshop.latex.recipes": [
+    {
+      "name": "latexmk (LuaLaTeX + Biber)",
+      "tools": ["latexmk"]
+    }
+  ],
+
+  "latex-workshop.latex.tools": [
+    {
+      "name": "latexmk",
+      "command": "latexmk",
+      // %DOC_EXT% = main.tex (mit Endung), %DOC% = main (ohne)
+      // -cd wechselt in das Verzeichnis der .tex-Datei, damit .latexmkrc gefunden wird
+      "args": ["-cd", "%DOC_EXT%"],
+      "env": {
+        // Python 3.12 vor dem Windows-Store-Stub platzieren (für minted/latexminted)
+        "PATH": "C:\\Users\\mueck\\AppData\\Local\\Programs\\Python\\Python312;C:\\Users\\mueck\\AppData\\Local\\Programs\\Python\\Python312\\Scripts;%PATH%"
+      }
+    }
+  ],
+
+  // Hilfsdateien, die LaTeX Workshop nach dem Build aufräumen darf
+  "latex-workshop.latex.clean.fileTypes": [
+    "*.aux", "*.bbl", "*.bcf", "*.blg",
+    "*.fdb_latexmk", "*.fls",
+    "*.lof", "*.lot", "*.out",
+    "*.run.xml", "*.synctex.gz",
+    "*.toc", "*.xdv",
+    "*.acn", "*.acr", "*.alg",
+    "*.glg", "*.glo", "*.gls", "*.ist",
+    "*.nav", "*.snm", "*.auxlock"
+  ],
+  // Aufräumen nur auf expliziten Befehl (nicht automatisch nach jedem Build)
+  "latex-workshop.latex.autoClean.run": "never",
+
+  // SyncTeX: Vorwärts-/Rückwärtssuche zwischen Editor und PDF
+  "latex-workshop.synctex.afterBuild.enabled": true,
+  "latex-workshop.view.pdf.viewer": "tab",
+
+  // Build-Fehler im OUTPUT-Panel anzeigen (nicht als Pop-up)
+  "latex-workshop.message.error.show": false,
+  "latex-workshop.message.warning.show": false
+}

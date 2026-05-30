@@ -4,8 +4,8 @@
 % ── Metadaten (hier anpassen!) ────────────────────────────────────────
 \newcommand{\docTitle}{Fine-Tuning von NVIDIA GR00T N1.6 für humanoide Roboter-Manipulation}
 \newcommand{\docSubtitle}{Block-Stacking mit dem Unitree G1 und DEX3-Hand}
-\newcommand{\docAuthor}{Luca Müncke}
-\newcommand{\docMatrikel}{u28320}
+\newcommand{\docAuthor}{Autor}
+\newcommand{\docMatrikel}{Matrikelnummer}
 \newcommand{\docBetreuer}{[Name des Betreuers]}
 \newcommand{\docHochschule}{[Name der Hochschule]}
 \newcommand{\docFachbereich}{[Fachbereich / Institut]}
@@ -70,6 +70,21 @@
   tabsize    = 4,
 }
 
+% ── Hilfsmakros ──────────────────────────────────────────────────────
+% \TODO[optionaler Hinweis] — setzt roten Platzhalter + Randnotiz
+% In Mathe-Modus und innerhalb von Tabellen/Boxen nur visuellen Marker setzen.
+\newcommand{\TODO}[1][Wert fehlt]{%
+  \ifmmode
+    \text{\textcolor{BrickRed}{\bfseries[??]}}%
+  \else\ifinner
+    \textcolor{BrickRed}{\bfseries[??]}%
+  \else
+    \textcolor{BrickRed}{\bfseries[??]}%
+    \todo[size=\footnotesize, color=BrickRed!15, bordercolor=BrickRed!50]{#1}%
+  \fi\fi
+}
+\DeclareSIUnit{\fps}{fps}
+
 % ── siunitx ──────────────────────────────────────────────────────────
 \sisetup{
   output-decimal-marker = {,},
@@ -89,11 +104,20 @@
 % ── Kopf- und Fußzeile ────────────────────────────────────────────────
 \pagestyle{scrheadings}
 \clearpairofpagestyles
-\ihead{\headmark}
-\ofoot[\pagemark]{\pagemark}
+\KOMAoptions{headsepline=false}                % KOMA-Trennlinie aus (wir zeichnen selbst)
+\automark[chapter]{chapter}                    % Kopfmarke = Kapitelnummer + Titel
+\renewcommand*{\chaptermarkformat}{Kapitel~\thechapter\enskip}
+% Kopfzeile links: "Kapitel XX Kapitelname" + halbbreite Trennlinie darunter.
+% Erscheint nur im scrheadings-Stil – Kapitelanfangsseiten (plain) bleiben frei.
+\lhead{%
+  \rlap{\raisebox{-7pt}[0pt][0pt]{%
+    \textcolor{NavyBlue!35}{\rule{.5\textwidth}{.4pt}}}}%
+  \headmark%
+}
+\cfoot[\pagemark]{\pagemark}                   % Seitenzahl mittig unten
 \setkomafont{pageheadfoot}{\small\sffamily}
+\addtokomafont{pagehead}{\color{NavyBlue!75}}  % Kopftext in Akzentfarbe
 \setkomafont{pagenumber}{\sffamily}
-\automark[section]{chapter}
 
 % ── Aufzählungen ─────────────────────────────────────────────────────
 \setlist{noitemsep, topsep=0.5\baselineskip}

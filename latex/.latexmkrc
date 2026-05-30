@@ -6,6 +6,11 @@
 #   - Python 3 + Pygments:  pip install Pygments
 #   - latexmk:              in TeX Live enthalten
 
+# Python-Pfad explizit setzen (verhindert Windows-Store-Stub-Konflikt)
+$ENV{PATH} = 'C:\Users\mueck\AppData\Local\Programs\Python\Python312;'
+           . 'C:\Users\mueck\AppData\Local\Programs\Python\Python312\Scripts;'
+           . $ENV{PATH};
+
 # Engine: LuaLaTeX mit Shell-Escape (für minted)
 $pdf_mode = 4;
 $lualatex = 'lualatex -shell-escape -interaction=nonstopmode -synctex=1 %O %S';

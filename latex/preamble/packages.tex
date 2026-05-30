@@ -5,15 +5,12 @@
 \usepackage[ngerman]{babel}
 \usepackage[autostyle=true, german=guillemets]{csquotes}   % dt. Anführungszeichen
 
-% ── Schriften (LuaLaTeX + fontspec) ──────────────────────────────────
-% Libertinus: freie OpenType-Familie, in TeX Live 2020+ enthalten
-\usepackage{fontspec}
-\setmainfont{Libertinus Serif}
-\setsansfont{Libertinus Sans}
-\setmonofont[Scale=MatchLowercase]{Source Code Pro}         % für Code
+% ── Schriften (LuaLaTeX + plex-otf) ──────────────────────────────────
+% IBM Plex: moderne OpenType-Familie von IBM, in TeX Live 2021+ enthalten
+\usepackage{plex-otf}                % setzt IBM Plex Serif / Sans / Mono automatisch
 
 \usepackage{unicode-math}
-\setmathfont{Libertinus Math}                               % passend zur Serifenschrift
+\setmathfont{IBM Plex Math}          % passend zur IBM-Plex-Familie
 
 % Mikrotypographie: Randausgleich, Unterschneidung, Wortzwischenräume
 \usepackage[
@@ -50,7 +47,6 @@
 
 % ── Mathematik & Einheiten ───────────────────────────────────────────
 \usepackage{amsmath}
-\usepackage{amssymb}
 \usepackage[
   locale              = DE,
   separate-uncertainty,
@@ -91,6 +87,10 @@
   minnames   = 1,
 ]{biblatex}
 \addbibresource{references.bib}
+
+% ── Todo-Notizen ─────────────────────────────────────────────────────
+\setlength{\marginparwidth}{2.5cm}
+\usepackage[colorinlistoftodos, textwidth=2.5cm]{todonotes}
 
 % ── Links & PDF-Metadaten (IMMER als letztes Paket!) ─────────────────
 \usepackage{hyperref}

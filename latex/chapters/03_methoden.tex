@@ -7,11 +7,11 @@
 \label{sec:datensatz}
 
 Der verwendete Datensatz \texttt{G1\_Dex3\_BlockStacking} enthält
-$N = \num{[TODO]}$~Episoden menschlicher Block-Stacking-Demonstrationen
+$N = \TODO[Episodenanzahl eintragen]$~Episoden menschlicher Block-Stacking-Demonstrationen
 auf dem Unitree G1 mit DEX3-Hand.
 \Cref{tab:datensatz} fasst die wichtigsten Kennzahlen zusammen.
 
-\begin{table}[htb]
+\begin{table}[H]
   \centering
   \caption{Eigenschaften des Trainings-Datensatzes}
   \label{tab:datensatz}
@@ -20,12 +20,12 @@ auf dem Unitree G1 mit DEX3-Hand.
     \textbf{Eigenschaft}       & \textbf{Wert} \\
     \midrule
     Format                     & LeRobot v2.1 \\
-    Anzahl Episoden (gesamt)   & \num{[TODO]} \\
-    Anzahl Episoden (Training) & \num{[TODO]} \\
-    Anzahl Episoden (Test)     & \num{[TODO]} \\
+    Anzahl Episoden (gesamt)   & \TODO[Gesamt] \\
+    Anzahl Episoden (Training) & \TODO[Training] \\
+    Anzahl Episoden (Test)     & \TODO[Test] \\
     Kameraauflösung            & $640 \times 480$\,px \\
     Aufzeichnungsrate          & \qty{30}{\fps} \\
-    Mittlere Episodenlänge     & \qty{[TODO]}{\second} \\
+    Mittlere Episodenlänge     & \TODO[Dauer in s]~\unit{\second} \\
     \bottomrule
   \end{tabularx}
 \end{table}
@@ -39,7 +39,7 @@ Die Aufteilung in Trainings- und Testmenge folgt einem stratifizierten
 \Cref{fig:system-overview} zeigt die Gesamtarchitektur der Trainings- und
 Inferenzpipeline.
 
-\begin{figure}[htb]
+\begin{figure}[H]
   \centering
   \begin{tikzpicture}[
     node distance = 1.4cm and 2cm,
@@ -81,7 +81,7 @@ Derselbe Container läuft als Apptainer-SIF-Image auf dem \ac{hpc}-Cluster KISSK
 Die wichtigsten Trainings-Hyperparameter sind in \cref{tab:hparams} aufgeführt.
 Sie werden ausschließlich über Umgebungsvariablen konfiguriert.
 
-\begin{table}[htb]
+\begin{table}[H]
   \centering
   \caption{Trainings-Hyperparameter}
   \label{tab:hparams}
@@ -103,7 +103,6 @@ Sie werden ausschließlich über Umgebungsvariablen konfiguriert.
 
 \Cref{lst:sbatch} zeigt den Aufruf des SLURM-Batch-Skripts auf KISSKI.
 
-\begin{listing}[htb]
 \begin{minted}{bash}
 export HF_TOKEN=hf_...
 export SIF_IMAGE=~/.project/dir.project/images/projekt-humanoider-roboter.sif
@@ -112,9 +111,8 @@ export MAX_STEPS=50000
 
 sbatch ~/.project/dir.project/kisski_submit.sh
 \end{minted}
-\caption{Einreichung eines Trainingsjobs auf dem KISSKI-Cluster.}
+\captionof{listing}{Einreichung eines Trainingsjobs auf dem KISSKI-Cluster.}
 \label{lst:sbatch}
-\end{listing}
 
 \section{Fine-Tuning-Prozess}
 \label{sec:finetuning}
@@ -125,7 +123,6 @@ Der Einstiegspunkt des Containers ruft nach dem Herunterladen des Datensatzes
 und der Format-Konvertierung automatisch dieses Skript auf
 (siehe \cref{lst:entrypoint}).
 
-\begin{listing}[htb]
 \begin{minted}{python}
 # Vereinfachter Ausschnitt aus run_finetuning.sh
 import subprocess, os
@@ -137,6 +134,5 @@ subprocess.run([
     "--batch-size", os.environ.get("GLOBAL_BATCH_SIZE", "8"),
 ], check=True)
 \end{minted}
-\caption{Vereinfachter Aufruf des Fine-Tuning-Skripts (illustrativ).}
+\captionof{listing}{Vereinfachter Aufruf des Fine-Tuning-Skripts (illustrativ).}
 \label{lst:entrypoint}
-\end{listing}

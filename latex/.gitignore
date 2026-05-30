@@ -26,6 +26,7 @@
 *.auxlock
 
 # minted-Cache
+_minted/
 _minted-*/
 
 # Kompiliertes PDF (optional – entfernen, wenn PDF versioniert werden soll)
