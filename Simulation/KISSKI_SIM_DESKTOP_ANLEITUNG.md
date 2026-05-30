@@ -88,10 +88,11 @@ nvidia-smi
 ## Schritt 4 — Isaac-Sim-Cache-Verzeichnisse anlegen
 
 Isaac Sim schreibt beim Start viel in Cache-Verzeichnisse.
-Das SIF ist read-only → Caches müssen auf beschreibbares `/scratch` zeigen:
+Das SIF ist read-only → Caches müssen auf beschreibbaren Projektspeicher zeigen
+(analog zu `DATA_DIR` im Training):
 
 ```bash
-ISAAC_CACHE=/scratch/$USER/isaac-cache
+ISAAC_CACHE=/mnt/vast-kisski/projects/kisski-humrob/isaac-cache
 mkdir -p $ISAAC_CACHE/{kit,ov,pip,nv,logs}
 ```
 
@@ -105,7 +106,7 @@ mkdir -p $ISAAC_CACHE/{kit,ov,pip,nv,logs}
 module load apptainer
 
 SIM_SIF=/user/luca.muecke/u28320/.project/dir.project/images/projekt-humanoider-roboter-sim.sif
-ISAAC_CACHE=/scratch/$USER/isaac-cache
+ISAAC_CACHE=/mnt/vast-kisski/projects/kisski-humrob/isaac-cache
 
 apptainer exec --nv \
   --bind $ISAAC_CACHE/kit:/isaac-sim/kit/cache \

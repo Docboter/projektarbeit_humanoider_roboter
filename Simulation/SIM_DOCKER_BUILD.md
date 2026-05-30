@@ -211,15 +211,21 @@ mkdir -p "$APPTAINER_CACHEDIR" "$APPTAINER_TMPDIR"
 
 ## 7. Beide Container in einem SLURM-Job starten
 
-Skizze (ein eigenes `kisski_sim_submit.sh`, abgeleitet von `kisski_submit.sh`).
+> **Das fertige Script ist `Simulation/kisski_sim_submit.sh`** — es setzt bereits
+> alle unten beschriebenen Flags korrekt um. Die nachfolgende Skizze dient nur
+> als Erklärung der Struktur.
+>
+> **Wichtig:** Isaac Sim benötigt RT-Cores → **nicht** `kisski`/A100, sondern
+> `jupyter`-Partition (Quadro RTX 5000). Siehe [SIM_GPU_COMPATIBILITY.md](SIM_GPU_COMPATIBILITY.md).
+
 Wichtig: **GR00T-Server im Hintergrund**, kurz warten, dann **Sim-Client** im
 selben Job/Node.
 
 ```bash
-#SBATCH -p kisski
-#SBATCH -G A100:1
-#SBATCH -c 32
-#SBATCH --mem=64G
+#SBATCH -p jupyter
+#SBATCH --gres=gpu:RTX5000:1
+#SBATCH -c 16
+#SBATCH --mem=32G
 #SBATCH -t 04:00:00
 
 module load apptainer
@@ -229,12 +235,14 @@ SERVER_SIF=~/.project/dir.project/images/projekt-humanoider-roboter.sif
 SIM_SIF=~/.project/dir.project/images/projekt-humanoider-roboter-sim.sif
 
 # Schreibbare Cache-Dirs für Isaac Sim (Container-FS ist read-only!)
-export ISAAC_CACHE=/scratch/$USER/isaac-cache
+ISAAC_CACHE=/mnt/vast-kisski/projects/kisski-humrob/isaac-cache
 mkdir -p $ISAAC_CACHE/{kit,ov,pip,nv}
+
+DATA_DIR=/mnt/vast-kisski/projects/kisski-humrob/data
 
 # --- 1) GR00T-Policy-Server im Hintergrund ---
 apptainer exec --nv \
-  --bind /scratch/$USER/data:/data \
+  --bind "$DATA_DIR:/data" \
   "$SERVER_SIF" \
   python /app/Groot-1.6/gr00t/eval/run_gr00t_server.py \
     --model-path /data/g1_dex3_finetune \
@@ -248,7 +256,7 @@ sleep 60   # besser: aktiv auf tcp:5555 pollen
 
 # --- 2) Isaac-Lab-Sim-Client (headless EGL) ---
 apptainer exec --nv \
-  --bind /scratch/$USER/data:/data \
+  --bind "$DATA_DIR:/data" \
   --bind $ISAAC_CACHE/kit:/isaac-sim/kit/cache \
   --bind $ISAAC_CACHE/ov:/root/.cache/ov \
   --bind $ISAAC_CACHE/nv:/root/.cache/nvidia \

@@ -5,18 +5,16 @@
 #   docker build -t projektarbeit-humanoider-roboter Training/      # vom Repo-Root aus
 #   cd Training && docker build -t projektarbeit-humanoider-roboter .
 #
-# Run (autonom, z. B. auf vast.ai):
-#   docker run --rm --gpus all --ipc=host \
+# Run (autonom — KEIN --rm, KEIN -v; alle Daten leben im Container-Filesystem):
+#   docker run --name groot-train --gpus all --ipc=host --shm-size=16g \
 #     -e HF_TOKEN=hf_... \
 #     -e WANDB_API_KEY=... \
 #     -e MAX_STEPS=30000 \
 #     -e GLOBAL_BATCH_SIZE=8 \
-#     -v /pfad/zu/data:/data \
-#     projektarbeit-humanoider-roboter
+#     -it projektarbeit-humanoider-roboter
 #
 # Interaktive Shell (für Debugging):
-#   docker run -it --rm --gpus all --ipc=host \
-#     -v $(pwd)/data:/data \
+#   docker run -it --name groot-debug --gpus all --ipc=host --shm-size=16g \
 #     projektarbeit-humanoider-roboter bash
 
 FROM nvidia/cuda:12.8.0-devel-ubuntu22.04

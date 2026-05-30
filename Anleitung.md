@@ -143,7 +143,7 @@ Submodule sind **nicht** mehr nötig — das Image bringt den Groot-1.6-Code sel
 ```bash
 git clone https://github.com/Docboter/projektarbeit_humanoider_roboter.git
 cd projektarbeit_humanoider_roboter
-git checkout training-luca
+git checkout training-luca-KISSKI
 ```
 
 ### B3. Token setzen
@@ -266,7 +266,7 @@ export GLOBAL_BATCH_SIZE=32    # A100 mit 80 GB VRAM verträgt deutlich mehr als
 sbatch Training/kisski_submit.sh
 ```
 
-Beim ersten Lauf lädt der Container Modell und Datensatz (~25 GB) selbst von HuggingFace nach `/scratch/$USER/data/` herunter. Bei Folgeläufen wird der Download automatisch übersprungen.
+Beim ersten Lauf: `SKIP_DOWNLOAD=0` setzen, damit der Container Modell und Datensatz (~25 GB) selbst von HuggingFace nach `/mnt/vast-kisski/projects/kisski-humrob/data/` herunterlädt. Bei Folgeläufen wird der Download automatisch übersprungen (`SKIP_DOWNLOAD=1` ist der Standard in `kisski_submit.sh`).
 
 ### D4. Job-Status und Logs
 
@@ -278,15 +278,15 @@ scancel <jobid>                        # Job abbrechen
 
 ### D5. Checkpoints sichern
 
-Checkpoints liegen nach dem Job unter `/scratch/$USER/data/g1_dex3_finetune/`. Von dort lokal holen:
+Checkpoints liegen nach dem Job unter `/mnt/vast-kisski/projects/kisski-humrob/data/g1_dex3_finetune/`. Von dort lokal holen:
 
 ```bash
 rsync -avz --progress \
-    <username>@transfer.hpc.gwdg.de:/scratch/<username>/data/g1_dex3_finetune/ \
+    <username>@transfer.hpc.gwdg.de:/mnt/vast-kisski/projects/kisski-humrob/data/g1_dex3_finetune/ \
     ./checkpoints/
 ```
 
-> **Achtung:** Scratch-Storage wird nach 30–90 Tagen automatisch gelöscht. Checkpoints zeitnah exportieren.
+> **Hinweis:** Daten auf dem VAST-Projekt-Storage werden **nicht automatisch gelöscht** (der alte Scratch-Speicher `/scratch/` wurde am 31.03.2026 abgeschaltet). Trotzdem empfiehlt sich ein Export nach HuggingFace oder lokal.
 
 Vollständige KISSKI-Anleitung: [README.md Abschnitt 4](README.md#4-hpc-training-auf-kisski)
 
@@ -326,8 +326,9 @@ docker logs -f groot-train       # Logs verfolgen
 ### Image selbst bauen statt zu pullen
 
 ```bash
-git clone --recurse-submodules https://github.com/Docboter/projektarbeit_humanoider_roboter.git
+git clone https://github.com/Docboter/projektarbeit_humanoider_roboter.git
 cd projektarbeit_humanoider_roboter
+git checkout training-luca-KISSKI
 docker build -t projektarbeit-humanoider-roboter Training/   # Build-Context = Training/
 ```
 
@@ -396,10 +397,12 @@ rsync -avz --progress \
 
 | VRAM | `GLOBAL_BATCH_SIZE` | `MAX_STEPS` | Umgebung |
 |---|---|---|---|
-| 8 GB  | 8   | 30 000 | Lokal (RTX 4070) |
-| 16 GB | 16  | 30 000–50 000 | Lokal (RTX 4090) |
-| 24 GB | 32  | 50 000 | Lokal (RTX 4090) |
+| 24 GB | 1–2 | 30 000 | Lokal (RTX 4090, min.) — sehr langsam |
+| 32 GB | 4–8 | 30 000 | Lokal (RTX 5090, ~31 GB bei bs=8) |
+| 40 GB | 16–32 | 50 000 | vast.ai A100 40 GB |
 | 80 GB | 64–128 | 50 000+ | KISSKI A100 |
+
+> **Full Fine-tuning benötigt laut NVIDIA ≥ 40 GB VRAM.** Karten mit < 24 GB VRAM führen zu OOM-Fehlern.
 
 Bei `CUDA out of memory`: zuerst `GLOBAL_BATCH_SIZE` halbieren.
 

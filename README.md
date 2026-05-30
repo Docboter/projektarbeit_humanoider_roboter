@@ -5,7 +5,7 @@ Dieses Repository dokumentiert das Fine-tuning von NVIDIAs **GR00T N1.6** Vision
 
 Die Trainingsumgebung läuft **vollständig autonom in einem Container**: Container starten → Training läuft. Derselbe Container läuft lokal, auf Cloud-GPU-Plattformen wie [vast.ai](https://vast.ai) und auf dem **KISSKI HPC-Cluster** (GWDG Göttingen) — alle Schritte (Daten-Download, Konvertierung, Training) passieren im Container.
 
-> **Speicher-Modell:** Es gibt **keinen persistenten Storage auf dem Host**. Daten, Checkpoints und Logs leben ausschließlich im Container-Filesystem. Auf vast.ai entspricht ein Container genau einer Instanz — wird die Instanz/Container zerstört, ist alles weg. Auf KISSKI wird `/scratch` als externes Volume gemountet. Das Container-Filesystem ist die einzige Wahrheit.
+> **Speicher-Modell:** Es gibt **keinen persistenten Storage auf dem Host**. Daten, Checkpoints und Logs leben ausschließlich im Container-Filesystem. Auf vast.ai entspricht ein Container genau einer Instanz — wird die Instanz/Container zerstört, ist alles weg. Auf KISSKI wird `/mnt/vast-kisski/projects/kisski-humrob/data` (GWDG VAST-Projekt-Storage) als `/data` in den Container gemountet. Das Container-Filesystem ist die einzige Wahrheit.
 
 ---
 
@@ -61,14 +61,14 @@ Detaillierte Schritt-für-Schritt-Anleitung: [Anleitung.md](Anleitung.md)
 
 ### Hardware
 
-| Anforderung | Minimum | Getestet mit |
+| Anforderung | Minimum (Training) | Empfohlen |
 |---|---|---|
-| GPU | NVIDIA GPU, ≥ 8 GB VRAM | RTX 4070 Laptop (8 GB) |
-| VRAM | 8 GB | 8 GB |
-| RAM | 32 GB | 32 GB |
+| GPU | NVIDIA GPU, ≥ 24 GB VRAM | A100/H100 ≥ 40 GB |
+| VRAM | 24 GB (batch_size ≤ 2) | 40–80 GB |
+| RAM | 32 GB | 64 GB |
 | Speicherplatz | 80 GB im Container-Filesystem | SSD empfohlen |
 
-> **Hinweis:** Mit 8 GB VRAM `GLOBAL_BATCH_SIZE=8` (oder kleiner). Mit 16 GB VRAM `GLOBAL_BATCH_SIZE=16`. Auf KISSKI stehen A100 (80 GB) zur Verfügung — dort passt `GLOBAL_BATCH_SIZE=32` oder höher.
+> **Hinweis:** GR00T N1.6 Full Fine-tuning verbraucht laut NVIDIA ~25–31 GB VRAM (bei batch_size=8). NVIDIA empfiehlt offiziell **≥ 40 GB VRAM** (H100, L40). Karten mit 24 GB (RTX 4090, A5000) können mit `GLOBAL_BATCH_SIZE=1–2` und `--no-tune_diffusion_model` laufen, jedoch sehr langsam. Für ernsthaftes Training: KISSKI A100 (80 GB).
 
 ### Software (nur für lokales Training)
 
@@ -170,25 +170,37 @@ Das erzeugt `$HOME/images/projekt-humanoider-roboter.sif` (~10–15 GB). Diese D
 
 ---
 
-### Schritt 2 — Daten auf Scratch-Storage übertragen (einmalig oder bei Update)
+### Schritt 2 — Daten auf VAST-Projekt-Storage übertragen (einmalig oder bei Update)
 
-Der Cluster hat keinen dauerhaften `/data`-Ordner wie lokal. Große Dateien (Datensatz, Checkpoints) gehören auf den **Scratch-Storage** unter `/scratch/<username>/`.
+Der Cluster nutzt für dieses Projekt den **GWDG VAST-Projekt-Storage** unter
+`/mnt/vast-kisski/projects/kisski-humrob/data/` (persistente SSD-Storage — kein Scratch!).
+`kisski_submit.sh` setzt diesen Pfad als Standard-`DATA_DIR`.
+
+> **Hinweis:** Der alte SCRATCH-SCC-Speicher (`/scratch/`) wurde am 31.03.2026 abgeschaltet.
+> Alle Daten müssen auf dem VAST-Projekt-Storage liegen.
 
 **Option A: Von deinem lokalen Rechner mit rsync**
 
 ```bash
 # Struktur auf dem Cluster anlegen
-ssh <username>@transfer.hpc.gwdg.de "mkdir -p /scratch/<username>/data"
+ssh <username>@transfer.hpc.gwdg.de "mkdir -p /mnt/vast-kisski/projects/kisski-humrob/data"
 
 # Datensatz + Modell übertragen (falls schon lokal vorhanden)
 rsync -avz --progress \
     ./data/ \
-    <username>@transfer.hpc.gwdg.de:/scratch/<username>/data/
+    <username>@transfer.hpc.gwdg.de:/mnt/vast-kisski/projects/kisski-humrob/data/
 ```
 
-**Option B: Direkt vom Cluster aus herunterladen (empfohlen)**
+**Option B: Direkt vom Cluster aus herunterladen**
 
-Gar nichts übertragen — `SKIP_DOWNLOAD=0` (der Standard) lassen. Der Entrypoint lädt Modell und Datensatz beim ersten Job-Lauf selbst von HuggingFace nach `/scratch/<username>/data/` herunter (~25 GB, dauert je nach Bandbreite 10–30 min). Bei allen weiteren Läufen erkennt der Entrypoint die vorhandenen Daten und überspringt den Download automatisch.
+`kisski_submit.sh` setzt `SKIP_DOWNLOAD=1` als Standard (Daten auf `/mnt/vast-kisski/...` werden als vorhanden angenommen). Für den allerersten Lauf — wenn noch keine Daten auf dem Cluster-Storage liegen — muss `SKIP_DOWNLOAD=0` explizit gesetzt werden:
+
+```bash
+export SKIP_DOWNLOAD=0
+sbatch Training/kisski_submit.sh
+```
+
+Der Entrypoint lädt Modell und Datensatz dann selbst von HuggingFace (~25 GB, ca. 10–30 min). Bei allen weiteren Läufen ist `SKIP_DOWNLOAD=1` korrekt (Download wird automatisch übersprungen).
 
 ---
 
@@ -229,32 +241,32 @@ scancel <jobid>
 sinfo -p kisski
 ```
 
-SLURM-Logs landen in `logs/slurm-<jobid>.out` und `logs/slurm-<jobid>.err` im Verzeichnis, aus dem `sbatch` aufgerufen wurde. Trainings-Logs schreibt der Container zusätzlich nach `/scratch/<username>/data/logs/`.
+SLURM-Logs landen in `logs/slurm-<jobid>.out` und `logs/slurm-<jobid>.err` im Verzeichnis, aus dem `sbatch` aufgerufen wurde. Trainings-Logs schreibt der Container zusätzlich nach `/mnt/vast-kisski/projects/kisski-humrob/data/logs/`.
 
 ---
 
 ### Checkpoints nach dem Training sichern
 
-Checkpoints liegen nach dem Job in `/scratch/<username>/data/g1_dex3_finetune/blockstacking/` auf dem Cluster. Von dort auf deinen lokalen Rechner oder nach HuggingFace exportieren:
+Checkpoints liegen nach dem Job in `/mnt/vast-kisski/projects/kisski-humrob/data/g1_dex3_finetune/blockstacking/` auf dem Cluster. Von dort auf deinen lokalen Rechner oder nach HuggingFace exportieren:
 
 ```bash
 # Auf deinem lokalen Rechner
 rsync -avz --progress \
-    <username>@transfer.hpc.gwdg.de:/scratch/<username>/data/g1_dex3_finetune/ \
+    <username>@transfer.hpc.gwdg.de:/mnt/vast-kisski/projects/kisski-humrob/data/g1_dex3_finetune/ \
     ./checkpoints/
 
 # Oder direkt vom Cluster aus nach HuggingFace pushen
 # (interaktiven Job starten, dann im Container):
 srun -p kisski:interactive -G 1g.10gb:1 --pty bash
 apptainer shell --nv \
-    --bind /scratch/$USER/data:/data \
-    $HOME/images/projekt-humanoider-roboter.sif
+    --bind /mnt/vast-kisski/projects/kisski-humrob/data:/data \
+    ~/.project/dir.project/images/projekt-humanoider-roboter.sif
 # Innerhalb des Containers:
 huggingface-cli upload <dein-namespace>/g1-dex3-blockstacking \
     /data/g1_dex3_finetune/blockstacking --repo-type=model
 ```
 
-> **Achtung:** Scratch-Storage ist **nicht dauerhaft**. Auf GWDG-Clustern werden Dateien auf `/scratch` nach einer gewissen Zeit (i.d.R. 30–90 Tage) automatisch gelöscht. Checkpoints zeitnah exportieren.
+> **Hinweis:** Daten auf dem VAST-Projekt-Storage werden **nicht automatisch gelöscht** (anders als früher auf `/scratch`). Trotzdem empfiehlt sich ein regelmäßiger Export nach HuggingFace oder lokal.
 
 ---
 
@@ -286,7 +298,7 @@ export MAX_STEPS=50000
 ```bash
 git clone https://github.com/Docboter/projektarbeit_humanoider_roboter.git
 cd projektarbeit_humanoider_roboter
-git checkout training-luca
+git checkout training-luca-KISSKI
 
 export HF_TOKEN=hf_...
 export WANDB_API_KEY=...        # optional
@@ -327,8 +339,9 @@ docker rm -f groot-train          # Komplett löschen (alles weg)
 ### Variante C: Image selbst bauen
 
 ```bash
-git clone --recurse-submodules https://github.com/Docboter/projektarbeit_humanoider_roboter.git
+git clone https://github.com/Docboter/projektarbeit_humanoider_roboter.git
 cd projektarbeit_humanoider_roboter
+git checkout training-luca-KISSKI
 docker build -t projektarbeit-humanoider-roboter Training/   # Build-Context = Training/
 ```
 
@@ -367,10 +380,12 @@ Alle Parameter werden über Umgebungsvariablen gesteuert — auf vast.ai, KISSKI
 
 | VRAM | `GLOBAL_BATCH_SIZE` | `MAX_STEPS` | Umgebung |
 |---|---|---|---|
-| 8 GB  | 8   | 30 000 | Lokal (RTX 4070) |
-| 16 GB | 16–32 | 50 000 | Lokal (RTX 4090) |
-| 40 GB | 32–64 | 50 000 | vast.ai A100 40GB |
-| 80 GB | 64–128 | 50 000+ | KISSKI A100 80GB |
+| 24 GB | 1–2 | 30 000 | Lokal (RTX 4090, min.) — sehr langsam |
+| 32 GB | 4–8  | 30 000 | Lokal (RTX 5090, ~31 GB bei bs=8) |
+| 40 GB | 16–32 | 50 000 | vast.ai A100 40 GB |
+| 80 GB | 64–128 | 50 000+ | KISSKI A100 80 GB |
+
+> **Full Fine-tuning benötigt laut NVIDIA ≥ 40 GB VRAM.** Karten mit < 24 GB VRAM führen zu OOM-Fehlern.
 
 Reduziere bei `CUDA out of memory` zuerst `GLOBAL_BATCH_SIZE`. Volle Parameter-Referenz: [`app/Groot-1.6/examples/G1_DEX3/FINETUNING_GUIDE.md`](app/Groot-1.6/examples/G1_DEX3/FINETUNING_GUIDE.md)
 
@@ -391,7 +406,7 @@ Funktioniert auch, während der Container läuft.
 
 ```bash
 rsync -avz --progress \
-    <username>@transfer.hpc.gwdg.de:/scratch/<username>/data/g1_dex3_finetune/ \
+    <username>@transfer.hpc.gwdg.de:/mnt/vast-kisski/projects/kisski-humrob/data/g1_dex3_finetune/ \
     ./checkpoints/
 ```
 
@@ -424,10 +439,10 @@ docker logs -f groot-train
 tail -f logs/slurm-<jobid>.out
 ```
 
-**KISSKI (Trainings-Logs im Scratch):**
+**KISSKI (Trainings-Logs auf VAST):**
 ```bash
 ssh <username>@glogin-gpu.hpc.gwdg.de \
-    "tail -f /scratch/<username>/data/logs/finetune-*.log"
+    "tail -f /mnt/vast-kisski/projects/kisski-humrob/data/logs/finetune-*.log"
 ```
 
 ### Checkpoints
@@ -439,7 +454,7 @@ docker exec groot-train ls -lht /data/g1_dex3_finetune/blockstacking/
 
 **KISSKI:**
 ```bash
-ls -lht /scratch/<username>/data/g1_dex3_finetune/blockstacking/
+ls -lht /mnt/vast-kisski/projects/kisski-humrob/data/g1_dex3_finetune/blockstacking/
 ```
 
 ---
@@ -465,7 +480,13 @@ ls -lht /scratch/<username>/data/g1_dex3_finetune/blockstacking/
 │       ├── run_finetuning.sh           # Trainings-Launcher (im Container)
 │       └── run_finetuning.ps1          # Trainings-Launcher (Windows-Variante)
 ├── Simulation/                         # Closed-Loop-Sim-Eval (in Entwicklung)
-│   └── ISAAC_LAB_SIM_PLAN.md           # Implementierungsplan für die Isaac-Lab-Sim
+│   ├── Dockerfile                      # Sim-Client-Container (Isaac Lab + GR00T-Client)
+│   ├── kisski_sim_submit.sh            # SLURM-Job für Sim-Eval (jupyter-Partition, RTX 5000)
+│   ├── update_sim_image.ps1            # Build/Push-Tool für das Sim-Image
+│   ├── ISAAC_LAB_SIM_PLAN.md           # Implementierungsplan für die Isaac-Lab-Sim
+│   ├── SIM_GPU_COMPATIBILITY.md        # GPU-Kompatibilität (RT-Cores, jupyter-Partition)
+│   ├── SIM_DOCKER_BUILD.md             # Build- und Deployment-Anleitung Sim-Container
+│   └── KISSKI_SIM_DESKTOP_ANLEITUNG.md # Schritt-für-Schritt für JupyterHPC-Desktop-Test
 ├── data/                               # Lokale Daten-/Checkpoint-Platzhalter (geteilt)
 └── app/                                # Git-Submodule (im Image bereits geklont)
     └── Groot-1.6/                      # GR00T N1.6 + eigene G1/DEX3-Configs
@@ -561,7 +582,7 @@ Die Partition ist ausgelastet. Mit `squeue -p kisski` prüfen wie viele Jobs war
 
 ### KISSKI: `No space left on device` im Container
 
-Der Scratch-Storage ist voll. Mit `du -sh /scratch/$USER/*` prüfen. Alte Checkpoints unter `/scratch/$USER/data/g1_dex3_finetune/` aufräumen — `save_total_limit=5` im Training-Script sorgt dafür, dass maximal 5 Checkpoints gleichzeitig vorgehalten werden.
+Der VAST-Projekt-Storage ist voll. Mit `du -sh /mnt/vast-kisski/projects/kisski-humrob/*` prüfen. Alte Checkpoints unter `/mnt/vast-kisski/projects/kisski-humrob/data/g1_dex3_finetune/` aufräumen — `save_total_limit=5` im Training-Script sorgt dafür, dass maximal 5 Checkpoints gleichzeitig vorgehalten werden.
 
 ---
 

@@ -59,8 +59,9 @@ SERVER_PORT="${SERVER_PORT:-5555}"
 # G1+Dex3 USD-Asset (muss erzeugt worden sein — siehe ISAAC_LAB_SIM_PLAN.md Abschnitt 3)
 ASSET_PATH="${ASSET_PATH:-/data/assets/g1_dex3.usd}"
 
-# Isaac-Sim Cache-Verzeichnisse (SIF ist read-only → auf scratch umlenken)
-ISAAC_CACHE="/scratch/$USER/isaac-cache"
+# Isaac-Sim Cache-Verzeichnisse (SIF ist read-only → auf Projektspeicher umlenken,
+# analog zu DATA_DIR im Training-Job)
+ISAAC_CACHE="/mnt/vast-kisski/projects/kisski-humrob/isaac-cache"
 
 # ── Voraussetzungen prüfen ────────────────────────────────────────────────────
 for SIF in "$SERVER_SIF" "$SIM_SIF"; do

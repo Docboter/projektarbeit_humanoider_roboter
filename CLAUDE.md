@@ -137,7 +137,13 @@ repo root
 │       ├── download_data.sh            # HuggingFace download (model + dataset)
 │       └── run_finetuning.sh           # Training launcher (called by entrypoint)
 ├── Simulation/                         # Closed-loop sim eval (in development)
-│   └── ISAAC_LAB_SIM_PLAN.md           # Implementation plan for the Isaac Lab sim
+│   ├── Dockerfile                      # Sim-client container (Isaac Lab + slim GR00T client)
+│   ├── kisski_sim_submit.sh            # SLURM job for sim eval (jupyter partition, RTX 5000)
+│   ├── update_sim_image.ps1            # Build/push tool for the sim image
+│   ├── ISAAC_LAB_SIM_PLAN.md           # Implementation plan for the Isaac Lab sim
+│   ├── SIM_GPU_COMPATIBILITY.md        # GPU compatibility analysis (RT-cores, jupyter partition)
+│   ├── SIM_DOCKER_BUILD.md             # Build & deployment guide for the sim container
+│   └── KISSKI_SIM_DESKTOP_ANLEITUNG.md # Step-by-step for JupyterHPC desktop test
 ├── data/                               # Local-dev data/checkpoint placeholders (shared)
 └── app/                                # Git submodule, cloned in Dockerfile at build time
     └── Groot-1.6/                      # PRIMARY — custom fork (lucam06, pinned commit)
@@ -176,10 +182,12 @@ At runtime, the container holds (no host mount):
 
 | VRAM | `GLOBAL_BATCH_SIZE` | `MAX_STEPS` | Platform |
 |---|---|---|---|
-| 8 GB  | 8   | 30 000 | Local (RTX 4070) |
-| 16 GB | 16–32 | 50 000 | Local (RTX 4090) |
+| 24 GB | 1–2 | 30 000 | Local (RTX 4090, min) — very slow |
+| 32 GB | 4–8 | 30 000 | Local (RTX 5090, ~31 GB at bs=8) |
 | 80 GB | 64–128 | 50 000+ | KISSKI A100 |
 | 94 GB | 128+ | 50 000+ | KISSKI H100 |
+
+Full fine-tuning requires ≥ 40 GB VRAM per NVIDIA's official recommendation.
 
 Reduce batch size first on OOM. See [`app/Groot-1.6/examples/G1_DEX3/FINETUNING_GUIDE.md`](app/Groot-1.6/examples/G1_DEX3/FINETUNING_GUIDE.md) for full parameter reference.
 
