@@ -21,7 +21,7 @@
 #   TASK_DESCRIPTION     — Language-Prompt                 (default "stack the blocks")
 #   ZMQ_PORT             — ZMQ-Port für Server-Kommunikation (default 5555)
 #   ASSET_PATH           — Pfad zum g1_dex3.usd            (default /workspace/assets/g1_dex3.usd)
-#   NO_FLASH_ATTN        — 0=flash-attn an, 1=aus          (default 0)
+#   NO_FLASH_ATTN        — IGNORIERT (Eagle-Block2A-2B-v2 erzwingt flash_attention_2)
 #   SKIP_DOWNLOAD        — 1=Checkpoint-Download überspringen (default 0)
 #   SHELL_ON_ERROR       — 1=bei Fehler in Shell fallen    (default 0)
 #
@@ -152,20 +152,31 @@ echo ""
 # ── GR00T-Policy-Server starten ───────────────────────────────────────────────
 log "Schritt 2/3 — GR00T-Policy-Server (Port $ZMQ_PORT)"
 # Triton ruft gcc -lcuda auf wenn transformers importiert wird.
-# gcc nutzt LIBRARY_PATH (nicht LD_LIBRARY_PATH) für -l-Flags zur Compile-Zeit.
-# Dockerfile setzt LIBRARY_PATH bereits als ENV; dieser Export ist ein Fallback.
-export LIBRARY_PATH="/usr/local/cuda/lib64/stubs:${LIBRARY_PATH:-}"
+# libcuda.so.1 wird vom NVIDIA-Container-Runtime injiziert, aber libcuda.so (unversioniert,
+# den gcc für -lcuda braucht) fehlt im isaac-lab-Image. Symlink erstellen damit der Linker
+# ihn findet. (|| true: grep liefert exit 1 bei keinem Treffer — würde sonst set -e auslösen.)
+LIBCUDA_SO1=$(ldconfig -p 2>/dev/null | grep "libcuda\.so\.1" | awk '{print $NF}' | head -1 || true)
+if [[ -n "$LIBCUDA_SO1" ]]; then
+    ln -sf "$LIBCUDA_SO1" /usr/lib/x86_64-linux-gnu/libcuda.so 2>/dev/null || true
+    ldconfig 2>/dev/null || true
+    ok "libcuda.so Symlink: $LIBCUDA_SO1 -> /usr/lib/x86_64-linux-gnu/libcuda.so"
+else
+    warn "libcuda.so.1 nicht gefunden — Triton-Kompilierung könnte fehlschlagen"
+fi
 
 GROOT_SERVER_LOG="$DATA_DIR/logs/groot_server.log"
 
-FLASH_ATTN_ARG=""
-[[ "$NO_FLASH_ATTN" == "1" ]] && FLASH_ATTN_ARG="--no-flash-attn"
+# Hinweis: Flash-Attention 2 ist für nvidia/Eagle-Block2A-2B-v2 PFLICHT (hartes assert im
+# Modell-Backbone) und flash_attn ist im venv installiert. Es gibt kein --no-flash-attn-Flag
+# am Server (tyro ServerConfig kennt es nicht). NO_FLASH_ATTN wird daher ignoriert.
+if [[ "$NO_FLASH_ATTN" == "1" ]]; then
+    warn "NO_FLASH_ATTN=1 wird ignoriert — Eagle-Block2A-2B-v2 erfordert flash_attention_2 zwingend."
+fi
 
 "$GROOT_ROOT/.venv/bin/python" "$GROOT_ROOT/gr00t/eval/run_gr00t_server.py" \
     --model-path "$CHECKPOINT_PATH" \
     --embodiment-tag NEW_EMBODIMENT \
     --use-sim-policy-wrapper \
-    $FLASH_ATTN_ARG \
     --port "$ZMQ_PORT" \
     > "$GROOT_SERVER_LOG" 2>&1 &
 GROOT_SERVER_PID=$!

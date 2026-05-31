@@ -74,11 +74,27 @@ RUN git clone --branch luca/g1-dex3 https://github.com/lucam06/Isaac-GR00T.git /
 # GR00T Python-Abhängigkeiten in ISOLIERTER venv installieren.
 # Isaac Lab nutzt ${ISAACLAB_PATH}/isaaclab.sh -p (eigenes Python-Bundle).
 # GR00T nutzt /app/Groot-1.6/.venv/bin/python — keine gemeinsamen Packages, kein Konflikt.
+#
+# WICHTIG: venv explizit mit Python 3.10 anlegen. Das isaac-lab-Basisimage (Ubuntu 24.04)
+# liefert als system-python3 die Version 3.12. Ohne --python würde uv eine 3.12-venv bauen,
+# für die keine Header installiert sind (nur python3.10-dev) → Triton/transformers ruft
+# `gcc -I/usr/include/python3.12` auf und scheitert mit "Python.h not found".
+# Mit 3.10 entspricht die venv exakt dem funktionierenden Training-Container.
 WORKDIR /app/Groot-1.6
+RUN uv venv --python /usr/bin/python3.10 /app/Groot-1.6/.venv
 RUN UV_PREVIEW=1 UV_HTTP_TIMEOUT=300 UV_CONCURRENT_DOWNLOADS=4 \
     uv sync --frozen --no-install-project --extra dev --no-cache
 RUN uv pip install --python /app/Groot-1.6/.venv/bin/python -e . --no-deps
 RUN uv pip install --python /app/Groot-1.6/.venv/bin/python jsonlines pyzmq msgpack
+
+# Build-Time-Smoke-Test: venv-Python-Version prüfen und sicherstellen, dass die passenden
+# Python-Header vorhanden sind (sonst scheitert Triton zur Laufzeit). Bricht den Build
+# lokal/kostenlos ab, statt erst auf einer bezahlten vast.ai-Instanz aufzufallen.
+RUN PYVER=$(/app/Groot-1.6/.venv/bin/python -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")') \
+    && echo "venv-Python: $PYVER" \
+    && test -f "/usr/include/python${PYVER}/Python.h" \
+        && echo "OK: Python-Header /usr/include/python${PYVER}/Python.h vorhanden" \
+        || (echo "FEHLER: /usr/include/python${PYVER}/Python.h fehlt — Triton-Kompilierung würde fehlschlagen"; exit 1)
 
 # Eigener Sim-Code (identisch mit KISSKI-Container)
 COPY g1_dex3_sim/ /workspace/g1_dex3_sim/
@@ -99,9 +115,6 @@ ENV OMNI_CACHE=/data/.omni_cache \
 
 ENV PATH="/app/Groot-1.6/.venv/bin:${PATH}" \
     VIRTUAL_ENV="/app/Groot-1.6/.venv" \
-    # LIBRARY_PATH (gcc Compile-Zeit) — Triton ruft gcc -lcuda auf; libcuda.so liegt im Stubs-Verzeichnis.
-    # Ohne diesen Eintrag schlägt der Import von transformers.modeling_utils mit exit status 1 fehl.
-    LIBRARY_PATH="/usr/local/cuda/lib64/stubs" \
     GROOT_ROOT="/app/Groot-1.6" \
     UV_PREVIEW=1 \
     # Sim-Konfiguration (via -e beim docker run überschreiben)

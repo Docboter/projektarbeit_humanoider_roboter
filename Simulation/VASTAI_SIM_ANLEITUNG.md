@@ -216,8 +216,11 @@ lucam03/projekt-humanoider-roboter-sim-vastai:latest
 
 **Docker Options:**
 ```
---ipc=host --shm-size=16g
+--ipc=host --shm-size=16g -p 22
 ```
+
+> `-p 22` gibt Port 22 frei, damit vast.ai ihn auf einen externen Port mappt und
+> `vastai ssh-url <id>` / `vastai ssh <id>` funktioniert.
 
 **Environment Variables** (ein Eintrag pro Zeile):
 
@@ -229,8 +232,11 @@ lucam03/projekt-humanoider-roboter-sim-vastai:latest
 | `NUM_EPISODES` | `20` | Nein (default 20) |
 | `EXECUTION_HORIZON` | `8` | Nein (default 8) |
 | `TASK_DESCRIPTION` | `stack the blocks` | Nein |
-| `NO_FLASH_ATTN` | `0` | Nein (L40 unterstützt flash-attn) |
 | `SHELL_ON_ERROR` | `1` | Empfohlen (für Debugging) |
+
+> **Flash-Attention:** Das Modell (Eagle-Block2A-2B-v2) erfordert `flash_attention_2`
+> zwingend; es ist im Image installiert. Es gibt **keine** Möglichkeit, es abzuschalten —
+> `NO_FLASH_ATTN` wird ignoriert. Deshalb sind nur Ampere+-GPUs mit Flash-Attn-Support geeignet.
 
 > **Hinweis:** Wenn `HF_CHECKPOINT_REPO` gesetzt ist, setzt der Entrypoint `CHECKPOINT_PATH`
 > automatisch auf `/data/checkpoints/<repo-name>/`. `ASSET_PATH` muss trotzdem explizit
@@ -385,7 +391,8 @@ cat /data/logs/groot_server.log
 ```
 Häufige Ursachen:
 - `CHECKPOINT_PATH` existiert nicht → Pfad prüfen, ggf. HF-Download-Log ansehen
-- `flash-attn`-Fehler (z. B. `AssertionError` oder `CUDA error`) → `NO_FLASH_ATTN=1` setzen und Container neu starten
+- `Python.h not found` / Triton-gcc-Fehler → Image vor dem Python-3.10-Fix gebaut; neu bauen + pushen
+- `flash attention`-AssertionError → GPU ohne Flash-Attn-Support (Volta/Turing); Ampere+ nutzen
 - VRAM voll → kleinere GPU-Instanz war gewählt; auf L40/A6000 wechseln
 
 ### `CHECKPOINT_PATH leer oder existiert nicht`
@@ -422,7 +429,7 @@ USD-Asset auf HuggingFace (`luca-mue/groot-g1dex3-checkpoint`).
 1. `.\Simulation\update_sim_image.ps1 -VastAI` ausführen (nur wenn Image noch nicht gepusht)
 2. vast.ai → Search → **L40** filtern (≥24 GB, Ampere+, RT-Cores) → Rent
 3. Image: `lucam03/projekt-humanoider-roboter-sim-vastai:latest`
-4. Docker Options: `--ipc=host --shm-size=16g`
+4. Docker Options: `--ipc=host --shm-size=16g -p 22`
 5. Env:
    ```
    HF_TOKEN=hf_...
