@@ -92,9 +92,7 @@ pip install huggingface_hub
 huggingface-cli repo create groot-g1dex3-checkpoint --type model --private
 
 # Checkpoint hochladen
-huggingface-cli upload <dein-hf-username>/groot-g1dex3-checkpoint \
-    ./checkpoints/checkpoint-3000/ \
-    --repo-type model
+huggingface-cli upload luca-mue/groot-g1dex3-checkpoint ./checkpoint-3000/ --repo-type model
 ```
 
 Dann im Container `HF_CHECKPOINT_REPO=<dein-hf-username>/groot-g1dex3-checkpoint` setzen —
@@ -109,19 +107,55 @@ konvertiert werden muss. Das passiert **einmalig** auf einer GPU-Maschine mit Is
 
 ### 3a) URDF beschaffen
 
-Das URDF kommt aus dem Unitree-ROS-Paket:
+Das URDF kommt aus dem Unitree-ROS-Paket, das als Git-Submodul unter `data/unitree_ros/` eingebunden ist.
+
+Beim ersten Checkout (oder falls das Verzeichnis leer ist):
 
 ```bash
-# Lokal klonen (kein GPU nötig)
-git clone https://github.com/unitreerobotics/unitree_ros.git ./unitree_ros
+# Im Projektrepo-Root:
+git submodule update --init data/unitree_ros
 ```
 
-Benötigte Datei: `unitree_ros/robots/g1_description/g1_29dof_with_hand_rev_1_0.urdf`
+Benötigte Datei:
+`data/unitree_ros/robots/g1_description/g1_29dof_with_hand_rev_1_0.urdf`
 
-### 3b) USD auf vast.ai erzeugen (erste Instanz als Konvertierungs-Session)
+### 3b) USD erzeugen
+
+Die Konvertierung ist nur ein Mesh-Import (headless, ~2-5 Minuten) — sie braucht deutlich weniger
+VRAM als die spätere Eval-Schleife. **Eine lokale GPU reicht dafür aus.**
+
+#### Option 1 (empfohlen): Lokal auf dem Laptop (RTX 4070 Laptop oder besser)
+
+Voraussetzung: Docker Desktop mit GPU-Support (WSL2 + nvidia-container-toolkit).
+
+```powershell
+# Im Projektrepo-Root (PowerShell):
+docker run -it --rm --gpus all --ipc=host --shm-size=8g `
+  --entrypoint bash `
+  -v "${PWD}/data:/data" `
+  lucam03/projekt-humanoider-roboter-sim-vastai:latest
+```
+
+Im Container:
+```bash
+# VIRTUAL_ENV muss vor isaaclab.sh ungesetzt werden — sonst nutzt es das GR00T-venv statt
+# Isaacs eigenem Python-Bundle und der Import von 'isaaclab' schlägt fehl.
+unset VIRTUAL_ENV
+${ISAACLAB_PATH}/isaaclab.sh -p \
+    /workspace/g1_dex3_sim/convert_urdf_to_usd.py \
+    --headless \
+    --urdf /data/unitree_ros/robots/g1_description/g1_29dof_with_hand_rev_1_0.urdf \
+    --output /data/g1_dex3.usd
+```
+
+Das fertige Asset liegt danach auf dem Host unter `data/g1_dex3.usd`.
+
+#### Option 2: Auf einer temporären vast.ai-Instanz
+
+Falls kein Docker mit GPU-Support lokal verfügbar:
 
 Starte eine **temporäre vast.ai-Instanz** (L40 oder RTX 4090) mit dem Image, aber
-überbrücke den Entrypoint für eine interaktive Shell:
+überbrücke den Entrypoint:
 
 Im vast.ai-Launch-Dialog unter **"Docker Options"**:
 ```
@@ -132,7 +166,7 @@ SSH in die Instanz und führe die Konvertierung durch:
 
 ```bash
 # URDF hochladen (vom Laptop aus, paralleles Terminal)
-scp -P <port> -r ./unitree_ros/robots/g1_description/ root@<ip>:/data/assets/unitree_ros/robots/
+scp -P <port> -r data/unitree_ros/robots/g1_description/ root@<ip>:/data/assets/unitree_ros/robots/
 
 # Im Container (via SSH):
 ${ISAACLAB_PATH}/isaaclab.sh -p \
@@ -142,10 +176,9 @@ ${ISAACLAB_PATH}/isaaclab.sh -p \
     --output /data/assets/g1_dex3.usd
 
 # USD herunterladen (vom Laptop aus, paralleles Terminal)
-scp -P <port> root@<ip>:/data/assets/g1_dex3.usd ./g1_dex3.usd
+scp -P <port> root@<ip>:/data/assets/g1_dex3.usd ./data/g1_dex3.usd
 ```
 
-> Die Konvertierung dauert ~2-5 Minuten. Die fertige `g1_dex3.usd` ist ~2-10 MB.
 > Danach die Instanz zerstören — das war nur eine Einmalkonvertierung.
 
 ### 3c) USD aufbewahren
@@ -191,13 +224,17 @@ lucam03/projekt-humanoider-roboter-sim-vastai:latest
 | Variable | Wert | Pflicht? |
 |---|---|---|
 | `HF_TOKEN` | `hf_...` | Ja (für Checkpoint-Download) |
-| `CHECKPOINT_PATH` | `/data/checkpoints/checkpoint-3000` | Ja |
-| `HF_CHECKPOINT_REPO` | `user/groot-g1dex3-checkpoint` | Nur wenn HF-Download |
+| `HF_CHECKPOINT_REPO` | `luca-mue/groot-g1dex3-checkpoint` | Ja (für HF-Download) |
+| `ASSET_PATH` | `/data/checkpoints/groot-g1dex3-checkpoint/g1_dex3.usd` | Ja |
 | `NUM_EPISODES` | `20` | Nein (default 20) |
 | `EXECUTION_HORIZON` | `8` | Nein (default 8) |
 | `TASK_DESCRIPTION` | `stack the blocks` | Nein |
 | `NO_FLASH_ATTN` | `0` | Nein (L40 unterstützt flash-attn) |
 | `SHELL_ON_ERROR` | `1` | Empfohlen (für Debugging) |
+
+> **Hinweis:** Wenn `HF_CHECKPOINT_REPO` gesetzt ist, setzt der Entrypoint `CHECKPOINT_PATH`
+> automatisch auf `/data/checkpoints/<repo-name>/`. `ASSET_PATH` muss trotzdem explizit
+> gesetzt werden, weil `g1_dex3.usd` und `configuration/` im gleichen HF-Repo liegen.
 
 **Disk Space:** mindestens `60 GB`
 
@@ -240,9 +277,15 @@ Der Entrypoint läuft bereits im Hintergrund — er wartet bis `CHECKPOINT_PATH`
 
 ## Schritt 6 — Simulation überwachen
 
-SSH in die Instanz:
+SSH in die Instanz (der Entrypoint startet den SSH-Server automatisch):
 ```bash
-ssh -p <port> root@<ip>
+# SSH-Befehl via vast.ai CLI abrufen:
+pip install vastai
+vastai set api-key <dein-api-key>   # vast.ai → Account → API Keys
+vastai ssh-url <instance-id>        # gibt fertigen ssh-Befehl aus
+
+# Oder direkt:
+vastai ssh <instance-id>
 ```
 
 ### GR00T-Server-Log beobachten
@@ -341,8 +384,8 @@ Die GPU hat keine RT-Cores. Nur L40, RTX 30xx/40xx, A6000 sind geeignet —
 cat /data/logs/groot_server.log
 ```
 Häufige Ursachen:
-- `CHECKPOINT_PATH` existiert nicht → Pfad prüfen, ggf. Upload wiederholen
-- `flash-attn`-Fehler → `NO_FLASH_ATTN=1` setzen
+- `CHECKPOINT_PATH` existiert nicht → Pfad prüfen, ggf. HF-Download-Log ansehen
+- `flash-attn`-Fehler (z. B. `AssertionError` oder `CUDA error`) → `NO_FLASH_ATTN=1` setzen und Container neu starten
 - VRAM voll → kleinere GPU-Instanz war gewählt; auf L40/A6000 wechseln
 
 ### `CHECKPOINT_PATH leer oder existiert nicht`
@@ -371,22 +414,24 @@ Output. Danach kommt `[Phase A] Isaac-Lab-Sim wird initialisiert …`.
 
 ---
 
-## Zusammenfassung: Schnellstart (ab zweiter Sim-Session)
+## Zusammenfassung: Schnellstart
 
-Wenn Image gepusht, Checkpoint auf HF und USD-Asset vorhanden:
+Voraussetzungen: Image gepusht (`.\Simulation\update_sim_image.ps1 -VastAI`), Checkpoint und
+USD-Asset auf HuggingFace (`luca-mue/groot-g1dex3-checkpoint`).
 
-1. vast.ai → Search → L40 filtern → Rent
-2. Image: `lucam03/projekt-humanoider-roboter-sim-vastai:latest`
-3. Docker Options: `--ipc=host --shm-size=16g`
-4. Env:
+1. `.\Simulation\update_sim_image.ps1 -VastAI` ausführen (nur wenn Image noch nicht gepusht)
+2. vast.ai → Search → **L40** filtern (≥24 GB, Ampere+, RT-Cores) → Rent
+3. Image: `lucam03/projekt-humanoider-roboter-sim-vastai:latest`
+4. Docker Options: `--ipc=host --shm-size=16g`
+5. Env:
    ```
    HF_TOKEN=hf_...
-   HF_CHECKPOINT_REPO=user/groot-g1dex3-checkpoint
+   HF_CHECKPOINT_REPO=luca-mue/groot-g1dex3-checkpoint
    ASSET_PATH=/data/checkpoints/groot-g1dex3-checkpoint/g1_dex3.usd
    NUM_EPISODES=20
    SHELL_ON_ERROR=1
    ```
-5. Disk: 60 GB → Launch
-6. ~15 min warten (Shader-Kompilierung + Server-Start)
-7. Logs beobachten → Ergebnisse abwarten
-8. `scp` für `results.json` + Videos → Instanz zerstören
+6. Disk: 60 GB → Launch
+7. ~15 min warten (HF-Download + Shader-Kompilierung + Server-Start)
+8. Logs unter **Instances → Logs** beobachten → Ergebnisse abwarten
+9. `scp` für `results.json` + Videos → Instanz zerstören

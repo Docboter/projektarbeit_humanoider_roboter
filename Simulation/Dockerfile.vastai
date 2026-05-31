@@ -57,7 +57,11 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         git-lfs \
         curl \
         wget \
-    && git lfs install
+        openssh-server \
+    && git lfs install \
+    && mkdir -p /var/run/sshd /root/.ssh \
+    && chmod 700 /root/.ssh \
+    && ssh-keygen -A
 
 # uv Paketmanager (exakte Version wie Training-Container)
 RUN curl -LsSf https://astral.sh/uv/0.8.14/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh
@@ -95,6 +99,9 @@ ENV OMNI_CACHE=/data/.omni_cache \
 
 ENV PATH="/app/Groot-1.6/.venv/bin:${PATH}" \
     VIRTUAL_ENV="/app/Groot-1.6/.venv" \
+    # LIBRARY_PATH (gcc Compile-Zeit) — Triton ruft gcc -lcuda auf; libcuda.so liegt im Stubs-Verzeichnis.
+    # Ohne diesen Eintrag schlägt der Import von transformers.modeling_utils mit exit status 1 fehl.
+    LIBRARY_PATH="/usr/local/cuda/lib64/stubs" \
     GROOT_ROOT="/app/Groot-1.6" \
     UV_PREVIEW=1 \
     # Sim-Konfiguration (via -e beim docker run überschreiben)

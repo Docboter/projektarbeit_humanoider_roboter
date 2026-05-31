@@ -78,6 +78,14 @@ SKIP_DOWNLOAD="${SKIP_DOWNLOAD:-0}"
 
 mkdir -p "$DATA_DIR/sim_videos" "$DATA_DIR/sim_results" "$DATA_DIR/logs"
 
+# ── SSH-Server ─────────────────────────────────────────────────────────────────
+# vast.ai injiziert den User-SSH-Key als $PUBLIC_KEY — muss in authorized_keys stehen.
+# Ohne diesen Schritt findet `vastai ssh-url` keinen gemappten SSH-Port.
+mkdir -p /root/.ssh && chmod 700 /root/.ssh
+[[ -n "${PUBLIC_KEY:-}" ]] && echo "$PUBLIC_KEY" >> /root/.ssh/authorized_keys
+chmod 600 /root/.ssh/authorized_keys 2>/dev/null || true
+/usr/sbin/sshd 2>/dev/null || true
+
 # ── GPU-Check ──────────────────────────────────────────────────────────────────
 log "GPU-Check"
 if ! nvidia-smi -L &>/dev/null; then
@@ -143,6 +151,10 @@ echo ""
 
 # ── GR00T-Policy-Server starten ───────────────────────────────────────────────
 log "Schritt 2/3 — GR00T-Policy-Server (Port $ZMQ_PORT)"
+# Triton ruft gcc -lcuda auf wenn transformers importiert wird.
+# gcc nutzt LIBRARY_PATH (nicht LD_LIBRARY_PATH) für -l-Flags zur Compile-Zeit.
+# Dockerfile setzt LIBRARY_PATH bereits als ENV; dieser Export ist ein Fallback.
+export LIBRARY_PATH="/usr/local/cuda/lib64/stubs:${LIBRARY_PATH:-}"
 
 GROOT_SERVER_LOG="$DATA_DIR/logs/groot_server.log"
 
@@ -192,6 +204,9 @@ echo ""
 
 # ── Isaac-Lab-Sim-Client starten ──────────────────────────────────────────────
 log "Schritt 3/3 — Isaac-Lab-Sim-Client"
+# VIRTUAL_ENV muss ungesetzt sein, damit isaaclab.sh sein eigenes Python-Bundle
+# nutzt und nicht das GR00T-venv (das kein 'isaaclab'-Modul enthält).
+unset VIRTUAL_ENV
 printf "    %-22s %s\n" "Server:"         "tcp://localhost:$ZMQ_PORT"
 printf "    %-22s %s\n" "Episoden:"       "$NUM_EPISODES"
 printf "    %-22s %s\n" "Exec-Horizon:"   "$EXECUTION_HORIZON"

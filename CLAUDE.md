@@ -16,6 +16,8 @@ Detailed guides:
 - **Setup & Architecture:** [`app/Groot-1.6/examples/G1_DEX3/SETUP_DOCUMENTATION.md`](app/Groot-1.6/examples/G1_DEX3/SETUP_DOCUMENTATION.md)
 - **Fine-tuning step-by-step:** [`app/Groot-1.6/examples/G1_DEX3/FINETUNING_GUIDE.md`](app/Groot-1.6/examples/G1_DEX3/FINETUNING_GUIDE.md)
 - **G1/DEX3 joint layout & datasets:** [`app/Groot-1.6/examples/G1_DEX3/README.md`](app/Groot-1.6/examples/G1_DEX3/README.md)
+- **Sim eval on vast.ai (German):** [`Simulation/VASTAI_SIM_ANLEITUNG.md`](Simulation/VASTAI_SIM_ANLEITUNG.md)
+- **Sim implementation notes & lessons learned:** [`Simulation/SIM_IMPLEMENTATION_NOTES.md`](Simulation/SIM_IMPLEMENTATION_NOTES.md)
 
 ## Key commands
 
@@ -64,6 +66,34 @@ rsync -avz <username>@transfer.hpc.gwdg.de:/scratch/<username>/data/g1_dex3_fine
 ```
 
 KISSKI partitions: `kisski` (A100 80 GB) and `kisski-h100` (H100 94 GB), max walltime 48 h.
+
+### Sim eval on vast.ai (build → push → run)
+
+Full guide: [`Simulation/VASTAI_SIM_ANLEITUNG.md`](Simulation/VASTAI_SIM_ANLEITUNG.md)
+Known fixes & GPU requirements: [`Simulation/SIM_IMPLEMENTATION_NOTES.md`](Simulation/SIM_IMPLEMENTATION_NOTES.md)
+
+```powershell
+# 1. Build + push sim image (includes entrypoint_sim.sh with unset VIRTUAL_ENV fix)
+.\Simulation\update_sim_image.ps1 -VastAI
+
+# 2. Upload checkpoint to HuggingFace (skips optimizer.pt by default)
+python Simulation\scripts\upload_checkpoint.py `
+  --checkpoint "C:\path\to\checkpoint-3000" --repo luca-mue/groot-g1dex3-checkpoint
+
+# 3. Generate USD asset (one-time, local Docker)
+#    → see VASTAI_SIM_ANLEITUNG.md Schritt 3, or data/g1_dex3.usd already exists
+```
+
+On vast.ai: GPU must be **Ampere+ with RT-Cores** (L40, RTX 4090, A6000) — A100/H100 lack RT-Cores; RTX 5000 is Turing (too old for Isaac Sim 4.x). Env vars for the sim container:
+
+| Variable | Example | Purpose |
+|---|---|---|
+| `HF_TOKEN` | `hf_...` | Required for HF checkpoint download |
+| `HF_CHECKPOINT_REPO` | `luca-mue/groot-g1dex3-checkpoint` | Auto-download checkpoint + USD from HF |
+| `CHECKPOINT_PATH` | `/data/checkpoints/groot-g1dex3-checkpoint` | Path after download |
+| `ASSET_PATH` | `/data/checkpoints/groot-g1dex3-checkpoint/g1_dex3.usd` | USD robot asset |
+| `NUM_EPISODES` | `20` | Eval episodes |
+| `SHELL_ON_ERROR` | `1` | Drop to shell on failure (recommended) |
 
 ### Build the image
 
@@ -136,15 +166,28 @@ repo root
 │       ├── entrypoint.sh               # Autonomous orchestrator (download→convert→train)
 │       ├── download_data.sh            # HuggingFace download (model + dataset)
 │       └── run_finetuning.sh           # Training launcher (called by entrypoint)
-├── Simulation/                         # Closed-loop sim eval (in development)
-│   ├── Dockerfile                      # Sim-client container (Isaac Lab + slim GR00T client)
+├── Simulation/                         # Closed-loop sim eval
+│   ├── Dockerfile                      # KISSKI-only: slim Isaac Lab sim-client (no GR00T)
+│   ├── Dockerfile.vastai               # vast.ai: combined Isaac Sim + GR00T in one container
 │   ├── kisski_sim_submit.sh            # SLURM job for sim eval (jupyter partition, RTX 5000)
-│   ├── update_sim_image.ps1            # Build/push tool for the sim image
+│   ├── update_sim_image.ps1            # Build/push tool (-VastAI flag for Dockerfile.vastai)
 │   ├── ISAAC_LAB_SIM_PLAN.md           # Implementation plan for the Isaac Lab sim
 │   ├── SIM_GPU_COMPATIBILITY.md        # GPU compatibility analysis (RT-cores, jupyter partition)
-│   ├── SIM_DOCKER_BUILD.md             # Build & deployment guide for the sim container
-│   └── KISSKI_SIM_DESKTOP_ANLEITUNG.md # Step-by-step for JupyterHPC desktop test
-├── data/                               # Local-dev data/checkpoint placeholders (shared)
+│   ├── SIM_DOCKER_BUILD.md             # Build & deployment guide (two-container KISSKI design)
+│   ├── SIM_IMPLEMENTATION_NOTES.md     # Lessons learned, known fixes, current status ← READ FIRST
+│   ├── KISSKI_SIM_DESKTOP_ANLEITUNG.md # Step-by-step for JupyterHPC desktop test
+│   ├── VASTAI_SIM_ANLEITUNG.md         # Step-by-step for vast.ai eval (primary workflow)
+│   ├── g1_dex3_sim/                    # COPIED into image at /workspace/g1_dex3_sim/
+│   │   ├── run_g1_dex3_sim_eval.py     # Main eval loop (Isaac Lab entry point)
+│   │   ├── convert_urdf_to_usd.py      # One-time URDF→USD conversion
+│   │   └── ...                         # Env config, assets, client code
+│   └── scripts/                        # COPIED into vastai image at /scripts/
+│       ├── entrypoint_sim.sh           # Autonomous entrypoint for Dockerfile.vastai
+│       └── upload_checkpoint.py        # HuggingFace upload helper (skips optimizer.pt by default)
+├── data/                               # Local assets and submodules (mostly gitignored)
+│   ├── unitree_ros/                    # Git submodule — Unitree ROS packages (URDF source)
+│   ├── g1_dex3.usd                     # Generated robot USD asset (run convert_urdf_to_usd.py)
+│   └── configuration/                  # Companion USD files referenced by g1_dex3.usd
 └── app/                                # Git submodule, cloned in Dockerfile at build time
     └── Groot-1.6/                      # PRIMARY — custom fork (lucam06, pinned commit)
         ├── gr00t/experiment/launch_finetune.py  # Training entry point
