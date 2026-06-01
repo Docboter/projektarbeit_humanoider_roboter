@@ -155,8 +155,9 @@ Voraussetzung: `git submodule update --init data/unitree_ros`
 `cuda_utils.cpython-312-*.so` mit gcc zu kompilieren → `returned non-zero exit status 1` →
 `RuntimeError: Failed to import transformers.modeling_utils`.
 
-Am lokal gebauten Image (`docker run --entrypoint bash …`) **definitiv verifiziert** — zwei
-unabhängige Ursachen, beide am gcc-Befehl ablesbar (`-I/usr/include/python3.12 … -lcuda`):
+Am lokal gebauten Image (`docker run --entrypoint bash …`) **definitiv verifiziert** — drei
+nacheinander auftretende, unabhängige Ursachen (1+2 am gcc-Befehl ablesbar:
+`-I/usr/include/python3.12 … -lcuda`, 3 nach deren Behebung):
 
 ### Ursache 1 (primär): Python-Versions-Mismatch 3.12 vs. 3.10
 
@@ -198,9 +199,40 @@ ln -sf "$LIBCUDA_SO1" /usr/lib/x86_64-linux-gnu/libcuda.so
 > Hinweis: Frühere Versuche mit `LD_LIBRARY_PATH` bzw. `LIBRARY_PATH=/usr/local/cuda/lib64/stubs`
 > waren wirkungslos — das Stubs-Verzeichnis existiert in diesem Image gar nicht.
 
-> **Nicht GPU-frei verifizierbar:** Der finale Triton-Compile braucht das zur Laufzeit
-> injizierte `libcuda.so.1` (kein GPU beim Build). Die beiden konkreten Blocker sind aber
-> ausgeräumt; verbleibendes Restrisiko liegt erst in der Isaac-Lab-Sim-Schleife selbst.
+### Ursache 3: DeepSpeed verlangt CUDA-Toolchain — `CUDA_HOME does not exist`
+
+Nachdem Ursache 1+2 behoben waren, scheiterte der Import an einer dritten Stelle:
+```
+RuntimeError: Failed to import transformers.modeling_utils ...
+CUDA_HOME does not exist, unable to compile CUDA op(s)
+```
+Quelle: `deepspeed/ops/op_builder/builder.py` → `installed_cuda_version()`. `transformers.modeling_utils`
+macht beim Import `if is_deepspeed_available(): import deepspeed`; `import deepspeed` prüft die
+CUDA-Toolchain. Das isaac-lab-Image hat **kein** `nvcc`, **kein** `/usr/local/cuda`, **kein**
+`CUDA_HOME` → `MissingCUDAException`.
+
+Der Training-Container funktioniert, weil dessen CUDA-devel-Basisimage `nvcc` + `CUDA_HOME` mitbringt.
+
+**Fix:** `deepspeed` aus der Sim-venv entfernen (Dockerfile, nach `uv sync`):
+```dockerfile
+RUN uv pip uninstall --python /app/Groot-1.6/.venv/bin/python deepspeed || true
+```
+DeepSpeed ist eine reine Trainings-Bibliothek (ZeRO); GR00T importiert sie für die Inferenz
+nirgends direkt. Ohne das Paket liefert `is_deepspeed_available()==False` → transformers
+überspringt den Import. Alternative (CUDA-Toolkit installieren) würde das Image um >2 GB aufblähen.
+Build-Time-Smoke-Test prüft, dass `import deepspeed` fehlschlägt.
+
+### Lokal auf GPU verifiziert ✅
+
+Auf einer lokalen GPU (RTX 4070 Laptop, mit `docker run --gpus all`) end-to-end bestätigt
+(Image mit Python-3.10-Fix; libcuda-Symlink + deepspeed-uninstall wie im Entrypoint/Dockerfile):
+- `from transformers import PreTrainedModel` → **OK**
+- `import gr00t.model` (volle Server-Importkette) → **OK**
+- `run_gr00t_server.py --help` → tyro parst `ServerConfig`, `NEW_EMBODIMENT` ist gültig, kein `--no-flash-attn`
+
+> **Noch offen (nur mit echter Sim-GPU testbar):** das eigentliche Modell-Gewichte-Laden
+> (~6–8 GB VRAM) und die Isaac-Lab-Sim-Schleife. Der komplette Server-**Start**pfad bis zum
+> Modell-Load ist aber lokal grün.
 
 ---
 
@@ -225,7 +257,40 @@ ohnehin bestehende GPU-Anforderung.
 
 ---
 
-## 7. Fix: SSH-Server im Entrypoint
+## 7. Fix: Sim-Client — `ModuleNotFoundError: No module named 'zmq'`
+
+Nachdem der **Server** sauber startete (alle Server-Fixes wirken), scheiterte **Schritt 3/3**
+(Isaac-Lab-Sim-Client) sofort beim Import:
+```
+File "/workspace/g1_dex3_sim/client.py", line 21, in <module>
+    import zmq
+ModuleNotFoundError: No module named 'zmq'
+```
+
+**Ursache:** Server und Sim-Client laufen in **zwei verschiedenen Python-Umgebungen**:
+- GR00T-Server: `/app/Groot-1.6/.venv/bin/python` (3.10) — hier wurde `pyzmq` installiert
+- Sim-Client: Isaac Sims gebündeltes Python `/workspace/isaaclab/_isaac_sim/python.sh` (**3.11**)
+  via `isaaclab.sh -p` — hier fehlte `pyzmq`.
+
+`client.py` braucht `msgpack`, `numpy`, `zmq`. In Isaac Sims Python sind `numpy` (1.26) und
+`msgpack` (1.1.2) bereits vorhanden, nur `pyzmq` fehlte.
+
+**Fix (Dockerfile):** `pyzmq` zusätzlich in Isaac Sims Python installieren:
+```dockerfile
+RUN unset VIRTUAL_ENV && /workspace/isaaclab/_isaac_sim/python.sh -m pip install pyzmq msgpack
+```
+Plus Build-Time-Smoke-Test (`import zmq, msgpack, numpy` unter `python.sh`). Am Image verifiziert:
+nach Installation `import zmq` → OK (pyzmq 27.1.0).
+
+### Zusätzliche Härtung: maskierte Crashes
+
+`isaaclab.sh` **schluckt den Exit-Code** des Python-Sim-Clients — der zmq-Crash führte trotzdem
+zu „Sim-Eval abgeschlossen" + Exit 0. Im Entrypoint deshalb nach dem `isaaclab.sh`-Aufruf
+geprüft, ob `results.json` tatsächlich (nicht leer) existiert; sonst Fehler + Exit 1.
+
+---
+
+## 8. Fix: SSH-Server im Entrypoint
 
 **Problem:** Docker-ENTRYPOINT-Modus auf vast.ai startet keinen SSH-Server → `vastai ssh-url`
 schlägt fehl mit "ssh port not found". OpenSSH war im isaac-lab-Image gar nicht installiert.
@@ -245,24 +310,94 @@ SSH-Verbindung danach via `vastai set api-key <key>` + `vastai ssh <instance-id>
 
 ---
 
-## 8. Aktueller Stand (2026-06-01)
+## 9. Fix: Eval-Schleife lauffähig + beobachtbar (Tuple/List, Videos, Buffering)
 
-| Komponente | Status |
-|---|---|
-| `Dockerfile.vastai` | Python-3.10-Fix + Build-Smoke-Test + openssh-server ergänzt — **muss neu gebaut + gepusht werden** |
-| `entrypoint_sim.sh` | `unset VIRTUAL_ENV` + SSH (sshd + PUBLIC_KEY) + libcuda.so-Symlink + Flash-Attn-Flag entfernt |
-| USD-Asset (`g1_dex3.usd` + `configuration/`) | Erzeugt, lokal unter `data/`, auf HF hochgeladen |
-| Checkpoint `checkpoint-3000` | Auf HF (`luca-mue/groot-g1dex3-checkpoint`) |
-| vast.ai Eval-Lauf | Mehrere Instanzen am Triton-gcc-Fehler gescheitert (Python 3.12/3.10-Mismatch). Fix liegt vor, Image noch nicht neu gebaut. |
-| KISSKI Sim-Eval | Blockiert durch RTX-5000-Inkompatibilität (Turing + Isaac Sim 4.x) |
+Nachdem der Sim-Client startete, drei Probleme in der Eval-Schleife selbst:
 
-**Nächster Schritt:** `.\Simulation\update_sim_image.ps1 -VastAI` (baut + pusht). Der Build
-bricht jetzt lokal ab, falls die venv-Python-Header nicht passen — d. h. der Triton-Fehler
-kann nicht mehr unbemerkt erst auf vast.ai auftreten. Danach neue Instanz mit `-p 22` starten.
+### 9a. `get_action`: Tuple wird als Liste übertragen
+`BasePolicy.get_action` (policy.py) gibt `(action_dict, info_dict)` zurück; msgpack serialisiert
+das Tuple als **Liste** `[action_dict, info_dict]`. Der Client (`client.py`) griff mit
+`resp["action.left_arm"]` zu → `TypeError: list indices must be integers or slices, not str`.
+**Fix:** `action_dict = resp[0] if isinstance(resp, (list, tuple)) else resp`.
+
+### 9b. Videos wurden nie gespeichert
+`save_episode_video()` war definiert, aber **nie aufgerufen** — die Frames wurden in
+`run_episode` gesammelt und beim Return verworfen. **Fix:** `run_episode` bekommt `episode` +
+`video_dir` und ruft `save_episode_video(frames, episode, video_dir)` vor dem Return.
+`imageio` (2.37) + `imageio_ffmpeg` (0.6) sind in Isaac-Sim-Python vorhanden.
+
+### 9c. Kein sichtbarer Fortschritt (Buffering)
+`isaaclab.sh` führt Pythons stdout als Pipe → `print()` block-gepuffert; sah aus wie ein Hang.
+**Fixes:** `export PYTHONUNBUFFERED=1` im Entrypoint + Fortschritts-Print alle 25 Steps in
+`run_episode` (`flush=True`). Zusätzlich: `isaaclab.sh` schluckt den Python-Exit-Code →
+Entrypoint prüft jetzt, ob `results.json` (nicht leer) existiert, sonst Fehler.
+
+> **Meilenstein:** Mit 9a–9c lief die Pipeline erstmals **vollständig end-to-end** durch —
+> 20 Episoden, `results.json` + Videos geschrieben, kein Crash (RTX 6000 Ada / L40S).
+> 0/20 Erfolge mit checkpoint-3000 (erwartet, s. u.).
 
 ---
 
-## 9. Outdated-Hinweise zu anderen Dokumenten
+## 10. Kamera-Rekonstruktion aus dem Dataset
+
+**Befund (aus dem aufgenommenen Video):** Die High-Kameras zeigten nur den Boden, verkippt.
+Ursache zweifach in `g1_dex3_cfg.py`:
+- Position `x=−0.5` (hinter dem Ursprung; der Arbeitsbereich liegt bei **+X**: Tisch (0.5,0,0.37), Würfel z≈0.77).
+- Rotation `(0.924,−0.383,0,0)` = reine **Roll-Drehung um die +X-Blickachse**
+  (`convention="world"` → Blick=+X, oben=+Z), **kein Pitch nach unten**.
+
+Da dieselben Kamerabilder als Policy-Observation dienen, war die 0-%-Eval damit **kein
+gültiges Modell-Urteil** — die Policy bekam Boden-Bilder.
+
+**Rekonstruktion:**
+- Dataset: `unitreerobotics/G1_Dex3_BlockStacking_Dataset` (LeRobot **v3.0**, 30 fps, 480×640, 4 Kameras).
+- Video-Pfad: `videos/observation.images.<cam>/chunk-000/file-000.mp4` (~500 MB, **faststart**).
+  Referenz-Frame (Frame 0) je Kamera per **HTTP-Byte-Range (~12 MB)** gezogen — kein Voll-Download nötig.
+  Versioniert abgelegt unter `Simulation/camera_reference/dataset_cam_*.png`.
+- Echte High-Sicht: Kopf-Stereo-Paar, vorne-oben, ~50° nach unten auf den Tisch; beide Hände von unten im Bild.
+- Fix: Helper `look_at_world_quat(eye, target)` in `g1_dex3_cfg.py` (richtet Kamera per Look-at aus,
+  Posen über `eye`/`target` statt Quaternionen tunebar). High-Kameras:
+  `eye≈(0,±0.06,1.40)`, `target=(0.5,0,0.73)` → Pitch **53°** (Mathematik verifiziert).
+
+**Ergebnis (Render verifiziert):** Tisch + 3 Würfel + Hände korrekt im Bild, Struktur wie Referenz.
+
+**Sim-Treue — Stand:**
+
+- ✅ **Roboter-Startpose**: `DATASET_INIT_STATE` = `observation.state` aus Frame 0 (28 Werte) übernommen.
+- ✅ **Tisch weiß** (`diffuse_color (0.85,0.85,0.85)`).
+
+**Noch offen für volle Dataset-Treue:**
+| Prio | Lücke |
+|---|---|
+| 1 | **Dex3-Finger-Gelenklimits zu eng** (KEIN Vorzeichen-Flip!). Über alle 281.196 Frames geprüft: Dataset-Vorzeichen **stimmen** mit der URDF überein (links Beugen negativ, rechts positiv) → Greif-*Richtung* korrekt. Aber die echte Range überschreitet die URDF-Limits um ~0,2–0,33 rad (z. B. left middle_1 bis −2,08 vs URDF −1,75; right index_1 bis +2,09 vs +1,75) → volles Schließen/Öffnen wird leicht geklemmt. Optional: USD/Sim-Gelenklimits an Dataset-Range weiten. Init-Pose-Clamp (index_0/middle_0 → 0.0) ist korrekt. |
+| 2 | ✅ **erledigt** — **Wrist-Kameras** rekonstruiert + per Render verifiziert. Look-at im Link-Frame (`convention="world"`, `eye=(-0.08,0,0.13)`). Behob „nur Grau" (Kamera steckte im Palm-Mesh) + falsch-herum rechte Cam. Beide zeigen jetzt Hand + Würfel auf dem Tisch. Wegen asymmetrischer Arm-Startpose getrennte Targets: links `(0.14,0,-0.18)` (55° runter), rechts `(0.16,0,-0.05)` (37°). |
+
+---
+
+## 11. Aktueller Stand (2026-06-01)
+
+Pipeline läuft **vollständig end-to-end** (20 Episoden, `results.json` + Videos). High-Kameras
+zeigen jetzt den Arbeitsbereich. Gemessen: **0/20 Erfolge** mit `checkpoint-3000` — erwartet
+(zu früh trainiert + Rest-OOD durch offene Sim-Treue-Punkte).
+
+| Komponente | Status |
+|---|---|
+| Pipeline (download → server → sim → eval) | ✅ end-to-end verifiziert |
+| High-Kameras | ✅ Look-at auf Tisch (Render verifiziert) |
+| Roboter-Startpose (Dataset Frame 0) + weißer Tisch | ✅ umgesetzt |
+| Wrist-Kameras + Dex3-Finger-Vorzeichenkonvention | ⏳ offen (Sim-Treue, s. Abschnitt 10) |
+| `Dockerfile.vastai` | python3.10 + deepspeed-uninstall + pyzmq + 3 Smoke-Tests + openssh |
+| Repo-Fixes noch nicht im gepushten Image | `client.py`, `run_g1_dex3_sim_eval.py`, `g1_dex3_cfg.py`, `entrypoint_sim.sh` → `update_sim_image.ps1 -VastAI` |
+| Modell | `checkpoint-3000` (3000 Steps); für echte Erfolge 30k+ nötig |
+| KISSKI Sim-Eval | Blockiert (RTX 5000 Turing < Ampere) |
+
+**Iteration auf warmer Instanz** (ohne Rebuild): geänderte Sim-Dateien per `scp` nach
+`/workspace/g1_dex3_sim/`, dann `NUM_EPISODES=2 PYTHONUNBUFFERED=1 bash /scripts/entrypoint_sim.sh`.
+Für reproduzierbaren Stand: Image neu bauen + pushen.
+
+---
+
+## 12. Outdated-Hinweise zu anderen Dokumenten
 
 | Dokument | Problem |
 |---|---|

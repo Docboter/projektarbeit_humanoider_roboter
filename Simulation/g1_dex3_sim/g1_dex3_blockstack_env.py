@@ -58,7 +58,8 @@ class G1Dex3BlockstackSceneCfg(InteractiveSceneCfg):
             rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
             mass_props=sim_utils.MassPropertiesCfg(mass=50.0),
             collision_props=sim_utils.CollisionPropertiesCfg(),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.6, 0.45, 0.3)),
+            # Weiß wie im Dataset (war beige Platzhalter-Farbe).
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.85, 0.85, 0.85)),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 0.37)),
     )
@@ -146,7 +147,7 @@ class G1Dex3BlockstackSceneCfg(InteractiveSceneCfg):
         offset=TiledCameraCfg.OffsetCfg(
             pos=CAMERA_CFG.cam_left_wrist_local["pos"],
             rot=CAMERA_CFG.cam_left_wrist_local["rot"],
-            convention="ros",
+            convention="world",
         ),
         data_types=["rgb"],
         spawn=sim_utils.PinholeCameraCfg(
@@ -164,7 +165,7 @@ class G1Dex3BlockstackSceneCfg(InteractiveSceneCfg):
         offset=TiledCameraCfg.OffsetCfg(
             pos=CAMERA_CFG.cam_right_wrist_local["pos"],
             rot=CAMERA_CFG.cam_right_wrist_local["rot"],
-            convention="ros",
+            convention="world",
         ),
         data_types=["rgb"],
         spawn=sim_utils.PinholeCameraCfg(
@@ -172,6 +173,27 @@ class G1Dex3BlockstackSceneCfg(InteractiveSceneCfg):
             focus_distance=400.0,
             horizontal_aperture=20.955,
             clipping_range=(0.01, 5.0),
+        ),
+        width=CAMERA_CFG.width,
+        height=CAMERA_CFG.height,
+    )
+
+    # Szenen-Übersichtskamera — NUR fürs Video (nicht Teil der Policy-Observation).
+    # Weltfest, schräg vorne-seitlich-oben; weiterer FOV (focal 18 ≈ 60° HFOV), um Roboter
+    # + Tisch komplett zu erfassen. Größere clipping_range, da weiter entfernt.
+    cam_scene: TiledCameraCfg = TiledCameraCfg(
+        prim_path="{ENV_REGEX_NS}/cam_scene",
+        offset=TiledCameraCfg.OffsetCfg(
+            pos=CAMERA_CFG.cam_scene["pos"],
+            rot=CAMERA_CFG.cam_scene["rot"],
+            convention="world",
+        ),
+        data_types=["rgb"],
+        spawn=sim_utils.PinholeCameraCfg(
+            focal_length=18.0,
+            focus_distance=400.0,
+            horizontal_aperture=20.955,
+            clipping_range=(0.1, 30.0),
         ),
         width=CAMERA_CFG.width,
         height=CAMERA_CFG.height,
@@ -247,6 +269,9 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
         self._episode_step = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
         self._episode_success = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
 
+        # Dex3-Finger-Gelenkgrenzen an die echte Dataset-Range weiten (URDF-Limits sind zu eng).
+        self._widen_finger_joint_limits()
+
     # ------------------------------------------------------------------
     # Szene aufbauen
     # ------------------------------------------------------------------
@@ -271,9 +296,49 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
             "cam_right_high": self.scene["cam_right_high"],
             "cam_left_wrist": self.scene["cam_left_wrist"],
             "cam_right_wrist": self.scene["cam_right_wrist"],
+            "cam_scene": self.scene["cam_scene"],  # nur fürs Video
         }
 
         self.scene.filter_collisions(global_prim_paths=[])
+
+    # ------------------------------------------------------------------
+    # Finger-Gelenkgrenzen weiten
+    # ------------------------------------------------------------------
+
+    def _widen_finger_joint_limits(self):
+        """Dex3-Finger-Positionsgrenzen zur Laufzeit an die echte Dataset-Range anheben.
+
+        Die URDF/USD-Limits sind ~0,2–0,33 rad enger als der tatsächliche Bewegungsumfang
+        (gemessen über 281.196 Frames von unitreerobotics/G1_Dex3_BlockStacking_Dataset).
+        Ohne Weitung würde der Sim volle Greif-Kommandos der Policy an der Grenze abklemmen →
+        Finger schließen nicht ganz. Werte = Union(USD-Limit, Dataset-Min/Max) + ~0,05 rad Marge.
+        Kein Vorzeichen-Flip (Richtung stimmt) — nur Reichweite.
+        """
+        finger_limits = {
+            # left hand
+            "left_hand_thumb_1_joint": (-0.66, 1.15),
+            "left_hand_middle_0_joint": (-1.62, 0.25),
+            "left_hand_middle_1_joint": (-2.13, 0.05),
+            "left_hand_index_0_joint": (-1.62, 0.32),
+            "left_hand_index_1_joint": (-2.13, 0.05),
+            # right hand
+            "right_hand_thumb_1_joint": (-1.11, 0.66),
+            "right_hand_index_0_joint": (-0.25, 1.70),
+            "right_hand_index_1_joint": (-0.05, 2.14),
+            "right_hand_middle_0_joint": (-0.23, 1.62),
+            "right_hand_middle_1_joint": (-0.05, 2.14),
+        }
+        names = list(finger_limits.keys())
+        joint_ids, _ = self.robot.find_joints(names, preserve_order=True)
+        limits = torch.tensor(
+            [finger_limits[n] for n in names], device=self.device, dtype=torch.float32
+        )
+        limits = limits.unsqueeze(0).expand(self.num_envs, -1, -1)  # (num_envs, n_joints, 2)
+        self.robot.write_joint_position_limit_to_sim(
+            limits, joint_ids=joint_ids, warn_limit_violation=False
+        )
+        print(f"[Env] Dex3-Finger-Gelenkgrenzen an Dataset-Range geweitet "
+              f"({len(joint_ids)} Gelenke).", flush=True)
 
     # ------------------------------------------------------------------
     # Reset

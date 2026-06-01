@@ -125,10 +125,15 @@ class PolicyClient:
             "data": {"observation": obs, "options": None},
         })
 
+        # Server-seitig liefert BasePolicy.get_action ein Tuple (action_dict, info_dict).
+        # msgpack überträgt Tuples als Liste → resp == [action_dict, info_dict].
+        # Das eigentliche Action-Dict ist das erste Element.
+        action_dict = resp[0] if isinstance(resp, (list, tuple)) else resp
+
         # Gr00tSimPolicyWrapper gibt flat action keys zurück:
         # {"action.left_arm": (1,16,7), "action.right_arm": (1,16,7), ...}
         chunk = np.concatenate([
-            np.asarray(resp[f"action.{k}"], dtype=np.float32)[0]  # (1,16,7) → (16,7)
+            np.asarray(action_dict[f"action.{k}"], dtype=np.float32)[0]  # (1,16,7) → (16,7)
             for k in self.ACTION_KEYS
         ], axis=-1)  # (16, 28)
 

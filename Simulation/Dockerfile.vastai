@@ -87,14 +87,34 @@ RUN UV_PREVIEW=1 UV_HTTP_TIMEOUT=300 UV_CONCURRENT_DOWNLOADS=4 \
 RUN uv pip install --python /app/Groot-1.6/.venv/bin/python -e . --no-deps
 RUN uv pip install --python /app/Groot-1.6/.venv/bin/python jsonlines pyzmq msgpack
 
-# Build-Time-Smoke-Test: venv-Python-Version prüfen und sicherstellen, dass die passenden
-# Python-Header vorhanden sind (sonst scheitert Triton zur Laufzeit). Bricht den Build
-# lokal/kostenlos ab, statt erst auf einer bezahlten vast.ai-Instanz aufzufallen.
+# DeepSpeed entfernen: reine Trainings-Bibliothek (ZeRO), für die Inferenz in der Sim nicht
+# nötig. Das isaac-lab-Image hat keine CUDA-Toolchain (kein nvcc, kein /usr/local/cuda).
+# transformers macht beim Import opportunistisch `if is_deepspeed_available(): import deepspeed`;
+# `import deepspeed` ruft dann installed_cuda_version() → MissingCUDAException("CUDA_HOME does
+# not exist"). Ohne das Paket liefert is_deepspeed_available()==False und der Import entfällt.
+# GR00T importiert deepspeed nirgends direkt (nur transformers, das auch ohne läuft).
+RUN uv pip uninstall --python /app/Groot-1.6/.venv/bin/python deepspeed || true
+
+# Build-Time-Smoke-Tests: brechen den Build lokal/kostenlos ab, statt erst auf einer
+# bezahlten vast.ai-Instanz aufzufallen.
+#  (1) venv-Python-Header passend zur venv-Version (sonst scheitert Triton zur Laufzeit)
+#  (2) deepspeed wirklich entfernt (sonst CUDA_HOME-Crash beim transformers-Import)
 RUN PYVER=$(/app/Groot-1.6/.venv/bin/python -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")') \
     && echo "venv-Python: $PYVER" \
     && test -f "/usr/include/python${PYVER}/Python.h" \
         && echo "OK: Python-Header /usr/include/python${PYVER}/Python.h vorhanden" \
         || (echo "FEHLER: /usr/include/python${PYVER}/Python.h fehlt — Triton-Kompilierung würde fehlschlagen"; exit 1)
+RUN if /app/Groot-1.6/.venv/bin/python -c "import deepspeed" 2>/dev/null; then \
+        echo "FEHLER: deepspeed noch installiert — würde CUDA_HOME-Crash auslösen"; exit 1; \
+    else echo "OK: deepspeed entfernt (Inferenz braucht es nicht)"; fi
+
+# Sim-Client (client.py) läuft unter Isaac Sims gebündeltem Python (3.11), NICHT der GR00T-venv.
+# pyzmq dort installieren, sonst scheitert der Sim-Client mit `ModuleNotFoundError: No module
+# named 'zmq'`. (msgpack ist im Isaac-Sim-Python bereits vorhanden; numpy ebenfalls.)
+# VIRTUAL_ENV unset, damit python.sh nicht versehentlich die GR00T-venv anspricht.
+RUN unset VIRTUAL_ENV && /workspace/isaaclab/_isaac_sim/python.sh -m pip install pyzmq msgpack
+RUN unset VIRTUAL_ENV && /workspace/isaaclab/_isaac_sim/python.sh -c \
+    "import zmq, msgpack, numpy; print('OK: zmq+msgpack+numpy im Isaac-Sim-Python')"
 
 # Eigener Sim-Code (identisch mit KISSKI-Container)
 COPY g1_dex3_sim/ /workspace/g1_dex3_sim/

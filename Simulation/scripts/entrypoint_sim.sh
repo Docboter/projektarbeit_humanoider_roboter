@@ -218,6 +218,9 @@ log "Schritt 3/3 — Isaac-Lab-Sim-Client"
 # VIRTUAL_ENV muss ungesetzt sein, damit isaaclab.sh sein eigenes Python-Bundle
 # nutzt und nicht das GR00T-venv (das kein 'isaaclab'-Modul enthält).
 unset VIRTUAL_ENV
+# PYTHONUNBUFFERED=1: isaaclab.sh führt Pythons stdout als Pipe → print() würde sonst block-
+# gepuffert und der Episoden-Fortschritt erschiene erst am Ende. Unbuffered = Live-Ausgabe.
+export PYTHONUNBUFFERED=1
 printf "    %-22s %s\n" "Server:"         "tcp://localhost:$ZMQ_PORT"
 printf "    %-22s %s\n" "Episoden:"       "$NUM_EPISODES"
 printf "    %-22s %s\n" "Exec-Horizon:"   "$EXECUTION_HORIZON"
@@ -239,9 +242,19 @@ ${ISAACLAB_PATH}/isaaclab.sh -p /workspace/g1_dex3_sim/run_g1_dex3_sim_eval.py \
     --asset-path     "$ASSET_PATH" \
     --ping-retries   20
 
+# isaaclab.sh schluckt den Exit-Code des Python-Prozesses (ein Crash im Sim-Client liefert
+# trotzdem Exit 0). Daher explizit prüfen, ob die Ergebnis-Datei erzeugt wurde, statt blind
+# "abgeschlossen" zu melden.
+RESULTS_FILE="$DATA_DIR/sim_results/results.json"
+if [[ ! -s "$RESULTS_FILE" ]]; then
+    err "Sim-Eval hat keine Ergebnis-Datei erzeugt ($RESULTS_FILE)."
+    err "Der Sim-Client ist vermutlich abgestürzt — letzte Container-Ausgaben oben prüfen."
+    exit 1
+fi
+
 ok "Sim-Eval abgeschlossen."
 echo ""
-echo "  Ergebnisse: $DATA_DIR/sim_results/results.json"
+echo "  Ergebnisse: $RESULTS_FILE"
 echo "  Videos:     $DATA_DIR/sim_videos/"
 echo ""
 echo "  Daten sichern (vom Host):"

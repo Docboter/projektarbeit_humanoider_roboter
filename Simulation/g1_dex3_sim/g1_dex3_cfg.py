@@ -20,6 +20,8 @@ Voraussetzung:
 
 from __future__ import annotations
 
+import numpy as np
+
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
@@ -75,6 +77,25 @@ ALL_JOINTS_ORDERED = (
     LEFT_ARM_JOINTS + RIGHT_ARM_JOINTS + LEFT_DEX3_JOINTS + RIGHT_DEX3_JOINTS
 )
 
+# Roboter-Startpose = observation.state aus Frame 0 / Episode 0 des Datasets
+# (unitreerobotics/G1_Dex3_BlockStacking_Dataset). Übernimmt die exakte reale Teleop-
+# Startstellung, damit der erste Sim-Frame der Trainingsverteilung entspricht
+# ("adjust the scene to closely match the first frame of the dataset"). Reihenfolge =
+# ALL_JOINTS_ORDERED (left_arm[0:7], right_arm[7:14], left_dex3[14:21], right_dex3[21:28]).
+DATASET_INIT_STATE = [
+    -0.05662,  0.31445,  0.12487, -0.28736,  0.20897,  0.13095, -0.09767,  # left_arm
+    -0.40259, -0.34180, -0.01584,  0.17989,  0.00290, -0.09826,  0.29865,  # right_arm
+    # left_dex3 [thumb0,thumb1,thumb2, middle0,middle1, index0,index1]
+    -0.59676,  1.01160,  0.05485,  0.0,     -0.01227,  0.0,     -0.01201,
+    # right_dex3 [thumb0,thumb1,thumb2, index0,index1, middle0,middle1]
+    -0.70991, -1.01463, -0.21031,  0.0,      0.01391,  0.0,      0.03354,
+]
+# HINWEIS: middle_0/index_0 beider Hände wurden von ihren Dataset-Werten (links +0.169/+0.163,
+# rechts -0.171/-0.142) auf 0.0 gesetzt — die USD-Gelenklimits sind dort EINSEITIG und mit
+# umgekehrtem Vorzeichen (links [-1.571,0], rechts [0,1.571]). Das deutet auf eine
+# Vorzeichen-/Achsen-Konventions-Diskrepanz Dataset↔USD bei den Dex3-Fingern hin, die auch
+# die Finger-AKTIONEN im Rollout betrifft (Greifen!) → offener Punkt, separat zu untersuchen.
+
 # ---------------------------------------------------------------------------
 # Articulation-Konfiguration
 # ---------------------------------------------------------------------------
@@ -105,25 +126,9 @@ G1_DEX3_CFG = ArticulationCfg(
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(0.0, 0.0, 0.85),
-        joint_pos={
-            # Arm-Ruheposition (leicht angewinkelt, Hände über Tisch)
-            "left_shoulder_pitch_joint": 0.0,
-            "left_shoulder_roll_joint": 0.2,
-            "left_shoulder_yaw_joint": 0.0,
-            "left_elbow_joint": 0.8,
-            "left_wrist_roll_joint": 0.0,
-            "left_wrist_pitch_joint": 0.0,
-            "left_wrist_yaw_joint": 0.0,
-            "right_shoulder_pitch_joint": 0.0,
-            "right_shoulder_roll_joint": -0.2,
-            "right_shoulder_yaw_joint": 0.0,
-            "right_elbow_joint": 0.8,
-            "right_wrist_roll_joint": 0.0,
-            "right_wrist_pitch_joint": 0.0,
-            "right_wrist_yaw_joint": 0.0,
-            # Finger gestreckt
-            ".*_hand_.*": 0.0,
-        },
+        # Startpose 1:1 aus dem Dataset (Frame 0) — Hände greifen bereits Richtung Tisch,
+        # statt der früheren generischen Ruhepose. Siehe DATASET_INIT_STATE oben.
+        joint_pos=dict(zip(ALL_JOINTS_ORDERED, DATASET_INIT_STATE)),
         joint_vel={".*": 0.0},
     ),
     actuators={
@@ -166,6 +171,33 @@ G1_DEX3_CFG = ArticulationCfg(
 # Kamera-Parameter (aus dem realen Dataset abgeleitet)
 # ---------------------------------------------------------------------------
 
+def look_at_world_quat(eye, target, world_up=(0.0, 0.0, 1.0)) -> tuple[float, float, float, float]:
+    """Quaternion (w, x, y, z) für eine Kamera in Isaac-Lab-``convention="world"``.
+
+    In dieser Konvention ist die **Blickachse +X** und **oben +Z**. Die Funktion
+    richtet die Kamera so aus, dass sie von ``eye`` auf ``target`` blickt — damit lassen
+    sich die Posen über anschauliche Punkte statt undurchsichtiger Quaternionen tunen.
+    """
+    eye = np.asarray(eye, dtype=float)
+    target = np.asarray(target, dtype=float)
+    up = np.asarray(world_up, dtype=float)
+
+    x = target - eye                      # Blickrichtung = Kamera-+X
+    x /= np.linalg.norm(x)
+    z = up - np.dot(up, x) * x            # Kamera-oben (+Z) = Welt-oben ⟂ Blickachse
+    if np.linalg.norm(z) < 1e-6:          # Blick exakt vertikal → Ersatz-up
+        z = np.array([1.0, 0.0, 0.0]) - np.dot([1.0, 0.0, 0.0], x) * x
+    z /= np.linalg.norm(z)
+    y = np.cross(z, x)                    # rechtshändig: x × y = z
+
+    R = np.column_stack([x, y, z])        # Spalten = Kamera-Achsen im Weltframe
+    w = np.sqrt(max(0.0, 1.0 + R[0, 0] + R[1, 1] + R[2, 2])) / 2.0
+    qx = (R[2, 1] - R[1, 2]) / (4.0 * w)
+    qy = (R[0, 2] - R[2, 0]) / (4.0 * w)
+    qz = (R[1, 0] - R[0, 1]) / (4.0 * w)
+    return (float(w), float(qx), float(qy), float(qz))
+
+
 @configclass
 class G1Dex3CameraCfg:
     """Kamera-Positionen und Intrinsics — möglichst nah an den Trainingsdaten."""
@@ -184,26 +216,50 @@ class G1Dex3CameraCfg:
     # Wrist-Kameras werden relativ zum Wrist-Link definiert (lokal)
     cam_left_wrist_local: dict = None
     cam_right_wrist_local: dict = None
+    # Szenen-Übersichtskamera — NUR fürs Video, NICHT Policy-Observation
+    cam_scene: dict = None
 
     def __post_init__(self):
-        # Externe Kameras (Kopf/Schulterhöhe), fest in der Welt
+        # Externe Kameras: Kopf-Stereo-Paar, blickt von vorne-oben NACH UNTEN auf den Tisch.
+        # Rekonstruiert aus den Dataset-Frames (Simulation/camera_reference/dataset_cam_*_high.png):
+        # beide Hände kommen von unten ins Bild, Tisch füllt die unteren ~2/3.
+        # Rotation per Look-at auf die Tischmitte — frühere (0.924,-0.383,0,0) war eine reine
+        # Roll-Drehung um die +X-Blickachse (Bild verkippt, kein Pitch) und zeigte auf den Boden.
+        #
+        # Tisch-Oberfläche ~ (0.5, 0.0, 0.74); Roboter-Pelvis bei z=0.85 → Kopf ~ z=1.4, x≈0.
+        # Werte sind Startschätzung — gegen die Referenz-Frames iterativ verfeinern.
+        high_target = (0.5, 0.0, 0.73)
+        left_high_eye = (0.0, 0.06, 1.40)
+        right_high_eye = (0.0, -0.06, 1.40)
         self.cam_left_high = {
-            "pos": (-0.5, 0.3, 1.4),
-            "rot": (0.924, -0.383, 0.0, 0.0),  # ~45° nach unten geneigt
+            "pos": left_high_eye,
+            "rot": look_at_world_quat(left_high_eye, high_target),
         }
         self.cam_right_high = {
-            "pos": (-0.5, -0.3, 1.4),
-            "rot": (0.924, -0.383, 0.0, 0.0),
+            "pos": right_high_eye,
+            "rot": look_at_world_quat(right_high_eye, high_target),
         }
-        # Wrist-Kameras: lokal am Wrist-Link (nach vorne schauend)
-        self.cam_left_wrist_local = {
-            "pos": (0.05, 0.0, 0.0),
-            "rot": (0.707, 0.0, 0.707, 0.0),  # 90° zur Seite
-        }
-        self.cam_right_wrist_local = {
-            "pos": (0.05, 0.0, 0.0),
-            "rot": (0.707, 0.0, -0.707, 0.0),
-        }
+        # Wrist-Kameras: am jeweiligen Wrist-Yaw-Link montiert (convention="world", Link-Frame).
+        # Die Hand ragt entlang +X (Palm-Joint bei x=0.0415, Finger weiter bei +X). Look-at von
+        # hinter/über dem Wrist-Origin (raus aus dem Palm-Mesh) auf die Fingerspitzen → die Kamera
+        # zeigt garantiert auf die Hand (vorher: pos=(0.05,…) steckte IM Palm-Mesh → nur Grau;
+        # rechte Cam zudem falsch herum (-X)). Roll/Feinframing nach Render-Vergleich justieren.
+        # eye weiter zurück (-X) und höher (+Z), damit nicht nur die Hand formatfüllend ist,
+        # sondern Tisch + Würfel hinter den Fingern sichtbar werden (wie in der Referenz).
+        # Arme starten ASYMMETRISCH (Dataset-Pose) → linke Cam braucht mehr Pitch nach unten,
+        # sonst zeigt sie über die Würfel hinweg (Render-Befund). Daher getrennte Targets.
+        wrist_eye = (-0.08, 0.0, 0.13)
+        left_wrist_target = (0.14, 0.0, -0.18)   # steiler runter → Tisch/Würfel ins Bild
+        right_wrist_target = (0.16, 0.0, -0.05)
+        self.cam_left_wrist_local = {"pos": wrist_eye, "rot": look_at_world_quat(wrist_eye, left_wrist_target)}
+        self.cam_right_wrist_local = {"pos": wrist_eye, "rot": look_at_world_quat(wrist_eye, right_wrist_target)}
+
+        # Szenen-Übersichtskamera (NUR fürs aufgenommene Video): zeigt die GANZE Szene —
+        # Roboter (Pelvis z=0.85, Kopf ~1.4) + Tisch (x=0.5) — von schräg vorne-seitlich-oben.
+        # Weltfest. eye in +X (vor dem Tisch), +Y (seitlich), +Z (oben); Blick zurück auf die Mitte.
+        scene_eye = (1.8, 1.6, 1.7)
+        scene_target = (0.25, 0.0, 0.70)
+        self.cam_scene = {"pos": scene_eye, "rot": look_at_world_quat(scene_eye, scene_target)}
 
 
 CAMERA_CFG = G1Dex3CameraCfg()

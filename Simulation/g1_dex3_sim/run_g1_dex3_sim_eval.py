@@ -119,6 +119,8 @@ def run_episode(
     execution_horizon: int,
     task_description: str,
     record_video: bool,
+    episode: int,
+    video_dir: str | None,
 ) -> dict:
     """
     Führt eine einzelne Eval-Episode durch.
@@ -149,6 +151,19 @@ def run_episode(
             task_description=task_description,
         )
 
+        # Debug (einmalig, Episode 1 / Step 0): erste Obs ALLER 4 Kameras dumpen, um die
+        # Kamera-Posen gegen Simulation/camera_reference/ zu verifizieren (v. a. Wrist-Cams).
+        if episode == 1 and step == 0 and video_dir:
+            import imageio
+            os.makedirs(video_dir, exist_ok=True)
+            for _ck in ("cam_left_high", "cam_right_high", "cam_left_wrist", "cam_right_wrist"):
+                _arr = np.asarray(obs_np[f"video.{_ck}"])
+                while _arr.ndim > 3:
+                    _arr = _arr[0]
+                imageio.imwrite(os.path.join(video_dir, f"_debug_obs_{_ck}.png"),
+                                _arr.astype(np.uint8))
+            print("[Debug] Erste Obs aller 4 Kameras gespeichert: _debug_obs_*.png", flush=True)
+
         # Action-Chunk vom GR00T-Server holen (16, 28)
         try:
             chunk = client.get_action(policy_obs)  # np.ndarray (16, 28)
@@ -164,12 +179,23 @@ def run_episode(
 
             obs_step, _, terminated, time_out, info = env.step(action_t)
 
-            # Video-Frame nach dem Step erfassen (frisches Bild, nicht das Chunk-Start-Bild)
+            # Video-Frame nach dem Step erfassen — aus der Szenen-Übersichtskamera (ganze Szene
+            # von schräg oben), NICHT der Policy-Kamera. Fallback auf cam_left_high, falls cam_scene
+            # (noch) nicht vorhanden ist.
             if record_video:
-                frame = obs_step["video.cam_left_high"][0].cpu().numpy().astype(np.uint8)
+                cam_key = "video.cam_scene" if "video.cam_scene" in obs_step else "video.cam_left_high"
+                frame = obs_step[cam_key][0].cpu().numpy().astype(np.uint8)
                 frames.append(frame)
 
             step += 1
+
+            # Fortschritt sichtbar machen — run_episode printet sonst bis Episodenende nichts,
+            # was bei langsamem 4-Kamera-Rendering wie ein Hang aussieht. flush=True für Live-Output.
+            if step % 25 == 0:
+                print(
+                    f"    … Step {step}/{max_steps} ({time.perf_counter() - t_start:.0f}s)",
+                    flush=True,
+                )
 
             # Erfolg über das zurückgegebene `terminated` erkennen (robust gegen
             # DirectRLEnv-Auto-Reset, der env.episode_success im selben Step löschen kann).
@@ -186,6 +212,11 @@ def run_episode(
             break
 
     duration = time.perf_counter() - t_start
+
+    # Video der Episode speichern (Frames wurden während des Rollouts gesammelt).
+    if record_video and video_dir:
+        save_episode_video(frames, episode, video_dir)
+
     return {
         "success": success,
         "num_steps": step,
@@ -257,6 +288,8 @@ def main():
             execution_horizon=args.execution_horizon,
             task_description=args.task_description,
             record_video=record,
+            episode=ep + 1,
+            video_dir=args.video_dir,
         )
         ep_result["episode"] = ep + 1
         results.append(ep_result)
