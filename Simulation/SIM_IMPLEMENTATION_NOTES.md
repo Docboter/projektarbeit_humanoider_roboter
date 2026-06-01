@@ -366,11 +366,27 @@ gültiges Modell-Urteil** — die Policy bekam Boden-Bilder.
 - ✅ **Roboter-Startpose**: `DATASET_INIT_STATE` = `observation.state` aus Frame 0 (28 Werte) übernommen.
 - ✅ **Tisch weiß** (`diffuse_color (0.85,0.85,0.85)`).
 
-**Noch offen für volle Dataset-Treue:**
-| Prio | Lücke |
-|---|---|
-| 1 | **Dex3-Finger-Gelenklimits zu eng** (KEIN Vorzeichen-Flip!). Über alle 281.196 Frames geprüft: Dataset-Vorzeichen **stimmen** mit der URDF überein (links Beugen negativ, rechts positiv) → Greif-*Richtung* korrekt. Aber die echte Range überschreitet die URDF-Limits um ~0,2–0,33 rad (z. B. left middle_1 bis −2,08 vs URDF −1,75; right index_1 bis +2,09 vs +1,75) → volles Schließen/Öffnen wird leicht geklemmt. Optional: USD/Sim-Gelenklimits an Dataset-Range weiten. Init-Pose-Clamp (index_0/middle_0 → 0.0) ist korrekt. |
-| 2 | ✅ **erledigt** — **Wrist-Kameras** rekonstruiert + per Render verifiziert. Look-at im Link-Frame (`convention="world"`, `eye=(-0.08,0,0.13)`). Behob „nur Grau" (Kamera steckte im Palm-Mesh) + falsch-herum rechte Cam. Beide zeigen jetzt Hand + Würfel auf dem Tisch. Wegen asymmetrischer Arm-Startpose getrennte Targets: links `(0.14,0,-0.18)` (55° runter), rechts `(0.16,0,-0.05)` (37°). |
+> **Hinweis:** Die `eye`/`target`/Tisch-Werte oben sind die ERSTE Rekonstruktion. Sie wurden
+> in Abschnitt 11 nach dem Tisch-Anheben aktualisiert (High-Target → `(0.40,0,0.86)`); alle 4
+> Kameras danach erneut am Render verifiziert (gut).
+
+**Dex3-Finger-Gelenklimits (KEIN Vorzeichen-Flip!):** ✅ **erledigt.** Über alle 281.196 Frames
+geprüft: Dataset-Vorzeichen stimmen mit der URDF überein (links Beugen negativ, rechts positiv)
+→ Greif-Richtung korrekt. Aber die echte Range überschreitet die URDF-Limits um ~0,2–0,33 rad
+(z. B. left middle_1 bis −2,08 vs URDF −1,75) → volles Schließen würde geklemmt. **Fix:**
+`_widen_finger_joint_limits()` in der Env hebt zur Laufzeit die Grenzen von 10 Finger-Gelenken
+an die Dataset-Range an (`write_joint_position_limit_to_sim`). Init-Pose-Clamp (index_0/middle_0 → 0.0) korrekt.
+
+**Wrist-Kameras:** ✅ **erledigt** — rekonstruiert + per Render verifiziert. Look-at im Link-Frame
+(`convention="world"`, `eye=(-0.08,0,0.13)`). Behob „nur Grau" (Kamera steckte im Palm-Mesh) +
+falsch-herum rechte Cam. Getrennte Targets wegen asymmetrischer Arm-Startpose: links
+`(0.14,0,-0.18)` (55° runter), rechts `(0.16,0,-0.05)` (37°).
+
+**Szenen-Übersichtskamera (`cam_scene`):** NUR fürs aufgenommene Video (NICHT Policy-Observation).
+Weltfeste 5. Kamera, schräg vorne-seitlich-oben (`eye=(1.8,1.6,1.7)`, `target` auf Szenenmitte),
+weiter FOV (focal 18) → zeigt Roboter + Tisch komplett. In `g1_dex3_cfg.py` (`cam_scene`),
+in der Env als `TiledCameraCfg`, in `self.cameras` aufgenommen; `run_g1_dex3_sim_eval.py` nimmt
+das Video aus `video.cam_scene` auf (Fallback `cam_left_high`). Die 4 Policy-Cams bleiben unberührt.
 
 ---
 
@@ -458,3 +474,9 @@ Für reproduzierbaren Stand: Image neu bauen + pushen.
 | `SIM_GPU_COMPATIBILITY.md` | RTX 5000 als "ja" (Isaac-Sim-Rendering) gelistet — ist faktisch **nein** für Isaac Lab 2.3.2 (Turing < Ampere-Mindestanforderung) |
 | `SIM_DOCKER_BUILD.md` | Beschreibt Zwei-Container-Plan; `Dockerfile.vastai` (kombiniert) jetzt primäre Impl. für vast.ai; KISSKI-Zwei-Container bleibt gültig |
 | `KISSKI_SIM_DESKTOP_ANLEITUNG.md` | Setzt RTX-5000-Kompatibilität voraus — vor Nutzung prüfen ob ältere Isaac-Lab-Version kompatibel ist |
+| `ISAAC_LAB_SIM_PLAN.md` | Ursprünglicher Implementierungs-Plan (historisch). Konkrete Werte (Kamera-Posen, Tischhöhe 0.74, Würfelpositionen, Aktions-Annahmen) sind durch die Umsetzung überholt — **dieser Abschnitt + §10/§11 sind die Quelle der Wahrheit** für den aktuellen Stand. |
+
+> **Geprüft (2026-06-01) und aktuell:** `VASTAI_SIM_ANLEITUNG.md` (Env-Vars inkl. `ASSET_PATH`,
+> `NO_FLASH_ATTN`-Hinweis, `-p 22`), `CLAUDE.md` (Architekturbaum mit Replay-Tool/`camera_reference`,
+> Sim-Env-Tabelle). `README.md`/`Anleitung.md` betreffen nur das Training — von den Sim-Eval-
+> Änderungen unberührt.

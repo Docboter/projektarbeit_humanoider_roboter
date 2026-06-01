@@ -178,11 +178,18 @@ repo root
 │   ├── KISSKI_SIM_DESKTOP_ANLEITUNG.md # Step-by-step for JupyterHPC desktop test
 │   ├── VASTAI_SIM_ANLEITUNG.md         # Step-by-step for vast.ai eval (primary workflow)
 │   ├── g1_dex3_sim/                    # COPIED into image at /workspace/g1_dex3_sim/
-│   │   ├── run_g1_dex3_sim_eval.py     # Main eval loop (Isaac Lab entry point)
+│   │   ├── run_g1_dex3_sim_eval.py     # Main eval loop (model-based, ZMQ client to GR00T server)
+│   │   ├── run_g1_dex3_replay.py       # Open-loop dataset-replay DIAGNOSTIC (no server/model)
+│   │   ├── replay_episode0.npz         # Bundled ground-truth actions (dataset ep. 0) for replay
+│   │   ├── g1_dex3_blockstack_env.py   # Isaac Lab env (robot, table, cubes, 4 policy + 1 scene cam)
+│   │   ├── g1_dex3_cfg.py              # Articulation + camera config (look_at_world_quat helper)
+│   │   ├── client.py                   # ZMQ policy client + build_obs (state split into modality keys)
 │   │   ├── convert_urdf_to_usd.py      # One-time URDF→USD conversion
-│   │   └── ...                         # Env config, assets, client code
+│   │   └── ...
+│   ├── camera_reference/               # Dataset reference frames (camera-calibration targets)
 │   └── scripts/                        # COPIED into vastai image at /scripts/
-│       ├── entrypoint_sim.sh           # Autonomous entrypoint for Dockerfile.vastai
+│       ├── entrypoint_sim.sh           # Autonomous entrypoint (model eval) for Dockerfile.vastai
+│       ├── entrypoint_replay.sh        # Entrypoint for the open-loop replay diagnostic
 │       └── upload_checkpoint.py        # HuggingFace upload helper (skips optimizer.pt by default)
 ├── data/                               # Local assets and submodules (mostly gitignored)
 │   ├── unitree_ros/                    # Git submodule — Unitree ROS packages (URDF source)
