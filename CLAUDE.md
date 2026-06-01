@@ -10,14 +10,17 @@ The container is autonomous: launching the image triggers `/scripts/entrypoint.s
 
 **Storage model:** No host-side persistent storage by default. All data, checkpoints, and logs live in the container filesystem (`/data` is a regular directory inside the image, **not** a volume mount). The container is meant to be long-lived: `stop`/`start` preserves state; only `docker rm` destroys it. This matches the vast.ai semantics where one instance == one container. **Exception — KISSKI:** the cluster uses Apptainer (not Docker) and bind-mounts `/scratch/$USER/data` to `/data` inside the container; data therefore persists on the cluster's scratch storage across job runs.
 
-Detailed guides:
-- **User-facing instructions (German):** [`Anleitung.md`](Anleitung.md)
+Detailed guides (all prose docs live under [`docs/`](docs/README.md)):
+- **Doc navigation hub:** [`docs/README.md`](docs/README.md)
+- **User-facing training instructions (German):** [`docs/training/anleitung.md`](docs/training/anleitung.md)
 - **Project README (German):** [`README.md`](README.md)
+- **Env-var reference:** [`docs/training/env-vars.md`](docs/training/env-vars.md)
+- **KISSKI HPC training:** [`docs/training/kisski-hpc.md`](docs/training/kisski-hpc.md)
 - **Setup & Architecture:** [`app/Groot-1.6/examples/G1_DEX3/SETUP_DOCUMENTATION.md`](app/Groot-1.6/examples/G1_DEX3/SETUP_DOCUMENTATION.md)
 - **Fine-tuning step-by-step:** [`app/Groot-1.6/examples/G1_DEX3/FINETUNING_GUIDE.md`](app/Groot-1.6/examples/G1_DEX3/FINETUNING_GUIDE.md)
 - **G1/DEX3 joint layout & datasets:** [`app/Groot-1.6/examples/G1_DEX3/README.md`](app/Groot-1.6/examples/G1_DEX3/README.md)
-- **Sim eval on vast.ai (German):** [`Simulation/VASTAI_SIM_ANLEITUNG.md`](Simulation/VASTAI_SIM_ANLEITUNG.md)
-- **Sim implementation notes & lessons learned:** [`Simulation/SIM_IMPLEMENTATION_NOTES.md`](Simulation/SIM_IMPLEMENTATION_NOTES.md)
+- **Sim eval on vast.ai (German):** [`docs/simulation/vastai-anleitung.md`](docs/simulation/vastai-anleitung.md)
+- **Sim implementation notes & lessons learned:** [`docs/simulation/implementation-notes.md`](docs/simulation/implementation-notes.md)
 
 ## Key commands
 
@@ -69,8 +72,8 @@ KISSKI partitions: `kisski` (A100 80 GB) and `kisski-h100` (H100 94 GB), max wal
 
 ### Sim eval on vast.ai (build → push → run)
 
-Full guide: [`Simulation/VASTAI_SIM_ANLEITUNG.md`](Simulation/VASTAI_SIM_ANLEITUNG.md)
-Known fixes & GPU requirements: [`Simulation/SIM_IMPLEMENTATION_NOTES.md`](Simulation/SIM_IMPLEMENTATION_NOTES.md)
+Full guide: [`docs/simulation/vastai-anleitung.md`](docs/simulation/vastai-anleitung.md)
+Known fixes & GPU requirements: [`docs/simulation/implementation-notes.md`](docs/simulation/implementation-notes.md)
 
 ```powershell
 # 1. Build + push sim image (includes entrypoint_sim.sh with unset VIRTUAL_ENV fix)
@@ -81,7 +84,7 @@ python Simulation\scripts\upload_checkpoint.py `
   --checkpoint "C:\path\to\checkpoint-3000" --repo luca-mue/groot-g1dex3-checkpoint
 
 # 3. Generate USD asset (one-time, local Docker)
-#    → see VASTAI_SIM_ANLEITUNG.md Schritt 3, or data/g1_dex3.usd already exists
+#    → see docs/simulation/vastai-anleitung.md Schritt 3, or data/g1_dex3.usd already exists
 ```
 
 On vast.ai: GPU must be **Ampere+ with RT-Cores** (L40, RTX 4090, A6000) — A100/H100 lack RT-Cores; RTX 5000 is Turing (too old for Isaac Sim 4.x). Env vars for the sim container:
@@ -151,7 +154,15 @@ Config: [`app/Groot-1.6/pyproject.toml`](app/Groot-1.6/pyproject.toml) under `[t
 
 ```
 repo root
-├── Training/                           # Everything training-related (build, run, docs)
+├── README.md                           # Slim landing page (overview + quickstart + doc links)
+├── docs/                               # ALL prose docs live here
+│   ├── README.md                       # Doc navigation hub + project structure
+│   ├── training/                       # anleitung.md, kisski-hpc.md, env-vars.md,
+│   │                                   #   train-test-split.md, wandb-offline-sync.md
+│   └── simulation/                     # vastai-anleitung.md, implementation-notes.md (READ FIRST)
+│       └── archiv/                     # superseded planning docs (isaac-lab-plan, sim-docker-build,
+│                                       #   kisski-desktop, gpu-kompatibilitaet)
+├── Training/                           # Everything training-related (build, run scripts)
 │   ├── Dockerfile                      # Defines image; ENTRYPOINT = /scripts/entrypoint.sh
 │   │                                   #   build context = Training/ (so COPY scripts/ works)
 │   ├── docker-compose.yml              # Optional (dev convenience; no host volume mounts)
@@ -160,8 +171,6 @@ repo root
 │   ├── setup_and_train_DockerHub-pull.sh   # Thin host launcher: docker pull + docker run
 │   ├── setup_and_train_DockerHub-pull.ps1  # Windows variant
 │   ├── setup_and_train_Container-build.* # Host launcher that builds the image locally
-│   ├── Train-Test-split.md             # Dataset 80/20 split notes
-│   ├── WANDB_OFFLINE_SYNC.md           # W&B offline-sync guide for KISSKI
 │   └── scripts/                        # COPIED into image at /scripts/
 │       ├── entrypoint.sh               # Autonomous orchestrator (download→convert→train)
 │       ├── download_data.sh            # HuggingFace download (model + dataset)
@@ -171,12 +180,7 @@ repo root
 │   ├── Dockerfile.vastai               # vast.ai: combined Isaac Sim + GR00T in one container
 │   ├── kisski_sim_submit.sh            # SLURM job for sim eval (jupyter partition, RTX 5000)
 │   ├── update_sim_image.ps1            # Build/push tool (-VastAI flag for Dockerfile.vastai)
-│   ├── ISAAC_LAB_SIM_PLAN.md           # Implementation plan for the Isaac Lab sim
-│   ├── SIM_GPU_COMPATIBILITY.md        # GPU compatibility analysis (RT-cores, jupyter partition)
-│   ├── SIM_DOCKER_BUILD.md             # Build & deployment guide (two-container KISSKI design)
-│   ├── SIM_IMPLEMENTATION_NOTES.md     # Lessons learned, known fixes, current status ← READ FIRST
-│   ├── KISSKI_SIM_DESKTOP_ANLEITUNG.md # Step-by-step for JupyterHPC desktop test
-│   ├── VASTAI_SIM_ANLEITUNG.md         # Step-by-step for vast.ai eval (primary workflow)
+│   │                                   #   (sim docs moved to docs/simulation/)
 │   ├── g1_dex3_sim/                    # COPIED into image at /workspace/g1_dex3_sim/
 │   │   ├── run_g1_dex3_sim_eval.py     # Main eval loop (model-based, ZMQ client to GR00T server)
 │   │   ├── run_g1_dex3_replay.py       # Open-loop dataset-replay DIAGNOSTIC (no server/model)

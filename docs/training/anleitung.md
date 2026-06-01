@@ -231,64 +231,23 @@ docker rm -f groot-train
 
 ## Weg D — HPC-Training auf KISSKI
 
-Empfohlen für langes Training (> 30 000 Steps) oder wenn lokal keine ausreichende GPU vorhanden ist. KISSKI stellt A100 (80 GB) und H100 (94 GB) zur Verfügung.
+Empfohlen für langes Training (> 30 000 Steps) oder wenn lokal keine ausreichende GPU vorhanden ist. KISSKI stellt A100 (80 GB) und H100 (94 GB) zur Verfügung. Der Cluster läuft **kein Docker**, sondern **Apptainer** als Container-Runtime und **SLURM** als Job-Scheduler.
 
-Der Cluster läuft **kein Docker**, sondern **Apptainer** als Container-Runtime und **SLURM** als Job-Scheduler. Das Docker Hub-Image wird einmalig in eine Apptainer-`.sif`-Datei umgewandelt — danach läuft alles unverändert.
-
-### D1. Zugang
-
-KISSKI-Account bei GWDG beantragen: https://docs.hpc.gwdg.de
-
-SSH-Login-Knoten: `glogin-gpu.hpc.gwdg.de`
-
-### D2. Image einmalig konvertieren (auf dem Login-Knoten)
+Kurzfassung:
 
 ```bash
+# Einmalig auf dem Login-Knoten glogin-gpu.hpc.gwdg.de:
 module load apptainer
-mkdir -p $HOME/images
 apptainer pull $HOME/images/projekt-humanoider-roboter.sif \
     docker://lucam03/projekt-humanoider-roboter:latest
-```
 
-Dauert einige Minuten. Nur wiederholen, wenn ein neues Image auf Docker Hub gepusht wurde.
-
-### D3. Job einreichen
-
-```bash
-# Tokens setzen
-export HF_TOKEN=hf_...
-export WANDB_API_KEY=...       # optional
-
-# Optional: Batch-Size für A100 hochsetzen
-export GLOBAL_BATCH_SIZE=32    # A100 mit 80 GB VRAM verträgt deutlich mehr als 8
-
-# Job einreichen
+# Job einreichen:
+export HF_TOKEN=hf_...  WANDB_API_KEY=...  GLOBAL_BATCH_SIZE=32
 sbatch Training/kisski_submit.sh
 ```
 
-Beim ersten Lauf: `SKIP_DOWNLOAD=0` setzen, damit der Container Modell und Datensatz (~25 GB) selbst von HuggingFace nach `/mnt/vast-kisski/projects/kisski-humrob/data/` herunterlädt. Bei Folgeläufen wird der Download automatisch übersprungen (`SKIP_DOWNLOAD=1` ist der Standard in `kisski_submit.sh`).
-
-### D4. Job-Status und Logs
-
-```bash
-squeue -u $USER                        # eigene Jobs anzeigen
-tail -f logs/slurm-<jobid>.out         # SLURM-Log live verfolgen
-scancel <jobid>                        # Job abbrechen
-```
-
-### D5. Checkpoints sichern
-
-Checkpoints liegen nach dem Job unter `/mnt/vast-kisski/projects/kisski-humrob/data/g1_dex3_finetune/`. Von dort lokal holen:
-
-```bash
-rsync -avz --progress \
-    <username>@transfer.hpc.gwdg.de:/mnt/vast-kisski/projects/kisski-humrob/data/g1_dex3_finetune/ \
-    ./checkpoints/
-```
-
-> **Hinweis:** Daten auf dem VAST-Projekt-Storage werden **nicht automatisch gelöscht** (der alte Scratch-Speicher `/scratch/` wurde am 31.03.2026 abgeschaltet). Trotzdem empfiehlt sich ein Export nach HuggingFace oder lokal.
-
-Vollständige KISSKI-Anleitung: [README.md Abschnitt 4](README.md#4-hpc-training-auf-kisski)
+→ **Vollständige Schritt-für-Schritt-Anleitung** (SIF-Konvertierung, VAST-Storage, Monitoring,
+Checkpoint-Export, KISSKI-Troubleshooting): [HPC-Training auf KISSKI](kisski-hpc.md).
 
 ---
 
@@ -371,7 +330,7 @@ docker cp <container>:/data/g1_dex3_finetune /workspace/ckpt    # auf Host kopie
 
 ```bash
 rsync -avz --progress \
-    <username>@transfer.hpc.gwdg.de:/scratch/<username>/data/g1_dex3_finetune/ \
+    <username>@transfer.hpc.gwdg.de:/mnt/vast-kisski/projects/kisski-humrob/data/g1_dex3_finetune/ \
     ./checkpoints/
 ```
 
@@ -379,30 +338,19 @@ rsync -avz --progress \
 
 ## Konfigurationsreferenz (Env-Vars)
 
+Alle Parameter werden über Umgebungsvariablen gesteuert — auf vast.ai, KISSKI und lokal
+identisch. Die vollständige Tabelle (inkl. VRAM-Richtwerten und OOM-Hinweisen) steht in der
+[Konfigurationsreferenz](env-vars.md).
+
+Die wichtigsten:
+
 | Variable | Default | Beschreibung |
 |---|---|---|
 | `HF_TOKEN` | — | **Pflicht.** HuggingFace-Token |
 | `WANDB_API_KEY` | — | Optional. Ohne diesen läuft Training ohne W&B |
 | `MAX_STEPS` | `30000` | Anzahl Trainings-Steps |
-| `GLOBAL_BATCH_SIZE` | `8` | 8 für 8 GB VRAM, 16–32 für 16+ GB |
-| `NUM_GPUS` | `1` | Anzahl genutzter GPUs |
-| `WANDB_PROJECT` | `gr00t-g1-dex3` | W&B-Projektname |
-| `DATA_DIR` | `/data` | Datenverzeichnis im Container |
-| `SKIP_DOWNLOAD` | `0` | `1` = Download überspringen (Daten schon vorhanden) |
-| `SKIP_CONVERT` | `0` | `1` = Konvertierung überspringen |
-| `SKIP_TRAIN` | `0` | `1` = nur Setup, dann Shell |
+| `GLOBAL_BATCH_SIZE` | `8` | 8 für 8 GB VRAM, 16–32 für 16+ GB, 32+ für A100 80 GB |
 | `SHELL_ON_ERROR` | `0` | `1` = bei Fehler in Shell fallen statt zu beenden |
-
-### VRAM-Richtwerte
-
-| VRAM | `GLOBAL_BATCH_SIZE` | `MAX_STEPS` | Umgebung |
-|---|---|---|---|
-| 24 GB | 1–2 | 30 000 | Lokal (RTX 4090, min.) — sehr langsam |
-| 32 GB | 4–8 | 30 000 | Lokal (RTX 5090, ~31 GB bei bs=8) |
-| 40 GB | 16–32 | 50 000 | vast.ai A100 40 GB |
-| 80 GB | 64–128 | 50 000+ | KISSKI A100 |
-
-> **Full Fine-tuning benötigt laut NVIDIA ≥ 40 GB VRAM.** Karten mit < 24 GB VRAM führen zu OOM-Fehlern.
 
 Bei `CUDA out of memory`: zuerst `GLOBAL_BATCH_SIZE` halbieren.
 
@@ -473,17 +421,21 @@ Beliebig lange — solange du den Host nicht abschießt bzw. die vast.ai-Instanz
 ### Training läuft, aber Loss bleibt hoch — was tun?
 
 - `modality.json` korrekt? Sollte nach Schritt 4 in `/data/unitreerobotics/G1_Dex3_BlockStacking_Dataset/meta/` liegen.
-- Längeres Training nötig — siehe Empfehlungen in [`app/Groot-1.6/examples/G1_DEX3/FINETUNING_GUIDE.md`](app/Groot-1.6/examples/G1_DEX3/FINETUNING_GUIDE.md).
+- Längeres Training nötig — siehe Empfehlungen in [`FINETUNING_GUIDE.md`](../../app/Groot-1.6/examples/G1_DEX3/FINETUNING_GUIDE.md).
 
 ### Wie evaluiere ich das fertige Modell?
 
-Siehe [Train-Test-split.md](Training/Train-Test-split.md) und den Inference-Abschnitt in [`app/Groot-1.6/examples/G1_DEX3/FINETUNING_GUIDE.md`](app/Groot-1.6/examples/G1_DEX3/FINETUNING_GUIDE.md).
+Siehe [Train-Test-Split](train-test-split.md) und den Inference-Abschnitt in [`FINETUNING_GUIDE.md`](../../app/Groot-1.6/examples/G1_DEX3/FINETUNING_GUIDE.md).
 
 ---
 
 ## Weiterführende Dokumentation
 
-- [README.md](README.md) — Projekt-Übersicht
-- [Train-Test-split.md](Training/Train-Test-split.md) — 80/20-Datensatz-Split
-- [`app/Groot-1.6/examples/G1_DEX3/SETUP_DOCUMENTATION.md`](app/Groot-1.6/examples/G1_DEX3/SETUP_DOCUMENTATION.md)
-- [`app/Groot-1.6/examples/G1_DEX3/FINETUNING_GUIDE.md`](app/Groot-1.6/examples/G1_DEX3/FINETUNING_GUIDE.md)
+- [Doku-Übersicht](../README.md) — Navigations-Hub aller Dokumente
+- [Projekt-README](../../README.md) — Projekt-Übersicht & Schnellstart
+- [HPC-Training auf KISSKI](kisski-hpc.md) — vollständige KISSKI-Anleitung
+- [Konfigurationsreferenz (Env-Vars)](env-vars.md) — alle Parameter
+- [Train-Test-Split](train-test-split.md) — 80/20-Datensatz-Split
+- [W&B-Offline-Sync](wandb-offline-sync.md) — W&B auf KISSKI
+- [`SETUP_DOCUMENTATION.md`](../../app/Groot-1.6/examples/G1_DEX3/SETUP_DOCUMENTATION.md)
+- [`FINETUNING_GUIDE.md`](../../app/Groot-1.6/examples/G1_DEX3/FINETUNING_GUIDE.md)

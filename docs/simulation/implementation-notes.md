@@ -5,11 +5,11 @@ gewonnen wurden und in keinem anderen Dokument stehen. Stand: 2026-05-31.
 
 ---
 
-## 1. GPU-Kompatibilität — Korrekturen zu SIM_GPU_COMPATIBILITY.md
+## 1. GPU-Kompatibilität — Korrekturen zu `archiv/gpu-kompatibilitaet.md`
 
 ### Quadro RTX 5000 (KISSKI `jupyter`-Partition) — **nicht kompatibel**
 
-`SIM_GPU_COMPATIBILITY.md` klassifiziert die RTX 5000 als prinzipiell geeignet.
+[`archiv/gpu-kompatibilitaet.md`](archiv/gpu-kompatibilitaet.md) klassifiziert die RTX 5000 als prinzipiell geeignet.
 Das ist **falsch für Isaac Lab 2.3.2 / Isaac Sim 5.1**:
 
 - Isaac Sim 4.x setzt **Ampere (RTX 30xx) als Mindestanforderung** voraus.
@@ -38,7 +38,7 @@ Für GR00T-Inference (ohne Sim) auf A100 geeignet, nicht für die Closed-Loop-Si
 
 ### Geplante vs. implementierte Architektur
 
-`SIM_DOCKER_BUILD.md` beschreibt die ursprünglich geplante **Zwei-Container-Architektur**
+[`archiv/sim-docker-build.md`](archiv/sim-docker-build.md) beschreibt die ursprünglich geplante **Zwei-Container-Architektur**
 (GR00T-Server und Isaac-Lab-Sim-Client als getrennte Images). Diese ist korrekt für KISSKI
 (zwei Apptainer-SIFs in einem SLURM-Job).
 
@@ -85,7 +85,7 @@ zuerst `unset VIRTUAL_ENV` ausführen.
 übergeben (Bash-Kommentarzeichen am Zeilenende durch Copy-Paste). Das `#` wurde
 wörtlich in den Dateinamen übernommen → `g1_dex3.usd#` erzeugt, USD nicht ladbar.
 
-**Fix:** Pfad ohne `#` übergeben. Bereits in `VASTAI_SIM_ANLEITUNG.md` korrigiert.
+**Fix:** Pfad ohne `#` übergeben. Bereits in `vastai-anleitung.md` korrigiert.
 
 ### USD-Asset ist ein Dateibündel, nicht eine einzelne Datei
 
@@ -251,7 +251,7 @@ an `run_gr00t_server.py`. Die Anleitung empfahl genau das als Fix bei „flash-a
 `flash_attn 2.7.4.post1` ist im venv installiert.
 
 **Fix:** Flash-Attn-Flag-Logik aus dem Entrypoint entfernt; `NO_FLASH_ATTN` wird nur noch mit
-Warnung ignoriert. `NO_FLASH_ATTN`-Zeile + Troubleshooting-Tipp aus `VASTAI_SIM_ANLEITUNG.md`
+Warnung ignoriert. `NO_FLASH_ATTN`-Zeile + Troubleshooting-Tipp aus `vastai-anleitung.md`
 entfernt. **Konsequenz:** Nur GPUs mit Flash-Attn-Support (Ampere+) sind nutzbar — bestätigt die
 ohnehin bestehende GPU-Anforderung.
 
@@ -469,14 +469,19 @@ Für reproduzierbaren Stand: Image neu bauen + pushen.
 
 ## 13. Outdated-Hinweise zu anderen Dokumenten
 
+Die folgenden Dokumente sind historisch/überholt und liegen daher im Unterordner
+[`archiv/`](archiv/). Sie bleiben als Planungs-/Entscheidungs-Kontext erhalten, sind aber
+**nicht** die Quelle der Wahrheit für den aktuellen Stand (das sind §10/§11 dieses Dokuments).
+
 | Dokument | Problem |
 |---|---|
-| `SIM_GPU_COMPATIBILITY.md` | RTX 5000 als "ja" (Isaac-Sim-Rendering) gelistet — ist faktisch **nein** für Isaac Lab 2.3.2 (Turing < Ampere-Mindestanforderung) |
-| `SIM_DOCKER_BUILD.md` | Beschreibt Zwei-Container-Plan; `Dockerfile.vastai` (kombiniert) jetzt primäre Impl. für vast.ai; KISSKI-Zwei-Container bleibt gültig |
-| `KISSKI_SIM_DESKTOP_ANLEITUNG.md` | Setzt RTX-5000-Kompatibilität voraus — vor Nutzung prüfen ob ältere Isaac-Lab-Version kompatibel ist |
-| `ISAAC_LAB_SIM_PLAN.md` | Ursprünglicher Implementierungs-Plan (historisch). Konkrete Werte (Kamera-Posen, Tischhöhe 0.74, Würfelpositionen, Aktions-Annahmen) sind durch die Umsetzung überholt — **dieser Abschnitt + §10/§11 sind die Quelle der Wahrheit** für den aktuellen Stand. |
+| [`archiv/gpu-kompatibilitaet.md`](archiv/gpu-kompatibilitaet.md) | RTX 5000 als "ja" (Isaac-Sim-Rendering) gelistet — ist faktisch **nein** für Isaac Lab 2.3.2 (Turing < Ampere-Mindestanforderung) |
+| [`archiv/sim-docker-build.md`](archiv/sim-docker-build.md) | Beschreibt Zwei-Container-Plan; `Dockerfile.vastai` (kombiniert) jetzt primäre Impl. für vast.ai; KISSKI-Zwei-Container bleibt gültig |
+| [`archiv/kisski-desktop.md`](archiv/kisski-desktop.md) | Setzt RTX-5000-Kompatibilität voraus — vor Nutzung prüfen ob ältere Isaac-Lab-Version kompatibel ist |
+| [`archiv/isaac-lab-plan.md`](archiv/isaac-lab-plan.md) | Ursprünglicher Implementierungs-Plan (historisch). Konkrete Werte (Kamera-Posen, Tischhöhe 0.74, Würfelpositionen, Aktions-Annahmen) sind durch die Umsetzung überholt — **§10/§11 dieses Dokuments sind die Quelle der Wahrheit** für den aktuellen Stand. |
 
-> **Geprüft (2026-06-01) und aktuell:** `VASTAI_SIM_ANLEITUNG.md` (Env-Vars inkl. `ASSET_PATH`,
-> `NO_FLASH_ATTN`-Hinweis, `-p 22`), `CLAUDE.md` (Architekturbaum mit Replay-Tool/`camera_reference`,
-> Sim-Env-Tabelle). `README.md`/`Anleitung.md` betreffen nur das Training — von den Sim-Eval-
+> **Geprüft (2026-06-01) und aktuell:** [`vastai-anleitung.md`](vastai-anleitung.md) (Env-Vars inkl.
+> `ASSET_PATH`, `NO_FLASH_ATTN`-Hinweis, `-p 22`, Open-Loop-Replay-Abschnitt), `CLAUDE.md`
+> (Architekturbaum mit Replay-Tool/`camera_reference`, Sim-Env-Tabelle). Das Trainings-README und
+> die Trainings-Anleitung (`docs/training/`) betreffen nur das Training — von den Sim-Eval-
 > Änderungen unberührt.

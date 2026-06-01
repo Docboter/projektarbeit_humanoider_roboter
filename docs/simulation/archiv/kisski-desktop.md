@@ -4,7 +4,7 @@ Ziel: Den Isaac-Lab-Sim-Client-Container interaktiv in der **JupyterHPC-Desktop-
 auf KISSKI testen (Phase A des Plans: leere Szene rendert RGB-Bild headless).
 
 GPU: **Quadro RTX 5000** (`jupyter`-Partition) — einzige GWDG-GPU mit RT-Cores.
-Hintergrund: [SIM_GPU_COMPATIBILITY.md](SIM_GPU_COMPATIBILITY.md)
+Hintergrund: [gpu-kompatibilitaet.md](gpu-kompatibilitaet.md)
 
 ---
 

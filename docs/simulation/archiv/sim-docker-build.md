@@ -1,6 +1,6 @@
 # Zweiten Docker-Container für die Sim bauen — Isaac Lab + GR00T-Client
 
-Begleitdokument zu [ISAAC_LAB_SIM_PLAN.md](ISAAC_LAB_SIM_PLAN.md).
+Begleitdokument zu [isaac-lab-plan.md](isaac-lab-plan.md).
 Beschreibt, wie der **zweite Container** (Isaac-Lab-Sim-Client) lokal auf dem Laptop
 gebaut, nach Docker Hub gepusht und auf KISSKI als SIF gezogen wird — analog zum
 bestehenden Training-Image `lucam03/projekt-humanoider-roboter`.
@@ -78,7 +78,7 @@ KISSKI wird deutlich größer als die ~14 GB des Trainings-SIF.
 Auf die Isaac-Lab-Basis legen wir nur drei Dinge:
 
 1. **Den schlanken GR00T-Client.** Der Client (`PolicyClient` aus
-   [gr00t/policy/server_client.py](../app/Groot-1.6/gr00t/policy/server_client.py))
+   [gr00t/policy/server_client.py](../../../app/Groot-1.6/gr00t/policy/server_client.py))
    braucht zur Laufzeit nur `msgpack`, `numpy`, `pyzmq` — die schwere ML-Seite läuft
    im Server-Container. **Nicht** das ganze `gr00t`-Paket in Isaacs Python installieren
    (PyTorch-Konflikt!). Zwei saubere Optionen:
@@ -155,7 +155,7 @@ WORKDIR /workspace
 - Vendor-Client (`client.py`): kopiert `MsgSerializer` und implementiert ein minimales
   `PolicyClient.get_action(obs) -> np.ndarray (16, 28)` per `zmq.REQ`-Socket auf
   `tcp://localhost:5555`. Vorlage: die Klassen `MsgSerializer`/`PolicyClient` in
-  [gr00t/policy/server_client.py](../app/Groot-1.6/gr00t/policy/server_client.py).
+  [gr00t/policy/server_client.py](../../../app/Groot-1.6/gr00t/policy/server_client.py).
 
 ---
 
@@ -216,7 +216,7 @@ mkdir -p "$APPTAINER_CACHEDIR" "$APPTAINER_TMPDIR"
 > als Erklärung der Struktur.
 >
 > **Wichtig:** Isaac Sim benötigt RT-Cores → **nicht** `kisski`/A100, sondern
-> `jupyter`-Partition (Quadro RTX 5000). Siehe [SIM_GPU_COMPATIBILITY.md](SIM_GPU_COMPATIBILITY.md).
+> `jupyter`-Partition (Quadro RTX 5000). Siehe [gpu-kompatibilitaet.md](gpu-kompatibilitaet.md).
 
 Wichtig: **GR00T-Server im Hintergrund**, kurz warten, dann **Sim-Client** im
 selben Job/Node.

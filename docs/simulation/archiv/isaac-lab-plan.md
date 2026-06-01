@@ -43,7 +43,7 @@ Zwei entkoppelte Prozesse, kommunizieren über ZMQ (localhost):
 └─────────────────────────────┘                            └──────────────────────────────┘
 ```
 
-- **Policy-Server** = bestehendes [gr00t/eval/run_gr00t_server.py](../app/Groot-1.6/gr00t/eval/run_gr00t_server.py),
+- **Policy-Server** = bestehendes [gr00t/eval/run_gr00t_server.py](../../../app/Groot-1.6/gr00t/eval/run_gr00t_server.py),
   unverändert. Lädt euren Checkpoint mit `--embodiment-tag new_embodiment`
   `--embodiment-config-module examples.G1_DEX3.g1_dex3_config`.
 - **Sim-Client** = neu zu schreiben. Nutzt `gr00t.policy.server_client` als Client.
@@ -62,7 +62,7 @@ Isaac Lab ist **nicht** im aktuellen SIF. Optionen:
 | Isaac Lab via pip/uv in frische venv auf scratch | hoch (Treiber/Vulkan-Fummelei) | nur Fallback |
 
 - **Headless-Rendering** auf A100/H100: EGL-Pfad. Das mitgelieferte
-  [scripts/eval/check_sim_eval_ready.py](../app/Groot-1.6/scripts/eval/check_sim_eval_ready.py)
+  [scripts/eval/check_sim_eval_ready.py](../../../app/Groot-1.6/scripts/eval/check_sim_eval_ready.py)
   zeigt das nötige Vulkan-/EGL-ICD-Setup (`nvidia_icd.json`, `10_nvidia.json`) —
   als Vorlage für die Sim-Umgebung verwenden.
 - Beide Prozesse im selben SLURM-Job auf demselben Node starten (Server im
@@ -122,11 +122,11 @@ loop bis done:
 ## 7. Eval-Harness wiederverwenden
 
 Statt von Null: die Struktur der vorhandenen Sim-Envs als Vorlage nehmen —
-[gr00t/eval/sim/LIBERO/libero_env.py](../app/Groot-1.6/gr00t/eval/sim/LIBERO/libero_env.py)
+[gr00t/eval/sim/LIBERO/libero_env.py](../../../app/Groot-1.6/gr00t/eval/sim/LIBERO/libero_env.py)
 und die Wrapper:
-- [wrapper/multistep_wrapper.py](../app/Groot-1.6/gr00t/eval/sim/wrapper/multistep_wrapper.py)
+- [wrapper/multistep_wrapper.py](../../../app/Groot-1.6/gr00t/eval/sim/wrapper/multistep_wrapper.py)
   — Action-Chunk-Ausführung
-- [wrapper/video_recording_wrapper.py](../app/Groot-1.6/gr00t/eval/sim/wrapper/video_recording_wrapper.py)
+- [wrapper/video_recording_wrapper.py](../../../app/Groot-1.6/gr00t/eval/sim/wrapper/video_recording_wrapper.py)
   — automatische Video-Aufzeichnung
 
 Die G1-Dex3-Env als Gym-Env mit derselben Schnittstelle bauen → Success-Rate über
@@ -161,6 +161,6 @@ Aufwands. D–E sind dank vorhandenem Server/Client klein. F–G sind iterativ.
 
 ## 10. Voraussetzung vor Phase A
 
-Zuerst **Open-Loop-Eval** ([gr00t/eval/open_loop_eval.py](../app/Groot-1.6/gr00t/eval/open_loop_eval.py))
+Zuerst **Open-Loop-Eval** ([gr00t/eval/open_loop_eval.py](../../../app/Groot-1.6/gr00t/eval/open_loop_eval.py))
 auf dem Checkpoint laufen lassen. Wenn die per-Joint-MSE schon schlecht ist, ist
 das Modell nicht reif für eine Sim und der Aufwand A–G lohnt nicht.

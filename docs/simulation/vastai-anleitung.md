@@ -368,6 +368,83 @@ scp -P <port> root@<ip>:/data/logs/groot_server.log ./groot_server.log
 
 ---
 
+## Diagnose: Open-Loop-Replay (Config vs. Training trennen)
+
+Wenn der Roboter im Modell-Eval die Würfel nicht greift, ist die Schlüsselfrage:
+**liegt es am untrainierten Modell oder an einem Fehler in Sim/Config?** Der Open-Loop-
+Replay beantwortet das eindeutig: statt das GR00T-Modell zu befragen, spielt er die
+**echten aufgezeichneten Dataset-Aktionen** (gebündelte Episode 0) direkt in dieselbe
+Isaac-Lab-Env. Kein Server, kein Modell.
+
+Interpretation:
+- Fährt der Roboter die Arme zum Tisch und schließt die Finger (greif-artige Bewegung)
+  → Sim/Config führt korrekte Aktionen korrekt aus → Wegdriften im Modell-Eval liegt am
+  **Training**, nicht an der Config.
+- Driftet der Roboter auch beim Replay weg / bewegt sich unsinnig → es steckt doch ein
+  **Sim-Problem** drin (Reachability, Konvention, Skalierung).
+
+Der Replay ist **vollständig additiv**: er überschreibt nichts vom Modell-Eval, nutzt
+eigene Ausgabepfade (`/data/sim_videos_replay`, `/data/sim_results_replay`) und kann sogar
+**parallel** in einer zweiten Instanz laufen.
+
+### Lauf konfigurieren
+
+Gleiches Image wie der Modell-Eval, aber der **Entrypoint wird überschrieben**:
+
+**Docker Options:**
+```
+--ipc=host --shm-size=16g -p 22 --entrypoint bash
+```
+
+**Args to pass to docker entrypoint:**
+```
+/scripts/entrypoint_replay.sh
+```
+
+**Environment Variables:**
+
+| Variable | Wert | Pflicht? |
+|---|---|---|
+| `HF_TOKEN` | `hf_...` | Ja (für USD-Asset-Download) |
+| `HF_CHECKPOINT_REPO` | `luca-mue/groot-g1dex3-checkpoint` | Ja, falls kein `ASSET_PATH` |
+| `ASSET_PATH` | `/data/checkpoints/groot-g1dex3-checkpoint/g1_dex3.usd` | Alternativ zu `HF_CHECKPOINT_REPO` |
+| `GRASP_TEST` | `1` | Nein — Würfel exakt an die aufgezeichneten Greifpunkte setzen (Greif-Physik-Test) |
+
+> Der Replay braucht **kein** Checkpoint-Modell, nur das `g1_dex3.usd`-Asset. Das HF-Repo
+> wird hier nur als Quelle für das USD genutzt.
+
+### Ergebnis lesen
+
+Der Lauf gibt direkt im Log die Diagnose-Kennzahlen aus:
+
+```
+[Replay] TRACKING-FEHLER Arm-Gelenke: mittel=0.022 rad
+[Replay]   > ~0.3 rad mittel = Arme folgen NICHT (PD-Gains zu schwach = Sim-Bug);
+            < ~0.1 = Tracking ok (dann Geometrie/Modell).
+[Replay] GREIF-DIAGNOSE: min Hand→Würfel-Distanz = 5.9 cm | max Würfel-Anhebung = 1.0 cm
+[Replay]   Distanz klein + Anhebung>~2cm → Greifen FUNKTIONIERT.
+```
+
+- **Tracking-Fehler < ~0.1 rad** → der Roboter folgt den kommandierten Gelenkwinkeln; die
+  PD-Gains und die Articulation-Config sind in Ordnung.
+- **`--grasp-test` (GRASP_TEST=1)**: setzt die Würfel exakt unter die aufgezeichneten
+  Greifpunkte. Eine **Würfel-Anhebung > ~2 cm** beweist, dass die Greif-Physik (Finger,
+  Kontakte, Reibung) funktioniert.
+
+Ergebnisse sichern (vor dem Zerstören der Instanz):
+```bash
+scp -P <port> root@<ip>:/data/sim_results_replay/results.json ./replay_results.json
+scp -P <port> root@<ip>:/data/sim_videos_replay/replay_episode0.mp4 ./replay_episode0.mp4
+```
+
+> **Befund dieses Projekts:** Tracking 0.022 rad und (nach Korrektur der Tischhöhe) 1.0 cm
+> Anhebung im Grasp-Test → Sim/Config sind validiert; das Greifen funktioniert physikalisch.
+> Das Wegdriften im Modell-Eval von checkpoint-3000 ist also dem **untrainierten Modell**
+> zuzuschreiben, nicht der Config. Details in
+> [`implementation-notes.md`](implementation-notes.md) §11.
+
+---
+
 ## Kosten & Laufzeiten (Richtwerte)
 
 | GPU | Preis/h | 20 Episoden (ca.) | Kosten gesamt |

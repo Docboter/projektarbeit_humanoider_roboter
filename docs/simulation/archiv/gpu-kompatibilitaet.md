@@ -1,6 +1,6 @@
 # GPU-Eignung für die Isaac-Sim-Closed-Loop-Sim auf GWDG
 
-> **TL;DR:** Die Closed-Loop-Sim aus [ISAAC_LAB_SIM_PLAN.md](ISAAC_LAB_SIM_PLAN.md)
+> **TL;DR:** Die Closed-Loop-Sim aus [isaac-lab-plan.md](isaac-lab-plan.md)
 > **läuft NICHT auf den KISSKI-Partitionen** (A100/H100), weil Isaac Sim zum Rendern
 > der Kameras **RT-Cores** braucht und A100/H100 keine haben. Der einzige Weg auf GWDG
 > führt über die **`jupyter`-Partition** (`jupyter.hpc.gwdg.de`) mit ihrer
@@ -78,7 +78,7 @@ NVENC** → Isaac-Sim-Rendering funktioniert prinzipiell. Aber mit Vorbehalten:
 ## 4. Konsequenz für die Zwei-Container-Architektur
 
 Die 16 GB VRAM erzwingen eine Entscheidung über die beiden Container
-(GR00T-Server + Isaac-Sim-Client, vgl. [SIM_DOCKER_BUILD.md](SIM_DOCKER_BUILD.md)):
+(GR00T-Server + Isaac-Sim-Client, vgl. [sim-docker-build.md](sim-docker-build.md)):
 
 - **Variante A — alles auf dem RTX-5000-Knoten:** GR00T-Server **und** Isaac-Sim-Client
   auf derselben Karte. GR00T-N1.6-Gewichte + Isaac Sim + 4 Kamera-Buffer müssen
