@@ -374,20 +374,74 @@ gültiges Modell-Urteil** — die Policy bekam Boden-Bilder.
 
 ---
 
-## 11. Aktueller Stand (2026-06-01)
+## 11. Diagnose: Open-Loop-Replay — Sim führt Aktionen korrekt aus
 
-Pipeline läuft **vollständig end-to-end** (20 Episoden, `results.json` + Videos). High-Kameras
-zeigen jetzt den Arbeitsbereich. Gemessen: **0/20 Erfolge** mit `checkpoint-3000` — erwartet
-(zu früh trainiert + Rest-OOD durch offene Sim-Treue-Punkte).
+Frage: Liegt das Wegdriften der Hände im Closed-Loop am Modell oder an einem Sim-/Config-Bug?
+
+**Werkzeug** (additiv, überschreibt nichts): `run_g1_dex3_replay.py` + `replay_episode0.npz`
+(echte Dataset-Aktionen Episode 0, 1173 Frames) + `entrypoint_replay.sh`. Spielt die echten
+Ground-Truth-Aktionen open-loop in dieselbe Env (kein Server, kein Modell), getrennte Ausgaben
+(`/data/sim_videos_replay`, `/data/sim_results_replay`).
+
+**Ergebnis (gemessen):** Tracking-Fehler Arm-Gelenke **mittel = 0,022 rad** (~1,3°),
+worst-case 0,10–0,13 rad. → Der Roboter folgt den kommandierten Gelenkwinkeln **präzise**.
+
+**Schlussfolgerung:**
+- Aktuator-Gains, Joint-Mapping, Konvention, Aktions-Anwendung (absolut) sind **korrekt** —
+  **kein Bug im Steuerungs-Pfad**. (Eine PD-Gain-Erhöhung wäre ein Fehler gewesen.)
+- Replay stapelt nicht (`success=False`) → **erwartet**: Open-Loop kann sich nicht an die
+  (zufälligen, nicht dataset-gematchten) Würfelpositionen anpassen; Objekt-Posen sind im Dataset
+  nicht gespeichert. Kein Sim-Bug.
+- **Das Wegdriften im Modell-Eval ist das Modell** (checkpoint-3000 untertrainiert), nicht der
+  Steuerungs-Pfad. Die Sim fährt Trajektorien treu nach.
+
+### KRITISCHER FUND (durch Greif-Diagnose): Tisch zu tief → Würfel unerreichbar
+
+Die Greif-Diagnose im Replay (min Hand→Würfel-Distanz, Würfel-Anhebung, tiefster Greifpunkt)
+deckte einen echten Geometrie-Bug auf, den kein Training ausgleichen könnte:
+
+- Tiefster Handpunkt der echten Greif-Trajektorie: **z ≈ 0,92 m**. Alter Tisch: Oberseite 0,74,
+  Würfel-Mitte 0,77 → die Würfel lagen **~15 cm UNTER dem erreichbaren Arbeitsraum**.
+- min Hand→Würfel-Distanz war **21,6 cm** — die Hände kamen nie auch nur nah an die Würfel.
+- ⇒ Selbst ein perfekt trainiertes Modell hätte nie greifen können.
+
+**Fix (Geometrie):**
+- Tisch-Oberseite **0,74 → 0,87** (Würfel sitzen jetzt bei z≈0,895, im Greifraum).
+- Würfel-Startpos + Sampling in den erreichbaren Bereich: `block_x_range (0.30,0.40)`,
+  `block_y_range (-0.20,0.20)`, `block_z_surface 0.895`.
+- High-Cam-Ziel `(0.5,0,0.73)→(0.40,0,0.86)` + Szenen-Cam-Ziel angehoben (Tisch ist höher).
+- Roboter NICHT abgesenkt (die weltfesten Kameras sind auf Becken z=0.85 kalibriert).
+
+**Nach dem Fix (Greif-Test `--grasp-test`, Würfel exakt an die Greifpunkte gesetzt):**
+min Hand→Würfel-Distanz **5,9 cm** (war 21,6), Würfel-**Anhebung 1,0 cm**, Würfel sichtbar
+verschoben → **Kontakt- und Greif-Physik funktionieren** (kein kaputtes Reibungs-/Kollisionsmodell).
+Kein fester Griff im Open-Loop, weil die Hand sich ohne visuelle Rückkopplung nicht exakt auf den
+Würfel ausrichtet (systembedingt) — ein trainiertes Closed-Loop-Modell korrigiert das.
+
+**Fazit:** Der einzige verbliebene Sim-Bug (Tischhöhe) ist behoben; die Sim kann greifen.
+Ab hier ist **Training der Hebel**. Optionale Feinschritte: Würfel-Reibungsmaterial erhöhen
+(festerer Griff), Greifpunkt-Platzierung verfeinern.
+
+---
+
+## 12. Aktueller Stand (2026-06-01)
+
+Pipeline läuft **vollständig end-to-end** und ist als treues, dataset-nahes Eval-Harness
+**validiert**. `checkpoint-3000` stapelt (erwartet) nicht — das ist jetzt nachweislich das
+Modell (untertrainiert), nicht die Sim.
 
 | Komponente | Status |
 |---|---|
 | Pipeline (download → server → sim → eval) | ✅ end-to-end verifiziert |
-| High-Kameras | ✅ Look-at auf Tisch (Render verifiziert) |
-| Roboter-Startpose (Dataset Frame 0) + weißer Tisch | ✅ umgesetzt |
-| Wrist-Kameras + Dex3-Finger-Vorzeichenkonvention | ⏳ offen (Sim-Treue, s. Abschnitt 10) |
+| 4 Policy-Kameras (high + wrist) | ✅ nach Tisch-Umbau erneut am Render verifiziert — alle zeigen Tisch/Hände/Würfel |
+| Szenen-Übersichtskamera (Video) | ✅ |
+| Roboter-Startpose (Dataset Frame 0) + weißer Tisch | ✅ |
+| **Tischhöhe (Greifraum)** | ✅ behoben (0,74→0,87); Würfel jetzt erreichbar |
+| Dex3-Finger | ✅ kein Sign-Flip; Gelenkgrenzen geweitet |
+| Greif-Physik | ✅ funktioniert (Kontakt + Anhebung im Replay) |
+| Aktions-Tracking | ✅ 0,022 rad (Sim führt treu aus) |
 | `Dockerfile.vastai` | python3.10 + deepspeed-uninstall + pyzmq + 3 Smoke-Tests + openssh |
-| Repo-Fixes noch nicht im gepushten Image | `client.py`, `run_g1_dex3_sim_eval.py`, `g1_dex3_cfg.py`, `entrypoint_sim.sh` → `update_sim_image.ps1 -VastAI` |
+| Repo-Fixes noch nicht im gepushten Image | gesamtes `g1_dex3_sim/` + `scripts/` → `update_sim_image.ps1 -VastAI` |
 | Modell | `checkpoint-3000` (3000 Steps); für echte Erfolge 30k+ nötig |
 | KISSKI Sim-Eval | Blockiert (RTX 5000 Turing < Ampere) |
 
@@ -397,7 +451,7 @@ Für reproduzierbaren Stand: Image neu bauen + pushen.
 
 ---
 
-## 12. Outdated-Hinweise zu anderen Dokumenten
+## 13. Outdated-Hinweise zu anderen Dokumenten
 
 | Dokument | Problem |
 |---|---|

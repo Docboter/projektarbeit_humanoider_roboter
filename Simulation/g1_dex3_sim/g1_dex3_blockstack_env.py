@@ -54,14 +54,17 @@ class G1Dex3BlockstackSceneCfg(InteractiveSceneCfg):
     table: RigidObjectCfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/table",
         spawn=sim_utils.CuboidCfg(
-            size=(0.8, 0.6, 0.74),
+            # Höher gemacht: Oberseite bei z=0.87 (war 0.74). Der Replay zeigte, dass die
+            # Hände nur bis z≈0.92 herunterreichen — bei Tischhöhe 0.74 lagen die Würfel
+            # (z≈0.77) ~15 cm UNTER dem erreichbaren Arbeitsraum → unmöglich zu greifen.
+            size=(0.8, 0.6, 0.87),
             rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
             mass_props=sim_utils.MassPropertiesCfg(mass=50.0),
             collision_props=sim_utils.CollisionPropertiesCfg(),
             # Weiß wie im Dataset (war beige Platzhalter-Farbe).
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.85, 0.85, 0.85)),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 0.37)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 0.435)),
     )
 
     # 3 Würfel (5 cm Kantenlänge, unterschiedliche Farben)
@@ -74,7 +77,7 @@ class G1Dex3BlockstackSceneCfg(InteractiveSceneCfg):
             collision_props=sim_utils.CollisionPropertiesCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.1, 0.1)),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.4, -0.1, 0.77)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.34, -0.15, 0.895)),
     )
 
     block_1: RigidObjectCfg = RigidObjectCfg(
@@ -86,7 +89,7 @@ class G1Dex3BlockstackSceneCfg(InteractiveSceneCfg):
             collision_props=sim_utils.CollisionPropertiesCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.1, 0.6, 0.1)),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 0.77)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.36, 0.0, 0.895)),
     )
 
     block_2: RigidObjectCfg = RigidObjectCfg(
@@ -98,7 +101,7 @@ class G1Dex3BlockstackSceneCfg(InteractiveSceneCfg):
             collision_props=sim_utils.CollisionPropertiesCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.1, 0.1, 0.8)),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.6, 0.1, 0.77)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.34, 0.15, 0.895)),
     )
 
     # Roboter
@@ -228,10 +231,11 @@ class G1Dex3BlockstackEnvCfg(DirectRLEnvCfg):
     policy_hz: float = 30.0
     execution_horizon: int = 8        # wie viele Chunk-Steps ausführen, dann re-plan
 
-    # Block-Sampling-Bereich (Tischoberfläche)
-    block_x_range: tuple[float, float] = (0.35, 0.65)
-    block_y_range: tuple[float, float] = (-0.2, 0.2)
-    block_z_surface: float = 0.77     # Tischoberfläche + halbe Würfel-Höhe
+    # Block-Sampling-Bereich = erreichbarer Greifraum (aus Replay: Hände greifen bei x≈0.35,
+    # y≈±0.19, z≈0.92). x/y eng um den Greifraum, z = neue Tischoberfläche (0.87) + halbe Würfelhöhe.
+    block_x_range: tuple[float, float] = (0.30, 0.40)
+    block_y_range: tuple[float, float] = (-0.20, 0.20)
+    block_z_surface: float = 0.895    # Tischoberfläche 0.87 + halbe Würfel-Höhe (0.025)
 
     # Erfolgsparameter
     stack_xy_tol: float = 0.03  # max. horizontaler Versatz zwischen Würfel-Mittelpunkten

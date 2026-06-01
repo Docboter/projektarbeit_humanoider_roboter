@@ -228,7 +228,9 @@ class G1Dex3CameraCfg:
         #
         # Tisch-Oberfläche ~ (0.5, 0.0, 0.74); Roboter-Pelvis bei z=0.85 → Kopf ~ z=1.4, x≈0.
         # Werte sind Startschätzung — gegen die Referenz-Frames iterativ verfeinern.
-        high_target = (0.5, 0.0, 0.73)
+        # Ziel auf den neuen, erreichbaren Würfelbereich (Tisch angehoben auf Oberseite 0.87,
+        # Würfel bei x≈0.35, z≈0.90). Vorher (0.5,0,0.73) — zeigte auf den zu tiefen Alt-Tisch.
+        high_target = (0.40, 0.0, 0.86)
         left_high_eye = (0.0, 0.06, 1.40)
         right_high_eye = (0.0, -0.06, 1.40)
         self.cam_left_high = {
@@ -258,7 +260,7 @@ class G1Dex3CameraCfg:
         # Roboter (Pelvis z=0.85, Kopf ~1.4) + Tisch (x=0.5) — von schräg vorne-seitlich-oben.
         # Weltfest. eye in +X (vor dem Tisch), +Y (seitlich), +Z (oben); Blick zurück auf die Mitte.
         scene_eye = (1.8, 1.6, 1.7)
-        scene_target = (0.25, 0.0, 0.70)
+        scene_target = (0.30, 0.0, 0.80)
         self.cam_scene = {"pos": scene_eye, "rot": look_at_world_quat(scene_eye, scene_target)}
 
 
