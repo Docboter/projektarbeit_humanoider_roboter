@@ -25,7 +25,6 @@ Important files:
 ```text
 docker/1-docker-setup/Dockerfile
 docker/1-docker-setup/README.md
-docker/1-docker-setup/.env.single-container.example
 docker/1-docker-setup/Dockerfile.dockerignore
 docker/1-docker-setup/scripts/start_groot_server.sh
 docker/1-docker-setup/scripts/start_unitree_sim.sh
@@ -70,15 +69,6 @@ wants Docker-in-Docker experiments.
 
 ## Build and push target
 
-The user is on Windows. Docker works in normal PowerShell but did not initially
-work inside the VS Code PowerShell terminal. The likely fix is restarting VS
-Code after Docker Desktop installation or adding Docker Desktop's bin directory
-to the VS Code terminal PATH:
-
-```text
-C:\Program Files\Docker\Docker\resources\bin
-```
-
 Build from project root:
 
 ```bash
@@ -102,11 +92,35 @@ Vast image:
 ## Checkpoints and assets
 
 The Dockerfile-specific ignore file excludes GR00T checkpoints by default.
-The checkpoint must be mounted or copied on Vast to:
+The checkpoint is not present in this repo and must be downloaded, mounted, or
+copied on Vast to:
 
 ```text
 /workspace/Isaac-GR00T/checkpoints/GR00T-N1.6-G1-PnPAppleToPlate
 ```
+
+The expected Hugging Face checkpoint exists here:
+
+```text
+nvidia/GR00T-N1.6-G1-PnPAppleToPlate
+```
+
+Download inside the Vast container:
+
+```bash
+mkdir -p /workspace/Isaac-GR00T/checkpoints/GR00T-N1.6-G1-PnPAppleToPlate
+/workspace/Isaac-GR00T/.venv/bin/huggingface-cli download \
+  nvidia/GR00T-N1.6-G1-PnPAppleToPlate \
+  --local-dir /workspace/Isaac-GR00T/checkpoints/GR00T-N1.6-G1-PnPAppleToPlate
+```
+
+Alternative for online startup:
+
+```bash
+GROOT_MODEL_PATH=nvidia/GR00T-N1.6-G1-PnPAppleToPlate start_groot_server.sh
+```
+
+For quick Vast tests, the local checkpoint path is preferred.
 
 If Unitree/Isaac assets are missing after launch, run inside the container:
 
@@ -143,6 +157,95 @@ suspect Vast NAT/port mapping before changing Isaac/GR00T code.
 Avoid A100 if the user wants livestreaming, because NVIDIA notes that A100 does
 not support NVENC for Isaac Sim livestreaming. Prefer L40S 48 GB, RTX 6000 Ada
 48 GB, or two consumer/pro GPUs with enough VRAM.
+
+Current WebRTC recommendation:
+
+- Use the Isaac Sim WebRTC Streaming Client on the local machine.
+- Set `PUBLIC_IP=<vast-public-ip-or-hostname>` before starting
+  `start_unitree_sim.sh`.
+- Treat `8210/tcp` as optional only; this single image does not currently start
+  a dedicated browser web viewer service.
+- If WebRTC fails, check Vast port mapping/NAT/firewall before changing code.
+
+## Data flow summary
+
+`start_groot_server.sh` starts `gr00t/eval/run_gr00t_server.py` as a ZeroMQ
+PolicyServer on port `5555`.
+
+`start_unitree_sim.sh` starts `sim_main.py` with `--action_source groot`,
+camera settings, prompt FIFO/file, and GR00T host/port. `sim_main.py` creates
+`GrootActionProvider` through `create_action_provider()`.
+
+`GrootActionProvider` reads prompts from `groot_prompt.pipe` or
+`groot_prompt.txt`, falling back to `pick up the cylinder`. For each provider
+step it reads `front_camera` RGB plus robot joint state from Isaac and sends a
+nested GR00T observation containing:
+
+```text
+video.ego_view
+state.left_leg/right_leg/waist/left_arm/right_arm/left_hand/right_hand
+language.annotation.human.task_description
+```
+
+The sim and GR00T exchange data over ZeroMQ using msgpack plus NumPy array
+serialization. Returned actions are currently mapped to arms, hands, and waist.
+`base_height_command` and `navigate_command` may be logged but are not mapped
+to Isaac joint targets.
+
+Important: the current Unitree client already sends nested observations matching
+`Gr00tPolicy`. Do not blindly add `--use_sim_policy_wrapper` to
+`start_groot_server.sh`, even though the Hugging Face model card shows it for
+another example path.
+
+## Visual recording fallback
+
+WebRTC can fail on Vast when fixed external ports are unavailable. A recording
+fallback was added to `repos/unitree_sim_isaaclab/sim_main.py`:
+
+```text
+--record_camera front_camera
+--record_dir /workspace/recordings/groot-dryrun
+--record_every 5
+--record_max_frames 600
+--record_fps 20
+--record_mp4 / --no-record_mp4
+--record_stop_after_max / --no-record_stop_after_max
+```
+
+The recorder writes dependency-free PPM frames to `<record_dir>/frames` and
+uses `ffmpeg` to create `<record_dir>/<camera>.mp4` during cleanup. `ffmpeg` is
+already installed in the single-container Dockerfile.
+
+Typical Vast command:
+
+```bash
+mkdir -p /workspace/recordings
+rm -rf /workspace/recordings/groot-dryrun
+export UNITREE_EXTRA_ARGS="--groot_debug --groot_dry_run --record_camera front_camera --record_dir /workspace/recordings/groot-dryrun --record_every 5 --record_max_frames 600 --record_fps 20"
+CUDA_VISIBLE_DEVICES=0 start_unitree_sim.sh 2>&1 | tee /workspace/recordings/groot-dryrun.log
+```
+
+Download locally:
+
+```bash
+scp -P <vast-ssh-port> root@<vast-host>:/workspace/recordings/groot-dryrun/front_camera.mp4 .
+scp -P <vast-ssh-port> root@<vast-host>:/workspace/recordings/groot-dryrun.log .
+```
+
+This requires rebuilding/pushing the Docker image and starting a new Vast
+instance, because the current running container does not receive local code
+changes automatically.
+
+For fast iteration against an existing Vast container, use the local automation
+script:
+
+```bash
+VAST_HOST=45.81.32.13 VAST_PORT=22924 scripts/vast_record_groot_test.sh
+```
+
+It copies the current `sim_main.py` and `tools/test_groot_server_action.py` to
+Vast, starts GR00T in `tmux`, starts the recording sim, sends the prompt, waits
+for `front_camera.mp4`, and downloads the MP4/log to `vast-recordings/`.
 
 ## Test sequence on Vast
 
@@ -223,12 +326,9 @@ Current recommendation:
 
 ## Local verification limits so far
 
-This workspace is Windows and the Codex sandbox did not have Docker, WSL, or
-Bash available. Therefore the image has not yet been built locally and the shell
-scripts have not been run with `bash -n`.
-
-Files were checked manually for paths, line endings, and consistency. Shell
-scripts have LF line endings.
+The current workspace is Linux. Docker daemon access may still be unavailable
+inside the Codex sandbox, so the image may need to be built in the user's own
+terminal. Shell scripts can be checked locally with `bash -n`.
 
 ## Known follow-up tasks
 
@@ -238,6 +338,8 @@ scripts have LF line endings.
 - Confirm whether Dockerfile-specific ignore file
   `docker/1-docker-setup/Dockerfile.dockerignore` is honored by the user's
   Docker version.
+- Download or mount `nvidia/GR00T-N1.6-G1-PnPAppleToPlate` on Vast before
+  starting GR00T.
 - Verify whether Isaac WebRTC works through Vast port mapping.
 - If WebRTC is blocked by Vast NAT, consider adding a browser web viewer,
   Tailscale/VPN approach, or explicit livestream port configuration.
