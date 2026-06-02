@@ -16,6 +16,7 @@ KISSKI HPC-Cluster.
 | [multi-gpu.md](multi-gpu.md) | **Multi-GPU (bis 4× A100).** Vorteile, ToDos (torchrun-Launcher + SLURM-Ressourcen) und Verifikationsschritte — geplant, noch nicht umgesetzt. |
 | [train-test-split.md](train-test-split.md) | 80/20-Datensatz-Split — Implementierung und Nutzung für die Evaluation auf ungesehenen Episoden. |
 | [wandb-offline-sync.md](wandb-offline-sync.md) | W&B-Offline-Sync auf KISSKI (Compute-Knoten ohne Internet). |
+| [wandb-run-auswertung.md](wandb-run-auswertung.md) | Momentaufnahme-Auswertung eines laufenden Trainings-Runs (Health-Check, LR-Schedule, Batch-Size- & Eval-Empfehlungen). Interaktive Kurven: [wandb-run-charts.html](wandb-run-charts.html). |
 
 ## Die vier Wege im Überblick
 
