@@ -8,25 +8,28 @@
 
 > 📈 **Interaktive Kurven:** [`wandb-run-charts.html`](wandb-run-charts.html) — Loss /
 > LR / grad_norm als eigenständige HTML (im Browser öffnen). Snapshot Stand
-> 2026-06-02, ~19:38 UTC (Step ~11.820).
+> 2026-06-02, ~20:47 UTC (Step ~23.060).
 
 ---
 
-## 1. Run-Status (Stand 2026-06-02, ~19:26 UTC)
+## 1. Run-Status (Stand 2026-06-02, ~20:47 UTC)
 
 | Feld | Wert |
 |---|---|
 | Run-ID / Name | `i6n1t613` / `g1_dex3_blockstacking_v1` |
 | Node | `ggpu177` (KISSKI / GWDG), `num_gpus = 1` |
 | Start | 2026-06-02 18:37 UTC |
-| Letzter Heartbeat | 2026-06-02 19:26 UTC (aktiv, Schritte wachsen weiter) |
-| Fortschritt | **global_step ≈ 9.820 / 175.000 (~5,6 %)** |
-| Laufzeit bisher | ~3.831 s (~64 min) |
-| Durchsatz | ~2,56 Steps/s → **~19 h Gesamtlaufzeit** (passt in 48 h KISSKI-Walltime) |
+| Letzter Heartbeat | 2026-06-02 20:47 UTC (aktiv, Schritte wachsen weiter) |
+| Fortschritt | **global_step ≈ 23.060 / 175.000 (~13,2 %)** |
+| Laufzeit bisher | ~8.760 s (~2,4 h) |
+| Durchsatz | ~2,6 Steps/s → **~19 h Gesamtlaufzeit** (passt in 48 h KISSKI-Walltime) |
 
 > Hinweis: W&B zeigt den `state` zeitweise als `finished` an, obwohl die
-> Schrittzahl zwischen Abfragen weiter steigt — ein Sync-Artefakt. Der Lauf ist
-> anhand des fortlaufenden Heartbeats und wachsender `global_step` **aktiv**.
+> Schrittzahl zwischen Abfragen weiter steigt — ein Sync-Artefakt. Auch die
+> `summaryMetrics` der GraphQL-API können kurzzeitig einen **stale/inkonsistenten**
+> Snapshot liefern (z. B. niedrigere Laufzeit/Step als die History) — maßgeblich
+> sind die fortlaufende History und der Heartbeat. Der Lauf ist durchgehend **aktiv**
+> (kein Neustart/Resume).
 
 ---
 
@@ -34,13 +37,15 @@
 
 | Metrik | Verlauf | Bewertung |
 |---|---|---|
-| `train/loss` | 1,37 → ~0,06 | sauberer Abfall, kein NaN |
-| `train/grad_norm` | ~2,8 (früh) → ~0,42 | stabil sinkend; Clipping (`max_grad_norm=1`) nur anfangs aktiv |
-| Loss-Plateau | seit ~Step 2.600 bei 0,05–0,09 | **erwartbar** für Flow-Matching/Diffusion-Loss |
+| `train/loss` | 1,37 → ~0,036 (geglättet ~0,04) | sauberer Abfall, kein NaN |
+| `train/grad_norm` | ~2,8 (früh) → ~0,27 | stabil sinkend; Clipping (`max_grad_norm=1`) nur anfangs aktiv |
+| Loss-Verlauf | schneller Abfall bis ~Step 2.600 (~0,08), danach **weiter langsam sinkend**: ~0,06 (Step 11k) → ~0,04 (Step 23k) | gesunde, anhaltende Verbesserung — **kein** echtes Plateau |
 
 **Wichtig:** Niedriger Train-Loss ≠ gute Policy. Der Flow-Matching-Loss von VLA-
-Modellen plateaut praktisch immer früh bei kleinen Werten. Aussagekräftig ist die
-**Erfolgsrate in der Sim-Eval**, nicht diese Kurve. Das Plateau ist also kein Defekt.
+Modellen liegt grundsätzlich auf kleinen Werten mit hoher Punkt-zu-Punkt-Streuung
+(zufälliger Diffusions-Timestep pro Schritt). Auf die **geglättete** Linie achten —
+die sinkt weiter. Aussagekräftig für die Policy bleibt aber die **Erfolgsrate in der
+Sim-Eval**, nicht diese Kurve.
 
 ---
 
@@ -54,7 +59,7 @@ diesem Run gibt es keine Val-Kurve: `eval_strategy = "no"`,
 `enable_open_loop_eval = false` → geloggt sind nur `train/loss`,
 `train/learning_rate`, `train/grad_norm`. Die klassische Overfitting-Signatur
 (Train-Loss ↓, Val-Loss ↑) ist damit **prinzipiell unsichtbar**, egal wie lange der
-Lauf läuft. Zusätzlich: Stand ~5,6 % (Step 9.820) wäre es auch *mit* Eval zu früh.
+Lauf läuft. Zusätzlich: Stand ~13 % (Step 23.060) wäre es auch *mit* Eval noch früh.
 
 Die Train-Loss-Kurve sagt nur: Das Modell passt die **Trainingsverteilung** gut an
 das Flow-Matching-Ziel an. Das ist **kein** Generalisierungssignal (s. Abschnitt 2).
@@ -62,15 +67,17 @@ das Flow-Matching-Ziel an. Das ist **kein** Generalisierungssignal (s. Abschnitt
 **Qualitative Einschätzung (mit Vorbehalt):**
 
 - **Underfitting: unwahrscheinlich.** Loss niedrig und ohne Stocken gefallen,
-  grad_norm gesund/sinkend — die Optimierung läuft problemlos.
+  grad_norm gesund/sinkend — und der geglättete Loss **sinkt bis Step 23k weiter**
+  (~0,06 → ~0,04). Die Optimierung läuft problemlos und ist nicht stehengeblieben.
 - **Overfitting: nicht sichtbar, strukturelles Risiko eher moderat-niedrig:**
   1. nur **~3 Epochen** (175k Steps ≈ 3 Durchläufe, `num_train_epochs=3`),
   2. **Partial-Finetune** (nur Projector + Diffusion + 4 LLM-Layer + VLLN; Backbone &
      Visual eingefroren) → wenige trainierbare Parameter,
   3. **kräftige Augmentation** (color jitter, albumentations).
 - Das eigentliche *unbeobachtete* Risiko ist „stilles Overfitting" in späteren
-  Epochen bzw. **abnehmender Ertrag** (Train-Loss flach seit ~Step 2.600, aber noch
-  ~165k Steps offen) — nur eine Eval würde das zeigen.
+  Epochen — der weiter sinkende Train-Loss (bis Step 23k) kann sowohl echte
+  Verbesserung als auch beginnende Anpassung an die Trainingsdaten sein; ohne
+  Val-Kurve nicht unterscheidbar. Bei noch ~152k offenen Steps nur per Eval klärbar.
 
 **Wie man es tatsächlich beantwortet:**
 
