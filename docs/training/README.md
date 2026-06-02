@@ -13,6 +13,7 @@ KISSKI HPC-Cluster.
 | [anleitung.md](anleitung.md) | **Zuerst.** Schritt-für-Schritt — die vier Wege zum Trainieren (vast.ai, lokal mit Launcher-Skript, lokal mit `docker run`, KISSKI), Daten retten, „Was passiert intern?", FAQ. |
 | [kisski-hpc.md](kisski-hpc.md) | **HPC-Training auf KISSKI.** SIF-Konvertierung, VAST-Storage, SLURM-Job, Monitoring, Checkpoint-Export, KISSKI-Troubleshooting (die ausführliche Form von Weg D). |
 | [env-vars.md](env-vars.md) | **Konfigurationsreferenz.** Alle Env-Vars + VRAM-Richtwerte — die Single Source of Truth, auf die `anleitung.md` und `kisski-hpc.md` verweisen. |
+| [multi-gpu.md](multi-gpu.md) | **Multi-GPU (bis 4× A100).** Vorteile, ToDos (torchrun-Launcher + SLURM-Ressourcen) und Verifikationsschritte — geplant, noch nicht umgesetzt. |
 | [train-test-split.md](train-test-split.md) | 80/20-Datensatz-Split — Implementierung und Nutzung für die Evaluation auf ungesehenen Episoden. |
 | [wandb-offline-sync.md](wandb-offline-sync.md) | W&B-Offline-Sync auf KISSKI (Compute-Knoten ohne Internet). |
 

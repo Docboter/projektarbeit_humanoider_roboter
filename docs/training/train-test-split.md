@@ -4,9 +4,96 @@ Dieses Dokument beschreibt, wie der Block-Stacking-Datensatz in einen Trainings-
 
 ---
 
+## ⚠️ Status: Split aktuell NICHT aktiv — vor dem nächsten Training beachten!
+
+Der Split ist **im Code vorbereitet, aber nicht scharf geschaltet**. Der Filter
+(`_apply_split_filter`) liest den Bereich aus `meta/info.json` — dort steht aber
+weiterhin der originale Eintrag:
+
+```json
+"splits": { "train": "0:301" }
+```
+
+Dadurch werden **alle 301 Episoden** als `train` geladen; die 60 vorgesehenen
+Test-Episoden werden mittrainiert. Bestätigt durch das Trainings-Log von Job
+14058798 (`Total steps: 276681` = voller Datensatz; bei 80 % wären es ~221.000
+Frames).
+
+**Vor dem nächsten Training zwingend erledigen:**
+
+1. In `data/unitreerobotics/G1_Dex3_BlockStacking_Dataset/meta/info.json` den
+   `splits`-Eintrag auf `{ "train": "0:241", "test": "241:301" }` setzen
+   (Details unter [Geänderte Dateien](#geänderte-dateien)).
+2. Erst **danach** den Job einreichen — der Datensatz wird beim Job-Start
+   gesharded; eine spätere Änderung wirkt nicht mehr auf einen laufenden Job.
+
+> **Hinweis:** Auch mit korrektem Split gibt es **keine** Validierung *während*
+> des Trainings (in `run_finetuning.sh` ist kein `eval`/`val`-Flag gesetzt). Der
+> `test`-Split dient ausschließlich der Evaluation **nach** dem Fine-tuning.
+
+---
+
 ## Motivation
 
 Der originale Datensatz (`unitreerobotics/G1_Dex3_BlockStacking_Dataset`) enthielt alle 301 Episoden in einem einzigen `train`-Split. Ohne eine separate Testmenge wäre eine objektive Bewertung nach dem Training nicht möglich — das Modell würde auf denselben Daten bewertet, auf denen es gelernt hat.
+
+---
+
+## Welche Validierung wofür? (Methodik)
+
+**Lohnt sich der Split überhaupt?** Für eine Imitation-Learning-/VLA-Policy wie
+GR00T nur bedingt — der entscheidende methodische Punkt:
+
+> **Niedriger Action-Loss ≠ erfolgreiche Aufgabe.** Eine Policy kann auf
+> Test-Episoden eine gute MSE erreichen und beim echten Stapeln trotzdem
+> scheitern (Fehler akkumulieren über den Rollout, Demonstrationen sind
+> multimodal). Der held-out Loss ist nur ein **schwacher Proxy** für die
+> eigentlich relevante Größe: die **Task-Success-Rate**.
+
+Die Validierungssignale, geordnet nach Aussagekraft (und was im Projekt dafür
+existiert):
+
+| Signal | Was es misst | Aussagekraft | Braucht Daten-Split? |
+|---|---|---|---|
+| **Trainings-Loss** (W&B) | Konvergenz | nur Sanity-Check | nein |
+| **Open-Loop-Eval** (`gr00t/eval/open_loop_eval.py`, `Training/kisski_open_loop_eval.sh`) — Action-MSE/MAE | Aktions-Vorhersagefehler auf Trajektorien | **schwacher** Proxy; gut zum billigen Checkpoint-Vergleich | **ja** — sonst Bewertung auf Trainingsdaten |
+| **Closed-Loop-Sim** (Isaac Lab, `Simulation/g1_dex3_sim/run_g1_dex3_sim_eval.py`) | tatsächliche **Task-Success-Rate** | **die** relevante Metrik | nein (Sim randomisiert Startbedingungen) |
+| **Echter Roboter** | reale Erfolgsrate | Goldstandard | nein |
+
+**Konsequenzen:**
+
+- Der **Closed-Loop-Sim-Eval ist die eigentliche Validierung** — er beantwortet
+  „funktioniert die Policy?". Er braucht **keinen** Daten-Split; ungesehene
+  *Startbedingungen* (Block-Positionen) sind sogar der aussagekräftigere
+  Generalisierungstest als zurückgehaltene Demo-Episoden.
+- Der 80/20-Split nützt vor allem der **Open-Loop-Eval**: er macht deren
+  MSE/MAE-Zahl zu einem sauberen *held-out* Wert (gut für den Bericht und zum
+  schnellen Vorfiltern der Checkpoints).
+- **Datenkosten beachten:** 20 % von 301 Episoden zurückzuhalten reduziert bei
+  Behavior Cloning spürbar die Trainingsdaten — ein realer Trade-off, wenn man
+  ohnehin primär in der Sim validiert.
+
+**Empfohlene Pipeline:**
+
+```
+Train-Loss (Konvergenz)
+  → Open-Loop-MSE (billiger Checkpoint-Filter, auf test-Split!)
+  → Closed-Loop-Sim (Erfolgsrate, Hauptmetrik)
+  → echter Roboter (final)
+```
+
+- **Primär** auf die **Closed-Loop-Sim-Success-Rate** validieren.
+- Den Split **behalten**, aber als *sekundäres, billiges* Signal nutzen (Action-MSE
+  zum Checkpoint-Vergleich, bevor die teure Sim-Eval nur auf die besten 2–3
+  Checkpoints angewandt wird).
+- **Achtung:** Wer den Split nutzt, muss ihn *konsequent* nutzen — neben der
+  `info.json` (siehe Status-Hinweis oben) auch `Training/kisski_open_loop_eval.sh`
+  so anpassen, dass die Trajektorien-IDs aus dem **`test`-Bereich (241–300)**
+  stammen. Aktuell zieht das Skript IDs über alle 301 Episoden → die Open-Loop-Eval
+  läuft sonst weiter auf Trainingsdaten.
+- **Vertretbare Alternative:** auf allen 301 Episoden trainieren (maximale Daten)
+  und **ausschließlich in der Sim** validieren — methodisch sauber, solange die
+  Sim-Startbedingungen nicht 1:1 aus den Demos stammen.
 
 ---
 
