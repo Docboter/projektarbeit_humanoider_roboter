@@ -97,6 +97,8 @@ On vast.ai: GPU must be **Ampere+ with RT-Cores** (L40, RTX 4090, A6000) — A10
 | `ASSET_PATH` | `/data/checkpoints/groot-g1dex3-checkpoint/g1_dex3.usd` | USD robot asset |
 | `NUM_EPISODES` | `20` | Eval episodes |
 | `SHELL_ON_ERROR` | `1` | Drop to shell on failure (recommended) |
+| `LIVESTREAM` | `0` | `0`=headless (default), `1`=WebRTC public, `2`=WebRTC private — live 3D-viewport stream (opt-in) |
+| `LIVESTREAM_PORT` | `49100` | WebRTC signaling port. **On vast.ai: set to the externally-mapped port** (internal==external, else SDP port mismatch). Also map `-p 8211 -p 49100 -p 47998/udp`. See [livestream-plan.md](docs/simulation/livestream-plan.md) |
 
 ### Build the image
 

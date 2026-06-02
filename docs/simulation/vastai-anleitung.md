@@ -221,6 +221,12 @@ lucam03/projekt-humanoider-roboter-sim-vastai:latest
 
 > `-p 22` gibt Port 22 frei, damit vast.ai ihn auf einen externen Port mappt und
 > `vastai ssh-url <id>` / `vastai ssh <id>` funktioniert.
+>
+> **Live-Stream (optional):** Wenn du den 3D-Viewport live ansehen willst (Abschnitt
+> „Optional — Live-Stream"), zusätzlich die WebRTC-Ports mappen:
+> ```
+> --ipc=host --shm-size=16g -p 22 -p 8211 -p 49100 -p 47998/udp
+> ```
 
 **Environment Variables** (ein Eintrag pro Zeile):
 
@@ -365,6 +371,115 @@ scp -P <port> root@<ip>:/data/logs/groot_server.log ./groot_server.log
   ]
 }
 ```
+
+---
+
+## Optional — Live-Stream des 3D-Viewports (WebRTC)
+
+Standardmäßig läuft die Eval **headless** und produziert nur MP4s (Schritt 7). Mit
+`LIVESTREAM=1` streamt Isaac Sim stattdessen den **3D-Viewport live per WebRTC** — zum
+Zuschauen beim Greif-Verhalten in Echtzeit. Die MP4-Aufzeichnung läuft parallel weiter.
+
+> **GPU-Voraussetzung:** WebRTC braucht den **NVENC**-Hardware-Encoder. Alle für die Sim
+> ohnehin geeigneten GPUs (L40, RTX 3090/4090, A6000) haben NVENC — A100/H100 sind bereits
+> aus zwei Gründen ausgeschlossen (keine RT-Cores **und** kein NVENC).
+
+### ⚠️ Das vast.ai-Port-Problem (wichtig!)
+
+vast.ai mappt jeden Container-Port auf einen **zufälligen externen Port**. WebRTC bettet den
+Signaling-Port aber in die SDP-Verhandlung ein — der Port, auf den der Client verbindet, muss
+mit dem übereinstimmen, den Isaac Sim **intern** advertised. Lösung: Isaac Sim auf **genau den
+extern gemappten Port** binden lassen (intern == extern), via `LIVESTREAM_PORT`.
+
+Ablauf:
+
+1. **Ports beim Launch mappen** (Docker Options, Schritt 4b):
+   ```
+   --ipc=host --shm-size=16g -p 22 -p 8211 -p 49100 -p 47998/udp
+   ```
+2. **Instanz starten**, dann im vast.ai-Dashboard unter **„IP & Port Info"** die externen
+   Ports ablesen, auf die `8211` / `49100` / `47998` gemappt wurden. Beispiel:
+   ```
+   8211  → 70.1.2.3:31021
+   49100 → 70.1.2.3:31022
+   47998 → 70.1.2.3:31023/udp
+   ```
+3. **`LIVESTREAM_PORT` auf den extern gemappten Signaling-Port setzen** (hier `31022`), damit
+   der in der SDP advertised Port == extern erreichbarer Port:
+
+   | Variable | Wert |
+   |---|---|
+   | `LIVESTREAM` | `1` (öffentlich) oder `2` (privat/lokal) |
+   | `LIVESTREAM_PORT` | `31022` (= extern gemappter `49100`) |
+   | `PUBLIC_IP` | *(leer lassen → auto via `ifconfig.me`)* oder `70.1.2.3` |
+
+   > Env-Vars lassen sich auf vast.ai erst **vor** dem Launch setzen. Der Trick: Instanz mit
+   > `-p 8211 -p 49100 -p 47998/udp` und **`LIVESTREAM=0`** starten, externe Ports ablesen,
+   > dann den Container neu starten und `LIVESTREAM`/`LIVESTREAM_PORT` setzen — oder gleich per
+   > SSH den Sim mit den richtigen Werten manuell starten (`bash /scripts/entrypoint_sim.sh`).
+
+### Laufenden Server/Sim stoppen und neu starten (für Env-Wechsel)
+
+Env-Vars (z. B. `LIVESTREAM`, `LIVESTREAM_PORT`) lassen sich auf vast.ai nur **vor** dem
+Launch setzen. Um sie zu ändern, ohne die Instanz neu zu mieten, stoppst du die laufenden
+Workloads per SSH und startest den Entrypoint mit neuen Werten manuell.
+
+Der Entrypoint startet drei Prozesse: `sshd` (daemonisiert), den **GR00T-Server**
+(Hintergrund) und den **Isaac-Lab-Sim-Client** (Vordergrund). Beende die beiden Workloads —
+sie halten VRAM **und** Port 5555 — aber **nicht** den Entrypoint selbst, falls er PID 1 ist.
+
+**1. Anschauen, was läuft, und ob der Entrypoint PID 1 ist:**
+```bash
+ps -ef --forest | grep -E 'entrypoint_sim|run_gr00t_server|run_g1_dex3|isaaclab|kit' | grep -v grep
+ps -p 1 -o comm=
+```
+
+**2. Workloads gezielt killen (Server + Sim, NICHT PID 1):**
+```bash
+pkill -f run_g1_dex3_sim_eval.py     # Sim-Client
+pkill -f run_gr00t_server.py         # GR00T-Policy-Server
+pkill -f isaaclab.sh                 # Wrapper
+pkill -f 'exts/omni' ; pkill -f kit  # evtl. übrig gebliebene Kit/Isaac-Sim-Prozesse
+```
+
+**3. Prüfen, dass Port 5555 + VRAM frei sind:**
+```bash
+ss -tlnp | grep 5555 || echo "Port 5555 frei"
+nvidia-smi          # VRAM sollte fast leer sein
+```
+
+**4. Neu starten mit den gewünschten Env-Vars in der SSH-Session:**
+```bash
+export LIVESTREAM=1 LIVESTREAM_PORT=<extern-gemappter-49100> NUM_EPISODES=2
+bash /scripts/entrypoint_sim.sh
+```
+
+> ⚠️ **PID-1-Falle:** Zeigt `ps -p 1 -o comm=` den Entrypoint (`entrypoint_sim.sh`/`bash`),
+> ist er **PID 1**. Wird in Schritt 2 der Vordergrund-Sim gekillt, läuft das Skript weiter,
+> findet keine `results.json` und:
+> - bei **`SHELL_ON_ERROR=1`** (empfohlen) → `exec /bin/bash` → PID 1 wird zur Shell,
+>   **Container + SSH bleiben am Leben.** ✅
+> - bei **`SHELL_ON_ERROR=0`** → `exit 1` → **PID 1 stirbt → Container stoppt → SSH bricht ab.** ❌
+>
+> Deshalb die Instanz am besten gleich mit `SHELL_ON_ERROR=1` starten. Dann ist das
+> manuelle Stoppen/Neustarten gefahrlos — oder du setzt `LIVESTREAM`/`LIVESTREAM_PORT`
+> direkt beim Launch und sparst dir den Neustart ganz.
+
+### Verbinden
+
+Der Entrypoint gibt beim Start die Client-URL aus. Generell:
+
+**Browser (am einfachsten):**
+```
+http://<PUBLIC_IP>:<extern-gemappter-8211>/streaming/webrtc-client?server=<PUBLIC_IP>
+```
+
+**Native Isaac Sim WebRTC Streaming Client** (von NVIDIA, läuft ohne lokale GPU):
+Server eintragen als `<PUBLIC_IP>:<extern-gemappter-49100>`.
+
+> Nur **ein** Client gleichzeitig pro Instanz. Kein VPN/Tunnel-IP (ZeroTier etc.) nutzen —
+> WebRTC braucht die echte öffentliche IP. UDP-Mapping (47998) ist auf vast.ai weniger
+> zuverlässig als TCP; falls das Bild nicht durchkommt, auf die MP4-Aufzeichnung zurückfallen.
 
 ---
 

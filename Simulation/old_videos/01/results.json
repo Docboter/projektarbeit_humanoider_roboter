@@ -1,0 +1,150 @@
+{
+  "num_episodes": 20,
+  "num_success": 0,
+  "success_rate": 0.0,
+  "server": "tcp://localhost:5555",
+  "task_description": "stack the blocks",
+  "execution_horizon": 8,
+  "episodes": [
+    {
+      "success": false,
+      "num_steps": 600,
+      "duration_s": 68.96,
+      "success_step": -1,
+      "episode": 1
+    },
+    {
+      "success": false,
+      "num_steps": 600,
+      "duration_s": 68.37,
+      "success_step": -1,
+      "episode": 2
+    },
+    {
+      "success": false,
+      "num_steps": 600,
+      "duration_s": 67.98,
+      "success_step": -1,
+      "episode": 3
+    },
+    {
+      "success": false,
+      "num_steps": 600,
+      "duration_s": 70.66,
+      "success_step": -1,
+      "episode": 4
+    },
+    {
+      "success": false,
+      "num_steps": 600,
+      "duration_s": 70.27,
+      "success_step": -1,
+      "episode": 5
+    },
+    {
+      "success": false,
+      "num_steps": 600,
+      "duration_s": 69.7,
+      "success_step": -1,
+      "episode": 6
+    },
+    {
+      "success": false,
+      "num_steps": 600,
+      "duration_s": 67.55,
+      "success_step": -1,
+      "episode": 7
+    },
+    {
+      "success": false,
+      "num_steps": 600,
+      "duration_s": 70.41,
+      "success_step": -1,
+      "episode": 8
+    },
+    {
+      "success": false,
+      "num_steps": 600,
+      "duration_s": 69.8,
+      "success_step": -1,
+      "episode": 9
+    },
+    {
+      "success": false,
+      "num_steps": 600,
+      "duration_s": 67.67,
+      "success_step": -1,
+      "episode": 10
+    },
+    {
+      "success": false,
+      "num_steps": 600,
+      "duration_s": 68.1,
+      "success_step": -1,
+      "episode": 11
+    },
+    {
+      "success": false,
+      "num_steps": 600,
+      "duration_s": 65.17,
+      "success_step": -1,
+      "episode": 12
+    },
+    {
+      "success": false,
+      "num_steps": 600,
+      "duration_s": 70.35,
+      "success_step": -1,
+      "episode": 13
+    },
+    {
+      "success": false,
+      "num_steps": 600,
+      "duration_s": 70.47,
+      "success_step": -1,
+      "episode": 14
+    },
+    {
+      "success": false,
+      "num_steps": 600,
+      "duration_s": 71.17,
+      "success_step": -1,
+      "episode": 15
+    },
+    {
+      "success": false,
+      "num_steps": 600,
+      "duration_s": 66.64,
+      "success_step": -1,
+      "episode": 16
+    },
+    {
+      "success": false,
+      "num_steps": 600,
+      "duration_s": 70.14,
+      "success_step": -1,
+      "episode": 17
+    },
+    {
+      "success": false,
+      "num_steps": 600,
+      "duration_s": 70.41,
+      "success_step": -1,
+      "episode": 18
+    },
+    {
+      "success": false,
+      "num_steps": 600,
+      "duration_s": 71.63,
+      "success_step": -1,
+      "episode": 19
+    },
+    {
+      "success": false,
+      "num_steps": 600,
+      "duration_s": 70.86,
+      "success_step": -1,
+      "episode": 20
+    }
+  ]
+}

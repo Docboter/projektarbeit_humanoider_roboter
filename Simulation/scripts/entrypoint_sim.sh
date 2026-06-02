@@ -24,6 +24,13 @@
 #   NO_FLASH_ATTN        — IGNORIERT (Eagle-Block2A-2B-v2 erzwingt flash_attention_2)
 #   SKIP_DOWNLOAD        — 1=Checkpoint-Download überspringen (default 0)
 #   SHELL_ON_ERROR       — 1=bei Fehler in Shell fallen    (default 0)
+#   LIVESTREAM           — 0=aus (default), 1=WebRTC öffentlich, 2=WebRTC privat/lokal
+#                          Bei !=0 wird der 3D-Viewport per WebRTC gestreamt (statt headless).
+#   LIVESTREAM_PORT      — WebRTC-Signaling-Port (default 49100).
+#                          ⚠️ vast.ai: auf den EXTERN gemappten Port setzen (intern==extern),
+#                          sonst stimmt der in der SDP eingebettete Port nicht (s. u.).
+#   PUBLIC_IP            — Öffentliche Instanz-IP für den Remote-Endpunkt
+#                          (auto via ifconfig.me, wenn leer und LIVESTREAM!=0)
 #
 # Auf vast.ai:
 #   Image:          lucam03/projekt-humanoider-roboter-sim-vastai:latest
@@ -75,6 +82,16 @@ CHECKPOINT_PATH="${CHECKPOINT_PATH:-$DATA_DIR/checkpoints}"
 HF_CHECKPOINT_REPO="${HF_CHECKPOINT_REPO:-}"
 NO_FLASH_ATTN="${NO_FLASH_ATTN:-0}"
 SKIP_DOWNLOAD="${SKIP_DOWNLOAD:-0}"
+LIVESTREAM="${LIVESTREAM:-0}"
+LIVESTREAM_PORT="${LIVESTREAM_PORT:-49100}"
+
+# WebRTC-Livestream: öffentliche IP für den Remote-Endpunkt ermitteln, wenn Stream aktiv
+# und nicht explizit gesetzt. ifconfig.me liefert die öffentliche Instanz-IP (vast.ai).
+if [[ "$LIVESTREAM" != "0" && -z "${PUBLIC_IP:-}" ]]; then
+    PUBLIC_IP="$(curl -s --max-time 10 ifconfig.me || true)"
+fi
+export LIVESTREAM LIVESTREAM_PORT
+[[ -n "${PUBLIC_IP:-}" ]] && export PUBLIC_IP
 
 mkdir -p "$DATA_DIR/sim_videos" "$DATA_DIR/sim_results" "$DATA_DIR/logs"
 
@@ -228,11 +245,39 @@ printf "    %-22s %s\n" "Task:"           "$TASK_DESCRIPTION"
 printf "    %-22s %s\n" "Checkpoint:"     "$CHECKPOINT_PATH"
 printf "    %-22s %s\n" "Asset:"          "$ASSET_PATH"
 printf "    %-22s %s\n" "Videos:"         "$DATA_DIR/sim_videos"
+
+# ── App-Flags: headless (default) ODER WebRTC-Livestream ───────────────────────
+# Livestream impliziert headless — KEIN zusätzliches --headless setzen, sonst greift der
+# Experience-File-Bug IsaacLab#381. Bei LIVESTREAM=0 bleibt das alte Verhalten exakt erhalten.
+APP_FLAGS=( --enable_cameras )
+if [[ "$LIVESTREAM" != "0" ]]; then
+    APP_FLAGS+=( --livestream "$LIVESTREAM" )
+    # kit-Settings: Signaling-Port + öffentlicher Endpunkt (für NAT/Cloud-Erreichbarkeit).
+    # Auf vast.ai MUSS LIVESTREAM_PORT der extern gemappte Port sein (intern==extern), weil
+    # WebRTC den Port in die SDP-Verhandlung einbettet.
+    KIT_ARGS="--/app/livestream/port=${LIVESTREAM_PORT}"
+    if [[ -n "${PUBLIC_IP:-}" ]]; then
+        KIT_ARGS="${KIT_ARGS} --/app/livestream/publicEndpointAddress=${PUBLIC_IP}"
+    fi
+    APP_FLAGS+=( --kit_args "$KIT_ARGS" )
+
+    log "Live-Stream AKTIV (WebRTC, LIVESTREAM=$LIVESTREAM, Port $LIVESTREAM_PORT)"
+    if [[ -n "${PUBLIC_IP:-}" ]]; then
+        echo "    Verbinden via:"
+        echo "      Browser:  http://${PUBLIC_IP}:8211/streaming/webrtc-client?server=${PUBLIC_IP}"
+        echo "      Native:   Isaac Sim WebRTC Streaming Client → ${PUBLIC_IP}:${LIVESTREAM_PORT}"
+        warn "vast.ai: 8211/${LIVESTREAM_PORT} (TCP) + 47998/udp müssen gemappt sein."
+        warn "         Externen Port aus dem Dashboard ablesen und LIVESTREAM_PORT darauf setzen."
+    else
+        warn "PUBLIC_IP konnte nicht ermittelt werden — Client-URL manuell aus der Instanz-IP bilden."
+    fi
+else
+    APP_FLAGS+=( --headless )
+fi
 echo ""
 
 ${ISAACLAB_PATH}/isaaclab.sh -p /workspace/g1_dex3_sim/run_g1_dex3_sim_eval.py \
-    --headless \
-    --enable_cameras \
+    "${APP_FLAGS[@]}" \
     --server "tcp://localhost:$ZMQ_PORT" \
     --num-episodes   "$NUM_EPISODES" \
     --execution-horizon "$EXECUTION_HORIZON" \

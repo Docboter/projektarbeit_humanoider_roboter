@@ -150,7 +150,19 @@ ENV PATH="/app/Groot-1.6/.venv/bin:${PATH}" \
     # flash-attn: 0=aktiviert (RTX 3090+), 1=deaktiviert (sicherer Fallback)
     NO_FLASH_ATTN="0" \
     SKIP_DOWNLOAD="0" \
-    SHELL_ON_ERROR="0"
+    SHELL_ON_ERROR="0" \
+    # WebRTC-Livestream (opt-in): 0=aus, 1=öffentlich, 2=privat/lokal.
+    # LIVESTREAM_PORT auf vast.ai auf den EXTERN gemappten Port setzen (intern==extern).
+    LIVESTREAM="0" \
+    LIVESTREAM_PORT="49100"
+
+# WebRTC-Livestream-Ports (nur Doku/Default; auf vast.ai separat per Docker-Options mappen:
+#   -p 8211 -p 49100 -p 47998/udp). NVENC ist in NVIDIA_DRIVER_CAPABILITIES=all enthalten.
+#   8211/tcp  = WebRTC Browser-Client + Signaling
+#   49100/tcp = WebRTC Streaming (Signaling/Steuerung)
+#   47998/udp = WebRTC Medien-Stream (Video)
+EXPOSE 8211 49100
+EXPOSE 47998/udp
 
 WORKDIR /workspace
 

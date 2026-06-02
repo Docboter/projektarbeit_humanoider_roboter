@@ -21,6 +21,7 @@ Repo-Root gibt den Schnellstart; hier liegen die ausführlichen Anleitungen, the
 | [simulation/](simulation/) | **Einstieg Simulation** (Index) |
 | [simulation/vastai-anleitung.md](simulation/vastai-anleitung.md) | **Primärer Workflow** — Closed-Loop-Sim-Eval auf vast.ai, Schritt für Schritt (inkl. Open-Loop-Replay-Diagnose) |
 | [simulation/implementation-notes.md](simulation/implementation-notes.md) | **READ FIRST** — Lessons Learned, bekannte Fixes, aktueller Stand |
+| [simulation/livestream-plan.md](simulation/livestream-plan.md) | **Plan** — Live-Stream der Sim via WebRTC (Echtzeit-Viewport vom Remote-GPU), noch nicht umgesetzt |
 | [simulation/archiv/](simulation/archiv/) | Historische Planungs-/Analyse-Docs (überholt, als Kontext erhalten) |
 
 ## Submodul-Dokumentation (`app/Groot-1.6/examples/G1_DEX3/`)
