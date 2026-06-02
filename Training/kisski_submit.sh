@@ -55,10 +55,17 @@ GITHUB_BRANCH="${GITHUB_BRANCH:-training-luca-KISSKI}"
 REPO_DIR="${REPO_DIR:-/mnt/vast-kisski/projects/kisski-humrob/repo}"
 SKIP_GIT_PULL="${SKIP_GIT_PULL:-1}"
 
-MAX_STEPS="${MAX_STEPS:-30000}"
+MAX_STEPS="${MAX_STEPS:-175000}"          # ~5 Epochen (Datensatz: 281k Frames / Batch 8 ≈ 35k Schritte/Epoche)
 GLOBAL_BATCH_SIZE="${GLOBAL_BATCH_SIZE:-8}"
 NUM_GPUS="${NUM_GPUS:-1}"
 WANDB_PROJECT="${WANDB_PROJECT:-gr00t-g1-dex3}"
+
+# Checkpoints: alle 5000 Schritte (~52 min) ein Checkpoint, Limit hoch genug,
+# dass NICHTS gelöscht wird → 35 Checkpoints gleichmäßig über den ganzen Lauf
+# verteilt, sodass sich der Trainingsfortschritt im Nachhinein rekonstruieren lässt.
+# Achtung: jeder Checkpoint ≈ 22 GB (13 GB optimizer.pt + 9 GB Gewichte) → ~770 GB gesamt.
+SAVE_STEPS="${SAVE_STEPS:-5000}"
+SAVE_TOTAL_LIMIT="${SAVE_TOTAL_LIMIT:-40}"
 
 SKIP_DOWNLOAD="${SKIP_DOWNLOAD:-1}"
 SKIP_CONVERT="${SKIP_CONVERT:-0}"
@@ -89,6 +96,7 @@ echo "    DATA_DIR:          $DATA_DIR"
 echo "    REPO_DIR:          $REPO_DIR"
 echo "    GITHUB_REPO:       $GITHUB_REPO (Branch: $GITHUB_BRANCH)"
 echo "    MAX_STEPS:         $MAX_STEPS"
+echo "    SAVE_STEPS:        $SAVE_STEPS  (SAVE_TOTAL_LIMIT=$SAVE_TOTAL_LIMIT)"
 echo "    GLOBAL_BATCH_SIZE: $GLOBAL_BATCH_SIZE"
 echo "    NUM_GPUS:          $NUM_GPUS"
 echo "    WANDB_PROJECT:     $WANDB_PROJECT"
@@ -133,6 +141,8 @@ APPTAINER_ARGS=(
     --env "UV_OFFLINE=1"
     ${HF_TOKEN:+--env "HF_TOKEN=$HF_TOKEN"}
     --env "MAX_STEPS=$MAX_STEPS"
+    --env "SAVE_STEPS=$SAVE_STEPS"
+    --env "SAVE_TOTAL_LIMIT=$SAVE_TOTAL_LIMIT"
     --env "GLOBAL_BATCH_SIZE=$GLOBAL_BATCH_SIZE"
     --env "NUM_GPUS=$NUM_GPUS"
     --env "WANDB_PROJECT=$WANDB_PROJECT"
