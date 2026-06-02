@@ -9,6 +9,7 @@ KISSKI HPC-Cluster.
 
 | Dokument | Wann lesen |
 |---|---|
+| [trainingsverfahren.md](trainingsverfahren.md) | **Was für ein Training ist das?** Modellarchitektur (GR00T N1.6 VLA), Lernverfahren (Imitation Learning, Flow-Matching), Embodiment, Ein-/Ausgaben — die konzeptionelle Einordnung. |
 | [anleitung.md](anleitung.md) | **Zuerst.** Schritt-für-Schritt — die vier Wege zum Trainieren (vast.ai, lokal mit Launcher-Skript, lokal mit `docker run`, KISSKI), Daten retten, „Was passiert intern?", FAQ. |
 | [kisski-hpc.md](kisski-hpc.md) | **HPC-Training auf KISSKI.** SIF-Konvertierung, VAST-Storage, SLURM-Job, Monitoring, Checkpoint-Export, KISSKI-Troubleshooting (die ausführliche Form von Weg D). |
 | [env-vars.md](env-vars.md) | **Konfigurationsreferenz.** Alle Env-Vars + VRAM-Richtwerte — die Single Source of Truth, auf die `anleitung.md` und `kisski-hpc.md` verweisen. |

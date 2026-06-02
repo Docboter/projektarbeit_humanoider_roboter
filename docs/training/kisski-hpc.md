@@ -68,8 +68,7 @@ als vorhanden angenommen). Für den allerersten Lauf — wenn noch keine Daten a
 Cluster-Storage liegen — muss `SKIP_DOWNLOAD=0` explizit gesetzt werden:
 
 ```bash
-export SKIP_DOWNLOAD=0
-sbatch Training/kisski_submit.sh
+SKIP_DOWNLOAD=0 HF_TOKEN=hf_... WANDB_API_KEY=... sbatch Training/kisski_submit.sh
 ```
 
 Der Entrypoint lädt Modell und Datensatz dann selbst von HuggingFace (~25 GB, ca. 10–30 min).
@@ -79,24 +78,39 @@ Bei allen weiteren Läufen ist `SKIP_DOWNLOAD=1` korrekt (Download wird automati
 
 ## Schritt 3 — Tokens setzen und Job einreichen
 
+> **WICHTIG — Variablen als Inline-Prefix angeben.** Alle Tokens und Overrides müssen **direkt vor
+> `sbatch` in einer Zeile** stehen (per `\` umgebrochen), **nicht** als getrennte `export`-Zeilen
+> davor. Grund: Das Script setzt `#SBATCH --export=ALL`, das aber nur die Umgebung des
+> `sbatch`-Aufrufs **selbst** an den Job weiterreicht. Getrennte `export`-Zeilen landen je nach
+> Shell/Session (z. B. in einer `screen`-Session) nicht zuverlässig in genau dieser Umgebung —
+> als Inline-Prefix sind die Variablen hingegen garantiert Teil davon.
+
 ```bash
-# Auf dem Login-Knoten:
-export HF_TOKEN=hf_...
-export WANDB_API_KEY=...       # optional, aber empfohlen
+# Auf dem Login-Knoten — ALLES in EINEM Befehl, Variablen direkt vor sbatch:
+HF_TOKEN=hf_... \
+WANDB_API_KEY=... \
+sbatch Training/kisski_submit.sh
+```
 
-# Optional: Trainings-Parameter überschreiben
-export MAX_STEPS=30000
-export GLOBAL_BATCH_SIZE=32    # A100 mit 80 GB VRAM verträgt deutlich mehr als 8
+Mit optionalen Trainings-Overrides (ebenfalls als Inline-Prefix, einfach weitere Zeilen davor):
 
-# Job einreichen
+```bash
+HF_TOKEN=hf_... \
+WANDB_API_KEY=... \
+MAX_STEPS=175000 \
+GLOBAL_BATCH_SIZE=32 \
 sbatch Training/kisski_submit.sh
 ```
 
 SLURM gibt die Job-ID aus, z. B. `Submitted batch job 12345678`.
 
-> **Tipp:** Tokens nicht dauerhaft in `.bashrc` speichern. Stattdessen vor jedem `sbatch` kurz
-> exportieren oder in eine nicht-eingecheckte `.env`-Datei auf dem Cluster schreiben und dort
-> sourcen.
+> **`WANDB_API_KEY` ist Pflicht** (nicht optional): `run_finetuning.sh` läuft mit `USE_WANDB=1` als
+> Default und **bricht ohne Key sofort ab** — auch im Offline-Modus, da die Key-Prüfung vor dem
+> Offline-Check greift. Wer ohne W&B trainieren will, setzt zusätzlich `USE_WANDB=0` davor.
+>
+> **Tipp:** Tokens nicht dauerhaft in `.bashrc` speichern. Stattdessen in eine nicht-eingecheckte
+> `.env`-Datei auf dem Cluster schreiben und die Werte beim Submit referenzieren, z. B.
+> `HF_TOKEN=$(grep -oP 'HF_TOKEN=\K.*' ~/.env) WANDB_API_KEY=... sbatch …`.
 
 Alle Env-Vars sind in der [Konfigurationsreferenz](env-vars.md) beschrieben.
 
@@ -167,11 +181,15 @@ Die wichtigsten Stellschrauben in [Training/kisski_submit.sh](../../Training/kis
 #SBATCH -t 48:00:00        # Walltime (max. 48h)
 ```
 
-Und die Trainings-Parameter entweder vor `sbatch` als `export` setzen oder direkt im Script:
+Trainings-Parameter werden entweder dauerhaft im Script geändert oder pro Lauf als Inline-Prefix
+direkt vor `sbatch` übergeben (siehe [Schritt 3](#schritt-3--tokens-setzen-und-job-einreichen) —
+**nicht** als getrennte `export`-Zeilen, sonst landen sie nicht im Job):
 
 ```bash
-export GLOBAL_BATCH_SIZE=32   # A100 (80 GB) verträgt viel mehr als die Standard-8
-export MAX_STEPS=50000
+GLOBAL_BATCH_SIZE=32 \
+MAX_STEPS=50000 \
+HF_TOKEN=hf_... WANDB_API_KEY=... \
+sbatch Training/kisski_submit.sh
 ```
 
 ---

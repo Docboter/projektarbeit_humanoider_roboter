@@ -11,24 +11,34 @@
 #        apptainer pull $HOME/images/projekt-humanoider-roboter.sif \
 #            docker://lucam03/projekt-humanoider-roboter:latest
 #
-#   3. Tokens setzen und Job einreichen:
-#        export HF_TOKEN=hf_...
-#        export WANDB_API_KEY=...          # optional
+#   3. Tokens EINMALIG in Dateien hinterlegen (mode 600):
+#        printf 'hf_DEIN_TOKEN\n'    > ~/.hf_token  && chmod 600 ~/.hf_token
+#        printf 'DEIN_WANDB_KEY\n'   > ~/.wandb_key && chmod 600 ~/.wandb_key
+#      Das Skript liest beide automatisch ein (siehe Block "Tokens aus Dateien").
+#      Danach genügt zum Einreichen:
 #        sbatch kisski_submit.sh
+#
+#      Grund für den Datei-Weg: KISSKI setzt SBATCH_EXPORT=none auf dem
+#      Login-Node. Das überstimmt das #SBATCH --export=ALL, sodass inline vor
+#      sbatch übergebene Variablen (HF_TOKEN=... sbatch ...) NICHT im Job
+#      ankommen. Willst du Variablen doch über die Umgebung übergeben, MUSS
+#      --export=ALL auf der Kommandozeile stehen (schlägt die Env-Variable):
+#        HF_TOKEN=hf_... WANDB_API_KEY=... sbatch --export=ALL kisski_submit.sh
+#      (W&B ist optional; ohne Key/Datei wird ohne W&B-Logging trainiert.)
 #
 # Das Skript klont automatisch das GitHub-Repo und lädt Modell + Datensatz
 # von HuggingFace herunter — kein manuelles rsync nötig.
 #
-# Optionale Überschreibungen (vor sbatch als export):
+# Optionale Überschreibungen — ebenfalls als Inline-Prefix vor sbatch:
 #   GITHUB_REPO, GITHUB_BRANCH, GITHUB_TOKEN, REPO_DIR
-#   MAX_STEPS, GLOBAL_BATCH_SIZE, NUM_GPUS, WANDB_PROJECT, DATA_DIR
-#   SKIP_GIT_PULL, SKIP_DOWNLOAD, SKIP_CONVERT, SKIP_TRAIN
+#   MAX_STEPS, SAVE_STEPS, SAVE_TOTAL_LIMIT, GLOBAL_BATCH_SIZE, NUM_GPUS,
+#   WANDB_PROJECT, DATA_DIR, SKIP_GIT_PULL, SKIP_DOWNLOAD, SKIP_CONVERT, SKIP_TRAIN
 
 #SBATCH --job-name=groot-finetune
 #SBATCH -p kisski
 #SBATCH -G A100:1
-#SBATCH -c 32
-#SBATCH --mem=64G
+#SBATCH -c 64
+#SBATCH --mem=256G
 #SBATCH -t 48:00:00
 #SBATCH --output=logs/slurm-%j.out
 #SBATCH --error=logs/slurm-%j.err
@@ -70,6 +80,34 @@ SAVE_TOTAL_LIMIT="${SAVE_TOTAL_LIMIT:-40}"
 SKIP_DOWNLOAD="${SKIP_DOWNLOAD:-1}"
 SKIP_CONVERT="${SKIP_CONVERT:-0}"
 SKIP_TRAIN="${SKIP_TRAIN:-0}"
+
+# ── Tokens aus Dateien einlesen ───────────────────────────────────────────────
+# KISSKI setzt auf dem Login-Node SBATCH_EXPORT=none. Das überstimmt das
+# #SBATCH --export=ALL oben, sodass inline vor sbatch übergebene Variablen NICHT
+# im Job ankommen. Deshalb Tokens robust aus Dateien lesen (mode 600). Eine
+# bereits gesetzte Umgebungsvariable hat Vorrang (z. B. sbatch --export=ALL,...).
+HF_TOKEN_FILE="${HF_TOKEN_FILE:-$HOME/.hf_token}"
+WANDB_KEY_FILE="${WANDB_KEY_FILE:-$HOME/.wandb_key}"
+
+if [[ -z "${HF_TOKEN:-}" && -f "$HF_TOKEN_FILE" ]]; then
+    HF_TOKEN="$(tr -d '[:space:]' < "$HF_TOKEN_FILE")"
+    if [[ -n "$HF_TOKEN" && "$HF_TOKEN" != REPLACE_* ]]; then
+        export HF_TOKEN
+        echo "    HF_TOKEN aus $HF_TOKEN_FILE gelesen."
+    else
+        unset HF_TOKEN   # Platzhalter/leer -> als nicht gesetzt behandeln
+    fi
+fi
+
+if [[ -z "${WANDB_API_KEY:-}" && -f "$WANDB_KEY_FILE" ]]; then
+    WANDB_API_KEY="$(tr -d '[:space:]' < "$WANDB_KEY_FILE")"
+    if [[ -n "$WANDB_API_KEY" && "$WANDB_API_KEY" != REPLACE_* ]]; then
+        export WANDB_API_KEY
+        echo "    WANDB_API_KEY aus $WANDB_KEY_FILE gelesen."
+    else
+        unset WANDB_API_KEY   # Platzhalter/leer -> als nicht gesetzt behandeln
+    fi
+fi
 
 # ── Voraussetzungen prüfen ────────────────────────────────────────────────────
 if [[ -z "${HF_TOKEN:-}" && "${SKIP_DOWNLOAD:-1}" != "1" ]]; then
