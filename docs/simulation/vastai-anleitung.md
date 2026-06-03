@@ -72,8 +72,8 @@ rsync -avz --progress \
 
 # Nur einen bestimmten Checkpoint-Step:
 rsync -avz --progress \
-  "<username>@transfer.hpc.gwdg.de:/mnt/vast-kisski/projects/kisski-humrob/data/g1_dex3_finetune/blockstacking/g1_dex3_blockstacking_v1/checkpoints/20260529/checkpoint-3000/" \
-  ./checkpoints/checkpoint-3000/
+  "<username>@transfer.hpc.gwdg.de:/mnt/vast-kisski/projects/kisski-humrob/data/g1_dex3_finetune/blockstacking/g1_dex3_blockstacking_v1/checkpoints/20260602/checkpoint-110000/" \
+  ./checkpoints/checkpoint-110000/
 ```
 
 Den Checkpoint-Pfad findest du in den SLURM-Logs:
@@ -92,7 +92,7 @@ pip install huggingface_hub
 huggingface-cli repo create groot-g1dex3-checkpoint --type model --private
 
 # Checkpoint hochladen
-huggingface-cli upload luca-mue/groot-g1dex3-checkpoint ./checkpoint-3000/ --repo-type model
+huggingface-cli upload luca-mue/groot-g1dex3-checkpoint ./checkpoint-110000/ --repo-type model
 ```
 
 Dann im Container `HF_CHECKPOINT_REPO=<dein-hf-username>/groot-g1dex3-checkpoint` setzen —
@@ -276,7 +276,7 @@ ssh -p 12345 root@123.45.67.89
 Parallel dazu vom Laptop aus hochladen:
 ```bash
 # Checkpoint
-scp -P 12345 -r ./checkpoints/checkpoint-3000/ root@123.45.67.89:/data/checkpoints/
+scp -P 12345 -r ./checkpoints/checkpoint-110000/ root@123.45.67.89:/data/checkpoints/
 
 # USD-Asset
 scp -P 12345 ./g1_dex3.usd root@123.45.67.89:/workspace/assets/g1_dex3.usd
@@ -307,7 +307,7 @@ tail -f /data/logs/groot_server.log
 
 Erfolgreicher Start sieht so aus:
 ```
-Loading model from /data/checkpoints/checkpoint-3000 ...
+Loading model from /data/checkpoints/groot-g1dex3-checkpoint ...
 Server listening on tcp://0.0.0.0:5555
 ```
 

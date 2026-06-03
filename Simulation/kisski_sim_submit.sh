@@ -109,7 +109,7 @@ ASSETS_DIR="${ASSETS_DIR:-/mnt/vast-kisski/projects/kisski-humrob/assets}"
 SIM_CODE="${SIM_CODE:-/user/luca.muecke/u28320/.project/dir.project/repo/Simulation}"
 
 # Spezifischer Checkpoint (nicht das übergeordnete Verzeichnis!)
-CHECKPOINT="${CHECKPOINT:-/data/g1_dex3_finetune/blockstacking/g1_dex3_blockstacking_v1/checkpoints/20260529/checkpoint-3000}"
+CHECKPOINT="${CHECKPOINT:-/data/g1_dex3_finetune/blockstacking/g1_dex3_blockstacking_v1/checkpoints/20260602/checkpoint-110000}"
 
 GROOT_APPTAINER_ARGS=(
     --nv

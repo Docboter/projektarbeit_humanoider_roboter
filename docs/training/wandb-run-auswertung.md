@@ -1,35 +1,36 @@
 # W&B-Auswertung — Run `g1_dex3_blockstacking_v1`
 
-**Erstellt:** 2026-06-02 · **Datenquelle:** W&B-Projekt `gr00t-g1-dex3`
-(Entity `projektarbeit_humanoider_roboter`) · **Run-ID:** `i6n1t613`
+**Erstellt:** 2026-06-02 · **Aktualisiert:** 2026-06-03 · **Datenquelle:** W&B-Projekt
+`gr00t-g1-dex3` (Entity `projektarbeit_humanoider_roboter`) · **Run-ID:** `i6n1t613`
 
 > Momentaufnahme eines noch **laufenden** Trainings. Die unten genannten
-> Schrittzahlen sind der Stand zum Erstellungszeitpunkt; der Lauf läuft weiter.
+> Schrittzahlen sind der Stand zum Aktualisierungszeitpunkt; der Lauf läuft weiter.
 
 > 📈 **Interaktive Kurven:** [`wandb-run-charts.html`](wandb-run-charts.html) — Loss /
 > LR / grad_norm als eigenständige HTML (im Browser öffnen). Snapshot Stand
-> 2026-06-02, ~20:47 UTC (Step ~23.060).
+> 2026-06-03, ~08:39 UTC (Step ~115.680).
 
 ---
 
-## 1. Run-Status (Stand 2026-06-02, ~20:47 UTC)
+## 1. Run-Status (Stand 2026-06-03, ~08:39 UTC)
 
 | Feld | Wert |
 |---|---|
 | Run-ID / Name | `i6n1t613` / `g1_dex3_blockstacking_v1` |
+| State | `running` (aktiv) |
 | Node | `ggpu177` (KISSKI / GWDG), `num_gpus = 1` |
 | Start | 2026-06-02 18:37 UTC |
-| Letzter Heartbeat | 2026-06-02 20:47 UTC (aktiv, Schritte wachsen weiter) |
-| Fortschritt | **global_step ≈ 23.060 / 175.000 (~13,2 %)** |
-| Laufzeit bisher | ~8.760 s (~2,4 h) |
-| Durchsatz | ~2,6 Steps/s → **~19 h Gesamtlaufzeit** (passt in 48 h KISSKI-Walltime) |
+| Letzter Heartbeat | 2026-06-03 08:38 UTC (aktiv, Schritte wachsen weiter) |
+| Fortschritt | **global_step ≈ 115.680 / 175.000 (~66,1 %)** |
+| Laufzeit bisher | ~14 h |
+| Durchsatz | ~2,3 Steps/s → **~21 h Gesamtlaufzeit** (passt in 48 h KISSKI-Walltime); Rest ≈ 7 h |
 
-> Hinweis: W&B zeigt den `state` zeitweise als `finished` an, obwohl die
-> Schrittzahl zwischen Abfragen weiter steigt — ein Sync-Artefakt. Auch die
-> `summaryMetrics` der GraphQL-API können kurzzeitig einen **stale/inkonsistenten**
-> Snapshot liefern (z. B. niedrigere Laufzeit/Step als die History) — maßgeblich
-> sind die fortlaufende History und der Heartbeat. Der Lauf ist durchgehend **aktiv**
-> (kein Neustart/Resume).
+> Hinweis: Die `summaryMetrics` der GraphQL-API liefern einen **stark stale**
+> Snapshot — bei dieser Abfrage meldeten sie `global_step = 19.020` (~Step-Index 1.901),
+> während die fortlaufende History bereits bei **global_step ≈ 115.680** stand.
+> Maßgeblich sind daher die History (logging_steps = 10 → `global_step = _step × 10`)
+> und der Heartbeat, nicht das Summary-Objekt. Der Lauf ist durchgehend **aktiv**
+> (`state = running`, kein Neustart/Resume).
 
 ---
 
@@ -37,9 +38,9 @@
 
 | Metrik | Verlauf | Bewertung |
 |---|---|---|
-| `train/loss` | 1,37 → ~0,036 (geglättet ~0,04) | sauberer Abfall, kein NaN |
-| `train/grad_norm` | ~2,8 (früh) → ~0,27 | stabil sinkend; Clipping (`max_grad_norm=1`) nur anfangs aktiv |
-| Loss-Verlauf | schneller Abfall bis ~Step 2.600 (~0,08), danach **weiter langsam sinkend**: ~0,06 (Step 11k) → ~0,04 (Step 23k) | gesunde, anhaltende Verbesserung — **kein** echtes Plateau |
+| `train/loss` | 1,34 → ~0,011 (roh, letzter Punkt); geglättet ~0,010 | sauberer Abfall, kein NaN |
+| `train/grad_norm` | ~2,5 (früh, Peak ~Step 2.300) → ~0,19 jetzt (Min ~0,07) | stabil sinkend; Clipping (`max_grad_norm=1`) nur in den ersten ~2k Steps aktiv |
+| Loss-Verlauf (geglättet, MA±5) | schneller Abfall bis ~Step 5.000 (~0,084), danach **weiter sinkend**: ~0,057 (11k) → ~0,042 (23k) → ~0,025 (50k) → ~0,018 (80k) → ~0,015 (100k) → ~0,010 (115k) | gesunde, anhaltende Verbesserung; Verlangsamung, aber **kein** Plateau |
 
 **Wichtig:** Niedriger Train-Loss ≠ gute Policy. Der Flow-Matching-Loss von VLA-
 Modellen liegt grundsätzlich auf kleinen Werten mit hoher Punkt-zu-Punkt-Streuung
@@ -59,7 +60,8 @@ diesem Run gibt es keine Val-Kurve: `eval_strategy = "no"`,
 `enable_open_loop_eval = false` → geloggt sind nur `train/loss`,
 `train/learning_rate`, `train/grad_norm`. Die klassische Overfitting-Signatur
 (Train-Loss ↓, Val-Loss ↑) ist damit **prinzipiell unsichtbar**, egal wie lange der
-Lauf läuft. Zusätzlich: Stand ~13 % (Step 23.060) wäre es auch *mit* Eval noch früh.
+Lauf läuft. (Der Lauf ist mit ~66 %, Step 115.680, inzwischen weit fortgeschritten —
+das ändert aber nichts daran, dass ohne Val-Kurve kein Generalisierungssignal vorliegt.)
 
 Die Train-Loss-Kurve sagt nur: Das Modell passt die **Trainingsverteilung** gut an
 das Flow-Matching-Ziel an. Das ist **kein** Generalisierungssignal (s. Abschnitt 2).
@@ -67,17 +69,19 @@ das Flow-Matching-Ziel an. Das ist **kein** Generalisierungssignal (s. Abschnitt
 **Qualitative Einschätzung (mit Vorbehalt):**
 
 - **Underfitting: unwahrscheinlich.** Loss niedrig und ohne Stocken gefallen,
-  grad_norm gesund/sinkend — und der geglättete Loss **sinkt bis Step 23k weiter**
-  (~0,06 → ~0,04). Die Optimierung läuft problemlos und ist nicht stehengeblieben.
+  grad_norm gesund/sinkend — und der geglättete Loss **sinkt bis Step 115k weiter**
+  (~0,057 bei 11k → ~0,010 bei 115k). Die Optimierung läuft problemlos und ist nicht
+  stehengeblieben.
 - **Overfitting: nicht sichtbar, strukturelles Risiko eher moderat-niedrig:**
   1. nur **~3 Epochen** (175k Steps ≈ 3 Durchläufe, `num_train_epochs=3`),
   2. **Partial-Finetune** (nur Projector + Diffusion + 4 LLM-Layer + VLLN; Backbone &
      Visual eingefroren) → wenige trainierbare Parameter,
   3. **kräftige Augmentation** (color jitter, albumentations).
 - Das eigentliche *unbeobachtete* Risiko ist „stilles Overfitting" in späteren
-  Epochen — der weiter sinkende Train-Loss (bis Step 23k) kann sowohl echte
+  Epochen — der weiter sinkende Train-Loss (bis Step 115k) kann sowohl echte
   Verbesserung als auch beginnende Anpassung an die Trainingsdaten sein; ohne
-  Val-Kurve nicht unterscheidbar. Bei noch ~152k offenen Steps nur per Eval klärbar.
+  Val-Kurve nicht unterscheidbar. Bei noch ~59k offenen Steps (Epoche 2→3) nur per
+  Eval klärbar.
 
 **Wie man es tatsächlich beantwortet:**
 
@@ -97,9 +101,10 @@ das Flow-Matching-Ziel an. Das ist **kein** Generalisierungssignal (s. Abschnitt
 Verifizierte Config-Werte (`i6n1t613`): `max_steps = 175000`, `warmup_ratio = 0.05`,
 `lr_scheduler_type = cosine`, `learning_rate = 1e-4`.
 
-- Warmup = 0,05 × 175.000 = **8.750 Steps** → deckt sich exakt mit dem beobachteten
-  Peak-LR-Erreichen (~Step 8.930, LR = 9,9999e-5).
-- Ab dort Cosine-Decay über die vollen 175k, klingt am Ende sauber auf ~0 aus.
+- Warmup = 0,05 × 175.000 = **8.750 Steps** → deckt sich mit dem beobachteten
+  Peak-LR-Erreichen (~Step 9.300, LR ≈ 1,0e-4).
+- Ab dort Cosine-Decay über die vollen 175k; bei Step 115.680 (jetzt) steht der LR
+  bei **2,83e-5** und klingt am Ende sauber auf ~0 aus.
 
 > Eine frühere Analyse-Version meldete fälschlich „kein LR-Annealing". Sie basierte
 > auf einer **Stale-Config** (`max_steps=30000`) aus gesampelten *Failed-Runs* des
@@ -124,7 +129,7 @@ laut CLAUDE.md für 80 GB: **64–128**.
 - Vorab prüfen: `nvidia-smi` auf dem Node — liegt die VRAM-Nutzung bei ~30/80 GB,
   ist die Reserve real.
 
-### 5.2 ⚠️ Eval ist konfiguriert, aber AUS — über 19 h kein Generalisierungssignal
+### 5.2 ⚠️ Eval ist konfiguriert, aber AUS — über ~21 h kein Generalisierungssignal
 Infrastruktur vorhanden, aber inaktiv:
 - `eval_strategy = "no"`, `do_eval = false`
 - `eval_set_split_ratio = 0.1` (Split *wäre* definiert), `eval_steps = 500`

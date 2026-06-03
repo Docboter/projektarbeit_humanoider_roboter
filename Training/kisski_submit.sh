@@ -36,7 +36,7 @@
 
 #SBATCH --job-name=groot-finetune
 #SBATCH -p kisski
-#SBATCH -G A100:1
+#SBATCH -G A100:4
 #SBATCH -c 64
 #SBATCH --mem=256G
 #SBATCH -t 48:00:00
@@ -65,9 +65,16 @@ GITHUB_BRANCH="${GITHUB_BRANCH:-training-luca-KISSKI}"
 REPO_DIR="${REPO_DIR:-/mnt/vast-kisski/projects/kisski-humrob/repo}"
 SKIP_GIT_PULL="${SKIP_GIT_PULL:-1}"
 
-MAX_STEPS="${MAX_STEPS:-175000}"          # ~5 Epochen (Datensatz: 281k Frames / Batch 8 ≈ 35k Schritte/Epoche)
-GLOBAL_BATCH_SIZE="${GLOBAL_BATCH_SIZE:-8}"
-NUM_GPUS="${NUM_GPUS:-1}"
+# 4× A100 (DeepSpeed ZeRO-2). global_batch_size MUSS durch NUM_GPUS teilbar sein
+# (Assertion in experiment.py: global_batch_size % num_gpus == 0) → per_device = 32/4 = 8.
+# ~5 Epochen: 281k Frames / Batch 32 ≈ 8,8k Schritte/Epoche → 5 Epochen ≈ 44k Schritte
+# (1-GPU-Referenz war 175k bei Batch 8; durch den 4× größeren Batch sinkt die Schrittzahl auf 1/4).
+MAX_STEPS="${MAX_STEPS:-44000}"
+GLOBAL_BATCH_SIZE="${GLOBAL_BATCH_SIZE:-32}"
+NUM_GPUS="${NUM_GPUS:-4}"
+# Lernrate sqrt-skaliert für den 4× größeren effektiven Batch: 1e-4 × √4 = 2e-4.
+# (run_finetuning.sh-Default ist 1e-4; hier bewusst hochgesetzt, jederzeit überschreibbar.)
+LEARNING_RATE="${LEARNING_RATE:-2e-4}"
 WANDB_PROJECT="${WANDB_PROJECT:-gr00t-g1-dex3}"
 
 # Checkpoints: alle 5000 Schritte (~52 min) ein Checkpoint, Limit hoch genug,
@@ -135,8 +142,9 @@ echo "    REPO_DIR:          $REPO_DIR"
 echo "    GITHUB_REPO:       $GITHUB_REPO (Branch: $GITHUB_BRANCH)"
 echo "    MAX_STEPS:         $MAX_STEPS"
 echo "    SAVE_STEPS:        $SAVE_STEPS  (SAVE_TOTAL_LIMIT=$SAVE_TOTAL_LIMIT)"
-echo "    GLOBAL_BATCH_SIZE: $GLOBAL_BATCH_SIZE"
+echo "    GLOBAL_BATCH_SIZE: $GLOBAL_BATCH_SIZE  (per_device = $((GLOBAL_BATCH_SIZE / NUM_GPUS)))"
 echo "    NUM_GPUS:          $NUM_GPUS"
+echo "    LEARNING_RATE:     $LEARNING_RATE"
 echo "    WANDB_PROJECT:     $WANDB_PROJECT"
 echo ""
 
@@ -183,6 +191,7 @@ APPTAINER_ARGS=(
     --env "SAVE_TOTAL_LIMIT=$SAVE_TOTAL_LIMIT"
     --env "GLOBAL_BATCH_SIZE=$GLOBAL_BATCH_SIZE"
     --env "NUM_GPUS=$NUM_GPUS"
+    --env "LEARNING_RATE=$LEARNING_RATE"
     --env "WANDB_PROJECT=$WANDB_PROJECT"
     --env "SKIP_DOWNLOAD=$SKIP_DOWNLOAD"
     --env "SKIP_CONVERT=$SKIP_CONVERT"

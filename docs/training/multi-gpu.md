@@ -1,7 +1,9 @@
 # Multi-GPU-Training (bis zu 4× A100)
 
-Status: **geplant / noch nicht umgesetzt.** Dieses Dokument hält fest, **warum** sich Multi-GPU
-lohnt und **was konkret zu tun ist**. Der aktuelle Lauf nutzt 1× A100 (`NUM_GPUS=1`).
+Status: **umgesetzt** (Launcher + SLURM-Defaults auf 4× A100). Dieses Dokument hält fest, **warum**
+sich Multi-GPU lohnt und **was geändert wurde**. Die KISSKI-Defaults stehen jetzt auf 4× A100
+(`NUM_GPUS=4`, `GLOBAL_BATCH_SIZE=32`, `MAX_STEPS=44000`, `LEARNING_RATE=2e-4`); für 1× A100 genügt
+`NUM_GPUS=1 GLOBAL_BATCH_SIZE=8 MAX_STEPS=175000 sbatch Training/kisski_submit.sh`.
 
 > **Kernbefund:** Die eigentliche verteilte Trainingslogik (DDP / DeepSpeed ZeRO, Gradient-Sync,
 > Batch-Splitting, Rank-aware Logging/Checkpointing) ist im GR00T-Code **bereits vollständig
@@ -29,40 +31,45 @@ lohnt und **was konkret zu tun ist**. Der aktuelle Lauf nutzt 1× A100 (`NUM_GPU
 
 ---
 
-## ToDos (konkrete Änderungen)
+## Umgesetzte Änderungen
 
-### 1. Launcher auf `torchrun` umstellen — `Training/scripts/run_finetuning.sh`
+### 1. Launcher auf `torchrun` umgestellt — [`Training/scripts/run_finetuning.sh`](../../Training/scripts/run_finetuning.sh)
 
-Aktuell startet **ein** Python-Prozess; das bleibt immer Single-GPU, egal was `num_gpus` sagt
-(torchrun setzt erst die `WORLD_SIZE`/`LOCAL_RANK`-Env, die `experiment.py` erwartet):
+Vorher startete **ein** Python-Prozess; das bleibt immer Single-GPU, egal was `num_gpus` sagt
+(torchrun setzt erst die `WORLD_SIZE`/`LOCAL_RANK`-Env, die `experiment.py` erwartet). Jetzt
+rückwärtskompatibel — bei `NUM_GPUS=1` bleibt es plain `python`:
 
 ```bash
-# vorher:
-uv run --no-sync python "$GROOT_ROOT/gr00t/experiment/launch_finetune.py" ...
-
-# nachher (rückwärtskompatibel — bei NUM_GPUS=1 bleibt es plain python):
-if [[ "${NUM_GPUS:-1}" -gt 1 ]]; then
-  LAUNCH=(torchrun --standalone --nnodes=1 --nproc_per_node="$NUM_GPUS")
+NUM_GPUS="${NUM_GPUS:-1}"
+if [[ "$NUM_GPUS" -gt 1 ]]; then
+  LAUNCHER=(torchrun --standalone --nnodes=1 --nproc_per_node="$NUM_GPUS")
 else
-  LAUNCH=(python)
+  LAUNCHER=(python)
 fi
-uv run --no-sync "${LAUNCH[@]}" "$GROOT_ROOT/gr00t/experiment/launch_finetune.py" ...
+uv run --no-sync "${LAUNCHER[@]}" "$GROOT_ROOT/gr00t/experiment/launch_finetune.py" ...
 ```
 
-### 2. SLURM-Ressourcen anfordern — `Training/kisski_submit.sh`
+### 2. SLURM-Ressourcen + Defaults — [`Training/kisski_submit.sh`](../../Training/kisski_submit.sh)
 
 ```bash
 #SBATCH -G A100:4        # statt A100:1
 #SBATCH -c 64            # genug CPU-Kerne (dataloader_num_workers × 4 GPUs)
-#SBATCH --mem=256G       # bereits gesetzt — passt
+#SBATCH --mem=256G       # passt
 # ...
 NUM_GPUS="${NUM_GPUS:-4}"
-GLOBAL_BATCH_SIZE="${GLOBAL_BATCH_SIZE:-32}"   # MUSS durch NUM_GPUS teilbar sein
+GLOBAL_BATCH_SIZE="${GLOBAL_BATCH_SIZE:-32}"   # MUSS durch NUM_GPUS teilbar → per_device=8
+MAX_STEPS="${MAX_STEPS:-44000}"                # ~5 Epochen bei Batch 32 (1/4 von 175k bei Batch 8)
+LEARNING_RATE="${LEARNING_RATE:-2e-4}"         # sqrt-skaliert für 4× größeren Batch (1e-4 × √4)
 ```
 
+> **Achtung — MAX_STEPS mitskalieren:** Ein 4× größerer Batch verarbeitet pro Schritt 4× mehr
+> Daten. Bliebe `MAX_STEPS=175000`, wären das ~20 statt 5 Epochen (Overtraining). Deshalb sinkt
+> die Default-Schrittzahl auf `44000`. `LEARNING_RATE` wird von `kisski_submit.sh` explizit durch
+> den Container gereicht (sonst greift der `run_finetuning.sh`-Default 1e-4).
+
 > Assertion im Code: `global_batch_size % num_gpus == 0`
-> ([experiment.py:37](../../app/Groot-1.6/gr00t/experiment/experiment.py)). Bei 4 GPUs muss
-> `GLOBAL_BATCH_SIZE` ∈ {4, 8, 12, 16, 32, …} sein.
+> ([experiment.py](../../app/Groot-1.6/gr00t/experiment/experiment.py), `warn_configs`). Bei 4 GPUs
+> muss `GLOBAL_BATCH_SIZE` ∈ {4, 8, 12, 16, 32, …} sein.
 
 ### 3. (Optional) DDP statt DeepSpeed erzwingen
 

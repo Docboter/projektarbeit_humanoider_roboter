@@ -92,6 +92,10 @@ graphify-out/
 .env.local
 .env.*.local
 
+# --- Python venv ---
+.venv/
+venv/
+
 # --- OS-Artefakte ---
 Thumbs.db
 .DS_Store

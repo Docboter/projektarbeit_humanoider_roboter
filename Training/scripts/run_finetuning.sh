@@ -89,15 +89,27 @@ if [[ "$USE_WANDB" == "1" ]]; then
 fi
 
 # ── 5. Trainings-Befehl bauen ─────────────────────────────────────────────────
+# Launcher: torchrun nur bei Multi-GPU, sonst plain python (rückwärtskompatibel).
+# torchrun spawnt NUM_GPUS Prozesse und setzt WORLD_SIZE/LOCAL_RANK — genau die
+# Env-Vars, die experiment.py für die nccl-Init erwartet. Ohne torchrun bleibt
+# der Lauf Single-GPU, egal welcher Wert in --num_gpus steht.
+NUM_GPUS="${NUM_GPUS:-1}"
+if [[ "$NUM_GPUS" -gt 1 ]]; then
+    LAUNCHER=(torchrun --standalone --nnodes=1 --nproc_per_node="$NUM_GPUS")
+    log "Multi-GPU-Modus: torchrun mit $NUM_GPUS Prozessen (DeepSpeed ZeRO-2, per_device = $GLOBAL_BATCH_SIZE / $NUM_GPUS)."
+else
+    LAUNCHER=(python)
+fi
+
 TRAIN_CMD=(
-    uv run --no-sync python "$GROOT_ROOT/gr00t/experiment/launch_finetune.py"
+    uv run --no-sync "${LAUNCHER[@]}" "$GROOT_ROOT/gr00t/experiment/launch_finetune.py"
     --base_model_path        "$MODEL_PATH"
     --dataset_path           "$DATASET_PATH"
     --embodiment_tag         "$EMBODIMENT_TAG"
     --modality_config_path   "$MODALITY_CONFIG"
     --output_dir             "$OUTPUT_DIR"
     --experiment_name        "$EXPERIMENT_NAME"
-    --num_gpus               "${NUM_GPUS:-1}"
+    --num_gpus               "$NUM_GPUS"
     --max_steps              "$MAX_STEPS"
     --save_steps             "$SAVE_STEPS"
     --save_total_limit       "$SAVE_TOTAL_LIMIT"
