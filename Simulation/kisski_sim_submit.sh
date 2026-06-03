@@ -57,7 +57,10 @@ TASK_DESCRIPTION="${TASK_DESCRIPTION:-stack the blocks}"
 SERVER_PORT="${SERVER_PORT:-5555}"
 
 # G1+Dex3 USD-Asset (muss erzeugt worden sein — siehe ISAAC_LAB_SIM_PLAN.md Abschnitt 3)
-ASSET_PATH="${ASSET_PATH:-/data/assets/g1_dex3.usd}"
+# Default = schwarzhändiges Asset (Domain-Gap-Fix). Wird bei Bedarf automatisch aus
+# g1_dex3.usd erzeugt (s.u.). BLACK_HANDS=0 → Original-USD ohne Recolor.
+ASSET_PATH="${ASSET_PATH:-/data/assets/g1_dex3_blackhands.usd}"
+BLACK_HANDS="${BLACK_HANDS:-1}"
 
 # Isaac-Sim Cache-Verzeichnisse (SIF ist read-only → auf Projektspeicher umlenken,
 # analog zu DATA_DIR im Training-Job)
@@ -161,6 +164,27 @@ echo ""
 #   Das SIF ist read-only, daher müssen diese Pfade auf beschreibbaren Projektspeicher zeigen.
 #   Die exakten Pfade können je nach Isaac-Sim-Version variieren — beim ersten
 #   interaktiven Run verifizieren: `apptainer shell --nv <sim.sif>`
+# ── Domain-Gap-Fix: schwarzhändiges Asset sicherstellen (BLACK_HANDS=0 deaktiviert) ──
+# Im Dataset sind die DEX3-Hände schwarz, im USD weiß → für den eingefrorenen Vision-Encoder
+# angleichen. Erzeugt g1_dex3_blackhands.usd bei Bedarf aus g1_dex3.usd (Recolor via pxr,
+# reines USD-Authoring). Fallback aufs Original, falls der Recolor fehlschlägt.
+if [[ "$BLACK_HANDS" == "1" ]]; then
+    if [[ ! -f "$ASSETS_DIR/g1_dex3_blackhands.usd" && -f "$ASSETS_DIR/g1_dex3.usd" ]]; then
+        echo "==> Domain-Gap-Fix: erzeuge schwarzhändiges Asset (Recolor) …"
+        apptainer exec --nv \
+            --bind "$DATA_DIR:/data" --bind "$ASSETS_DIR:/data/assets" \
+            --bind "$SIM_CODE/g1_dex3_sim:/workspace/g1_dex3_sim" \
+            "$SIM_SIF" bash -lc 'unset VIRTUAL_ENV; ${ISAACLAB_PATH}/isaaclab.sh -p \
+                /workspace/g1_dex3_sim/recolor_hands_black.py \
+                --in /data/assets/g1_dex3.usd --out /data/assets/g1_dex3_blackhands.usd' \
+            || echo "WARN: Recolor fehlgeschlagen."
+    fi
+    if [[ "$ASSET_PATH" == *g1_dex3_blackhands.usd && ! -f "$ASSETS_DIR/g1_dex3_blackhands.usd" ]]; then
+        echo "WARN: schwarzhändiges Asset fehlt — Fallback auf /data/assets/g1_dex3.usd."
+        ASSET_PATH="/data/assets/g1_dex3.usd"
+    fi
+fi
+
 echo "==> Starte Isaac-Lab-Sim-Client (headless) …"
 
 SIM_APPTAINER_ARGS=(

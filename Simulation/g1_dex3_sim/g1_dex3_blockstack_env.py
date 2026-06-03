@@ -99,9 +99,28 @@ class G1Dex3BlockstackSceneCfg(InteractiveSceneCfg):
             rigid_props=sim_utils.RigidBodyPropertiesCfg(),
             mass_props=sim_utils.MassPropertiesCfg(mass=0.05),
             collision_props=sim_utils.CollisionPropertiesCfg(),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.1, 0.1, 0.8)),
+            # Gelb wie im Dataset (war blau (0.1,0.1,0.8) — die Realdaten nutzen rot/grün/gelb,
+            # nicht blau). Angleichung an die Trainingsverteilung für den eingefrorenen Vision-Encoder.
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.85, 0.70, 0.10)),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.34, 0.15, 0.895)),
+    )
+
+    # Schwarzes Stapel-Band (Landmarke wie im Dataset — dort wird auf einen kleinen
+    # schwarzen Streifen gestapelt; in der Sim fehlte er). Dünnes, statisches Cuboid
+    # flach auf der Tischoberkante (z=0.87). Position/Größe sind eine NÄHERUNG und
+    # sollten an die echte Dataset-Lage angepasst werden.
+    # Domain-Gap-Angleichung für den eingefrorenen Vision-Encoder (Platzier-/Stapel-Ziel).
+    stack_band: RigidObjectCfg = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/stack_band",
+        spawn=sim_utils.CuboidCfg(
+            size=(0.12, 0.04, 0.006),
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+            collision_props=sim_utils.CollisionPropertiesCfg(),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.02, 0.02, 0.02)),
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.35, 0.0, 0.873)),
     )
 
     # Roboter
@@ -227,7 +246,7 @@ class G1Dex3BlockstackEnvCfg(DirectRLEnvCfg):
     observation_space: int = 28  # nur joints; Bilder gehen separat ans Modell
 
     # Task-Parameter
-    episode_length_s: float = 20.0    # 600 Steps @ 30 Hz
+    episode_length_s: float = 40.0    # 1200 Steps @ 30 Hz
     policy_hz: float = 30.0
     execution_horizon: int = 8        # wie viele Chunk-Steps ausführen, dann re-plan
 

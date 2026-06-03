@@ -6,6 +6,12 @@
 > Momentaufnahme eines noch **laufenden** Trainings. Die unten genannten
 > Schrittzahlen sind der Stand zum Aktualisierungszeitpunkt; der Lauf läuft weiter.
 
+> ✅ **Der Lauf ist inzwischen abgeschlossen (175.000 Steps).** Die vollständige
+> Abschluss-Auswertung inkl. Verhaltens-Evaluation (Closed-Loop, Replay, Open-Loop) und
+> Diagnose steht in
+> [`erster-trainingsdurchlauf-auswertung.md`](erster-trainingsdurchlauf-auswertung.md).
+> Dieses Dokument bleibt als Trainings-Health-Snapshot bestehen.
+
 > 📈 **Interaktive Kurven:** [`wandb-run-charts.html`](wandb-run-charts.html) — Loss /
 > LR / grad_norm als eigenständige HTML (im Browser öffnen). Snapshot Stand
 > 2026-06-03, ~08:39 UTC (Step ~115.680).

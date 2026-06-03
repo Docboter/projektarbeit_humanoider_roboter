@@ -102,9 +102,11 @@ DATASET_INIT_STATE = [
 
 G1_DEX3_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        # Pfad zum kombinierten G1+Dex3 USD-Asset.
-        # Wird beim Env-Start per asset_path-Argument überschreibbar gemacht.
-        usd_path="/data/assets/g1_dex3.usd",
+        # Pfad zum kombinierten G1+Dex3 USD-Asset (Default: schwarzhändiges Asset, Domain-Gap-Fix).
+        # Wird beim Env-Start per asset_path-Argument überschrieben; die Launcher (entrypoint_sim.sh,
+        # kisski_*_submit.sh) stellen das schwarzhändige USD per Recolor sicher bzw. fallen aufs
+        # Original zurück. Dieser Default greift nur, wenn die Env ohne --asset-path gestartet wird.
+        usd_path="/data/assets/g1_dex3_blackhands.usd",
         activate_contact_sensors=False,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,

@@ -38,7 +38,7 @@
 #SBATCH -p kisski
 #SBATCH -G A100:4
 #SBATCH -c 64
-#SBATCH --mem=256G
+#SBATCH --mem=384G
 #SBATCH -t 48:00:00
 #SBATCH --output=logs/slurm-%j.out
 #SBATCH --error=logs/slurm-%j.err
@@ -72,6 +72,10 @@ SKIP_GIT_PULL="${SKIP_GIT_PULL:-1}"
 MAX_STEPS="${MAX_STEPS:-44000}"
 GLOBAL_BATCH_SIZE="${GLOBAL_BATCH_SIZE:-32}"
 NUM_GPUS="${NUM_GPUS:-4}"
+# Dataloader-Worker PRO RANK. Bei 4 GPUs ergeben 4 Worker × 4 Ranks = 16 Prozesse, die
+# Shards in RAM cachen. 8/Rank (= 32 Prozesse) sprengten den Host-RAM → OOM-Kill der Worker
+# (SIGKILL) → DataLoader-Abbruch. 4/Rank füttern eine A100 locker und halbieren den RAM-Druck.
+DATALOADER_WORKERS="${DATALOADER_WORKERS:-4}"
 # Lernrate sqrt-skaliert für den 4× größeren effektiven Batch: 1e-4 × √4 = 2e-4.
 # (run_finetuning.sh-Default ist 1e-4; hier bewusst hochgesetzt, jederzeit überschreibbar.)
 LEARNING_RATE="${LEARNING_RATE:-2e-4}"
@@ -144,6 +148,7 @@ echo "    MAX_STEPS:         $MAX_STEPS"
 echo "    SAVE_STEPS:        $SAVE_STEPS  (SAVE_TOTAL_LIMIT=$SAVE_TOTAL_LIMIT)"
 echo "    GLOBAL_BATCH_SIZE: $GLOBAL_BATCH_SIZE  (per_device = $((GLOBAL_BATCH_SIZE / NUM_GPUS)))"
 echo "    NUM_GPUS:          $NUM_GPUS"
+echo "    DATALOADER_WORKERS: $DATALOADER_WORKERS  (× $NUM_GPUS Ranks = $((DATALOADER_WORKERS * NUM_GPUS)) Prozesse)"
 echo "    LEARNING_RATE:     $LEARNING_RATE"
 echo "    WANDB_PROJECT:     $WANDB_PROJECT"
 echo ""
@@ -191,6 +196,7 @@ APPTAINER_ARGS=(
     --env "SAVE_TOTAL_LIMIT=$SAVE_TOTAL_LIMIT"
     --env "GLOBAL_BATCH_SIZE=$GLOBAL_BATCH_SIZE"
     --env "NUM_GPUS=$NUM_GPUS"
+    --env "DATALOADER_WORKERS=$DATALOADER_WORKERS"
     --env "LEARNING_RATE=$LEARNING_RATE"
     --env "WANDB_PROJECT=$WANDB_PROJECT"
     --env "SKIP_DOWNLOAD=$SKIP_DOWNLOAD"

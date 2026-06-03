@@ -58,8 +58,10 @@ set -euo pipefail
 SIM_SIF="${SIM_SIF:-/user/luca.muecke/u28320/.project/dir.project/images/projekt-humanoider-roboter-sim.sif}"
 DATA_DIR="${DATA_DIR:-/mnt/vast-kisski/projects/kisski-humrob/data}"
 
-# G1+Dex3 USD-Asset (muss erzeugt worden sein — identisch zum Closed-Loop-Eval)
-ASSET_PATH="${ASSET_PATH:-/data/assets/g1_dex3.usd}"
+# G1+Dex3 USD-Asset (identisch zum Closed-Loop-Eval). Default = schwarzhändiges Asset
+# (Domain-Gap-Fix); wird bei Bedarf automatisch aus g1_dex3.usd erzeugt. BLACK_HANDS=0 → Original.
+ASSET_PATH="${ASSET_PATH:-/data/assets/g1_dex3_blackhands.usd}"
+BLACK_HANDS="${BLACK_HANDS:-1}"
 
 # 1 = Würfel exakt an die aufgezeichneten Greifpunkte setzen (Greif-Physik prüfen),
 # 0 = Standard-Würfelpositionen der Env.
@@ -102,6 +104,24 @@ export APPTAINER_TMPDIR="/mnt/vast-kisski/projects/kisski-humrob/apptainer-tmp"
 mkdir -p "$APPTAINER_CACHEDIR" "$APPTAINER_TMPDIR"
 
 # ── Isaac-Lab-Replay-Client (headless EGL) ────────────────────────────────────
+# ── Domain-Gap-Fix: schwarzhändiges Asset sicherstellen (BLACK_HANDS=0 deaktiviert) ──
+if [[ "$BLACK_HANDS" == "1" ]]; then
+    if [[ ! -f "$ASSETS_DIR/g1_dex3_blackhands.usd" && -f "$ASSETS_DIR/g1_dex3.usd" ]]; then
+        echo "==> Domain-Gap-Fix: erzeuge schwarzhändiges Asset (Recolor) …"
+        apptainer exec --nv \
+            --bind "$DATA_DIR:/data" --bind "$ASSETS_DIR:/data/assets" \
+            --bind "$SIM_CODE/g1_dex3_sim:/workspace/g1_dex3_sim" \
+            "$SIM_SIF" bash -lc 'unset VIRTUAL_ENV; ${ISAACLAB_PATH}/isaaclab.sh -p \
+                /workspace/g1_dex3_sim/recolor_hands_black.py \
+                --in /data/assets/g1_dex3.usd --out /data/assets/g1_dex3_blackhands.usd' \
+            || echo "WARN: Recolor fehlgeschlagen."
+    fi
+    if [[ "$ASSET_PATH" == *g1_dex3_blackhands.usd && ! -f "$ASSETS_DIR/g1_dex3_blackhands.usd" ]]; then
+        echo "WARN: schwarzhändiges Asset fehlt — Fallback auf /data/assets/g1_dex3.usd."
+        ASSET_PATH="/data/assets/g1_dex3.usd"
+    fi
+fi
+
 echo "==> Starte Open-Loop-Dataset-Replay (headless) …"
 
 SIM_APPTAINER_ARGS=(

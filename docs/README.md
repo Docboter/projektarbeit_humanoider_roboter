@@ -13,6 +13,8 @@ Repo-Root gibt den Schnellstart; hier liegen die ausführlichen Anleitungen, the
 | [training/env-vars.md](training/env-vars.md) | **Konfigurationsreferenz** — alle Env-Vars + VRAM-Richtwerte (Single Source of Truth) |
 | [training/train-test-split.md](training/train-test-split.md) | 80/20-Datensatz-Split — Implementierung und Nutzung |
 | [training/wandb-offline-sync.md](training/wandb-offline-sync.md) | W&B-Offline-Sync auf KISSKI |
+| [training/erster-trainingsdurchlauf-auswertung.md](training/erster-trainingsdurchlauf-auswertung.md) | **Abschluss-Auswertung 1. Lauf** (175k Steps) — Metriken + Verhaltens-Evaluation, Diagnose (visueller Domain-Gap), Empfehlungen |
+| [training/fixes-aus-erstem-lauf.md](training/fixes-aus-erstem-lauf.md) | **Fixes aus dem 1. Lauf** — Domain-Gap-Maßnahmen (Würfelfarbe, Stapel-Band, schwarze Hände, `BLACK_HANDS`-Auto-Recolor) + Werkzeuge & offene Punkte |
 
 ## Simulation (Closed-Loop-Eval in Isaac Lab)
 

@@ -89,6 +89,7 @@ LEARNING_RATE="${LEARNING_RATE:-2e-4}"         # sqrt-skaliert für 4× größer
 | **Smoke-Test** | Kurzer Lauf (z. B. `MAX_STEPS=50 NUM_GPUS=2`) — startet torchrun, laufen alle Ranks, sinkt der Loss? | hoch |
 | **Checkpoint-Format** | DeepSpeed ZeRO-2 speichert Optimizer-State sharded; das finale `model.safetensors` sollte normal ladbar bleiben. Prüfen, dass Sim-Eval + `upload_checkpoint.py` das Layout weiterhin lesen. | hoch |
 | **GPU-Auslastung** | `nvidia-smi` während des Laufs — alle 4 GPUs ausgelastet? Sonst Batch/Worker erhöhen. | mittel |
+| **Host-RAM / OOM** | Dataloader-Worker skalieren mit `NUM_GPUS` (Worker × Ranks Prozesse, die Shards in RAM cachen). 8 Worker/Rank × 4 = 32 Prozesse sprengten 256 GB → OOM-Kill (`DataLoader worker … killed by signal: Killed`). Fix: `DATALOADER_WORKERS=4` (→ 16 Prozesse) + `--mem=384G`. | hoch |
 | **Effektiver Batch / LR** | Wird der globale Batch erhöht, ggf. Lernrate anpassen (Linear-/Sqrt-Scaling). | mittel |
 | **Queue-Wartezeit** | 4× A100 bekommt man evtl. nicht sofort — `squeue`/`sinfo` checken. | niedrig |
 

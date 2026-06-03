@@ -20,7 +20,10 @@
 #   EXECUTION_HORIZON    — Steps pro Action-Chunk          (default 8)
 #   TASK_DESCRIPTION     — Language-Prompt                 (default "stack the blocks")
 #   ZMQ_PORT             — ZMQ-Port für Server-Kommunikation (default 5555)
-#   ASSET_PATH           — Pfad zum g1_dex3.usd            (default /workspace/assets/g1_dex3.usd)
+#   ASSET_PATH           — Pfad zum USD-Asset              (default /workspace/assets/g1_dex3_blackhands.usd)
+#   BLACK_HANDS          — 1=Hände schwarz einfärben (Domain-Gap-Fix, default), 0=Original-USD
+#                          Bei 1 wird das schwarzhändige USD bei Bedarf automatisch erzeugt
+#                          (Recolor aus g1_dex3.usd); schlägt das fehl, wird das Original genutzt.
 #   NO_FLASH_ATTN        — IGNORIERT (Eagle-Block2A-2B-v2 erzwingt flash_attention_2)
 #   SKIP_DOWNLOAD        — 1=Checkpoint-Download überspringen (default 0)
 #   SHELL_ON_ERROR       — 1=bei Fehler in Shell fallen    (default 0)
@@ -77,7 +80,8 @@ ZMQ_PORT="${ZMQ_PORT:-5555}"
 NUM_EPISODES="${NUM_EPISODES:-20}"
 EXECUTION_HORIZON="${EXECUTION_HORIZON:-8}"
 TASK_DESCRIPTION="${TASK_DESCRIPTION:-stack the blocks}"
-ASSET_PATH="${ASSET_PATH:-/workspace/assets/g1_dex3.usd}"
+ASSET_PATH="${ASSET_PATH:-/workspace/assets/g1_dex3_blackhands.usd}"
+BLACK_HANDS="${BLACK_HANDS:-1}"
 CHECKPOINT_PATH="${CHECKPOINT_PATH:-$DATA_DIR/checkpoints}"
 HF_CHECKPOINT_REPO="${HF_CHECKPOINT_REPO:-}"
 NO_FLASH_ATTN="${NO_FLASH_ATTN:-0}"
@@ -275,6 +279,28 @@ else
     APP_FLAGS+=( --headless )
 fi
 echo ""
+
+# ── Domain-Gap-Fix: schwarzhändiges Asset sicherstellen (BLACK_HANDS=0 deaktiviert) ──
+# Im Dataset sind die DEX3-Hände schwarz, im USD weiß. Da der Vision-Encoder eingefroren
+# ist, hilft die Angleichung. Erzeugt g1_dex3_blackhands.usd bei Bedarf aus dem Original
+# (Recolor via pxr; reines USD-Authoring, kein Sim-Start). Fallback aufs Original bei Fehler.
+if [[ "$BLACK_HANDS" == "1" ]]; then
+    case "$ASSET_PATH" in
+        *_blackhands.usd) BASE_USD="${ASSET_PATH/_blackhands/}" ;;
+        *)                BASE_USD="$ASSET_PATH" ;;
+    esac
+    BH_USD="${BASE_USD%.usd}_blackhands.usd"
+    if [[ -f "$BASE_USD" && ! -f "$BH_USD" ]]; then
+        log "Domain-Gap-Fix: erzeuge schwarzhändiges Asset → $BH_USD"
+        "${ISAACLAB_PATH}/isaaclab.sh" -p /workspace/g1_dex3_sim/recolor_hands_black.py \
+            --in "$BASE_USD" --out "$BH_USD" || warn "Recolor fehlgeschlagen — nutze Original."
+    fi
+    if [[ -f "$BH_USD" ]]; then
+        ASSET_PATH="$BH_USD"; ok "Asset (schwarze Hände): $ASSET_PATH"
+    else
+        ASSET_PATH="$BASE_USD"; warn "Schwarzhändiges Asset fehlt — nutze $ASSET_PATH"
+    fi
+fi
 
 ${ISAACLAB_PATH}/isaaclab.sh -p /workspace/g1_dex3_sim/run_g1_dex3_sim_eval.py \
     "${APP_FLAGS[@]}" \
