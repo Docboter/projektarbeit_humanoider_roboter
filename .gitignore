@@ -84,6 +84,9 @@
 # --- Build-Logs (mit Timestamp im Dateinamen) ---
 Simulation/build_sim_*.log
 
+# --- Sim-Eval-Ausgaben (Trajektorien-Bilder, Videos, JSON-Results) ---
+Simulation/runs/
+
 # --- Graphify-Ausgaben (vollständig generiert, nicht tracken) ---
 graphify-out/
 

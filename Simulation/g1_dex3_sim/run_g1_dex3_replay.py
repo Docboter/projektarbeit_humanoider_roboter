@@ -50,7 +50,8 @@ parser.add_argument("--video-dir", type=str, default="/data/sim_videos_replay",
                     help="Verzeichnis für das Replay-Video (getrennt vom Modell-Eval)")
 parser.add_argument("--results-file", type=str, default="/data/sim_results_replay/results.json")
 parser.add_argument("--max-steps", type=int, default=0, help="0 = alle aufgezeichneten Frames")
-parser.add_argument("--asset-path", type=str, default="/workspace/assets/g1_dex3.usd")
+parser.add_argument("--asset-path", type=str, default="",
+                    help="Pfad zum G1+Dex3 USD-Asset (leer = cfg-Default verwenden)")
 parser.add_argument("--grasp-test", action="store_true",
                     help="Würfel exakt an die aufgezeichneten Greifpunkte setzen (statt Zufall), "
                          "um die Greif-Physik zu prüfen: wird ein Würfel angehoben?")
@@ -90,7 +91,7 @@ def main():
     n = actions.shape[0] if args.max_steps <= 0 else min(args.max_steps, actions.shape[0])
 
     cfg = G1Dex3BlockstackEnvCfg()
-    if args.asset_path != "/workspace/assets/g1_dex3.usd":
+    if args.asset_path:
         cfg.scene.robot.spawn.usd_path = args.asset_path
     # Episodenlänge hochsetzen, damit der Replay nicht durch Time-Out auto-resettet.
     cfg.episode_length_s = (n / cfg.policy_hz) + 5.0
@@ -115,7 +116,10 @@ def main():
     # Damit schließen die aufgezeichneten Finger genau um die Würfel → testet die Greif-Physik.
     if args.grasp_test:
         z = float(env.cfg.block_z_surface)
-        grasp_pts = [(0.35, 0.20, z), (0.36, -0.18, z), (0.35, 0.0, z)]
+        # Positionen aus dem tiefsten Handpunkt + ~5 cm Finger-Offset in +x:
+        #   links:  Palm(0.294, 0.203) → Würfel (0.35, 0.20)
+        #   rechts: Palm(0.333,-0.160) → Würfel (0.37,-0.16)  [war -0.18, zu weit innen]
+        grasp_pts = [(0.35, 0.20, z), (0.37, -0.16, z), (0.35, 0.00, z)]
         for blk, (gx, gy, gz) in zip(env.blocks, grasp_pts):
             pose = torch.tensor([[gx, gy, gz, 1.0, 0.0, 0.0, 0.0]],
                                 device=env.device, dtype=torch.float32)
@@ -159,6 +163,20 @@ def main():
             for h in range(len(palm_idx)):
                 if hands[h, 2] < hand_low[h][2]:
                     hand_low[h] = hands[h].copy()
+
+        # Debug (einmalig, Step 0): alle 4 Kamera-Frames dumpen (wie im Modell-Eval)
+        if i == 0 and args.video_dir:
+            import imageio as _iio
+            os.makedirs(args.video_dir, exist_ok=True)
+            for _ck in ("cam_left_high", "cam_right_high", "cam_left_wrist", "cam_right_wrist"):
+                _key = f"video.{_ck}"
+                if _key in obs_step:
+                    _arr = obs_step[_key][0].cpu().numpy()
+                    while _arr.ndim > 3:
+                        _arr = _arr[0]
+                    _iio.imwrite(os.path.join(args.video_dir, f"_debug_obs_{_ck}.png"),
+                                 _arr.astype(np.uint8))
+            print("[Replay] Debug-Bilder aller 4 Kameras gespeichert: _debug_obs_*.png", flush=True)
 
         if record:
             cam_key = "video.cam_scene" if "video.cam_scene" in obs_step else "video.cam_left_high"

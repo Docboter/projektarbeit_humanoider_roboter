@@ -116,6 +116,55 @@ Alle Env-Vars sind in der [Konfigurationsreferenz](env-vars.md) beschrieben.
 
 ---
 
+## Variante — Vision-Encoder mittrainieren (`TUNE_VISUAL=1`)
+
+Standardmäßig ist der **Vision-Encoder eingefroren**. Der Standardlauf trainiert nur den
+Multimodal-Projector und den Diffusion-Action-Head; das LLM-Backbone bleibt ebenfalls
+eingefroren. Wer zusätzlich die *visuelle Repräsentation* an die eigene Domäne anpassen
+will (z. B. wegen des Sim-zu-Real-Domain-Gaps), startet die Vision-Variante.
+
+```bash
+# Vision-Encoder mittrainieren — LR, Warmup und Output-Namespace werden automatisch gesetzt:
+HF_TOKEN=hf_... \
+WANDB_API_KEY=... \
+TUNE_VISUAL=1 \
+sbatch --export=ALL Training/kisski_submit.sh
+```
+
+**Was passiert dabei:**
+
+| Komponente | Standardlauf | Vision-Lauf (`TUNE_VISUAL=1`) |
+|---|---|---|
+| LLM-Backbone (`tune_llm`)          | ❄️ eingefroren | ❄️ eingefroren |
+| Vision-Encoder (`tune_visual`)     | ❄️ eingefroren | 🔥 **trainiert** |
+| Multimodal-Projector (`tune_projector`) | 🔥 trainiert | 🔥 trainiert |
+| Diffusion-Action-Head (`tune_diffusion_model`) | 🔥 trainiert | 🔥 trainiert |
+
+**Automatik bei `TUNE_VISUAL=1`** (alles in `kisski_submit.sh`, jederzeit per Env-Var
+überschreibbar):
+
+- Der Container-Entrypoint startet **`run_finetuning_vision.sh`** statt `run_finetuning.sh`
+  (das Standard-Skript bleibt unverändert).
+- Eigener Output-Namespace: `…/data/g1_dex3_finetune/**blockstacking_vision**/` — überschreibt
+  also keine Standard-Läufe. Experiment-Name: `g1_dex3_blockstacking_vision_v1`.
+- **Lernrate `1e-4`** statt der Standard-`2e-4`. Begründung: Die Config hat *eine globale LR*
+  für alle trainierbaren Parameter — der große vortrainierte Eagle-ViT teilt sie sich mit dem
+  leichten Action-Head. `2e-4` würde die vortrainierten Visual-Features destabilisieren.
+- **`WARMUP_RATIO=0.1`** (statt `0.05`) für einen sanfteren Start.
+- **Batch-Size `32`** (= Standard-Default, per_device 8 auf 4×A100) bleibt unverändert.
+
+**Empfehlungen / Fallstricke:**
+
+- **VRAM:** Der entfrorene Vision-Encoder erhöht Activation- und Optimizer-Speicher. OOM tritt
+  sofort beim Start auf (nicht erst nach Stunden) — bei OOM `GLOBAL_BATCH_SIZE=16` setzen
+  (muss durch `NUM_GPUS` teilbar bleiben) und LR mit-runterskalieren (~`7e-5`).
+- **Instabiler Loss:** als Fallback `LEARNING_RATE=5e-5` davorsetzen.
+- **Checkpoint-Größe:** Mehr trainierbare Parameter ⇒ größere `optimizer.pt` pro Checkpoint.
+  Bei `SAVE_TOTAL_LIMIT=40` ggf. das Storage-Budget (~770 GB) im Blick behalten und das Limit
+  senken.
+
+---
+
 ## Job-Status verfolgen
 
 ```bash

@@ -20,6 +20,8 @@
 #   SKIP_CONVERT          (default 0)      — auf 1 setzen, wenn modality.json bereits existiert
 #   SKIP_TRAIN            (default 0)      — auf 1 setzen, um nur Setup zu fahren (für Debug)
 #   SHELL_ON_ERROR        (default 0)      — auf 1 setzen, um bei Fehler in eine Shell zu fallen
+#   TUNE_VISUAL           (default 0)      — auf 1 setzen, um zusätzlich den Vision-Encoder
+#                                            mitzutrainieren (startet run_finetuning_vision.sh)
 #
 # Bei Aufruf mit Argumenten wird das Skript nicht aktiv — stattdessen wird das
 # Argument direkt ausgeführt (nützlich für `docker run … bash`).
@@ -70,6 +72,7 @@ WANDB_PROJECT="${WANDB_PROJECT:-gr00t-g1-dex3}"
 SKIP_DOWNLOAD="${SKIP_DOWNLOAD:-0}"
 SKIP_CONVERT="${SKIP_CONVERT:-0}"
 SKIP_TRAIN="${SKIP_TRAIN:-0}"
+TUNE_VISUAL="${TUNE_VISUAL:-0}"
 
 export MAX_STEPS GLOBAL_BATCH_SIZE NUM_GPUS WANDB_PROJECT
 
@@ -182,6 +185,14 @@ printf "    %-20s %s\n" "GLOBAL_BATCH_SIZE" "$GLOBAL_BATCH_SIZE"
 printf "    %-20s %s\n" "NUM_GPUS"          "$NUM_GPUS"
 printf "    %-20s %s\n" "WANDB_PROJECT"     "$WANDB_PROJECT"
 printf "    %-20s %s\n" "DATA_DIR"          "$DATA_DIR"
+printf "    %-20s %s\n" "TUNE_VISUAL"       "$TUNE_VISUAL"
 echo ""
+
+# TUNE_VISUAL=1 → Vision-Encoder mittrainieren (separates Skript, separater Output-Namespace).
+# Default (0) startet unverändert das Standard-Skript run_finetuning.sh.
+if [[ "$TUNE_VISUAL" == "1" ]]; then
+    log "TUNE_VISUAL=1 — starte Vision-Encoder-Training (run_finetuning_vision.sh)."
+    exec bash /scripts/run_finetuning_vision.sh
+fi
 
 exec bash /scripts/run_finetuning.sh

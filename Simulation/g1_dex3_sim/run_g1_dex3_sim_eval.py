@@ -68,8 +68,9 @@ parser.add_argument(
     help="Wie oft auf den Server gewartet wird (je 5 s)"
 )
 parser.add_argument(
-    "--asset-path", type=str, default="/workspace/assets/g1_dex3.usd",
-    help="Pfad zum G1+Dex3 USD-Asset (überschreibt den Default in g1_dex3_cfg.py)"
+    "--asset-path", type=str, default="",
+    help="Pfad zum G1+Dex3 USD-Asset (überschreibt den Default in g1_dex3_cfg.py; "
+         "leer = cfg-Default verwenden)"
 )
 
 # Isaac-Lab-eigene Argumente hinzufügen und parsen
@@ -230,12 +231,13 @@ def run_episode(
 # ---------------------------------------------------------------------------
 
 def main():
-    # Asset-Pfad ggf. in der Cfg überschreiben
+    # Asset-Pfad ggf. in der Cfg überschreiben (leerer Default = cfg-Wert behalten)
     cfg = G1Dex3BlockstackEnvCfg()
-    if args.asset_path != "/workspace/assets/g1_dex3.usd":
+    if args.asset_path:
         cfg.scene.robot.spawn.usd_path = args.asset_path
     cfg.execution_horizon = args.execution_horizon
     cfg.task_description = args.task_description
+    cfg.dr_enabled = os.getenv("DR_ENABLED", "1") != "0"
 
     print("=" * 60)
     print("GR00T N1.6 — G1+Dex3 Closed-Loop Sim Eval")
@@ -246,6 +248,7 @@ def main():
     print(f"  Task:             {args.task_description}")
     print(f"  Video-Dir:        {args.video_dir or '(kein Video)'}")
     print(f"  Asset:            {cfg.scene.robot.spawn.usd_path}")
+    print(f"  Domain Rand.:     {'AN' if cfg.dr_enabled else 'AUS (DR_ENABLED=0)'}")
     print()
 
     # Phase A-Check: Isaac Lab startet, Sim läuft

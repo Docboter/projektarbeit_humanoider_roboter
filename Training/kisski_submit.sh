@@ -32,7 +32,12 @@
 # Optionale Überschreibungen — ebenfalls als Inline-Prefix vor sbatch:
 #   GITHUB_REPO, GITHUB_BRANCH, GITHUB_TOKEN, REPO_DIR
 #   MAX_STEPS, SAVE_STEPS, SAVE_TOTAL_LIMIT, GLOBAL_BATCH_SIZE, NUM_GPUS,
-#   WANDB_PROJECT, DATA_DIR, SKIP_GIT_PULL, SKIP_DOWNLOAD, SKIP_CONVERT, SKIP_TRAIN
+#   WANDB_PROJECT, DATA_DIR, SKIP_GIT_PULL, SKIP_DOWNLOAD, SKIP_CONVERT, SKIP_TRAIN,
+#   TUNE_VISUAL  (=1 → Vision-Encoder mittrainieren)
+#
+# Vision-Encoder-Training auf KISSKI einreichen:
+#   TUNE_VISUAL=1 sbatch --export=ALL kisski_submit.sh
+#   (oder im Skript oben TUNE_VISUAL-Default auf 1 setzen)
 
 #SBATCH --job-name=groot-finetune
 #SBATCH -p kisski
@@ -76,9 +81,24 @@ NUM_GPUS="${NUM_GPUS:-4}"
 # Shards in RAM cachen. 8/Rank (= 32 Prozesse) sprengten den Host-RAM → OOM-Kill der Worker
 # (SIGKILL) → DataLoader-Abbruch. 4/Rank füttern eine A100 locker und halbieren den RAM-Druck.
 DATALOADER_WORKERS="${DATALOADER_WORKERS:-4}"
-# Lernrate sqrt-skaliert für den 4× größeren effektiven Batch: 1e-4 × √4 = 2e-4.
-# (run_finetuning.sh-Default ist 1e-4; hier bewusst hochgesetzt, jederzeit überschreibbar.)
-LEARNING_RATE="${LEARNING_RATE:-2e-4}"
+# TUNE_VISUAL=1 → Vision-Encoder mittrainieren (Entrypoint startet run_finetuning_vision.sh,
+# eigener Output-Namespace /data/g1_dex3_finetune/blockstacking_vision). Default 0 = Standardlauf.
+# Steht hier oben, weil LR + Warmup davon abhängen.
+TUNE_VISUAL="${TUNE_VISUAL:-0}"
+
+# Lernrate + Warmup hängen davon ab, ob der Vision-Encoder mittrainiert wird:
+#  • Standardlauf (nur Projector + Diffusion): LR sqrt-skaliert für den 4× größeren
+#    effektiven Batch (1e-4 × √4 = 2e-4), Warmup 0.05 — wie bisher, unverändert.
+#  • Vision-Lauf: der große vortrainierte Eagle-ViT teilt sich dieselbe globale LR;
+#    2e-4 würde die Visual-Features destabilisieren → konservativ 1e-4 + längeres
+#    Warmup 0.1. Beide Werte jederzeit per Env-Var überschreibbar.
+if [[ "$TUNE_VISUAL" == "1" ]]; then
+    LEARNING_RATE="${LEARNING_RATE:-1e-4}"
+    WARMUP_RATIO="${WARMUP_RATIO:-0.1}"
+else
+    LEARNING_RATE="${LEARNING_RATE:-2e-4}"
+    WARMUP_RATIO="${WARMUP_RATIO:-0.05}"
+fi
 WANDB_PROJECT="${WANDB_PROJECT:-gr00t-g1-dex3}"
 
 # Checkpoints: alle 5000 Schritte (~52 min) ein Checkpoint, Limit hoch genug,
@@ -150,7 +170,9 @@ echo "    GLOBAL_BATCH_SIZE: $GLOBAL_BATCH_SIZE  (per_device = $((GLOBAL_BATCH_S
 echo "    NUM_GPUS:          $NUM_GPUS"
 echo "    DATALOADER_WORKERS: $DATALOADER_WORKERS  (× $NUM_GPUS Ranks = $((DATALOADER_WORKERS * NUM_GPUS)) Prozesse)"
 echo "    LEARNING_RATE:     $LEARNING_RATE"
+echo "    WARMUP_RATIO:      $WARMUP_RATIO"
 echo "    WANDB_PROJECT:     $WANDB_PROJECT"
+echo "    TUNE_VISUAL:       $TUNE_VISUAL"
 echo ""
 
 module load apptainer
@@ -198,10 +220,12 @@ APPTAINER_ARGS=(
     --env "NUM_GPUS=$NUM_GPUS"
     --env "DATALOADER_WORKERS=$DATALOADER_WORKERS"
     --env "LEARNING_RATE=$LEARNING_RATE"
+    --env "WARMUP_RATIO=$WARMUP_RATIO"
     --env "WANDB_PROJECT=$WANDB_PROJECT"
     --env "SKIP_DOWNLOAD=$SKIP_DOWNLOAD"
     --env "SKIP_CONVERT=$SKIP_CONVERT"
     --env "SKIP_TRAIN=$SKIP_TRAIN"
+    --env "TUNE_VISUAL=$TUNE_VISUAL"
 )
 
 # Repo-Skripte in den Container mounten, damit GitHub-Änderungen sofort wirken

@@ -6,6 +6,18 @@ auf KISSKI testen (Phase A des Plans: leere Szene rendert RGB-Bild headless).
 GPU: **Quadro RTX 5000** (`jupyter`-Partition) — einzige GWDG-GPU mit RT-Cores.
 Hintergrund: [gpu-kompatibilitaet.md](gpu-kompatibilitaet.md)
 
+> ⚠️ **Architektur-Vorbehalt (Stand 2026-06): Diese GPU ist für Isaac Sim 4.x zu alt.**
+> Die Quadro RTX 5000 hat zwar RT-Cores (anders als A100/H100), ist aber **Turing-Generation
+> (Compute Capability 7.5)** — eine Generation **unter** dem Ampere-Minimum (CC 8.0,
+> ab RTX 30xx), das Isaac Sim 4.x / Isaac Lab 2.3.2 voraussetzt. In der Praxis äußert sich das
+> als `createDLSSContext error` beim Kamera-Rendering. Auf GWDG gibt es damit **keine** GPU, die
+> *beide* Bedingungen (RT-Cores **und** Ampere+) erfüllt: A100/H100 fehlen die RT-Cores, der
+> RTX 5000 fehlt die Architektur-Generation. **Konsequenz:** Diese Anleitung funktioniert nur mit
+> einer **älteren Isaac-Lab-Version (1.x / frühe 2.x)**, die Turing noch unterstützt (siehe
+> Abschnitt „Fallback"), oder gar nicht — der reguläre Sim-Eval-Weg läuft auf vast.ai
+> (L40 / RTX 4090 / A6000, Ada/Ampere). Details: [gpu-kompatibilitaet.md](gpu-kompatibilitaet.md),
+> [implementation-notes.md §1](../implementation-notes.md).
+
 ---
 
 ## Voraussetzung: Image ist auf Docker Hub gepusht

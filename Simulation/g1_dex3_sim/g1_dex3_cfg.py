@@ -86,15 +86,17 @@ DATASET_INIT_STATE = [
     -0.05662,  0.31445,  0.12487, -0.28736,  0.20897,  0.13095, -0.09767,  # left_arm
     -0.40259, -0.34180, -0.01584,  0.17989,  0.00290, -0.09826,  0.29865,  # right_arm
     # left_dex3 [thumb0,thumb1,thumb2, middle0,middle1, index0,index1]
-    -0.59676,  1.01160,  0.05485,  0.0,     -0.01227,  0.0,     -0.01201,
+    # middle_0/index_0: negiert (USD-Achse invertiert vs. Dataset-Konvention, s.u.)
+    -0.59676,  1.01160,  0.05485, -0.169,   -0.01227, -0.163,   -0.01201,
     # right_dex3 [thumb0,thumb1,thumb2, index0,index1, middle0,middle1]
-    -0.70991, -1.01463, -0.21031,  0.0,      0.01391,  0.0,      0.03354,
+    # index_0/middle_0: negiert (s.u.)
+    -0.70991, -1.01463, -0.21031,  0.171,    0.01391,  0.142,    0.03354,
 ]
-# HINWEIS: middle_0/index_0 beider Hände wurden von ihren Dataset-Werten (links +0.169/+0.163,
-# rechts -0.171/-0.142) auf 0.0 gesetzt — die USD-Gelenklimits sind dort EINSEITIG und mit
-# umgekehrtem Vorzeichen (links [-1.571,0], rechts [0,1.571]). Das deutet auf eine
-# Vorzeichen-/Achsen-Konventions-Diskrepanz Dataset↔USD bei den Dex3-Fingern hin, die auch
-# die Finger-AKTIONEN im Rollout betrifft (Greifen!) → offener Punkt, separat zu untersuchen.
+# middle_0/index_0 beider Hände: USD-Achse invertiert vs. Dataset.
+# Dataset: links middle_0/index_0 positiv = schließen; USD: [-1.571, 0], d.h. negativ = schließen.
+# Rechts umgekehrt: Dataset negativ = schließen, USD [0, 1.571] positiv = schließen.
+# Fix: _pre_physics_step negiert diese 4 Aktionen (Policy-Indices 17, 19, 24, 26)
+# und die Init-Pose wurde entsprechend mit negiertem Dataset-Wert gesetzt.
 
 # ---------------------------------------------------------------------------
 # Articulation-Konfiguration
@@ -119,8 +121,8 @@ G1_DEX3_CFG = ArticulationCfg(
         ),
         articulation_props=sim_utils.ArticulationRootPropertiesCfg(
             enabled_self_collisions=False,
-            solver_position_iteration_count=4,
-            solver_velocity_iteration_count=0,
+            solver_position_iteration_count=8,
+            solver_velocity_iteration_count=1,
             # Unterkörper fixieren: Beine/Waist werden gesperrt; Roboter steht am Tisch.
             # fix_root_link=True  → stellt den Torso fest (kein Balance-Controller nötig)
             fix_root_link=True,
@@ -151,20 +153,23 @@ G1_DEX3_CFG = ArticulationCfg(
             stiffness=100.0,
             damping=10.0,
         ),
-        # Hände: positionsgeregelt (ABSOLUTE Targets aus GR00T-Aktionen)
+        # Hände: positionsgeregelt (ABSOLUTE Targets aus GR00T-Aktionen).
+        # stiffness=60 / effort_limit=20 N·m: reale Dex3-Finger müssen ~50g Würfel gegen
+        # Schwerkraft halten; mit stiffness=20/effort=5 schließen die Distal-Joints nicht
+        # vollständig (per_joint_max_error Index 18/27 war 0.74/0.88 rad im Replay).
         "left_hand": ImplicitActuatorCfg(
             joint_names_expr=LEFT_DEX3_JOINTS,
-            effort_limit=5.0,
+            effort_limit=20.0,
             velocity_limit=3.0,
-            stiffness=20.0,
-            damping=2.0,
+            stiffness=60.0,
+            damping=4.0,
         ),
         "right_hand": ImplicitActuatorCfg(
             joint_names_expr=RIGHT_DEX3_JOINTS,
-            effort_limit=5.0,
+            effort_limit=20.0,
             velocity_limit=3.0,
-            stiffness=20.0,
-            damping=2.0,
+            stiffness=60.0,
+            damping=4.0,
         ),
     },
 )
@@ -208,8 +213,9 @@ class G1Dex3CameraCfg:
     width: int = 640
     height: int = 480
 
-    # Horizontaler FOV in Grad (typisch für RealSense D435 / ZED2)
-    hfov_deg: float = 69.0
+    # Horizontaler FOV in Grad. Overlay-Iteration: 69° zu eng (Sim zu nah), 90° zu weit
+    # (Szene zu sparse, Hände winzig). 75° als Kompromiss.
+    hfov_deg: float = 75.0
 
     # Kamera-Posen (pos in Meter, rot als (w, x, y, z) Quaternion, World-Frame)
     # WICHTIG: Aus den Dataset-Videos rekonstruieren! Dies sind Schätzwerte.
@@ -228,13 +234,15 @@ class G1Dex3CameraCfg:
         # Rotation per Look-at auf die Tischmitte — frühere (0.924,-0.383,0,0) war eine reine
         # Roll-Drehung um die +X-Blickachse (Bild verkippt, kein Pitch) und zeigte auf den Boden.
         #
-        # Tisch-Oberfläche ~ (0.5, 0.0, 0.74); Roboter-Pelvis bei z=0.85 → Kopf ~ z=1.4, x≈0.
-        # Werte sind Startschätzung — gegen die Referenz-Frames iterativ verfeinern.
-        # Ziel auf den neuen, erreichbaren Würfelbereich (Tisch angehoben auf Oberseite 0.87,
-        # Würfel bei x≈0.35, z≈0.90). Vorher (0.5,0,0.73) — zeigte auf den zu tiefen Alt-Tisch.
-        high_target = (0.40, 0.0, 0.86)
-        left_high_eye = (0.0, 0.06, 1.40)
-        right_high_eye = (0.0, -0.06, 1.40)
+        # Overlay-Iteration 6: Reale Referenz (dataset_cam_*_high.png) zeigt eindeutig einen
+        # FLACHEN Vorwärts-Blick vom Kopf: beide Hände kommen von unten-links/rechts ins Bild,
+        # Finger zeigen nach oben-vorne, Tisch füllt die Mitte. KEINE steile Top-Down-Sicht.
+        # Iter 5 (target z=0.80, steil nach unten) ließ die Arme aus dem Bild fallen.
+        # Fix: eye zentriert auf Kopfhöhe (z=1.45, x=0), Target weit nach VORNE (x=0.55) auf
+        # Tischhöhe → flacher Pitch (~46°), Arme reichen von unten ins Bild, Tisch in der Mitte.
+        high_target = (0.55, 0.0, 0.84)
+        left_high_eye  = (0.0,  0.08, 1.45)
+        right_high_eye = (0.0, -0.08, 1.45)
         self.cam_left_high = {
             "pos": left_high_eye,
             "rot": look_at_world_quat(left_high_eye, high_target),
@@ -248,15 +256,43 @@ class G1Dex3CameraCfg:
         # hinter/über dem Wrist-Origin (raus aus dem Palm-Mesh) auf die Fingerspitzen → die Kamera
         # zeigt garantiert auf die Hand (vorher: pos=(0.05,…) steckte IM Palm-Mesh → nur Grau;
         # rechte Cam zudem falsch herum (-X)). Roll/Feinframing nach Render-Vergleich justieren.
-        # eye weiter zurück (-X) und höher (+Z), damit nicht nur die Hand formatfüllend ist,
-        # sondern Tisch + Würfel hinter den Fingern sichtbar werden (wie in der Referenz).
-        # Arme starten ASYMMETRISCH (Dataset-Pose) → linke Cam braucht mehr Pitch nach unten,
-        # sonst zeigt sie über die Würfel hinweg (Render-Befund). Daher getrennte Targets.
-        wrist_eye = (-0.08, 0.0, 0.13)
-        left_wrist_target = (0.14, 0.0, -0.18)   # steiler runter → Tisch/Würfel ins Bild
-        right_wrist_target = (0.16, 0.0, -0.05)
-        self.cam_left_wrist_local = {"pos": wrist_eye, "rot": look_at_world_quat(wrist_eye, left_wrist_target)}
-        self.cam_right_wrist_local = {"pos": wrist_eye, "rot": look_at_world_quat(wrist_eye, right_wrist_target)}
+        # Overlay-Iteration 6: KORREKTUR des früheren Z-Flips. Die reale Referenz
+        # (dataset_cam_left_wrist.png) zeigt die Kamera von OBEN-HINTEN nach UNTEN-VORNE über
+        # die Finger auf den Tisch blickend — das dunkle Gehäuse oben im realen Bild ist der
+        # Unterarm (= weißer Connector in der Sim), der nur das obere Drittel einnimmt.
+        # Der vorherige Flip nach -Z (Kamera unter dem Wrist) war falsch und ließ den Connector
+        # das ganze Bild füllen. Fix: eye wieder ÜBER den Wrist (+Z), leicht hinter den Knöcheln
+        # (-X), Blick nach vorne-unten (+X, -Z) auf Fingerspitzen + Tisch.
+        # Iter 7: Target leicht angehoben (-0.12 → -0.06), damit der Blick die Tischfläche
+        # statt des Bodengitters dahinter trifft (Iter 6 pitchte minimal über die Tischkante).
+        # Iter 10: Kamera ein Stück entlang der Handachse (+X) Richtung Finger geschoben
+        # (eye -0.08 → 0.0, target 0.22 → 0.30). Iter 12: war etwas zu weit vorne, zurück auf
+        # die Mitte zwischen Iter 9 und 10 (eye -0.04, target 0.26). Blickrichtung/Roll bleiben.
+        wrist_eye = (-0.04, 0.0, 0.10)
+        left_wrist_target  = (0.26, 0.0, -0.06)
+        right_wrist_target = (0.26, 0.0, -0.06)
+        # Iter 8 — ROLL-Korrektur: Pitch/Blickrichtung stimmten, aber die Hand stand im Sim
+        # VERTIKAL, im Real liegt sie HORIZONTAL (Finger nach rechts statt nach unten) → ~90°
+        # Roll-Versatz. Ursache: look_at nutzte default world_up=(0,0,1), was im rotierten
+        # Wrist-Link-Frame den falschen Roll erzeugt. Fix: world_up auf die laterale Link-Achse
+        # (+Y) legen, damit die Hand horizontal im Bild liegt.
+        # Iter 9: linke Cam mit +Y war korrekt (Finger horizontal nach rechts, deckt sich mit
+        # Real). Rechte Cam mit -Y war um 180° verdreht (Finger nach links statt oben-rechts) →
+        # der rechte Wrist-Link nutzt DIESELBE Frame-Konvention wie links, kein gespiegeltes
+        # Frame. Daher beide Cams +Y. Restlicher ~45°-Diagonal-Versatz rechts = reale Pose-
+        # Differenz (asymmetrische Init-Pose), ggf. später per Z-Komponente im Up feinjustieren.
+        # Iter 12: rechte Cam wieder auf (0,1,0) wie im letzten gerenderten Run — der in Iter 11
+        # versuchte -Z-Tilt wurde nie validiert und auf Wunsch zurückgenommen. Beide Cams +Y.
+        left_wrist_up  = (0.0, 1.0, 0.0)
+        right_wrist_up = (0.0, 1.0, 0.0)
+        self.cam_left_wrist_local = {
+            "pos": wrist_eye,
+            "rot": look_at_world_quat(wrist_eye, left_wrist_target, world_up=left_wrist_up),
+        }
+        self.cam_right_wrist_local = {
+            "pos": wrist_eye,
+            "rot": look_at_world_quat(wrist_eye, right_wrist_target, world_up=right_wrist_up),
+        }
 
         # Szenen-Übersichtskamera (NUR fürs aufgenommene Video): zeigt die GANZE Szene —
         # Roboter (Pelvis z=0.85, Kopf ~1.4) + Tisch (x=0.5) — von schräg vorne-seitlich-oben.

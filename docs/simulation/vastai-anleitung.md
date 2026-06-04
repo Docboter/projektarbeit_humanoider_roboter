@@ -550,6 +550,8 @@ Ergebnisse sichern (vor dem Zerstören der Instanz):
 ```bash
 scp -P <port> root@<ip>:/data/sim_results_replay/results.json ./replay_results.json
 scp -P <port> root@<ip>:/data/sim_videos_replay/replay_episode0.mp4 ./replay_episode0.mp4
+# Debug-Bilder (alle 4 Kameras, Step 0) — für Kamera-Kalibrierung via overlay_camera_check.py:
+scp -P <port> root@<ip>:/data/sim_videos_replay/_debug_obs_cam_*.png ./
 ```
 
 > **Befund dieses Projekts:** Tracking 0.022 rad und (nach Korrektur der Tischhöhe) 1.0 cm

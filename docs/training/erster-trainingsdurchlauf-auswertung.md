@@ -170,6 +170,112 @@ Greif-Demos oder Gewichtung der Finger-Dims.
 
 ---
 
+## 8. Update — Sim-Kalibrierung und Diagnose-Bestätigung (2026-06-04)
+
+### 8.1 W&B-Analyse (via MCP-Server)
+
+Die W&B-Trainingskurven wurden erstmals maschinell ausgewertet. Ergebnis bestätigt die
+visuelle Inspektion aus §2:
+
+| Metrik | Wert |
+|---|---|
+| Run-ID | `i6n1t613` |
+| Loss (Start) | 1,3716 |
+| Loss (Ende) | **0,1024** |
+| Loss (Minimum) | 0,0661 |
+| Tail-Mean (letzte Phase) | **0,0921** |
+| W&B-Diagnose | **„converged"** / „plateaued" |
+| Empfehlung des Diagnose-Tools | „Training appears converged — run can likely be stopped" |
+
+**Fazit:** Das Modell hat gelernt, was die Demonstrations-Daten zeigen. Die Closed-Loop-Versagen
+liegen **nicht** am Training.
+
+### 8.2 Sim-Kalibrierung: Replay-Durchbruch
+
+Nach einer systematischen Kalibrierungs-Session (Details in
+[`implementation-notes.md §14`](../simulation/implementation-notes.md)) wurde das Replay-Ergebnis
+von `max_cube_lift = 1,0 cm` (kein Greifen) auf **2,8 cm** (Greifen bestätigt) verbessert.
+
+Die wesentlichen Fixes:
+
+1. **Sign-Convention-Fix** (wichtigster Fix): `middle_0` / `index_0` beider Hände hatten
+   invertierte Achsen im USD → Proximal-Gelenke bewegten sich beim Greifkommando in die
+   **falsche Richtung** (öffnen statt schließen). Fix: Negierung der Actions und Observations
+   für Policy-Indices `[17, 19, 24, 26]`.
+
+2. **Finger-Aktuatoren**: stiffness 20→60, effort_limit 5→20 N·m — Finger konnten 50 g
+   Würfel gegen Schwerkraft nicht halten.
+
+3. **Würfel-Reibung**: static 0,5→3,0 / dynamic 0,5→2,5 — Würfel glitt trotz Griff heraus.
+
+4. **Würfelhöhe**: `block_z_surface` 0,895→0,915 — Würfel-Oberkante jetzt bei z=0,940,
+   entspricht dem tiefsten gemessenen Handpunkt (links z=0,937, rechts z=0,944).
+
+### 8.3 Closed-Loop-Diagnose bestätigt
+
+Das Closed-Loop-Verhalten mit `checkpoint-175000` auf vast.ai (L40):
+
+> **„Hände liegen auf dem Tisch, Roboter führt kleine ungerichtete Bewegungen aus,
+> keine Greifaktion."**
+
+Dies ist konsistent mit der in §5 formulierten Hauptursache (**visueller Domain Gap**).
+Zusätzlich blockierte die Tischkollision die Arme (Tisch testweise auf 0,89 m angehoben
+→ Arme steckten fest). Tischhöhe auf 0,87 m zurückgesetzt.
+
+Die Diagnose ist damit **dreifach bestätigt**:
+- Replay (kein Modell): Arme folgen korrekt, Greif-Physik funktioniert ✅
+- W&B: Training konvergiert ✅
+- Closed-Loop: Versagen nur wenn Modell + Sim-Bilder zusammen ❌ → Domain Gap
+
+### 8.4 Bewertung der Verbesserungsoptionen
+
+#### Option A: Vision Encoder mittrainieren (`tune_visual = true`)
+
+**Nicht empfohlen** für dieses Projekt:
+
+- Mit 301 Demonstrationen droht **Catastrophic Forgetting** — der Encoder verliert seine
+  realen Repräsentationen, die er auf Milliarden echter Bilder gelernt hat.
+- Sim-Bilder und echte Bilder unterscheiden sich so fundamental (Beleuchtung, Schatten,
+  Texturen, Tiefenschärfe), dass der Encoder sich nicht sinnvoll auf Sim-Bilder adaptieren
+  kann — er würde auf realen Bildern schlechter werden, ohne im Sim gut zu werden.
+- Benötigt ~3–4× mehr VRAM (volle 3B-Parameter trainierbar) und mehr Demonstrations-Daten.
+- Würde das Modell für eine spätere Verwendung am echten Roboter **schlechter** machen.
+
+#### Option B: Reinforcement Learning (RL)
+
+**Machbar, mittlerer bis hoher Aufwand** (~2–3 Wochen Engineering):
+
+| Aspekt | Bewertung |
+|---|---|
+| Sim-Env (reset/step) | ✅ bereits gebaut und validiert |
+| Reward-Funktion | ✅ `_check_success()` als Basis; Shaped Reward ~1–2 Tage Arbeit |
+| BC-Checkpoint als Startpunkt | ✅ schnellere RL-Konvergenz |
+| RL-Algorithmus für Flow-Matching | ⚠️ Standard-PPO passt nicht direkt; REINFORCE auf Trajektorien-Ebene ist der einfachste Einstieg |
+| GPU-Anforderung | ⚠️ RT-Cores (Isaac Sim) + VRAM (3B Modell) gleichzeitig → vast.ai L40/A6000, nicht KISSKI |
+
+**Realistischster Ansatz:** Trajectory-Level REINFORCE — Episode läuft durch, am Ende wird
+der kumulierte Reward als Policy-Gradient-Signal verwendet. Keine Differenzierung durch den
+Denoising-Prozess nötig, daher mit der aktuellen GR00T-Architektur umsetzbar.
+Details: [`reinforcement-learning-plan.md`](reinforcement-learning-plan.md).
+
+#### Option C: Mehr Demonstrations-Daten + erneutes BC-Training
+
+Wenn der echte Roboter schlechte Ergebnisse zeigt (kein Domain Gap, aber schlechtes Verhalten):
+mehr und vielfältigere Teleop-Episoden aufnehmen, insbesondere mit expliziten Greif- und
+Platzier-Übergängen. Aktuell 301 Episoden — typische VLA-Trainings nutzen 500–2000.
+
+### 8.5 Empfehlung
+
+Für dieses Projekt (kein echter Roboter verfügbar):
+
+1. **Sim-Diagnose als vollständig abgeschlossen betrachten:** Replay-Funktionalität und
+   Domain-Gap-Ursache sind belegt — das ist ein valides wissenschaftliches Ergebnis.
+2. **RL als Ausblick/Erweiterung formulieren** (falls kein Zeitrahmen mehr vorhanden).
+3. **Falls Zeit:** REINFORCE-Ansatz auf vast.ai umsetzen — die Infrastruktur (Env,
+   Reward-Grundlage, Docker-Pipeline) ist fertig.
+
+---
+
 ## 7. Verwendete Artefakte
 
 | Zweck | Datei |

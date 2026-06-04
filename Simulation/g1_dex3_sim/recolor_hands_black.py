@@ -7,8 +7,11 @@ Kameras einen großen falschfarbenen Bereich.
 
 WICHTIG — zwei Eigenheiten dieses Assets (verifiziert mit usd-core auf g1_dex3.usd):
   1. Der Roboter ist INSTANZIERT (instanceable=True auf den .../<link>/visuals-Prims).
-     Material lässt sich NICHT auf Instance-Proxies (die Meshes darunter) binden — daher
-     wird es auf die INSTANCE-ROOTS der Hand-Links gebunden und von dort nach unten vererbt.
+     Eine Material-Bindung am Instance-ROOT wird NICHT ins Prototype (die eigentlichen
+     Meshes) komponiert und rendert daher nicht — die Hände blieben weiß. Lösung: die
+     Hand-/visuals-Prims werden DE-INSTANZIERT (instanceable=False), und das Material wird
+     DIREKT auf jedes darunterliegende Mesh-Gprim gebunden (überschreibt sicher auch eine
+     bereits am Mesh vorhandene weiße Direktbindung, die eine reine Eltern-Vererbung gewinnt).
   2. Der Roboter-Root heißt "g1_29dof_with_hand_rev_1_0" — enthält selbst "hand". Ein
      naiver "hand"-Substring-Match würde den GANZEN Roboter treffen. Deshalb wird gezielt
      auf die Link-Präfixe ``left_hand_`` / ``right_hand_`` gematcht (16 /visuals-Prims:
@@ -70,8 +73,12 @@ def main() -> None:
     shader.CreateInput("metallic", Sdf.ValueTypeNames.Float).Set(0.0)
     material.CreateSurfaceOutput().ConnectToSource(shader.ConnectableAPI(), "surface")
 
-    # Instance-Roots der Hand-Links finden und Material dort binden (vererbt sich nach unten).
-    bound = []
+    # Hand-/visuals-Roots finden, de-instanzieren und das Material direkt auf jedes
+    # darunterliegende Mesh-Gprim binden. (Bindung am Instance-Root allein rendert nicht —
+    # s. Modul-Docstring Punkt 1.) Erst alle passenden Roots sammeln, dann verarbeiten:
+    # SetInstanceable(False) verändert die Komposition, daher die Traverse nicht gleichzeitig
+    # mutieren.
+    roots = []
     for prim in stage.Traverse():
         path = prim.GetPath().pathString
         if not any(m in path for m in markers):
@@ -80,14 +87,29 @@ def main() -> None:
             continue
         if not args.include_collisions and not path.endswith("/visuals"):
             continue
-        UsdShade.MaterialBindingAPI.Apply(prim).Bind(material)
-        bound.append(path)
+        roots.append(path)
+
+    bound = []
+    for root_path in roots:
+        root = stage.GetPrimAtPath(root_path)
+        # De-instanzieren, damit der /visuals-Root im Stage editierbar wird und die
+        # Bindung in den (sonst geteilten) Mesh-Subbaum komponiert.
+        root.SetInstanceable(False)
+        # Auf den /visuals-Root mit bindingStrength=strongerThanDescendants binden:
+        # die referenzierten Meshes tragen eine eigene weiße Direktbindung
+        # (material_white), die eine schwächere Vorfahr-Bindung sonst gewinnt. Eine
+        # stärkere Vorfahr-Bindung überschreibt jede Bindung darunter zuverlässig.
+        UsdShade.MaterialBindingAPI.Apply(root).Bind(
+            material, bindingStrength=UsdShade.Tokens.strongerThanDescendants
+        )
+        bound.append(root_path)
 
     if not bound:
-        print(f"WARN: keine Hand-Instance-Roots für Marker {markers} gefunden — nichts geändert.")
+        print(f"WARN: keine Hand-/visuals-Roots für Marker {markers} gefunden — nichts geändert.")
         print("      Prim-Struktur prüfen (Instancing!) und --markers anpassen.")
     else:
-        print(f"OK: schwarzes Material an {len(bound)} Hand-Instance-Roots gebunden:")
+        print(f"OK: schwarzes Material an {len(bound)} Hand-/visuals-Roots gebunden "
+              f"(de-instanziert, strongerThanDescendants):")
         for p in bound:
             print(f"    {p}")
 

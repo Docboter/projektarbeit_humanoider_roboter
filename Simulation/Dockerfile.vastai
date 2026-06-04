@@ -86,6 +86,10 @@ RUN UV_PREVIEW=1 UV_HTTP_TIMEOUT=300 UV_CONCURRENT_DOWNLOADS=4 \
     uv sync --frozen --no-install-project --extra dev --no-cache
 RUN uv pip install --python /app/Groot-1.6/.venv/bin/python -e . --no-deps
 RUN uv pip install --python /app/Groot-1.6/.venv/bin/python jsonlines pyzmq msgpack
+# usd-core: standalone-pxr für den Hand-Recolor (recolor_hands_black.py). Isaacs gebündeltes
+# Python exponiert pxr NICHT für standalone-Skripte (ohne Kit-App-Start) → der Recolor muss
+# über dieses venv laufen. Separates Interpreter-Env als Isaac Sim → kein pxr-Konflikt.
+RUN uv pip install --python /app/Groot-1.6/.venv/bin/python usd-core
 
 # DeepSpeed entfernen: reine Trainings-Bibliothek (ZeRO), für die Inferenz in der Sim nicht
 # nötig. Das isaac-lab-Image hat keine CUDA-Toolchain (kein nvcc, kein /usr/local/cuda).
@@ -119,6 +123,10 @@ RUN unset VIRTUAL_ENV && /workspace/isaaclab/_isaac_sim/python.sh -c \
 # Eigener Sim-Code (identisch mit KISSKI-Container)
 COPY g1_dex3_sim/ /workspace/g1_dex3_sim/
 
+# Baseline-Pfad: stock G1 + Dex1-Greifer (UNITREE_G1), un-finetuntes Modell.
+# Aktiv via SIM_MODE=baseline; lässt den DEX3-Default-Pfad unverändert.
+COPY g1_gripper_sim/ /workspace/g1_gripper_sim/
+
 # USD-Assets-Verzeichnis (g1_dex3.usd per Volume-Mount oder manuell rein)
 RUN mkdir -p /workspace/assets
 
@@ -143,7 +151,7 @@ ENV PATH="/app/Groot-1.6/.venv/bin:${PATH}" \
     NUM_EPISODES="20" \
     EXECUTION_HORIZON="8" \
     TASK_DESCRIPTION="stack the blocks" \
-    ASSET_PATH="/workspace/assets/g1_dex3.usd" \
+    ASSET_PATH="/workspace/assets/g1_dex3_blackhands.usd" \
     # Checkpoint: entweder CHECKPOINT_PATH (Volume) oder HF_CHECKPOINT_REPO (Download)
     CHECKPOINT_PATH="/data/checkpoints" \
     HF_CHECKPOINT_REPO="" \
@@ -151,6 +159,9 @@ ENV PATH="/app/Groot-1.6/.venv/bin:${PATH}" \
     NO_FLASH_ATTN="0" \
     SKIP_DOWNLOAD="0" \
     SHELL_ON_ERROR="0" \
+    # Sim-Modus: leer/dex3 = DEX3-Closed-Loop (Default), baseline = stock G1 + Dex1-Greifer
+    # (UNITREE_G1, un-finetuntes GR00T-N1.6-3B). Bei baseline ASSET_PATH auf g1_gripper.usd setzen.
+    SIM_MODE="dex3" \
     # WebRTC-Livestream (opt-in): 0=aus, 1=öffentlich, 2=privat/lokal.
     # LIVESTREAM_PORT auf vast.ai auf den EXTERN gemappten Port setzen (intern==extern).
     LIVESTREAM="0" \

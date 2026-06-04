@@ -174,7 +174,7 @@ if [[ "$BLACK_HANDS" == "1" ]]; then
         apptainer exec --nv \
             --bind "$DATA_DIR:/data" --bind "$ASSETS_DIR:/data/assets" \
             --bind "$SIM_CODE/g1_dex3_sim:/workspace/g1_dex3_sim" \
-            "$SIM_SIF" bash -lc 'unset VIRTUAL_ENV; ${ISAACLAB_PATH}/isaaclab.sh -p \
+            "$SIM_SIF" bash -lc '/opt/usdtool/bin/python \
                 /workspace/g1_dex3_sim/recolor_hands_black.py \
                 --in /data/assets/g1_dex3.usd --out /data/assets/g1_dex3_blackhands.usd' \
             || echo "WARN: Recolor fehlgeschlagen."

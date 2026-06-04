@@ -8,13 +8,17 @@ Repo-Root gibt den Schnellstart; hier liegen die ausführlichen Anleitungen, the
 | Dokument | Inhalt |
 |---|---|
 | [training/](training/README.md) | **Einstieg Training** (Index) |
+| [training/trainingsverfahren.md](training/trainingsverfahren.md) | **Was wird trainiert?** — Modellarchitektur (GR00T N1.6), G1/DEX3-Embodiment (28 DOF), Flow-Matching-Action-Head, Datensatz |
 | [training/anleitung.md](training/anleitung.md) | **Schritt-für-Schritt-Anleitung** — die vier Wege zum Trainieren (vast.ai, lokal mit Skript, lokal mit `docker run`, KISSKI), Daten retten, FAQ |
 | [training/kisski-hpc.md](training/kisski-hpc.md) | **HPC-Training auf KISSKI** — SIF-Konvertierung, VAST-Storage, SLURM-Job, Monitoring, Checkpoint-Export, KISSKI-Troubleshooting |
+| [training/multi-gpu.md](training/multi-gpu.md) | **Multi-GPU-Training** — DeepSpeed/DDP, Batch-Size-Skalierung, KISSKI-Defaults (4× A100) |
 | [training/env-vars.md](training/env-vars.md) | **Konfigurationsreferenz** — alle Env-Vars + VRAM-Richtwerte (Single Source of Truth) |
 | [training/train-test-split.md](training/train-test-split.md) | 80/20-Datensatz-Split — Implementierung und Nutzung |
 | [training/wandb-offline-sync.md](training/wandb-offline-sync.md) | W&B-Offline-Sync auf KISSKI |
+| [training/wandb-run-auswertung.md](training/wandb-run-auswertung.md) | W&B-Run-Auswertung — Metriken-Momentaufnahme des 1. Laufs (Detail-Charts) |
 | [training/erster-trainingsdurchlauf-auswertung.md](training/erster-trainingsdurchlauf-auswertung.md) | **Abschluss-Auswertung 1. Lauf** (175k Steps) — Metriken + Verhaltens-Evaluation, Diagnose (visueller Domain-Gap), Empfehlungen |
 | [training/fixes-aus-erstem-lauf.md](training/fixes-aus-erstem-lauf.md) | **Fixes aus dem 1. Lauf** — Domain-Gap-Maßnahmen (Würfelfarbe, Stapel-Band, schwarze Hände, `BLACK_HANDS`-Auto-Recolor) + Werkzeuge & offene Punkte |
+| [training/reinforcement-learning-plan.md](training/reinforcement-learning-plan.md) | **RL-Plan (Konzept)** — möglicher nächster Schritt nach dem Domain-Gap-Befund: Algorithmen-Vergleich, Infrastruktur, offene Punkte |
 
 ## Simulation (Closed-Loop-Eval in Isaac Lab)
 
@@ -23,8 +27,16 @@ Repo-Root gibt den Schnellstart; hier liegen die ausführlichen Anleitungen, the
 | [simulation/](simulation/) | **Einstieg Simulation** (Index) |
 | [simulation/vastai-anleitung.md](simulation/vastai-anleitung.md) | **Primärer Workflow** — Closed-Loop-Sim-Eval auf vast.ai, Schritt für Schritt (inkl. Open-Loop-Replay-Diagnose) |
 | [simulation/implementation-notes.md](simulation/implementation-notes.md) | **READ FIRST** — Lessons Learned, bekannte Fixes, aktueller Stand |
+| [simulation/baseline-unitree-g1.md](simulation/baseline-unitree-g1.md) | **Baseline-Vergleich** — un-finetuntes `GR00T-N1.6-3B` + stock G1-Greifer (`UNITREE_G1`) auf Block-Stacking; parallele Pipeline (`SIM_MODE=baseline`) + TODO-Checkliste vor dem ersten Run |
 | [simulation/livestream-plan.md](simulation/livestream-plan.md) | **Plan** — Live-Stream der Sim via WebRTC (Echtzeit-Viewport vom Remote-GPU), noch nicht umgesetzt |
 | [simulation/archiv/](simulation/archiv/) | Historische Planungs-/Analyse-Docs (überholt, als Kontext erhalten) |
+
+## Querschnitt (Training + Simulation)
+
+| Dokument | Inhalt |
+|---|---|
+| [umgebungsanalyse.md](umgebungsanalyse.md) | **Umgebungsanalyse / Audit** — konzeptuelle Stärken & Schwächen von Training- und Sim-Setup, konkrete Bug-/Risiko-Liste, priorisierte Empfehlungen |
+| [troubleshooting.md](troubleshooting.md) | **Troubleshooting** — gebündelte Fehlerlösungen: Domain-Gap, OOM/VRAM, KISSKI-Queue & W&B-Pflicht, Sim-GPU-Anforderung |
 
 ## Submodul-Dokumentation (`app/Groot-1.6/examples/G1_DEX3/`)
 

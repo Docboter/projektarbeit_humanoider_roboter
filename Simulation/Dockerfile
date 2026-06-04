@@ -48,6 +48,15 @@ RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip install --no-cache-dir \
         opencv-python-headless \
         imageio[ffmpeg]
 
+# usd-core in ISOLIERTEM venv für den Hand-Recolor (recolor_hands_black.py).
+# Isaacs gebündeltes Python exponiert pxr NICHT für standalone-Skripte (ohne Kit-App-Start),
+# und ein zweites pxr direkt in Isaacs site-packages würde zur Laufzeit mit Isaac Sims eigenem
+# pxr kollidieren. Daher ein vom Isaac-Python getrenntes venv, das nur der Recolor nutzt.
+RUN apt-get update && apt-get install -y --no-install-recommends python3-venv \
+    && rm -rf /var/lib/apt/lists/* \
+    && python3 -m venv /opt/usdtool \
+    && /opt/usdtool/bin/pip install --no-cache-dir usd-core
+
 # Eigener Sim-Code und vendorter Client
 # Struktur (vgl. ISAAC_LAB_SIM_PLAN.md Abschnitt 8):
 #   g1_dex3_sim/

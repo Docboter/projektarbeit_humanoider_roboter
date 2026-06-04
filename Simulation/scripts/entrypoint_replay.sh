@@ -12,6 +12,13 @@
 # Env-Vars: HF_TOKEN + HF_CHECKPOINT_REPO (für das USD-Asset) ODER ASSET_PATH direkt.
 
 set -euo pipefail
+
+# ── Instance-Log (SSH-Zugriff) ────────────────────────────────────────────────
+# Alle Ausgaben in /data/logs/entrypoint_replay.log spiegeln (zusätzlich zu stdout).
+# Per SSH erreichbar: tail -f /data/logs/entrypoint_replay.log
+mkdir -p "${DATA_DIR:-/data}/logs"
+exec > >(tee -a "${DATA_DIR:-/data}/logs/entrypoint_replay.log") 2>&1
+
 log()  { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
 ok()   { printf '\033[1;32m v \033[0m %s\n' "$*"; }
 err()  { printf '\033[1;31m!! \033[0m %s\n' "$*" >&2; }

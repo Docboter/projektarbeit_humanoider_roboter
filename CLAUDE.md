@@ -8,7 +8,7 @@ Fine-tuning of **NVIDIA GR00T N1.6** (Vision-Language-Action model) on the **Uni
 
 The container is autonomous: launching the image triggers `/scripts/entrypoint.sh` (source: `Training/scripts/entrypoint.sh`), which orchestrates download → conversion → training. The same image runs locally, on cloud-GPU platforms like vast.ai, and on the **KISSKI HPC cluster** (GWDG Göttingen) via Apptainer — configuration is via env vars only.
 
-**Storage model:** No host-side persistent storage by default. All data, checkpoints, and logs live in the container filesystem (`/data` is a regular directory inside the image, **not** a volume mount). The container is meant to be long-lived: `stop`/`start` preserves state; only `docker rm` destroys it. This matches the vast.ai semantics where one instance == one container. **Exception — KISSKI:** the cluster uses Apptainer (not Docker) and bind-mounts `/scratch/$USER/data` to `/data` inside the container; data therefore persists on the cluster's scratch storage across job runs.
+**Storage model:** No host-side persistent storage by default. All data, checkpoints, and logs live in the container filesystem (`/data` is a regular directory inside the image, **not** a volume mount). The container is meant to be long-lived: `stop`/`start` preserves state; only `docker rm` destroys it. This matches the vast.ai semantics where one instance == one container. **Exception — KISSKI:** the cluster uses Apptainer (not Docker) and bind-mounts `/mnt/vast-kisski/projects/kisski-humrob/data` to `/data` inside the container; data therefore persists on the cluster's VAST project storage across job runs. (The old SCRATCH-SCC storage `/scratch/` was decommissioned on 2026-03-31.)
 
 Detailed guides (all prose docs live under [`docs/`](docs/README.md)):
 - **Doc navigation hub:** [`docs/README.md`](docs/README.md)
@@ -65,7 +65,7 @@ squeue -u $USER
 tail -f logs/slurm-<jobid>.out
 
 # Retrieve checkpoints
-rsync -avz <username>@transfer.hpc.gwdg.de:/scratch/<username>/data/g1_dex3_finetune/ ./checkpoints/
+rsync -avz <username>@transfer.hpc.gwdg.de:/mnt/vast-kisski/projects/kisski-humrob/data/g1_dex3_finetune/ ./checkpoints/
 ```
 
 KISSKI partitions: `kisski` (A100 80 GB) and `kisski-h100` (H100 94 GB), max walltime 48 h.
@@ -223,7 +223,7 @@ At runtime, the container holds (no host mount):
 ### Important: scripts are COPIED into the image, no host-side data persistence
 
 - Changes to `Training/scripts/*.sh` require a rebuild (no bind-mount).
-- All data (`/data`) lives only in the container filesystem (or on `/scratch` on KISSKI).
+- All data (`/data`) lives only in the container filesystem (or on the VAST project storage `/mnt/vast-kisski/projects/kisski-humrob/data` on KISSKI).
 - `docker run --rm` would destroy training results — never use it with this image.
 - `Training/scripts/run_finetuning.sh` detects both Docker (`.dockerenv`) and Apptainer (`$APPTAINER_NAME` / `$SINGULARITY_NAME`) environments — no changes needed when running on KISSKI.
 - `kisski_submit.sh` bind-mounts `${REPO_DIR}/Training/scripts:/scripts` so repo changes take effect without an image rebuild.

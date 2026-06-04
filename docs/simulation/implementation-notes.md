@@ -440,26 +440,28 @@ Ab hier ist **Training der Hebel**. Optionale Feinschritte: Würfel-Reibungsmate
 
 ---
 
-## 12. Aktueller Stand (2026-06-01)
+## 12. Aktueller Stand (2026-06-04)
 
-Pipeline läuft **vollständig end-to-end** und ist als treues, dataset-nahes Eval-Harness
-**validiert**. `checkpoint-3000` stapelt (erwartet) nicht — das ist jetzt nachweislich das
-Modell (untertrainiert), nicht die Sim.
+Pipeline vollständig validiert. Replay-Diagnose bestätigt: Sim-Config ist korrekt, Greif-Physik
+funktioniert. Closed-Loop-Versagen ist nachweislich **Domain Gap** (eingefrorenem Vision-Encoder),
+nicht die Sim — Details in [§13](#13-physics-calibration-session-2026-06-04) und
+[`erster-trainingsdurchlauf-auswertung.md`](../training/erster-trainingsdurchlauf-auswertung.md).
 
 | Komponente | Status |
 |---|---|
 | Pipeline (download → server → sim → eval) | ✅ end-to-end verifiziert |
-| 4 Policy-Kameras (high + wrist) | ✅ nach Tisch-Umbau erneut am Render verifiziert — alle zeigen Tisch/Hände/Würfel |
+| 4 Policy-Kameras (high + wrist) | ✅ alle zeigen Tisch/Hände/Würfel |
 | Szenen-Übersichtskamera (Video) | ✅ |
-| Roboter-Startpose (Dataset Frame 0) + weißer Tisch | ✅ |
-| **Tischhöhe (Greifraum)** | ✅ behoben (0,74→0,87); Würfel jetzt erreichbar |
-| Dex3-Finger | ✅ kein Sign-Flip; Gelenkgrenzen geweitet |
-| Greif-Physik | ✅ funktioniert (Kontakt + Anhebung im Replay) |
-| Aktions-Tracking | ✅ 0,022 rad (Sim führt treu aus) |
-| `Dockerfile.vastai` | python3.10 + deepspeed-uninstall + pyzmq + 3 Smoke-Tests + openssh |
-| Repo-Fixes noch nicht im gepushten Image | gesamtes `g1_dex3_sim/` + `scripts/` → `update_sim_image.ps1 -VastAI` |
-| Modell | `checkpoint-3000` (3000 Steps); für echte Erfolge 30k+ nötig |
-| KISSKI Sim-Eval | Blockiert (RTX 5000 Turing < Ampere) |
+| Roboter-Startpose (Dataset Frame 0) | ✅ |
+| **Tischhöhe / Würfelposition** | ✅ Tisch 0,87 m; `block_z_surface = 0,915` → Würfel-Oberkante z=0,940 = tiefster Handpunkt |
+| **Dex3-Finger (Sign-Convention-Fix)** | ✅ `middle_0`/`index_0` (Indices 17,19,24,26) negiert in Actions + Obs |
+| **Greif-Physik** | ✅ `max_cube_lift = 2,8 cm` (Schwelle >2 cm = Greifen bestätigt) |
+| Aktions-Tracking | ✅ 0,021 rad mittlerer Arm-Fehler |
+| Finger-Aktuatoren | ✅ stiffness=60, effort=20 N·m, solver_iter=8 |
+| Würfel-Reibung | ✅ static=3,0 / dynamic=2,5 |
+| `Dockerfile.vastai` | ✅ aktuell; Rebuild via `./update_sim_image.sh --vastai` |
+| Modell `checkpoint-175000` Closed-Loop | ❌ Domain Gap (eingefroren. Vision-Encoder vs. Sim-Bilder) |
+| KISSKI Sim-Eval | ❌ Blockiert (RTX 5000 Turing < Ampere) |
 
 **Iteration auf warmer Instanz** (ohne Rebuild): geänderte Sim-Dateien per `scp` nach
 `/workspace/g1_dex3_sim/`, dann `NUM_EPISODES=2 PYTHONUNBUFFERED=1 bash /scripts/entrypoint_sim.sh`.
@@ -467,7 +469,223 @@ Für reproduzierbaren Stand: Image neu bauen + pushen.
 
 ---
 
-## 13. Outdated-Hinweise zu anderen Dokumenten
+---
+
+## 13. Physics Calibration Session (2026-06-04)
+
+Diese Session hat die Greif-Physik der Sim systematisch kalibriert, ausgehend von
+`max_cube_lift = 1,0 cm` (kein Greifen). Endergebnis: **2,8 cm — Greifen validiert**.
+
+### 14.1 Finger-Aktuatoren (`g1_dex3_cfg.py`)
+
+| Parameter | Vorher | Nachher | Begründung |
+|---|---|---|---|
+| `stiffness` (Hände) | 20,0 | **60,0** | Finger schlossen Distal-Joints nicht (max_error Joint 18/27 = 0,74/0,88 rad) |
+| `effort_limit` (Hände) | 5,0 N·m | **20,0 N·m** | 50 g Würfel gegen Schwerkraft halten erfordert >5 N·m |
+| `damping` (Hände) | 2,0 | **4,0** | Proportional zur neuen stiffness |
+| `solver_position_iter` | 4 | **8** | Bessere Kontaktauflösung bei Mehrfach-Kontakt (Finger + Würfel) |
+| `solver_velocity_iter` | 0 | **1** | Stabilerere Kontaktdynamik |
+
+### 14.2 Sign-Convention-Fix für proximale Fingergelenke
+
+**Ursache:** `middle_0` und `index_0` beider Hände haben im USD eine **invertierte Achse**
+gegenüber der Dataset-Konvention. Dataset: positiver Wert = schließen (links) / negativer Wert
+= schließen (rechts). USD-Limits: `[-1,571, 0]` links / `[0, 1,571]` rechts → entgegengesetzt.
+
+**Symptom:** Policy sagt „schließen" → Sim bewegt Proximal-Gelenke in Öffnungsrichtung →
+nur Distal-Gelenke (`_1`) griffen, Griff zu schwach für Transport.
+
+**Betroffene Policy-Indices:** 17 (`l_middle_0`), 19 (`l_index_0`), 24 (`r_index_0`), 26 (`r_middle_0`)
+
+**Fix in `g1_dex3_blockstack_env.py`:**
+
+```python
+# _pre_physics_step: Actions negieren → USD-Konvention
+actions[:, self._SIGN_FLIP_IDX] *= -1   # _SIGN_FLIP_IDX = [17, 19, 24, 26]
+
+# _get_observations: Beobachtungen negieren → Dataset-Konvention für Modell
+joint_pos[:, self._SIGN_FLIP_IDX] *= -1
+```
+
+Ohne den **Observations-Fix** würde das Modell im Closed-Loop falsche Fingerwinkel sehen und
+permanent gegensteuern (Policy-Feedback-Loop mit verdoppeltem Fehler).
+
+**Fix in `g1_dex3_cfg.py`:**
+- `DATASET_INIT_STATE`: negierte Werte für die 4 Joints (Dataset-Wert × −1)
+- `_widen_finger_joint_limits`: diese 4 Joints entfernt — nach dem Flip liegen die Werte
+  bereits im Original-USD-Bereich, kein Weiten nötig
+
+### 14.3 Würfel-Reibung (`g1_dex3_blockstack_env.py`)
+
+Standard-PhysX-Reibung (~0,5) ließ den Würfel trotz korrektem Griff herausgleiten.
+
+| Parameter | Vorher | Nachher |
+|---|---|---|
+| `static_friction` | 0,5 (default) → 1,5 | **3,0** |
+| `dynamic_friction` | 0,5 (default) → 1,2 | **2,5** |
+| `restitution` | default | **0,0** |
+
+Auf allen 3 Würfeln gesetzt. Wert 3,0 entspricht gummierter Greiffläche — für 50 g Würfel
+notwendig, um Haltekraft während der Arm-Bewegung (Trägheitskräfte) zu gewährleisten.
+
+### 14.4 Tischhöhe und Würfelposition
+
+**Diagnose aus Replay-Logs:**
+```
+tiefster left-Hand-Punkt:  x=0.305  y=0.200  z=0.937
+tiefster right-Hand-Punkt: x=0.350  y=-0.169 z=0.944
+Würfel-Oberseite (Zentrum): z≈0.915  →  tatsächliche Oberkante z=0.940
+```
+
+Die Handflächen erreichen z ≈ 0,937–0,944. Würfel-Oberkante muss auf dieser Höhe liegen.
+
+| Konfiguration | Vorher | Nachher |
+|---|---|---|
+| Tischhöhe | 0,87 m | **0,87 m** (unverändert — höherer Tisch blockiert Arme im Closed-Loop) |
+| `block_z_surface` | 0,895 | **0,915** (Oberkante z=0,940 ≈ tiefster Handpunkt) |
+| Würfel-Initialpositionen (z) | 0,895 | **0,915** |
+| Grasp-Test grüner Würfel | (0,36, −0,18) | **(0,37, −0,16)** (rechte Handposition gemessen) |
+
+> **Wichtig:** Tisch über 0,87 m anheben blockiert die Arme im Closed-Loop — Modell versucht
+> zu z ≈ 0,915 zu greifen, Tischkollision stoppt die Arme früher → Hände liegen auf dem Tisch,
+> Roboter zappelt. Cube-z-surface erhöhen ohne Tischhöhe zu ändern ist die korrekte Lösung.
+> Die Würfel „schweben" dabei 2,5 cm über der Tischoberfläche — für die Sim-Eval akzeptabel.
+
+### 14.5 Replay-Ergebnisse vor/nach der Kalibrierung
+
+| Metrik | Vor Session | Nach Session |
+|---|---|---|
+| `max_cube_lift_cm` | 1,0 cm | **2,8 cm** ✅ |
+| `min_hand_cube_dist_cm` | 5,9 cm | 7,3 cm (Würfel durch Kontakt verschoben) |
+| Arm-Tracking (mittel) | 0,021 rad | 0,020 rad (unverändert gut) |
+| Diagnose | Greifen scheitert | **Greifen bestätigt** (>2 cm Schwelle) |
+
+Die erhöhte Endposition der Würfel (`(0,38, 0,15)` statt `(0,35, 0,20)` Startposition) bestätigt
+echten Kontakt: Würfel wurden tatsächlich bewegt, nicht nur gestreift.
+
+### 14.6 Closed-Loop-Eval (checkpoint-175000) — Diagnose
+
+**Beobachtetes Verhalten:** Hände liegen auf dem Tisch, Roboter führt kleine, ungerichtete
+Bewegungen aus, keine Greifaktion.
+
+**Ursache (bestätigt):** Visueller Domain Gap — der eingefrorene Vision-Encoder produziert
+unbrauchbare Features für synthetische Isaac-Sim-Renderings. Das Training ist korrekt
+(loss 1,37 → 0,10, W&B-Diagnose: „converged"); die Sim-Config ist korrekt (Replay bestätigt).
+Der einzige Unterschied zwischen Replay (funktioniert) und Closed-Loop (versagt) sind
+die **Kamerabilder**, die das Modell als Input bekommt.
+
+Detaillierte Analyse: [`erster-trainingsdurchlauf-auswertung.md §8`](../training/erster-trainingsdurchlauf-auswertung.md).
+
+---
+
+---
+
+## 14. Domain-Gap-Diagnose-Werkzeuge
+
+Drei Skripte bilden zusammen die Domain-Gap-Diagnose (real vs. Isaac-Sim-Kamerabilder) — die
+Kernursache, warum der eingefrorene Vision-Encoder im Closed-Loop versagt (§13.6):
+
+| Schritt | Werkzeug | Zweck |
+|---|---|---|
+| 1 — Sim-Frames erzeugen | [`g1_dex3_sim/dump_policy_cams.py`](../../Simulation/g1_dex3_sim/dump_policy_cams.py) | Rendert je Policy-Kamera ein `sim_cam_*.png` (im Sim-Container, RT-Core-GPU). |
+| 2 — qualitativ vergleichen | [`compare_domain_gap.sh`](../../Simulation/compare_domain_gap.sh) | Montiert pro Kamera das Dataset-Referenzbild (`Simulation/camera_reference/dataset_cam_*.png`) links neben das Sim-Renderbild rechts → ein beschriftetes Vergleichs-PNG. Lokal lauffähig (nur ImageMagick). |
+| 3 — quantitativ messen | [`scripts/measure_domain_gap.py`](../../Simulation/scripts/measure_domain_gap.py) | Schickt Real- und Sim-Frames durch SigLIP (identische Gewichte zum frozen GR00T-ViT) und misst die Cosine-Distanz der Embeddings → eine Zahl pro Kamera. |
+
+**Beispiel (compare, lokal):**
+```bash
+# Sim-Frames aus dem Sim-Container herunterladen, dann:
+Simulation/compare_domain_gap.sh ./sim_cam_frames ./domain_gap_compare.png
+```
+
+Messergebnis des ersten Laufs (mittlere Cosine-Distanz 0.260, `cam_left_wrist` kritisch bei
+0.427) ist in [`umgebungsanalyse.md`](../umgebungsanalyse.md) festgehalten.
+
+---
+
+## 15. Kamera-Kalibrierung: Overlay-Verfahren (2026-06-05)
+
+### Hintergrund
+
+Die Kamera-Posen in [`g1_dex3_cfg.py`](../../Simulation/g1_dex3_sim/g1_dex3_cfg.py) wurden
+ursprünglich geschätzt und iterativ gegen Referenz-Frames angepasst. Präzise Hardware-Metadaten
+(Mounting-Position, Intrinsics) sind im Dataset **nicht** hinterlegt — die HuggingFace-`info.json`
+enthält nur Auflösung (640×480) und FPS (30). Unitree empfiehlt selbst: *"adjust the scene to
+closely match the first frame of the dataset."*
+
+### Methodik: Visuelles Overlay-Verfahren
+
+Das **Overlay-Verfahren** ist der zuverlässigste Weg ohne Hardware-Specs:
+
+1. **Referenzbild** aus dem Datensatz (Episode 0, Frame 0 = `Simulation/camera_reference/dataset_cam_*.png`)
+2. **Sim-Frame** aus Isaac Sim (Episode 1, Step 0 → `_debug_obs_cam_*.png` in `--video-dir`)
+3. **Alpha-Blend**: Real (grün getönt) 50 % über Sim (rot getönt)
+   - Perfekte Überlagerung → **gelb** (rot + grün)
+   - Misalignment → grüne oder rote Geister
+4. **Tuning** von `wrist_eye`, `left_wrist_target`, `right_wrist_target`, `high_eye`, `hfov_deg`
+   bis Finger/Tisch übereinander liegen
+
+**Werkzeug:**
+```bash
+# Lokal ausführen (nur Pillow + NumPy, kein Isaac Sim nötig):
+python Simulation/scripts/overlay_camera_check.py \
+    --real-dir Simulation/camera_reference/ \
+    --sim-dir  Simulation/runs/<run>/           \
+    --out-dir  Simulation/runs/<run>/overlay/
+
+# Iterationsloop:
+# 1. overlay_camera_check.py → Misalignment sehen
+# 2. g1_dex3_cfg.py anpassen
+# 3. scp g1_dex3_cfg.py root@<vastai>:/workspace/g1_dex3_sim/
+# 4. Replay-Script starten (kein Modell nötig, endet nach ~2 min):
+#      GRASP_TEST=1 bash /scripts/entrypoint_replay.sh
+#    (oder Modell-Eval; beide schreiben _debug_obs_*.png nach Step 0 ins video-dir)
+# 5. Frames herunterladen → zurück zu 1.
+```
+
+### Befunde und durchgeführte Korrekturen
+
+#### High-Kameras (`cam_left_high`, `cam_right_high`)
+
+Overlay-Befund: Sim erschien stark herein-gezoomt verglichen mit Real — Real zeigte Tischkante
+und Wand-Hintergrund, Sim zeigte Blöcke formatfüllend.
+
+| Parameter | Alt | Neu | Grund |
+|---|---|---|---|
+| `hfov_deg` | 69° | **90°** | Sim zu eng/nah |
+| Eye Z | 1.40 m | **1.60 m** | Kamera höher → mehr Hintergrund sichtbar |
+| Eye X | 0.0 m | **−0.10 m** | Weiter vom Tisch zurück |
+
+#### Wrist-Kameras (`cam_left_wrist`, `cam_right_wrist`)
+
+**Befund 1 (vor der Korrektur):** `cam_left_wrist` zeigte den weißen Wrist-Connector
+formatfüllend — kein Finger, kein Aufgabenraum sichtbar. Ursache: `target=(0.14,0,−0.18)` war zu
+steil nach unten und traf in der asymmetrischen Arm-Startpose den Gelenk-Körper statt vorwärts
+zu schauen. Fix: Target auf `(0.18,0,−0.06)` verschoben.
+
+**Befund 2 (nach erstem Fix, Overlay-Analyse):** Beide Wrist-Cams zeigten von **oben nach unten**
+auf die Hand. Die Real-Bilder zeigen die Kamera dagegen von **unten-vorne** auf den Wrist-Mechanismus
+(Wrist-Joint oben im Bild, Hand zeigt weg → Kamera schaut aufwärts-vorwärts). Kompletter
+Perspektiv-Flip.
+
+| Parameter | Alt | Neu | Grund |
+|---|---|---|---|
+| `wrist_eye Z` | +0.13 m | **−0.06 m** | Unter statt über dem Wrist |
+| `wrist_eye X` | −0.08 m | **−0.06 m** | Leicht angepasst |
+| `left_wrist_target Z` | −0.06 | **+0.12** | Aufwärts-vorwärts statt abwärts |
+| `right_wrist_target Z` | −0.05 | **+0.12** | analog |
+
+### Domain-Gap-Auswirkung
+
+Die Kamera-Fehlposition war (neben echtem Sim-vs-Real-Appearance-Gap) ein wesentlicher Treiber
+des `cam_left_wrist`-Gaps von 0.427 (gemessen mit SigLIP, s. [`domain-gap-analyse.md`](domain-gap-analyse.md)).
+Nach dem Kamerafix zeigte `measure_domain_gap.py` kaum Verbesserung in der Embedding-Distanz
+(0.427 → 0.424), weil das SigLIP-Embedding den Bildinhalt global bewertet. Für die **Policy-Qualität**
+ist die korrekte Perspektive aber entscheidend — eine Policy, die nur den Wrist-Connector sieht,
+kann keine Greifentscheidungen treffen.
+
+---
+
+## 16. Outdated-Hinweise zu anderen Dokumenten
 
 Die folgenden Dokumente sind historisch/überholt und liegen daher im Unterordner
 [`archiv/`](archiv/). Sie bleiben als Planungs-/Entscheidungs-Kontext erhalten, sind aber

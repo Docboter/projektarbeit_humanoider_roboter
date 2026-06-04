@@ -44,6 +44,12 @@
 
 set -euo pipefail
 
+# ── Instance-Log (SSH-Zugriff) ────────────────────────────────────────────────
+# Alle Ausgaben in /data/logs/entrypoint.log spiegeln (zusätzlich zu stdout).
+# Per SSH erreichbar: tail -f /data/logs/entrypoint.log
+mkdir -p "${DATA_DIR:-/data}/logs"
+exec > >(tee -a "${DATA_DIR:-/data}/logs/entrypoint.log") 2>&1
+
 # ── Logging ───────────────────────────────────────────────────────────────────
 log()  { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
 ok()   { printf '\033[1;32m v \033[0m %s\n' "$*"; }
@@ -64,6 +70,15 @@ trap 'trap_err $LINENO' ERR
 if [[ $# -gt 0 ]]; then
     log "Entrypoint: führe übergebenen Befehl aus: $*"
     exec "$@"
+fi
+
+# ── Modus-Dispatch ────────────────────────────────────────────────────────────
+# SIM_MODE=baseline → Baseline-Test: un-finetuntes GR00T-N1.6-3B + stock G1 mit
+# Dex1-Greifer (Embodiment UNITREE_G1). Default (dex3, leer) lässt das bestehende
+# DEX3-Closed-Loop-Verhalten unverändert.
+if [[ "${SIM_MODE:-dex3}" == "baseline" ]]; then
+    log "SIM_MODE=baseline — wechsle zu /scripts/entrypoint_baseline.sh"
+    exec /scripts/entrypoint_baseline.sh
 fi
 
 # ── Banner ────────────────────────────────────────────────────────────────────
@@ -292,7 +307,9 @@ if [[ "$BLACK_HANDS" == "1" ]]; then
     BH_USD="${BASE_USD%.usd}_blackhands.usd"
     if [[ -f "$BASE_USD" && ! -f "$BH_USD" ]]; then
         log "Domain-Gap-Fix: erzeuge schwarzhändiges Asset → $BH_USD"
-        "${ISAACLAB_PATH}/isaaclab.sh" -p /workspace/g1_dex3_sim/recolor_hands_black.py \
+        # Recolor über das GR00T-venv (hat usd-core/pxr). Isaacs Python exponiert pxr NICHT
+        # für standalone-Skripte → isaaclab.sh -p würde mit ModuleNotFoundError: pxr scheitern.
+        "$GROOT_ROOT/.venv/bin/python" /workspace/g1_dex3_sim/recolor_hands_black.py \
             --in "$BASE_USD" --out "$BH_USD" || warn "Recolor fehlgeschlagen — nutze Original."
     fi
     if [[ -f "$BH_USD" ]]; then

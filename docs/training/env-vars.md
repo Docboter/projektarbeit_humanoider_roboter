@@ -17,6 +17,13 @@ lokal **identisch**. Der Entrypoint (`/scripts/entrypoint.sh`) liest sie ein; De
 | `SKIP_CONVERT` | `0` | `1` = v3→v2-Konvertierung überspringen (`modality.json` existiert) |
 | `SKIP_TRAIN` | `0` | `1` = nur Setup, dann Shell |
 | `SHELL_ON_ERROR` | `0` | `1` = bei Fehler in Shell fallen statt zu beenden |
+| `TUNE_VISUAL` | `0` | `1` = Vision-Encoder mittrainieren (`--tune_visual`). Entrypoint startet dann `run_finetuning_vision.sh` mit eigenem Output-/Experiment-Namespace (`blockstacking_vision`). LLM bleibt eingefroren. Höherer VRAM-Bedarf. |
+| `LEARNING_RATE` | `1e-4` | Lernrate (`--learning_rate`) |
+| `DATALOADER_WORKERS` | `8` | Dataloader-Worker (`--dataloader_num_workers`); KISSKI-Default: `4` |
+| `SAVE_STEPS` | `1000` | Checkpoint-Intervall in Steps (`--save_steps`); KISSKI-Default: `5000` |
+| `SAVE_TOTAL_LIMIT` | `5` | Max. Anzahl behaltener Checkpoints (`--save_total_limit`); KISSKI-Default: `40` |
+| `USE_WANDB` | *auto* | W&B an/aus. Wird vom Entrypoint automatisch gesetzt: `1` wenn `WANDB_API_KEY` vorhanden, sonst `0`. Manuell `USE_WANDB=0` erzwingt Training ohne W&B. |
+| `WANDB_MODE` | `offline` | W&B-Modus (vom Entrypoint gesetzt). `offline` puffert lokal — danach manuell syncen, siehe [wandb-offline-sync.md](wandb-offline-sync.md). |
 
 ## VRAM-Richtwerte
 

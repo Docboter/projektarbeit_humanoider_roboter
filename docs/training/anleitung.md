@@ -246,8 +246,17 @@ export HF_TOKEN=hf_...  WANDB_API_KEY=...  GLOBAL_BATCH_SIZE=32
 sbatch Training/kisski_submit.sh
 ```
 
+Standardmäßig ist der Vision-Encoder eingefroren (es werden nur Projector + Diffusion-Action-Head
+trainiert). Soll der **Vision-Encoder mittrainiert** werden, mit `TUNE_VISUAL=1` einreichen — LR
+(`1e-4`), Warmup (`0.1`) und ein eigener Output-Namespace werden dann automatisch gesetzt:
+
+```bash
+TUNE_VISUAL=1 sbatch --export=ALL Training/kisski_submit.sh
+```
+
 → **Vollständige Schritt-für-Schritt-Anleitung** (SIF-Konvertierung, VAST-Storage, Monitoring,
 Checkpoint-Export, KISSKI-Troubleshooting): [HPC-Training auf KISSKI](kisski-hpc.md).
+Details zur Vision-Variante: [Vision-Encoder mittrainieren](kisski-hpc.md#variante--vision-encoder-mittrainieren-tune_visual1).
 
 ---
 
@@ -388,7 +397,16 @@ docker cp groot-train:/data/g1_dex3_finetune ./checkpoints
 
 Mit dem Launcher: `./Training/setup_and_train_DockerHub-pull.sh --resume`. Manuell: `docker start -ai groot-train`. Der Entrypoint sieht, dass Daten vorhanden sind, und überspringt Download + Konvertierung.
 
-> **Hinweis:** Aktuell startet das Training jedes Mal von Step 0. Echtes Resume-from-Checkpoint ist eine Funktion von `launch_finetune.py` (`--resume_from_checkpoint`), die derzeit nicht im Entrypoint exponiert ist.
+> **Wichtig — zwei verschiedene „Resume":**
+>
+> - **Container-Resume (was hier passiert):** `docker start` bzw. `--resume` startet den
+>   *Container* neu, sodass die heruntergeladenen Daten und bereits geschriebene Checkpoints
+>   erhalten bleiben. Das **Training selbst beginnt jedoch wieder bei Step 0** — es wird kein
+>   Checkpoint geladen.
+> - **Checkpoint-Resume (nicht verfügbar):** Das echte Fortsetzen ab Step N
+>   (`launch_finetune.py --resume_from_checkpoint`) ist im Entrypoint **nicht exponiert**.
+>   Wer ab einem Checkpoint weitertrainieren will, muss `run_finetuning.sh` von Hand mit dem
+>   Flag aufrufen.
 
 ### Was ist, wenn ich versehentlich `--rm` benutze?
 

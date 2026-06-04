@@ -6,7 +6,7 @@ Implementiert als DirectRLEnv (Isaac Lab 2.x):
     - 4 RGB-Kameras (cam_left_high, cam_right_high, cam_left_wrist, cam_right_wrist)
     - 28-dim Joint-State (left_arm + right_arm + left_dex3 + right_dex3)
     - Erfolgsmetrik: Würfel vertikal gestapelt
-    - Episodenlänge: 600 Steps @ 30 Hz = 20 Sekunden
+    - Episodenlänge: 5400 Steps @ 30 Hz = 180 Sekunden (siehe episode_length_s)
 
 Abnahmekriterien (siehe ISAAC_LAB_SIM_PLAN.md):
     Phase A: leere Szene rendert ein RGB-Bild (EGL headless ok)
@@ -54,9 +54,10 @@ class G1Dex3BlockstackSceneCfg(InteractiveSceneCfg):
     table: RigidObjectCfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/table",
         spawn=sim_utils.CuboidCfg(
-            # Höher gemacht: Oberseite bei z=0.87 (war 0.74). Der Replay zeigte, dass die
-            # Hände nur bis z≈0.92 herunterreichen — bei Tischhöhe 0.74 lagen die Würfel
-            # (z≈0.77) ~15 cm UNTER dem erreichbaren Arbeitsraum → unmöglich zu greifen.
+            # Tisch 0.87 m hoch (Oberfläche z=0.87). Cubes sitzen auf der Oberfläche (Zentrum z=0.915,
+            # Oberkante z=0.94 — durch leichte Erhöhung der block_z_surface erreicht, nicht des Tisches).
+            # Tisch war testweise auf 0.89 angehoben, das blockierte aber die Roboterarme im
+            # Closed-Loop: Modell versucht zu z≈0.915 zu greifen, Tisch (0.89) steckte die Hände fest.
             size=(0.8, 0.6, 0.87),
             rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
             mass_props=sim_utils.MassPropertiesCfg(mass=50.0),
@@ -75,9 +76,12 @@ class G1Dex3BlockstackSceneCfg(InteractiveSceneCfg):
             rigid_props=sim_utils.RigidBodyPropertiesCfg(),
             mass_props=sim_utils.MassPropertiesCfg(mass=0.05),
             collision_props=sim_utils.CollisionPropertiesCfg(),
+            physics_material=sim_utils.RigidBodyMaterialCfg(
+                static_friction=3.0, dynamic_friction=2.5, restitution=0.0,
+            ),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.1, 0.1)),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.34, -0.15, 0.895)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.34, -0.15, 0.915)),
     )
 
     block_1: RigidObjectCfg = RigidObjectCfg(
@@ -87,9 +91,12 @@ class G1Dex3BlockstackSceneCfg(InteractiveSceneCfg):
             rigid_props=sim_utils.RigidBodyPropertiesCfg(),
             mass_props=sim_utils.MassPropertiesCfg(mass=0.05),
             collision_props=sim_utils.CollisionPropertiesCfg(),
+            physics_material=sim_utils.RigidBodyMaterialCfg(
+                static_friction=3.0, dynamic_friction=2.5, restitution=0.0,
+            ),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.1, 0.6, 0.1)),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.36, 0.0, 0.895)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.36, 0.0, 0.915)),
     )
 
     block_2: RigidObjectCfg = RigidObjectCfg(
@@ -99,11 +106,14 @@ class G1Dex3BlockstackSceneCfg(InteractiveSceneCfg):
             rigid_props=sim_utils.RigidBodyPropertiesCfg(),
             mass_props=sim_utils.MassPropertiesCfg(mass=0.05),
             collision_props=sim_utils.CollisionPropertiesCfg(),
+            physics_material=sim_utils.RigidBodyMaterialCfg(
+                static_friction=3.0, dynamic_friction=2.5, restitution=0.0,
+            ),
             # Gelb wie im Dataset (war blau (0.1,0.1,0.8) — die Realdaten nutzen rot/grün/gelb,
             # nicht blau). Angleichung an die Trainingsverteilung für den eingefrorenen Vision-Encoder.
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.85, 0.70, 0.10)),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.34, 0.15, 0.895)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.34, 0.15, 0.915)),
     )
 
     # Schwarzes Stapel-Band (Landmarke wie im Dataset — dort wird auf einen kleinen
@@ -246,7 +256,7 @@ class G1Dex3BlockstackEnvCfg(DirectRLEnvCfg):
     observation_space: int = 28  # nur joints; Bilder gehen separat ans Modell
 
     # Task-Parameter
-    episode_length_s: float = 40.0    # 1200 Steps @ 30 Hz
+    episode_length_s: float = 300.0   # 9000 Steps @ 30 Hz (5 min)
     policy_hz: float = 30.0
     execution_horizon: int = 8        # wie viele Chunk-Steps ausführen, dann re-plan
 
@@ -254,7 +264,7 @@ class G1Dex3BlockstackEnvCfg(DirectRLEnvCfg):
     # y≈±0.19, z≈0.92). x/y eng um den Greifraum, z = neue Tischoberfläche (0.87) + halbe Würfelhöhe.
     block_x_range: tuple[float, float] = (0.30, 0.40)
     block_y_range: tuple[float, float] = (-0.20, 0.20)
-    block_z_surface: float = 0.895    # Tischoberfläche 0.87 + halbe Würfel-Höhe (0.025)
+    block_z_surface: float = 0.915    # Tischoberfläche 0.89 + halbe Würfel-Höhe (0.025)
 
     # Erfolgsparameter
     stack_xy_tol: float = 0.03  # max. horizontaler Versatz zwischen Würfel-Mittelpunkten
@@ -263,6 +273,11 @@ class G1Dex3BlockstackEnvCfg(DirectRLEnvCfg):
 
     # Task-Beschreibung (geht ans Language-Modell)
     task_description: str = "stack the blocks"
+
+    # Domain Randomization: Beleuchtung + Materialfarben pro Episode randomisieren.
+    # Ziel: Real→Sim-Gap schließen (gemessen: cam_left_wrist 0.427, Mittel 0.260).
+    # Deaktivieren mit DR_ENABLED=0 Env-Var im Eval-Runner oder dr_enabled=False.
+    dr_enabled: bool = True
 
 
 # ---------------------------------------------------------------------------
@@ -338,18 +353,16 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
         Kein Vorzeichen-Flip (Richtung stimmt) — nur Reichweite.
         """
         finger_limits = {
-            # left hand
+            # left hand (_1 joints: Vorzeichen korrekt, nur Reichweite erweitern)
             "left_hand_thumb_1_joint": (-0.66, 1.15),
-            "left_hand_middle_0_joint": (-1.62, 0.25),
             "left_hand_middle_1_joint": (-2.13, 0.05),
-            "left_hand_index_0_joint": (-1.62, 0.32),
             "left_hand_index_1_joint": (-2.13, 0.05),
-            # right hand
+            # right hand (_1 joints analog)
             "right_hand_thumb_1_joint": (-1.11, 0.66),
-            "right_hand_index_0_joint": (-0.25, 1.70),
             "right_hand_index_1_joint": (-0.05, 2.14),
-            "right_hand_middle_0_joint": (-0.23, 1.62),
             "right_hand_middle_1_joint": (-0.05, 2.14),
+            # _0 joints (middle_0, index_0): Vorzeichen-Fix via _SIGN_FLIP_IDX →
+            # nach Negation fallen Werte in die Original-USD-Limits, kein Weiten nötig.
         }
         names = list(finger_limits.keys())
         joint_ids, _ = self.robot.find_joints(names, preserve_order=True)
@@ -364,6 +377,107 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
               f"({len(joint_ids)} Gelenke).", flush=True)
 
     # ------------------------------------------------------------------
+    # Visual Domain Randomization
+    # ------------------------------------------------------------------
+
+    def _setup_visual_dr(self) -> None:
+        """Lazy init: traverses the USD stage once and caches PreviewSurface shader handles.
+
+        Called on the first episode reset so that Isaac Sim's stage is fully populated.
+        Finds shaders by traversing from each object's prim root — robust against Isaac Lab's
+        internal USD path naming conventions.
+        """
+        import omni.usd
+        from pxr import Usd, UsdShade
+
+        stage = omni.usd.get_context().get_stage()
+        self._dr_shaders: dict[str, "UsdShade.Shader | None"] = {}
+        self._dr_rng = np.random.default_rng()
+
+        targets = {
+            "table":      "/World/envs/env_0/table",
+            "block_0":    "/World/envs/env_0/block_0",
+            "block_1":    "/World/envs/env_0/block_1",
+            "block_2":    "/World/envs/env_0/block_2",
+            "stack_band": "/World/envs/env_0/stack_band",
+        }
+        for name, root_path in targets.items():
+            root = stage.GetPrimAtPath(root_path)
+            shader = None
+            if root.IsValid():
+                for prim in Usd.PrimRange(root):
+                    candidate = UsdShade.Shader(prim)
+                    if candidate and candidate.GetIdAttr().Get() in (
+                        "UsdPreviewSurface", "PreviewSurface"
+                    ):
+                        shader = candidate
+                        break
+            self._dr_shaders[name] = shader
+            print(f"[DR] '{name}' shader: {'OK  ' + shader.GetPath().pathString if shader else 'NOT FOUND'}", flush=True)
+
+        self._dr_light = stage.GetPrimAtPath("/World/Light")
+        print(f"[DR] dome light: {'OK' if self._dr_light.IsValid() else 'NOT FOUND'}", flush=True)
+
+    def _set_shader_color(self, shader, rgb: tuple | list) -> None:
+        from pxr import Gf
+        inp = shader.GetInput("diffuseColor")
+        if inp:
+            inp.Set(Gf.Vec3f(float(rgb[0]), float(rgb[1]), float(rgb[2])))
+
+    def _randomize_visuals(self) -> None:
+        """Per-episode visual DR: dome light intensity/color + object diffuse colors.
+
+        Targets the cam_left_wrist domain gap (measured cosine distance 0.427) by
+        varying the lighting and surface colors the wrist cameras see up close.
+        """
+        if not self.cfg.dr_enabled:
+            return
+        if not hasattr(self, "_dr_shaders"):
+            return
+
+        from pxr import Gf
+        rng = self._dr_rng
+
+        # 1. Dome light: intensity ±50 % + warm/cool white-balance shift
+        if self._dr_light.IsValid():
+            attr_i = self._dr_light.GetAttribute("inputs:intensity")
+            attr_c = self._dr_light.GetAttribute("inputs:color")
+            if attr_i:
+                attr_i.Set(float(rng.uniform(1000.0, 3800.0)))
+            if attr_c:
+                r = float(rng.uniform(0.70, 1.00))
+                g = float(rng.uniform(0.70, 0.95))
+                b = float(rng.uniform(0.58, 0.95))
+                attr_c.Set(Gf.Vec3f(r, g, b))
+
+        # 2. Table surface: gray scale 0.68–0.96 with slight color tint
+        shader = self._dr_shaders.get("table")
+        if shader:
+            base = float(rng.uniform(0.68, 0.96))
+            tint = rng.uniform(-0.06, 0.06, size=3)
+            color = np.clip([base + tint[0], base + tint[1], base + tint[2]], 0.0, 1.0)
+            self._set_shader_color(shader, color)
+
+        # 3. Blocks: keep hue recognizable, vary lightness ±10 %
+        block_bases = {
+            "block_0": (0.80, 0.10, 0.10),  # rot
+            "block_1": (0.10, 0.60, 0.10),  # grün
+            "block_2": (0.85, 0.70, 0.10),  # gelb
+        }
+        for name, base in block_bases.items():
+            shader = self._dr_shaders.get(name)
+            if shader:
+                noise = rng.uniform(-0.10, 0.10, size=3)
+                color = np.clip(np.array(base) + noise, 0.04, 1.0)
+                self._set_shader_color(shader, color)
+
+        # 4. Stack band: very dark, slight brightness variation
+        shader = self._dr_shaders.get("stack_band")
+        if shader:
+            v = float(rng.uniform(0.01, 0.08))
+            self._set_shader_color(shader, (v, v, v))
+
+    # ------------------------------------------------------------------
     # Reset
     # ------------------------------------------------------------------
 
@@ -371,6 +485,11 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
         super()._reset_idx(env_ids)
         self._episode_step[env_ids] = 0
         self._episode_success[env_ids] = False
+
+        # Visual DR: lazy init beim ersten Reset, dann pro Episode
+        if not hasattr(self, "_dr_shaders"):
+            self._setup_visual_dr()
+        self._randomize_visuals()
 
         # Roboter in Home-Pose zurücksetzen
         default_pos = self.robot.data.default_joint_pos[env_ids]
@@ -414,7 +533,10 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
         # Joint-Positionen (28-dim) in der korrekten Reihenfolge
         if self._joint_ids is None:
             self._joint_ids = self._build_joint_id_mapping()
-        joint_pos = self.robot.data.joint_pos[:, self._joint_ids]
+        joint_pos = self.robot.data.joint_pos[:, self._joint_ids].clone()
+        # USD→Dataset-Konvention: proximale Fingergelenke mit invertierter Achse negieren,
+        # damit das Modell Beobachtungen in derselben Konvention sieht wie die Trainingsdaten.
+        joint_pos[:, self._SIGN_FLIP_IDX] *= -1
         obs["joint_pos"] = joint_pos
 
         # Kamerabilder
@@ -443,6 +565,11 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
     # Actions
     # ------------------------------------------------------------------
 
+    # Policy-Indices der proximalen Fingergelenke mit invertierter Achsenkonvention.
+    # Dataset+ = schließen; USD: links negativ = schließen, rechts positiv = schließen.
+    # → Vorzeichen vor Übergabe ans Sim flippen (17=l_mid0, 19=l_idx0, 24=r_idx0, 26=r_mid0).
+    _SIGN_FLIP_IDX: list[int] = [17, 19, 24, 26]
+
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
         """
         Setzt das absolute Positions-Target EINMALIG vor den Physics-Sub-Steps.
@@ -460,6 +587,11 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
         """
         if self._joint_ids is None:
             self._joint_ids = self._build_joint_id_mapping()
+
+        # Vorzeichen-Fix: proximale Finger-Joints (middle_0, index_0) haben invertierte
+        # USD-Achse. Negation mappt Dataset-Konvention → USD-Konvention.
+        actions = actions.clone()
+        actions[:, self._SIGN_FLIP_IDX] *= -1
 
         # actions sind bereits absolute Gelenkpositionen (alle 28 Dims) in
         # Policy-Reihenfolge → in Isaac-interne Joint-Reihenfolge umschreiben
