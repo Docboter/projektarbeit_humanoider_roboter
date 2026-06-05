@@ -14,12 +14,18 @@ KISSKI HPC-Cluster.
 | [anleitung.md](anleitung.md) | **Zuerst.** Schritt-für-Schritt — die vier Wege zum Trainieren (vast.ai, lokal mit Launcher-Skript, lokal mit `docker run`, KISSKI), Daten retten, „Was passiert intern?", FAQ. |
 | [kisski-hpc.md](kisski-hpc.md) | **HPC-Training auf KISSKI.** SIF-Konvertierung, VAST-Storage, SLURM-Job, Monitoring, Checkpoint-Export, KISSKI-Troubleshooting (die ausführliche Form von Weg D). |
 | [env-vars.md](env-vars.md) | **Konfigurationsreferenz.** Alle Env-Vars + VRAM-Richtwerte — die Single Source of Truth, auf die `anleitung.md` und `kisski-hpc.md` verweisen. |
-| [multi-gpu.md](multi-gpu.md) | **Multi-GPU (bis 4× A100).** Vorteile, ToDos (torchrun-Launcher + SLURM-Ressourcen) und Verifikationsschritte — geplant, noch nicht umgesetzt. |
+| [multi-gpu.md](multi-gpu.md) | **Multi-GPU (bis 4× A100) — umgesetzt.** Warum sich Multi-GPU lohnt, was geändert wurde (torchrun-Launcher + SLURM-Ressourcen), KISSKI-Defaults (4× A100, `GLOBAL_BATCH_SIZE=32`) und Verifikationsschritte. |
 | [train-test-split.md](train-test-split.md) | 80/20-Datensatz-Split — Implementierung und Nutzung für die Evaluation auf ungesehenen Episoden. |
 | [wandb-offline-sync.md](wandb-offline-sync.md) | W&B-Offline-Sync auf KISSKI (Compute-Knoten ohne Internet). |
 | [wandb-run-auswertung.md](wandb-run-auswertung.md) | Momentaufnahme-Auswertung eines laufenden Trainings-Runs (Health-Check, LR-Schedule, Batch-Size- & Eval-Empfehlungen). Interaktive Kurven: [wandb-run-charts.html](wandb-run-charts.html). |
 | [erster-trainingsdurchlauf-auswertung.md](erster-trainingsdurchlauf-auswertung.md) | **Abschluss-Auswertung des ersten kompletten Laufs** (175k Steps) — W&B-Metriken + Verhaltens-Evaluation (Closed-Loop, Replay, Open-Loop), Diagnose (visueller Domain-Gap) und Empfehlungen. |
 | [fixes-aus-erstem-lauf.md](fixes-aus-erstem-lauf.md) | **Fixes aus dem ersten Lauf** — konkrete Maßnahmen aus der Auswertung (Domain-Gap: Würfelfarbe, Stapel-Band, schwarze Hände, `BLACK_HANDS`-Auto-Recolor), neue Werkzeuge, Anwenden/Verifizieren, offene Punkte. |
+
+> **Variante — Vision-Encoder mittrainieren:** Mit `TUNE_VISUAL=1` wird zusätzlich der
+> Vision-Encoder feingetunt (LLM bleibt eingefroren). Der Entrypoint startet dann
+> `run_finetuning_vision.sh` mit eigenem Output-/Experiment-Namespace (`blockstacking_vision`).
+> Funktioniert auf allen Wegen (Container, vast.ai, KISSKI). Details: [env-vars.md](env-vars.md)
+> (`TUNE_VISUAL`), Anwendung in [anleitung.md](anleitung.md) und [kisski-hpc.md](kisski-hpc.md).
 
 ## Die vier Wege im Überblick
 

@@ -146,6 +146,7 @@ The entrypoint reads everything from env vars. Defaults are set as `ENV` in the 
 | `SKIP_CONVERT` | `0` | Skip v3→v2 conversion (modality.json exists) |
 | `SKIP_TRAIN` | `0` | Run setup only, then drop to shell |
 | `SHELL_ON_ERROR` | `0` | Drop to shell on error instead of exiting |
+| `TUNE_VISUAL` | `0` | `1` = also train the vision encoder (`--tune_visual`); entrypoint routes to `run_finetuning_vision.sh` (own `blockstacking_vision` namespace, LLM stays frozen, higher VRAM) |
 
 ## Code style
 
@@ -169,14 +170,17 @@ repo root
 │   │                                   #   build context = Training/ (so COPY scripts/ works)
 │   ├── docker-compose.yml              # Optional (dev convenience; no host volume mounts)
 │   ├── kisski_submit.sh                # SLURM batch script for KISSKI HPC cluster
+│   ├── kisski_open_loop_eval.sh        # SLURM job: open-loop checkpoint eval (open_loop_eval.py, no server)
 │   ├── update_image.ps1                # Host build/push tool (must sit next to Dockerfile)
 │   ├── setup_and_train_DockerHub-pull.sh   # Thin host launcher: docker pull + docker run
 │   ├── setup_and_train_DockerHub-pull.ps1  # Windows variant
 │   ├── setup_and_train_Container-build.* # Host launcher that builds the image locally
 │   └── scripts/                        # COPIED into image at /scripts/
-│       ├── entrypoint.sh               # Autonomous orchestrator (download→convert→train)
+│       ├── entrypoint.sh               # Autonomous orchestrator (download→convert→train; TUNE_VISUAL routes here)
 │       ├── download_data.sh            # HuggingFace download (model + dataset)
-│       └── run_finetuning.sh           # Training launcher (called by entrypoint)
+│       ├── run_finetuning.sh           # Training launcher (called by entrypoint; torchrun for NUM_GPUS>1)
+│       ├── run_finetuning.ps1          # Windows variant of the training launcher
+│       └── run_finetuning_vision.sh    # Vision-encoder variant (TUNE_VISUAL=1, blockstacking_vision namespace)
 ├── Simulation/                         # Closed-loop sim eval
 │   ├── Dockerfile                      # KISSKI-only: slim Isaac Lab sim-client (no GR00T)
 │   ├── Dockerfile.vastai               # vast.ai: combined Isaac Sim + GR00T in one container
@@ -196,6 +200,10 @@ repo root
 │   └── scripts/                        # COPIED into vastai image at /scripts/
 │       ├── entrypoint_sim.sh           # Autonomous entrypoint (model eval) for Dockerfile.vastai
 │       ├── entrypoint_replay.sh        # Entrypoint for the open-loop replay diagnostic
+│       ├── entrypoint_baseline.sh      # Entrypoint for baseline eval (SIM_MODE=baseline: un-finetuned model + stock G1)
+│       ├── measure_domain_gap.py       # Real→sim cosine-distance per camera via frozen SigLIP-ViT
+│       ├── overlay_camera_check.py     # Overlays dataset vs sim camera frames (calibration check)
+│       ├── dump_unitree_g1_dims.py     # Dumps stock UNITREE_G1 link/joint dimensions
 │       └── upload_checkpoint.py        # HuggingFace upload helper (skips optimizer.pt by default)
 ├── data/                               # Local assets and submodules (mostly gitignored)
 │   ├── unitree_ros/                    # Git submodule — Unitree ROS packages (URDF source)
