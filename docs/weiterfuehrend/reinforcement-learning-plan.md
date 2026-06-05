@@ -6,8 +6,8 @@
 > könnte. Es ist **noch nicht implementiert** — es beschreibt den Weg dorthin.
 
 Verwandte Dokumente:
-- [trainingsverfahren.md](trainingsverfahren.md) — das **aktuelle** Verfahren (Imitation Learning / Behavior Cloning per Flow-Matching). RL grenzt sich davon ab.
-- [erster-trainingsdurchlauf-auswertung.md](erster-trainingsdurchlauf-auswertung.md) — der Befund (Closed-Loop-„Einfrieren", Domain-Gap), der RL überhaupt motiviert.
+- [trainingsverfahren.md](../training/trainingsverfahren.md) — das **aktuelle** Verfahren (Imitation Learning / Behavior Cloning per Flow-Matching). RL grenzt sich davon ab.
+- [lauf1-auswertung.md](../ergebnisse/lauf1-auswertung.md) — der Befund (Closed-Loop-„Einfrieren", Domain-Gap), der RL überhaupt motiviert.
 - [../simulation/README.md](../simulation/README.md) — die Sim-Umgebung, die für RL die Rolle des „Environments" übernimmt.
 
 ---
@@ -17,9 +17,9 @@ Verwandte Dokumente:
 Das aktuelle Training ist reines **Behavior Cloning (BC)**: Das Modell ahmt ~301 teleoperierte
 Demonstrationen nach (Flow-Matching-Loss auf Beobachtung→Aktion-Paaren). Es gibt **keine
 Belohnung**, **keine Exploration** und **kein Feedback aus der Umgebung** (siehe
-[trainingsverfahren.md §1](trainingsverfahren.md)).
+[trainingsverfahren.md §1](../training/trainingsverfahren.md)).
 
-Die [Abschluss-Auswertung des ersten Laufs](erster-trainingsdurchlauf-auswertung.md) hat genau die
+Die [Abschluss-Auswertung des ersten Laufs](../ergebnisse/lauf1-auswertung.md) hat genau die
 **klassische BC-Schwäche** offengelegt:
 
 - **Distribution Shift / Compounding Errors:** In der Closed-Loop-Sim „friert" die Policy ein. Das
@@ -101,7 +101,7 @@ Die Forschung 2025 hat dafür mehrere Verfahren entwickelt (siehe [Quellen](#7-q
 → **Empfehlung für dieses Projekt: π·RL-Ansatz (Flow-SDE + PPO)**, weil er für genau diese
 Modellklasse (flow-basierte VLA mit eingefrorenem VLM + trainierbarem Action-Expert) entworfen ist —
 das deckt sich 1:1 mit unserem Setup (`tune_llm=False`, `tune_visual=False`, nur Projector +
-Action-Head trainierbar, siehe [trainingsverfahren.md §2](trainingsverfahren.md)).
+Action-Head trainierbar, siehe [trainingsverfahren.md §2](../training/trainingsverfahren.md)).
 
 ### 3.4 Rollout-Infrastruktur (Policy ↔ Env-Kommunikation)
 RL erzeugt Daten durch **eigenes Agieren** (Rollouts), nicht aus einem Datensatz. Policy-Inferenz
@@ -116,7 +116,7 @@ RL ist **deutlich teurer** als BC: Pro Optimierungsschritt müssen **Sim + Rende
 Inferenz (mehrfaches Entrauschen) + Backprop** laufen, und RL braucht **viele parallele
 Environments** für Stichproben-Effizienz (π·RL nutzt z. B. **320 parallele Envs** auf **8× H100**).
 
-**Der Haken in diesem Projekt** (siehe [implementation-notes.md](../simulation/implementation-notes.md)
+**Der Haken in diesem Projekt** (siehe [umsetzungsnotizen.md](../simulation/umsetzungsnotizen.md)
 und CLAUDE.md): Bildbasiertes RL braucht **Kamera-Rendering**, und Isaac Sims Raytracing braucht
 **RT-Cores** → L40 / RTX 4090 / A6000. **A100 und H100 haben keine RT-Cores.** Genau die KISSKI-
 GPUs, die fürs Training stark sind (A100/H100), können das **bildbasierte** RL-Rollout also **nicht
@@ -147,7 +147,7 @@ BC-Checkpoint (vorhanden)  ──►  RL-Fine-tuning (neu)  ──►  besserer 
 | **3. RL-Algorithmus** | Flow-kompatiblen RL-Loop integrieren (π·RL / FPO). Entweder bestehendes Framework adaptieren (**RLinf-VLA** unterstützt PPO/GRPO für VLAs) oder FPO-Loss in den Trainer einklinken. VLM **eingefroren** lassen, nur Action-Head/Projector tunen. | RL-Trainer-Skript |
 | **4. Rollout-Pipeline** | Hochparallele Policy↔Env-Schleife (Inferenz-Batching über N Envs), Replay-Buffer/Advantage-Schätzung (GAE), KL-Regularisierung gegen den BC-Checkpoint (gegen „Reward-Hacking"/Vergessen) | Rollout-Worker |
 | **5. Training & Tuning** | Auf KISSKI/Cloud starten. Wichtige Hebel: Reward-Skalierung, # Denoising-Steps, Chunk-Größe, Noise-Level, KL-Coeff. Erfolgsrate statt Loss als Hauptmetrik in W&B. | RL-Checkpoint |
-| **6. Eval & Vergleich** | Closed-Loop-Erfolgsrate RL vs. BC auf ungesehenen Episoden ([train-test-split.md](train-test-split.md)). Friert es noch ein? | Auswertungs-Doc |
+| **6. Eval & Vergleich** | Closed-Loop-Erfolgsrate RL vs. BC auf ungesehenen Episoden ([train-test-split.md](../training/train-test-split.md)). Friert es noch ein? | Auswertungs-Doc |
 
 ---
 
@@ -201,7 +201,7 @@ Trainings-FLOPs. Mögliche Auflösungen:
 - **Entkoppeln:** Render-Rollouts auf RT-GPU(s), Optimierung auf A100/H100 — maximaler
   Engineering-Aufwand (verteilte Rollout-/Lerner-Architektur).
 
-**Erwarteter Nutzen:** Falls der Domain-Gap ([erster-trainingsdurchlauf-auswertung.md](erster-trainingsdurchlauf-auswertung.md))
+**Erwarteter Nutzen:** Falls der Domain-Gap ([lauf1-auswertung.md](../ergebnisse/lauf1-auswertung.md))
 die Hauptursache des Einfrierens ist, ist RL **das prinzipiell richtige Werkzeug**: Es trainiert die
 Policy **in genau der Sim**, in der sie auch evaluiert wird → die Trainings- und Test-Verteilung
 fallen zusammen, der Distribution-Shift verschwindet, und der Reward erzwingt aktives Handeln statt
@@ -307,9 +307,9 @@ allem **(a) ein echter Reward**, **(b) echte Parallelität (`num_envs>1`)** und 
 - [ ] **`kisski_rl_submit.sh`** (bzw. vast.ai-Pendant) als **Kopie** von
   [`kisski_submit.sh`](../../Training/kisski_submit.sh) entwerfen — Unterschiede: RT-Core-GPU,
   `--resume`-from-BC-Checkpoint, RL-Env-Vars (`num_envs`, Reward-Gewichte, KL-Coeff).
-- [ ] **Env-Var-Referenz** für RL ergänzen ([env-vars.md](env-vars.md)).
+- [ ] **Env-Var-Referenz** für RL ergänzen ([env-vars.md](../training/env-vars.md)).
 - [ ] **Eval-Vergleich vorbereiten**: bestehende Closed-Loop-Eval auf den
-  [Train/Test-Split](train-test-split.md) anwenden, damit RL- vs. BC-Erfolgsrate sauber vergleichbar
+  [Train/Test-Split](../training/train-test-split.md) anwenden, damit RL- vs. BC-Erfolgsrate sauber vergleichbar
   ist (Baseline-Zahl des BC-Checkpoints **vorab** messen).
 
 > **DoD:** Submit-Skript-Entwurf, RL-Env-Vars und eine **BC-Baseline-Erfolgsrate** liegen vor — der
@@ -345,8 +345,6 @@ Reihenfolge, die mit **kleinstem Aufwand** zum ersten echten Lernsignal führt:
 - [Awesome-RL-VLA — Survey & Framework-Übersicht (GitHub)](https://github.com/Denghaoyuan123/Awesome-RL-VLA) — u. a. RLinf-VLA (PPO/GRPO für VLAs).
 
 **Projektinterne Referenzen:**
-- [trainingsverfahren.md](trainingsverfahren.md), [erster-trainingsdurchlauf-auswertung.md](erster-trainingsdurchlauf-auswertung.md)
+- [trainingsverfahren.md](../training/trainingsverfahren.md), [lauf1-auswertung.md](../ergebnisse/lauf1-auswertung.md)
 - [`Simulation/g1_dex3_sim/g1_dex3_blockstack_env.py`](../../Simulation/g1_dex3_sim/g1_dex3_blockstack_env.py) (`_get_rewards`, `_check_success`)
 - [`app/Groot-1.6/gr00t/model/gr00t_n1d6/gr00t_n1d6.py`](../../app/Groot-1.6/gr00t/model/gr00t_n1d6/gr00t_n1d6.py) (Flow-Matching-Action-Head)
-</content>
-</invoke>

@@ -9,7 +9,7 @@
 > ✅ **Der Lauf ist inzwischen abgeschlossen (175.000 Steps).** Die vollständige
 > Abschluss-Auswertung inkl. Verhaltens-Evaluation (Closed-Loop, Replay, Open-Loop) und
 > Diagnose steht in
-> [`erster-trainingsdurchlauf-auswertung.md`](erster-trainingsdurchlauf-auswertung.md).
+> [`lauf1-auswertung.md`](lauf1-auswertung.md).
 > Dieses Dokument bleibt als Trainings-Health-Snapshot bestehen.
 
 > 📈 **Interaktive Kurven:** [`wandb-run-charts.html`](wandb-run-charts.html) — Loss /
@@ -96,7 +96,7 @@ das Flow-Matching-Ziel an. Das ist **kein** Generalisierungssignal (s. Abschnitt
    über die Zeit. Sauberer Weg ab dem nächsten Lauf.
 2. **Pragmatisch ohne Neustart:** einen Zwischen-Checkpoint (z. B. Step 5.000 vs.
    einen späteren) in der **Sim-Eval** auf ungesehenen Episoden vergleichen
-   (siehe [train-test-split.md](train-test-split.md)). Erfolgsrate steigt weiter →
+   (siehe [train-test-split.md](../training/train-test-split.md)). Erfolgsrate steigt weiter →
    kein Overfitting; fällt bei flachem Train-Loss → Overfitting-Indiz. Die
    Sim-Erfolgsrate ist hier ohnehin die relevantere Metrik als jeder Loss.
 
@@ -144,7 +144,7 @@ Infrastruktur vorhanden, aber inaktiv:
 Folge: kein Val-Signal → kein principled Checkpoint-Auswahlkriterium (am Ende blind
 Step 175000). Empfehlung: `enable_open_loop_eval=true` (+ ggf. `eval_strategy="steps"`),
 um Val-MSE über die Zeit zu sehen und Overfitting/besten Checkpoint zu erkennen.
-Siehe [train-test-split.md](train-test-split.md).
+Siehe [train-test-split.md](../training/train-test-split.md).
 
 ---
 

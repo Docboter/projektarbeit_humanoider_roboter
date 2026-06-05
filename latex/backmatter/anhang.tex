@@ -3,59 +3,82 @@
 \chapter{Datensatz-Details}
 \label{anh:datensatz}
 
-\section{Episodenstruktur}
+\section{Modalitäten und Aktionsraum}
 \label{anh:episodenstruktur}
 
-Jede Episode im LeRobot-Format besteht aus synchronisierten Kanälen gemäß
-\cref{tab:anh-modalitaeten}.
+Jede Episode im LeRobot-Format besteht aus zeitlich synchronisierten Kanälen
+gemäß \cref{tab:anh-modalitaeten}. Der Zustands- wie der Aktionsvektor sind
+jeweils 28-dimensional und identisch gegliedert (\cref{tab:anh-aktionsraum}).
 
 \begin{table}[htb]
   \centering
-  \caption{Modalitäten des G1\_Dex3\_BlockStacking-Datensatzes}
-  \label{tab:anh-modalitaeten}
   \begin{tabularx}{\linewidth}{llX}
     \toprule
-    \textbf{Kanal}       & \textbf{Dimension} & \textbf{Beschreibung} \\
+    \textbf{Kanal} & \textbf{Dimension} & \textbf{Beschreibung} \\
     \midrule
-    \texttt{observation.images.cam\_head}
-                         & $3 \times 480 \times 640$ & RGB-Kopfkamera \\
-    \texttt{observation.images.cam\_wrist\_left}
-                         & $3 \times 480 \times 640$ & RGB-Handgelenk links \\
-    \texttt{observation.state}
-                         & 37 & Gelenkpositionen \\
-    \texttt{action}      & 37 & Soll-Gelenkpositionen \\
-    \texttt{timestamp}   & 1  & Zeitstempel [s] \\
+    \texttt{observation.images.cam\_left\_high}  & $3\times480\times640$ & RGB-Kopfkamera links \\
+    \texttt{observation.images.cam\_right\_high} & $3\times480\times640$ & RGB-Kopfkamera rechts \\
+    \texttt{observation.images.cam\_left\_wrist} & $3\times480\times640$ & RGB-Handgelenk links \\
+    \texttt{observation.images.cam\_right\_wrist}& $3\times480\times640$ & RGB-Handgelenk rechts \\
+    \texttt{observation.state}                   & 28 & Gelenkzustand (Arme + Hände) \\
+    \texttt{action}                              & 28 & Soll-Aktion (Arme + Hände) \\
+    \texttt{annotation.\dots}                    & --- & Sprach-Task \\
     \bottomrule
   \end{tabularx}
+  \caption{Modalitäten des \texttt{G1\_Dex3\_BlockStacking}-Datensatzes.}
+  \label{tab:anh-modalitaeten}
+\end{table}
+
+\begin{table}[htb]
+  \centering
+  \begin{tabularx}{\linewidth}{llX}
+    \toprule
+    \textbf{Index} & \textbf{Gruppe} & \textbf{Repräsentation} \\
+    \midrule
+    0--6   & \texttt{left\_arm}   & relative Gelenk-Deltas \\
+    7--13  & \texttt{right\_arm}  & relative Gelenk-Deltas \\
+    14--20 & \texttt{left\_dex3}  & absolute Gelenkwinkel \\
+    21--27 & \texttt{right\_dex3} & absolute Gelenkwinkel \\
+    \bottomrule
+  \end{tabularx}
+  \caption{Gliederung des 28-dimensionalen Aktions- und Zustandsvektors.}
+  \label{tab:anh-aktionsraum}
 \end{table}
 
 \chapter{SLURM-Batch-Skript (Auszug)}
 \label{anh:slurm}
 
+\Cref{lst:anh-slurm} zeigt einen vereinfachten Auszug des für KISSKI verwendeten
+Batch-Skripts. Charakteristisch ist die Bindung des persistenten
+VAST-Projektverzeichnisses nach \texttt{/data} sowie die ausschließliche
+Konfiguration über Umgebungsvariablen. Das vollständige, gepflegte Skript liegt im
+Repository (\doc{Training/kisski_submit.sh}); Bedienung siehe
+\doc{docs/training/kisski-hpc.md}.
+
 \begin{listing}[htb]
 \begin{minted}{bash}
 #!/usr/bin/env bash
 #SBATCH --job-name=groot-finetune
-#SBATCH --partition=kisski
-#SBATCH --gres=gpu:a100:1
-#SBATCH --time=48:00:00
+#SBATCH --partition=kisski            # A100 80 GB (alt.: kisski-h100)
+#SBATCH -G A100:1                     # 4x A100 fuer den Multi-GPU-Lauf
+#SBATCH -c 16
 #SBATCH --mem=64G
-#SBATCH --cpus-per-task=8
-#SBATCH --output=%x-%j.out
-#SBATCH --error=%x-%j.err
+#SBATCH --time=48:00:00
+#SBATCH --output=logs/slurm-%j.out
 
 module load apptainer
 
 apptainer exec --nv \
-  --bind /scratch/${USER}/data:/data \
+  --bind /mnt/vast-kisski/projects/kisski-humrob/data:/data \
   --env HF_TOKEN="${HF_TOKEN}" \
   --env WANDB_API_KEY="${WANDB_API_KEY:-}" \
-  --env GLOBAL_BATCH_SIZE="${GLOBAL_BATCH_SIZE:-32}" \
-  --env MAX_STEPS="${MAX_STEPS:-50000}" \
+  --env GLOBAL_BATCH_SIZE="${GLOBAL_BATCH_SIZE:-8}" \
+  --env MAX_STEPS="${MAX_STEPS:-175000}" \
+  --env NUM_GPUS="${NUM_GPUS:-1}" \
   "${SIF_IMAGE}" \
   bash /scripts/entrypoint.sh
 \end{minted}
-\caption{Vereinfachter Auszug aus \texttt{kisski\_submit.sh} (SLURM-Batch-Skript).}
+\caption{Vereinfachter Auszug aus \texttt{kisski\_submit.sh}.}
 \label{lst:anh-slurm}
 \end{listing}
 
@@ -64,18 +87,197 @@ apptainer exec --nv \
 
 \begin{table}[htb]
   \centering
-  \caption{Software-Versionen der Trainingsumgebung}
-  \label{tab:anh-software}
   \begin{tabular}{ll}
     \toprule
-    \textbf{Paket}       & \textbf{Version} \\
+    \textbf{Komponente}       & \textbf{Version} \\
     \midrule
-    Python               & 3.10 \\
-    CUDA                 & 12.8 \\
-    PyTorch              & [TODO] \\
-    GR00T (Fork)         & [Commit-Hash] \\
-    LeRobot              & [TODO] \\
-    Apptainer            & [TODO] \\
+    Python (Training)         & 3.10 \\
+    CUDA                      & 12.8 \\
+    Paketmanager              & \texttt{uv} \\
+    DeepSpeed                 & 0.17.6 \\
+    Weights \& Biases         & 0.23.0 \\
+    Isaac~Lab (Sim-Basisimage)& \texttt{nvcr.io/nvidia/isaac-lab:2.3.2} \\
+    Python (Isaac~Sim)        & 3.11 \\
+    GR00T (Fork)              & lucam06, gepinnter Commit \\
     \bottomrule
   \end{tabular}
+  \caption{Software-Versionen der Trainings- und Simulationsumgebung
+    (soweit dokumentiert).}
+  \label{tab:anh-software}
 \end{table}
+
+\chapter{Trainingsdynamik: Lernrate und Gradienten-Norm}
+\label{anh:trainingsdynamik}
+
+Ergänzend zum geglätteten Loss-Verlauf (\cref{fig:loss-curve}) dokumentieren die
+folgenden beiden Abbildungen den Lernraten-Schedule (\cref{fig:anh-lr}) sowie die
+Gradienten-Norm (\cref{fig:anh-gradnorm}) für beide Trainingsläufe. Beide Größen
+belegen, dass die Optimierung in keinem der Läufe instabil wurde. Die Lernrate ist
+dabei vollständig deterministisch durch die Konfiguration vorgegeben (Cosine-Decay
+mit linearem Warmup); die Gradienten-Norm ist demgegenüber ein gemessenes
+Diagnosesignal. Sämtliche Stützpunkte stammen aus der vollständigen W\&B-History
+(Lauf~1: Run \texttt{i6n1t613}, Lauf~2: Run \texttt{ajgoskon}, Projekt
+\texttt{gr00t-g1-dex3}).
+
+\begin{figure}[htb]
+  \centering
+  \begin{tikzpicture}
+    \begin{axis}[
+      width  = 0.86\textwidth,
+      height = 6.0cm,
+      xlabel = {Trainingsschritt},
+      ylabel = {Lernrate ($\times 10^{-4}$)},
+      grid   = both,
+      grid style = {line width=0.2pt, draw=gray!30},
+      major grid style = {line width=0.4pt, draw=gray!60},
+      xmin = 0, xmax = 175000, ymin = 0, ymax = 1.05,
+      xtick distance = 25000,
+      scaled x ticks = false,
+      x tick label style = {/pgf/number format/.cd, set thousands separator={\,}, fixed},
+      legend pos = north east,
+      legend style = {font=\small\sffamily},
+      tick label style = {font=\small\sffamily},
+      label style = {font=\small\sffamily},
+    ]
+      % Cosine-Decay mit linearem Warmup; Werte auf 1e-4 normiert (W&B train/learning_rate)
+      \addplot[NavyBlue, thick] coordinates {
+        (70,0.0090) (5110,0.5850) (9680,0.9999) (13700,0.9978) (17650,0.9929) (22810,0.9824)
+        (27930,0.9675) (33020,0.9483) (36960,0.9306) (41310,0.9083) (45790,0.8824) (50160,0.8545)
+        (54770,0.8225) (59670,0.7858) (63890,0.7522) (68040,0.7176) (73820,0.6672) (77130,0.6374)
+        (81930,0.5933) (85860,0.5566) (89950,0.5181) (94040,0.4795) (99280,0.4302) (104120,0.3853)
+        (109050,0.3405) (112480,0.3101) (117490,0.2672) (122060,0.2299) (126490,0.1957) (129780,0.1716)
+        (134660,0.1383) (138760,0.1127) (142780,0.0898) (148040,0.0635) (153160,0.0419) (157710,0.0264)
+        (161230,0.0168) (167070,0.0056) (171530,0.0011) (174960,0.0000)
+      };
+      \addlegendentry{Lauf~1 (175\,000 Schritte)}
+      \addplot[BrickRed, thick, densely dashed] coordinates {
+        (10,0.0043) (1100,0.2520) (2220,0.5066) (3460,0.7884) (4630,0.9999) (5690,0.9973)
+        (6950,0.9897) (8120,0.9783) (9500,0.9595) (10570,0.9411) (11720,0.9178) (12730,0.8945)
+        (13780,0.8676) (14770,0.8399) (15920,0.8050) (16950,0.7717) (17930,0.7383) (19080,0.6972)
+        (20190,0.6561) (21220,0.6168) (22280,0.5755) (23430,0.5302) (24430,0.4905) (25580,0.4450)
+        (26610,0.4046) (27760,0.3603) (28820,0.3205) (29790,0.2851) (30940,0.2449) (32190,0.2036)
+        (33300,0.1693) (34510,0.1349) (35470,0.1100) (36660,0.0822) (37820,0.0587) (38960,0.0393)
+        (40430,0.0198) (41420,0.0104) (42760,0.0024) (43980,0.0000)
+      };
+      \addlegendentry{Lauf~2 (44\,000 Schritte)}
+    \end{axis}
+  \end{tikzpicture}
+  \caption{Lernraten-Schedule beider Läufe (\texttt{train/learning\_rate}, normiert
+    auf~$10^{-4}$). Lineares Warmup auf die Peak-Lernrate $1{,}0\times10^{-4}$
+    (Lauf~1: $\approx$~5\,\% der Schritte, Lauf~2: $\approx$~10\,\%), anschließend
+    Cosine-Decay auf nahezu null. Der Schedule ist deterministisch durch die
+    Konfiguration festgelegt; Lauf~2 durchläuft denselben Verlauf bei kürzerer
+    Schrittzahl entsprechend schneller.}
+  \label{fig:anh-lr}
+\end{figure}
+
+\begin{figure}[htb]
+  \centering
+  \begin{tikzpicture}
+    \begin{axis}[
+      width  = 0.86\textwidth,
+      height = 6.0cm,
+      xlabel = {Trainingsschritt},
+      ylabel = {Gradienten-Norm (geglättet)},
+      grid   = both,
+      grid style = {line width=0.2pt, draw=gray!30},
+      major grid style = {line width=0.4pt, draw=gray!60},
+      xmin = 0, xmax = 175000, ymin = 0,
+      xtick distance = 25000,
+      scaled x ticks = false,
+      x tick label style = {/pgf/number format/.cd, set thousands separator={\,}, fixed},
+      legend pos = north east,
+      legend style = {font=\small\sffamily},
+      tick label style = {font=\small\sffamily},
+      label style = {font=\small\sffamily},
+    ]
+      % Gleitender Mittelwert (MA±8) der W&B train/grad_norm-History
+      \addplot[NavyBlue, thick] coordinates {
+        (70,1.1020) (4570,1.0120) (8390,0.5569) (12290,0.4274) (16000,0.3895) (19550,0.3649)
+        (24720,0.3167) (28780,0.3284) (33610,0.2890) (36820,0.3090) (40790,0.2996) (44650,0.2635)
+        (48360,0.2210) (52630,0.3132) (56510,0.2155) (60900,0.2319) (64660,0.2210) (68570,0.1853)
+        (73600,0.1947) (76450,0.1982) (80700,0.1999) (84550,0.2060) (88350,0.1856) (91260,0.1893)
+        (94810,0.1731) (100280,0.1653) (104200,0.1695) (108870,0.1641) (111760,0.1584) (116120,0.1544)
+        (120250,0.1551) (124550,0.1538) (127990,0.1513) (131030,0.1273) (135440,0.1543) (138770,0.1578)
+        (142640,0.1388) (146410,0.1446) (151840,0.1387) (155640,0.1235) (159570,0.1199) (162790,0.1232)
+        (168110,0.1123) (171700,0.0999) (174960,0.1250)
+      };
+      \addlegendentry{Lauf~1}
+      \addplot[BrickRed, thick, densely dashed] coordinates {
+        (10,1.2099) (970,1.8191) (1990,1.3168) (3040,0.7888) (4040,0.5979) (5050,0.5406)
+        (6190,0.4595) (7130,0.4617) (8180,0.3900) (9470,0.3789) (10410,0.3502) (11460,0.3569)
+        (12360,0.3418) (13250,0.3289) (14230,0.3031) (15140,0.3034) (16120,0.3066) (17010,0.3157)
+        (17880,0.2871) (18890,0.2641) (19880,0.2655) (20670,0.2539) (21860,0.2448) (22750,0.2517)
+        (23740,0.2073) (24570,0.2370) (25640,0.2498) (26570,0.2259) (27620,0.2008) (28460,0.2000)
+        (29330,0.2086) (30270,0.1823) (31470,0.1935) (32430,0.1986) (33420,0.1905) (34550,0.1811)
+        (35420,0.1663) (36460,0.1489) (37430,0.1692) (38430,0.1443) (39620,0.1347) (40880,0.1353)
+        (41800,0.1461) (42920,0.1393) (43980,0.1676)
+      };
+      \addlegendentry{Lauf~2}
+    \end{axis}
+  \end{tikzpicture}
+  \caption{Gradienten-Norm beider Läufe (\texttt{train/grad\_norm}, gleitender
+    Mittelwert MA$\pm$8). Beide Läufe zeigen das erwartete Muster: ein moderates
+    Maximum während der Warmup-Phase (Lauf~1: $\approx$~1,5; Lauf~2: $\approx$~1,8)
+    und anschließend einen monotonen Abfall auf $\approx$~0,1--0,2. Es treten
+    \emph{keine} Spitzen oder Divergenzen auf -- ein Indiz für ein durchweg stabiles
+    Training, auch im Lauf~2 mit entsperrtem Vision-Encoder.}
+  \label{fig:anh-gradnorm}
+\end{figure}
+
+\chapter{Simulations-Diagnostik}
+\label{anh:sim-diagnostik}
+
+\section{Open-Loop-Aktionsvergleich}
+\label{anh:openloop}
+
+\Cref{fig:anh-openloop} zeigt den Open-Loop-Test aus \cref{sec:diagnose} im Detail:
+Für jede der 28~Aktionsdimensionen wird die vom Modell auf \emph{echten} Bildern
+vorhergesagte Aktion der aufgezeichneten Ground-Truth gegenübergestellt. Die
+Armdimensionen (0--13) folgen dem Referenzverlauf gut, während die Fingerdimensionen
+(14--27) deutlich verrauscht sind. Da hier echte Bilder eingespeist werden, isoliert
+der Test die reine Modellgüte vom Regelkreis und von der Simulation.
+
+\begin{figure}[p]
+  \centering
+  \includegraphics[width=\linewidth]{figures/sim/openloop_montage.png}
+  \caption{Open-Loop-Aktionsvergleich für Checkpoint~175\,000 (Episode~0). Die
+    28~Aktionsdimensionen sind spaltenweise angeordnet: jede Spalte von oben nach
+    unten gelesen, Spalten von links nach rechts (Spalte~1: linker Arm~0--6,
+    Spalte~2: rechter Arm~7--13, Spalte~3: linke Hand~14--20, Spalte~4: rechte
+    Hand~21--27). Pro Dimension: Ground-Truth (blau), Modellvorhersage (orange) und
+    Referenzpunkte (rot). Die Arme~(0--13) werden gut getroffen, die
+    Finger~(14--27) sind verrauscht. Quelle: \texttt{Simulation/runs/202606002/01}.}
+  \label{fig:anh-openloop}
+\end{figure}
+
+\section{Kamerakalibrierung über Alpha-Blend-Overlays}
+\label{anh:overlay}
+
+Die in \cref{sec:kalibrierung} beschriebene Kamerakalibrierung erfolgte mangels
+Hardware-Metadaten iterativ: Reales Datensatz-Erstbild und simuliertes Erstbild
+wurden halbtransparent überlagert und die Sim-Kamerapose so lange angepasst, bis
+Tischkanten, Würfel und Handpositionen zur Deckung kamen. \Cref{fig:anh-overlay}
+zeigt je Kamera das reale Bild, das Overlay und das Sim-Bild nebeneinander.
+
+\begin{figure}[htb]
+  \centering
+  \begin{subfigure}{\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{figures/sim/panel_cam_left_high.png}
+    \caption{Kopfkamera links (\texttt{cam\_left\_high})}
+    \label{fig:anh-overlay-high}
+  \end{subfigure}\\[0.6em]
+  \begin{subfigure}{\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{figures/sim/panel_cam_left_wrist.png}
+    \caption{Handgelenkkamera links (\texttt{cam\_left\_wrist})}
+    \label{fig:anh-overlay-wrist}
+  \end{subfigure}
+  \caption{Kamerakalibrierung über Alpha-Blend-Overlays, je Panel von links nach
+    rechts: reales Datensatzbild, Overlay (real~$+$~Sim halbtransparent),
+    Sim-Rendering. Die Handgelenkkamera~(b) ist mit einer Cosine-Distanz von 0,427
+    der kritischste Domain-Gap-Fall. Quelle:
+    \doc{docs/ergebnisse/domain-gap-analyse.md}.}
+  \label{fig:anh-overlay}
+\end{figure}

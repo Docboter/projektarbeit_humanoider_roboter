@@ -10,16 +10,17 @@ KISSKI HPC-Cluster.
 | Dokument | Wann lesen |
 |---|---|
 | [trainingsverfahren.md](trainingsverfahren.md) | **Was für ein Training ist das?** Modellarchitektur (GR00T N1.6 VLA), Lernverfahren (Imitation Learning, Flow-Matching), Embodiment, Ein-/Ausgaben — die konzeptionelle Einordnung. |
-| [reinforcement-learning-plan.md](reinforcement-learning-plan.md) | **Recherche & Umsetzungsplan für RL-Training.** Was nötig wäre, um das Modell per Reinforcement Learning (statt nur Behavior Cloning) zu trainieren — Bausteine (Reward, Flow-kompatibler RL-Algorithmus, Rollouts), Phasen-Plan, projektspezifische Umsetzung und der GPU-/Rendering-Konflikt. Konzept, noch nicht umgesetzt. |
 | [anleitung.md](anleitung.md) | **Zuerst.** Schritt-für-Schritt — die vier Wege zum Trainieren (vast.ai, lokal mit Launcher-Skript, lokal mit `docker run`, KISSKI), Daten retten, „Was passiert intern?", FAQ. |
 | [kisski-hpc.md](kisski-hpc.md) | **HPC-Training auf KISSKI.** SIF-Konvertierung, VAST-Storage, SLURM-Job, Monitoring, Checkpoint-Export, KISSKI-Troubleshooting (die ausführliche Form von Weg D). |
 | [env-vars.md](env-vars.md) | **Konfigurationsreferenz.** Alle Env-Vars + VRAM-Richtwerte — die Single Source of Truth, auf die `anleitung.md` und `kisski-hpc.md` verweisen. |
 | [multi-gpu.md](multi-gpu.md) | **Multi-GPU (bis 4× A100) — umgesetzt.** Warum sich Multi-GPU lohnt, was geändert wurde (torchrun-Launcher + SLURM-Ressourcen), KISSKI-Defaults (4× A100, `GLOBAL_BATCH_SIZE=32`) und Verifikationsschritte. |
 | [train-test-split.md](train-test-split.md) | 80/20-Datensatz-Split — Implementierung und Nutzung für die Evaluation auf ungesehenen Episoden. |
 | [wandb-offline-sync.md](wandb-offline-sync.md) | W&B-Offline-Sync auf KISSKI (Compute-Knoten ohne Internet). |
-| [wandb-run-auswertung.md](wandb-run-auswertung.md) | Momentaufnahme-Auswertung eines laufenden Trainings-Runs (Health-Check, LR-Schedule, Batch-Size- & Eval-Empfehlungen). Interaktive Kurven: [wandb-run-charts.html](wandb-run-charts.html). |
-| [erster-trainingsdurchlauf-auswertung.md](erster-trainingsdurchlauf-auswertung.md) | **Abschluss-Auswertung des ersten kompletten Laufs** (175k Steps) — W&B-Metriken + Verhaltens-Evaluation (Closed-Loop, Replay, Open-Loop), Diagnose (visueller Domain-Gap) und Empfehlungen. |
 | [fixes-aus-erstem-lauf.md](fixes-aus-erstem-lauf.md) | **Fixes aus dem ersten Lauf** — konkrete Maßnahmen aus der Auswertung (Domain-Gap: Würfelfarbe, Stapel-Band, schwarze Hände, `BLACK_HANDS`-Auto-Recolor), neue Werkzeuge, Anwenden/Verifizieren, offene Punkte. |
+
+> **Auswertung der Läufe** liegt jetzt unter [`../ergebnisse/`](../ergebnisse/README.md)
+> (W&B-Metriken, Abschluss-Auswertung des 1. Laufs, Domain-Gap, Baseline). Der **RL-Plan** als
+> möglicher nächster Schritt liegt unter [`../weiterfuehrend/reinforcement-learning-plan.md`](../weiterfuehrend/reinforcement-learning-plan.md).
 
 > **Variante — Vision-Encoder mittrainieren:** Mit `TUNE_VISUAL=1` wird zusätzlich der
 > Vision-Encoder feingetunt (LLM bleibt eingefroren). Der Entrypoint startet dann
@@ -45,6 +46,8 @@ Welcher Weg passt — die konkreten Befehle stehen jeweils in [anleitung.md](anl
 ## Verwandte Dokumentation
 
 - [Doku-Übersicht](../README.md) — globaler Navigations-Hub
+- [Ergebnisse](../ergebnisse/README.md) — Auswertungen & Messungen der Trainingsläufe
+- [Weiterführende Arbeiten](../weiterfuehrend/README.md) — RL-Plan, Lokomotion, Livestream
 - [Simulation](../simulation/README.md) — Closed-Loop-Eval des fertigen Checkpoints in Isaac Lab
 - [`FINETUNING_GUIDE.md`](../../app/Groot-1.6/examples/G1_DEX3/FINETUNING_GUIDE.md) — volle Parameter-Referenz (Submodul)
 - [`SETUP_DOCUMENTATION.md`](../../app/Groot-1.6/examples/G1_DEX3/SETUP_DOCUMENTATION.md) — Setup & Architektur des G1/DEX3-Embodiments (Submodul)

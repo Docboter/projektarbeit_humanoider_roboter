@@ -26,7 +26,7 @@ Kanonische Referenz: **SIMPLER (CoRL 2024)**, gebaut für Real→Sim-Eval von VL
 - **PreviewSurface-Quader (unser Setup) sind der Worst Case** für einen Real-Bild-Encoder.
 
 Unsere eigene Diagnose („Versagen = Domain Gap, nicht die Sim", siehe
-[implementation-notes.md §13](implementation-notes.md)) ist damit **korrekt und durch
+[umsetzungsnotizen.md §13](../simulation/umsetzungsnotizen.md)) ist damit **korrekt und durch
 Primärliteratur gestützt**.
 
 Quellen:

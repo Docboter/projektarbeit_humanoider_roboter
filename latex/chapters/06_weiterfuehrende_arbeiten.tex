@@ -1,0 +1,223 @@
+% chapters/06_weiterfuehrende_arbeiten.tex
+
+\chapter{Weiterführende Arbeiten}
+\label{chap:weiterfuehrend}
+
+Zwei Stränge weisen über den umgesetzten Projektkern hinaus und wurden im Rahmen
+dieser Arbeit \emph{recherchiert und konzipiert, aber nicht implementiert}: die
+Aktivierung der \textbf{Lokomotion} (der Roboter soll sich bewegen, nicht nur
+greifen) und das \textbf{Reinforcement-Learning-Fine-Tuning} der Politik (als
+Antwort auf die in \cref{chap:diskussion} diagnostizierte \ac{bc}-Schwäche).
+Beide Konzeptarbeiten sind ausführlich in der Projektdokumentation hinterlegt
+(\doc{docs/weiterfuehrend/lokomotion-recherche.md} bzw.\
+\doc{docs/weiterfuehrend/reinforcement-learning-plan.md}); dieses Kapitel fasst ihre
+Argumentation und die Entscheidungswege zusammen.
+
+\section{Lokomotion}
+\label{sec:locomotion}
+
+\subsection{Warum sich der Roboter aktuell nicht bewegt}
+\label{sec:loco-blocker}
+
+Lokomotion ist kein Schalter im bestehenden Modell, sondern eine zweite,
+eigenständige Steuerebene. Drei voneinander unabhängige Blocker verhindern sie
+derzeit (\cref{tab:loco-blocker}).
+
+\begin{table}[htb]
+  \centering
+  \begin{tabularx}{\linewidth}{lX}
+    \toprule
+    \textbf{Ebene} & \textbf{Blocker} \\
+    \midrule
+    Simulation & \texttt{fix\_root\_link=True} verschweißt den Torso starr mit
+      der Welt (bewusste Vereinfachung für die Manipulations-Eval: kein
+      Balance-Controller nötig). Es gibt weder Boden noch Bein-Aktuatoren. \\
+    Modell & Der Aktionsraum umfasst nur 28~\acp{dof} (Arme + Hände); für
+      Hüfte, Knie, Sprunggelenk und Taille existiert kein Aktuator -- der
+      Aktionskopf kann gar keine Beinbefehle erzeugen. \\
+    Daten  & Alle \texttt{G1\_Dex3}-Datensätze wurden an einem \emph{stehenden}
+      Roboter teleoperiert; die Basis bewegt sich nie. Selbst ein perfektes
+      Modell könnte daraus keine Beinaktionen lernen. \\
+    \bottomrule
+  \end{tabularx}
+  \caption{Die drei unabhängigen Lokomotions-Blocker.}
+  \label{tab:loco-blocker}
+\end{table}
+
+Die gute Nachricht: Die Beine sind im Asset bereits vorhanden. Das USD-Asset wird
+aus dem vollständigen \textbf{29-\ac{dof}}-G1-\ac{urdf} mit freier Basis gebaut;
+\texttt{fix\_root\_link} überschreibt diese nur zur \emph{Laufzeit}. Es muss
+also kein neues Asset erzeugt werden -- die Kinematik ist komplett da.
+
+\subsection{Architektur: entkoppelte Ganzkörper-Regelung}
+\label{sec:loco-wbc}
+
+NVIDIA adressiert Manipulation und Fortbewegung im selben Humanoiden über einen
+\textbf{entkoppelten \acf{wbc}}, wie er in GR00T~N1.5/N1.6 verwendet
+wird~\cite{groot2025}:
+
+\begin{description}
+  \item[Unterkörper (Beine + Taille)] eine \emph{Reinforcement-Learning}-Politik,
+    in Isaac~Lab trainiert, die Balance und Mehrfachkontakt hält und
+    \emph{Geschwindigkeitsbefehlen} $(v_x, v_y, \omega_{\text{yaw}})$ folgt.
+  \item[Oberkörper (Arme + Hände)] \acf{ik} bzw.\ die hier feinabgestimmte
+    Manipulations-Politik.
+\end{description}
+
+Die übergeordnete \ac{vla} oder eine separate Navigations-Politik sendet nur
+einfache Geschwindigkeitsbefehle an den \ac{wbc}, der sich um Balance und Kontakt
+kümmert. Eine ambitioniertere, voll integrierte Variante lässt die \ac{vla}
+kompakte \emph{latente Aktions-Tokens} vorhersagen, die ein gelernter \ac{wbc} in
+Ganzkörper-Gelenkbefehle dekodiert -- diese benötigt jedoch
+Ganzkörper-Trainingsdaten und einen passenden Decoder.
+
+\subsection{Verfügbare Bausteine und ein Versionskonflikt}
+\label{sec:loco-repos}
+
+Für die Beine muss nichts von Grund auf entwickelt werden; es existieren
+einsatzfähige RL-Lokomotions-Stacks (\cref{tab:loco-repos}). NVIDIAs Plattform
+\texttt{GR00T-WholeBodyControl} bündelt den entkoppelten \ac{wbc} sowie neuere
+generalistische Controller und unterstützt den Unitree~G1 explizit.
+
+\begin{table}[htb]
+  \centering
+  \begin{tabularx}{\linewidth}{llX}
+    \toprule
+    \textbf{Stack} & \textbf{Basis} & \textbf{Anmerkung} \\
+    \midrule
+    \texttt{unitree\_rl\_gym} & Isaac Gym & offiziell, einfacher Einstieg,
+      Sim2Sim$\to$Sim2Real \\
+    \texttt{unitree\_rl\_lab} & Isaac Lab & offiziell, G1-29-DoF; benötigt
+      \textbf{Isaac~Lab~2.3 / Isaac~Sim~5.1} \\
+    \texttt{GR00T-WholeBodyControl} & Isaac Lab & NVIDIA-WBC (RL-Beine + IK-Arme),
+      C++-Deploy, hoher Compute-Bedarf \\
+    \bottomrule
+  \end{tabularx}
+  \caption{Verfügbare RL-Lokomotions-Stacks für den Unitree~G1 (Auswahl).}
+  \label{tab:loco-repos}
+\end{table}
+
+\begin{warningbox}[Kritischer Versionskonflikt]
+  \texttt{unitree\_rl\_lab} verlangt Isaac~Lab~2.3 / Isaac~Sim~5.1; die Sim-Eval
+  dieses Projekts läuft auf einer anderen Isaac-Lab-Version. Vor jeder
+  Integration müssen die Versionen abgeglichen werden.
+\end{warningbox}
+
+\subsection{Integrationspfade}
+\label{sec:loco-pfade}
+
+Die Recherche identifiziert drei Wege mit unterschiedlichem Aufwand-Risiko-Profil:
+
+\begin{description}
+  \item[Pfad C -- Reine Sim-Lokomotions-Demo (empfohlener erster Schritt).]
+    Unabhängig von GR00T zunächst zeigen, dass der G1 in Isaac~Lab mit einer
+    Stock-Lauf-Politik läuft. Validiert Asset, Boden und Aktuatoren als Vorstufe
+    zu Pfad~A.
+  \item[Pfad A -- Entkoppelt (empfohlene Zielarchitektur).] Zwei Politiken
+    parallel: Beine über einen fertigen RL-Velocity-Tracking-Controller,
+    Arme/Hände über das bestehende GR00T-Modell. Konkret: \texttt{fix\_root\_link}
+    auf \texttt{False}, Boden und Schwerkraft ergänzen, Bein- und
+    Taillen-Aktuatoren hinzufügen, Lauf-Politik laden, Geschwindigkeitsbefehle
+    zunächst skriptgesteuert. \emph{Bestes Preis-Leistungs-Verhältnis -- kein
+    neuer Datensatz nötig.}
+  \item[Pfad B -- Unified Whole-Body-VLA.] GR00T gibt latente Tokens aus, ein
+    \ac{wbc} dekodiert sie zu Ganzkörperbefehlen inklusive Beinen.
+    Wissenschaftlich am saubersten, aber mit hohem Daten- (Whole-Body-Mocap statt
+    der statischen \texttt{G1\_Dex3}-Sätze) und Compute-Bedarf -- eher
+    langfristiger Ausblick.
+\end{description}
+
+Real spiegelt das Unitree-SDK diese Entkopplung wider: Ein High-Level
+\texttt{LocoClient} (\texttt{Move}, \texttt{StandUp}, \texttt{Damp}) hält über den
+internen Lauf-Controller die Balance, während \texttt{arm\_sdk} die von GR00T
+berechneten Arm- und Hand-Targets aufspielt -- ohne dass GR00T je ein Bein
+ansteuert.
+
+\section{Reinforcement-Learning-Fine-Tuning}
+\label{sec:rl-weiterfuehrend}
+
+\subsection{Motivation}
+\label{sec:rl-motivation}
+
+Das bisherige Training ist reines \acl{bc}: Es optimiert \enquote{Aktion
+nachahmen}, nicht \enquote{Aufgabe lösen}. Ob ein Klötzchen gestapelt wurde,
+fließt nie ins Training ein. Genau hier setzt \acl{rl} an -- es optimiert direkt
+auf den Aufgaben-Erfolg und exploriert Zustände jenseits der Demonstrationen,
+lernt also die Korrekturen, die \ac{bc} strukturell fehlen
+(\cref{sec:imitation-learning}). Der Effekt ist in der Literatur breit belegt:
+$\pi_{\mathrm{RL}}$ hebt die mittlere Erfolgsrate flow-basierter \acp{vla} etwa
+von~$41{,}6\,\%$ auf~$85{,}7\,\%$ (für $\pi_0$)~\cite{pirl2025}.
+
+\begin{warningbox}[Zwei RL-Ebenen nicht verwechseln]
+  Das hier gemeinte RL betrifft das \textbf{Fine-Tuning der \ac{vla}-Politik}
+  (Aktionskopf, Reward~=~Aufgaben-Erfolg). Davon zu unterscheiden ist das
+  Low-Level-RL des Ganzkörper-Controllers (Balance/Lokomotion) aus
+  \cref{sec:loco-wbc} -- dieses liefert NVIDIA bereits mit und ist hier
+  \emph{nicht} gemeint.
+\end{warningbox}
+
+\subsection{Technische Hürde und geeignete Verfahren}
+\label{sec:rl-verfahren}
+
+RL würde \emph{nach} \ac{bc} ansetzen: Der BC-Checkpoint ist der Startpunkt, das
+RL-Fine-Tuning soll daraus einen besseren Closed-Loop-Checkpoint machen (in beiden
+Stufen bleibt das \ac{vlm} eingefroren). Die zentrale Hürde: Klassisches \ac{ppo}
+benötigt die Aktions-Likelihood $\log \pi(a\,|\,s)$; der Flow-Matching-Aktionskopf
+(\cref{sec:flow-matching}) erzeugt Aktionen aber durch iteratives Entrauschen einer
+\ac{ode}, deren Likelihood nicht direkt berechenbar ist. Die Forschung 2025 bietet
+hierfür passende Verfahren (\cref{tab:rl-verfahren}); empfohlen wird der
+$\pi_{\mathrm{RL}}$-Ansatz (Flow-SDE~+~\ac{ppo}), da er für genau diese
+Modellklasse -- flow-basierte \ac{vla} mit eingefrorenem \ac{vlm} und trainierbarem
+Aktions-Experten -- entworfen wurde und sich mit dem Setup dieser Arbeit deckt.
+
+\begin{table}[htb]
+  \centering
+  \begin{tabularx}{\linewidth}{lX}
+    \toprule
+    \textbf{Verfahren} & \textbf{Kerntrick} \\
+    \midrule
+    $\pi_{\mathrm{RL}}$ (Flow-SDE) & \ac{ode}$\to$SDE für handhabbare Likelihood,
+      dann \ac{ppo}; architektonisch am nächsten an GR00T~\cite{pirl2025} \\
+    FPO & likelihood-freier Proxy aus dem Flow-Matching-Loss, \ac{ppo}-Clipping \\
+    ReinFlow & lernbares Rauschnetz $\to$ Markov-Kette mit exakter Likelihood \\
+    \bottomrule
+  \end{tabularx}
+  \caption{RL-Verfahren für flow-basierte Politiken (\doc{docs/weiterfuehrend/reinforcement-learning-plan.md}).}
+  \label{tab:rl-verfahren}
+\end{table}
+
+\subsection{Vorhandene Infrastruktur und das RL-Delta}
+\label{sec:rl-infra}
+
+Vieles ist bereits vorhanden: Die Isaac-Lab-Umgebung
+\texttt{g1\_dex3\_blockstack\_env.py} ist schon eine \texttt{DirectRLEnv} mit
+vektorisierten Erfolgs- und Done-Funktionen, der BC-Checkpoint dient als
+Startpunkt, und die ZMQ-Client-Pipeline (\cref{fig:zmq}) ist eine Vorlage für die
+Rollout-Schleife. Neu zu bauen ist im Wesentlichen: (1) ein \emph{geformter}
+Reward (statt des nur für Ablationen gedachten binären Erfolgs-Signals), (2) echte
+Parallelität (\texttt{num\_envs > 1}) und (3) der flow-kompatible RL-Loss-Loop --
+sinnvollerweise mit KL-Regularisierung gegen den BC-Checkpoint, um Reward-Hacking
+und Vergessen zu vermeiden.
+
+\subsection{Der kritische Pfad: GPU- und Rendering-Konflikt}
+\label{sec:rl-gpu}
+
+Das größte Risiko ist nicht der Algorithmus, sondern die Hardware -- und es ist
+dasselbe Spannungsfeld wie bei der Closed-Loop-Eval (\cref{sec:eval-methodik}):
+Bildbasiertes RL braucht \emph{gleichzeitig} RT-Core-Rendering (Isaac-Sim-Raytracing
+$\to$ L40/RTX~4090/A6000) \emph{und} Trainings-FLOPs in großer Zahl, idealerweise
+über viele parallele Umgebungen. Die starken Trainings-GPUs A100/H100 besitzen
+keine RT-Cores; die RT-Core-fähigen Karten sind teils zu schwach fürs gleichzeitige
+Training. Als realistischster Weg gilt eine Ampere-plus-GPU mit RT-Cores auf
+vast.ai. Ein \emph{State-only}-Pilot (RL ohne Kamera-Rendering) kann die
+RL-Mechanik isoliert validieren, umgeht aber gerade das eigentliche Ziel -- das
+bildkonditionierte Schließen des Regelkreises.
+
+\begin{tipbox}
+  Bemerkenswert ist, dass RL die Domain-Gap-Problematik aus \cref{chap:diskussion}
+  prinzipiell \emph{auflöst}: Es trainiert die Politik in genau jener Simulation,
+  in der sie evaluiert wird -- Trainings- und Testverteilung fallen zusammen, der
+  Distribution-Shift verschwindet, und der Reward erzwingt aktives Handeln statt
+  Einfrieren. RL ist damit nicht nur eine Leistungssteigerung, sondern eine
+  konzeptionell passende Antwort auf den zentralen Befund dieser Arbeit.
+\end{tipbox}

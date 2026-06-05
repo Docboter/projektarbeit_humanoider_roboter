@@ -4,18 +4,27 @@
 \addcontentsline{toc}{chapter}{Zusammenfassung}
 
 Diese Projektarbeit beschreibt das Fine-Tuning des \ac{vla}-Modells
-\textbf{NVIDIA GR00T N1.6} auf einem humanoiden Roboter des Typs
-\textbf{Unitree G1} mit \textbf{DEX3-Hand} für Block-Stacking-Aufgaben.
-Mithilfe von \ac{il} auf einem aufgezeichneten Demonstrations-Datensatz wird das
-vortrainierte Basismodell an die spezifische Aufgabe und Embodiment-Konfiguration
-angepasst.
+\textbf{NVIDIA GR00T~N1.6} auf einem humanoiden Roboter des Typs
+\textbf{Unitree~G1} mit \textbf{DEX3-Hand} für eine Block-Stacking-Aufgabe.
+Mittels \acl{il} wird das vortrainierte 3,3-Mrd.-Parameter-Modell selektiv
+(eingefrorenes Vision-Language-Backbone, trainierter Flow-Matching-Aktionskopf)
+an Aufgabe und Embodiment angepasst. Die Trainingsinfrastruktur basiert auf einem
+über Umgebungsvariablen konfigurierten Container, der identisch lokal (Docker) und
+auf dem \ac{hpc}-Cluster KISSKI der GWDG Göttingen (Apptainer/\ac{slurm}, NVIDIA
+A100/H100) läuft.
 
-Die Trainingsinfrastruktur basiert auf einem Docker-Container mit CUDA~12.8 und
-wird sowohl lokal als auch auf dem \ac{hpc}-Cluster KISSKI der GWDG Göttingen
-(NVIDIA A100 / H100) ausgeführt.
-Ziel ist eine möglichst hohe Erfolgsrate beim Block-Stacking unter realen oder
-simulierten Bedingungen bei gleichzeitig effizienter Nutzung der verfügbaren
-\ac{gpu}-Ressourcen.
+Das Training konvergierte über 175\,000~Schritte sauber. In der geschlossenen
+Simulationsschleife (NVIDIA Isaac~Lab) erreichte die Politik jedoch $0/20$~Erfolge
+und \enquote{fror ein}. Eine Dreifach-Diagnose (Open-Loop, Replay, Closed-Loop)
+isolierte den visuellen \textbf{Domain-Gap} zwischen realen Trainingsbildern und
+synthetischen Simulationsbildern als Ursache; eine SigLIP-basierte Messung
+quantifizierte ihn (kritisch: die Handgelenk-Kamera). Literaturgestützt
+(SIMPLER) wird gezeigt, dass dieses Null-Resultat für ein auf Realbildern
+trainiertes Modell mit eingefrorenem Encoder \emph{erwartbar} ist und kein Urteil
+über die Modellqualität darstellt. Die Arbeit schließt mit einer methodischen
+Empfehlung (Open-Loop-Eval und reale Rollouts statt Closed-Loop-Sim als
+Benchmark) sowie einem konzeptionellen Ausblick auf Lokomotion und
+Reinforcement-Learning-Fine-Tuning.
 
 \bigskip
 \noindent\textbf{Schlüsselwörter:}
@@ -23,26 +32,36 @@ Humanoider Roboter,
 \ac{vla},
 Fine-Tuning,
 \ac{il},
+Flow Matching,
+Domain-Gap,
+Sim-to-Real,
 Unitree G1,
-NVIDIA GR00T,
-Block-Stacking
+NVIDIA GR00T
 
-\vspace{2.5cm}
+\vspace{2.0cm}
 
 \chapter*{Abstract}
 \addcontentsline{toc}{chapter}{Abstract}
 
-This project report describes the fine-tuning of the \textbf{NVIDIA GR00T N1.6}
-\ac{vla} model on a \textbf{Unitree G1} humanoid robot with \textbf{DEX3 hand}
-for block-stacking tasks.
-Using \ac{il} on a recorded demonstration dataset, the pre-trained foundation
-model is adapted to the specific task and embodiment configuration.
+This project report describes the fine-tuning of the \textbf{NVIDIA GR00T~N1.6}
+\ac{vla} model on a \textbf{Unitree~G1} humanoid robot with \textbf{DEX3 hand} for
+a block-stacking task. Using \acl{il}, the pre-trained 3.3-billion-parameter model
+is adapted selectively (frozen vision-language backbone, trained flow-matching
+action head). The training infrastructure is a container configured purely via
+environment variables, running identically on a local machine (Docker) and on the
+KISSKI \ac{hpc} cluster of GWDG Göttingen (Apptainer/\ac{slurm}, NVIDIA A100/H100).
 
-The training infrastructure is based on a Docker container running CUDA~12.8,
-executed both locally and on the KISSKI \ac{hpc} cluster of GWDG Göttingen
-(NVIDIA A100 / H100).
-The goal is a high success rate in block-stacking under real or simulated
-conditions while making efficient use of available \ac{gpu} resources.
+Training converged cleanly over 175{,}000 steps. In the closed-loop simulation
+(NVIDIA Isaac~Lab), however, the policy achieved $0/20$ successes and
+\enquote{froze}. A three-way diagnosis (open-loop, replay, closed-loop) isolated
+the visual \textbf{domain gap} between real training images and synthetic
+simulation images as the cause, quantified via SigLIP embeddings (the wrist camera
+being critical). Supported by the literature (SIMPLER), the report shows that this
+null result is \emph{expected} for a model trained on real images with a frozen
+encoder and does not constitute a verdict on model quality. The work concludes with
+a methodological recommendation (open-loop evaluation and real-world rollouts rather
+than closed-loop simulation as a benchmark) and a conceptual outlook on locomotion
+and reinforcement-learning fine-tuning.
 
 \bigskip
 \noindent\textbf{Keywords:}
@@ -50,8 +69,10 @@ Humanoid Robot,
 \ac{vla},
 Fine-Tuning,
 \ac{il},
+Flow Matching,
+Domain Gap,
+Sim-to-Real,
 Unitree G1,
-NVIDIA GR00T,
-Block-Stacking
+NVIDIA GR00T
 
 \cleardoublepage

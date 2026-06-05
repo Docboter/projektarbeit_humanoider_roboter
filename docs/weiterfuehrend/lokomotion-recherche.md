@@ -337,4 +337,3 @@ robusten Demos. Unified-Ansätze sind die Forschungsspitze, brauchen aber mehr D
 - [WholeBodyVLA (arXiv 2512.11047)](https://arxiv.org/pdf/2512.11047)
 - [Kinematics-Aware Multi-Policy RL (arXiv 2511.21169)](https://arxiv.org/pdf/2511.21169)
 - [Gait-Conditioned RL with Multi-Phase Curriculum (arXiv 2505.20619)](https://arxiv.org/abs/2505.20619)
-</content>

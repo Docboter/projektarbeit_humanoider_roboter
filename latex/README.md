@@ -1,18 +1,20 @@
 # LaTeX — Projektarbeit (Ausarbeitung)
 
-> [!WARNING]
-> **Der Inhalt ist bisher reiner Füll-/Platzhaltertext und noch NICHT projektspezifisch
-> angepasst.** In diesem Ordner geht es aktuell nur darum, das **Layout grob aufzusetzen**
-> (Dokumentklasse, Satzspiegel, Verzeichnisse, Kapitelgerüst, Literatur-/Abkürzungsapparat).
-> Sämtliche Texte in `chapters/`, `frontmatter/` und `backmatter/` sind Blindtext bzw.
-> generische Platzhalter und müssen vor der Abgabe vollständig durch den echten Projektinhalt
-> ersetzt werden. Auch `references.bib`, Titelseite und Abkürzungen sind noch nicht final.
+> [!NOTE]
+> **Der inhaltliche Teil ist ausgearbeitet** und basiert auf der Projektdokumentation unter
+> [`docs/`](../docs/README.md). Die Kapitel beschreiben das *Was/Wann/Wie/Warum* des Projekts
+> und verweisen für Reproduktionsdetails (Kommandos, Variablen) auf die jeweilige `docs/`-Datei,
+> um Doppelungen zu vermeiden. **Noch offen:** die persönlichen Titelseiten-Daten (Verfasser,
+> Matrikelnummer, Betreuer, Hochschule, Studiengang, Abgabedatum) in `preamble/settings.tex`
+> sowie ggf. das Einbinden echter Abbildungen (W&B-Plots, Architektur-Diagramm) in `figures/`.
 
 ## Zweck
 
-Gerüst für die schriftliche Ausarbeitung der Projektarbeit (Fine-Tuning von NVIDIA GR00T N1.6
-auf dem Unitree G1 + DEX3-Hand). Stand: **nur Layout/Struktur** — der inhaltliche Teil folgt
-später.
+Schriftliche Ausarbeitung der Projektarbeit (Fine-Tuning von NVIDIA GR00T N1.6 auf dem
+Unitree G1 + DEX3-Hand). Quelle des Inhalts ist die Projektdokumentation unter `docs/`;
+diese Ausarbeitung fasst sie nicht zusammen, sondern erzählt den Arbeits- und
+Erkenntnisprozess (inkl. des Domain-Gap-Befunds) und referenziert `docs/` an den
+relevanten Stellen.
 
 ## Struktur
 
@@ -63,9 +65,12 @@ ausgeschlossen.
 
 ## Nächste Schritte (TODO)
 
-- [ ] Titelseite mit echten Projekt-/Personendaten füllen (`frontmatter/titelseite.tex`)
-- [ ] Blindtext in allen `chapters/*.tex` durch echten Inhalt ersetzen
-- [ ] Zusammenfassung schreiben (`frontmatter/zusammenfassung.tex`)
-- [ ] `references.bib` mit den tatsächlich zitierten Quellen befüllen
-- [ ] Abkürzungsverzeichnis und Abbildungen ergänzen
-- [ ] Anhang und ehrenwörtliche Erklärung finalisieren
+- [x] Inhalt aller `chapters/*.tex` ausgearbeitet (01 Einleitung … 07 Fazit)
+- [x] Zusammenfassung / Abstract geschrieben (`frontmatter/zusammenfassung.tex`)
+- [x] `references.bib` mit verifizierten Quellen befüllt (GR00T N1, SIMPLER, Flow Matching, π₀, π-RL, …)
+- [x] Anhang an echte Datensatz-/SLURM-/Software-Fakten angepasst
+- [ ] Persönliche Daten in `preamble/settings.tex` (`\docAuthor`, `\docMatrikel`, `\docBetreuer`,
+      `\docHochschule`, `\docFachbereich`, `\docStudiengang`, `\docAbgabedatum`)
+- [ ] Optional: echte Abbildungen in `figures/` einbinden (statt der TikZ-Diagramme/W&B-Plot)
+- [ ] Ehrenwörtliche Erklärung prüfen (`backmatter/erklaerung.tex`)
+- [ ] Einmal `latexmk` durchlaufen lassen (lokal kein TeX installiert — siehe „Kompilieren")

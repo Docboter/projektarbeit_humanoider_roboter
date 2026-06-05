@@ -3,14 +3,11 @@
 
 % ── Sprache & Zeichenkodierung ────────────────────────────────────────
 \usepackage[ngerman]{babel}
-\usepackage[autostyle=true, german=guillemets]{csquotes}   % dt. Anführungszeichen
 
-% ── Schriften (LuaLaTeX + plex-otf) ──────────────────────────────────
-% IBM Plex: moderne OpenType-Familie von IBM, in TeX Live 2021+ enthalten
-\usepackage{plex-otf}                % setzt IBM Plex Serif / Sans / Mono automatisch
-
+% ── Schriften (LuaLaTeX + libertinus-otf) ────────────────────────────
+\usepackage{libertinus-otf}          % Libertinus Serif / Sans / Mono (alle drei)
 \usepackage{unicode-math}
-\setmathfont{IBM Plex Math}          % passend zur IBM-Plex-Familie
+\setmathfont{Libertinus Math}        % passende OpenType-Matheschrift
 
 % Mikrotypographie: Randausgleich, Unterschneidung, Wortzwischenräume
 \usepackage[
@@ -44,6 +41,8 @@
 % Voraussetzung: Python + Pygments ("pip install Pygments")
 % Kompilierung mit lualatex -shell-escape
 \usepackage{minted}
+% csquotes nach fvextra/minted laden (sonst Warning über Umdefinition von \@parboxrestore)
+\usepackage[autostyle=true, german=guillemets]{csquotes}
 
 % ── Mathematik & Einheiten ───────────────────────────────────────────
 \usepackage{amsmath}
@@ -58,6 +57,9 @@
 
 % ── Aufzählungen ─────────────────────────────────────────────────────
 \usepackage{enumitem}
+
+% ── Umbruch langer Pfade/Bezeichner ──────────────────────────────────
+\usepackage{seqsplit}           % erlaubt Zeilenumbruch in langen \texttt-Pfaden
 
 % ── Farbige Hinweis-Boxen ─────────────────────────────────────────────
 \usepackage[most]{tcolorbox}

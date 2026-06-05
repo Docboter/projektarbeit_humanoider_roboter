@@ -1,115 +1,351 @@
 % chapters/04_ergebnisse.tex
 
-\chapter{Ergebnisse}
+\chapter{Durchführung und Ergebnisse}
 \label{chap:ergebnisse}
+
+Dieses Kapitel schildert die Durchführung in der Reihenfolge, in der sie
+stattfand, und stellt die jeweils gewonnenen Ergebnisse vor. Der rote Faden ist
+die fortschreitende Diagnose: Das Training selbst war erfolgreich, doch die
+Closed-Loop-Evaluation offenbarte ein Verhalten, das erst durch eine Kette
+gezielter Tests auf seine eigentliche Ursache -- den visuellen Domain-Gap --
+zurückgeführt werden konnte.
 
 \section{Trainingsverlauf}
 \label{sec:trainingsverlauf}
 
-\Cref{fig:loss-curve} zeigt den Verlauf der Verlustfunktion über
-\TODO[Anzahl Trainingsschritte]~Trainingsschritte, aufgezeichnet mit \ac{wandb}.
+Der erste vollständige Trainingslauf (\texttt{g1\_dex3\_blockstacking\_v1},
+W\&B-Run-ID \texttt{i6n1t613}) lief auf einer einzelnen A100 über
+\textbf{175\,000~Schritte} und benötigte rund \textbf{21,4~h} (etwa
+2,3~Schritte/s). Der Flow-Matching-Loss fiel sauber und ohne numerische
+Instabilitäten (\cref{fig:loss-curve}): von einem Startwert um~1,37 auf
+geglättet etwa~0,01 nach 115\,000~Schritten. Der Gradienten-Norm verhielt sich
+gesund (frühes Clipping nur in den ersten~$\approx$~2000~Schritten, danach
+stabil~$\approx$~0,1), und die Lernrate folgte dem geplanten Cosine-Verlauf nach
+einer Aufwärmphase von etwa 8750~Schritten.
 
 \begin{figure}[htb]
   \centering
   \begin{tikzpicture}
-    \begin{axis}[
-      width  = 0.85\textwidth,
-      height = 6cm,
+    \begin{semilogyaxis}[
+      width  = 0.86\textwidth,
+      height = 6.2cm,
       xlabel = {Trainingsschritt},
-      ylabel = {Verlust $\mathcal{L}_{\text{BC}}$},
+      ylabel = {Flow-Matching-Loss (geglättet)},
       grid   = both,
       grid style = {line width=0.2pt, draw=gray!30},
       major grid style = {line width=0.4pt, draw=gray!60},
-      xmin = 0, xmax = 50000,
-      ymin = 0,
-      xtick distance = 10000,
+      xmin = 0, xmax = 175000,
+      xtick distance = 25000,
+      scaled x ticks = false,
+      x tick label style = {/pgf/number format/.cd, set thousands separator={\,}, fixed},
       legend pos = north east,
       legend style = {font=\small\sffamily},
       tick label style = {font=\small\sffamily},
       label style = {font=\small\sffamily},
     ]
-      % Platzhalter-Kurve — durch echte Daten ersetzen:
-      % \addplot[NavyBlue, thick] table[x=step, y=loss, col sep=comma]
-      %   {data/training_log.csv};
-      \addplot[NavyBlue, thick, domain=0:50000, samples=200]
-        {2.5 * exp(-x/12000) + 0.15 + 0.05*rand};
-      \addlegendentry{Training}
-
-      \addplot[BurntOrange, thick, dashed, domain=0:50000, samples=100]
-        {2.8 * exp(-x/14000) + 0.22 + 0.03*rand};
-      \addlegendentry{Validierung}
-    \end{axis}
+      % Geglättete Loss-Kurve aus der vollständigen W&B-History des
+      % abgeschlossenen Laufs (17.500 geloggte Schritte, global_step 0--175.000;
+      % gleitender Mittelwert MA±5, ~80 Stützpunkte; früher Bereich roh, um den
+      % steilen Initialabfall zu erhalten. Rohwerte: docs/ergebnisse/wandb-run-charts.html):
+      \addplot[NavyBlue, thick, mark=*, mark size=0.6pt] coordinates {
+        (0,1.3716) (120,1.2164) (240,1.0590) (360,1.0524) (480,1.0504)
+        (600,1.0312) (720,0.9924) (840,0.8904) (960,0.7989) (1080,0.6959)
+        (1200,0.6384) (1320,0.4949) (1440,0.4396) (1560,0.3232) (1680,0.3106)
+        (1800,0.2597) (1920,0.2319) (2040,0.2359) (2160,0.1856) (2280,0.2201)
+        (2400,0.1364) (2520,0.0911) (2640,0.1163) (2760,0.1013) (2880,0.1020)
+        (3000,0.0959) (6180,0.0826) (9370,0.0611) (12560,0.0529) (15740,0.0440)
+        (18920,0.0349) (22110,0.0432) (25300,0.0293) (28480,0.0372) (31660,0.0287)
+        (34850,0.0277) (38040,0.0278) (41220,0.0302) (44400,0.0254) (47590,0.0243)
+        (50780,0.0290) (53960,0.0238) (57140,0.0200) (60330,0.0192) (63520,0.0212)
+        (66700,0.0235) (69880,0.0196) (73070,0.0216) (76260,0.0173) (79440,0.0193)
+        (82620,0.0178) (85810,0.0166) (89000,0.0214) (92180,0.0201) (95360,0.0162)
+        (98550,0.0130) (101740,0.0158) (104920,0.0162) (108100,0.0119) (111290,0.0151)
+        (114480,0.0133) (117660,0.0147) (120840,0.0110) (124030,0.0104) (127220,0.0111)
+        (130400,0.0111) (133580,0.0148) (136770,0.0122) (139960,0.0100) (143140,0.0082)
+        (146320,0.0115) (149510,0.0097) (152700,0.0087) (155880,0.0074) (159060,0.0109)
+        (162250,0.0082) (165440,0.0086) (168620,0.0085) (171800,0.0073) (174990,0.0076)
+      };
+      \addlegendentry{\texttt{train/loss} (geglättet)}
+    \end{semilogyaxis}
   \end{tikzpicture}
-  \caption{Trainingsverlust (Behavior Cloning) und Validierungsverlust über die
-    Trainingsschritte. Platzhalter-Kurven — durch echte W\&B-Daten ersetzen.}
+  \caption{Geglätteter Trainings-Loss über die 175\,000~Schritte (logarithmische
+    Ordinate). Stützpunkte: gleitender Mittelwert (MA$\pm$5) der vollständigen
+    W\&B-History des abgeschlossenen Laufs (17\,500 geloggte Schritte; Rohdaten
+    in \doc{docs/ergebnisse/wandb-run-charts.html}, Einordnung in
+    \doc{docs/ergebnisse/wandb-run-auswertung.md}). Ab etwa
+    100\,000--120\,000~Schritten flacht die Kurve faktisch ab; der Endwert liegt
+    geglättet bei~$\approx$~0,008.}
   \label{fig:loss-curve}
 \end{figure}
 
-\section{Evaluationsergebnisse}
-\label{sec:evaluation}
+\begin{infobox}[Konvergenz, aber kein Erfolgssignal]
+  Die W\&B-Diagnose stuft den Lauf als \emph{konvergiert} ein: Der Loss plateaut
+  ab etwa 100\,000--120\,000~Schritten, die letzten~$\approx$~55\,000~Schritte
+  bringen kaum noch Verbesserung. Entscheidend ist jedoch: Ein niedriger
+  Flow-Matching-Loss misst die Nachahmungsgüte, \emph{nicht} den Aufgabenerfolg.
+  Mangels Validierung während des Trainings (\texttt{eval\_strategy="no"}) gab es
+  zudem kein Signal zur Checkpoint-Auswahl -- Schritt~175\,000 wurde mangels
+  Alternative gewählt. Die im Doc dokumentierten Endwerte schwanken je nach
+  Glättungsbasis (geglättet~$\approx$~0,008 vs.\ W\&B-Tool-Endwert~0,102 bei
+  Minimum~0,066); für die Aussage \enquote{konvergiert} ist das unerheblich.
+\end{infobox}
 
-Die Evaluation erfolgt anhand der Erfolgsrate beim Block-Stacking in der
-Simulation (\emph{NVIDIA Isaac Lab}).
-Insgesamt wurden $n = \TODO[Episodenzahl pro Checkpoint]$~Episoden pro Checkpoint ausgewertet
-(\cref{tab:eval-results}).
+Die übrige Trainingsdynamik bestätigt das Bild eines stabilen Laufs. Die Lernrate
+folgte dem konfigurierten Cosine-Decay-Schedule mit linearem Warmup auf die
+Peak-Lernrate $1\times10^{-4}$ (\cref{fig:anh-lr}), und die Gradienten-Norm fiel
+nach einem moderaten Warmup-Maximum monoton ab, ohne Spitzen oder Divergenzen
+(\cref{fig:anh-gradnorm}). Beide Verläufe sind im \cref{anh:trainingsdynamik}
+dokumentiert.
+
+\section{Befund: inaktiver Train/Test-Split}
+\label{sec:split-befund}
+
+Bei der Auswertung des Laufs zeigte sich, dass der in \cref{sec:datensatz}
+beschriebene 80/20-Split im durchgeführten Training \textbf{noch nicht aktiv}
+war: Die \texttt{info.json} wies weiterhin \texttt{"splits": \{"train":
+"0:301"\}} aus, sodass alle 301~Episoden -- inklusive der 60~vorgesehenen
+Test-Episoden -- mittrainiert wurden. Bestätigt wird dies durch die im Log
+ausgewiesene Gesamtschrittzahl, die zum vollen Datensatz passt. Konsequenz: Für
+diesen Checkpoint existiert keine echte, ungesehene Testmenge; eine spätere
+Open-Loop-Bewertung auf den \enquote{Test}-Episoden wäre nicht mehr aussagekräftig.
+Der Split wurde für nachfolgende Läufe korrigiert
+(\doc{docs/training/train-test-split.md}).
+
+\section{Closed-Loop-Evaluation: das Einfrieren}
+\label{sec:closed-loop-ergebnis}
+
+In der geschlossenen Simulationsschleife zeigte der trainierte Checkpoint ein
+charakteristisches Fehlverhalten: Der Roboter fährt grob an (etwa 15~Sekunden
+lang) und \textbf{friert dann ein} -- die Bewegungsenergie fällt auf einen sehr
+kleinen Wert und bleibt über die volle Episodendauer (3~Minuten) flach. Es kommt
+weder zu einem Greifen noch zu einem Stapeln. Über 20~Episoden mit dem
+ausgewerteten Checkpoint wurde \textbf{kein einziger Erfolg} erzielt
+($0/20$). Ein früher, untertrainierter Checkpoint zeigte stattdessen ein
+\emph{Wegdriften} der Hände -- ebenfalls kein Aufgabenfortschritt.
+
+\begin{warningbox}[Wichtige Klarstellung zu Beispielzahlen]
+  In der Bedienungsanleitung \doc{docs/simulation/vastai-anleitung.md} tauchen
+  illustrative Erfolgsraten (z.\,B.\ \enquote{60\,\%}) auf. Diese sind
+  \textbf{Platzhalter zur Erläuterung des Log-Formats}, keine Messwerte. Alle
+  real durchgeführten Closed-Loop-Läufe ergaben $0/20$.
+\end{warningbox}
+
+\section{Diagnose durch drei komplementäre Tests}
+\label{sec:diagnose}
+
+Um das Einfrieren auf seine Ursache zurückzuführen, wurden drei Tests
+kombiniert, die jeweils einen Teil der Pipeline isolieren (\cref{tab:diagnose}).
 
 \begin{table}[htb]
   \centering
-  \caption{Evaluationsergebnisse verschiedener Checkpoints}
-  \label{tab:eval-results}
-  \begin{tabular}{rrrr}
+  \begin{tabularx}{\linewidth}{lXl}
     \toprule
-    \textbf{Schritt} & \textbf{Erfolgsrate [\%]} &
-    \textbf{Ø Episodenlänge [s]} & \textbf{Ø Griff-Fehler [mm]} \\
+    \textbf{Test} & \textbf{Was wird isoliert?} & \textbf{Ergebnis} \\
     \midrule
-    \num{10000} & [TODO] & [TODO] & [TODO] \\
-    \num{25000} & [TODO] & [TODO] & [TODO] \\
-    \num{50000} & [TODO] & [TODO] & [TODO] \\
+    Open-Loop (echte Bilder) & Modellvorhersage ohne Regelkreis
+      & Arme gut, Finger verrauscht \\
+    Replay (echte Aktionen)  & Simulation/Config ohne Modell
+      & Greifen korrekt \\
+    Closed-Loop (Modell+Sim) & gesamter Regelkreis
+      & friert ein \\
     \bottomrule
-  \end{tabular}
+  \end{tabularx}
+  \caption{Die drei Diagnose-Tests und ihre Aussage.}
+  \label{tab:diagnose}
 \end{table}
 
-\begin{infobox}[Erfolgsdefinition]
-  Eine Episode gilt als erfolgreich, wenn alle Blöcke innerhalb von
-  \qty{60}{\second} vollständig gestapelt sind und der Turm mindestens
-  \qty{2}{\second} stabil bleibt.
-\end{infobox}
+Die Logik ist ausschließend: Der \textbf{Replay-Test} spielt echte aufgezeichnete
+Aktionen direkt in die Simulation -- ohne Modell -- und führt die Greifbewegung
+\emph{korrekt} aus. Damit sind Simulation, Konfiguration und Kinematik als
+Fehlerquelle ausgeschlossen. Der \textbf{Open-Loop-Test} zeigt, dass das Modell
+auf echten Bildern brauchbare Armvorhersagen (Dimensionen 0--13) liefert, die
+Fingerdimensionen (14--27) aber verrauscht sind (\cref{fig:anh-openloop}). Da nur der \textbf{Closed-Loop-Test}
+scheitert, bleibt als einziger Unterschied die \textbf{Beobachtung}: die
+synthetisch gerenderten Kamerabilder. Damit ist der visuelle Domain-Gap als
+Hauptursache isoliert.
 
-\section{Ablation: Batch-Größe und Schritte}
-\label{sec:ablation}
-
-Um den Einfluss der Batch-Größe auf die Trainingseffizienz zu untersuchen,
-wurden drei Konfigurationen verglichen (je~\num{25000}~Schritte):
+Wie groß dieser Unterschied tatsächlich ausfällt, zeigt \cref{fig:domain-gap}: Die
+reale Teleop-Aufnahme und das Sim-Rendering derselben Kameraperspektive
+unterscheiden sich in Beleuchtung, Texturen, Hintergrund und im Erscheinungsbild
+der Roboterhände deutlich sichtbar. Quantifiziert über die Cosine-Distanz
+eingefrorener SigLIP-Embeddings beträgt der Real$\rightarrow$Sim-Abstand im Mittel
+0,260 über alle vier Kameras (Einzelwerte 0,148--0,427;
+\doc{docs/ergebnisse/domain-gap-analyse.md}). Da der Vision-Encoder ausschließlich
+auf solchen realen Bildern trainiert wurde, liefert er für die hier gezeigten
+Sim-Bilder keine verwertbaren Merkmale -- die Politik erhält faktisch eine
+unbekannte Beobachtung und erstarrt.
 
 \begin{figure}[htb]
   \centering
-  \begin{tikzpicture}
-    \begin{axis}[
-      ybar,
-      bar width    = 1.5cm,
-      width        = 0.7\textwidth,
-      height       = 5.5cm,
-      ylabel       = {Erfolgsrate [\%]},
-      symbolic x coords = {BS=8, BS=32, BS=64},
-      xtick        = data,
-      ymin         = 0, ymax = 100,
-      ytick distance = 20,
-      nodes near coords,
-      nodes near coords align = {vertical},
-      ymajorgrids  = true,
-      grid style   = {line width=0.3pt, draw=gray!40},
-      tick label style = {font=\small\sffamily},
-      label style  = {font=\small\sffamily},
-      bar shift    = 0pt,
-      fill         = NavyBlue!60,
-      draw         = NavyBlue,
-    ]
-      % Platzhalter-Daten:
-      % Platzhalter-Werte (0) ersetzen durch echte Erfolgsraten:
-      \addplot coordinates {(BS=8,0) (BS=32,0) (BS=64,0)};
-    \end{axis}
-  \end{tikzpicture}
-  \caption{Einfluss der globalen Batch-Größe auf die Erfolgsrate nach
-    \num{25000}~Schritten (Platzhalter-Werte).}
-  \label{fig:ablation-batchsize}
+  \begin{subfigure}[t]{0.48\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{figures/sim/real_cam_left_high.png}
+    \caption{Reale Teleop-Aufnahme}
+    \label{fig:domain-gap-real}
+  \end{subfigure}\hfill
+  \begin{subfigure}[t]{0.48\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{figures/sim/sim_cam_left_high.png}
+    \caption{Isaac-Sim-Rendering}
+    \label{fig:domain-gap-sim}
+  \end{subfigure}
+  \caption{Visueller Domain-Gap am Beispiel der Kopfkamera links
+    (\texttt{cam\_left\_high}): dieselbe Szene als reale Datensatzaufnahme~(a) und
+    als synthetisches Isaac-Sim-Rendering~(b). Beleuchtung, Tischtextur,
+    Hintergrund und das Erscheinungsbild der Hände weichen deutlich voneinander ab.
+    Cosine-Distanz der SigLIP-Embeddings für diese Kamera: 0,148 (Mittel über alle
+    vier Kameras: 0,260). Quelle:
+    \doc{docs/ergebnisse/domain-gap-analyse.md}.}
+  \label{fig:domain-gap}
 \end{figure}
+
+\section{Voraussetzung der Diagnose: Kalibrierung der Simulation}
+\label{sec:kalibrierung}
+
+Damit der Replay-Test überhaupt als verlässliche Referenz dienen konnte, musste
+die Simulation zunächst kalibriert werden -- ein eigener, aufwendiger
+Arbeitsschritt. Die wichtigsten Korrekturen (vollständig in
+\doc{docs/simulation/umsetzungsnotizen.md}):
+
+\begin{itemize}
+  \item \textbf{Geometrie-Bug (kritisch).} Die Würfel lagen ursprünglich
+    rund~15~cm \emph{unterhalb} des erreichbaren Arbeitsraums -- selbst ein
+    perfektes Modell hätte nie greifen können. Tischoberseite und
+    Würfeloberkante wurden so angepasst, dass die Würfel am tiefsten erreichbaren
+    Handpunkt liegen.
+  \item \textbf{Vorzeichenkonvention.} Vier Fingergelenke (Policy-Indizes 17, 19,
+    24, 26) hatten im USD-Asset invertierte Achsen; ohne Korrektur öffnete die
+    Hand, wo sie schließen sollte. Sowohl Aktionen als auch Beobachtungen wurden
+    für diese Indizes negiert.
+  \item \textbf{Aktuatorik und Reibung.} Finger-Steifigkeit
+    ($20\!\to\!60$), Kraftgrenze ($5\!\to\!20$\,N\,m) und Würfelreibung
+    (statisch $0{,}5\!\to\!3{,}0$) wurden erhöht, damit der 50-g-Würfel
+    überhaupt gehalten werden kann.
+  \item \textbf{Kamerakalibrierung.} Mangels Hardware-Metadaten im Datensatz
+    wurden die Kameraposen iterativ über Alpha-Blend-Overlays (reales vs.\
+    simuliertes Erstbild) angeglichen (\cref{fig:anh-overlay}).
+\end{itemize}
+
+Erst nach dieser Kalibrierung gelang im Replay ein messbares Anheben des Würfels
+(maximale Hubhöhe von~1,0~cm auf~2,8~cm; Schwelle für \enquote{gegriffen}:
+$>2$~cm) -- die Bestätigung, dass Simulation und Steuerungspfad korrekt sind und
+das Closed-Loop-Versagen folglich nicht an ihnen liegt.
+
+\section{Quantifizierung des Domain-Gaps}
+\label{sec:domain-gap-ergebnis}
+
+Um den isolierten Verdacht zu erhärten, wurde der visuelle Domain-Gap direkt
+gemessen: Reale Referenzbilder und simulierte Bilder derselben Szene wurden durch
+ein SigLIP-Modell mit identischen Gewichten zum eingefrorenen
+GR00T-Vision-Encoder geschickt und die Cosine-Distanz ihrer Embeddings berechnet
+(\cref{tab:domain-gap}).
+
+\begin{table}[htb]
+  \centering
+  \begin{tabularx}{\linewidth}{Xrl}
+    \toprule
+    \textbf{Kamera} & \textbf{Cosine-Distanz} & \textbf{Bewertung} \\
+    \midrule
+    \texttt{cam\_left\_high}   & 0,148 & moderat \\
+    \texttt{cam\_right\_high}  & 0,214 & groß \\
+    \texttt{cam\_right\_wrist} & 0,249 & groß \\
+    \texttt{cam\_left\_wrist}  & \textbf{0,427} & \textbf{kritisch} \\
+    \midrule
+    \textbf{Mittelwert Real$\to$Sim} & \textbf{0,260} & groß \\
+    Referenz Real$\to$Real     & 0,273 & --- \\
+    Referenz Sim$\to$Sim       & 0,211 & --- \\
+    \bottomrule
+  \end{tabularx}
+  \caption{Cosine-Distanz Real$\to$Sim pro Kamera (SigLIP-Embeddings;
+    0~=~identisch). Zum Vergleich: Distanz zwischen zwei realen Ansichten
+    (Real$\to$Real) und zwei Sim-Ansichten (Sim$\to$Sim).
+    Quelle: \doc{docs/ergebnisse/domain-gap-analyse.md}.}
+  \label{tab:domain-gap}
+\end{table}
+
+Das Ergebnis ist differenziert: Der \emph{mittlere} Real$\to$Sim-Gap (0,260)
+liegt sogar leicht unter der Distanz zweier realer Kameraperspektiven (0,273) --
+die Sim-Bilder sind im Schnitt also nicht fremder als eine andere reale Ansicht.
+Der \textbf{Blocker} ist die handnahe Kamera \texttt{cam\_left\_wrist} mit~0,427,
+rund das 1,6-fache der Real$\to$Real-Referenz. Da GR00T alle vier Kameras
+gleichzeitig verarbeitet, genügt ein einzelner, kritisch fremder Eingang -- und
+zwar ausgerechnet die für Greifentscheidungen wichtigste Kamera --, um die
+Politik zu destabilisieren. Die geringere Sim-interne Varianz (0,211) bestätigt
+zudem, dass die Simulation \enquote{zu sauber} ist: gleichförmige Materialien,
+keine Reflexionen, kein Sensorrauschen.
+
+\section{Maßnahmen zur Reduktion des Sim-Realitäts-Abstands}
+\label{sec:sim-fixes}
+
+Aus dem Abgleich realer und simulierter Erstbilder ergaben sich mehrere
+optische Korrekturen am Sim-Asset, um die Szene näher an die Trainingsverteilung
+zu bringen: Einfärben der Würfel in das Datensatz-Gelb, Ergänzen des im Datensatz
+sichtbaren schwarzen Stapelbands sowie -- als wirksamster Hebel -- das
+Schwarzfärben der im Auslieferungszustand weißen Roboterhände. Letzteres wurde
+über ein selbstheilendes Recolor-Skript automatisiert. Diese Maßnahmen adressieren
+allerdings nur die \emph{Geometrie und Grobfarbe}; den materialbedingten
+Realismus-Unterschied, der die SigLIP-Distanz dominiert, beseitigen sie nicht --
+ein Punkt, der in \cref{chap:diskussion} aufgegriffen wird.
+
+\section{Gegenprobe: Mittrainieren des Vision-Encoders}
+\label{sec:vision-lauf}
+
+Die naheliegendste Antwort auf einen visuellen Domain-Gap ist, den bislang
+eingefrorenen Vision-Encoder mitzutrainieren (\texttt{TUNE\_VISUAL=1}). Diese
+Gegenprobe wurde in einem zweiten vollständigen Lauf durchgeführt
+(\texttt{g1\_dex3\_blockstacking\_vision\_v1}, W\&B-Run-ID \texttt{ajgoskon}). Trainierbar
+waren nun zusätzlich der \textbf{Vision-Encoder}; eingefroren blieb allein das
+LLM-Backbone. Der Lauf nutzte \textbf{vier GPUs} (globale Batch-Größe~32 statt~8)
+und absolvierte dieselben drei Epochen daher in \textbf{44\,000~Schritten}
+($175\,000/4\approx44\,000$, gleiche gesehene Datenmenge) in rund~8,4~h.
+
+Das \textbf{Training selbst verlief erneut tadellos} (\cref{tab:vision-vergleich}):
+Der Flow-Matching-Loss fiel von~1,37 auf einen Endwert um~0,009 -- praktisch
+\emph{deckungsgleich} mit dem ersten Lauf (0,0081) --, der Gradienten-Norm sank
+gesund auf~0,08, und die Lernrate folgte dem Cosine-Verlauf nach einer auf~10\,\%
+verlängerten Aufwärmphase (beide Verläufe im Direktvergleich beider Läufe:
+\cref{fig:anh-lr,fig:anh-gradnorm}). Das Auftauen des Encoders hat die Optimierung
+also \emph{nicht} destabilisiert.
+
+\begin{table}[htb]
+  \centering
+  \begin{tabularx}{\linewidth}{Xll}
+    \toprule
+    \textbf{Merkmal} & \textbf{Lauf 1 (frozen)} & \textbf{Lauf 2 (vision)} \\
+    \midrule
+    W\&B-Run-ID            & \texttt{i6n1t613}      & \texttt{ajgoskon} \\
+    \texttt{tune\_visual}  & \texttt{False}          & \texttt{True} \\
+    GPUs / Global-Batch    & 1 / 8                   & 4 / 32 \\
+    Schritte (3~Epochen)   & 175\,000                & 44\,000 \\
+    Laufzeit               & $\approx$~21,4~h        & $\approx$~8,4~h \\
+    Loss (Ende)            & 0,0081                  & 0,0093 \\
+    Closed-Loop-Verhalten  & Anfahren, dann Einfrieren & nur Arme zurückziehen \\
+    Erfolgsrate            & $0/20$                  & kein Aufgabenfortschritt \\
+    \bottomrule
+  \end{tabularx}
+  \caption{Frozen- vs.\ getunter Vision-Encoder. Identische Datenmenge und
+    nahezu identischer Endloss; die kleinere Schrittzahl folgt allein aus der
+    vierfachen Batch-Größe. Quelle:
+    \doc{docs/ergebnisse/lauf2-vision-auswertung.md}.}
+  \label{tab:vision-vergleich}
+\end{table}
+
+Das \textbf{Verhalten verschlechterte sich jedoch}, statt sich zu verbessern: Im
+Closed-Loop kollabierte die Politik auf eine einzige degenerierte Bewegung -- der
+Roboter \textbf{zieht nur noch die Arme zurück}, ohne überhaupt an die Würfel
+anzufahren. Damit unterbietet Lauf~2 sogar das \enquote{Anfahren-dann-Einfrieren}
+des ersten Laufs.
+
+\begin{infobox}[Warum Encoder-Tuning hier schadet statt hilft]
+  Der Encoder sieht im Training \emph{ausschließlich} echte Teleop-Kamerabilder --
+  nie ein Sim-Rendering. Domain-Invarianz ist eine im Training erlernte
+  Eigenschaft, kein zur Evaluationszeit umlegbarer Schalter: Ein nur auf Realbildern
+  feinabgestimmter Encoder wird gegen Sim-Bilder \emph{nicht} robuster, sondern
+  spezialisiert sich noch stärker auf das reale Erscheinungsbild. Hinzu kommt, dass
+  das Auftauen eines~$\approx$~2-Mrd.-Parameter-Encoders auf nur~301~Demonstrationen
+  \emph{Catastrophic Forgetting} der generischen Vortrainings-Merkmale begünstigt --
+  jener Merkmale, die einen eingefrorenen Encoder vergleichsweise sim-tolerant
+  machen. Das Ergebnis ist der beobachtete Politik-Kollaps. Die in \cref{sec:diagnose}
+  formulierte und in \cref{sec:frozen-vs-tuned} theoretisch begründete Vorhersage ist
+  damit empirisch bestätigt.
+\end{infobox}

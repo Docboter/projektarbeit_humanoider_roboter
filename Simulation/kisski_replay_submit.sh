@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # kisski_replay_submit.sh — SLURM-Skript für die OPEN-LOOP-DATASET-REPLAY-Diagnose auf GWDG
 #
-# ⚠️  ACHTUNG — GPU-INKOMPATIBILITÄT (Stand: docs/simulation/implementation-notes.md):
+# ⚠️  ACHTUNG — GPU-INKOMPATIBILITÄT (Stand: docs/simulation/umsetzungsnotizen.md):
 #     Die KISSKI jupyter-Partition hat NUR die Quadro RTX 5000 (Turing, SM 7.5). Isaac Sim 4.x
 #     setzt Ampere (RTX 30xx) als Minimum voraus → das Kamera-Rendering scheitert auf der
 #     RTX 5000 (createDLSSContext-Fehler). A100/H100 fehlen RT-Cores → ebenfalls untauglich.
 #     => Auf KISSKI läuft dieses Skript mit dem aktuellen Sim-Image VORAUSSICHTLICH NICHT durch.
 #        Praktischer Weg fürs Replay: vast.ai mit L40 / RTX 4090 / A6000 (entrypoint_replay.sh).
 #     Dieses Skript bleibt nur für den Fall, dass ein Turing-fähiges, älteres Isaac-Lab-Image
-#     (1.x / frühes 2.x) gebaut wird (siehe implementation-notes.md).
+#     (1.x / frühes 2.x) gebaut wird (siehe umsetzungsnotizen.md).
 #
 # Zweck: trennt eindeutig "Sim/Config-Fehler" von "Modell-Problem".
 #   Statt das GR00T-Modell zu befragen, werden die ECHTEN aufgezeichneten Dataset-Aktionen

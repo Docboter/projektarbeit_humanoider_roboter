@@ -16,7 +16,7 @@ Hintergrund: [gpu-kompatibilitaet.md](gpu-kompatibilitaet.md)
 > einer **älteren Isaac-Lab-Version (1.x / frühe 2.x)**, die Turing noch unterstützt (siehe
 > Abschnitt „Fallback"), oder gar nicht — der reguläre Sim-Eval-Weg läuft auf vast.ai
 > (L40 / RTX 4090 / A6000, Ada/Ampere). Details: [gpu-kompatibilitaet.md](gpu-kompatibilitaet.md),
-> [implementation-notes.md §1](../implementation-notes.md).
+> [umsetzungsnotizen.md §1](../umsetzungsnotizen.md).
 
 ---
 

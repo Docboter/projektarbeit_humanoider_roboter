@@ -6,18 +6,18 @@
 > Der intern gebundene Signaling-Port ist frei per `LIVESTREAM_PORT` setzbar; auf vast.ai
 > wird er auf den **extern gemappten** Port gesetzt (intern == extern), damit der in der
 > SDP eingebettete Port erreichbar ist. `publicEndpointAddress` = `PUBLIC_IP` (auto via
-> `ifconfig.me`). Konkrete Bedien-Anleitung: [vastai-anleitung.md](vastai-anleitung.md)
+> `ifconfig.me`). Konkrete Bedien-Anleitung: [vastai-anleitung.md](../simulation/vastai-anleitung.md)
 > → Abschnitt „Optional — Live-Stream des 3D-Viewports (WebRTC)".
 
 Dieses Dokument plant das **Live-Streaming der laufenden Isaac-Lab-Sim-Eval** vom
 Remote-GPU (vast.ai) auf den lokalen Rechner. Heute produziert die Sim-Eval nur
 **aufgezeichnete MP4s** (`/data/sim_videos`), die erst *nach* dem Lauf via `docker cp`
-geholt werden können (siehe [implementation-notes.md §9](implementation-notes.md)). Ziel
+geholt werden können (siehe [umsetzungsnotizen.md §9](../simulation/umsetzungsnotizen.md)). Ziel
 ist eine **Echtzeit-Visualisierung des 3D-Viewports**, während die Eval läuft — zum
 Debuggen von Greif-Verhalten, Kamera-Posen und Policy-Rollouts ohne Wartezeit.
 
 > **Quelle der Wahrheit für den aktuellen Stand** bleibt
-> [implementation-notes.md](implementation-notes.md). Dieser Plan ist additiv und ändert
+> [umsetzungsnotizen.md](../simulation/umsetzungsnotizen.md). Dieser Plan ist additiv und ändert
 > nichts am bestehenden headless-Video-Pfad — Live-Stream wird **opt-in** über eine neue
 > Env-Var `LIVESTREAM`.
 
@@ -84,7 +84,7 @@ WebRTC-Streaming braucht den **NVENC-Hardware-Encoder** der GPU.
 
 **Für dieses Projekt unkritisch:** Die Sim-Eval ist ohnehin auf **Ampere+/Ada mit RT-Cores**
 beschränkt (L40, RTX 4090, A6000, RTX 3090 — siehe
-[implementation-notes.md §1](implementation-notes.md)). Diese GPUs haben **alle NVENC**.
+[umsetzungsnotizen.md §1](../simulation/umsetzungsnotizen.md)). Diese GPUs haben **alle NVENC**.
 Die Streaming-Anforderung **verschärft** die bestehende GPU-Regel also nur konsistent:
 A100/H100 sind bereits aus zwei Gründen ausgeschlossen (keine RT-Cores **und** kein NVENC).
 
@@ -202,7 +202,7 @@ erwartete Port muss mit dem extern gemappten übereinstimmen. Lösungspfad:
 | `LIVESTREAM_PORT` | `49100` | WebRTC-Streaming-Port (auf vast.ai = extern gemappter Port) |
 | `PUBLIC_IP` | *(auto via `ifconfig.me`)* | Öffentliche IP der Instanz für den Remote-Endpunkt |
 
-Nach Umsetzung in [vastai-anleitung.md](vastai-anleitung.md) und der Env-Var-Tabelle in
+Nach Umsetzung in [vastai-anleitung.md](../simulation/vastai-anleitung.md) und der Env-Var-Tabelle in
 [`CLAUDE.md`](../../CLAUDE.md) nachtragen.
 
 ---
@@ -225,7 +225,7 @@ http://<PUBLIC_IP>:8211/streaming/webrtc-client?server=<PUBLIC_IP>
 
 1. **Lokal zuerst** (falls eine geeignete lokale GPU mit funktionierendem Vulkan/EGL
    verfügbar ist — siehe Vulkan-Einschränkung in
-   [implementation-notes.md §3](implementation-notes.md); auf WSL2 nicht möglich):
+   [umsetzungsnotizen.md §3](../simulation/umsetzungsnotizen.md); auf WSL2 nicht möglich):
    `LIVESTREAM=2`, Verbindung vom **selben** Rechner via Browser-Client → Viewport sichtbar?
 2. **vast.ai-Smoke-Test:** Kleine Eval (`NUM_EPISODES=2`) mit `LIVESTREAM=1`, Ports gemappt,
    `PUBLIC_IP` korrekt. Erfolgskriterium: Browser-Client zeigt den 3D-Viewport in Echtzeit.
@@ -261,8 +261,8 @@ http://<PUBLIC_IP>:8211/streaming/webrtc-client?server=<PUBLIC_IP>
 - [ ] Smoke-Test `NUM_EPISODES=2 LIVESTREAM=1` → Browser-Client verbinden (§6)
 - [ ] Render-/Parallelitäts-Verifikation (§6.3–6.4)
 - [ ] Optional: `--realtime`-Pacing (§3.2)
-- [x] Doku nachziehen: [vastai-anleitung.md](vastai-anleitung.md) (neuer Live-Stream-Abschnitt),
-      Env-Var-Tabelle in [`CLAUDE.md`](../../CLAUDE.md). Offen: [implementation-notes.md](implementation-notes.md)
+- [x] Doku nachziehen: [vastai-anleitung.md](../simulation/vastai-anleitung.md) (neuer Live-Stream-Abschnitt),
+      Env-Var-Tabelle in [`CLAUDE.md`](../../CLAUDE.md). Offen: [umsetzungsnotizen.md](../simulation/umsetzungsnotizen.md)
 
 ---
 

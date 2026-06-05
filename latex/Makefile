@@ -10,11 +10,11 @@ BIBSRC := references.bib
 all: $(MAIN).pdf
 
 $(MAIN).pdf: $(TEXSRC) $(BIBSRC)
-	latexmk $(MAIN).tex
+	latexmk -shell-escape $(MAIN).tex
 
 # Kontinuierliche Kompilierung bei Dateiänderungen (Ctrl+C zum Beenden)
 watch:
-	latexmk -pvc $(MAIN).tex
+	latexmk -pvc -shell-escape $(MAIN).tex
 
 # Hilfsdateien löschen (PDF bleibt erhalten)
 clean:

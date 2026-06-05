@@ -76,7 +76,7 @@ Diese Schritte sind **noch nicht** automatisiert/erledigt und müssen vor dem er
   stock-Greifer-Asset — nur DEX3-USDs. Der Konverter braucht `isaaclab.sh`, das **nur im
   Sim-Container** existiert → **nicht** auf dem nackten Host ausführen, sondern in einem
   **lokal gestarteten Docker-Container** (genau wie das DEX3-Asset, siehe
-  [vastai-anleitung.md](vastai-anleitung.md) Schritt 3b). Im Repo-Root:
+  [vastai-anleitung.md](../simulation/vastai-anleitung.md) Schritt 3b). Im Repo-Root:
   ```bash
   docker run -it --rm --gpus all --ipc=host --shm-size=8g \
     --entrypoint bash \
@@ -101,7 +101,7 @@ Diese Schritte sind **noch nicht** automatisiert/erledigt und müssen vor dem er
 - [ ] **Kamera-Pose `ego_view` prüfen/justieren.** Die Pose in `g1_gripper_cfg.py`
   (`ego_view_local`) ist eine **Startschätzung** (Kopfhöhe, Blick nach vorne-unten auf die
   Tischmitte). Nach dem ersten Lauf gegen `/data/sim_videos/_debug_obs_ego_view.png` abgleichen
-  und ggf. nachziehen (analog zum DEX3-Kamera-Tuning, siehe implementation-notes.md).
+  und ggf. nachziehen (analog zum DEX3-Kamera-Tuning, siehe umsetzungsnotizen.md).
 
 - [ ] **Torso-/Pelvis-Höhe & Reichweite sichten.** Der Torso ist fixiert (`fix_root_link=True`,
   `pos.z=0.85`); die Beine hängen kosmetisch (Tabletop-Aufgabe). Im ersten Video prüfen, dass

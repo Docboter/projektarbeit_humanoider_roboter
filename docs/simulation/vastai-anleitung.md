@@ -558,7 +558,7 @@ scp -P <port> root@<ip>:/data/sim_videos_replay/_debug_obs_cam_*.png ./
 > Anhebung im Grasp-Test → Sim/Config sind validiert; das Greifen funktioniert physikalisch.
 > Das Wegdriften im Modell-Eval von checkpoint-3000 ist also dem **untrainierten Modell**
 > zuzuschreiben, nicht der Config. Details in
-> [`implementation-notes.md`](implementation-notes.md) §11.
+> [`umsetzungsnotizen.md`](umsetzungsnotizen.md) §11.
 
 ---
 

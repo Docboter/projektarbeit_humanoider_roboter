@@ -20,7 +20,9 @@ Detailed guides (all prose docs live under [`docs/`](docs/README.md)):
 - **Fine-tuning step-by-step:** [`app/Groot-1.6/examples/G1_DEX3/FINETUNING_GUIDE.md`](app/Groot-1.6/examples/G1_DEX3/FINETUNING_GUIDE.md)
 - **G1/DEX3 joint layout & datasets:** [`app/Groot-1.6/examples/G1_DEX3/README.md`](app/Groot-1.6/examples/G1_DEX3/README.md)
 - **Sim eval on vast.ai (German):** [`docs/simulation/vastai-anleitung.md`](docs/simulation/vastai-anleitung.md)
-- **Sim implementation notes & lessons learned:** [`docs/simulation/implementation-notes.md`](docs/simulation/implementation-notes.md)
+- **Sim implementation notes & lessons learned:** [`docs/simulation/umsetzungsnotizen.md`](docs/simulation/umsetzungsnotizen.md)
+- **Results & evaluation (German):** [`docs/ergebnisse/`](docs/ergebnisse/README.md) — run analyses, domain-gap, sim methodology review, baseline
+- **Further work / concepts (German):** [`docs/weiterfuehrend/`](docs/weiterfuehrend/README.md) — RL plan, locomotion research, livestream plan (not yet implemented)
 
 ## Key commands
 
@@ -73,7 +75,7 @@ KISSKI partitions: `kisski` (A100 80 GB) and `kisski-h100` (H100 94 GB), max wal
 ### Sim eval on vast.ai (build → push → run)
 
 Full guide: [`docs/simulation/vastai-anleitung.md`](docs/simulation/vastai-anleitung.md)
-Known fixes & GPU requirements: [`docs/simulation/implementation-notes.md`](docs/simulation/implementation-notes.md)
+Known fixes & GPU requirements: [`docs/simulation/umsetzungsnotizen.md`](docs/simulation/umsetzungsnotizen.md)
 
 ```powershell
 # 1. Build + push sim image (includes entrypoint_sim.sh with unset VIRTUAL_ENV fix)
@@ -98,7 +100,7 @@ On vast.ai: GPU must be **Ampere+ with RT-Cores** (L40, RTX 4090, A6000) — A10
 | `NUM_EPISODES` | `20` | Eval episodes |
 | `SHELL_ON_ERROR` | `1` | Drop to shell on failure (recommended) |
 | `LIVESTREAM` | `0` | `0`=headless (default), `1`=WebRTC public, `2`=WebRTC private — live 3D-viewport stream (opt-in) |
-| `LIVESTREAM_PORT` | `49100` | WebRTC signaling port. **On vast.ai: set to the externally-mapped port** (internal==external, else SDP port mismatch). Also map `-p 8211 -p 49100 -p 47998/udp`. See [livestream-plan.md](docs/simulation/livestream-plan.md) |
+| `LIVESTREAM_PORT` | `49100` | WebRTC signaling port. **On vast.ai: set to the externally-mapped port** (internal==external, else SDP port mismatch). Also map `-p 8211 -p 49100 -p 47998/udp`. See [livestream-plan.md](docs/weiterfuehrend/livestream-plan.md) |
 
 ### Build the image
 
@@ -160,11 +162,17 @@ repo root
 ├── README.md                           # Slim landing page (overview + quickstart + doc links)
 ├── docs/                               # ALL prose docs live here
 │   ├── README.md                       # Doc navigation hub + project structure
-│   ├── training/                       # anleitung.md, kisski-hpc.md, env-vars.md,
-│   │                                   #   train-test-split.md, wandb-offline-sync.md
-│   └── simulation/                     # vastai-anleitung.md, implementation-notes.md (READ FIRST)
-│       └── archiv/                     # superseded planning docs (isaac-lab-plan, sim-docker-build,
-│                                       #   kisski-desktop, gpu-kompatibilitaet)
+│   ├── training/                       # operative guides: anleitung.md, kisski-hpc.md, env-vars.md,
+│   │                                   #   multi-gpu.md, train-test-split.md, wandb-offline-sync.md, fixes-aus-erstem-lauf.md
+│   ├── simulation/                     # operative guides: vastai-anleitung.md, umsetzungsnotizen.md (READ FIRST)
+│   │   └── archiv/                     # superseded planning docs (isaac-lab-plan, sim-docker-build,
+│   │                                   #   kisski-desktop, gpu-kompatibilitaet)
+│   ├── ergebnisse/                     # evaluations: lauf1-auswertung.md, wandb-run-auswertung.md,
+│   │                                   #   domain-gap-analyse.md, sim-bewertung.md, baseline-unitree-g1.md
+│   ├── weiterfuehrend/                 # concepts (not yet implemented): reinforcement-learning-plan.md,
+│   │                                   #   lokomotion-recherche.md, livestream-plan.md
+│   ├── umgebungsanalyse.md             # cross-cutting audit
+│   └── fehlerbehebung.md               # cross-cutting troubleshooting
 ├── Training/                           # Everything training-related (build, run scripts)
 │   ├── Dockerfile                      # Defines image; ENTRYPOINT = /scripts/entrypoint.sh
 │   │                                   #   build context = Training/ (so COPY scripts/ works)

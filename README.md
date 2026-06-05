@@ -58,7 +58,9 @@ Die vollständige Dokumentation liegt unter **[docs/](docs/README.md)**:
 | ↳ W&B-Offline-Sync | [docs/training/wandb-offline-sync.md](docs/training/wandb-offline-sync.md) |
 | **Simulation** | [docs/simulation/](docs/simulation/README.md) — Closed-Loop-Eval in Isaac Lab |
 | ↳ Primärer Workflow | [docs/simulation/vastai-anleitung.md](docs/simulation/vastai-anleitung.md) |
-| ↳ Lessons & Fixes | [docs/simulation/implementation-notes.md](docs/simulation/implementation-notes.md) |
+| ↳ Lessons & Fixes | [docs/simulation/umsetzungsnotizen.md](docs/simulation/umsetzungsnotizen.md) |
+| **Ergebnisse** | [docs/ergebnisse/](docs/ergebnisse/README.md) — Auswertungen, Domain-Gap, Methodik-Review, Baseline |
+| **Weiterführend** | [docs/weiterfuehrend/](docs/weiterfuehrend/README.md) — RL-Plan, Lokomotion, Livestream (Konzepte) |
 | **Projektstruktur** | [docs/README.md#projektstruktur](docs/README.md#projektstruktur) |
 
 ---

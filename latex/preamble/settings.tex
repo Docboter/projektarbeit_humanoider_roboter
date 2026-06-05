@@ -1,6 +1,11 @@
 % preamble/settings.tex — Einstellungen, Konfigurationen, Abkürzungen
 % ═════════════════════════════════════════════════════════════════════
 
+% ── Zeilenumbruch ────────────────────────────────────────────────────
+% Erlaubt TeX, Zeilen im Notfall zu dehnen, statt sie über den Rand ragen
+% zu lassen (reduziert "Overfull \hbox"-Warnungen bei schwer trennbarem Text).
+\setlength{\emergencystretch}{3em}
+
 % ── Metadaten (hier anpassen!) ────────────────────────────────────────
 \newcommand{\docTitle}{Fine-Tuning von NVIDIA GR00T N1.6 für humanoide Roboter-Manipulation}
 \newcommand{\docSubtitle}{Block-Stacking mit dem Unitree G1 und DEX3-Hand}
@@ -71,6 +76,13 @@
 }
 
 % ── Hilfsmakros ──────────────────────────────────────────────────────
+% \doc{pfad} — referenziert eine Datei der Projektdokumentation (Repo-relativ).
+% \detokenize macht Unterstriche/Slashes in Pfaden satzfest; \seqsplit erlaubt
+% Zeilenumbrüche innerhalb des Pfads (statt über den Rand zu ragen). Beides bleibt
+% via \DeclareRobustCommand auch in beweglichen Argumenten (Captions →
+% Tabellen-/Abbildungsverzeichnis) zuverlässig nutzbar.
+\DeclareRobustCommand{\doc}[1]{\texttt{\expandafter\seqsplit\expandafter{\detokenize{#1}}}}
+
 % \TODO[optionaler Hinweis] — setzt roten Platzhalter + Randnotiz
 % In Mathe-Modus und innerhalb von Tabellen/Boxen nur visuellen Marker setzen.
 \newcommand{\TODO}[1][Wert fehlt]{%
@@ -132,6 +144,8 @@
 % ── tcolorbox-Umgebungen ─────────────────────────────────────────────
 \tcbuselibrary{breakable, skins}
 
+% unbreakable: Boxen werden nie durch einen Seitenumbruch getrennt,
+% sondern bei Platzmangel komplett auf die nächste Seite verschoben.
 \newtcolorbox{infobox}[1][Hinweis]{
   enhanced, breakable,
   colback  = NavyBlue!5,
@@ -220,4 +234,56 @@
 \DeclareAcronym{wandb}{
   short = W\&B,
   long  = Weights \& Biases,
+}
+\DeclareAcronym{bc}{
+  short = BC,
+  long  = Behavior Cloning,
+}
+\DeclareAcronym{vlm}{
+  short = VLM,
+  long  = Vision-Language-Modell,
+}
+\DeclareAcronym{dr}{
+  short = DR,
+  long  = Domain Randomization,
+}
+\DeclareAcronym{wbc}{
+  short = WBC,
+  long  = Whole-Body Controller,
+}
+\DeclareAcronym{ik}{
+  short = IK,
+  long  = Inverse Kinematik,
+}
+\DeclareAcronym{mse}{
+  short = MSE,
+  long  = Mean Squared Error,
+}
+\DeclareAcronym{ddp}{
+  short = DDP,
+  long  = Distributed Data Parallel,
+}
+\DeclareAcronym{zmq}{
+  short = ZMQ,
+  long  = ZeroMQ,
+}
+\DeclareAcronym{usd}{
+  short = USD,
+  long  = Universal Scene Description,
+}
+\DeclareAcronym{ppo}{
+  short = PPO,
+  long  = Proximal Policy Optimization,
+}
+\DeclareAcronym{ode}{
+  short = ODE,
+  long  = Ordinary Differential Equation,
+}
+\DeclareAcronym{urdf}{
+  short = URDF,
+  long  = Unified Robot Description Format,
+}
+\DeclareAcronym{sft}{
+  short = SFT,
+  long  = Supervised Fine-Tuning,
 }

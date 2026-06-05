@@ -3,50 +3,160 @@
 \chapter{Diskussion}
 \label{chap:diskussion}
 
-\section{Analyse der Ergebnisse}
-\label{sec:analyse}
+Die Ergebnisse aus \cref{chap:ergebnisse} wirken auf den ersten Blick
+widersprüchlich: ein sauber konvergiertes Training, aber eine Erfolgsrate von
+$0/20$ im geschlossenen Regelkreis. Dieses Kapitel zeigt, dass dieser Befund
+keine Anomalie, sondern ein in der Literatur dokumentiertes und erwartbares
+Ergebnis ist, und diskutiert seine Konsequenzen für die Bewertung der
+Modellqualität.
 
-Die in \cref{chap:ergebnisse} präsentierten Ergebnisse zeigen~[TODO: Bewertung
-der Erfolgsrate einfügen].
-Besonders [TODO: positiver Befund] deutet darauf hin, dass~\dots
+\section{Einordnung des Null-Resultats}
+\label{sec:einordnung-null}
 
-Im Vergleich zu verwandten Arbeiten~\cite{openvla2024, groot2025} erzielt das
-fine-getunte Modell~[TODO: relativer Vergleich].
+Die zentrale Erkenntnis lautet: \textbf{$0\,\%$ Closed-Loop-Erfolg in einer
+nicht-photorealistischen Simulation mit eingefrorenem Realbild-Encoder ist das
+erwartete Ergebnis des Real$\to$Sim-Gaps -- kein Urteil über das Modell.} Die
+kanonische Referenz hierfür ist SIMPLER~\cite{simpler2024}: Dort erreicht etwa die
+Octo-Politik in der Aufgabe \enquote{Pick Coke Can} \textbf{$0\,\%$} Erfolg,
+solange das simulierte Erscheinungsbild nicht an die realen Bilder angeglichen
+wird, und springt nach \emph{Visual Matching} auf~$29{,}3\,\%$. Die in dieser
+Arbeit verwendete Szene -- einfache, mattierte Quader vor sauberem Hintergrund --
+ist für einen auf Realbildern trainierten Encoder geradezu der ungünstigste Fall.
+
+Verstärkt wird dies durch die in \cref{sec:domain-gap-ergebnis} gemessene
+Verteilung des Domain-Gaps: Nicht der Durchschnitt ist das Problem, sondern der
+\emph{eine} kritische Kameraeingang (\texttt{cam\_left\_wrist}, Distanz~0,427).
+Da das \ac{vlm} alle vier Kameras gemeinsam einbettet, propagiert ein einzelner
+stark abweichender Eingang in das gesamte Vision-Language-Embedding -- die in
+\cref{sec:imitation-learning} beschriebenen \emph{compounding errors} tun dann
+ihr Übriges, bis die Politik in den beobachteten \enquote{eingefrorenen} Zustand
+kollabiert.
+
+\begin{infobox}[Die richtige Metrik für dieses Modell]
+  NVIDIAs offizielle Checkpoint-Evaluation ist nicht die Closed-Loop-Sim, sondern
+  der \textbf{Open-Loop-Action-\ac{mse} auf gehaltenen echten Trajektorien}
+  (\cref{sec:eval-methodik}). Die in \cref{sec:diagnose} dokumentierte gute
+  Open-Loop-Armvorhersage spricht dafür, dass das Modell die Aufgabe im Prinzip
+  gelernt hat; das Closed-Loop-Versagen ist primär ein \emph{Wahrnehmungs}-, kein
+  \emph{Politik}-Problem.
+\end{infobox}
+
+\section{Eingefrorener vs.\ mittrainierter Vision-Encoder}
+\label{sec:frozen-vs-tuned}
+
+Ein naheliegender Reflex ist, den Vision-Encoder mitzutrainieren
+(\texttt{TUNE\_VISUAL=1}), um ihn an die Simulation anzupassen. Dieser Schluss ist
+jedoch trügerisch: Domain-Invarianz ist eine \emph{im Training erlernte}
+Eigenschaft, kein zur Evaluationszeit umlegbarer Schalter. Ein Encoder, der
+ausschließlich auf Realbildern feinabgestimmt wird, wird dadurch \emph{nicht}
+robuster gegenüber Isaac-Sim-Renderings -- er spezialisiert sich im Gegenteil noch
+stärker auf das exakte Erscheinungsbild der Trainingsbilder. Ein
+\texttt{TUNE\_VISUAL}-Training hilft gegen den Domain-Gap nur dann, wenn der Encoder
+während des Trainings tatsächlich Simulationsbilder oder durch \acf{dr} variierte
+Bilder sieht~\cite{tobin2017domain}.
+
+Hinzu kommt ein praktisches Risiko: Bei nur~$\approx$~301~Demonstrationen droht
+beim Auftauen des 2-Mrd.-Parameter-Encoders \emph{Catastrophic Forgetting} der
+generischen, vortrainierten Merkmale -- gerade jener Merkmale, die einen
+eingefrorenen Encoder vergleichsweise sim-tolerant machen. Frozen-Encoder sind
+für die Sim-Evaluation also tendenziell robuster, getunte Encoder besser für den
+Real-zu-Real-Transfer. Diese Abwägung ist in \doc{docs/ergebnisse/sim-bewertung.md}
+und \doc{docs/ergebnisse/domain-gap-analyse.md} weiter ausgeführt.
+
+Diese Argumentation ist kein bloßes Gedankenexperiment: Der in
+\cref{sec:vision-lauf} geschilderte zweite Lauf hat \texttt{TUNE\_VISUAL=1} genau
+unter diesen Bedingungen erprobt -- und das vorhergesagte Verhalten reproduziert.
+Bei identischem Trainingsbefund (Endloss~$\approx$~0,009) verschlechterte sich das
+Closed-Loop-Verhalten von \enquote{Anfahren-dann-Einfrieren} zu einem reinen
+Politik-Kollaps (nur noch Arm-Rückzug). Das Mittrainieren des Encoders auf reinen
+Realdaten ist damit als Sackgasse \emph{empirisch belegt} und nicht nur theoretisch
+plausibilisiert; sinnvoll wäre es erst zusammen mit sim- oder
+\acs{dr}-variierten Trainingsbildern.
+
+\section{Validität der Evaluationsmethodik}
+\label{sec:validitaet}
+
+Die kritische Selbstprüfung der Sim-Eval kommt zu einem klaren Urteil: Die
+Simulation ist \textbf{technisch korrekt gebaut, aber als Bewertungsinstrument
+für dieses Modell methodisch am Ziel vorbei.} Der Steuerungspfad ist durch den
+Replay-Test nachweislich korrekt (\cref{sec:kalibrierung}); die Closed-Loop-
+Erfolgsrate misst jedoch primär den Domain-Gap, nicht die Modellgüte. Bei der
+Durchsicht der Eval-Implementierung wurden zudem einige kleinere, teils
+kosmetische Mängel identifiziert (\cref{tab:codebefunde}), die für die
+Interpretation relevant sind, das Null-Resultat aber \emph{nicht} erklären.
+
+\begin{table}[htb]
+  \centering
+  \begin{tabularx}{\linewidth}{lX}
+    \toprule
+    \textbf{Priorität} & \textbf{Befund} \\
+    \midrule
+    hoch    & Irreführender Kommentar \enquote{Arme = relativ}, obwohl der Code
+              serverseitig alle 28~Dimensionen absolut anwendet. \\
+    mittel  & \texttt{dr\_enabled=True} zur Evaluationszeit ist für einen
+              eingefrorenen Encoder wirkungslos (\ac{dr} ist eine
+              \emph{Trainings}-Technik) und sollte deaktiviert sein. \\
+    mittel  & Die Steuerfrequenz beträgt real~28,57~Hz statt der im Label
+              genannten~30~Hz -- für absolute Positionsziele unkritisch. \\
+    niedrig & Die Erfolgsbedingung (vollständige Dreier-Säule) ist gegen die
+              tatsächliche Datensatz-Task abzugleichen. \\
+    \bottomrule
+  \end{tabularx}
+  \caption{Bei der Methodik-Prüfung identifizierte Code-Befunde
+    (\doc{docs/ergebnisse/sim-bewertung.md}). Keiner ist die Ursache des
+    Null-Resultats.}
+  \label{tab:codebefunde}
+\end{table}
+
+Mehrere zunächst verdächtigte Faktoren konnten durch Recherche \emph{entlastet}
+werden: der ausgeführte Aktionshorizont (8~von~16, eine Lehrbuch-Konvention für
+Receding-Horizon-Politiken), die geringe Frequenzabweichung und die
+absolut/relativ-Umsetzung der Aktionen. Sie sind nicht die Fehlerursache.
 
 \section{Limitierungen}
 \label{sec:limitierungen}
 
-\subsection{Datenmenge und -qualität}
-Die begrenzte Anzahl an Demonstrations-Episoden ($N = \TODO[N eintragen]$) kann zu
-\emph{compounding errors} führen (vgl.\ \cref{eq:bc-loss}).
-Eine Erweiterung des Datensatzes durch synthetische Demonstrationen aus der
-Simulation wäre ein vielversprechender Ansatz.
+\subsection{Datenmenge und Datenqualität}
+Mit~$\approx$~301~Demonstrationen liegt der Datensatz am unteren Rand des für
+\ac{vla}-Fine-Tuning Üblichen (typischerweise 500--2000). In Kombination mit
+reinem \acl{bc} begünstigt das die in \cref{sec:imitation-learning} beschriebenen
+\emph{compounding errors}. Zudem waren die Fingerdimensionen schon in der
+Open-Loop-Vorhersage verrauscht -- ein Hinweis auf grenzwertige Datenqualität
+oder -menge gerade für die feinmotorischen DEX3-Gelenke.
+
+\subsection{Fehlende Validierung und blinde Checkpoint-Auswahl}
+Da während des Trainings nicht validiert wurde (\texttt{eval\_strategy="no"}),
+fehlte ein Signal zur Auswahl des besten Checkpoints; Schritt~175\,000 wurde
+mangels Alternative genommen, obwohl die Loss-Kurve bereits ab~$\approx$~100\,000
+plateaut. Der zusätzlich aufgedeckte inaktive Train/Test-Split
+(\cref{sec:split-befund}) bedeutet, dass für diesen Lauf keine sauber gehaltene
+Testmenge existiert.
 
 \subsection{Sim-to-Real-Transfer}
-Die Evaluation in der NVIDIA-Isaac-Lab-Simulation unterscheidet sich in
-Kontakt-Dynamik und Reibungskoeffizienten von der realen Ausführung.
-Der tatsächliche Transfer auf den physischen Roboter wurde im Rahmen dieser
-Arbeit nicht vollständig evaluiert.
+Die Evaluation fand ausschließlich in Simulation statt. Der entscheidende Test --
+das Verhalten auf dem \emph{physischen} G1 -- steht aus. Gerade weil das
+Closed-Loop-Versagen ein Sim-spezifisches Wahrnehmungsproblem ist, ist plausibel,
+dass das Modell auf realer Hardware (mit realen Kamerabildern, die der
+Trainingsverteilung entsprechen) deutlich besser abschneidet. Der reale Roboter
+bleibt damit der eigentliche Goldstandard der Bewertung.
 
-\subsection{Rechenressourcen}
-Das Training auf dem KISSKI-Cluster (A100, \qty{80}{\giga\byte}~\ac{vram}) mit
-\texttt{GLOBAL\_BATCH\_SIZE=32} und \num{50000}~Schritten dauerte ca.\
-\TODO[Trainingsdauer in Stunden]~\unit{\hour}.
-Auf lokaler Hardware (RTX 4070, \qty{8}{\giga\byte}~\ac{vram}) sind aufgrund der
-kleineren Batch-Größe deutlich mehr Schritte für vergleichbare Konvergenz nötig.
+\section{Methodische Konsequenz}
+\label{sec:konsequenz}
 
-\section{Ausblick auf Verbesserungen}
-\label{sec:verbesserungen}
+Aus alledem folgt eine klare Empfehlung für die weitere Bewertung dieses Modells,
+die der in der Literatur etablierten Hierarchie entspricht:
 
-Folgende Ansätze erscheinen vielversprechend für zukünftige Iterationen:
+\begin{enumerate}
+  \item \textbf{Open-Loop-Action-\ac{mse}} als primäre, sofort verfügbare
+    Metrik für die Modellqualität (kein Domain-Gap).
+  \item \textbf{Reale Roboter-Rollouts} als Goldstandard.
+  \item \textbf{Closed-Loop-Sim} nur mit SIMPLER-artigem Visual
+    Matching~\cite{simpler2024} oder nach Aufnahme von Sim-Bildern in den
+    Trainingssatz -- andernfalls taugt die Sim als qualitatives Demo- und
+    Debug-Werkzeug, nicht als Modell-Benchmark.
+\end{enumerate}
 
-\begin{itemize}
-  \item \textbf{Datenerweiterung:} Synthese zusätzlicher Episoden in Isaac Lab
-    und Übernahme in den Trainings-Datensatz.
-  \item \textbf{\ac{rl}-Fine-Tuning:} Aufbauend auf dem \ac{il}-Checkpoint
-    könnte eine \ac{rl}-Phase in der Simulation die Robustheit verbessern.
-  \item \textbf{Multi-Task-Training:} Erweiterung auf weitere Aufgaben
-    (Würfeldrehen, Objekt-Ablegen) im selben Trainingslauf.
-  \item \textbf{Quantisierung:} Modell-Quantisierung (INT8) zur Reduktion der
-    \ac{vram}-Anforderungen für den Einsatz auf mobiler Hardware.
-\end{itemize}
+Die Simulation hat in dieser Arbeit ihren Zweck dennoch erfüllt: Sie hat -- gerade
+durch ihr \enquote{Scheitern} -- den Domain-Gap als zentrale Herausforderung
+sichtbar gemacht und damit den Weg für die in \cref{chap:weiterfuehrend}
+skizzierten Folgearbeiten gewiesen.

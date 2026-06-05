@@ -445,7 +445,7 @@ Ab hier ist **Training der Hebel**. Optionale Feinschritte: Würfel-Reibungsmate
 Pipeline vollständig validiert. Replay-Diagnose bestätigt: Sim-Config ist korrekt, Greif-Physik
 funktioniert. Closed-Loop-Versagen ist nachweislich **Domain Gap** (eingefrorenem Vision-Encoder),
 nicht die Sim — Details in [§13](#13-physics-calibration-session-2026-06-04) und
-[`erster-trainingsdurchlauf-auswertung.md`](../training/erster-trainingsdurchlauf-auswertung.md).
+[`lauf1-auswertung.md`](../ergebnisse/lauf1-auswertung.md).
 
 | Komponente | Status |
 |---|---|
@@ -574,7 +574,7 @@ unbrauchbare Features für synthetische Isaac-Sim-Renderings. Das Training ist k
 Der einzige Unterschied zwischen Replay (funktioniert) und Closed-Loop (versagt) sind
 die **Kamerabilder**, die das Modell als Input bekommt.
 
-Detaillierte Analyse: [`erster-trainingsdurchlauf-auswertung.md §8`](../training/erster-trainingsdurchlauf-auswertung.md).
+Detaillierte Analyse: [`lauf1-auswertung.md §8`](../ergebnisse/lauf1-auswertung.md).
 
 ---
 
@@ -677,7 +677,7 @@ Perspektiv-Flip.
 ### Domain-Gap-Auswirkung
 
 Die Kamera-Fehlposition war (neben echtem Sim-vs-Real-Appearance-Gap) ein wesentlicher Treiber
-des `cam_left_wrist`-Gaps von 0.427 (gemessen mit SigLIP, s. [`domain-gap-analyse.md`](domain-gap-analyse.md)).
+des `cam_left_wrist`-Gaps von 0.427 (gemessen mit SigLIP, s. [`domain-gap-analyse.md`](../ergebnisse/domain-gap-analyse.md)).
 Nach dem Kamerafix zeigte `measure_domain_gap.py` kaum Verbesserung in der Embedding-Distanz
 (0.427 → 0.424), weil das SigLIP-Embedding den Bildinhalt global bewertet. Für die **Policy-Qualität**
 ist die korrekte Perspektive aber entscheidend — eine Policy, die nur den Wrist-Connector sieht,

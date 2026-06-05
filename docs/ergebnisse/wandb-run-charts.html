@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>W&B-Verlauf — g1_dex3_blockstacking_v1 (i6n1t613)</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
+<style>
+  :root { --bg:#0f1116; --card:#181b22; --fg:#e6e9ef; --muted:#9aa3b2; --accent:#ffb000; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg);
+         font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
+  header { padding:24px 28px 8px; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  .sub { color:var(--muted); font-size:13px; line-height:1.6; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
+          gap:12px; padding:16px 28px; }
+  .kpi { background:var(--card); border:1px solid #262b35; border-radius:10px; padding:12px 14px; }
+  .kpi .l { color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.04em; }
+  .kpi .v { font-size:19px; font-weight:600; margin-top:3px; }
+  .chart { background:var(--card); border:1px solid #262b35; border-radius:10px;
+           margin:14px 28px; padding:8px; }
+  .note { margin:14px 28px 8px; padding:12px 16px; background:#1a1d24;
+          border-left:3px solid var(--accent); border-radius:6px; color:var(--muted);
+          font-size:13px; line-height:1.6; }
+  .note b { color:var(--fg); }
+  footer { color:var(--muted); font-size:12px; padding:8px 28px 32px; }
+  a { color:var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <h1>W&amp;B-Verlauf · <span style="color:var(--accent)">g1_dex3_blockstacking_v1</span></h1>
+  <div class="sub">
+    Projekt <code>gr00t-g1-dex3</code> · Entity <code>projektarbeit_humanoider_roboter</code> · Run-ID <code>i6n1t613</code><br>
+    Node <code>ggpu177</code> (KISSKI) · 1× GPU · <b>Lauf abgeschlossen</b> — vollständige History (175.000 Schritte, State <code>finished</code>).
+  </div>
+</header>
+
+<div class="grid" id="kpis"></div>
+
+<div class="note">
+  <b>Lesehilfe:</b> Der <b>train/loss</b> ist ein Flow-Matching-/Diffusion-Loss — pro Schritt wird ein
+  zufälliger Diffusions-Timestep gezogen, daher die hohe Punkt-zu-Punkt-Streuung. Auf die
+  <b>geglättete Linie</b> (gleitender Mittelwert) achten, nicht auf Einzelwerte. Ein niedriger
+  Train-Loss bedeutet gute Anpassung an die <i>Trainingsverteilung</i> — er ist <b>kein</b>
+  Generalisierungs-/Task-Erfolgssignal (dafür fehlt die Eval, siehe
+  <code>wandb-run-auswertung.md</code> Abschnitt 3).
+</div>
+
+<div class="chart"><div id="loss" style="height:380px"></div></div>
+<div class="chart"><div id="lr" style="height:300px"></div></div>
+<div class="chart"><div id="grad" style="height:300px"></div></div>
+
+<footer>
+  Daten via W&amp;B-API (220 gleichmäßig gesampelte Punkte über die vollständige geloggte Historie des abgeschlossenen Laufs; aktueller
+  Zusammenfassungspunkt). Erneuern: Werte im <code>DATA</code>-Array unten austauschen oder Datei
+  neu generieren lassen.
+</footer>
+
+<script>
+// [global_step, train/loss, train/learning_rate, train/grad_norm]
+const DATA = [
+[0,1.3716,1.029e-07,2.358],[800,0.9323,9.246e-06,1.700],[1600,0.3096,1.839e-05,2.093],[2400,0.1364,2.753e-05,1.594],
+[3200,0.0858,3.667e-05,1.080],[4000,0.0752,4.582e-05,1.063],[4790,0.0887,5.485e-05,0.819],[5590,0.0860,6.399e-05,0.760],
+[6390,0.0848,7.313e-05,0.817],[7190,0.0920,8.227e-05,0.842],[7990,0.0539,9.142e-05,0.516],[8790,0.0494,1.000e-04,0.378],
+[9590,0.0553,9.999e-05,0.608],[10390,0.0564,9.998e-05,0.478],[11190,0.0625,9.995e-05,0.530],[11990,0.0614,9.991e-05,0.506],
+[12780,0.0562,9.985e-05,0.396],[13580,0.0571,9.979e-05,0.480],[14380,0.0482,9.972e-05,0.416],[15180,0.0436,9.963e-05,0.430],
+[15980,0.0492,9.953e-05,0.440],[16780,0.0351,9.942e-05,0.331],[17580,0.0458,9.930e-05,0.444],[18380,0.0292,9.917e-05,0.323],
+[19180,0.0492,9.903e-05,0.380],[19980,0.0355,9.888e-05,0.341],[20780,0.0375,9.871e-05,0.240],[21570,0.0309,9.854e-05,0.250],
+[22370,0.0448,9.835e-05,0.364],[23170,0.0326,9.815e-05,0.312],[23970,0.0306,9.794e-05,0.323],[24770,0.0340,9.772e-05,0.360],
+[25570,0.0347,9.749e-05,0.335],[26370,0.0290,9.725e-05,0.336],[27170,0.0301,9.700e-05,0.371],[27970,0.0291,9.674e-05,0.381],
+[28770,0.0342,9.646e-05,0.291],[29560,0.0363,9.618e-05,0.368],[30360,0.0325,9.589e-05,0.328],[31160,0.0275,9.558e-05,0.283],
+[31960,0.0410,9.526e-05,0.532],[32760,0.0361,9.494e-05,0.356],[33560,0.0333,9.460e-05,0.255],[34360,0.0457,9.425e-05,0.341],
+[35160,0.0243,9.390e-05,0.383],[35960,0.0351,9.353e-05,0.252],[36760,0.0408,9.315e-05,0.303],[37550,0.0344,9.277e-05,0.343],
+[38350,0.0193,9.238e-05,0.278],[39150,0.0238,9.197e-05,0.194],[39950,0.0239,9.155e-05,0.233],[40750,0.0307,9.113e-05,0.281],
+[41550,0.0205,9.069e-05,0.235],[42350,0.0265,9.025e-05,0.274],[43150,0.0382,8.980e-05,0.216],[43950,0.0257,8.934e-05,0.224],
+[44750,0.0281,8.886e-05,0.263],[45550,0.0225,8.838e-05,0.226],[46340,0.0270,8.790e-05,0.203],[47140,0.0177,8.740e-05,0.238],
+[47940,0.0168,8.690e-05,0.164],[48740,0.0201,8.638e-05,0.256],[49540,0.0243,8.586e-05,0.228],[50340,0.0221,8.533e-05,0.249],
+[51140,0.0346,8.479e-05,0.269],[51940,0.0222,8.425e-05,0.207],[52740,0.0385,8.369e-05,0.470],[53540,0.0307,8.313e-05,0.695],
+[54330,0.0196,8.257e-05,0.247],[55130,0.0212,8.199e-05,0.204],[55930,0.0233,8.140e-05,0.203],[56730,0.0226,8.081e-05,0.231],
+[57530,0.0286,8.021e-05,0.205],[58330,0.0188,7.961e-05,0.292],[59130,0.0175,7.899e-05,0.191],[59930,0.0203,7.838e-05,0.209],
+[60730,0.0211,7.775e-05,0.251],[61530,0.0326,7.712e-05,0.368],[62330,0.0229,7.648e-05,0.214],[63120,0.0151,7.584e-05,0.213],
+[63920,0.0199,7.519e-05,0.354],[64720,0.0370,7.454e-05,0.198],[65520,0.0271,7.388e-05,0.180],[66320,0.0217,7.321e-05,0.172],
+[67120,0.0165,7.254e-05,0.170],[67920,0.0155,7.186e-05,0.157],[68720,0.0152,7.118e-05,0.139],[69520,0.0164,7.049e-05,0.272],
+[70320,0.0154,6.980e-05,0.206],[71110,0.0183,6.911e-05,0.195],[71910,0.0139,6.841e-05,0.239],[72710,0.0189,6.771e-05,0.127],
+[73510,0.0302,6.700e-05,0.245],[74310,0.0188,6.629e-05,0.197],[75110,0.0198,6.557e-05,0.208],[75910,0.0122,6.485e-05,0.166],
+[76710,0.0174,6.413e-05,0.186],[77510,0.0168,6.340e-05,0.162],[78310,0.0198,6.267e-05,0.182],[79110,0.0151,6.194e-05,0.200],
+[79900,0.0173,6.121e-05,0.213],[80700,0.0187,6.047e-05,0.210],[81500,0.0114,5.973e-05,0.169],[82300,0.0157,5.899e-05,0.161],
+[83100,0.0191,5.824e-05,0.133],[83900,0.0219,5.750e-05,0.225],[84700,0.0199,5.675e-05,0.217],[85500,0.0165,5.600e-05,0.208],
+[86300,0.0119,5.525e-05,0.169],[87100,0.0150,5.450e-05,0.177],[87890,0.0157,5.375e-05,0.259],[88690,0.0157,5.300e-05,0.169],
+[89490,0.0211,5.224e-05,0.184],[90290,0.0177,5.149e-05,0.218],[91090,0.0139,5.073e-05,0.222],[91890,0.0166,4.998e-05,0.247],
+[92690,0.0129,4.922e-05,0.136],[93490,0.0200,4.847e-05,0.212],[94290,0.0160,4.771e-05,0.137],[95090,0.0123,4.696e-05,0.162],
+[95880,0.0132,4.621e-05,0.123],[96680,0.0140,4.546e-05,0.243],[97480,0.0122,4.471e-05,0.116],[98280,0.0107,4.395e-05,0.137],
+[99080,0.0150,4.321e-05,0.191],[99880,0.0182,4.246e-05,0.159],[100680,0.0194,4.171e-05,0.274],[101480,0.0203,4.097e-05,0.390],
+[102280,0.0106,4.022e-05,0.226],[103080,0.0100,3.948e-05,0.163],[103880,0.0131,3.875e-05,0.127],[104670,0.0161,3.802e-05,0.179],
+[105470,0.0165,3.729e-05,0.139],[106270,0.0145,3.656e-05,0.196],[107070,0.0120,3.583e-05,0.132],[107870,0.0107,3.511e-05,0.129],
+[108670,0.0121,3.439e-05,0.188],[109470,0.0084,3.367e-05,0.100],[110270,0.0180,3.296e-05,0.180],[111070,0.0187,3.225e-05,0.121],
+[111870,0.0134,3.155e-05,0.081],[112660,0.0113,3.085e-05,0.220],[113460,0.0086,3.016e-05,0.126],[114260,0.0083,2.947e-05,0.166],
+[115060,0.0106,2.878e-05,0.106],[115860,0.0149,2.810e-05,0.174],[116660,0.0106,2.742e-05,0.151],[117460,0.0093,2.675e-05,0.130],
+[118260,0.0129,2.608e-05,0.240],[119060,0.0130,2.542e-05,0.309],[119860,0.0143,2.477e-05,0.262],[120660,0.0114,2.412e-05,0.233],
+[121450,0.0152,2.348e-05,0.114],[122250,0.0102,2.284e-05,0.150],[123050,0.0080,2.221e-05,0.106],[123850,0.0121,2.159e-05,0.194],
+[124650,0.0094,2.097e-05,0.124],[125450,0.0079,2.036e-05,0.089],[126250,0.0112,1.975e-05,0.117],[127050,0.0074,1.915e-05,0.128],
+[127850,0.0090,1.856e-05,0.183],[128650,0.0136,1.798e-05,0.111],[129440,0.0142,1.741e-05,0.184],[130240,0.0076,1.684e-05,0.179],
+[131040,0.0093,1.628e-05,0.115],[131840,0.0129,1.572e-05,0.163],[132640,0.0104,1.518e-05,0.079],[133440,0.0168,1.464e-05,0.341],
+[134240,0.0106,1.411e-05,0.145],[135040,0.0108,1.358e-05,0.126],[135840,0.0107,1.307e-05,0.156],[136640,0.0152,1.257e-05,0.363],
+[137440,0.0127,1.207e-05,0.245],[138230,0.0085,1.159e-05,0.111],[139030,0.0113,1.111e-05,0.335],[139830,0.0169,1.064e-05,0.223],
+[140630,0.0114,1.018e-05,0.100],[141430,0.0115,9.723e-06,0.105],[142230,0.0122,9.279e-06,0.230],[143030,0.0077,8.845e-06,0.103],
+[143830,0.0098,8.421e-06,0.192],[144630,0.0088,8.006e-06,0.080],[145430,0.0057,7.600e-06,0.143],[146220,0.0074,7.209e-06,0.108],
+[147020,0.0096,6.823e-06,0.205],[147820,0.0059,6.447e-06,0.096],[148620,0.0067,6.081e-06,0.101],[149420,0.0086,5.725e-06,0.191],
+[150220,0.0085,5.378e-06,0.157],[151020,0.0071,5.043e-06,0.072],[151820,0.0083,4.717e-06,0.074],[152620,0.0093,4.402e-06,0.185],
+[153420,0.0109,4.097e-06,0.158],[154210,0.0135,3.806e-06,0.065],[155010,0.0100,3.522e-06,0.269],[155810,0.0073,3.249e-06,0.085],
+[156610,0.0082,2.986e-06,0.420],[157410,0.0047,2.734e-06,0.118],[158210,0.0066,2.493e-06,0.063],[159010,0.0080,2.263e-06,0.093],
+[159810,0.0102,2.043e-06,0.103],[160610,0.0059,1.835e-06,0.204],[161410,0.0064,1.638e-06,0.170],[162210,0.0079,1.451e-06,0.091],
+[163000,0.0055,1.278e-06,0.164],[163800,0.0099,1.114e-06,0.191],[164600,0.0162,9.608e-07,0.202],[165400,0.0051,8.189e-07,0.142],
+[166200,0.0079,6.883e-07,0.191],[167000,0.0066,5.690e-07,0.141],[167800,0.0108,4.609e-07,0.100],[168600,0.0073,3.642e-07,0.141],
+[169400,0.0093,2.788e-07,0.149],[170200,0.0068,2.048e-07,0.073],[170990,0.0079,1.428e-07,0.118],[171790,0.0035,9.144e-08,0.046],
+[172590,0.0073,5.145e-08,0.153],[173390,0.0092,2.288e-08,0.175],[174190,0.0127,5.728e-09,0.585],[174990,0.0081,8.927e-15,0.114]
+];
+
+const steps = DATA.map(r => r[0]);
+const loss  = DATA.map(r => r[1]);
+const lr    = DATA.map(r => r[2]);
+const grad  = DATA.map(r => r[3]);
+
+// gleitender Mittelwert (zentriert, Fenster w)
+function smooth(arr, w){
+  const out = [];
+  for (let i=0;i<arr.length;i++){
+    let s=0,n=0;
+    for (let j=Math.max(0,i-w); j<=Math.min(arr.length-1,i+w); j++){ s+=arr[j]; n++; }
+    out.push(s/n);
+  }
+  return out;
+}
+const lossSm = smooth(loss,5);
+const gradSm = smooth(grad,5);
+
+const MAX_STEPS = 175000;
+const last = DATA[DATA.length-1];
+
+// KPIs
+const kpis = [
+  ["Schritte", `${last[0].toLocaleString('de')} / ${MAX_STEPS.toLocaleString('de')}`],
+  ["≈ % durch", `${(100*last[0]/MAX_STEPS).toFixed(1)} %`],
+  ["Loss (Start → Ende)", `${loss[0].toFixed(2)} → ${last[1].toFixed(3)}`],
+  ["Loss min (gesampelt)", Math.min(...loss).toFixed(4)],
+  ["LR (Ende)", last[2].toExponential(2)],
+  ["grad_norm (Ende)", last[3].toFixed(2)],
+];
+document.getElementById('kpis').innerHTML = kpis.map(k =>
+  `<div class="kpi"><div class="l">${k[0]}</div><div class="v">${k[1]}</div></div>`).join('');
+
+const layoutBase = {
+  paper_bgcolor:'#181b22', plot_bgcolor:'#181b22',
+  font:{color:'#e6e9ef', size:12},
+  margin:{l:64,r:24,t:44,b:48},
+  xaxis:{title:'global_step', gridcolor:'#262b35', zeroline:false},
+  legend:{orientation:'h', y:1.12, x:0},
+  hovermode:'x unified'
+};
+const cfg = {displaylogo:false, responsive:true,
+  modeBarButtonsToRemove:['lasso2d','select2d']};
+
+Plotly.newPlot('loss', [
+  {x:steps,y:loss, name:'train/loss (roh)', mode:'lines',
+   line:{color:'#3aa0ff',width:1}, opacity:0.35},
+  {x:steps,y:lossSm, name:'geglättet (MA±5)', mode:'lines',
+   line:{color:'#ffb000',width:2.5}}
+], Object.assign({}, layoutBase, {
+  title:'Trainings-Loss', yaxis:{title:'loss', gridcolor:'#262b35', zeroline:false}
+}), cfg);
+
+Plotly.newPlot('lr', [
+  {x:steps,y:lr, name:'learning_rate', mode:'lines',
+   line:{color:'#39d98a',width:2}}
+], Object.assign({}, layoutBase, {
+  title:'Learning Rate (Cosine, Warmup ≈ 8.750 Steps → Peak 1e-4, danach Decay)',
+  yaxis:{title:'lr', gridcolor:'#262b35', zeroline:false, exponentformat:'e'}
+}), cfg);
+
+Plotly.newPlot('grad', [
+  {x:steps,y:grad, name:'grad_norm (roh)', mode:'lines',
+   line:{color:'#ff5c7a',width:1}, opacity:0.35},
+  {x:steps,y:gradSm, name:'geglättet (MA±5)', mode:'lines',
+   line:{color:'#ffb000',width:2.5}},
+  {x:[steps[0],steps[steps.length-1]],y:[1,1], name:'clip @ max_grad_norm=1',
+   mode:'lines', line:{color:'#9aa3b2',width:1,dash:'dot'}}
+], Object.assign({}, layoutBase, {
+  title:'Gradient Norm', yaxis:{title:'grad_norm', gridcolor:'#262b35', zeroline:false}
+}), cfg);
+</script>
+</body>
+</html>

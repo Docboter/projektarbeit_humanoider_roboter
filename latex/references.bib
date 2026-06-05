@@ -2,15 +2,28 @@
 % Verwaltung mit JabRef oder Zotero empfohlen.
 % Biber (nicht BibTeX) als Backend: latexmk kümmert sich darum automatisch.
 
-% ── Hauptreferenzen ──────────────────────────────────────────────────
+% ── Foundation-Modelle / VLA ─────────────────────────────────────────
 
-@techreport{groot2025,
-  author      = {{NVIDIA Isaac Team}},
-  title       = {{GR00T N1: An Open Foundation Model for Generalist Humanoid Robots}},
-  institution = {NVIDIA},
-  year        = {2025},
-  url         = {https://developer.nvidia.com/isaac/gr00t},
-  note        = {Abgerufen: 2025},
+@misc{groot2025,
+  author        = {{NVIDIA} and Bjorck, Johan and Castañeda, Fernando and
+                   Cherniadev, Nikita and Da, Xingye and others},
+  title         = {{GR00T N1}: An Open Foundation Model for Generalist
+                   Humanoid Robots},
+  year          = {2025},
+  eprint        = {2503.14734},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.RO},
+  url           = {https://arxiv.org/abs/2503.14734},
+}
+
+@misc{groot_repo,
+  author       = {{NVIDIA Isaac Team}},
+  title        = {{Isaac GR00T} N1.6 --- Foundation Model for Generalist
+                  Robots (Code-Repository)},
+  howpublished = {GitHub},
+  year         = {2025},
+  url          = {https://github.com/NVIDIA/Isaac-GR00T},
+  note         = {Abgerufen: 2026},
 }
 
 @inproceedings{openvla2024,
@@ -23,14 +36,19 @@
   archivePrefix = {arXiv},
 }
 
-@inproceedings{act2023,
-  author    = {Zhao, Tony Z. and Kumar, Vikash and Levine, Sergey and Finn, Chelsea},
-  title     = {Learning Fine-Grained Bimanual Manipulation with Low-Cost Hardware},
-  booktitle = {Robotics: Science and Systems (RSS)},
-  year      = {2023},
-  eprint    = {2304.13705},
+@misc{pi0_2024,
+  author        = {Black, Kevin and Brown, Noah and Driess, Danny and
+                   Esmail, Adnan and Equi, Michael and others},
+  title         = {{$\pi_0$}: A Vision-Language-Action Flow Model for
+                   General Robot Control},
+  year          = {2024},
+  eprint        = {2410.24164},
   archivePrefix = {arXiv},
+  primaryClass  = {cs.RO},
+  url           = {https://arxiv.org/abs/2410.24164},
 }
+
+% ── Imitation Learning / Policy-Lernen ───────────────────────────────
 
 @article{hussein2017imitation,
   author  = {Hussein, Ahmed and Gaber, Mohamed Medhat and Elyan, Eyad
@@ -44,14 +62,25 @@
   doi     = {10.1145/3054912},
 }
 
-@misc{lerobot2024,
-  author       = {Cadene, Remi and Alibert, Simon and Soare, Alexandru and
-                  Gallouédec, Quentin and Zouitine, Adil and Wolf, Thomas},
-  title        = {{LeRobot}: State-of-the-art Machine Learning for Real-World
-                  Robotics in PyTorch},
-  howpublished = {GitHub},
-  year         = {2024},
-  url          = {https://github.com/huggingface/lerobot},
+@inproceedings{ross2011dagger,
+  author    = {Ross, St{\'e}phane and Gordon, Geoffrey J. and Bagnell, J. Andrew},
+  title     = {A Reduction of Imitation Learning and Structured Prediction
+               to No-Regret Online Learning},
+  booktitle = {Proceedings of the 14th International Conference on Artificial
+               Intelligence and Statistics (AISTATS)},
+  year      = {2011},
+  pages     = {627--635},
+  eprint    = {1011.0686},
+  archivePrefix = {arXiv},
+}
+
+@inproceedings{act2023,
+  author    = {Zhao, Tony Z. and Kumar, Vikash and Levine, Sergey and Finn, Chelsea},
+  title     = {Learning Fine-Grained Bimanual Manipulation with Low-Cost Hardware},
+  booktitle = {Robotics: Science and Systems (RSS)},
+  year      = {2023},
+  eprint    = {2304.13705},
+  archivePrefix = {arXiv},
 }
 
 @article{diffusion_policy2023,
@@ -64,26 +93,111 @@
   archivePrefix = {arXiv},
 }
 
+% ── Generative Modellierung / Flow Matching ──────────────────────────
+
+@inproceedings{lipman2023flow,
+  author    = {Lipman, Yaron and Chen, Ricky T. Q. and Ben-Hamu, Heli and
+               Nickel, Maximilian and Le, Matt},
+  title     = {Flow Matching for Generative Modeling},
+  booktitle = {International Conference on Learning Representations (ICLR)},
+  year      = {2023},
+  eprint    = {2210.02747},
+  archivePrefix = {arXiv},
+}
+
+% ── Vision-Encoder ───────────────────────────────────────────────────
+
+@inproceedings{zhai2023siglip,
+  author    = {Zhai, Xiaohua and Mustafa, Basil and Kolesnikov, Alexander and
+               Beyer, Lucas},
+  title     = {Sigmoid Loss for Language Image Pre-Training},
+  booktitle = {Proceedings of the IEEE/CVF International Conference on
+               Computer Vision (ICCV)},
+  year      = {2023},
+  eprint    = {2303.15343},
+  archivePrefix = {arXiv},
+}
+
+% ── Sim-to-Real / Evaluation ─────────────────────────────────────────
+
+@inproceedings{simpler2024,
+  author    = {Li, Xuanlin and Hsu, Kyle and Gu, Jiayuan and Mees, Oier and
+               Xu, Karl Pertsch und Bjorklund, Homer Rich and others},
+  title     = {Evaluating Real-World Robot Manipulation Policies in Simulation},
+  booktitle = {Conference on Robot Learning (CoRL)},
+  year      = {2024},
+  eprint    = {2405.05941},
+  archivePrefix = {arXiv},
+  url       = {https://simpler-env.github.io/},
+}
+
+@inproceedings{tobin2017domain,
+  author    = {Tobin, Josh and Fong, Rachel and Ray, Alex and Schneider, Jonas
+               and Zaremba, Wojciech and Abbeel, Pieter},
+  title     = {Domain Randomization for Transferring Deep Neural Networks from
+               Simulation to the Real World},
+  booktitle = {IEEE/RSJ International Conference on Intelligent Robots and
+               Systems (IROS)},
+  year      = {2017},
+  pages     = {23--30},
+  eprint    = {1703.06907},
+  archivePrefix = {arXiv},
+}
+
+% ── Reinforcement-Learning-Fine-Tuning für flow-basierte VLAs ────────
+
+@misc{pirl2025,
+  author        = {Liu, Kang and Chen, Zhuoqi und others},
+  title         = {{$\pi_{\mathrm{RL}}$}: Online RL Fine-tuning for
+                   Flow-based Vision-Language-Action Models},
+  year          = {2025},
+  eprint        = {2510.25889},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.RO},
+  url           = {https://arxiv.org/abs/2510.25889},
+}
+
+% ── Werkzeuge / Datensätze / Hardware ────────────────────────────────
+
+@misc{lerobot2024,
+  author       = {Cadene, Remi and Alibert, Simon and Soare, Alexandru and
+                  Gallouédec, Quentin and Zouitine, Adil and Wolf, Thomas},
+  title        = {{LeRobot}: State-of-the-art Machine Learning for Real-World
+                  Robotics in PyTorch},
+  howpublished = {GitHub},
+  year         = {2024},
+  url          = {https://github.com/huggingface/lerobot},
+}
+
+@misc{isaaclab2023,
+  author       = {Mittal, Mayank and Yu, Calvin and Yu, Qinxi and others},
+  title        = {{Isaac Lab}: A Unified Simulation Framework for Robot Learning},
+  howpublished = {NVIDIA / GitHub},
+  year         = {2024},
+  url          = {https://github.com/isaac-sim/IsaacLab},
+}
+
+@misc{g1dex3dataset,
+  author       = {{Unitree Robotics}},
+  title        = {{G1\_Dex3\_BlockStacking} Dataset (LeRobot-Format)},
+  howpublished = {Hugging Face Hub},
+  year         = {2025},
+  url          = {https://huggingface.co/datasets/unitreerobotics/G1_Dex3_BlockStacking_Dataset},
+}
+
 @misc{unitree_g1,
   author       = {{Unitree Robotics}},
-  title        = {Unitree G1 Humanoid Robot},
+  title        = {Unitree {G1} Humanoid Robot},
   howpublished = {Produktdokumentation},
   year         = {2024},
   url          = {https://www.unitree.com/g1},
 }
 
-% ── Platzhalter (durch echte Zitate ersetzen) ────────────────────────
-
-@misc{placeholder_humanoid,
-  author = {[Autor]},
-  title  = {[Titel: Humanoide Robotik]},
-  year   = {[Jahr]},
-  note   = {Platzhalter — durch echte Referenz ersetzen},
-}
-
-@misc{placeholder_datasplit,
-  author = {[Autor]},
-  title  = {[Titel: Datensatz-Aufteilung]},
-  year   = {[Jahr]},
-  note   = {Platzhalter — durch echte Referenz ersetzen},
+@misc{kisski,
+  author       = {{GWDG / KISSKI}},
+  title        = {{KISSKI} --- KI-Servicezentrum für sensible und kritische
+                  Infrastrukturen, GWDG Göttingen},
+  howpublished = {Online},
+  year         = {2025},
+  url          = {https://kisski.gwdg.de/},
 }

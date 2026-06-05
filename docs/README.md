@@ -2,8 +2,11 @@
 
 Navigations-Hub für die gesamte Projekt-Dokumentation. Das [Projekt-README](../README.md) im
 Repo-Root gibt den Schnellstart; hier liegen die ausführlichen Anleitungen, thematisch sortiert.
+Die Gliederung folgt dem Projektverlauf: **Anleitung → Ergebnis → Ausblick**.
 
 ## Training (Fine-tuning von GR00T N1.6)
+
+Operative Anleitungen zum Trainieren. Die Auswertung der Läufe steht unter [Ergebnisse](#ergebnisse--evaluation).
 
 | Dokument | Inhalt |
 |---|---|
@@ -15,35 +18,50 @@ Repo-Root gibt den Schnellstart; hier liegen die ausführlichen Anleitungen, the
 | [training/env-vars.md](training/env-vars.md) | **Konfigurationsreferenz** — alle Env-Vars + VRAM-Richtwerte (Single Source of Truth) |
 | [training/train-test-split.md](training/train-test-split.md) | 80/20-Datensatz-Split — Implementierung und Nutzung |
 | [training/wandb-offline-sync.md](training/wandb-offline-sync.md) | W&B-Offline-Sync auf KISSKI |
-| [training/wandb-run-auswertung.md](training/wandb-run-auswertung.md) | W&B-Run-Auswertung — Metriken-Momentaufnahme des 1. Laufs (Detail-Charts) |
-| [training/erster-trainingsdurchlauf-auswertung.md](training/erster-trainingsdurchlauf-auswertung.md) | **Abschluss-Auswertung 1. Lauf** (175k Steps) — Metriken + Verhaltens-Evaluation, Diagnose (visueller Domain-Gap), Empfehlungen |
 | [training/fixes-aus-erstem-lauf.md](training/fixes-aus-erstem-lauf.md) | **Fixes aus dem 1. Lauf** — Domain-Gap-Maßnahmen (Würfelfarbe, Stapel-Band, schwarze Hände, `BLACK_HANDS`-Auto-Recolor) + Werkzeuge & offene Punkte |
-| [training/reinforcement-learning-plan.md](training/reinforcement-learning-plan.md) | **RL-Plan (Konzept)** — möglicher nächster Schritt nach dem Domain-Gap-Befund: Algorithmen-Vergleich, Infrastruktur, offene Punkte |
 
 ## Simulation (Closed-Loop-Eval in Isaac Lab)
 
+Operativer Sim-Eval-Workflow. Mess- und Methodik-Ergebnisse stehen unter [Ergebnisse](#ergebnisse--evaluation).
+
 | Dokument | Inhalt |
 |---|---|
-| [simulation/](simulation/) | **Einstieg Simulation** (Index) |
+| [simulation/](simulation/README.md) | **Einstieg Simulation** (Index) |
 | [simulation/vastai-anleitung.md](simulation/vastai-anleitung.md) | **Primärer Workflow** — Closed-Loop-Sim-Eval auf vast.ai, Schritt für Schritt (inkl. Open-Loop-Replay-Diagnose) |
-| [simulation/implementation-notes.md](simulation/implementation-notes.md) | **READ FIRST** — Lessons Learned, bekannte Fixes, aktueller Stand |
-| [simulation/baseline-unitree-g1.md](simulation/baseline-unitree-g1.md) | **Baseline-Vergleich** — un-finetuntes `GR00T-N1.6-3B` + stock G1-Greifer (`UNITREE_G1`) auf Block-Stacking; parallele Pipeline (`SIM_MODE=baseline`) + TODO-Checkliste vor dem ersten Run |
-| [simulation/livestream-plan.md](simulation/livestream-plan.md) | **Plan** — Live-Stream der Sim via WebRTC (Echtzeit-Viewport vom Remote-GPU), noch nicht umgesetzt |
+| [simulation/umsetzungsnotizen.md](simulation/umsetzungsnotizen.md) | **READ FIRST** — Lessons Learned, bekannte Fixes, aktueller Stand |
 | [simulation/archiv/](simulation/archiv/) | Historische Planungs-/Analyse-Docs (überholt, als Kontext erhalten) |
 
-## Lokomotion (den G1 zum Laufen bringen)
+## Ergebnisse & Evaluation
+
+Alle Auswertungen, Messungen und Methodik-Reviews gebündelt — die „Was kam raus?"-Anlaufstelle.
 
 | Dokument | Inhalt |
 |---|---|
-| [locomotion/](locomotion/README.md) | **Einstieg Lokomotion** (Index) |
-| [locomotion/lokomotion-recherche.md](locomotion/lokomotion-recherche.md) | **Recherche** — Warum der Roboter fixiert ist (Code-Analyse), GR00T-N1.6-Whole-Body-Control (entkoppelt: RL-Beine + IK/VLA-Arme), Unitree-G1-Lokomotions-Stacks (`unitree_rl_gym`/`unitree_rl_lab`, SDK `LocoClient`), Loco-Manipulation-Forschung, konkrete Integrationspfade + Quellen |
+| [ergebnisse/](ergebnisse/README.md) | **Einstieg Ergebnisse** (Index) |
+| [ergebnisse/lauf1-auswertung.md](ergebnisse/lauf1-auswertung.md) | **Abschluss-Auswertung 1. Lauf** (175k Steps) — Metriken + Verhaltens-Evaluation, Diagnose (visueller Domain-Gap), Empfehlungen |
+| [ergebnisse/wandb-run-auswertung.md](ergebnisse/wandb-run-auswertung.md) | W&B-Run-Auswertung — Metriken-Momentaufnahme des 1. Laufs (Detail-Charts in [`wandb-run-charts.html`](ergebnisse/wandb-run-charts.html)) |
+| [ergebnisse/domain-gap-analyse.md](ergebnisse/domain-gap-analyse.md) | **Domain-Gap-Messung** — Cosine-Distanz Real→Sim pro Kamera via frozen SigLIP-ViT (Mittel 0.26, `cam_left_wrist` kritisch bei 0.43) + drei Handlungsoptionen |
+| [ergebnisse/sim-bewertung.md](ergebnisse/sim-bewertung.md) | **Methodik-Review** — Ist Closed-Loop-Sim sinnvoll/korrekt? Belegt: 0-%-Ergebnis ist der erwartete Real→Sim-Gap; Open-Loop-MSE ist die valide Metrik. Mit Code-Befunden + Quellen |
+| [ergebnisse/baseline-unitree-g1.md](ergebnisse/baseline-unitree-g1.md) | **Baseline-Vergleich** — un-finetuntes `GR00T-N1.6-3B` + stock G1-Greifer (`UNITREE_G1`) auf Block-Stacking; parallele Pipeline (`SIM_MODE=baseline`) + TODO-Checkliste vor dem ersten Run |
+
+## Weiterführende Arbeiten
+
+Konzept- und Planungs-Dokumente für Folgeschritte — **recherchiert, aber noch nicht umgesetzt**.
+Diese Sammlung speist das gleichnamige Kapitel der Projektarbeit.
+
+| Dokument | Inhalt |
+|---|---|
+| [weiterfuehrend/](weiterfuehrend/README.md) | **Einstieg Weiterführende Arbeiten** (Index) |
+| [weiterfuehrend/reinforcement-learning-plan.md](weiterfuehrend/reinforcement-learning-plan.md) | **RL-Plan (Konzept)** — möglicher nächster Schritt nach dem Domain-Gap-Befund: Algorithmen-Vergleich, Infrastruktur, offene Punkte |
+| [weiterfuehrend/lokomotion-recherche.md](weiterfuehrend/lokomotion-recherche.md) | **Lokomotions-Recherche** — Warum der Roboter fixiert ist, GR00T-N1.6-Whole-Body-Control (entkoppelt: RL-Beine + IK/VLA-Arme), Unitree-G1-Lokomotions-Stacks, Integrationspfade + Quellen |
+| [weiterfuehrend/livestream-plan.md](weiterfuehrend/livestream-plan.md) | **Livestream-Plan** — Live-Stream der Sim via WebRTC (Echtzeit-Viewport vom Remote-GPU), noch nicht umgesetzt |
 
 ## Querschnitt (Training + Simulation)
 
 | Dokument | Inhalt |
 |---|---|
 | [umgebungsanalyse.md](umgebungsanalyse.md) | **Umgebungsanalyse / Audit** — konzeptuelle Stärken & Schwächen von Training- und Sim-Setup, konkrete Bug-/Risiko-Liste, priorisierte Empfehlungen |
-| [troubleshooting.md](troubleshooting.md) | **Troubleshooting** — gebündelte Fehlerlösungen: Domain-Gap, OOM/VRAM, KISSKI-Queue & W&B-Pflicht, Sim-GPU-Anforderung |
+| [fehlerbehebung.md](fehlerbehebung.md) | **Fehlerbehebung** — gebündelte Fehlerlösungen: Domain-Gap, OOM/VRAM, KISSKI-Queue & W&B-Pflicht, Sim-GPU-Anforderung |
 
 ## Submodul-Dokumentation (`app/Groot-1.6/examples/G1_DEX3/`)
 
@@ -63,9 +81,12 @@ Repo-Root gibt den Schnellstart; hier liegen die ausführlichen Anleitungen, the
 ├── CLAUDE.md                  # Anweisungen für Claude Code
 ├── docs/                      # ▶ Diese Dokumentation
 │   ├── README.md              # dieser Navigations-Hub
-│   ├── training/              # Trainings-Doku
-│   ├── simulation/            # Sim-Eval-Doku (+ archiv/)
-│   └── locomotion/            # Lokomotions-Recherche (G1 zum Laufen bringen)
+│   ├── training/              # operative Trainings-Doku
+│   ├── simulation/            # operative Sim-Eval-Doku (+ archiv/)
+│   ├── ergebnisse/            # Auswertungen, Messungen, Methodik-Reviews
+│   ├── weiterfuehrend/        # Konzept-/Plan-Docs (RL, Lokomotion, Livestream)
+│   ├── umgebungsanalyse.md    # Querschnitt-Audit
+│   └── fehlerbehebung.md      # Querschnitt-Fehlerlösungen
 ├── Training/                  # Alles rund ums Training (Build, Run, Skripte)
 │   ├── Dockerfile             # Container-Definition mit ENTRYPOINT
 │   ├── kisski_submit.sh       # SLURM-Job-Script für KISSKI

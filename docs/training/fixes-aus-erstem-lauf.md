@@ -1,7 +1,7 @@
 # Fixes aus dem ersten Trainingsdurchlauf
 
 **Erstellt:** 2026-06-03 · **Abgeleitet aus:**
-[`erster-trainingsdurchlauf-auswertung.md`](erster-trainingsdurchlauf-auswertung.md) ·
+[`lauf1-auswertung.md`](../ergebnisse/lauf1-auswertung.md) ·
 **Betrifft:** Closed-Loop-Sim-Eval (Isaac Lab), nicht das Training selbst.
 
 > Dieses Dokument sammelt die **konkreten Maßnahmen**, die aus der Auswertung des ersten

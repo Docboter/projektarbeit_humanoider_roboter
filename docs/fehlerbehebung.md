@@ -86,7 +86,7 @@ nach `/data`. Der alte SCRATCH-SCC-Speicher (`/scratch/`) wurde **am 2026-03-31 
 - **Quadro RTX 5000:** hat RT-Cores, ist aber **Turing (CC 7.5)** → eine Generation zu alt.
 
 **Lösung:** Ampere-or-newer-GPU **mit** RT-Cores nutzen — auf vast.ai **L40 / RTX 4090 / A6000**.
-Hintergrund: [simulation/implementation-notes.md §1](simulation/implementation-notes.md),
+Hintergrund: [simulation/umsetzungsnotizen.md §1](simulation/umsetzungsnotizen.md),
 [simulation/archiv/gpu-kompatibilitaet.md](simulation/archiv/gpu-kompatibilitaet.md).
 
 ### Closed-Loop: Roboter bewegt sich kaum, greift nicht
@@ -101,9 +101,9 @@ Kamerabildern.
 
 **Lösung:** Domain Gap angehen statt Sim-Pipeline weiter zu tunen — Vision-Encoder fine-tunen
 (`tune_visual=true`) oder Domain Randomization in der Sim. Diagnose-Werkzeuge:
-[simulation/implementation-notes.md §15](simulation/implementation-notes.md). Vollanalyse:
+[simulation/umsetzungsnotizen.md §15](simulation/umsetzungsnotizen.md). Vollanalyse:
 [umgebungsanalyse.md](umgebungsanalyse.md) und
-[training/erster-trainingsdurchlauf-auswertung.md §8](training/erster-trainingsdurchlauf-auswertung.md).
+[ergebnisse/lauf1-auswertung.md §8](ergebnisse/lauf1-auswertung.md).
 
 ### `flash-attn` / `--no-flash-attn`-Fehler auf älterer GPU
 
@@ -114,10 +114,10 @@ Flag abgewiesen.
 `--no-flash-attn` ist **nicht implementiert**.
 
 **Lösung:** Ampere-or-newer-GPU verwenden (dieselbe Anforderung wie für das Rendering).
-Details: [simulation/implementation-notes.md](simulation/implementation-notes.md).
+Details: [simulation/umsetzungsnotizen.md](simulation/umsetzungsnotizen.md).
 
 ---
 
 > Fehlt hier ein Fall? Tiefergehende, fortlaufend gepflegte Lessons Learned stehen in
-> [simulation/implementation-notes.md](simulation/implementation-notes.md) (Sim) und der
-> [Abschluss-Auswertung des 1. Laufs](training/erster-trainingsdurchlauf-auswertung.md) (Training).
+> [simulation/umsetzungsnotizen.md](simulation/umsetzungsnotizen.md) (Sim) und der
+> [Abschluss-Auswertung des 1. Laufs](ergebnisse/lauf1-auswertung.md) (Training).

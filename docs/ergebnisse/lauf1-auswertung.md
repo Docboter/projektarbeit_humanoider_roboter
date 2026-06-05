@@ -164,7 +164,7 @@ Greif-Demos oder Gewichtung der Finger-Dims.
 - **Eval einschalten:** `enable_open_loop_eval = true` (+ ggf. `eval_strategy = "steps"`;
   `eval_set_split_ratio = 0.1` ist gesetzt) → Val-MSE über die Zeit, fundierte
   Checkpoint-Auswahl statt „letzter".
-- **Batch-Size hochziehen** auf der A100 (siehe [`multi-gpu.md`](multi-gpu.md)) — bei
+- **Batch-Size hochziehen** auf der A100 (siehe [`multi-gpu.md`](../training/multi-gpu.md)) — bei
   4× A100 / `global_batch_size = 32` reichen ~40–50k Steps für denselben Konvergenzstand
   (Loss plateaut ohnehin ab ~100k bei bs=8).
 
@@ -193,7 +193,7 @@ liegen **nicht** am Training.
 ### 8.2 Sim-Kalibrierung: Replay-Durchbruch
 
 Nach einer systematischen Kalibrierungs-Session (Details in
-[`implementation-notes.md §14`](../simulation/implementation-notes.md)) wurde das Replay-Ergebnis
+[`umsetzungsnotizen.md §14`](../simulation/umsetzungsnotizen.md)) wurde das Replay-Ergebnis
 von `max_cube_lift = 1,0 cm` (kein Greifen) auf **2,8 cm** (Greifen bestätigt) verbessert.
 
 Die wesentlichen Fixes:
@@ -231,6 +231,13 @@ Die Diagnose ist damit **dreifach bestätigt**:
 
 #### Option A: Vision Encoder mittrainieren (`tune_visual = true`)
 
+> ✅ **Inzwischen empirisch getestet — und bestätigt.** Der zweite Lauf
+> (`g1_dex3_blockstacking_vision_v1`, Run `ajgoskon`) hat genau das gemacht. Ergebnis:
+> Training gleich gesund (Loss ~0,009), Closed-Loop aber **schlechter** — die Policy
+> kollabierte auf reines Arm-Zurückziehen. Volle Auswertung:
+> [`lauf2-vision-auswertung.md`](lauf2-vision-auswertung.md). Die folgende Prognose ist
+> damit belegt.
+
 **Nicht empfohlen** für dieses Projekt:
 
 - Mit 301 Demonstrationen droht **Catastrophic Forgetting** — der Encoder verliert seine
@@ -256,7 +263,7 @@ Die Diagnose ist damit **dreifach bestätigt**:
 **Realistischster Ansatz:** Trajectory-Level REINFORCE — Episode läuft durch, am Ende wird
 der kumulierte Reward als Policy-Gradient-Signal verwendet. Keine Differenzierung durch den
 Denoising-Prozess nötig, daher mit der aktuellen GR00T-Architektur umsetzbar.
-Details: [`reinforcement-learning-plan.md`](reinforcement-learning-plan.md).
+Details: [`reinforcement-learning-plan.md`](../weiterfuehrend/reinforcement-learning-plan.md).
 
 #### Option C: Mehr Demonstrations-Daten + erneutes BC-Training
 
@@ -284,4 +291,4 @@ Für dieses Projekt (kein echter Roboter verfügbar):
 | Diagnose 1 — Dataset-Replay (Sim/Config) | [`Simulation/kisski_replay_submit.sh`](../../Simulation/kisski_replay_submit.sh) · `Simulation/scripts/entrypoint_replay.sh` |
 | Diagnose 2 — Open-Loop-Modell-Eval | [`Training/kisski_open_loop_eval.sh`](../../Training/kisski_open_loop_eval.sh) · `gr00t/eval/open_loop_eval.py` |
 | Closed-Loop-Sim-Eval | `Simulation/kisski_sim_submit.sh` · `Simulation/g1_dex3_sim/run_g1_dex3_sim_eval.py` |
-| GPU-Eignung der Sim (RT-Cores) | [`../simulation/implementation-notes.md`](../simulation/implementation-notes.md) |
+| GPU-Eignung der Sim (RT-Cores) | [`../simulation/umsetzungsnotizen.md`](../simulation/umsetzungsnotizen.md) |

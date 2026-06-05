@@ -1,0 +1,76 @@
+% chapters/07_fazit.tex
+
+\chapter{Fazit und Ausblick}
+\label{chap:fazit}
+
+\section{Fazit}
+\label{sec:fazit}
+
+Diese Projektarbeit ist der Frage nachgegangen, ob und wie sich das
+Vision-Language-Action-Modell NVIDIA GR00T~N1.6 auf dem Unitree~G1 mit DEX3-Hand
+für eine Block-Stacking-Aufgabe feinabstimmen lässt -- und welche Aussagekraft die
+anschließende Simulationsevaluation besitzt. Die zentralen Erkenntnisse lassen
+sich wie folgt zusammenfassen:
+
+\begin{itemize}
+  \item \textbf{Reproduzierbare Infrastruktur.} Es wurde eine containerisierte,
+    rein über Umgebungsvariablen konfigurierte Pipeline aufgebaut, die identisch
+    lokal (Docker) und auf dem KISSKI-Cluster (Apptainer/\ac{slurm}) läuft und
+    auch auf vier GPUs skaliert. Sie macht das Training reproduzierbar und
+    plattformunabhängig.
+  \item \textbf{Erfolgreiches Training.} Das selektive Fine-Tuning (eingefrorenes
+    \ac{vlm}, trainierter Flow-Matching-Aktionskopf) konvergierte über
+    175\,000~Schritte sauber und ohne Instabilitäten; der Loss plateaut
+    ab~$\approx$~100\,000~Schritten.
+  \item \textbf{Aufgedeckter Domain-Gap als Kernbefund.} Trotz guter Open-Loop-
+    Armvorhersagen erreichte die Politik im geschlossenen Regelkreis
+    $0/20$~Erfolge und \enquote{fror ein}. Eine Dreifach-Diagnose
+    (Open-Loop, Replay, Closed-Loop) isolierte die \emph{Beobachtung} als
+    einzige Differenz, und eine SigLIP-basierte Messung quantifizierte den
+    visuellen Domain-Gap -- mit der handnahen Kamera
+    (\texttt{cam\_left\_wrist}, Distanz~0,427) als kritischem Blocker.
+  \item \textbf{Einordnung statt Fehlinterpretation.} Literaturgestützt
+    (SIMPLER~\cite{simpler2024}) wurde gezeigt, dass $0\,\%$ Closed-Loop-Erfolg
+    für ein auf Realbildern trainiertes Modell mit eingefrorenem Encoder in einer
+    nicht-photorealistischen Sim das \emph{erwartete} Ergebnis ist -- nicht ein
+    Urteil über die Modellqualität. Die offizielle, domain-gap-freie Metrik
+    (Open-Loop-\ac{mse}) deutet darauf hin, dass das Modell die Aufgabe im Prinzip
+    gelernt hat.
+\end{itemize}
+
+Der wichtigste Beitrag dieser Arbeit ist somit weniger eine hohe Erfolgsrate als
+die \emph{methodisch saubere Diagnose}, warum die naheliegende Sim-Evaluation für
+dieses Modell die falsche Messgröße ist -- ein Ergebnis, das in der konkreten
+Empfehlung mündet, Modellqualität primär über Open-Loop-Eval und reale
+Roboter-Rollouts zu belegen.
+
+\section{Ausblick}
+\label{sec:ausblick}
+
+\paragraph{Domain-Gap schließen.}
+Der direkteste nächste Schritt ist das Angleichen der Sim-Optik an die realen
+Bilder (Visual Matching) bzw.\ \acl{dr} während des Trainings, gezielt für die
+kritische Handgelenk-Kamera. Erst danach ist ein Mittrainieren des
+Vision-Encoders (\texttt{TUNE\_VISUAL}) sinnvoll -- auf reinen Realdaten schließt es
+den Gap nicht, sondern verschlechterte das Verhalten bis zum Politik-Kollaps, wie
+der zweite Lauf empirisch zeigte (\cref{sec:vision-lauf,sec:frozen-vs-tuned}).
+
+\paragraph{Reinforcement-Learning-Fine-Tuning.}
+Wie in \cref{sec:rl-weiterfuehrend} ausgeführt, adressiert RL die \ac{bc}-Schwäche
+an der Wurzel und löst den Domain-Gap konzeptionell auf, da in derselben Sim
+trainiert und evaluiert wird. Der $\pi_{\mathrm{RL}}$-Ansatz~\cite{pirl2025} ist
+für die flow-basierte Architektur von GR00T besonders geeignet; kritischer Pfad
+bleibt die GPU-Frage (RT-Cores~+~Trainings-FLOPs).
+
+\paragraph{Lokomotion.}
+Mit der entkoppelten Architektur (\cref{sec:loco-pfade}) lässt sich der bislang
+fixierte Roboter zum Laufen bringen, ohne neue Manipulationsdaten zu erheben --
+empfohlen als gestufter Weg von einer reinen Sim-Lauf-Demo über die entkoppelte
+Integration bis hin, langfristig, zur unified Whole-Body-\ac{vla}.
+
+\paragraph{Sim-to-Real.}
+Der entscheidende, noch ausstehende Test ist der Einsatz auf der physischen
+G1-Hardware. Da das Closed-Loop-Versagen ein sim-spezifisches Wahrnehmungsproblem
+ist, ist plausibel, dass das Modell auf realen Kamerabildern -- die der
+Trainingsverteilung entsprechen -- deutlich besser abschneidet. Der reale Roboter
+bleibt der Goldstandard und der nächste große Meilenstein des Projekts.
