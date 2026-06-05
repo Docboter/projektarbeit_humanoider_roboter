@@ -31,6 +31,13 @@ Repo-Root gibt den Schnellstart; hier liegen die ausführlichen Anleitungen, the
 | [simulation/livestream-plan.md](simulation/livestream-plan.md) | **Plan** — Live-Stream der Sim via WebRTC (Echtzeit-Viewport vom Remote-GPU), noch nicht umgesetzt |
 | [simulation/archiv/](simulation/archiv/) | Historische Planungs-/Analyse-Docs (überholt, als Kontext erhalten) |
 
+## Lokomotion (den G1 zum Laufen bringen)
+
+| Dokument | Inhalt |
+|---|---|
+| [locomotion/](locomotion/README.md) | **Einstieg Lokomotion** (Index) |
+| [locomotion/lokomotion-recherche.md](locomotion/lokomotion-recherche.md) | **Recherche** — Warum der Roboter fixiert ist (Code-Analyse), GR00T-N1.6-Whole-Body-Control (entkoppelt: RL-Beine + IK/VLA-Arme), Unitree-G1-Lokomotions-Stacks (`unitree_rl_gym`/`unitree_rl_lab`, SDK `LocoClient`), Loco-Manipulation-Forschung, konkrete Integrationspfade + Quellen |
+
 ## Querschnitt (Training + Simulation)
 
 | Dokument | Inhalt |
@@ -57,7 +64,8 @@ Repo-Root gibt den Schnellstart; hier liegen die ausführlichen Anleitungen, the
 ├── docs/                      # ▶ Diese Dokumentation
 │   ├── README.md              # dieser Navigations-Hub
 │   ├── training/              # Trainings-Doku
-│   └── simulation/            # Sim-Eval-Doku (+ archiv/)
+│   ├── simulation/            # Sim-Eval-Doku (+ archiv/)
+│   └── locomotion/            # Lokomotions-Recherche (G1 zum Laufen bringen)
 ├── Training/                  # Alles rund ums Training (Build, Run, Skripte)
 │   ├── Dockerfile             # Container-Definition mit ENTRYPOINT
 │   ├── kisski_submit.sh       # SLURM-Job-Script für KISSKI

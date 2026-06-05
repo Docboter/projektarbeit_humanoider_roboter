@@ -9,6 +9,7 @@ ZMQ-Requests eines Isaac-Lab-Sim-Clients.
 | Dokument | Wann lesen |
 |---|---|
 | [implementation-notes.md](implementation-notes.md) | **Zuerst.** Lessons Learned, bekannte Fixes (Triton/gcc, flash-attn, zmq, SSH), Kamera-Rekonstruktion, Open-Loop-Replay-Diagnose, aktueller Stand. |
+| [sim-bewertung.md](sim-bewertung.md) | **Methodik-Review (2026-06-05).** Ist Closed-Loop-Sim sinnvoll/korrekt? Belegt: 0-%-Ergebnis ist der erwartete Real→Sim-Gap (SIMPLER), `TUNE_VISUAL`/Eval-DR greifen nicht, Open-Loop-MSE ist die valide Metrik. Mit Code-Befunden + Quellen. |
 | [vastai-anleitung.md](vastai-anleitung.md) | **Primärer Workflow.** Schritt-für-Schritt-Anleitung für die Sim-Eval auf vast.ai (Image bauen → Checkpoint/USD bereitstellen → Instanz konfigurieren → überwachen). Enthält auch den Open-Loop-Replay als Diagnose-Lauf. |
 | [baseline-unitree-g1.md](baseline-unitree-g1.md) | **Baseline-Vergleich.** Un-finetuntes `GR00T-N1.6-3B` + stock G1-Greifer (`UNITREE_G1`) auf demselben Block-Stacking-Task. Parallele Pipeline (`SIM_MODE=baseline`), TODO-Checkliste vor dem ersten Run, OOD-Einordnung. |
 | [domain-gap-analyse.md](domain-gap-analyse.md) | **Domain-Gap-Messung (2026-06-04).** Cosine-Distanz Real→Sim pro Kamera via frozen SigLIP-ViT. Ergebnis: Mittelwert 0.26, `cam_left_wrist` kritisch bei 0.43. Drei Handlungsoptionen mit Aufwand/Risiko-Abwägung. |

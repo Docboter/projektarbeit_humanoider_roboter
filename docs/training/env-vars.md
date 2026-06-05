@@ -9,7 +9,7 @@ lokal **identisch**. Der Entrypoint (`/scripts/entrypoint.sh`) liest sie ein; De
 | `HF_TOKEN` | — | **Pflicht.** HuggingFace-Token (Lese-Berechtigung reicht) |
 | `WANDB_API_KEY` | — | Optional. W&B-Key. Ohne diesen läuft Training ohne W&B. |
 | `MAX_STEPS` | `30000` | Anzahl Trainings-Steps |
-| `GLOBAL_BATCH_SIZE` | `8` | Globale Batch-Size (8 für 8 GB VRAM, 32+ für A100 80 GB) |
+| `GLOBAL_BATCH_SIZE` | `8` | Globale Batch-Size (8 für < 40 GB VRAM, 32 für 4x A100 80 GB) |
 | `NUM_GPUS` | `1` | Anzahl genutzter GPUs |
 | `WANDB_PROJECT` | `gr00t-g1-dex3` | W&B-Projektname |
 | `DATA_DIR` | `/data` | Datenverzeichnis im Container |
@@ -25,15 +25,7 @@ lokal **identisch**. Der Entrypoint (`/scripts/entrypoint.sh`) liest sie ein; De
 | `USE_WANDB` | *auto* | W&B an/aus. Wird vom Entrypoint automatisch gesetzt: `1` wenn `WANDB_API_KEY` vorhanden, sonst `0`. Manuell `USE_WANDB=0` erzwingt Training ohne W&B. |
 | `WANDB_MODE` | `offline` | W&B-Modus (vom Entrypoint gesetzt). `offline` puffert lokal — danach manuell syncen, siehe [wandb-offline-sync.md](wandb-offline-sync.md). |
 
-## VRAM-Richtwerte
 
-| VRAM | `GLOBAL_BATCH_SIZE` | `MAX_STEPS` | Umgebung |
-|---|---|---|---|
-| 24 GB | 1–2 | 30 000 | Lokal (RTX 4090, min.) — sehr langsam |
-| 32 GB | 4–8 | 30 000 | Lokal (RTX 5090, ~31 GB bei bs=8) |
-| 40 GB | 16–32 | 50 000 | vast.ai A100 40 GB |
-| 80 GB | 64–128 | 50 000+ | KISSKI A100 80 GB |
-| 94 GB | 128+ | 50 000+ | KISSKI H100 94 GB |
 
 > **Full Fine-tuning benötigt laut NVIDIA ≥ 40 GB VRAM.** Karten mit < 24 GB VRAM führen zu
 > OOM-Fehlern.

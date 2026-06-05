@@ -87,8 +87,16 @@ def main():
     # Checkpoint-Bestandteil beginnt mit einem Punkt.
     ignore = ["*.tmp", "__pycache__", "*.pyc", ".*", "*.partial", "*.incomplete"]
     if not args.include_optimizer:
-        ignore += ["optimizer.pt*", "rng_state.pth", "scheduler.pt", "training_args.bin"]
-        print("Info: optimizer.pt / rng_state.pth / scheduler.pt übersprungen (--include-optimizer zum Mitladen).")
+        ignore += [
+            "optimizer.pt*",          # HF Trainer
+            "*optim_states*",         # DeepSpeed ZeRO (mp_rank_XX_optim_states.pt)
+            "zero_to_fp32.py",        # DeepSpeed ZeRO Konvertierungsscript
+            "bf16_zero_pp_rank_*",    # DeepSpeed ZeRO Stage 3 Shards
+            "rng_state*.pth",
+            "scheduler.pt",
+            "training_args.bin",
+        ]
+        print("Info: Optimizer-States übersprungen (HF + DeepSpeed ZeRO). --include-optimizer zum Mitladen.")
 
     # upload_large_folder: parallel + Multipart + robustes Resume (commit-pro-Datei).
     # Unterstützt jedoch KEIN path_in_repo -> bei gesetztem Zielpfad auf upload_folder ausweichen.
