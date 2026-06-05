@@ -71,6 +71,33 @@ LEARNING_RATE="${LEARNING_RATE:-2e-4}"         # sqrt-skaliert für 4× größer
 > ([experiment.py](../../app/Groot-1.6/gr00t/experiment/experiment.py), `warn_configs`). Bei 4 GPUs
 > muss `GLOBAL_BATCH_SIZE` ∈ {4, 8, 12, 16, 32, …} sein.
 
+#### Step-Äquivalenz: 44 000 (Batch 32) ↔ 175 000 (Batch 8)
+
+Ein „Step" = ein Optimizer-Update und verarbeitet `global_batch_size` Samples. Beim Vergleich
+zweier Läufe ist daher die **gesehene Datenmenge** (≈ Epochen) maßgeblich, **nicht** die rohe
+Step-Zahl. Umrechnungsfaktor ist allein das Batch-Größen-Verhältnis — die Anzahl GPUs ändert die
+Step-Zahl nicht direkt, sie ermöglicht nur den größeren globalen Batch:
+
+```
+Faktor = 32 / 8 = 4   →   44 000 Steps @ Batch 32  ≙  176 000 Steps @ Batch 8
+```
+
+Die `44 000` sind also exakt das 1:4-Äquivalent des früheren 175 000-Schritte-Laufs (Batch 8,
+1 GPU) — gleiches Trainings-Budget, nur in 4× weniger (dafür 4× größeren) Updates.
+
+| Lauf | GPUs | global batch | Steps | Samples gesamt | ≈ Epochen* |
+|---|---|---|---|---|---|
+| Alt (1-GPU-Referenz) | 1 | 8  | 175 000 | 1 400 000 | ~5 |
+| Aktuell (KISSKI)     | 4 | 32 | 44 000  | 1 408 000 | ~5 |
+
+\* bei ~281 000 Frames im Datensatz: `Samples / 281 000 ≈ 5`.
+
+> **„Gleiches Budget" ≠ „gleiches Ergebnis".** Ein 4× größerer Batch hat weniger Gradienten-Updates
+> und eine andere Optimierungs­dynamik. Deshalb ist die LR √-skaliert auf `2e-4`
+> ([kisski_submit.sh](../../Training/kisski_submit.sh), `LEARNING_RATE`). Bei sehr großen Batches
+> kann die Konvergenz pro gesehenem Sample dennoch leicht schlechter ausfallen als bei Batch 8 —
+> im Zweifel den finalen Checkpoint beider Läufe per Sim-Eval vergleichen.
+
 ### 3. (Optional) DDP statt DeepSpeed erzwingen
 
 - Default bei `num_gpus > 1`: **DeepSpeed ZeRO-2** (`use_ddp=False`).

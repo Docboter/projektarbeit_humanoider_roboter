@@ -171,6 +171,9 @@ sbatch --export=ALL Training/kisski_submit.sh
 # Eigene Jobs anzeigen
 squeue -u $USER
 
+# Eigene Jobs mit prognostizierter Startzeit anzeigen (start spätestens zu...)
+squeue -u $USER --start
+
 # Logs live verfolgen (solange Job läuft oder danach)
 tail -f logs/slurm-<jobid>.out
 

@@ -42,7 +42,7 @@
 #SBATCH --job-name=groot-finetune
 #SBATCH -p kisski
 #SBATCH -G A100:4
-#SBATCH -c 64
+#SBATCH -c 96
 #SBATCH --mem=384G
 #SBATCH -t 48:00:00
 #SBATCH --output=logs/slurm-%j.out
