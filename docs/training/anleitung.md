@@ -233,10 +233,52 @@ docker rm -f groot-train
 
 Empfohlen für langes Training (> 30 000 Steps) oder wenn lokal keine ausreichende GPU vorhanden ist. KISSKI stellt A100 (80 GB) und H100 (94 GB) zur Verfügung. Der Cluster läuft **kein Docker**, sondern **Apptainer** als Container-Runtime und **SLURM** als Job-Scheduler.
 
-Kurzfassung:
+Der Ablauf hat drei Stufen: **Docker-Image bauen & nach Docker Hub pushen** → **Image auf dem Login-Knoten zu Apptainer-`.sif` konvertieren** → **SLURM-Job einreichen**.
+
+### D0. Docker-Image bauen und nach Docker Hub pushen
+
+Der Cluster zieht das Image per `apptainer pull docker://lucam03/projekt-humanoider-roboter:latest` **direkt von Docker Hub**. Apptainer kann ein Image nur konvertieren, das dort bereits liegt — es baut nichts selbst. Deshalb muss das Docker-Image **vor** der SIF-Konvertierung existieren und aktuell sein.
+
+**Wann ist dieser Schritt nötig?**
+
+- **Überspringen,** wenn das Image auf Docker Hub bereits aktuell ist (Standardfall — du willst nur trainieren). Weiter mit [D1](#d1-image-einmalig-zu-sif-konvertieren).
+- **Ausführen,** wenn du etwas am Image geändert hast: `Training/Dockerfile`, eines der `Training/scripts/*.sh`, oder den gepinnten GR00T-Commit. Diese Änderungen wirken **erst nach Rebuild + Push** — der Cluster bekommt sie sonst nicht.
+
+> **Hinweis:** Der Build braucht **Docker auf deinem lokalen Rechner** (nicht auf dem Login-Knoten — dort läuft kein Docker). Du baust lokal, pushst nach Docker Hub und konvertierst dann auf dem Cluster.
+
+**Variante 1 — mit dem PowerShell-Skript (Windows, empfohlen):**
+
+[`Training/update_image.ps1`](../../Training/update_image.ps1) prüft Docker-Login, baut und pusht in einem Rutsch:
+
+```powershell
+docker login                          # einmalig — Token landet in %USERPROFILE%\.docker\config.json
+cd Training
+.\update_image.ps1                    # Build + Push (aktueller Dockerfile-Stand)
+.\update_image.ps1 -UpdateCommit      # zusätzlich neuesten GR00T-Commit ins Dockerfile eintragen
+.\update_image.ps1 -NoCache           # Build ohne Cache (z. B. nach flash-attn-Problemen)
+.\update_image.ps1 -SkipPush          # nur lokal bauen, nicht pushen
+.\update_image.ps1 -DryRun            # nur Befehle anzeigen
+```
+
+Das Skript taggt das Image doppelt (`:latest` und `:<timestamp>`) und pusht beide.
+
+**Variante 2 — manuell mit `docker` (Linux/macOS/WSL2):**
 
 ```bash
-# Einmalig auf dem Login-Knoten glogin-gpu.hpc.gwdg.de:
+docker login                          # einmalig
+# Build-Context ist Training/ (damit COPY scripts/ funktioniert). --platform für KISSKI-Kompatibilität:
+docker build --platform linux/amd64 -t lucam03/projekt-humanoider-roboter:latest Training/
+docker push lucam03/projekt-humanoider-roboter:latest
+```
+
+Der erste Build dauert ~30–60 min (PyTorch + flash-attn); danach greift der Docker-Cache. Das Dockerfile klont das GR00T-Submodul selbst und checkt einen **gepinnten Commit** aus — `git clone --recurse-submodules` vorab ist nicht nötig.
+
+### D1. Image einmalig zu SIF konvertieren
+
+Auf dem Login-Knoten wird das (frisch gepushte) Docker-Hub-Image in das Apptainer-Format umgewandelt:
+
+```bash
+# Auf dem Login-Knoten glogin-gpu.hpc.gwdg.de:
 module load apptainer
 apptainer pull $HOME/images/projekt-humanoider-roboter.sif \
     docker://lucam03/projekt-humanoider-roboter:latest
@@ -246,6 +288,8 @@ export HF_TOKEN=hf_...  WANDB_API_KEY=...  GLOBAL_BATCH_SIZE=32
 sbatch Training/kisski_submit.sh
 ```
 
+> Nach jedem neuen Push (Schritt D0) muss die `.sif`-Datei **neu erzeugt** werden, damit die Änderungen auf dem Cluster ankommen — `apptainer pull` überschreibt eine bestehende `.sif` nicht automatisch, ggf. vorher löschen oder `--force` verwenden.
+
 Standardmäßig ist der Vision-Encoder eingefroren (es werden nur Projector + Diffusion-Action-Head
 trainiert). Soll der **Vision-Encoder mittrainiert** werden, mit `TUNE_VISUAL=1` einreichen — LR
 (`1e-4`), Warmup (`0.1`) und ein eigener Output-Namespace werden dann automatisch gesetzt:
@@ -253,6 +297,21 @@ trainiert). Soll der **Vision-Encoder mittrainiert** werden, mit `TUNE_VISUAL=1`
 ```bash
 TUNE_VISUAL=1 sbatch --export=ALL Training/kisski_submit.sh
 ```
+
+**Weitere optionale Schalter** (getrennt kombinierbar, Details in [env-vars.md](env-vars.md)):
+
+```bash
+TRAIN_TEST_SPLIT=1 sbatch --export=ALL Training/kisski_submit.sh   # 80/20-Split, Test-Episoden held-out
+USE_AUGMENTATION=0 sbatch --export=ALL Training/kisski_submit.sh   # Bild-Augmentierung aus (Default an)
+```
+
+- `TRAIN_TEST_SPLIT=1` schaltet den [80/20-Split](train-test-split.md) scharf (Test-Episoden werden
+  nicht mittrainiert; für die Open-Loop-Eval auf ungesehenen Episoden).
+- `USE_AUGMENTATION` steuert Color-Jitter/Domain-Randomization gegen den Sim-Real-Gap (Default an;
+  Stärken über `CJ_BRIGHTNESS/CONTRAST/SATURATION/HUE`).
+- **RL** (`USE_RL`) läuft **nicht** im BC-Image — es braucht den Isaac-Sim+GR00T-Container auf einer
+  RT-Core-GPU. Siehe [RL-Plan](../weiterfuehrend/reinforcement-learning-plan.md) und
+  [`Training/kisski_rl_submit.sh`](../../Training/kisski_rl_submit.sh).
 
 → **Vollständige Schritt-für-Schritt-Anleitung** (SIF-Konvertierung, VAST-Storage, Monitoring,
 Checkpoint-Export, KISSKI-Troubleshooting): [HPC-Training auf KISSKI](kisski-hpc.md).
@@ -357,7 +416,7 @@ Die wichtigsten:
 |---|---|---|
 | `HF_TOKEN` | — | **Pflicht.** HuggingFace-Token |
 | `WANDB_API_KEY` | — | Optional. Ohne diesen läuft Training ohne W&B |
-| `MAX_STEPS` | `30000` | Anzahl Trainings-Steps |
+| `MAX_STEPS` | `20000` | Anzahl Trainings-Steps (KISSKI-Multi-GPU-Default: 44000) |
 | `GLOBAL_BATCH_SIZE` | `8` | 8 für 8 GB VRAM, 16–32 für 16+ GB, 32+ für A100 80 GB |
 | `SHELL_ON_ERROR` | `0` | `1` = bei Fehler in Shell fallen statt zu beenden |
 

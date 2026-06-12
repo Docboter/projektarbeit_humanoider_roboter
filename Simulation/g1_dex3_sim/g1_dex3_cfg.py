@@ -142,16 +142,21 @@ G1_DEX3_CFG = ArticulationCfg(
         "left_arm": ImplicitActuatorCfg(
             joint_names_expr=LEFT_ARM_JOINTS,
             effort_limit=300.0,
-            velocity_limit=5.0,
+            velocity_limit=20.0,
             stiffness=100.0,
             damping=10.0,
+            # armature (reflektierte Rotorträgheit, Wert aus Unitree IsaacLab G1_CFG):
+            # stabilisiert den impliziten PD-Regler bei hoher Stiffness numerisch
+            # (verhindert Jitter), ohne die Tracking-Treue zu beeinträchtigen.
+            armature=0.01,
         ),
         "right_arm": ImplicitActuatorCfg(
             joint_names_expr=RIGHT_ARM_JOINTS,
             effort_limit=300.0,
-            velocity_limit=5.0,
+            velocity_limit=20.0,
             stiffness=100.0,
             damping=10.0,
+            armature=0.01,
         ),
         # Hände: positionsgeregelt (ABSOLUTE Targets aus GR00T-Aktionen).
         # stiffness=60 / effort_limit=20 N·m: reale Dex3-Finger müssen ~50g Würfel gegen
@@ -163,6 +168,7 @@ G1_DEX3_CFG = ArticulationCfg(
             velocity_limit=3.0,
             stiffness=60.0,
             damping=4.0,
+            armature=0.001,  # kleiner als Arme (Finger-Hardware), analog Unitree IsaacLab
         ),
         "right_hand": ImplicitActuatorCfg(
             joint_names_expr=RIGHT_DEX3_JOINTS,
@@ -170,6 +176,7 @@ G1_DEX3_CFG = ArticulationCfg(
             velocity_limit=3.0,
             stiffness=60.0,
             damping=4.0,
+            armature=0.001,
         ),
     },
 )

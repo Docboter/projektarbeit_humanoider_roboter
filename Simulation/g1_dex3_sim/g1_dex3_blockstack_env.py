@@ -279,6 +279,19 @@ class G1Dex3BlockstackEnvCfg(DirectRLEnvCfg):
     # Deaktivieren mit DR_ENABLED=0 Env-Var im Eval-Runner oder dr_enabled=False.
     dr_enabled: bool = True
 
+    # ── Reward-Modus ──────────────────────────────────────────────────────────
+    # "binary" (Default): spärlicher 0/1-Success-Reward — für Closed-Loop-Eval/Ablation.
+    # "shaped":          dichter, vektorisierter Reward fürs RL-Training (πRL/FPO).
+    # Der Eval-Pfad nutzt weiter "binary"; "shaped" wird nur vom RL-Trainer gesetzt.
+    reward_mode: str = "binary"
+
+    # Gewichte des Shaped-Reward (nur bei reward_mode="shaped"). Siehe
+    # docs/weiterfuehrend/reinforcement-learning-plan.md §3.2.
+    rew_reach: float = 1.0    # Annäherung Hand → nächster Würfel (kontinuierlich)
+    rew_stack: float = 2.0    # Würfel horizontal zusammenführen + Turmhöhe aufbauen
+    rew_success: float = 10.0  # Bonus für stabilen Stapel (nutzt _check_success)
+    rew_smooth: float = 0.01  # Strafe auf Gelenkgeschwindigkeit (glättet Finger-Aktionen)
+
 
 # ---------------------------------------------------------------------------
 # Umgebung
@@ -302,6 +315,7 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
         self._joint_ids: list[int] | None = None
         self._arm_joint_ids: list[int] | None = None
         self._hand_joint_ids: list[int] | None = None
+        self._hand_body_ids: list[int] | None = None  # Handwurzel-Links (für Shaped-Reward)
 
         # Episode-Tracking
         self._episode_step = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
@@ -611,10 +625,70 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
     # ------------------------------------------------------------------
 
     def _get_rewards(self) -> torch.Tensor:
-        """Einfache binary-Success-Reward für Ablations; nicht für RL-Training."""
+        """Reward je nach cfg.reward_mode.
+
+        "binary" (Default): spärlicher 0/1-Success-Reward — für Eval/Ablation.
+        "shaped":          dichter RL-Reward (siehe _shaped_reward).
+        """
+        if self.cfg.reward_mode == "shaped":
+            return self._shaped_reward()
         success = self._check_success()
         self._episode_success |= success
         return success.float()
+
+    def _get_hand_positions(self) -> torch.Tensor:
+        """(num_envs, 2, 3) Weltpositionen der beiden Handwurzel-Links (links, rechts)."""
+        if self._hand_body_ids is None:
+            names = ["left_wrist_yaw_link", "right_wrist_yaw_link"]
+            ids, _ = self.robot.find_bodies(names, preserve_order=True)
+            self._hand_body_ids = ids
+        return self.robot.data.body_pos_w[:, self._hand_body_ids, :]
+
+    def _shaped_reward(self) -> torch.Tensor:
+        """Dichter, voll vektorisierter Reward fürs RL-Fine-tuning (alle num_envs).
+
+        Komponenten (Gewichte in cfg, siehe reinforcement-learning-plan.md §3.2):
+          - reach:   Hand nahe am nächsten Würfel  (exp-geformt, in (0,1])
+          - stack:   Würfel horizontal zusammen + Turmhöhe aufbauen
+          - success: Bonus für stabilen Stapel (binäres _check_success)
+          - smooth:  Strafe auf Gelenkgeschwindigkeit (dämpft verrauschte Finger)
+
+        Nutzt ausschließlich vorhandene Tensoren (Block-/Body-Posen, joint_vel) —
+        keine zusätzlichen Sensoren nötig.
+        """
+        # Würfel-Weltpositionen (num_envs, 3, 3)
+        block_pos = torch.stack([b.data.root_pos_w for b in self.blocks], dim=1)
+
+        # 1. Reach: minimaler Abstand irgendeiner Hand zu irgendeinem Würfel
+        hand_pos = self._get_hand_positions()              # (num_envs, 2, 3)
+        dists = torch.cdist(hand_pos, block_pos)           # (num_envs, 2, 3)
+        min_reach = dists.amin(dim=(1, 2))                 # (num_envs,)
+        r_reach = torch.exp(-4.0 * min_reach)
+
+        # 2. Stack: paarweise xy-Nähe der Würfel + aufgebaute Höhe
+        xy = block_pos[..., :2]                            # (num_envs, 3, 2)
+        pdist = torch.cdist(xy, xy)                        # (num_envs, 3, 3)
+        iu = torch.triu_indices(3, 3, offset=1, device=self.device)
+        mean_xy = pdist[:, iu[0], iu[1]].mean(dim=1)       # (num_envs,)
+        r_together = torch.exp(-8.0 * mean_xy)
+        height = block_pos[..., 2].amax(dim=1) - block_pos[..., 2].amin(dim=1)
+        r_height = torch.clamp(height / self.cfg.stack_height_min, 0.0, 1.0)
+        r_stack = 0.5 * (r_together + r_height)
+
+        # 3. Success-Bonus (und Episode-Tracking aktuell halten)
+        success = self._check_success()
+        self._episode_success |= success
+        r_success = success.float()
+
+        # 4. Smoothness: quadratische Strafe auf Gelenkgeschwindigkeit
+        r_smooth = -self.robot.data.joint_vel.pow(2).mean(dim=1)
+
+        return (
+            self.cfg.rew_reach * r_reach
+            + self.cfg.rew_stack * r_stack
+            + self.cfg.rew_success * r_success
+            + self.cfg.rew_smooth * r_smooth
+        )
 
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
         self._episode_step += 1
@@ -674,6 +748,26 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
         # Umschlüsseln: "joint_pos" → "state.joint_pos"
         obs_np["state.joint_pos"] = obs_np.pop("joint_pos")
         return obs_np
+
+    def get_obs_batched(self) -> dict[str, torch.Tensor]:
+        """Batched Observation-Dict ALLER num_envs als GPU-Tensoren — für den RL-Rollout.
+
+        Gegenstück zu get_obs_for_policy() (das nur Env 0 als numpy liefert). Behält die
+        Tensoren auf dem Device (kein numpy/CPU-Roundtrip), damit der RL-Trainer die Policy
+        batched über alle Envs auswerten kann. Schlüssel wie im GR00T-Format:
+            "state.joint_pos": (num_envs, 28) float32
+            "video.<cam>":     (num_envs, H, W, 3) uint8
+        """
+        obs = self._get_observations()
+        out: dict[str, torch.Tensor] = {}
+        for key, val in obs.items():
+            if key.startswith("video."):
+                out[key] = val.to(torch.uint8)
+            elif key == "joint_pos":
+                out["state.joint_pos"] = val.to(torch.float32)
+            else:
+                out[key] = val
+        return out
 
     @property
     def episode_success(self) -> bool:

@@ -95,7 +95,7 @@ RUN chmod +x /scripts/*.sh
 
 # Defaults für autonomen Container-Lauf (vast.ai etc.)
 # HF_TOKEN und WANDB_API_KEY MÜSSEN beim docker run via -e gesetzt werden.
-ENV MAX_STEPS=30000 \
+ENV MAX_STEPS=20000 \
     GLOBAL_BATCH_SIZE=8 \
     NUM_GPUS=1 \
     WANDB_PROJECT=gr00t-g1-dex3 \

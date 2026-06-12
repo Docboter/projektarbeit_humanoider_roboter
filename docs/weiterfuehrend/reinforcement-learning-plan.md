@@ -1,9 +1,26 @@
 # Reinforcement-Learning-Training — Recherche & Umsetzungsplan
 
-> **Status: Recherche / Konzept.** Dieses Dokument klärt, **was nötig wäre**, um das Modell
-> zusätzlich (oder anschließend) per **Reinforcement Learning (RL)** zu trainieren, wie ein
-> Gesamt-Umsetzungsplan aussieht und wie eine konkrete Umsetzung **in diesem Projekt** aussehen
-> könnte. Es ist **noch nicht implementiert** — es beschreibt den Weg dorthin.
+> **Status: erste Implementierung vorhanden, End-to-End-Validierung offen.** Dieses Dokument
+> beschreibt Motivation, Bausteine und Phasen-Plan. Inzwischen ist ein **erster, echter
+> FPO-RL-Pfad gebaut** (Algorithmus-Kern gegen die GR00T-API verifiziert), aber **noch nicht
+> end-to-end validiert** — das braucht die GPU-Entscheidung aus [Gruppe 0](#gruppe-0--machbarkeit--entscheidungen-blockiert-alles-weitere) (RT-Cores).
+>
+> **Bereits umgesetzt** (Stand 2026-06-12):
+> - **Gruppe 1 (Reward):** Shaped Reward im Env hinter `reward_mode="shaped"` —
+>   [`g1_dex3_blockstack_env.py`](../../Simulation/g1_dex3_sim/g1_dex3_blockstack_env.py) (`_shaped_reward`).
+> - **Gruppe 2 (Env RL-tauglich):** batched Observations (`get_obs_batched`), `num_envs` über
+>   `cfg.scene.num_envs` parametrierbar; Single-Env-Eval-Pfad unangetastet.
+> - **Gruppe 3 (RL-Loop):** FPO-Trainer [`rl_finetune.py`](../../Simulation/g1_dex3_sim/rl_finetune.py)
+>   — FPO-Surrogat aus dem Flow-Matching-Loss, GAE, PPO-Clip, KL gegen den BC-Checkpoint,
+>   nur Action-Head trainierbar. Zwei Glue-Stellen sind als `# >>> LIVE-CHECK` markiert.
+> - **Gruppe 4 (Infra):** [`Simulation/scripts/entrypoint_rl.sh`](../../Simulation/scripts/entrypoint_rl.sh),
+>   [`Training/kisski_rl_submit.sh`](../../Training/kisski_rl_submit.sh) (RT-Core-Guard),
+>   `USE_RL`-Hinweis-Schalter im BC-Entrypoint, RL-Env-Vars in [env-vars.md](../training/env-vars.md).
+>
+> **Noch offen:** GPU-/Render-Pfad festlegen (Gruppe 0), die LIVE-CHECK-Stellen am echten Lauf
+> scharf stellen, BC-Baseline-Erfolgsrate messen.
+>
+> 👉 **Operative Schritt-für-Schritt-Anleitung zum Starten:** [rl-anleitung.md](rl-anleitung.md).
 
 Verwandte Dokumente:
 - [trainingsverfahren.md](../training/trainingsverfahren.md) — das **aktuelle** Verfahren (Imitation Learning / Behavior Cloning per Flow-Matching). RL grenzt sich davon ab.

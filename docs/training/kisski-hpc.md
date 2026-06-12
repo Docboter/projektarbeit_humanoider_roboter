@@ -18,6 +18,28 @@ Zugang beantragen: [GWDG-Portal](https://docs.hpc.gwdg.de). SSH-Login-Knoten:
 `kisski_submit.sh` verwendet standardmäßig `-p kisski` (A100). Für H100 in der Datei
 `#SBATCH -p kisski` auf `#SBATCH -p kisski-h100` und `-G A100:1` auf `-G H100:1` ändern.
 
+> ### ⚠️ RL-Fine-tuning (`USE_RL`) läuft auf KISSKI **nicht**
+>
+> Das **BC-Training** (Behavior Cloning) läuft auf KISSKI einwandfrei — A100/H100 sind dafür ideal.
+> Das **RL-Fine-tuning** ([RL-Plan](../weiterfuehrend/reinforcement-learning-plan.md)) jedoch **nicht**, und zwar aus einem Hardware-Grund:
+>
+> - RL trainiert die Policy **in der Sim** und braucht dafür pro Schritt **kamerabasiertes
+>   Rendering** der 4 Beobachtungskameras. Isaac Sim rendert diese Kamerabilder per **Raytracing**,
+>   das **RT-Cores** auf der GPU voraussetzt.
+> - Die KISSKI-Trainings-GPUs **A100 und H100 haben keine RT-Cores** — sie sind reine Compute-GPUs.
+>   Das bildbasierte RL-Rollout kann darauf nicht (effizient/stabil) rendern.
+> - Die einzige RT-Core-fähige KISSKI-Karte (RTX 5000 auf der `jupyter`-Partition) ist eine
+>   **Turing-GPU und damit zu alt für Isaac Sim 4.x**.
+>
+> → Es gibt auf KISSKI **keine** Partition, die bildbasiertes RL ausführen kann. Der realistische
+> Weg ist **vast.ai** mit einer **L40 / RTX 4090 / A6000** (Ampere+ **mit** RT-Cores) — siehe
+> [reinforcement-learning-plan.md §3.5/§6](../weiterfuehrend/reinforcement-learning-plan.md). Das
+> Vorlage-Skript [`Training/kisski_rl_submit.sh`](../../Training/kisski_rl_submit.sh) enthält
+> deshalb einen **RT-Core-Guard**, der auf A100/H100 bewusst abbricht.
+>
+> `USE_RL=1` an `kisski_submit.sh` zu übergeben bewirkt nichts Sinnvolles: Der BC-Entrypoint
+> bricht mit genau diesem Hinweis ab (das BC-Image enthält ohnehin kein Isaac Sim).
+
 ---
 
 ## Schritt 1 — Image einmalig zu SIF konvertieren (auf dem Login-Knoten)
@@ -162,6 +184,31 @@ sbatch --export=ALL Training/kisski_submit.sh
 - **Checkpoint-Größe:** Mehr trainierbare Parameter ⇒ größere `optimizer.pt` pro Checkpoint.
   Bei `SAVE_TOTAL_LIMIT=40` ggf. das Storage-Budget (~770 GB) im Blick behalten und das Limit
   senken.
+
+---
+
+## Variante — Weitere optionale Schalter
+
+Zusätzlich zu `TUNE_VISUAL` lassen sich diese Verfahren **getrennt** kombinieren (Details in
+[env-vars.md](env-vars.md)). Alle werden über `kisski_submit.sh` durchgereicht:
+
+```bash
+# 80/20-Train-Test-Split (Test-Episoden werden NICHT mittrainiert):
+TRAIN_TEST_SPLIT=1 sbatch --export=ALL Training/kisski_submit.sh
+
+# Bild-Augmentierung / Domain-Randomization abschalten (Default ist AN):
+USE_AUGMENTATION=0 sbatch --export=ALL Training/kisski_submit.sh
+```
+
+- **`TRAIN_TEST_SPLIT=1`** — `run_finetuning.sh` patcht vor dem Start `meta/info.json` auf
+  `train: 0:N` / `test: N:total` (Ratio via `TRAIN_SPLIT_RATIO`, Default 0.8). Die Test-Episoden
+  stehen danach für die Open-Loop-Eval auf **ungesehenen** Episoden bereit. Siehe
+  [Train-Test-Split](train-test-split.md).
+- **`USE_AUGMENTATION`** (Default `1`) — Color-Jitter/Domain-Randomization gegen den
+  Sim-zu-Real-Domain-Gap; Stärken über `CJ_BRIGHTNESS/CONTRAST/SATURATION/HUE`. `0` = explizit aus.
+
+> **`USE_RL` gehört NICHT hierher** — RL läuft auf KISSKI grundsätzlich nicht (kein RT-Core-Rendering,
+> siehe [den Hinweis-Kasten oben](#verfügbare-gpu-partitionen)). Für RL den vast.ai-Pfad nutzen.
 
 ---
 

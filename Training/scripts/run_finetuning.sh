@@ -22,14 +22,40 @@ EXPERIMENT_NAME="${EXPERIMENT_NAME:-g1_dex3_blockstacking_v1}"
 MODALITY_CONFIG="${MODALITY_CONFIG:-$GROOT_ROOT/examples/G1_DEX3/g1_dex3_config.py}"
 EMBODIMENT_TAG="${EMBODIMENT_TAG:-NEW_EMBODIMENT}"
 
-MAX_STEPS="${MAX_STEPS:-30000}"
+# Steps: bei ~241–301 Episoden (eine Aufgabe) sättigt Behavior Cloning früh; 20k Schritte
+# reichen für gesunde Konvergenz (Lauf 1 war bei 30k bereits sauber konvergiert), sparen Zeit
+# und reduzieren Memorierung, die den Sim-Domain-Gap verschärft. save_steps=2000 + limit=10
+# → 10 gleichmäßig verteilte Checkpoints über den ganzen Lauf (gute Basis für die Open-Loop-
+# Checkpoint-Auswahl), statt nur der letzten 5 wie zuvor.
+MAX_STEPS="${MAX_STEPS:-20000}"
 GLOBAL_BATCH_SIZE="${GLOBAL_BATCH_SIZE:-8}" #8
 DATALOADER_WORKERS="${DATALOADER_WORKERS:-8}"
-SAVE_STEPS="${SAVE_STEPS:-1000}"
-SAVE_TOTAL_LIMIT="${SAVE_TOTAL_LIMIT:-5}"
+SAVE_STEPS="${SAVE_STEPS:-2000}"
+SAVE_TOTAL_LIMIT="${SAVE_TOTAL_LIMIT:-10}"
 LEARNING_RATE="${LEARNING_RATE:-1e-4}"
 WEIGHT_DECAY="${WEIGHT_DECAY:-1e-5}"
 WARMUP_RATIO="${WARMUP_RATIO:-0.05}"
+
+# ── Train-Test-Split (optional, Standard AUS) ─────────────────────────────────
+# TRAIN_TEST_SPLIT=1 schaltet den 80/20-Split scharf: patcht meta/info.json so, dass
+# nur die ersten TRAIN_SPLIT_RATIO der Episoden als "train" geladen werden; der Rest
+# steht als "test" für die Open-Loop-Eval auf ungesehenen Episoden bereit.
+# Standard (0) → kompletter Datensatz wird trainiert (bisheriges Verhalten).
+TRAIN_TEST_SPLIT="${TRAIN_TEST_SPLIT:-0}"
+TRAIN_SPLIT_RATIO="${TRAIN_SPLIT_RATIO:-0.8}"
+
+# ── Bild-Augmentierung / Domain Randomization (optional, Standard AN) ──────────
+# USE_AUGMENTATION=1 → Color-Jitter + optionale Rotation/State-Dropout werden ans
+# Training übergeben (adressiert den Sim-Real-Domain-Gap des eingefrorenen Encoders).
+# USE_AUGMENTATION=0 → Color-Jitter explizit auf 0 gesetzt (Augmentierung effektiv aus;
+# ein Weglassen der Flags würde sonst die Default-Augmentierung des Modells ziehen).
+USE_AUGMENTATION="${USE_AUGMENTATION:-1}"
+CJ_BRIGHTNESS="${CJ_BRIGHTNESS:-0.3}"
+CJ_CONTRAST="${CJ_CONTRAST:-0.4}"
+CJ_SATURATION="${CJ_SATURATION:-0.5}"
+CJ_HUE="${CJ_HUE:-0.08}"
+RANDOM_ROTATION_ANGLE="${RANDOM_ROTATION_ANGLE:-}"   # leer = keine Rotation
+STATE_DROPOUT_PROB="${STATE_DROPOUT_PROB:-0.0}"
 
 USE_WANDB="${USE_WANDB:-1}"
 WANDB_PROJECT="${WANDB_PROJECT:-gr00t-g1-dex3}"
@@ -66,6 +92,51 @@ if [[ ! -f "$DATASET_PATH/meta/modality.json" ]]; then
 fi
 
 mkdir -p "$OUTPUT_DIR"
+
+# ── 3b. Train-Test-Split scharf schalten (optional) ───────────────────────────
+# Der Split-Code (_apply_split_filter) liest den Bereich aus meta/info.json; der
+# Trainings-Datensatz fragt fest "train" ab (factory.py). Wir müssen also nur den
+# splits-Eintrag in info.json setzen. Default (TRAIN_TEST_SPLIT=0) lässt info.json
+# unangetastet → kompletter Datensatz wie bisher.
+INFO_JSON="$DATASET_PATH/meta/info.json"
+if [[ "$TRAIN_TEST_SPLIT" == "1" ]]; then
+    [[ -f "$INFO_JSON" ]] || { err "TRAIN_TEST_SPLIT=1, aber info.json fehlt: $INFO_JSON"; exit 1; }
+    log "TRAIN_TEST_SPLIT=1 — setze 80/20-Split (Ratio=$TRAIN_SPLIT_RATIO) in info.json"
+    python - "$INFO_JSON" "$TRAIN_SPLIT_RATIO" <<'PY'
+import json, sys
+info_path, ratio = sys.argv[1], float(sys.argv[2])
+with open(info_path) as f:
+    info = json.load(f)
+total = int(info.get("total_episodes") or 0)
+if total <= 0:
+    sys.exit(f"info.json hat kein gueltiges total_episodes ({total}).")
+n_train = int(total * ratio)
+if not (0 < n_train < total):
+    sys.exit(f"Ungueltiger Split: ratio={ratio} -> n_train={n_train} von {total}.")
+info["splits"] = {"train": f"0:{n_train}", "test": f"{n_train}:{total}"}
+with open(info_path, "w") as f:
+    json.dump(info, f, indent=4)
+print(f"[split] train=0:{n_train}  test={n_train}:{total}  (gesamt {total} Episoden)")
+PY
+    log "Split aktiv: Test-Episoden werden NICHT mittrainiert (Eval danach mit split=\"test\")."
+else
+    # Sicherstellen, dass ein evtl. zuvor gesetzter Split wieder auf den vollen Datensatz
+    # zurückfällt, damit ein Folge-Lauf ohne Split reproduzierbar alle Episoden sieht.
+    if [[ -f "$INFO_JSON" ]] && grep -q '"test"' "$INFO_JSON" 2>/dev/null; then
+        warn "TRAIN_TEST_SPLIT=0, aber info.json enthält einen test-Split — setze auf vollen Datensatz zurück."
+        python - "$INFO_JSON" <<'PY'
+import json, sys
+info_path = sys.argv[1]
+with open(info_path) as f:
+    info = json.load(f)
+total = int(info.get("total_episodes") or 0)
+info["splits"] = {"train": f"0:{total}"}
+with open(info_path, "w") as f:
+    json.dump(info, f, indent=4)
+print(f"[split] zurückgesetzt: train=0:{total} (voller Datensatz)")
+PY
+    fi
+fi
 
 # ── 4. W&B-Login (nur via WANDB_API_KEY-Env-Var, kein interaktiver Fallback) ──
 if [[ "$USE_WANDB" == "1" ]]; then
@@ -118,8 +189,22 @@ TRAIN_CMD=(
     --weight_decay           "$WEIGHT_DECAY"
     --warmup_ratio           "$WARMUP_RATIO"
     --dataloader_num_workers "$DATALOADER_WORKERS"
-    --color_jitter_params    brightness 0.3 contrast 0.4 saturation 0.5 hue 0.08
 )
+
+# ── Bild-Augmentierung / Domain Randomization (optional) ──────────────────────
+if [[ "$USE_AUGMENTATION" == "1" ]]; then
+    log "Augmentierung AN — Color-Jitter (b=$CJ_BRIGHTNESS c=$CJ_CONTRAST s=$CJ_SATURATION h=$CJ_HUE)"
+    TRAIN_CMD+=(--color_jitter_params brightness "$CJ_BRIGHTNESS" contrast "$CJ_CONTRAST" saturation "$CJ_SATURATION" hue "$CJ_HUE")
+    [[ -n "$RANDOM_ROTATION_ANGLE" ]] && TRAIN_CMD+=(--random_rotation_angle "$RANDOM_ROTATION_ANGLE")
+    # state_dropout_prob nur übergeben, wenn > 0 (Default 0.0 = aus)
+    if [[ "$STATE_DROPOUT_PROB" != "0.0" && "$STATE_DROPOUT_PROB" != "0" ]]; then
+        TRAIN_CMD+=(--state_dropout_prob "$STATE_DROPOUT_PROB")
+    fi
+else
+    log "Augmentierung AUS — Color-Jitter explizit auf 0 (kein Modell-Default-Jitter)."
+    TRAIN_CMD+=(--color_jitter_params brightness 0 contrast 0 saturation 0 hue 0)
+fi
+
 [[ "$USE_WANDB" == "1" ]] && TRAIN_CMD+=(--use_wandb --wandb_project "$WANDB_PROJECT")
 
 log "Trainings-Befehl:"

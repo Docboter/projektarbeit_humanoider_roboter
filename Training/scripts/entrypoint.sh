@@ -22,6 +22,13 @@
 #   SHELL_ON_ERROR        (default 0)      — auf 1 setzen, um bei Fehler in eine Shell zu fallen
 #   TUNE_VISUAL           (default 0)      — auf 1 setzen, um zusätzlich den Vision-Encoder
 #                                            mitzutrainieren (startet run_finetuning_vision.sh)
+#   TRAIN_TEST_SPLIT      (default 0)      — auf 1 setzen für 80/20-Split (Test-Episoden werden
+#                                            NICHT mittrainiert; an run_finetuning.sh durchgereicht)
+#   USE_AUGMENTATION      (default 1)      — Bild-Augmentierung/Domain-Randomization (Color-Jitter);
+#                                            0 schaltet sie aus (an run_finetuning.sh durchgereicht)
+#   USE_RL                (default 0)      — RL-Fine-tuning (FPO). Läuft NICHT im BC-Image: braucht
+#                                            den Isaac-Sim+GR00T-Container auf einer RT-Core-GPU
+#                                            (Simulation/scripts/entrypoint_rl.sh). Hier nur Hinweis.
 #
 # Bei Aufruf mit Argumenten wird das Skript nicht aktiv — stattdessen wird das
 # Argument direkt ausgeführt (nützlich für `docker run … bash`).
@@ -64,7 +71,7 @@ GROOT_ROOT="${GROOT_ROOT:-/app/Groot-1.6}"
 DATA_DIR="${DATA_DIR:-/data}"
 export DATA_DIR
 
-MAX_STEPS="${MAX_STEPS:-30000}"
+MAX_STEPS="${MAX_STEPS:-20000}"
 GLOBAL_BATCH_SIZE="${GLOBAL_BATCH_SIZE:-8}"
 NUM_GPUS="${NUM_GPUS:-1}"
 WANDB_PROJECT="${WANDB_PROJECT:-gr00t-g1-dex3}"
@@ -73,6 +80,11 @@ SKIP_DOWNLOAD="${SKIP_DOWNLOAD:-0}"
 SKIP_CONVERT="${SKIP_CONVERT:-0}"
 SKIP_TRAIN="${SKIP_TRAIN:-0}"
 TUNE_VISUAL="${TUNE_VISUAL:-0}"
+USE_RL="${USE_RL:-0}"
+# An run_finetuning.sh durchgereichte BC-Schalter (Defaults dort gesetzt):
+TRAIN_TEST_SPLIT="${TRAIN_TEST_SPLIT:-0}"
+USE_AUGMENTATION="${USE_AUGMENTATION:-1}"
+export TRAIN_TEST_SPLIT USE_AUGMENTATION
 
 export MAX_STEPS GLOBAL_BATCH_SIZE NUM_GPUS WANDB_PROJECT
 
@@ -186,7 +198,22 @@ printf "    %-20s %s\n" "NUM_GPUS"          "$NUM_GPUS"
 printf "    %-20s %s\n" "WANDB_PROJECT"     "$WANDB_PROJECT"
 printf "    %-20s %s\n" "DATA_DIR"          "$DATA_DIR"
 printf "    %-20s %s\n" "TUNE_VISUAL"       "$TUNE_VISUAL"
+printf "    %-20s %s\n" "TRAIN_TEST_SPLIT"  "$TRAIN_TEST_SPLIT"
+printf "    %-20s %s\n" "USE_AUGMENTATION"  "$USE_AUGMENTATION"
+printf "    %-20s %s\n" "USE_RL"            "$USE_RL"
 echo ""
+
+# USE_RL=1 → RL-Fine-tuning gewünscht, läuft aber NICHT in diesem BC-Image (kein Isaac Sim).
+# Ehrlicher Hinweis-Schalter: präzise auf den RL-Pfad lenken statt still BC zu fahren.
+if [[ "$USE_RL" == "1" ]]; then
+    err "USE_RL=1 — RL-Fine-tuning (FPO) läuft NICHT im BC-Trainingsimage (kein Isaac Sim enthalten)."
+    err "RL braucht den kombinierten Isaac-Sim + GR00T-Container (Simulation/Dockerfile.vastai) auf"
+    err "einer RT-Core-GPU (L40 / RTX 4090 / A6000). Starte stattdessen:"
+    err "  • Cloud/vast.ai: Sim-Image mit Simulation/scripts/entrypoint_rl.sh"
+    err "  • KISSKI:        sbatch Training/kisski_rl_submit.sh"
+    err "Details: docs/weiterfuehrend/reinforcement-learning-plan.md"
+    exit 1
+fi
 
 # TUNE_VISUAL=1 → Vision-Encoder mittrainieren (separates Skript, separater Output-Namespace).
 # Default (0) startet unverändert das Standard-Skript run_finetuning.sh.

@@ -22,7 +22,7 @@ Detailed guides (all prose docs live under [`docs/`](docs/README.md)):
 - **Sim eval on vast.ai (German):** [`docs/simulation/vastai-anleitung.md`](docs/simulation/vastai-anleitung.md)
 - **Sim implementation notes & lessons learned:** [`docs/simulation/umsetzungsnotizen.md`](docs/simulation/umsetzungsnotizen.md)
 - **Results & evaluation (German):** [`docs/ergebnisse/`](docs/ergebnisse/README.md) — run analyses, domain-gap, sim methodology review, baseline
-- **Further work / concepts (German):** [`docs/weiterfuehrend/`](docs/weiterfuehrend/README.md) — RL plan, locomotion research, livestream plan (not yet implemented)
+- **Further work / concepts (German):** [`docs/weiterfuehrend/`](docs/weiterfuehrend/README.md) — RL plan + operative RL guide ([`rl-anleitung.md`](docs/weiterfuehrend/rl-anleitung.md); RL first impl built, validation pending), locomotion research, livestream plan (latter two not yet implemented)
 
 ## Key commands
 
@@ -139,7 +139,7 @@ The entrypoint reads everything from env vars. Defaults are set as `ENV` in the 
 |---|---|---|
 | `HF_TOKEN` | — | **Required.** HuggingFace token |
 | `WANDB_API_KEY` | — | Optional. Without it, training runs without W&B |
-| `MAX_STEPS` | `30000` | Training steps |
+| `MAX_STEPS` | `20000` | Training steps (KISSKI multi-GPU default: 44000) |
 | `GLOBAL_BATCH_SIZE` | `8` | 8 for 8 GB VRAM, 16–32 for 16 GB |
 | `NUM_GPUS` | `1` | GPUs to use |
 | `WANDB_PROJECT` | `gr00t-g1-dex3` | W&B project name |
@@ -149,6 +149,9 @@ The entrypoint reads everything from env vars. Defaults are set as `ENV` in the 
 | `SKIP_TRAIN` | `0` | Run setup only, then drop to shell |
 | `SHELL_ON_ERROR` | `0` | Drop to shell on error instead of exiting |
 | `TUNE_VISUAL` | `0` | `1` = also train the vision encoder (`--tune_visual`); entrypoint routes to `run_finetuning_vision.sh` (own `blockstacking_vision` namespace, LLM stays frozen, higher VRAM) |
+| `TRAIN_TEST_SPLIT` | `0` | `1` = activate 80/20 split (`run_finetuning.sh` patches `meta/info.json`; test episodes held out). `TRAIN_SPLIT_RATIO` (0.8) sets the ratio |
+| `USE_AUGMENTATION` | `1` | Image augmentation / domain randomization (color jitter; `CJ_*`, `RANDOM_ROTATION_ANGLE`, `STATE_DROPOUT_PROB`). `0` = explicitly off |
+| `USE_RL` | `0` | `1` = RL fine-tuning (FPO). Not in the BC image (no Isaac Sim) — BC entrypoint errors with a pointer to the sim-image RL path (`entrypoint_rl.sh` / `kisski_rl_submit.sh`, RT-core GPU). See [docs/training/env-vars.md](docs/training/env-vars.md) + [RL plan](docs/weiterfuehrend/reinforcement-learning-plan.md) |
 
 ## Code style
 
@@ -169,8 +172,9 @@ repo root
 │   │                                   #   kisski-desktop, gpu-kompatibilitaet)
 │   ├── ergebnisse/                     # evaluations: lauf1-auswertung.md, wandb-run-auswertung.md,
 │   │                                   #   domain-gap-analyse.md, sim-bewertung.md, baseline-unitree-g1.md
-│   ├── weiterfuehrend/                 # concepts (not yet implemented): reinforcement-learning-plan.md,
-│   │                                   #   lokomotion-recherche.md, livestream-plan.md
+│   ├── weiterfuehrend/                 # reinforcement-learning-plan.md (+ rl-anleitung.md operative guide;
+│   │                                   #   RL first impl built, validation pending), lokomotion-recherche.md,
+│   │                                   #   livestream-plan.md (latter two not yet implemented)
 │   ├── umgebungsanalyse.md             # cross-cutting audit
 │   └── fehlerbehebung.md               # cross-cutting troubleshooting
 ├── Training/                           # Everything training-related (build, run scripts)
@@ -179,7 +183,9 @@ repo root
 │   ├── docker-compose.yml              # Optional (dev convenience; no host volume mounts)
 │   ├── kisski_submit.sh                # SLURM batch script for KISSKI HPC cluster
 │   ├── kisski_open_loop_eval.sh        # SLURM job: open-loop checkpoint eval (open_loop_eval.py, no server)
+│   ├── kisski_rl_submit.sh             # SLURM job: RL fine-tuning (FPO) — sim SIF, RT-core GPU guard (TEMPLATE)
 │   ├── update_image.ps1                # Host build/push tool (must sit next to Dockerfile)
+│   ├── update_image.sh                 # Linux/bash port of update_image.ps1
 │   ├── setup_and_train_DockerHub-pull.sh   # Thin host launcher: docker pull + docker run
 │   ├── setup_and_train_DockerHub-pull.ps1  # Windows variant
 │   ├── setup_and_train_Container-build.* # Host launcher that builds the image locally
@@ -199,7 +205,8 @@ repo root
 │   │   ├── run_g1_dex3_sim_eval.py     # Main eval loop (model-based, ZMQ client to GR00T server)
 │   │   ├── run_g1_dex3_replay.py       # Open-loop dataset-replay DIAGNOSTIC (no server/model)
 │   │   ├── replay_episode0.npz         # Bundled ground-truth actions (dataset ep. 0) for replay
-│   │   ├── g1_dex3_blockstack_env.py   # Isaac Lab env (robot, table, cubes, 4 policy + 1 scene cam)
+│   │   ├── g1_dex3_blockstack_env.py   # Isaac Lab env (robot, table, cubes, 4 policy + 1 scene cam; reward_mode binary|shaped, get_obs_batched)
+│   │   ├── rl_finetune.py              # FPO RL trainer (action-head only; shaped reward; first impl, validation pending)
 │   │   ├── g1_dex3_cfg.py              # Articulation + camera config (look_at_world_quat helper)
 │   │   ├── client.py                   # ZMQ policy client + build_obs (state split into modality keys)
 │   │   ├── convert_urdf_to_usd.py      # One-time URDF→USD conversion
@@ -209,6 +216,7 @@ repo root
 │       ├── entrypoint_sim.sh           # Autonomous entrypoint (model eval) for Dockerfile.vastai
 │       ├── entrypoint_replay.sh        # Entrypoint for the open-loop replay diagnostic
 │       ├── entrypoint_baseline.sh      # Entrypoint for baseline eval (SIM_MODE=baseline: un-finetuned model + stock G1)
+│       ├── entrypoint_rl.sh            # Entrypoint for RL fine-tuning (FPO; loads BC checkpoint, runs rl_finetune.py)
 │       ├── measure_domain_gap.py       # Real→sim cosine-distance per camera via frozen SigLIP-ViT
 │       ├── overlay_camera_check.py     # Overlays dataset vs sim camera frames (calibration check)
 │       ├── dump_unitree_g1_dims.py     # Dumps stock UNITREE_G1 link/joint dimensions

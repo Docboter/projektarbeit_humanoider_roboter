@@ -4,32 +4,41 @@ Dieses Dokument beschreibt, wie der Block-Stacking-Datensatz in einen Trainings-
 
 ---
 
-## ⚠️ Status: Split aktuell NICHT aktiv — vor dem nächsten Training beachten!
+## Status: per Env-Var scharf schaltbar (Standard AUS)
 
-Der Split ist **im Code vorbereitet, aber nicht scharf geschaltet**. Der Filter
-(`_apply_split_filter`) liest den Bereich aus `meta/info.json` — dort steht aber
-weiterhin der originale Eintrag:
+Der Split ist **im Code vorbereitet** (Filter `_apply_split_filter`, der den Bereich
+aus `meta/info.json` liest) **und über einen Schalter aktivierbar**:
 
-```json
-"splits": { "train": "0:301" }
+```bash
+TRAIN_TEST_SPLIT=1 ...        # 80/20-Split scharf schalten
+TRAIN_SPLIT_RATIO=0.8         # optional: Trainingsanteil (Default 0.8)
 ```
 
-Dadurch werden **alle 301 Episoden** als `train` geladen; die 60 vorgesehenen
-Test-Episoden werden mittrainiert. Bestätigt durch das Trainings-Log von Job
-14058798 (`Total steps: 276681` = voller Datensatz; bei 80 % wären es ~221.000
-Frames).
+`run_finetuning.sh` patcht dann **vor dem Trainingsstart** automatisch den
+`splits`-Eintrag in `meta/info.json` (kein manuelles Editieren mehr nötig):
 
-**Vor dem nächsten Training zwingend erledigen:**
+```json
+// TRAIN_TEST_SPLIT=1 (bei 301 Episoden, Ratio 0.8):
+"splits": { "train": "0:240", "test": "240:301" }
+```
 
-1. In `data/unitreerobotics/G1_Dex3_BlockStacking_Dataset/meta/info.json` den
-   `splits`-Eintrag auf `{ "train": "0:241", "test": "241:301" }` setzen
-   (Details unter [Geänderte Dateien](#geänderte-dateien)).
-2. Erst **danach** den Job einreichen — der Datensatz wird beim Job-Start
-   gesharded; eine spätere Änderung wirkt nicht mehr auf einen laufenden Job.
+Dadurch werden nur die ersten 240 Episoden als `train` geladen; die letzten 61
+stehen als `test` für die Open-Loop-Eval auf **ungesehenen** Episoden bereit.
 
-> **Hinweis:** Auch mit korrektem Split gibt es **keine** Validierung *während*
-> des Trainings (in `run_finetuning.sh` ist kein `eval`/`val`-Flag gesetzt). Der
-> `test`-Split dient ausschließlich der Evaluation **nach** dem Fine-tuning.
+- **Default (`TRAIN_TEST_SPLIT=0`)**: kompletter Datensatz (`train: 0:301`) — bisheriges
+  Verhalten. Ein zuvor gesetzter `test`-Split wird automatisch auf den vollen Datensatz
+  zurückgesetzt, damit ein Folge-Lauf reproduzierbar alle Episoden sieht.
+- Der Patch greift, **bevor** der Datensatz beim Job-Start gesharded wird — eine spätere
+  Änderung an `info.json` wirkt nicht mehr auf einen laufenden Job.
+
+> **Hinweis 1:** Auch mit aktivem Split gibt es **keine** Validierung *während* des
+> Trainings (kein `eval`/`val`-Flag in `run_finetuning.sh`). Der `test`-Split dient
+> ausschließlich der Evaluation **nach** dem Fine-tuning.
+>
+> **Hinweis 2:** Wer den Split konsequent nutzt, muss zusätzlich
+> [`Training/kisski_open_loop_eval.sh`](../../Training/kisski_open_loop_eval.sh) so anpassen,
+> dass die Trajektorien-IDs aus dem **`test`-Bereich (240–300)** stammen — sonst läuft die
+> Open-Loop-Eval weiter auf Trainingsdaten (siehe [Methodik](#welche-validierung-wofür-methodik)).
 
 ---
 
