@@ -10,6 +10,8 @@ ZMQ-Requests eines Isaac-Lab-Sim-Clients.
 |---|---|
 | [umsetzungsnotizen.md](umsetzungsnotizen.md) | **Zuerst.** Lessons Learned, bekannte Fixes (Triton/gcc, flash-attn, zmq, SSH), Kamera-Rekonstruktion, Open-Loop-Replay-Diagnose, aktueller Stand. |
 | [vastai-anleitung.md](vastai-anleitung.md) | **Primärer Workflow.** Schritt-für-Schritt-Anleitung für die Sim-Eval auf vast.ai (Image bauen → Checkpoint/USD bereitstellen → Instanz konfigurieren → überwachen). Enthält auch den Open-Loop-Replay als Diagnose-Lauf. |
+| [basismodell-referenzaufgabe.md](basismodell-referenzaufgabe.md) | Recherche, was das **Basismodell GR00T N1.6** zero-shot kann + Plan, eine vom Basismodell beherrschte Referenzaufgabe (RoboCasa GR-1 Tabletop) zur **Validierung der Sim-Pipeline** zu reproduzieren. |
+| [robocasa-referenz-eval.md](robocasa-referenz-eval.md) | **Bedienung** der Referenz-Eval: Basismodell zero-shot auf RoboCasa GR-1 Tabletop (Docker/vast.ai bzw. KISSKI), Env-Vars, Akzeptanzkriterien, Caveats. Skripte unter [`Simulation/robocasa_reference/`](../../Simulation/robocasa_reference/). |
 
 > **Mess- und Methodik-Ergebnisse der Sim-Eval** liegen jetzt unter [`../ergebnisse/`](../ergebnisse/README.md):
 > [Methodik-Review](../ergebnisse/sim-bewertung.md), [Domain-Gap-Messung](../ergebnisse/domain-gap-analyse.md)

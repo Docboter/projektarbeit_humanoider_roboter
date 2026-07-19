@@ -18,6 +18,7 @@
 #   RL_LR                (default 1e-5)
 #   RL_KL_COEF           (default 0.1)  KL-Regularisierung gegen den BC-Checkpoint
 #   RL_CLIP              (default 0.2)  PPO/FPO-Clip-Epsilon
+#   RL_SAVE_EVERY        (default 100)  Checkpoint alle N Iterationen (ganzes Modell ~6 GB/Ckpt)
 #   WANDB_API_KEY        (optional)     ohne → ohne W&B
 #   SHELL_ON_ERROR       (default 0)    bei Fehler in Shell fallen
 
@@ -57,6 +58,7 @@ RL_ROLLOUT_STEPS="${RL_ROLLOUT_STEPS:-32}"
 RL_LR="${RL_LR:-1e-5}"
 RL_KL_COEF="${RL_KL_COEF:-0.1}"
 RL_CLIP="${RL_CLIP:-0.2}"
+RL_SAVE_EVERY="${RL_SAVE_EVERY:-100}"
 
 echo ""
 echo -e "\033[1;35m╔══════════════════════════════════════════════════════════════════╗\033[0m"
@@ -113,9 +115,12 @@ fi
 mkdir -p "$RL_OUTPUT_DIR"
 
 # ── RL starten ────────────────────────────────────────────────────────────────
-log "Starte FPO-RL-Fine-tuning (num_envs=$RL_NUM_ENVS, iterations=$RL_ITERATIONS)"
+log "Starte FPO-RL-Fine-tuning (num_envs=$RL_NUM_ENVS, iterations=$RL_ITERATIONS, save_every=$RL_SAVE_EVERY)"
 cd "$SIM_DIR"
-exec python "$SIM_DIR/rl_finetune.py" \
+# rl_finetune.py initialisiert Isaac Sim via AppLauncher — muss im Isaac-Sim-Python laufen.
+# VIRTUAL_ENV muss ungesetzt sein, sonst lenkt isaaclab.sh auf das GR00T-venv um.
+unset VIRTUAL_ENV
+exec "${ISAACLAB_PATH}/isaaclab.sh" -p "$SIM_DIR/rl_finetune.py" \
     --checkpoint     "$CHECKPOINT_PATH" \
     "${ASSET_FLAG[@]}" \
     --output-dir     "$RL_OUTPUT_DIR" \
@@ -125,4 +130,5 @@ exec python "$SIM_DIR/rl_finetune.py" \
     --lr             "$RL_LR" \
     --kl-coef        "$RL_KL_COEF" \
     --clip           "$RL_CLIP" \
+    --save-every     "$RL_SAVE_EVERY" \
     "${WANDB_FLAG[@]}"

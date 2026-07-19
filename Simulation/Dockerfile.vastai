@@ -120,6 +120,46 @@ RUN unset VIRTUAL_ENV && /workspace/isaaclab/_isaac_sim/python.sh -m pip install
 RUN unset VIRTUAL_ENV && /workspace/isaaclab/_isaac_sim/python.sh -c \
     "import zmq, msgpack, numpy; print('OK: zmq+msgpack+numpy im Isaac-Sim-Python')"
 
+# rl_finetune.py läuft in-process mit isaaclab (Isaac-Sim-Python 3.11) — braucht daher
+# gr00t + flash-attn AUCH im Isaac-Sim-Python. Dieses Python ist 3.11 mit torch 2.7.0+cu128
+# und cxx11abi=TRUE (geprüft im Image) — anders als die GR00T-venv (3.10, cxx11abiFALSE)!
+#
+# flash-attn MUSS als passendes pre-built Wheel per URL kommen. `pip install flash-attn`
+# (ohne Version) lädt den sdist und KOMPILIERT aus dem Quellcode → braucht nvcc, das das
+# isaac-lab-Image NICHT hat (kein CUDA-Toolkit) → Build-Abbruch. Wheel-Achsen müssen exakt
+# zu Isaac Sims Python passen: cp311 + torch2.7 + cu12 + cxx11abiTRUE (v2.7.4.post1 wie uv.lock).
+#
+# transformers/tokenizers/accelerate auf die von gr00t erwarteten Versionen pinnen (uv.lock).
+# Latest transformers bricht GR00Ts eigenen Eagle-Modellcode (is_flash_attn_*-Imports).
+# gr00t: editable install ohne deps (torch, numpy etc. liefert Isaac Sim bereits; deepspeed
+# absichtlich nicht installiert).
+#
+# Die GR00T-Laufzeit-Deps, die beim Modell-Laden (Gr00tPolicy(...)) per Top-Level-Import
+# greifen, MÜSSEN ebenfalls rein — sonst crasht rl_finetune.py erst NACH dem 6-GB-Checkpoint-
+# Download auf der Instanz. Geprüft via Import des kompletten rl_finetune.py-Pfads:
+#   diffusers  -> DiT-Action-Head (modules/dit.py)          ← das trainiert RL
+#   peft       -> Eagle-VLM-Backbone (modeling_eagle3_vl.py)
+#   dm-tree    -> Hauptmodell (gr00t_n1d6.py, `import tree`)
+#   albumentations(+cv2) -> Processor (processing_gr00t_n1d6.py)
+#   lmdb, av   -> Eagle-Processor (processing_eagle3_vl.py)
+#   tyro       -> gr00t.model.__init__ -> configs-Kette
+# Pins = uv.lock. Geprüft: ziehen weder torch noch transformers/numpy auf andere Versionen.
+RUN unset VIRTUAL_ENV && \
+    /workspace/isaaclab/_isaac_sim/python.sh -m pip install \
+        transformers==4.51.3 tokenizers==0.21.4 accelerate==1.13.0 \
+        huggingface_hub==0.36.2 einops==0.8.1 safetensors==0.7.0 && \
+    /workspace/isaaclab/_isaac_sim/python.sh -m pip install \
+        albumentations==1.4.18 dm-tree==0.1.8 diffusers==0.35.1 peft==0.17.1 \
+        lmdb==1.7.5 av==16.1.0 tyro==0.9.17 && \
+    /workspace/isaaclab/_isaac_sim/python.sh -m pip install \
+        "https://github.com/Dao-AILab/flash-attention/releases/download/v2.7.4.post1/flash_attn-2.7.4.post1+cu12torch2.7cxx11abiTRUE-cp311-cp311-linux_x86_64.whl" && \
+    /workspace/isaaclab/_isaac_sim/python.sh -m pip install -e /app/Groot-1.6 --no-deps && \
+    /workspace/isaaclab/_isaac_sim/python.sh -c \
+        "from gr00t.policy.gr00t_policy import Gr00tPolicy; \
+         import gr00t.model.gr00t_n1d6.gr00t_n1d6, gr00t.model.modules.dit; \
+         import flash_attn, diffusers, peft, tree, albumentations, lmdb, av, tyro; \
+         print('OK: gr00t-Modell-Impl + flash_attn vollstaendig im Isaac-Sim-Python')"
+
 # Eigener Sim-Code (identisch mit KISSKI-Container)
 COPY g1_dex3_sim/ /workspace/g1_dex3_sim/
 
