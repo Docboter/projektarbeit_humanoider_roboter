@@ -161,6 +161,22 @@ do_setup() {
   ok "Setup abgeschlossen. Weiter mit:  $0 smoke   bzw.   $0 eval"
 }
 
+# Übernimmt die vom Client aufgezeichneten Rollout-Videos ins externe
+# Ergebnisverzeichnis. Der Runner reicht kein Video-Verzeichnis durch, und
+# rollout_policy.py schreibt fest nach /tmp/sim_eval_videos_* (mit UUID) — daher
+# aus dem flüchtigen Container-/tmp nach /data/robocasa_ref/videos verschieben.
+collect_videos() {
+  docker exec "$CONTAINER" bash -lc '
+    dest=/data/robocasa_ref/videos; mkdir -p "$dest"
+    n=$(find /tmp -maxdepth 1 -type d -name "sim_eval_videos_*" | wc -l)
+    if [ "$n" -gt 0 ]; then
+      mv /tmp/sim_eval_videos_* "$dest"/ 2>/dev/null || true
+      echo "  $n Video-Ordner -> $dest"
+    else
+      echo "  (keine neuen Videos in /tmp gefunden)"
+    fi' || warn "Video-Übernahme fehlgeschlagen (nicht fatal)."
+}
+
 do_eval() {
   # HF-ID (kein absoluter lokaler Pfad) -> Token nötig; ggf. auch für Auto-Setup.
   [[ "$RC_MODEL_PATH" == /* ]] || require_hf_token
@@ -170,13 +186,24 @@ do_eval() {
   log "  Modell:      $RC_MODEL_PATH"
   log "  Ergebnisse:  $HOST_DATA_DIR/robocasa_ref/summary-<ts>.json"
   docker exec "${EVAL_ENV[@]}" "$CONTAINER" bash -lc "bash $RUNNER_IN"
-  ok "Fertig. Summary + Logs unter $HOST_DATA_DIR/robocasa_ref/"
+  log "Übernehme Rollout-Videos ins externe Verzeichnis…"
+  collect_videos
+  ok "Fertig. Summary + Logs + Videos unter $HOST_DATA_DIR/robocasa_ref/"
 }
 
 do_smoke() {
-  RC_PRESET="smoke"
+  # smoke-Preset erzwingt im Runner ohnehin 1 Task/5 Ep./5 Envs — hier spiegeln,
+  # damit die Log-Zeile in do_eval die tatsächlich laufenden Werte zeigt.
+  RC_PRESET="smoke"; RC_N_EPISODES=5; RC_N_ENVS=5
   log "Smoke-Test (RC_PRESET=smoke: 1 Task, 5 Episoden) — prüft die ganze Kette schnell."
   do_eval
+}
+
+do_videos() {
+  ensure_container
+  log "Übernehme aufgezeichnete Rollout-Videos ins externe Verzeichnis."
+  collect_videos
+  ok "Videos unter $HOST_DATA_DIR/robocasa_ref/videos/  (per scp abholbar)"
 }
 
 do_fix_flash_attn() {
@@ -205,6 +232,7 @@ Aktionen:
   smoke            Schneller Kettentest (1 Task, 5 Episoden).
   eval             Referenz-Eval (Default RC_PRESET=top, 100 Ep. -> Soll 78,7 %).
   fix-flash-attn   Blackwell-fähiges flash-attn nachinstallieren (nur falls Preflight scheitert).
+  videos           Aufgezeichnete Rollout-Videos ins externe Verzeichnis (/data/robocasa_ref/videos) übernehmen.
   shell            Interaktive Shell im Container.
   clean            Container entfernen (Daten unter $HOST_DATA_DIR bleiben).
   help             Diese Hilfe.
@@ -229,6 +257,7 @@ case "$ACTION" in
   smoke)           do_smoke ;;
   eval)            do_eval ;;
   fix-flash-attn)  do_fix_flash_attn ;;
+  videos)          do_videos ;;
   shell)           do_shell ;;
   clean|down)      do_clean ;;
   help|-h|--help)  usage ;;
