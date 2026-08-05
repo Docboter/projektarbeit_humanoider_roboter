@@ -1,10 +1,10 @@
-# RL-Fine-tuning (FPO) auf vast.ai — Schritt-für-Schritt-Anleitung
+# RL-Fine-tuning (FPO) — Schritt-für-Schritt-Anleitung
 
 Ziel: Den feingetunten GR00T-N1.6-**BC-Checkpoint** per **Reinforcement Learning (FPO)** in der
-Isaac-Lab-Block-Stacking-Sim weiter verfeinern — auf einer **RT-Core-GPU** (L40 / RTX 4090 / A6000)
-auf vast.ai. RL trainiert die Policy **in genau der Sim**, in der sie auch evaluiert wird, und
-optimiert direkt auf **Aufgaben-Erfolg** statt nur Aktions-Nachahmung (Hintergrund:
-[reinforcement-learning-plan.md](reinforcement-learning-plan.md)).
+Isaac-Lab-Block-Stacking-Sim weiter verfeinern — auf einer **RT-Core-GPU** (L40 / RTX 4090 / A6000
+oder ein eigener Server mit RT-Core-GPU, z. B. RTX PRO 6000 Blackwell). RL trainiert die Policy
+**in genau der Sim**, in der sie auch evaluiert wird, und optimiert direkt auf **Aufgaben-Erfolg**
+statt nur Aktions-Nachahmung (Hintergrund: [reinforcement-learning-plan.md](reinforcement-learning-plan.md)).
 
 > ## ⚠️ Status: erste Implementierung — beim ersten Lauf zu verifizieren
 >
@@ -14,6 +14,17 @@ optimiert direkt auf **Aufgaben-Erfolg** statt nur Aktions-Nachahmung (Hintergru
 > **`# >>> LIVE-CHECK`** markierten Stellen in [`rl_finetune.py`](../../Simulation/g1_dex3_sim/rl_finetune.py)
 > muss beim ersten echten Lauf nachjustiert werden (Details in [Schritt 7](#schritt-7--live-check-was-beim-ersten-lauf-zu-prüfen-ist)).
 > Nutze zuerst den **Smoke-Test** (`--check`) und ein **kleines `RL_NUM_ENVS`**.
+>
+> **⚠️ Image-Rebuild-Pflicht:** `lucam03/projekt-humanoider-roboter-sim-vastai:latest` wurde zuletzt
+> am 2026-06-15 gepusht. Commit `8e01979` (2026-07-19) hat danach zwei für RL zwingende Fixes in
+> `Dockerfile.vastai`/`entrypoint_rl.sh` nachgezogen (gr00t+flash-attn im Isaac-Sim-Python 3.11;
+> Start über `isaaclab.sh -p` statt nacktem `python`). **Vor dem ersten Lauf neu bauen+pushen:**
+> `./Simulation/update_sim_image.sh --vastai`. `server_rl_run.sh preflight` (Pfad B unten) weist das
+> automatisch nach.
+>
+> **Hardware-Update (2026-08-05):** Der Server, der schon für den
+> [RoboCasa-Referenz-Eval](robocasa-referenz-eval.md) genutzt wurde (2× RTX PRO 6000 Blackwell),
+> **hat RT-Cores** — RL kann dort laufen, **keine vast.ai-Miete nötig**. Siehe **Pfad B** unten.
 
 ---
 
@@ -34,7 +45,40 @@ und steuert die Env direkt (Gradienten-fähig).
 
 ---
 
-## Voraussetzungen
+## Pfad B — eigener Docker-GPU-Server mit RT-Cores ★ empfohlen, wenn verfügbar
+
+[`Simulation/server_rl_run.sh`](../../Simulation/server_rl_run.sh) fährt denselben kombinierten
+Isaac-Lab+GR00T-Container wie vast.ai (`Dockerfile.vastai`), aber als langlebiger
+„Workbench"-Container auf einem generischen Docker-GPU-Server — analog zu
+[`server_robocasa_ref_run.sh`](../../Simulation/server_robocasa_ref_run.sh) (Pfad A2 im
+[RoboCasa-Referenz-Eval](robocasa-referenz-eval.md)). Spart die vast.ai-Miete, **wenn** ein Server mit
+RT-Core-GPU (z. B. die RTX PRO 6000 Blackwell aus dem RoboCasa-Lauf) bereits zur Verfügung steht.
+
+```bash
+./Simulation/server_rl_run.sh preflight              # Image-Frische (Commit-8e01979-Fixes) + GPU prüfen
+HF_TOKEN=hf_... ./Simulation/server_rl_run.sh setup  # BC-Checkpoint + USD von HF laden (einmalig)
+HF_TOKEN=hf_... ./Simulation/server_rl_run.sh check  # LIVE-CHECK: Aufbau, 2 Envs, kein Training
+HF_TOKEN=hf_... WANDB_API_KEY=... ./Simulation/server_rl_run.sh rl   # echter RL-Lauf
+```
+
+- **Image-Rebuild zuerst:** anders als beim RoboCasa-Server-Pfad ist hier ein Rebuild **nötig** (siehe
+  Status-Callout oben) — `./Simulation/update_sim_image.ps1 -VastAI` bzw. `update_sim_image.sh --vastai`.
+- **Isaac Sim auf Blackwell:** noch nicht offiziell verifiziert (Isaac Lab 2.3.2 ist älter als die
+  RTX PRO 6000). `preflight` prüft Torch/flash-attn/gr00t; `check` ist der eigentliche Nachweis, dass
+  Kamera-Rendering + Env-Konstruktion auf dieser GPU laufen (entspricht Schritt 5/7 unten).
+- **GPU-Zuteilung:** `server_rl_run.sh` pinnt standardmäßig auf eine GPU (`RL_GPUS='"device=0"'`) —
+  Rendering + Backprop teilen sich sonst unnötig zwei Karten; `RL_GPUS=all` überschreibt das.
+- **Daten:** Checkpoint-Cache, RL-Checkpoints (`/data/g1_dex3_rl/`) und Isaac-Sim-Shader-Cache liegen
+  alle unter dem gemounteten `/data` — bleiben zwischen Läufen erhalten, bis `clean`.
+
+---
+
+## Pfad A — vast.ai (Cloud-Miete)
+
+Voraussetzungen und Schritte 1–8 unten sind der vast.ai-Ablauf. Ohne eigenen RT-Core-Server (Pfad B)
+ist das der Standardweg.
+
+### Voraussetzungen
 
 | Was | Wo |
 |---|---|
@@ -52,7 +96,7 @@ und steuert die Env direkt (Gradienten-fähig).
 
 ---
 
-## Schritt 1 — Image bauen & pushen (einmalig)
+### Schritt 1 — Image bauen & pushen (einmalig)
 
 RL nutzt **dasselbe kombinierte Sim+GR00T-Image** wie die Closed-Loop-Eval — `rl_finetune.py`
 und `entrypoint_rl.sh` sind bereits darin enthalten (`COPY g1_dex3_sim/`, `COPY scripts/` in
@@ -68,7 +112,7 @@ Ergebnis: `lucam03/projekt-humanoider-roboter-sim-vastai:latest` auf Docker Hub.
 
 ---
 
-## Schritt 2 — BC-Checkpoint als RL-Startpunkt bereitstellen
+### Schritt 2 — BC-Checkpoint als RL-Startpunkt bereitstellen
 
 RL **verfeinert** einen BC-Checkpoint (es ersetzt BC nicht). Lade den besten BC-Checkpoint zu
 HuggingFace hoch — identisch zur Sim-Eval, [vastai-anleitung.md Schritt 2](../simulation/vastai-anleitung.md#schritt-2--checkpoint-von-kisski-holen):
@@ -89,7 +133,7 @@ den Checkpoint nach `CHECKPOINT_PATH` (`/data/checkpoints/<repo-name>`).
 
 ---
 
-## Schritt 3 — USD-Asset erzeugen (einmalig)
+### Schritt 3 — USD-Asset erzeugen (einmalig)
 
 Identisch zur Sim-Eval — die RL-Env spawnt denselben Roboter. Vollständige Anleitung:
 [vastai-anleitung.md Schritt 3](../simulation/vastai-anleitung.md#schritt-3--usd-asset-erzeugen-einmalig).
@@ -99,13 +143,13 @@ Checkpoint legen, dann findet der Entrypoint es automatisch (`ASSET_PATH` defaul
 
 ---
 
-## Schritt 4 — Instanz auf vast.ai konfigurieren
+### Schritt 4 — Instanz auf vast.ai konfigurieren
 
-### 4a) GPU auswählen
+#### 4a) GPU auswählen
 https://cloud.vast.ai → Search → **L40** (48 GB, empfohlen) oder **RTX 4090** (24 GB) →
 Min VRAM ≥ 24 GB, Disk ≥ 60 GB → **Rent**. **Kein A100/H100** (kein RT-Core-Rendering).
 
-### 4b) Instance Configuration
+#### 4b) Instance Configuration
 
 **Image:**
 ```
@@ -145,7 +189,7 @@ lucam03/projekt-humanoider-roboter-sim-vastai:latest
 
 ---
 
-## Schritt 5 — Smoke-Test vor dem echten Lauf (empfohlen)
+### Schritt 5 — Smoke-Test vor dem echten Lauf (empfohlen)
 
 Bevor du Stunden RL fährst: per SSH den **Aufbau** ohne Training prüfen (lädt Modell + Critic +
 Env, läuft **kein** Rollout):
@@ -163,7 +207,7 @@ sind die Pfade/das Image das Problem — nicht der RL-Loop.
 
 ---
 
-## Schritt 6 — RL überwachen
+### Schritt 6 — RL überwachen
 
 ```bash
 vastai ssh <instance-id>            # SSH-Befehl
@@ -189,7 +233,7 @@ vastai ssh <instance-id>            # SSH-Befehl
 
 ---
 
-## Schritt 7 — LIVE-CHECK: was beim ersten Lauf zu prüfen ist
+### Schritt 7 — LIVE-CHECK: was beim ersten Lauf zu prüfen ist
 
 Diese Stellen sind im Code als `# >>> LIVE-CHECK` markiert und können erst auf echter Hardware
 final verifiziert werden:
@@ -209,7 +253,7 @@ final verifiziert werden:
 
 ---
 
-## Schritt 8 — RL-Checkpoints sichern
+### Schritt 8 — RL-Checkpoints sichern
 
 **Vor dem Zerstören der Instanz** herunterladen:
 

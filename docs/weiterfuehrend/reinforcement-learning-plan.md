@@ -17,10 +17,15 @@
 >   [`Training/kisski_rl_submit.sh`](../../Training/kisski_rl_submit.sh) (RT-Core-Guard),
 >   `USE_RL`-Hinweis-Schalter im BC-Entrypoint, RL-Env-Vars in [env-vars.md](../training/env-vars.md).
 >
-> **Noch offen:** GPU-/Render-Pfad festlegen (Gruppe 0), die LIVE-CHECK-Stellen am echten Lauf
-> scharf stellen, BC-Baseline-Erfolgsrate messen.
+> **Noch offen:** die LIVE-CHECK-Stellen am echten Lauf scharf stellen, BC-Baseline-Erfolgsrate messen.
 >
-> 👉 **Operative Schritt-für-Schritt-Anleitung zum Starten:** [rl-anleitung.md](rl-anleitung.md).
+> **GPU-/Render-Pfad (Gruppe 0) — Update 2026-08-05:** der Server vom
+> [RoboCasa-Referenz-Eval](../simulation/robocasa-referenz-eval.md) (2× RTX PRO 6000 Blackwell) hat
+> RT-Cores — RL kann dort laufen, keine vast.ai-Miete nötig. Braucht vorher einen Image-Rebuild
+> (`update_sim_image.sh --vastai`), siehe Status-Callout in [rl-anleitung.md](rl-anleitung.md).
+>
+> 👉 **Operative Schritt-für-Schritt-Anleitung zum Starten:** [rl-anleitung.md](rl-anleitung.md)
+> (Pfad B = eigener Server, Pfad A = vast.ai).
 
 Verwandte Dokumente:
 - [trainingsverfahren.md](../training/trainingsverfahren.md) — das **aktuelle** Verfahren (Imitation Learning / Behavior Cloning per Flow-Matching). RL grenzt sich davon ab.
