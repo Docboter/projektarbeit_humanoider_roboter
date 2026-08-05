@@ -1,6 +1,6 @@
 # RoboCasa GR-1 Referenz-Eval — Bedienung
 
-**Stand:** 2026-06-16 · **Status:** Erstimplementierung (Scaffold), Hardware-Lauf ausstehend
+**Stand:** 2026-07-19 · **Status:** ✅ Validiert auf 2× RTX PRO 6000 — Aggregat-Mittel über 12 Tasks **47,7 % ≈ 47,8 %** erwartet. Ergebnis: [docs/ergebnisse/basismodell-referenz-eval.md](../ergebnisse/basismodell-referenz-eval.md). `full`-Lauf bei 12/24 Tasks manuell gestoppt; Re-Run offen.
 
 Operative Anleitung für die **Referenzaufgabe** aus
 [basismodell-referenzaufgabe.md](basismodell-referenzaufgabe.md): das **Basismodell**
@@ -16,6 +16,7 @@ GR00T-Inferenz-Pipeline die **publizierten Erfolgsquoten** reproduziert.
 | Datei | Zweck |
 |---|---|
 | [`Simulation/robocasa_reference/run_robocasa_ref_eval.sh`](../../Simulation/robocasa_reference/run_robocasa_ref_eval.sh) | Orchestrierung: Setup → Server (Hintergrund) → Client je Task → Ergebnis-JSON. Läuft in jedem schreibbaren GR00T-Container. |
+| [`Simulation/server_robocasa_ref_run.sh`](../../Simulation/server_robocasa_ref_run.sh) | **Helferskript für generischen Docker-GPU-Server** (`preflight`/`setup`/`smoke`/`eval`/`videos`/`fix-flash-attn`/`shell`/`clean`). Automatisiert Pfad A, Server-Pfade als Defaults. Siehe **Pfad A2**. |
 | [`Simulation/kisski_robocasa_ref_submit.sh`](../../Simulation/kisski_robocasa_ref_submit.sh) | SLURM-Job (KISSKI, Partition `kisski`/A100) — **Eval-only-Template**, Setup vorab. |
 
 ## Architektur (zwei Prozesse, eine Maschine)
@@ -64,6 +65,34 @@ docker exec -e RC_PRESET=top -e RC_N_EPISODES=100 \
 
 **Ergebnis:** `/data/robocasa_ref/summary-<ts>.json` (+ Server-/Client-Logs). Per
 `docker cp groot-robocasa-ref:/data/robocasa_ref ./robocasa_ref` herausholen.
+
+---
+
+## Pfad A2 — Helferskript für generischen Docker-GPU-Server ★ empfohlen
+
+[`Simulation/server_robocasa_ref_run.sh`](../../Simulation/server_robocasa_ref_run.sh) automatisiert Pfad A:
+ein langlebiger „Workbench"-Container (`sleep infinity`), in dem Setup und Eval per `docker exec` laufen — so
+bleiben Modell-Cache und `robocasa_uv`-Venv zwischen Läufen erhalten. Server-Pfade sind als Defaults verdrahtet
+(`/home/lmuecke/project/data/RoboCasa → /data`, Image, `--gpus all`); alles per `RC_*`-Env überschreibbar.
+
+```bash
+./Simulation/server_robocasa_ref_run.sh preflight              # Torch + flash-attn auf GPU (Blackwell/sm_120)
+HF_TOKEN=hf_... ./Simulation/server_robocasa_ref_run.sh setup  # einmalig (Internet)
+HF_TOKEN=hf_... ./Simulation/server_robocasa_ref_run.sh smoke  # 1 Task/5 Ep. Kettentest
+HF_TOKEN=hf_... ./Simulation/server_robocasa_ref_run.sh eval   # Default top, 100 Ep.
+./Simulation/server_robocasa_ref_run.sh videos                 # Rollout-Videos ins externe /data holen
+```
+
+- **Blackwell / kein Rebuild:** Das Trainings-Image (`torch 2.7.1`/`cu128`) bringt sm_120-Kernels mit; auch
+  `flash-attn 2.7.4.post1` läuft. `preflight` prüft beides. Nur falls flash-attn scheitert: `fix-flash-attn`
+  installiert ein sm_120-Wheel nach (**kein** voller Rebuild).
+- **Videos:** `rollout_policy.py` schreibt Rollout-Videos nach Container-`/tmp` (flüchtig). `eval`/`smoke` und die
+  Aktion `videos` verschieben sie nach `/data/robocasa_ref/videos/` (extern, per `scp` abholbar). Nur abgeschlossene
+  Episoden, gerendert alle `steps_per_render` Frames.
+- **GPU-Auslastung:** Das Modell läuft auf `cuda:0`; bei zwei sichtbaren GPUs rendert MuJoCo/EGL auch auf GPU 1
+  (harmlos). GPU 1 freihalten: `RC_GPUS='"device=0"'`.
+
+> Validiert am 2026-07-19 auf 2× RTX PRO 6000 Blackwell — Ergebnis: [docs/ergebnisse/basismodell-referenz-eval.md](../ergebnisse/basismodell-referenz-eval.md).
 
 ---
 
@@ -141,7 +170,16 @@ squeue -u $USER
 - Eigener ZMQ-Port (`5757` statt `5555`), eigene Env-Vars (`RC_*`), eigenes Ergebnisverzeichnis (`/data/robocasa_ref`).
 - Setup-Artefakte (robosuite-Submodul, Assets, Venv) liegen unter `gr00t/eval/sim/robocasa-gr1-tabletop-tasks/` (generierte Dateien, kein getrackter Quellcode).
 
-## Bekannte Klärungspunkte / Risiken (vor erstem Hardware-Lauf)
+## Bekannte Klärungspunkte / Risiken
+
+**Geklärt am ersten Hardware-Lauf (2026-07-19, Docker-Server, 2× RTX PRO 6000):**
+- EGL, robosuite-Setup und Modell-Download liefen im Trainings-Image ohne Zusatz-Deps durch (`libGLU` war kein Problem).
+- Die Warnungen `No object files found for category 'book' in registry 'sketchfab'` und `distractor_obj … skip` sind
+  **benign**: `book`/Distraktoren sind optionale Hintergrund-Objekte (nie Target); `download_tabletop_assets.py`
+  provisioniert bewusst nur `sketchfab`+`lightwheel` (objaverse ist nicht Teil des offiziellen Setups, NVIDIA nutzte
+  dasselbe). Kein Asset-Nachbau nötig; verzerrt die Quote allenfalls nach oben.
+
+Verbleibend (v. a. KISSKI/Apptainer):
 1. **`git submodule update` im read-only Apptainer-Image** (KISSKI): kann fehlschlagen. Mitigation: Setup in schreibbarem Docker (Pfad A) oder `--writable-tmpfs`/Sandbox bzw. Submodul vorab klonen.
 2. **Compute-Node-Netzwerk auf KISSKI:** Setup braucht Internet; daher Setup auf dem Login-Node, Eval offline mit `RC_SKIP_SETUP=1`.
 3. **Venv-Pfad-Konsistenz:** Die `robocasa_uv`-Venv hat absolute Pfade — Setup und Eval müssen denselben Container-Mount-Pfad (`/app/Groot-1.6/gr00t/…`) verwenden.

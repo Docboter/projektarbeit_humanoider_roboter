@@ -11,6 +11,7 @@ liegen unter [`../training/`](../training/README.md) und [`../simulation/`](../s
 | [wandb-run-auswertung.md](wandb-run-auswertung.md) | Momentaufnahme-Auswertung des laufenden Trainings (Health-Check, LR-Schedule, Batch-Size- & Eval-Empfehlungen). Interaktive Kurven: [`wandb-run-charts.html`](wandb-run-charts.html). |
 | [domain-gap-analyse.md](domain-gap-analyse.md) | **Domain-Gap-Messung** — Cosine-Distanz Real→Sim pro Kamera via frozen SigLIP-ViT. Ergebnis: Mittelwert 0.26, `cam_left_wrist` kritisch bei 0.43. Drei Handlungsoptionen mit Aufwand/Risiko-Abwägung. |
 | [sim-bewertung.md](sim-bewertung.md) | **Methodik-Review** — Ist Closed-Loop-Sim sinnvoll/korrekt? Belegt: 0-%-Ergebnis ist der erwartete Real→Sim-Gap (SIMPLER), `TUNE_VISUAL`/Eval-DR greifen nicht, Open-Loop-MSE ist die valide Metrik. Mit Code-Befunden + Quellen. |
+| [basismodell-referenz-eval.md](basismodell-referenz-eval.md) | **Pipeline-Validierung.** Basismodell zero-shot auf RoboCasa GR-1 Tabletop (robosuite/MuJoCo, 2× RTX PRO 6000). Aggregat über 12 Tasks **47,7 % ≈ 47,8 %** erwartet (Δ 0,1 pp) → GR00T-Inferenz-Pipeline extern bestätigt; die 0 % im Closed-Loop sind der Domain-Gap, keine kaputte Harness. |
 | [baseline-unitree-g1.md](baseline-unitree-g1.md) | **Baseline-Vergleich** — un-finetuntes `GR00T-N1.6-3B` + stock G1-Greifer (`UNITREE_G1`) auf demselben Block-Stacking-Task. Parallele Pipeline (`SIM_MODE=baseline`), TODO-Checkliste vor dem ersten Run, OOD-Einordnung. |
 
 ## Verwandte Dokumentation

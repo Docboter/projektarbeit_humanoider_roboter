@@ -81,9 +81,11 @@ Zweistufig: **Phase 1** validiert günstig die GR00T-Inferenz-Hälfte gegen eine
 ### Phase 1 — Goldstandard reproduzieren (1–2 Tage) ★ empfohlener Start
 Ziel: Zeigen, dass **unser** Setup das **Basismodell** im Closed Loop fahren und die **publizierte ø 47,6 % / 78,7 %** reproduzieren kann. Validiert: Checkpoint-Laden, `--embodiment-tag GR1`, Sim-Policy-Wrapper, Obs/Action-Konvention, ZMQ-Rollout.
 
-> **Erstimplementierung vorhanden** (Scaffold, Hardware-Lauf ausstehend): Orchestrierung
-> [`Simulation/robocasa_reference/run_robocasa_ref_eval.sh`](../../Simulation/robocasa_reference/run_robocasa_ref_eval.sh),
-> KISSKI-Job [`Simulation/kisski_robocasa_ref_submit.sh`](../../Simulation/kisski_robocasa_ref_submit.sh),
+> **✅ Validiert (2026-07-19):** Aggregat-Mittel über 12 Tasks (je 100 Ep.) **47,7 % ≈ 47,8 %** erwartet (Top-Task-Ausreißer mittelt sich weg) auf 2× RTX PRO 6000.
+> Ergebnis: [docs/ergebnisse/basismodell-referenz-eval.md](../ergebnisse/basismodell-referenz-eval.md). Skripte:
+> Orchestrierung [`run_robocasa_ref_eval.sh`](../../Simulation/robocasa_reference/run_robocasa_ref_eval.sh),
+> Docker-Server [`server_robocasa_ref_run.sh`](../../Simulation/server_robocasa_ref_run.sh),
+> KISSKI-Job [`kisski_robocasa_ref_submit.sh`](../../Simulation/kisski_robocasa_ref_submit.sh),
 > Bedienung [`robocasa-referenz-eval.md`](robocasa-referenz-eval.md). Die manuellen Schritte unten sind dort gekapselt.
 
 1. [ ] Eval-Umgebung einrichten (einmalig):
@@ -102,7 +104,7 @@ Ziel: Zeigen, dass **unser** Setup das **Basismodell** im Closed Loop fahren und
      --n-rollouts <N>   # genug für enge CIs, z. B. 100–200
    ```
 4. [ ] **Akzeptanzkriterium:** gemessene Quote im **95-%-Konfidenzintervall** um 78,7 % (bzw. ø 47,6 % über alle 24 Tasks). Bei N=200 ist die Halbbreite ~±5–6 %.
-5. [ ] Ergebnis dokumentieren in [docs/ergebnisse/](../ergebnisse/README.md) (neue `basismodell-referenz-eval.md`).
+5. [x] **Phase-1-Schritte 1–4 durchgeführt** (Setup, Server, Rollout, Top-Task-Akzeptanz). Ergebnis dokumentiert in [docs/ergebnisse/basismodell-referenz-eval.md](../ergebnisse/basismodell-referenz-eval.md). Offen: `full`-Lauf (ø 47,6 % über alle 24 Tasks).
 
 > **Optional 1b — RoboCasa Panda** als zweiter, unabhängiger Goldstandard (Parallelgreifer, ø 66 %): analog mit `--embodiment-tag` aus [robocasa/README.md](../../app/Groot-1.6/examples/robocasa/README.md). Höhere Quoten → klareres Signal, aber kein geschickter-Hand-Bezug.
 
@@ -143,5 +145,3 @@ Nur falls explizit die **Isaac-Lab-Hälfte** validiert werden soll. Ziel: densel
 - Isaac-GR00T `n1.6-release`: https://github.com/NVIDIA/Isaac-GR00T/tree/n1.6-release · RoboCasa-Beispiel: https://github.com/NVIDIA/Isaac-GR00T/blob/n1.6-release/examples/robocasa/README.md
 - RoboCasa GR-1 Tabletop: https://github.com/robocasa/robocasa-gr1-tabletop-tasks · Paper: https://arxiv.org/abs/2503.14734
 - NVIDIA GEAR (GR00T N1.6): https://research.nvidia.com/labs/gear/gr00t-n1_6/
-</content>
-</invoke>
