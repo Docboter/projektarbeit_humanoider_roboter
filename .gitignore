@@ -86,6 +86,8 @@ Simulation/build_sim_*.log
 
 # --- Sim-Eval-Ausgaben (Trajektorien-Bilder, Videos, JSON-Results) ---
 Simulation/runs/
+Simulation/robocasa_reference/runs/
+/last_log.md
 
 # --- Graphify-Ausgaben (vollständig generiert, nicht tracken) ---
 graphify-out/
