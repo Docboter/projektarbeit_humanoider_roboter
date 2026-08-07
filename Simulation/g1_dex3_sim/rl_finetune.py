@@ -133,7 +133,9 @@ def fpo_logprob_proxy(model, inputs_with_action, k_samples, torch):
     """
     proxies = []
     for _ in range(k_samples):
-        out = model.forward(inputs_with_action)  # >>> LIVE-CHECK: action-Key in inputs
+        # inputs_with_action ist der innere collate-Batch inkl. 'action'/'action_mask';
+        # model.forward(inputs: dict) erwartet genau diese Ebene (gr00t_n1d6.py:496).
+        out = model.forward(inputs_with_action)
         al = out["action_loss"]          # (B, horizon, dim), bereits * action_mask
         mask = out["action_mask"]
         per_sample = al.flatten(1).sum(dim=1) / (mask.flatten(1).sum(dim=1) + 1e-6)
@@ -211,13 +213,17 @@ def main() -> None:
 
             # Sampling (no grad) + collated inputs fuers spaetere FPO-Loss-Recompute.
             with torch.no_grad():
-                norm_action, collated, phys_action = _sample_action(policy, raw, torch)
+                norm_action, collated, act_mask, phys_action = _sample_action(policy, raw, torch)
 
             value = value_head(state).squeeze(-1)
 
-            # >>> LIVE-CHECK: gesampelte (normalisierte) Aktion als action_input.action
+            # Gesampelte (normalisierte) Aktion + Maske in den INNEREN Batch legen:
+            # action_head.prepare_input reicht den Batch unveraendert durch, und
+            # Gr00tN1d6ActionHead.forward liest action_input.action UND .action_mask.
+            # (LIVE-CHECK 2026-08-07 aufgeloest — Ebene und fehlende Maske korrigiert.)
             inputs_with_action = dict(collated)
             inputs_with_action["action"] = norm_action
+            inputs_with_action["action_mask"] = act_mask
             logp = fpo_logprob_proxy(model, inputs_with_action, args.fpo_mc_samples, torch)
 
             # Env-Step mit physischer Aktion (28-dim absolut)
@@ -309,7 +315,8 @@ def _obs_batched_to_policy_dict(obs, task_description, num_envs):
     Joint-Split exakt wie im Eval-Pfad: left_arm 0:7 | right_arm 7:14 |
     left_dex3 14:21 | right_dex3 21:28.
 
-    >>> LIVE-CHECK: T-Dimension/Dtype-Konvention gegen den echten Processor bestaetigen.
+    Erzeugt das FLACHE Sim-Format. Die innere Gr00tPolicy braucht das verschachtelte
+    Format — _flat_to_nested() konvertiert (LIVE-CHECK 2026-08-07 aufgeloest).
     """
     import numpy as np
 
@@ -331,17 +338,76 @@ def _obs_batched_to_policy_dict(obs, task_description, num_envs):
     return raw
 
 
+def _flat_to_nested(policy, raw):
+    """Flaches Sim-Obs-Format -> verschachteltes Format der inneren Gr00tPolicy.
+
+    GR00T kennt ZWEI Obs-Formate: das flache Sim-Format ('video.<cam>', 'state.<grp>',
+    Sprache als list[str] der Laenge B) und das verschachtelte Policy-Format
+    ({'video': {...}, 'state': {...}, 'language': {...}}). Die oeffentliche Sim-API
+    konvertiert dazwischen; wir rufen policy._unbatch_observation direkt auf (um an
+    collated_inputs zu kommen) und muessen die Konvertierung daher selbst machen.
+
+    Faithful-Replikat von Gr00tSimPolicy._get_action (gr00t_policy.py:588-615). Die
+    Schluessel kommen aus policy.modality_configs statt fest verdrahtet, damit ein
+    anderes Embodiment nicht still das falsche Feld liest. Merke: video/state werden
+    als f"{modality}.{key}" nachgeschlagen, Sprache dagegen unter dem BLANKEN key.
+    """
+    nested = {}
+    for modality in ("video", "state", "language"):
+        nested[modality] = {}
+        for key in policy.modality_configs[modality].modality_keys:
+            flat_key = key if modality == "language" else f"{modality}.{key}"
+            if flat_key not in raw:
+                raise KeyError(
+                    f"Obs-Schluessel '{flat_key}' fehlt (Modalitaet '{modality}'). "
+                    f"Vorhanden: {sorted(raw)}. _obs_batched_to_policy_dict anpassen."
+                )
+            arr = raw[flat_key]
+            # Sprache: (B,) list[str] -> (B, 1) list[list[str]] (T-Dimension)
+            nested[modality][key] = [[str(item)] for item in arr] if modality == "language" else arr
+    return nested
+
+
+def _build_action_mask(policy, norm_action, torch):
+    """Baut action_mask fuer eine gesampelte Aktion — Semantik wie im Prozessor.
+
+    Der Prozessor erzeugt die Maske nur im TRAINING (processing_gr00t_n1d6.py:339-341):
+        mask = ones_like(padded_action); mask[action_horizon:] = 0; mask[:, action_dim:] = 0
+    Bei Inferenz ist actions={} -> weder 'action' noch 'action_mask' liegen im Batch. Fuer
+    den FPO-Loss brauchen wir beide, muessen die Maske also selbst bauen.
+
+    Eine All-Ones-Maske waere FALSCH: norm_action ist auf (max_action_horizon, max_action_dim)
+    gepaddet, und der Loss wuerde die Padding-Spalten mitmitteln, in denen das Modell nichts
+    Sinnvolles vorhersagt. Die echten Grenzen kommen aus derselben Quelle, aus der auch
+    decode_action sie zieht (processing_gr00t_n1d6.py:240-248).
+    """
+    emb = policy.embodiment_tag.value
+    acfg = policy.processor.modality_configs[emb]["action"]
+    action_horizon = len(acfg.delta_indices)
+    norm_params = policy.processor.state_action_processor.norm_params[emb]["action"]
+    action_dim = sum(int(norm_params[k]["dim"].item()) for k in acfg.modality_keys)
+
+    mask = torch.zeros_like(norm_action)
+    mask[:, :action_horizon, :action_dim] = 1.0
+    return mask
+
+
 def _sample_action(policy, raw, torch):
-    """Sampelt eine Aktion; gibt (normalisiert, collated_inputs, physisch) zurueck.
+    """Sampelt eine Aktion; gibt (normalisiert, fpo_inputs, action_mask, physisch) zurueck.
 
     Faithful-Replikat von Gr00tPolicy._get_action (gr00t_policy.py:326-352), aber
     wir BEHALTEN collated_inputs + die normalisierte Aktion, um spaeter den
     FPO-Flow-Matching-Loss mit Gradient nachzurechnen.
+
+    fpo_inputs ist der INNERE Batch (collated["inputs"]): der Collator verpackt alles als
+    BatchFeature({"inputs": batch}) (processing_gr00t_n1d6.py:102), weshalb die Referenz
+    get_action(**collated) aufruft — das entfaltet zu get_action(inputs=batch). model.forward()
+    nimmt denselben inneren Batch direkt entgegen, und dort hinein gehoert auch die Aktion.
     """
     import numpy as np
     from gr00t.data.types import MessageType
 
-    unbatched = policy._unbatch_observation(raw)
+    unbatched = policy._unbatch_observation(_flat_to_nested(policy, raw))
     processed, states = [], []
     for obs in unbatched:
         vla = policy._to_vla_step_data(obs)
@@ -363,7 +429,8 @@ def _sample_action(policy, raw, torch):
         norm_action.detach().cpu().numpy(), policy.embodiment_tag, batched_states
     )
     phys = _assemble_phys_action(phys_dict)  # (N, 28) — erster Chunk-Step
-    return norm_action, collated, phys
+    action_mask = _build_action_mask(policy, norm_action, torch)
+    return norm_action, collated["inputs"], action_mask, phys
 
 
 def _assemble_phys_action(action_dict):
