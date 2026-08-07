@@ -12,16 +12,19 @@ Optimierung NUR des Action-Heads) ist gegen die real gelesene GR00T-API verifizi
   - gr00t/policy/gr00t_policy.py: Processor -> collate_fn -> model.get_action /
     model.forward -> processor.decode_action (Obs->Inputs->Aktion-Pipeline).
 
-NOCH am LIVE-Lauf zu bestaetigen (braucht RT-Core-GPU + Isaac Sim — die
-Gruppe-0-Hardwareentscheidung aus docs/weiterfuehrend/reinforcement-learning-plan.md):
-  1. Exakter Key, unter dem die gesampelte (normalisierte) Aktion in die collated
-     model-inputs injiziert wird, damit action_head.forward sie als action_input.action
-     sieht  (markiert mit  # >>> LIVE-CHECK).
-  2. num_envs-Durchsatz mit 4-Kamera-Rendering (Render-FPS-Benchmark, Plan Gruppe 0).
-  3. Checkpoint-/Embodiment-Lade-Pfade auf der Zielplattform.
+Auf Hardware bestaetigt (RTX PRO 6000 Blackwell, Isaac Sim 6.0, 2026-08-07):
+  - Aufbau (Env + Policy + Critic) und Checkpoint-/Embodiment-Lade-Pfade.
+  - Obs-Konvertierung, Aktions-Sampling und Rollout-Schritt bis in die Env hinein
+    (die urspruenglichen LIVE-CHECK-Punkte 1 und 3 sind damit erledigt).
 
-Dieses Skript ist daher als Geruest gedacht, das auf der RT-Core-GPU iterativ
-scharf gestellt wird — NICHT als bereits end-to-end gepruefter Trainer.
+NOCH offen:
+  - _select_env: Minibatch-Slicing der Eagle-Bild-Tensoren im Update-Pfad
+    (markiert mit  # >>> LIVE-CHECK) — feuert erst nach dem Rollout.
+  - num_envs-Durchsatz mit 4-Kamera-Rendering (Render-FPS-Benchmark, Plan Gruppe 0).
+  - Lernverhalten: dass die Erfolgsrate ueber Iterationen steigt.
+
+Dieses Skript wird also weiterhin iterativ scharf gestellt — NICHT als bereits
+end-to-end gepruefter Trainer betrachten.
 
 Algorithmus: FPO (Flow Policy Optimization, arXiv 2510.09976) — ersetzt den
 PPO-Likelihood-Ratio durch exp(proxy_new - proxy_old) mit proxy = -L_flow_matching,
@@ -368,6 +371,20 @@ def _flat_to_nested(policy, raw):
     return nested
 
 
+def _action_spec(policy):
+    """(modality_keys, action_horizon, action_dim) des Embodiments.
+
+    Einzige Wahrheitsquelle fuer Aktions-Layout — dieselbe, aus der decode_action seine
+    Grenzen zieht (processing_gr00t_n1d6.py:240-248). Wird von der Maske UND vom
+    Zusammensetzen der physischen Aktion genutzt, damit beide nie auseinanderlaufen.
+    """
+    emb = policy.embodiment_tag.value
+    acfg = policy.processor.modality_configs[emb]["action"]
+    norm_params = policy.processor.state_action_processor.norm_params[emb]["action"]
+    action_dim = sum(int(norm_params[k]["dim"].item()) for k in acfg.modality_keys)
+    return list(acfg.modality_keys), len(acfg.delta_indices), action_dim
+
+
 def _build_action_mask(policy, norm_action, torch):
     """Baut action_mask fuer eine gesampelte Aktion — Semantik wie im Prozessor.
 
@@ -381,12 +398,7 @@ def _build_action_mask(policy, norm_action, torch):
     Sinnvolles vorhersagt. Die echten Grenzen kommen aus derselben Quelle, aus der auch
     decode_action sie zieht (processing_gr00t_n1d6.py:240-248).
     """
-    emb = policy.embodiment_tag.value
-    acfg = policy.processor.modality_configs[emb]["action"]
-    action_horizon = len(acfg.delta_indices)
-    norm_params = policy.processor.state_action_processor.norm_params[emb]["action"]
-    action_dim = sum(int(norm_params[k]["dim"].item()) for k in acfg.modality_keys)
-
+    _keys, action_horizon, action_dim = _action_spec(policy)
     mask = torch.zeros_like(norm_action)
     mask[:, :action_horizon, :action_dim] = 1.0
     return mask
@@ -428,20 +440,41 @@ def _sample_action(policy, raw, torch):
     phys_dict = policy.processor.decode_action(
         norm_action.detach().cpu().numpy(), policy.embodiment_tag, batched_states
     )
-    phys = _assemble_phys_action(phys_dict)  # (N, 28) — erster Chunk-Step
+    phys = _assemble_phys_action(policy, phys_dict)  # (N, action_dim) — erster Chunk-Step
     action_mask = _build_action_mask(policy, norm_action, torch)
     return norm_action, collated["inputs"], action_mask, phys
 
 
-def _assemble_phys_action(action_dict):
-    """Setzt die physischen Aktionsgruppen zu (N, 28) zusammen (erster Chunk-Step)."""
+def _assemble_phys_action(policy, action_dict):
+    """Setzt die physischen Aktionsgruppen zu (N, action_dim) zusammen (erster Chunk-Step).
+
+    ACHTUNG Schluessel-Namen: decode_action() gibt die BLANKEN Gruppennamen zurueck
+    ('left_arm', …). Das Praefix 'action.' haengt erst der ZMQ-Sim-Wrapper an
+    (gr00t_policy.py:617) — client.py sieht es deshalb, wir hier NICHT.
+
+    Fehlt eine Gruppe, wird hart abgebrochen. Die frueheren stillen Fallbacks
+    ('if k in action_dict' + next(iter(...))) haben am 2026-08-07 aus einem simplen
+    Namensfehler einen (N, 7)- statt (N, 28)-Tensor gemacht — sichtbar erst 30 s spaeter
+    als CUDA device-side assert tief in _pre_physics_step.
+    """
     import numpy as np
 
-    order = ["action.left_arm", "action.right_arm", "action.left_dex3", "action.right_dex3"]
-    parts = [action_dict[k] for k in order if k in action_dict]
-    full = np.concatenate(parts, axis=-1) if parts else next(iter(action_dict.values()))
-    if full.ndim == 3:        # (N, horizon, 28) -> ersten Step ausfuehren
+    keys, _horizon, action_dim = _action_spec(policy)
+    missing = [k for k in keys if k not in action_dict]
+    if missing:
+        raise KeyError(
+            f"Aktionsgruppen {missing} fehlen in decode_action-Ausgabe. "
+            f"Vorhanden: {sorted(action_dict)}"
+        )
+
+    full = np.concatenate([np.asarray(action_dict[k], dtype=np.float32) for k in keys], axis=-1)
+    if full.ndim == 3:        # (N, horizon, D) -> ersten Chunk-Step ausfuehren
         full = full[:, 0, :]
+    if full.shape[-1] != action_dim:
+        raise ValueError(
+            f"Physische Aktion hat {full.shape[-1]} Dims, erwartet {action_dim}. "
+            f"Die Env indiziert feste Gelenk-Indizes — zu schmal endet im CUDA-Assert."
+        )
     return full.astype(np.float32)
 
 
