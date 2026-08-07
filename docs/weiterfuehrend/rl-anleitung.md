@@ -24,7 +24,13 @@ statt nur Aktions-Nachahmung (Hintergrund: [reinforcement-learning-plan.md](rein
 >
 > **Hardware-Update (2026-08-05):** Der Server, der schon für den
 > [RoboCasa-Referenz-Eval](robocasa-referenz-eval.md) genutzt wurde (2× RTX PRO 6000 Blackwell),
-> **hat RT-Cores** — RL kann dort laufen, **keine vast.ai-Miete nötig**. Siehe **Pfad B** unten.
+> **hat RT-Cores** — RL kann dort grundsätzlich laufen, keine vast.ai-Miete nötig. **Aber:** der erste
+> `check`-Lauf dort ist mit einem Segfault in Isaac Sims RTX-Renderer abgestürzt (Treiber-Inkompatibilität
+> zwischen Blackwell und dem installierten Treiber-Branch 610.43.02, kein Bug in unserem Code) —
+> siehe [Troubleshooting](#segfault-in-librtxscenedbpluginso--carbonpluginstartup-beim-start-rtx-pro-6000-blackwell).
+> Der Treiber auf diesem Server ist **fix, kann nicht geändert werden** — der offizielle Fix
+> (Downgrade auf 580.65.06) entfällt damit. Nächster Kandidat: **Isaac Sim 6.0** (Details/Quellen im
+> Troubleshooting-Eintrag), sonst Pfad A (vast.ai, L40/RTX 4090) als sicherer Fallback.
 
 ---
 
@@ -269,6 +275,79 @@ Der beste RL-Checkpoint wird anschließend genau wie ein BC-Checkpoint in der
 ---
 
 ## Troubleshooting
+
+### Segfault in `librtx.scenedb.plugin.so` / `carbOnPluginStartup` beim Start (RTX PRO 6000 Blackwell)
+**Beobachtet am 2026-08-05** (`server_rl_run.sh check` auf `ikr-ki-server-01`, 2× RTX PRO 6000
+Blackwell, Treiber 610.43.02/CUDA 13.3): Kit startet, lädt Extensions, stürzt ~7s später beim Anlegen
+der ersten USD-Stage (`UsdContext::newStage` → Hydra-RTX-Engine-Aufbau) mit Segfault in
+`librtx.scenedb.plugin.so!carbOnPluginStartup` ab — **vor** jeglichem Zugriff auf unseren Checkpoint
+oder das `g1_dex3.usd`-Asset, also kein Fehler in unserem Code.
+
+**Root Cause (bestätigt, [NVIDIA-Forum](https://forums.developer.nvidia.com/t/isaac-sim-5-1-0-crashes-shortly-after-startup-on-windows-server-2025-with-rtx-pro-6000-blackwell/370054),
+[GitHub #651](https://github.com/isaac-sim/IsaacSim/issues/651)):** Isaac Sim 5.1.0 (in `isaac-lab:2.3.2`
+gebündelt, hier als `5.1.0-rc.19`) ist offiziell nur gegen Treiber **580.65.06/580.88** validiert.
+Neuere Treiber-Branches (595.x, 610.x) crashen beim RTX-Renderer-Start auf Blackwell-GPUs — bestätigt
+für RTX 5060 Ti/5070/5080/5090 **und explizit RTX PRO 6000 Blackwell**.
+
+**Bekannter Fix:** Host-Treiber auf **580.65.06 (Linux) / 580.88 (Windows)** downgraden.
+⚠️ **Aber:** [GitHub #651](https://github.com/isaac-sim/IsaacSim/issues/651) (identischer Treiber
+610.43.02, CUDA 13.3, sehr ähnliches Setup) berichtet, dass 580/570 auf neueren Kernels **gar nicht
+erst booten** — vor einem Downgrade auf `ikr-ki-server-01` daher erst prüfen, ob Treiber 580 mit
+dessen Kernel (7.0.0-28) kompatibel ist. Der Server ist außerdem geteilte Infrastruktur (RoboCasa-Eval
+läuft dort mit Treiber 610 fehlerfrei) — ein Treiber-Downgrade ist eine Host-weite Änderung, keine
+Container-Einstellung, und sollte nicht ohne Abwägung der Seiteneffekte auf andere Workloads passieren.
+**Alternative ohne Host-Änderung:** Pfad A (vast.ai, L40/RTX 4090 — Ada Lovelace, nicht von diesem
+Blackwell-spezifischen Bug betroffen).
+
+**Update 2026-08-05 — Treiber auf `ikr-ki-server-01` kann nicht geändert werden.** Damit entfällt der
+Downgrade; verbleibende Optionen ohne Host-Eingriff:
+
+- **Isaac Sim 6.0 (seit Juni 2026 GA)** validiert gegen neuere Treiber (offiziell ≥580.95.05) und ein
+  Community-Bericht bestätigt Treiber **610.74** als funktionierend (nahe an unserem 610.43.02) —
+  [Diskussion #689](https://github.com/isaac-sim/IsaacSim/discussions/689). **Aber nicht garantiert:**
+  ein separater, noch ungelöster Bericht zeigt Isaac Sim **6.0.1** auf **derselben RTX PRO 6000
+  Blackwell** mit einem anderen Crash (`ERROR_DEVICE_LOST`, Treiber 595.71.05, ebenfalls "Treiber kann
+  nicht geändert werden") —
+  [NVIDIA-Forum](https://forums.developer.nvidia.com/t/isaac-sim-6-0-1-gpu-crash-error-device-lost-on-rtx-pro-6000-blackwell-driver-595-71-05-cannot-change-driver-on-shared-server/379255).
+  Blackwell-Treiberprobleme sind mit 6.0 also gelindert, nicht sicher behoben.
+- **Migrationsaufwand ist real, kein Tag-Bump:** Isaac Lab 3.0.0-beta2 (aktuell **Beta**, Stand
+  2026-08-05) bündelt Isaac Sim 6.0.0/6.0.1, pinnt **Python 3.12** (statt 3.11) und PyTorch 2.10.0/
+  CUDA 12.8. Der Commit-8e01979-Fix (gr00t + flash-attn ins Isaac-Sim-Python installieren) müsste für
+  cp312-Wheels neu verifiziert werden — im Kern ein neuer `Dockerfile.vastai`-Port, keine
+  Einzeiler-Änderung.
+- **Vor dem Investieren des Migrationsaufwands:** kurz im laufenden NVIDIA-Forum-Thread
+  (`.../379255`) nachfragen/mitlesen, ob sich für RTX PRO 6000 Blackwell + 6xx-Treiber inzwischen eine
+  Lösung ergeben hat — spart ggf. die Portierung.
+
+**Downgrade-Vorgehen (obsolet auf `ikr-ki-server-01` — Treiber dort fix, nicht änderbar; als Referenz
+belassen, falls der Server-Constraint sich mal ändert oder für einen anderen Server relevant wird):**
+
+1. **Vorher sichern, nichts löschen:**
+   ```bash
+   nvidia-smi --query-gpu=driver_version,name --format=csv   # aktuell: 610.43.02
+   dpkg -l | grep nvidia-driver                                # exakter Paketname für Rollback
+   uname -r                                                    # aktueller Kernel (7.0.0-28-generic)
+   ```
+2. **Verfügbarkeit von 580 prüfen, BEVOR etwas entfernt wird:**
+   `apt-cache madison nvidia-driver-580-open` (gezielt die `-open`-Variante — neue Architekturen wie
+   Blackwell werden zuverlässig nur über die offenen Kernel-Module unterstützt).
+3. **Absicherung vor dem Wechsel:** Server-Konsole/IPMI-Zugriff sicherstellen (falls der Treiber nach
+   dem Reboot nicht lädt, ist kein SSH über die GPU nötig, aber ein Fallback-Zugriffsweg schadet nicht).
+   Kernel dabei **nicht** mitupdaten — nur den Treiber wechseln, um Variablen zu reduzieren.
+4. **Wechsel:**
+   ```bash
+   sudo apt remove --purge 'nvidia-*'
+   sudo apt install nvidia-driver-580-open
+   sudo reboot
+   ```
+5. **Nach dem Reboot, in dieser Reihenfolge verifizieren:**
+   - `nvidia-smi` lädt und zeigt `580.65.06` + die RTX PRO 6000 korrekt an?
+   - **Regressionstest zuerst:** `./Simulation/server_robocasa_ref_run.sh preflight` — der bestehende,
+     funktionierende RoboCasa-Workload darf durch den Treiberwechsel nicht kaputtgehen.
+   - Erst danach: `./Simulation/server_rl_run.sh check` erneut.
+6. **Falls 580 nicht bootet / GPU nicht erkannt wird:** zurück auf den in Schritt 1 notierten
+   610er-Treiber (`sudo apt install nvidia-driver-610-open` o. ä.), RL-Pfad auf Pfad A (vast.ai)
+   umstellen.
 
 ### `createDLSSContext error` / Rendering schlägt fehl
 GPU ohne RT-Cores. Nur L40 / RTX 30xx-40xx / A6000 — **kein A100/H100/V100**.
