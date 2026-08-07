@@ -126,6 +126,10 @@ build_rl_env() {
   [[ -n "${RL_CLIP:-}" ]]          && RL_ENV+=( -e "RL_CLIP=$RL_CLIP" )
   [[ -n "${RL_SAVE_EVERY:-}" ]]    && RL_ENV+=( -e "RL_SAVE_EVERY=$RL_SAVE_EVERY" )
   [[ -n "${SHELL_ON_ERROR:-}" ]]   && RL_ENV+=( -e "SHELL_ON_ERROR=$SHELL_ON_ERROR" )
+  # PFLICHT: Ist die letzte Zeile ein nicht zutreffendes `[[ … ]] && …`, gibt die Funktion 1
+  # zurück und `set -e` beendet das Skript STILL — genau vor dem RL-Start (beobachtet 2026-08-07,
+  # als SHELL_ON_ERROR ungesetzt war). Nie durch eine weitere Bedingung ersetzen.
+  return 0
 }
 
 # Lädt BC-Checkpoint + USD-Asset von HF, falls noch nicht im Container vorhanden

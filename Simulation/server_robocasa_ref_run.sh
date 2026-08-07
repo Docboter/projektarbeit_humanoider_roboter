@@ -122,6 +122,10 @@ build_eval_env() {
   )
   [[ -n "$RC_TASKS" ]]        && EVAL_ENV+=( -e "RC_TASKS=$RC_TASKS" )
   [[ -n "${HF_TOKEN:-}" ]]    && EVAL_ENV+=( -e "HF_TOKEN=$HF_TOKEN" )
+  # PFLICHT: Trifft die letzte `[[ … ]] && …`-Zeile nicht zu, liefert die Funktion 1 und
+  # `set -e` beendet das Skript STILL. Bisher unentdeckt, weil HF_TOKEN bei HF-Modell-IDs
+  # immer gesetzt ist — mit lokalem RC_MODEL_PATH (/data/models/…) wäre es aufgeschlagen.
+  return 0
 }
 
 # ── Aktionen ──────────────────────────────────────────────────────────────────
