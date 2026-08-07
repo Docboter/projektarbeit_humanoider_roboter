@@ -1,278 +1,311 @@
-# Implementierungsplan — Live-Stream der Isaac-Lab-Sim (WebRTC)
+# Implementierungsplan — Live-Ansicht der Isaac-Lab-Sim
 
-**Status:** ✅ Code umgesetzt (Test auf vast.ai ausstehend) · **Erstellt:** 2026-06-02 · **Umgesetzt:** 2026-06-02
+**Status:** v1 (WebRTC/vast.ai) codeseitig umgesetzt, **nie auf Hardware getestet** ·
+v2 erweitert auf den Docker-Server + zweite, risikoarme Spur ·
+**Erstellt:** 2026-06-02 · **Revision v2:** 2026-08-07
 
-> **Umsetzungs-Entscheidung (vast.ai):** Gewählte Strategie = **WebRTC mit flexiblem Port**.
-> Der intern gebundene Signaling-Port ist frei per `LIVESTREAM_PORT` setzbar; auf vast.ai
-> wird er auf den **extern gemappten** Port gesetzt (intern == extern), damit der in der
-> SDP eingebettete Port erreichbar ist. `publicEndpointAddress` = `PUBLIC_IP` (auto via
-> `ifconfig.me`). Konkrete Bedien-Anleitung: [vastai-anleitung.md](../simulation/vastai-anleitung.md)
-> → Abschnitt „Optional — Live-Stream des 3D-Viewports (WebRTC)".
-
-Dieses Dokument plant das **Live-Streaming der laufenden Isaac-Lab-Sim-Eval** vom
-Remote-GPU (vast.ai) auf den lokalen Rechner. Heute produziert die Sim-Eval nur
-**aufgezeichnete MP4s** (`/data/sim_videos`), die erst *nach* dem Lauf via `docker cp`
-geholt werden können (siehe [umsetzungsnotizen.md §9](../simulation/umsetzungsnotizen.md)). Ziel
-ist eine **Echtzeit-Visualisierung des 3D-Viewports**, während die Eval läuft — zum
-Debuggen von Greif-Verhalten, Kamera-Posen und Policy-Rollouts ohne Wartezeit.
-
-> **Quelle der Wahrheit für den aktuellen Stand** bleibt
-> [umsetzungsnotizen.md](../simulation/umsetzungsnotizen.md). Dieser Plan ist additiv und ändert
-> nichts am bestehenden headless-Video-Pfad — Live-Stream wird **opt-in** über eine neue
-> Env-Var `LIVESTREAM`.
+> **Ziel:** Das Live-Äquivalent zu den heutigen MP4s aus `/data/sim_videos`. Statt nach dem
+> Lauf per `docker cp` Videos zu holen, soll der Roboter **während** des Laufs im Browser
+> oder in einer Desktop-App beobachtbar sein — für Sim-Eval, Baseline-Eval **und** den
+> langen RL-Lauf.
 
 ---
 
-## 1. Recherche — gängige Praxis für Isaac-Sim-Streaming
+## 0. Was sich seit v1 geändert hat
 
-NVIDIA bietet für headless betriebene Isaac-Sim-/Isaac-Lab-Instanzen offiziell
-**Livestreaming über WebRTC** an. Es gibt zwei Streaming-Wege (einer davon veraltet):
+v1 (§9 unten, weiterhin gültig für vast.ai) plante ausschließlich den **WebRTC-Viewport auf
+einer vast.ai-Instanz**. Drei Dinge haben sich seither verschoben:
 
-| Methode | Status | Client |
-|---|---|---|
-| **WebRTC Livestream** | ✅ empfohlen | (a) **Isaac Sim WebRTC Streaming Client** (native Desktop-App, kein leistungsfähiges GPU lokal nötig) <br> (b) **WebRTC Browser-Client** unter `http://<ip>:8211/streaming/webrtc-client?server=<ip>` |
-| Omniverse Streaming Client | ⚠️ deprecated | alte Kit-Streaming-App, größere Port-Range |
-
-**Aktivierung in Isaac Lab** — zwei äquivalente Wege:
-
-- **Env-Var:** `LIVESTREAM={1,2}`
-- **AppLauncher-Flag:** `--livestream {0,1,2}` (von `AppLauncher.add_app_launcher_args`
-  bereitgestellt — unser Skript ruft das bereits auf, das Flag ist also schon verfügbar)
-
-Bedeutung der Werte:
-
-| Wert | Bedeutung |
+| Änderung | Konsequenz für den Livestream |
 |---|---|
-| `0` | kein Stream (default) |
-| `1` | WebRTC über **öffentliche** Netze |
-| `2` | WebRTC über **private/lokale** Netze |
+| **Primäre Plattform ist jetzt `ikr-ki-server-01`** (2× RTX PRO 6000 Blackwell, Treiber 610.43.02), erreichbar **direkt im Netz/VPN** — siehe [`server_rl_run.sh`](../../Simulation/server_rl_run.sh) | Das vast.ai-Kernproblem (zufälliges Port-Mapping ⇄ SDP-eingebetteter Port) **entfällt vollständig**. Ports sind frei wählbar, UDP funktioniert. Das ist die mit Abstand günstigste Ausgangslage für WebRTC. |
+| **Isaac-Sim-6.0-Port** (Basis-Image `isaac-lab:3.0.0-beta2-post1` statt `2.3.2`), erzwungen durch den Blackwell-Segfault unter Treiber 610.x | Der Browser-Client auf **Port 8211 existiert in Isaac Sim 6.0 nicht mehr**; die Kit-Settings-Pfade haben sich geändert. Unser bestehender Livestream-Code zielt noch auf 4.5/5.x → **§2 Defekte**. |
+| **Drei Lauf-Typen** sollen live beobachtbar sein: RL-Fine-tuning, Sim-Eval, Baseline-Eval | RL hat **keinerlei** Livestream-Logik ([`rl_finetune.py:150`](../../Simulation/g1_dex3_sim/rl_finetune.py#L150) hardcodet `AppLauncher(headless=True, …)`), und ein tagelanger RL-Lauf passt schlecht zum WebRTC-Modell („nur ein Client, keine Reconnect-Semantik"). → **Zwei Spuren, §1.** |
 
-Wichtige Eigenschaften (aus der Recherche, Quellen unten):
+**Hardware-Voraussetzung ist erfüllt:** WebRTC braucht NVENC; die RTX PRO 6000 Blackwell hat
+**vier NVENC-Engines (9. Generation)**. Die Sim-GPU-Regel (Ampere+ mit RT-Cores) und die
+Streaming-Regel (NVENC) schließen weiterhin beide dieselben GPUs aus — A100/H100.
+`NVIDIA_DRIVER_CAPABILITIES=all` ist in [`Dockerfile.vastai`](../../Simulation/Dockerfile.vastai)
+bereits gesetzt und enthält `video` (NVENC) — kein Zusatz-Install nötig.
 
-- **Livestream impliziert Headless.** Sobald `LIVESTREAM ∈ {1,2}`, läuft die App
-  zwangsweise headless — es darf kein zweites `--headless` Konflikte mit der
-  Experience-File-Auswahl erzeugen (bekannter Bug
-  [IsaacLab#381](https://github.com/isaac-sim/IsaacLab/issues/381)). → In unserem
-  Entrypoint **`--headless` weglassen, wenn `LIVESTREAM` gesetzt ist**.
-- **`--enable_cameras` bleibt erforderlich** (Szene enthält 5 Kameras) — passen wir bereits.
-- **Remote-Endpunkt:** Für Internet-erreichbare Instanzen den öffentlichen Endpunkt setzen:
-  ```
-  --/app/livestream/publicEndpointAddress=<PUBLIC_IP>
-  --/app/livestream/port=<PORT>
-  ```
-  oder über die Env-Var `PUBLIC_IP` (z. B. `PUBLIC_IP=$(curl -s ifconfig.me)`).
-- **Nur ein Client gleichzeitig** pro Isaac-Sim-Instanz.
+---
 
-### 1.1 Ports
+## 1. Zwei Spuren — und welche wofür
 
-Die Port-Liste variiert je nach Isaac-Sim-Version (unser Basis-Image ist
-`nvcr.io/nvidia/isaac-lab:2.3.2`). Konservativ alle relevanten Ports öffnen:
+Der Viewport-Stream und ein leichtgewichtiger Frame-Stream lösen **nicht dasselbe Problem**.
+Der Plan baut beide, aber mit klarer Zuständigkeit:
 
-| Port | Protokoll | Zweck |
+| | **Spur A — WebRTC-Viewport** | **Spur B — Frame-Stream** |
 |---|---|---|
-| **8211** | TCP/HTTP | WebRTC **Browser-Client** + Signaling |
-| **49100** | TCP | WebRTC Streaming (Signaling/Steuerung) |
-| **47998** | UDP | WebRTC Medien-Stream (Video) |
-| 47995–48012, 49000–49007 | TCP/UDP | nur falls **alter** Omniverse-Client genutzt wird |
+| **Was man sieht** | Vollständiger Isaac-Sim-Viewport: freie Kamera, Szene drehen/zoomen, Isaac-Sim-UI | Die gerenderten Kamera-Bilder (`cam_scene` + optional die 4 Policy-Kameras) + Live-Metriken |
+| **Technik** | NVENC-Hardware-Encoder, WebRTC (TCP 49100 Signaling + **UDP 47998** Medien) | MJPEG über HTTP (`multipart/x-mixed-replace`), Python-stdlib, keine neue Dependency |
+| **Client** | Native **Isaac Sim WebRTC Streaming Client** (Desktop) oder Web-Viewer (Docker Compose, Port 8210) | **Jeder Browser**, URL direkt öffnen |
+| **Zuschauer** | genau **1** gleichzeitig | beliebig viele, jederzeit rein-/rausklinken |
+| **Reconnect** | Session-gebunden, Abbruch = neu verbinden | zustandslos — Tab neu laden genügt |
+| **Über SSH-Tunnel** | ✗ (UDP-Medien; TCP-only wird nicht unterstützt) | ✓ (reines HTTP) |
+| **Kosten im Lauf** | zusätzlicher Viewport-Render-Pfad + Encode | ~0 — die Frames werden **ohnehin schon** gerendert (Policy-Obs/Video) |
+| **Risiko** | mittel–hoch (Isaac-Sim-6.0-Port unverifiziert, Kit-Settings geändert) | niedrig (kein Isaac-Sim-Feature involviert) |
 
-### 1.2 ⚠️ Harte GPU-Anforderung: NVENC
+**Empfohlene Zuordnung:**
 
-WebRTC-Streaming braucht den **NVENC-Hardware-Encoder** der GPU.
-
-- **A100 hat KEIN NVENC** → Livestream technisch unmöglich (offiziell dokumentiert).
-- H100 ebenfalls für Streaming nicht vorgesehen.
-
-**Für dieses Projekt unkritisch:** Die Sim-Eval ist ohnehin auf **Ampere+/Ada mit RT-Cores**
-beschränkt (L40, RTX 4090, A6000, RTX 3090 — siehe
-[umsetzungsnotizen.md §1](../simulation/umsetzungsnotizen.md)). Diese GPUs haben **alle NVENC**.
-Die Streaming-Anforderung **verschärft** die bestehende GPU-Regel also nur konsistent:
-A100/H100 sind bereits aus zwei Gründen ausgeschlossen (keine RT-Cores **und** kein NVENC).
-
----
-
-## 2. Architektur — Einordnung in den bestehenden Stack
-
-```
-┌─ vast.ai-Instanz (L40 / RTX 4090 / A6000) ───────────────────────────┐
-│  Container: …-sim-vastai:latest                                       │
-│                                                                       │
-│   GR00T-Policy-Server  ──ZMQ:5555──►  Isaac-Lab-Sim-Client            │
-│   (/app/Groot-1.6/.venv)              (isaaclab.sh -p, EGL-Render)     │
-│                                          │                            │
-│                                          │ LIVESTREAM=2               │
-│                                          ▼                            │
-│                                   WebRTC-Encoder (NVENC)              │
-│                                   Ports 8211/49100 (TCP), 47998 (UDP) │
-└───────────────────────────────────────────┼─────────────────────────┘
-                                             │  WebRTC (Internet)
-                                             ▼
-                          Lokaler Rechner: WebRTC Streaming Client
-                          ODER Browser:  http://<IP>:8211/streaming/webrtc-client
-```
-
-Der Video-Aufzeichnungs-Pfad (`save_episode_video` → `/data/sim_videos`) bleibt
-**unverändert** und läuft parallel weiter — Live-Stream ersetzt ihn nicht, sondern ergänzt
-ihn.
+- **Sim-Eval + Baseline-Eval → Spur A** (WebRTC). Episodische Läufe, man schaut gezielt zu,
+  freie Kamera ist beim Debuggen von Greifposen echtes Gold wert.
+- **RL-Fine-tuning → Spur B** (Frame-Stream). Läuft Stunden bis Tage, soll nebenbei im Tab
+  offen liegen, muss Netzabbrüche überleben, und mehrere Leute wollen draufschauen.
+  Ein WebRTC-Viewport über 48 h zu halten ist der falsche Mechanismus.
+- **Spur B ist gleichzeitig der Fallback für alles**, falls Spur A am Isaac-Sim-6.0-Port
+  scheitert. Deshalb wird sie **zuerst** gebaut (§6, Phase 1) — danach existiert unabhängig
+  vom WebRTC-Ausgang eine funktionierende Live-Ansicht.
 
 ---
 
-## 3. Geplante Code-Änderungen
+## 2. Befund am bestehenden Code — 6 konkrete Defekte
 
-> Alle Änderungen sind **opt-in** und ändern das Default-Verhalten (`LIVESTREAM=0`) nicht.
+Der v1-Code in [`entrypoint_sim.sh`](../../Simulation/scripts/entrypoint_sim.sh#L270-L296) und
+[`entrypoint_baseline.sh`](../../Simulation/scripts/entrypoint_baseline.sh#L204-L210) ist
+strukturell richtig (opt-in, `--headless` korrekt weggelassen wegen
+[IsaacLab#381](https://github.com/isaac-sim/IsaacLab/issues/381)), hat aber sechs Punkte, die
+vor dem ersten Test korrigiert bzw. verifiziert werden müssen:
 
-### 3.1 `Simulation/scripts/entrypoint_sim.sh`
-
-1. **Neue Env-Var** dokumentieren + lesen (Default `0`):
-   ```bash
-   LIVESTREAM="${LIVESTREAM:-0}"
-   LIVESTREAM_PORT="${LIVESTREAM_PORT:-49100}"
-   ```
-2. **PUBLIC_IP** automatisch ermitteln, wenn Stream aktiv und nicht gesetzt:
-   ```bash
-   if [[ "$LIVESTREAM" != "0" && -z "${PUBLIC_IP:-}" ]]; then
-       PUBLIC_IP="$(curl -s ifconfig.me || true)"
-   fi
-   export LIVESTREAM PUBLIC_IP
-   ```
-3. **`--headless` konditional weglassen** und `--livestream` setzen. Aktuell wird
-   `--headless` fest übergeben (Zeile ~234). Stattdessen Flags in einem Array bauen:
-   ```bash
-   APP_FLAGS=( --enable_cameras )
-   if [[ "$LIVESTREAM" != "0" ]]; then
-       APP_FLAGS+=( --livestream "$LIVESTREAM" )
-       APP_FLAGS+=( --kit_args "--/app/livestream/publicEndpointAddress=${PUBLIC_IP} --/app/livestream/port=${LIVESTREAM_PORT}" )
-   else
-       APP_FLAGS+=( --headless )
-   fi
-   ```
-   (Headless ist bei aktivem Livestream ohnehin impliziert — siehe §1.)
-4. **Hinweis-Ausgabe** mit der Client-URL, damit der Nutzer direkt verbinden kann:
-   ```bash
-   if [[ "$LIVESTREAM" != "0" ]]; then
-       log "Live-Stream aktiv (WebRTC). Verbinden via:"
-       echo "    Browser:  http://${PUBLIC_IP}:8211/streaming/webrtc-client?server=${PUBLIC_IP}"
-       echo "    Native:   Isaac Sim WebRTC Streaming Client → ${PUBLIC_IP}:${LIVESTREAM_PORT}"
-   fi
-   ```
-
-### 3.2 `Simulation/g1_dex3_sim/run_g1_dex3_sim_eval.py`
-
-- **`--livestream` ist bereits verfügbar** über `AppLauncher.add_app_launcher_args(parser)`
-  (Zeile 76) — **keine neue CLI-Option nötig**.
-- **Render-Schleife prüfen:** Im headless-Video-Modus genügt das Kamera-Rendering für die
-  Frame-Sammlung. Für einen flüssigen Viewport-Stream muss der App-Render-Loop pro Step
-  laufen. Verifizieren, dass die Eval-Schleife `env.sim.render()` bzw. `simulation_app.update()`
-  pro Step aufruft (Isaac Lab tut das bei aktivem Livestream i. d. R. selbst — als
-  Verifikationspunkt in §6 vermerkt).
-- **Optionales Real-Time-Pacing** (`--realtime`): Die Eval läuft sonst so schnell wie
-  möglich; für menschliches Zuschauen kann ein `time.sleep(dt - elapsed)` pro Step die Sim
-  auf Echtzeit drosseln. **Niedrige Priorität** — erst nach funktionierendem Stream.
-
-### 3.3 `Simulation/Dockerfile.vastai`
-
-- `EXPOSE 8211 49100` und `EXPOSE 47998/udp` ergänzen (Dokumentationswert; auf vast.ai muss
-  das Port-Mapping separat über die Docker-Options gesetzt werden, s. u.).
-- `NVIDIA_DRIVER_CAPABILITIES=all` ist **bereits gesetzt** (Zeile 40) — enthält `video`
-  (NVENC). Kein Zusatz-Install nötig; die WebRTC-Livestream-Extension ist im
-  Isaac-Sim-Bundle enthalten.
-
-### 3.4 vast.ai-Instanz-Konfiguration
-
-In den **Docker-Options** der Instanz die Ports mappen (zusätzlich zu `-p 22` für SSH):
-```
---ipc=host --shm-size=16g -p 22 -p 8211 -p 49100 -p 47998/udp
-```
-
-⚠️ **Kernproblem vast.ai:** vast.ai mappt Container-Ports auf **zufällige externe Ports**.
-WebRTC bettet den Port aber in die Signaling-Verhandlung (SDP) ein → der vom Client
-erwartete Port muss mit dem extern gemappten übereinstimmen. Lösungspfad:
-
-1. Im vast.ai-Dashboard unter **"IP & Port Info"** die externen Ports ablesen, auf die
-   `8211`/`49100`/`47998` gemappt wurden.
-2. `LIVESTREAM_PORT` und ggf. `--/app/livestream/port=<extern>` auf den **extern gemappten**
-   Wert setzen, `PUBLIC_IP` auf die öffentliche Instanz-IP.
+| # | Defekt | Datei/Zeile | Fix |
+|---|---|---|---|
+| **D1** | **Browser-URL zeigt auf Port 8211** — in Isaac Sim 6.0 gibt es diesen Client nicht mehr. Der Nutzer bekommt eine URL, die garantiert ins Leere läuft. | [`entrypoint_sim.sh:286`](../../Simulation/scripts/entrypoint_sim.sh#L286) | Ausgabe auf **nativen WebRTC-Client** (`<IP>:49100`) umstellen; Web-Viewer (Port 8210) nur nennen, wenn er separat deployt wurde. |
+| **D2** | **Kit-Settings-Pfad veraltet.** Wir setzen `--/app/livestream/port` + `--/app/livestream/publicEndpointAddress`. Isaac Sim 6.0 dokumentiert `--/exts/omni.kit.livestream.app/primaryStream/{signalPort,streamPort,publicIp}`. | [`entrypoint_sim.sh:277-280`](../../Simulation/scripts/entrypoint_sim.sh#L277-L280) | Im Container die tatsächlich akzeptierten Settings prüfen (Phase 0) und den Pfad versionsabhängig setzen. Falsche Kit-Settings werden von Kit **still ignoriert** — das wird sonst zur stundenlangen Fehlersuche. |
+| **D3** | **Doppelte Port-Belegung.** Der Isaac-Lab-`AppLauncher` injiziert bei `livestream=1` selbst `--/app/livestream/port=49100`; unser `--kit_args` hängt einen zweiten, ggf. abweichenden Port an. Welcher gewinnt, hängt von der argv-Reihenfolge ab. | [`entrypoint_sim.sh:277`](../../Simulation/scripts/entrypoint_sim.sh#L277) | Auf dem Server `LIVESTREAM=2` (privat) nutzen — dort injiziert der AppLauncher **keinen** Port und der Konflikt entfällt. Abweichende Ports nur für den vast.ai-Sonderfall. |
+| **D4** | **`curl ifconfig.me` läuft auch bei `LIVESTREAM=2`** (privates Netz), wo `PUBLIC_IP` bedeutungslos ist — im Institutsnetz ggf. ein 10-s-Timeout beim Start. | [`entrypoint_sim.sh:109-110`](../../Simulation/scripts/entrypoint_sim.sh#L109-L110) | Nur bei `LIVESTREAM=1` ausführen. |
+| **D5** | **RL kennt keinen Livestream.** `AppLauncher(headless=True, enable_cameras=True)` ist hartkodiert, `entrypoint_rl.sh` reicht keine App-Flags durch. | [`rl_finetune.py:150`](../../Simulation/g1_dex3_sim/rl_finetune.py#L150), [`entrypoint_rl.sh:123`](../../Simulation/scripts/entrypoint_rl.sh#L123) | Für Spur B genügt ein Publish-Hook (§4.2). Für Spur A müsste `AppLauncher` zusätzlich `livestream=` bekommen — **niedrige Priorität**, siehe §1. |
+| **D6** | **Kein Server-Launcher für die Sim-Eval.** Es gibt [`server_rl_run.sh`](../../Simulation/server_rl_run.sh) und `server_robocasa_ref_run.sh`, aber **kein** `server_sim_run.sh` — die Eval hat auf `ikr-ki-server-01` also noch gar keinen Startweg, geschweige denn Port-Publishing. | — | Neues Skript `Simulation/server_sim_run.sh` nach dem Muster von `server_rl_run.sh` (Workbench-Container, `docker exec`), inkl. `-p`-Mappings. |
 
 ---
 
-## 4. Konfigurations-Referenz (geplante neue Env-Vars)
+## 3. Spur A — WebRTC-Viewport
+
+### 3.1 Funktionsweise, Ports, Clients (Isaac Sim 6.0)
+
+| Port | Protokoll | Zweck | Pflicht? |
+|---|---|---|---|
+| **49100** | TCP | WebRTC-**Signaling** | ✅ |
+| **47998** | UDP | WebRTC-**Medienstrom** | ✅ — TCP-only wird **nicht** unterstützt |
+| 8210 | TCP | Web-Viewer (nur bei separatem Docker-Compose-Deployment, Ubuntu-only) | optional |
+| ~~8211~~ | — | Browser-Client aus Isaac Sim ≤5.x — **in 6.0 entfallen** | ✗ |
+
+`LIVESTREAM`-Werte (Isaac Lab 2.x/3.x — in Isaac Lab 1.x bedeutete `1` noch den heute
+deprecateten Native-Client, deshalb kursieren widersprüchliche Tabellen im Netz):
+
+| Wert | Bedeutung | AppLauncher-Verhalten |
+|---|---|---|
+| `0` | aus (Default) | — |
+| `1` | WebRTC über **öffentliches** Netz | setzt `publicEndpointAddress=$PUBLIC_IP` + `port=49100`, aktiviert `omni.services.livestream.nvcf` |
+| `2` | WebRTC über **lokales/privates** Netz | aktiviert `omni.services.livestream.nvcf`, **ohne** Endpunkt-/Port-Injektion |
+
+Jeder Wert ≠ 0 erzwingt Headless — `--headless` darf **nicht zusätzlich** gesetzt werden.
+`--enable_cameras` bleibt Pflicht (5 Kameras in der Szene).
+
+### 3.2 Netzkonfiguration auf `ikr-ki-server-01`
+
+Da der Server **direkt im Netz/VPN** erreichbar ist, ist die Konfiguration denkbar simpel —
+kein `PUBLIC_IP`, kein Port-Rätselraten:
+
+```bash
+LIVESTREAM=2                 # privates Netz
+# Container-Start (Ergänzung in server_sim_run.sh / server_rl_run.sh):
+docker run … -p 49100:49100/tcp -p 47998:47998/udp …
+```
+
+Client: **Isaac Sim WebRTC Streaming Client** (native Desktop-App für Windows/macOS/Linux,
+von der Isaac-Sim-Downloadseite) → Server-Adresse `<server-ip>:49100`. Läuft ohne lokale
+GPU-Anforderung.
+
+⚠️ Firewall: UDP 47998 muss zwischen Arbeitsrechner und Server **offen** sein. Das ist der
+wahrscheinlichste Stolperstein im Institutsnetz und wird in Phase 0 zuerst geprüft
+(`nc -u -z <ip> 47998` bzw. `iperf3 -u`).
+
+### 3.3 Code-Änderungen
+
+1. **[`entrypoint_sim.sh`](../../Simulation/scripts/entrypoint_sim.sh)** — D1–D4 beheben:
+   Kit-Settings versionsabhängig, `curl` nur bei Modus 1, Client-Hinweis auf den nativen
+   Client, Warn-Text „vast.ai" nur ausgeben, wenn tatsächlich vast.ai (z. B. via neuer Var
+   `PLATFORM=server|vastai`).
+2. **[`entrypoint_baseline.sh`](../../Simulation/scripts/entrypoint_baseline.sh)** — identische
+   Anpassung (die Blöcke sind fast wortgleich; ggf. in ein gemeinsames `lib_livestream.sh`
+   ausklammern, das beide Entrypoints sourcen — vermeidet, dass die Zwillinge auseinanderlaufen).
+3. **Neu: [`Simulation/server_sim_run.sh`](../../Simulation/server_sim_run.sh)** (D6) — Workbench-Container
+   nach dem Muster von `server_rl_run.sh`, mit `-p 49100:49100 -p 47998:47998/udp` und
+   Durchreichen von `LIVESTREAM`, `NUM_EPISODES`, `CHECKPOINT_PATH`, `ASSET_PATH`.
+4. **[`Dockerfile.vastai`](../../Simulation/Dockerfile.vastai)** — `EXPOSE 49100 8210` +
+   `EXPOSE 47998/udp` ergänzen (Dokumentationswert), `LIVESTREAM_PORT`-Default beibehalten.
+5. **Optional, niedrige Priorität — Echtzeit-Pacing:** Die Eval läuft so schnell wie möglich;
+   zum Zuschauen kann ein `--realtime`-Flag pro Step auf `dt` drosseln
+   ([`run_g1_dex3_sim_eval.py`](../../Simulation/g1_dex3_sim/run_g1_dex3_sim_eval.py), Rollout-Schleife).
+   Erst nach funktionierendem Stream angehen.
+
+### 3.4 vast.ai-Sonderfall
+
+Auf vast.ai bleibt die v1-Logik nötig und unverändert gültig: `LIVESTREAM=1`, `PUBLIC_IP` via
+`ifconfig.me`, und `LIVESTREAM_PORT` **auf den extern gemappten Port setzen** (intern == extern),
+weil WebRTC den Port in die SDP-Verhandlung einbettet. Docker-Options der Instanz:
+`--ipc=host --shm-size=16g -p 22 -p 49100 -p 47998/udp`. Das UDP-Mapping ist dort der
+Hauptrisikofaktor — Spur B ist auf vast.ai daher der verlässlichere Weg.
+
+---
+
+## 4. Spur B — Frame-Stream (`live_view.py`)
+
+### 4.1 Architektur
+
+```
+ Sim-Prozess (Isaac Lab)                          Browser (beliebig viele)
+ ┌───────────────────────────────┐
+ │ Rollout-Schleife              │
+ │   obs = env.step(action)      │
+ │   frame = obs["video.cam_…"]  │
+ │   live.publish(frame, meta) ──┼──► LiveView (Hintergrund-Thread)
+ └───────────────────────────────┘         │  http.server, stdlib
+                                           │
+                                   GET /            → HTML-Seite
+                                   GET /stream.mjpg → multipart/x-mixed-replace  ──► <img src>
+                                   GET /meta.json   → {step, episode, success, reward, fps}
+```
+
+**Bewusst minimal:** `http.server.ThreadingHTTPServer` + `imageio`/`PIL` für die JPEG-Kodierung
+— beides ist im Image bereits vorhanden (`imageio` wird für die MP4s genutzt). **Keine neue
+Dependency, kein Flask, kein WebSocket-Stack.** Der Publisher hält nur das *jeweils letzte*
+Frame (Slot, kein Puffer) — langsame Clients bremsen die Sim damit nicht aus.
+
+Neues Modul **`Simulation/g1_dex3_sim/live_view.py`**:
+
+```python
+class LiveView:
+    def __init__(self, enabled: bool, port: int = 8900, every_n: int = 1): ...
+    def publish(self, frame: np.ndarray, **meta) -> None: ...   # No-Op wenn disabled
+    def close(self) -> None: ...
+```
+
+Ist `LIVE_VIEW=0`, ist `publish()` ein reiner Early-Return — das Default-Verhalten aller drei
+Läufe bleibt bit-identisch.
+
+### 4.2 Hook-Punkte (drei Stellen, je 1–3 Zeilen)
+
+| Lauf | Datei / Zeile | Frame-Quelle |
+|---|---|---|
+| Sim-Eval | [`run_g1_dex3_sim_eval.py:187-189`](../../Simulation/g1_dex3_sim/run_g1_dex3_sim_eval.py#L187-L189) — direkt neben `frames.append(frame)` | `obs_step["video.cam_scene"]` (bereits gerendert, Fallback `cam_left_high`) |
+| Baseline-Eval | derselbe Codepfad (nutzt dasselbe Eval-Skript) | dito |
+| RL | Rollout-Schleife in [`rl_finetune.py`](../../Simulation/g1_dex3_sim/rl_finetune.py#L230-L290), zusätzlich Metriken am Iterations-Ende (`reward_mean`, `success`, [Zeile 283](../../Simulation/g1_dex3_sim/rl_finetune.py#L283)) | `obs[f"video.{cam}"][0]` — Env 0 der vektorisierten Envs |
+
+**Kostenpunkt:** Die Frames werden ohnehin gerendert (Policy-Obs bzw. MP4-Aufzeichnung), es
+kommt nur die JPEG-Kodierung dazu. `LIVE_VIEW_EVERY_N` (z. B. 2–5) drosselt das im RL-Lauf
+zusätzlich. **Zu verifizieren (Phase 1):** ob `cam_scene` im RL-Lauf überhaupt gerendert wird
+— falls nicht, entweder auf eine Policy-Kamera ausweichen oder `cam_scene` gezielt aktivieren
+(kostet dann echte GPU-Zeit und braucht eine Messung).
+
+### 4.3 Neue Env-Vars
 
 | Variable | Default | Zweck |
 |---|---|---|
-| `LIVESTREAM` | `0` | `0`=aus, `1`=WebRTC öffentlich, `2`=WebRTC privat/lokal |
-| `LIVESTREAM_PORT` | `49100` | WebRTC-Streaming-Port (auf vast.ai = extern gemappter Port) |
-| `PUBLIC_IP` | *(auto via `ifconfig.me`)* | Öffentliche IP der Instanz für den Remote-Endpunkt |
+| `LIVE_VIEW` | `0` | `1` = Frame-Stream aktiv |
+| `LIVE_VIEW_PORT` | `8900` | HTTP-Port des Frame-Streams |
+| `LIVE_VIEW_EVERY_N` | `1` | nur jedes n-te Frame publizieren (RL-Drosselung) |
+| `LIVE_VIEW_CAMS` | `cam_scene` | kommagetrennt; mehrere Kameras nebeneinander auf der Seite |
 
-Nach Umsetzung in [vastai-anleitung.md](../simulation/vastai-anleitung.md) und der Env-Var-Tabelle in
-[`CLAUDE.md`](../../CLAUDE.md) nachtragen.
+Container-Start ergänzen um `-p 8900:8900`. Aufruf: `http://<server-ip>:8900/` — und, falls
+mal nur SSH geht, `ssh -L 8900:localhost:8900 <server>` und dann `http://localhost:8900/`.
 
----
+### 4.4 Warum Spur B für RL die richtige ist
 
-## 5. Client-Setup (lokaler Rechner)
-
-**Variante A — Browser (am einfachsten, kein Download):**
-```
-http://<PUBLIC_IP>:8211/streaming/webrtc-client?server=<PUBLIC_IP>
-```
-
-**Variante B — Native Isaac Sim WebRTC Streaming Client:**
-- Von NVIDIA herunterladen (Isaac-Sim-Download-Seite), starten, als Server
-  `<PUBLIC_IP>:<LIVESTREAM_PORT>` eingeben.
-- Vorteil: stabiler bei höheren Auflösungen; läuft auch ohne lokale GPU.
+Ein RL-Lauf dauert Stunden bis Tage. Der WebRTC-Viewport erlaubt **einen** Client, überlebt
+keinen Netzabbruch sauber und hält währenddessen einen NVENC-Encode-Pfad offen. Der
+Frame-Stream ist zustandslos: Tab zu, Laptop zu, morgen wieder auf — der Lauf merkt nichts
+davon. Zusätzlich lässt sich auf derselben Seite direkt zeigen, was beim RL interessiert
+(Reward-Kurve, Success-Rate, Iteration) — Bild **und** Zahlen an einer Stelle.
 
 ---
 
-## 6. Test- und Validierungsplan
+## 5. Option C — W&B als Zero-Effort-Semi-Live (nur RL)
 
-1. **Lokal zuerst** (falls eine geeignete lokale GPU mit funktionierendem Vulkan/EGL
-   verfügbar ist — siehe Vulkan-Einschränkung in
-   [umsetzungsnotizen.md §3](../simulation/umsetzungsnotizen.md); auf WSL2 nicht möglich):
-   `LIVESTREAM=2`, Verbindung vom **selben** Rechner via Browser-Client → Viewport sichtbar?
-2. **vast.ai-Smoke-Test:** Kleine Eval (`NUM_EPISODES=2`) mit `LIVESTREAM=1`, Ports gemappt,
-   `PUBLIC_IP` korrekt. Erfolgskriterium: Browser-Client zeigt den 3D-Viewport in Echtzeit.
-3. **Render-Verifikation:** Prüfen, dass der Stream pro Sim-Step aktualisiert (nicht
-   eingefroren) — ggf. `simulation_app.update()` / `sim.render()` in der Schleife ergänzen.
-4. **Parallelität:** Sicherstellen, dass die MP4-Aufzeichnung **und** der Stream gleichzeitig
-   laufen, ohne dass das Kamera-Rendering einbricht.
-5. **Regression:** `LIVESTREAM=0` (Default) liefert exakt das alte Verhalten
-   (headless + Videos, `results.json`).
+`rl_finetune.py` loggt bereits nach W&B ([Zeile 285](../../Simulation/g1_dex3_sim/rl_finetune.py#L285)).
+Ein `wandb.log({"rollout": wandb.Video(frames_np, fps=30)})` alle N Iterationen liefert für
+**~5 Zeilen Code** eine im W&B-Dashboard abrufbare, ständig aktualisierte Videosequenz — kein
+Port, keine Firewall, von überall erreichbar. Das ist **nicht live** (Verzögerung = eine
+Iteration), aber es ist die billigste nützliche Stufe und ein guter Zwischenschritt, falls
+Phase 1 sich verzögert.
 
 ---
 
-## 7. Risiken & offene Fragen
+## 6. Umsetzungsreihenfolge
+
+| Phase | Inhalt | Aufwand | Abbruch-/Weiter-Kriterium |
+|---|---|---|---|
+| **0 — Machbarkeit** | Auf `ikr-ki-server-01`: UDP 47998 zwischen Arbeitsplatz und Server prüfen; im Container `omni.services.livestream.nvcf` + akzeptierte Kit-Settings-Pfade verifizieren (D2); NVENC im Container prüfen (`nvidia-smi -q -d ENCODER`) | ~1–2 h | UDP blockiert oder Extension fehlt → **Spur A zurückstellen**, direkt Phase 1+3 |
+| **1 — Spur B bauen** | `live_view.py` + Hook in der Sim-Eval; Test mit dem **Replay-Diagnose-Lauf** (kein Modell, kein Server nötig → billigster Smoke-Test) | ~3–4 h | Browser zeigt bewegtes Bild → weiter |
+| **2 — Spur B auf RL + Baseline** | Hooks in `rl_finetune.py` (inkl. Metriken) und Durchreichen in `entrypoint_rl.sh`/`entrypoint_baseline.sh`; `LIVE_VIEW_EVERY_N` messen | ~2–3 h | RL-Lauf mit `--check` zeigt Bild + Zahlen |
+| **3 — Spur A reparieren** | D1–D4 in beiden Entrypoints; `server_sim_run.sh` (D6) mit Port-Mappings | ~3–4 h | — |
+| **4 — Spur A testen** | `NUM_EPISODES=2`, `LIVESTREAM=2`, nativer WebRTC-Client → Viewport sichtbar und flüssig? | ~2 h | Bei Fehlschlag: Isaac-Sim-6.0-Web-Viewer (Port 8210, Docker Compose) als zweiter Versuch; sonst Spur B bleibt die Lösung |
+| **5 — Doku** | [`vastai-anleitung.md`](../simulation/vastai-anleitung.md), [`rl-anleitung.md`](rl-anleitung.md), [`umsetzungsnotizen.md`](../simulation/umsetzungsnotizen.md), Env-Var-Tabellen in [`CLAUDE.md`](../../CLAUDE.md) + [`env-vars.md`](../training/env-vars.md) | ~1–2 h | — |
+
+**Reihenfolge-Begründung:** Spur B zuerst, obwohl der Viewport das attraktivere Ziel ist —
+weil Phase 1+2 mit hoher Sicherheit funktionieren und danach *unabhängig vom Isaac-Sim-6.0-Risiko*
+eine Live-Ansicht existiert. Phase 0 ist trotzdem ganz vorne, weil ihr Ergebnis darüber
+entscheidet, ob Phase 3/4 überhaupt sinnvoll sind.
+
+**Image-Rebuild:** Alle Skripte unter `Simulation/scripts/` und `g1_dex3_sim/` werden ins Image
+**kopiert**, nicht gemountet → nach jeder Änderung `./Simulation/update_sim_image.sh --vastai`.
+Für die Iteration in Phase 1–2 lohnt ein Bind-Mount (`-v $(pwd)/Simulation/g1_dex3_sim:/workspace/g1_dex3_sim`).
+
+---
+
+## 7. Test- und Validierungsplan
+
+1. **Regression (beide Spuren):** `LIVESTREAM=0` + `LIVE_VIEW=0` → exakt das alte Verhalten
+   (headless, MP4s in `/data/sim_videos`, `results.json`). Das ist das wichtigste Kriterium.
+2. **Spur B, Replay-Lauf:** `entrypoint_replay.sh` mit `LIVE_VIEW=1` — Bild bewegt sich,
+   Seite überlebt Reload, zweiter Browser-Tab funktioniert parallel.
+3. **Spur B, RL:** `--check`-Lauf mit `LIVE_VIEW=1`; danach im echten Lauf messen, ob
+   `LIVE_VIEW_EVERY_N=1` die Iterationszeit spürbar erhöht (Vergleich gegen `LIVE_VIEW=0`).
+4. **Spur A, Viewport:** `NUM_EPISODES=2`, `LIVESTREAM=2` → nativer Client zeigt den Viewport
+   in Echtzeit; Kamera lässt sich frei bewegen.
+5. **Parallelität:** MP4-Aufzeichnung **und** Live-Ansicht gleichzeitig, ohne dass das
+   Kamera-Rendering einbricht (Schrittzeit vergleichen).
+6. **Frozen-Check (Spur A):** Aktualisiert der Stream pro Sim-Step oder friert er ein? Isaac Lab
+   ruft den Render-Loop bei aktivem Livestream i. d. R. selbst auf — falls nicht,
+   `simulation_app.update()` in der Rollout-Schleife ergänzen.
+
+---
+
+## 8. Risiken
 
 | Risiko | Einschätzung / Gegenmaßnahme |
 |---|---|
-| **vast.ai UDP-Port-Mapping** | WebRTC-Medien laufen über UDP; vast.ai-UDP-Mapping ist weniger zuverlässig als TCP. Fallback: bei reinem TCP-Signaling kann das Bild über TURN/Relay laufen — sonst auf aufgezeichnetes Video zurückfallen. |
-| **Port-Mismatch (zufälliges Mapping)** | Externen Port aus dem Dashboard ablesen und `LIVESTREAM_PORT` darauf setzen (§3.4). |
-| **Bekannte Cloud-Streaming-Bugs** | In den Isaac-Lab-Discussions sind Disconnect-/Netzwerk-Probleme auf Headless-Cloud-Instanzen dokumentiert; häufig VPN/Tunnel-IP-Konflikte (z. B. ZeroTier). → echte öffentliche IP nutzen, kein VPN. |
-| **Nur ein Client gleichzeitig** | Akzeptabel für Debugging. |
-| **Bandbreite** | WebRTC passt Bitrate adaptiv an; bei schwacher Leitung Auflösung/FPS senken. |
-| **Isaac-Sim-Version vs. Port-Set** | `isaac-lab:2.3.2` → konkrete Isaac-Sim-Version verifizieren; Port-Set ggf. anpassen (§1.1). |
+| **Isaac-Sim-6.0-Port insgesamt unverifiziert** | Der Basis-Image-Wechsel auf `isaac-lab:3.0.0-beta2-post1` ist noch nicht auf Hardware gelaufen (Beta; flash-attn gegen torch 2.10 gebaut, Isaac Sim 6.0 liefert 2.11). Der Livestream **erbt** dieses Risiko vollständig. → Livestream-Arbeit erst *nach* einem grünen `server_rl_run.sh check`. |
+| **Kit ignoriert falsche Settings still** | Ein Tippfehler in `--/exts/…` führt nicht zu einem Fehler, sondern zu einem Stream, der auf dem Default-Port lauscht. → In Phase 0 die gesetzten Werte im Kit-Log gegenprüfen. |
+| **UDP 47998 im Institutsnetz blockiert** | Trifft nur Spur A. Spur B (reines HTTP) ist davon nicht betroffen — deshalb wird sie zuerst gebaut. |
+| **Nur ein WebRTC-Client gleichzeitig** | Akzeptabel für Eval-Debugging, nicht für RL → §1-Zuordnung. |
+| **Frame-Stream bremst die Sim** | Nur letztes Frame wird gehalten, JPEG-Encode im Hintergrund-Thread, `LIVE_VIEW_EVERY_N` als Ventil. In Phase 2 messen statt schätzen. |
+| **Zwei fast identische Entrypoint-Blöcke** (`sim` + `baseline`) | Laufen bei Änderungen auseinander → gemeinsames `lib_livestream.sh` (§3.3). |
+| **Kein Auth vor dem Frame-Stream** | Der MJPEG-Port ist ungeschützt. Im VPN/Institutsnetz vertretbar; **nicht** auf einer öffentlichen vast.ai-IP exponieren (dort nur per SSH-Tunnel nutzen). |
 
 ---
 
-## 8. Umsetzungs-Reihenfolge (Checkliste)
+## 9. Anhang — v1-Stand (vast.ai, WebRTC)
 
-- [x] `entrypoint_sim.sh`: `LIVESTREAM`/`LIVESTREAM_PORT`/`PUBLIC_IP`-Logik + konditionales
-      `--headless`/`--livestream` (§3.1)
-- [x] `Dockerfile.vastai`: `EXPOSE`-Ports + `LIVESTREAM`/`LIVESTREAM_PORT`-Defaults ergänzt (§3.3)
-- [x] Image neu bauen + pushen (`Simulation\update_sim_image.ps1 -VastAI`)
-- [ ] vast.ai-Instanz mit gemappten Ports starten, externe Ports ablesen
-- [ ] Smoke-Test `NUM_EPISODES=2 LIVESTREAM=1` → Browser-Client verbinden (§6)
-- [ ] Render-/Parallelitäts-Verifikation (§6.3–6.4)
-- [ ] Optional: `--realtime`-Pacing (§3.2)
-- [x] Doku nachziehen: [vastai-anleitung.md](../simulation/vastai-anleitung.md) (neuer Live-Stream-Abschnitt),
-      Env-Var-Tabelle in [`CLAUDE.md`](../../CLAUDE.md). Offen: [umsetzungsnotizen.md](../simulation/umsetzungsnotizen.md)
+Der v1-Code ist umgesetzt und bleibt für vast.ai die Referenz:
+
+- [x] `entrypoint_sim.sh` + `entrypoint_baseline.sh`: `LIVESTREAM`/`LIVESTREAM_PORT`/`PUBLIC_IP`,
+      konditionales `--headless`/`--livestream`
+- [x] `Dockerfile.vastai`: `LIVESTREAM`/`LIVESTREAM_PORT`-Defaults
+- [x] Doku: [vastai-anleitung.md](../simulation/vastai-anleitung.md), Env-Var-Tabelle in [`CLAUDE.md`](../../CLAUDE.md)
+- [ ] **Nie auf Hardware getestet** — weder auf vast.ai noch auf dem Server
+
+Offene v1-Punkte sind in §6 als Phase 3–5 aufgegangen.
 
 ---
 
 ## Quellen
 
-- [Livestream Clients — Isaac Sim 5.0 Documentation](https://docs.isaacsim.omniverse.nvidia.com/5.0.0/installation/manual_livestream_clients.html)
-- [Livestream Clients — Isaac Sim 4.5 Documentation](https://docs.isaacsim.omniverse.nvidia.com/4.5.0/installation/manual_livestream_clients.html)
+- [Livestream Clients — Isaac Sim 6.0 Documentation](https://docs.isaacsim.omniverse.nvidia.com/6.0.1/installation/manual_livestream_clients.html) — Ports, Clients, NVENC-Anforderung, 6.0-Settings-Pfade
+- [isaaclab.app — Isaac Lab Documentation](https://isaac-sim.github.io/IsaacLab/main/source/api/lab/isaaclab.app.html) — `livestream` 0/1/2, `kit_args`, `PUBLIC_IP`
+- [isaaclab.app.app_launcher — Quellcode](https://docs.robotsfan.com/isaaclab_official/main/_modules/isaaclab/app/app_launcher.html) — welche Kit-Args der Launcher selbst injiziert
 - [Deep-dive into AppLauncher — Isaac Lab Documentation](https://isaac-sim.github.io/IsaacLab/main/source/tutorials/00_sim/launch_app.html)
-- [isaaclab.app — Isaac Lab Documentation](https://isaac-sim.github.io/IsaacLab/main/source/api/lab/isaaclab.app.html)
-- [How to do web streaming through WebRTC for IsaacLab? — Discussion #4361](https://github.com/isaac-sim/IsaacLab/discussions/4361)
-- [WebRTC Visualization Error in Isaac Lab 2.1 Docker Container — Discussion #3192](https://github.com/isaac-sim/IsaacLab/discussions/3192)
-- [Bug: wrong experience file when headless+livestream — Issue #381](https://github.com/isaac-sim/IsaacLab/issues/381)
-- [Isaac Sim headless docker streaming to WebRTC Streaming Client — NVIDIA Developer Forums](https://forums.developer.nvidia.com/t/isaac-sim-headless-docker-streaming-to-webrtc-streaming-client/330619)
+- [Bug: wrong experience file when headless+livestream — IsaacLab#381](https://github.com/isaac-sim/IsaacLab/issues/381)
+- [How to use WebRTC livestream in docker container — IsaacLab#4116](https://github.com/isaac-sim/IsaacLab/issues/4116)
+- [Specify ports when running on a remote machine — NVIDIA Developer Forums](https://forums.developer.nvidia.com/t/specify-ports-when-running-on-a-remote-machine/342701)
+- [RTX PRO 6000 Blackwell — NVENC-Spezifikation](https://www.nvidia.com/en-us/products/workstations/professional-desktop-gpus/rtx-pro-6000/)

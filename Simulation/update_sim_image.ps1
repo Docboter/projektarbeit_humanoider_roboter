@@ -72,7 +72,11 @@ Write-Host ""
 Write-Host "GR00T N1.6 -- Sim-Image Update ($Target)" -ForegroundColor Magenta
 Write-Host ""
 if ($DryRun) { Write-Warn "DRY-RUN aktiv -- es werden keine Befehle ausgefuehrt." }
-Write-Warn "Basis-Image: nvcr.io/nvidia/isaac-lab:2.3.2 (~20-30 GB)"
+if ($VastAI) {
+    Write-Warn "Basis-Image: nvcr.io/nvidia/isaac-lab:3.0.0-beta2-post1 (Isaac Sim 6.0, ~20-30 GB)"
+} else {
+    Write-Warn "Basis-Image: nvcr.io/nvidia/isaac-lab:2.3.2 (~20-30 GB)"
+}
 Write-Warn "Bitte 'docker login nvcr.io' vorab ausfuehren (Username: oauthtoken)."
 if ($VastAI) {
     Write-Warn "GPU-Anforderung: >=24 GB VRAM, Ampere+, RT-Cores (RTX 3090/4090/A6000/L40)"

@@ -68,7 +68,11 @@ echo ""
 printf '\033[1;35mGR00T N1.6 — Sim-Image Update (%s)\033[0m\n' "$TARGET"
 echo ""
 [[ "$DRY_RUN" == "1" ]] && warn "DRY-RUN aktiv — es werden keine Befehle ausgeführt."
-warn "Basis-Image: nvcr.io/nvidia/isaac-lab:2.3.2 (~20–30 GB)"
+if [[ "$VASTAI" == "1" ]]; then
+    warn "Basis-Image: nvcr.io/nvidia/isaac-lab:3.0.0-beta2-post1 (Isaac Sim 6.0, ~20–30 GB)"
+else
+    warn "Basis-Image: nvcr.io/nvidia/isaac-lab:2.3.2 (~20–30 GB)"
+fi
 warn "Bitte 'docker login nvcr.io' vorab ausführen (Username: \$oauthtoken)."
 [[ "$VASTAI" == "1" ]] && warn "GPU-Anforderung: ≥24 GB VRAM, Ampere+, RT-Cores (RTX 3090/4090/A6000/L40)"
 echo ""

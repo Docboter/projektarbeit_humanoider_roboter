@@ -10,19 +10,22 @@
 #   Bedienung:   docs/weiterfuehrend/rl-anleitung.md
 #
 # ⚠️ KRITISCH — Image-Rebuild-Pflicht vor dem ersten Lauf:
-#   `lucam03/projekt-humanoider-roboter-sim-vastai:latest` wurde zuletzt am 2026-06-15
-#   gepusht. Commit 8e01979 (2026-07-19) hat DANACH zwei für RL zwingende Fixes in
-#   Dockerfile.vastai/entrypoint_rl.sh gemacht (gr00t+flash-attn im Isaac-Sim-Python
-#   3.11 installiert; Start über `isaaclab.sh -p` statt nacktem `python`). Der aktuell
-#   gepushte Image-Tag hat diese Fixes NICHT. Vor dem ersten `check`/`rl`-Lauf hier:
+#   Der zuletzt gepushte Tag (2026-06-15) ist doppelt veraltet:
+#     1. Commit 8e01979 (2026-07-19) brachte für RL zwingende Fixes (gr00t+flash-attn ins
+#        Isaac-Sim-Python; Start über `isaaclab.sh -p` statt nacktem `python`).
+#     2. Der Isaac-Sim-6.0-Port (2026-08-07) wechselt das Basis-Image von isaac-lab 2.3.2
+#        auf 3.0.0-beta2-post1 — nötig, weil Isaac Sim 5.1 auf der RTX PRO 6000 Blackwell
+#        mit dem (nicht änderbaren) Treiber-Branch 610.x segfaultet.
+#   Vor dem ersten `check`/`rl`-Lauf daher zwingend:
 #     ./Simulation/update_sim_image.sh --vastai      # baut Dockerfile.vastai neu + pusht
-#   `preflight` unten prüft genau das (gr00t-Import im Isaac-Sim-Python) und schlägt
-#   fehl, falls das gepullte Image noch der alte Stand ist.
+#   `preflight` unten prüft Python-Version, torch, flash-attn und gr00t-Import.
 #
 # RT-CORES: Die RTX PRO 6000 Blackwell haben RT-Cores (anders als KISSKI A100/H100) —
 # das Kamera-Rendering der RL-Env läuft hier grundsätzlich, ohne vast.ai-Miete.
-# Isaac Sim 2.3.2 (Basis-Image) wurde nicht offiziell gegen Blackwell getestet —
-# `check` ist der reale Nachweis, dass Rendering + Env-Konstruktion funktionieren.
+# ⚠️ Der Isaac-Sim-6.0-Port ist NOCH NICHT auf Hardware verifiziert (Isaac Lab 3.0.0-beta2
+# ist Beta; das flash-attn-Wheel ist gegen torch2.10 gebaut, Isaac Sim 6.0 bringt 2.11).
+# `preflight` prüft die Python-Seite, `check` ist der reale Nachweis, dass Rendering +
+# Env-Konstruktion auf dieser GPU laufen. Restrisiken: docs/weiterfuehrend/rl-anleitung.md.
 #
 # CONTAINER-MODELL: ein langlebiger "Workbench"-Container (sleep infinity), in dem
 # Setup/Check/RL-Lauf per `docker exec` laufen. So bleiben HF-Checkpoint-Cache und
@@ -134,26 +137,34 @@ ensure_checkpoint() {
 
 # ── Aktionen ──────────────────────────────────────────────────────────────────
 do_preflight() {
-  log "Preflight: Image-Frische (gr00t+flash-attn im Isaac-Sim-Python) + GPU/RT-Cores prüfen."
+  log "Preflight: Isaac-Sim-Python (3.12), torch, flash-attn und gr00t-Import auf der GPU prüfen."
   docker pull "$IMAGE" || warn "docker pull fehlgeschlagen — nutze lokal vorhandenes Image."
-  if docker run --rm --gpus "$GPUS" "$IMAGE" "$ISAAC_PY" - <<'PY'
+  if docker run --rm -i --gpus "$GPUS" "$IMAGE" "$ISAAC_PY" - <<'PY'
+import sys
+print("python     :", ".".join(map(str, sys.version_info[:2])), "(erwartet 3.12 fuer Isaac Sim 6.0)")
 import torch
-print("torch", torch.__version__, "| cuda", torch.version.cuda, "| dev", torch.cuda.get_device_name(0))
+print("torch      :", torch.__version__, "| cuda", torch.version.cuda, "| dev", torch.cuda.get_device_name(0))
 x = torch.randn(2048, 2048, device="cuda")
 print("matmul ok  :", float((x @ x).sum()))
-import gr00t  # noqa: F401  -- nur vorhanden, wenn Image den Fix aus Commit 8e01979 enthaelt
+import gr00t  # noqa: F401  -- nur vorhanden, wenn das Image aus Dockerfile.vastai gebaut wurde
+# Der kritische Test der Migration: das flash-attn-Wheel ist gegen torch2.10 gebaut, Isaac Sim 6.0
+# bringt torch 2.11 — schlaegt der Import mit `undefined symbol` fehl, ist das genau diese Luecke.
 from flash_attn import flash_attn_func
 import flash_attn
 q = k = v = torch.randn(1, 8, 4, 64, device="cuda", dtype=torch.float16)
 print("flash-attn :", flash_attn.__version__, "->", tuple(flash_attn_func(q, k, v).shape))
-print("gr00t importierbar im Isaac-Sim-Python: OK")
+print("OK: gr00t + flash-attn im Isaac-Sim-Python nutzbar")
 PY
   then
-    ok "Preflight bestanden — Image ist aktuell (enthaelt Commit-8e01979-Fixes), GPU nutzbar."
+    ok "Preflight bestanden — Image nutzbar, flash-attn laeuft trotz torch-Minor-Sprung."
   else
-    err "Preflight fehlgeschlagen. Wahrscheinlichste Ursache: Image ist der alte Stand"
-    err "  (gepusht 2026-06-15, vor den RL-Fixes aus Commit 8e01979). Beheben mit:"
-    err "    ./Simulation/update_sim_image.sh --vastai"
+    err "Preflight fehlgeschlagen. Haeufigste Ursachen:"
+    err "  1. Image noch nicht neu gebaut (Isaac-Sim-6.0-Port):"
+    err "       ./Simulation/update_sim_image.sh --vastai"
+    err "  2. flash-attn-Import scheitert ('undefined symbol'): das Wheel ist gegen torch2.10"
+    err "     gebaut, Isaac Sim 6.0 bringt torch 2.11. Dann flash-attn aus Quellen bauen"
+    err "     (CUDA-Toolkit/nvcc noetig) oder auf ein torch2.11-Wheel warten."
+    err "  Details: docs/weiterfuehrend/rl-anleitung.md (Troubleshooting)"
     return 1
   fi
 }

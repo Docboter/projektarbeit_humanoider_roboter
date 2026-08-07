@@ -15,22 +15,22 @@ statt nur Aktions-Nachahmung (Hintergrund: [reinforcement-learning-plan.md](rein
 > muss beim ersten echten Lauf nachjustiert werden (Details in [Schritt 7](#schritt-7--live-check-was-beim-ersten-lauf-zu-prüfen-ist)).
 > Nutze zuerst den **Smoke-Test** (`--check`) und ein **kleines `RL_NUM_ENVS`**.
 >
-> **⚠️ Image-Rebuild-Pflicht:** `lucam03/projekt-humanoider-roboter-sim-vastai:latest` wurde zuletzt
-> am 2026-06-15 gepusht. Commit `8e01979` (2026-07-19) hat danach zwei für RL zwingende Fixes in
-> `Dockerfile.vastai`/`entrypoint_rl.sh` nachgezogen (gr00t+flash-attn im Isaac-Sim-Python 3.11;
-> Start über `isaaclab.sh -p` statt nacktem `python`). **Vor dem ersten Lauf neu bauen+pushen:**
-> `./Simulation/update_sim_image.sh --vastai`. `server_rl_run.sh preflight` (Pfad B unten) weist das
-> automatisch nach.
+> **⚠️ Image-Rebuild-Pflicht:** Der zuletzt gepushte Tag von
+> `lucam03/projekt-humanoider-roboter-sim-vastai:latest` (2026-06-15) ist doppelt veraltet — es fehlen
+> sowohl die RL-Fixes aus Commit `8e01979` (2026-07-19) als auch der Isaac-Sim-6.0-Port (2026-08-07).
+> **Vor dem ersten Lauf neu bauen+pushen:** `./Simulation/update_sim_image.sh --vastai`.
+> `server_rl_run.sh preflight` (Pfad B unten) weist das automatisch nach.
 >
-> **Hardware-Update (2026-08-05):** Der Server, der schon für den
+> **Hardware-Update (2026-08-05/07):** Der Server, der schon für den
 > [RoboCasa-Referenz-Eval](robocasa-referenz-eval.md) genutzt wurde (2× RTX PRO 6000 Blackwell),
 > **hat RT-Cores** — RL kann dort grundsätzlich laufen, keine vast.ai-Miete nötig. **Aber:** der erste
-> `check`-Lauf dort ist mit einem Segfault in Isaac Sims RTX-Renderer abgestürzt (Treiber-Inkompatibilität
-> zwischen Blackwell und dem installierten Treiber-Branch 610.43.02, kein Bug in unserem Code) —
-> siehe [Troubleshooting](#segfault-in-librtxscenedbpluginso--carbonpluginstartup-beim-start-rtx-pro-6000-blackwell).
-> Der Treiber auf diesem Server ist **fix, kann nicht geändert werden** — der offizielle Fix
-> (Downgrade auf 580.65.06) entfällt damit. Nächster Kandidat: **Isaac Sim 6.0** (Details/Quellen im
-> Troubleshooting-Eintrag), sonst Pfad A (vast.ai, L40/RTX 4090) als sicherer Fallback.
+> `check`-Lauf dort ist mit einem Segfault in Isaac Sims RTX-Renderer abgestürzt (bekannte
+> Inkompatibilität zwischen Blackwell und Treiber-Branch 610.x, kein Bug in unserem Code) und der
+> Server-Treiber ist **nicht änderbar**. Reaktion: **Migration auf Isaac Sim 6.0** (`isaac-lab`
+> 2.3.2 → 3.0.0-beta2-post1), implementiert am 2026-08-07 — **auf Hardware noch nicht verifiziert**.
+> Details, Änderungstabelle und Restrisiken:
+> [Troubleshooting](#segfault-in-librtxscenedbpluginso--carbonpluginstartup-beim-start-rtx-pro-6000-blackwell).
+> Fallback bleibt Pfad A (vast.ai, L40/RTX 4090).
 
 ---
 
@@ -61,7 +61,7 @@ Isaac-Lab+GR00T-Container wie vast.ai (`Dockerfile.vastai`), aber als langlebige
 RT-Core-GPU (z. B. die RTX PRO 6000 Blackwell aus dem RoboCasa-Lauf) bereits zur Verfügung steht.
 
 ```bash
-./Simulation/server_rl_run.sh preflight              # Image-Frische (Commit-8e01979-Fixes) + GPU prüfen
+./Simulation/server_rl_run.sh preflight              # Python 3.12 + torch + flash-attn + gr00t auf der GPU
 HF_TOKEN=hf_... ./Simulation/server_rl_run.sh setup  # BC-Checkpoint + USD von HF laden (einmalig)
 HF_TOKEN=hf_... ./Simulation/server_rl_run.sh check  # LIVE-CHECK: Aufbau, 2 Envs, kein Training
 HF_TOKEN=hf_... WANDB_API_KEY=... ./Simulation/server_rl_run.sh rl   # echter RL-Lauf
@@ -69,9 +69,10 @@ HF_TOKEN=hf_... WANDB_API_KEY=... ./Simulation/server_rl_run.sh rl   # echter RL
 
 - **Image-Rebuild zuerst:** anders als beim RoboCasa-Server-Pfad ist hier ein Rebuild **nötig** (siehe
   Status-Callout oben) — `./Simulation/update_sim_image.ps1 -VastAI` bzw. `update_sim_image.sh --vastai`.
-- **Isaac Sim auf Blackwell:** noch nicht offiziell verifiziert (Isaac Lab 2.3.2 ist älter als die
-  RTX PRO 6000). `preflight` prüft Torch/flash-attn/gr00t; `check` ist der eigentliche Nachweis, dass
-  Kamera-Rendering + Env-Konstruktion auf dieser GPU laufen (entspricht Schritt 5/7 unten).
+- **Isaac Sim auf Blackwell:** Isaac Sim 5.1 (isaac-lab 2.3.2) segfaultet auf der RTX PRO 6000 mit
+  Treiber 610.x — daher der Port auf Isaac Sim 6.0 (siehe Troubleshooting). `preflight` prüft
+  Torch/flash-attn/gr00t; `check` ist der eigentliche Nachweis, dass Kamera-Rendering +
+  Env-Konstruktion auf dieser GPU laufen (entspricht Schritt 5/7 unten).
 - **GPU-Zuteilung:** `server_rl_run.sh` pinnt standardmäßig auf eine GPU (`RL_GPUS='"device=0"'`) —
   Rendering + Backprop teilen sich sonst unnötig zwei Karten; `RL_GPUS=all` überschreibt das.
 - **Daten:** Checkpoint-Cache, RL-Checkpoints (`/data/g1_dex3_rl/`) und Isaac-Sim-Shader-Cache liegen
@@ -300,7 +301,7 @@ Container-Einstellung, und sollte nicht ohne Abwägung der Seiteneffekte auf and
 Blackwell-spezifischen Bug betroffen).
 
 **Update 2026-08-05 — Treiber auf `ikr-ki-server-01` kann nicht geändert werden.** Damit entfällt der
-Downgrade; verbleibende Optionen ohne Host-Eingriff:
+Downgrade. Gewählter Weg: **Migration auf Isaac Sim 6.0** (umgesetzt 2026-08-07, siehe unten).
 
 - **Isaac Sim 6.0 (seit Juni 2026 GA)** validiert gegen neuere Treiber (offiziell ≥580.95.05) und ein
   Community-Bericht bestätigt Treiber **610.74** als funktionierend (nahe an unserem 610.43.02) —
@@ -310,14 +311,6 @@ Downgrade; verbleibende Optionen ohne Host-Eingriff:
   nicht geändert werden") —
   [NVIDIA-Forum](https://forums.developer.nvidia.com/t/isaac-sim-6-0-1-gpu-crash-error-device-lost-on-rtx-pro-6000-blackwell-driver-595-71-05-cannot-change-driver-on-shared-server/379255).
   Blackwell-Treiberprobleme sind mit 6.0 also gelindert, nicht sicher behoben.
-- **Migrationsaufwand ist real, kein Tag-Bump:** Isaac Lab 3.0.0-beta2 (aktuell **Beta**, Stand
-  2026-08-05) bündelt Isaac Sim 6.0.0/6.0.1, pinnt **Python 3.12** (statt 3.11) und PyTorch 2.10.0/
-  CUDA 12.8. Der Commit-8e01979-Fix (gr00t + flash-attn ins Isaac-Sim-Python installieren) müsste für
-  cp312-Wheels neu verifiziert werden — im Kern ein neuer `Dockerfile.vastai`-Port, keine
-  Einzeiler-Änderung.
-- **Vor dem Investieren des Migrationsaufwands:** kurz im laufenden NVIDIA-Forum-Thread
-  (`.../379255`) nachfragen/mitlesen, ob sich für RTX PRO 6000 Blackwell + 6xx-Treiber inzwischen eine
-  Lösung ergeben hat — spart ggf. die Portierung.
 
 **Downgrade-Vorgehen (obsolet auf `ikr-ki-server-01` — Treiber dort fix, nicht änderbar; als Referenz
 belassen, falls der Server-Constraint sich mal ändert oder für einen anderen Server relevant wird):**
@@ -348,6 +341,42 @@ belassen, falls der Server-Constraint sich mal ändert oder für einen anderen S
 6. **Falls 580 nicht bootet / GPU nicht erkannt wird:** zurück auf den in Schritt 1 notierten
    610er-Treiber (`sudo apt install nvidia-driver-610-open` o. ä.), RL-Pfad auf Pfad A (vast.ai)
    umstellen.
+
+### Isaac-Sim-6.0-Migration (2026-08-07) — implementiert, Hardware-Test offen
+
+[`Dockerfile.vastai`](../../Simulation/Dockerfile.vastai) wurde von `isaac-lab:2.3.2` auf
+**`isaac-lab:3.0.0-beta2-post1`** (= Isaac Sim 6.0) portiert. Vier Folgeänderungen waren nötig:
+
+| Was | 2.3.2 (Isaac Sim 5.1) | 3.0.0-beta2-post1 (Isaac Sim 6.0) |
+|---|---|---|
+| Container-User am Ende des Basis-Image | `root` | **`isaaclab` (uid 1000)** → `USER root` im Dockerfile ergänzt, sonst scheitern alle `RUN`-Schritte an Rechten |
+| Isaac-Sim-Python | 3.11 | **3.12** (Build-Guard schlägt fehl, falls das nicht stimmt) |
+| Gebündeltes PyTorch | 2.7.0+cu128 | **2.11.0+cu128** |
+| flash-attn-Wheel | `v2.7.4.post1 … cu12torch2.7 … cp311` | **`v2.8.1 … cu12torch2.10 … cp312`** |
+
+Unverändert bleiben: Ubuntu 24.04 als Basis (deadsnakes-Python-3.10 für die GR00T-venv funktioniert
+weiter), `${ISAACLAB_PATH}/_isaac_sim` als Symlink auf `/isaac-sim` (alle Pfad-Referenzen halten), und
+die Isaac-Lab-Python-API (`isaaclab.sensors.TiledCamera`, `DirectRLEnv`, `ArticulationCfg` — die
+Kamera-Deprecation in 6.0 betrifft `isaacsim.sensors.camera`, **nicht** Isaac Labs eigene Wrapper).
+
+**⚠️ Verbleibendes Hauptrisiko — flash-attn über die torch-Minor-Grenze:** Dao-AILab baut (Stand
+2026-08-07) pre-built Wheels nur bis **torch2.10**, Isaac Sim 6.0 bringt aber **torch 2.11**. Das
+gewählte Wheel stimmt auf den Achsen cu12, cxx11abiTRUE und cp312 exakt — nur die torch-Minor ist eine
+Version daneben. Hält der Import nicht (`undefined symbol`), bleibt nur ein **Source-Build**
+(CUDA-Toolkit/nvcc nachinstallieren, im isaac-lab-Image nicht vorhanden) oder Warten auf ein
+torch2.11-Wheel. Ein Fallback „ohne flash-attn" existiert **nicht**: `entrypoint_sim.sh` weist
+`NO_FLASH_ATTN=1` explizit zurück, weil Eagle-Block2A-2B-v2 `flash_attention_2` erzwingt.
+
+Der Bruch fällt **beim Image-Build** auf (Smoke-Test am Ende des Dockerfiles), nicht erst auf dem
+Server — und `server_rl_run.sh preflight` prüft ihn nochmal gegen die echte GPU.
+
+**Ablauf für den ersten Test:**
+```bash
+./Simulation/update_sim_image.sh --vastai   # Rebuild auf Isaac Sim 6.0 (~60 min, bricht bei flash-attn-Problem ab)
+# auf ikr-ki-server-01, nach git pull:
+./Simulation/server_rl_run.sh preflight      # Python 3.12 + torch + flash-attn + gr00t auf der GPU
+HF_TOKEN=hf_... ./Simulation/server_rl_run.sh check   # der eigentliche Blackwell-Nachweis
+```
 
 ### `createDLSSContext error` / Rendering schlägt fehl
 GPU ohne RT-Cores. Nur L40 / RTX 30xx-40xx / A6000 — **kein A100/H100/V100**.
