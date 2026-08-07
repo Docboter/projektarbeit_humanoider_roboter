@@ -23,7 +23,7 @@
 # RT-CORES: Die RTX PRO 6000 Blackwell haben RT-Cores (anders als KISSKI A100/H100) —
 # das Kamera-Rendering der RL-Env läuft hier grundsätzlich, ohne vast.ai-Miete.
 # ⚠️ Der Isaac-Sim-6.0-Port ist NOCH NICHT auf Hardware verifiziert (Isaac Lab 3.0.0-beta2
-# ist Beta; das flash-attn-Wheel ist gegen torch2.10 gebaut, Isaac Sim 6.0 bringt 2.11).
+# ist Beta; das Bundle springt auf numpy 2.5, gr00t ist gegen numpy 1.26 entwickelt).
 # `preflight` prüft die Python-Seite, `check` ist der reale Nachweis, dass Rendering +
 # Env-Konstruktion auf dieser GPU laufen. Restrisiken: docs/weiterfuehrend/rl-anleitung.md.
 #
@@ -138,7 +138,13 @@ ensure_checkpoint() {
 # ── Aktionen ──────────────────────────────────────────────────────────────────
 do_preflight() {
   log "Preflight: Isaac-Sim-Python (3.12), torch, flash-attn und gr00t-Import auf der GPU prüfen."
-  docker pull "$IMAGE" || warn "docker pull fehlgeschlagen — nutze lokal vorhandenes Image."
+  # RL_SKIP_PULL=1, wenn das Image LOKAL frisch gebaut wurde (update_sim_image.sh --skip-push):
+  # ein docker pull würde das lokale :latest sonst mit dem älteren Docker-Hub-Stand überschreiben.
+  if [[ "${RL_SKIP_PULL:-0}" == "1" ]]; then
+    warn "RL_SKIP_PULL=1 — überspringe docker pull, nutze lokales Image."
+  else
+    docker pull "$IMAGE" || warn "docker pull fehlgeschlagen — nutze lokal vorhandenes Image."
+  fi
   if docker run --rm -i --gpus "$GPUS" "$IMAGE" "$ISAAC_PY" - <<'PY'
 import sys
 print("python     :", ".".join(map(str, sys.version_info[:2])), "(erwartet 3.12 fuer Isaac Sim 6.0)")
@@ -147,8 +153,6 @@ print("torch      :", torch.__version__, "| cuda", torch.version.cuda, "| dev", 
 x = torch.randn(2048, 2048, device="cuda")
 print("matmul ok  :", float((x @ x).sum()))
 import gr00t  # noqa: F401  -- nur vorhanden, wenn das Image aus Dockerfile.vastai gebaut wurde
-# Der kritische Test der Migration: das flash-attn-Wheel ist gegen torch2.10 gebaut, Isaac Sim 6.0
-# bringt torch 2.11 — schlaegt der Import mit `undefined symbol` fehl, ist das genau diese Luecke.
 from flash_attn import flash_attn_func
 import flash_attn
 q = k = v = torch.randn(1, 8, 4, 64, device="cuda", dtype=torch.float16)
@@ -156,14 +160,11 @@ print("flash-attn :", flash_attn.__version__, "->", tuple(flash_attn_func(q, k, 
 print("OK: gr00t + flash-attn im Isaac-Sim-Python nutzbar")
 PY
   then
-    ok "Preflight bestanden — Image nutzbar, flash-attn laeuft trotz torch-Minor-Sprung."
+    ok "Preflight bestanden — Image nutzbar (Python 3.12, torch 2.10, flash-attn, gr00t)."
   else
-    err "Preflight fehlgeschlagen. Haeufigste Ursachen:"
-    err "  1. Image noch nicht neu gebaut (Isaac-Sim-6.0-Port):"
-    err "       ./Simulation/update_sim_image.sh --vastai"
-    err "  2. flash-attn-Import scheitert ('undefined symbol'): das Wheel ist gegen torch2.10"
-    err "     gebaut, Isaac Sim 6.0 bringt torch 2.11. Dann flash-attn aus Quellen bauen"
-    err "     (CUDA-Toolkit/nvcc noetig) oder auf ein torch2.11-Wheel warten."
+    err "Preflight fehlgeschlagen. Haeufigste Ursache: Image noch nicht neu gebaut"
+    err "  (Isaac-Sim-6.0-Port). Beheben mit:"
+    err "    ./Simulation/update_sim_image.sh --vastai"
     err "  Details: docs/weiterfuehrend/rl-anleitung.md (Troubleshooting)"
     return 1
   fi

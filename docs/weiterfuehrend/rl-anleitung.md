@@ -345,36 +345,38 @@ belassen, falls der Server-Constraint sich mal ändert oder für einen anderen S
 ### Isaac-Sim-6.0-Migration (2026-08-07) — implementiert, Hardware-Test offen
 
 [`Dockerfile.vastai`](../../Simulation/Dockerfile.vastai) wurde von `isaac-lab:2.3.2` auf
-**`isaac-lab:3.0.0-beta2-post1`** (= Isaac Sim 6.0) portiert. Vier Folgeänderungen waren nötig:
+**`isaac-lab:3.0.0-beta2-post1`** (= Isaac Sim 6.0) portiert. Die Bundle-Angaben unten sind per
+pip-list-Inventar aus dem echten Image verifiziert (2026-08-07), nicht aus Release Notes übernommen —
+die nannten fälschlich torch 2.11. Folgeänderungen:
 
 | Was | 2.3.2 (Isaac Sim 5.1) | 3.0.0-beta2-post1 (Isaac Sim 6.0) |
 |---|---|---|
 | Container-User am Ende des Basis-Image | `root` | **`isaaclab` (uid 1000)** → `USER root` im Dockerfile ergänzt, sonst scheitern alle `RUN`-Schritte an Rechten |
 | Isaac-Sim-Python | 3.11 | **3.12** (Build-Guard schlägt fehl, falls das nicht stimmt) |
-| Gebündeltes PyTorch | 2.7.0+cu128 | **2.11.0+cu128** |
-| flash-attn-Wheel | `v2.7.4.post1 … cu12torch2.7 … cp311` | **`v2.8.1 … cu12torch2.10 … cp312`** |
+| Gebündeltes PyTorch | 2.7.0+cu128 | **2.10.0+cu128** (torchvision 0.25.0, numpy 2.5.1) |
+| flash-attn-Wheel | `v2.7.4.post1 … cu12torch2.7 … cp311` | **`v2.8.1 … cu12torch2.10 … cp312`** — trifft alle Achsen exakt |
+| gr00t-Laufzeit-Deps im Kit-Python | pandas kam aus dem 5.1-Bundle | 6.0-Bundle hat **kein pandas** mehr → `pandas==2.2.3` explizit gepinnt (erster Build brach mit `No module named 'pandas'` ab) |
 
 Unverändert bleiben: Ubuntu 24.04 als Basis (deadsnakes-Python-3.10 für die GR00T-venv funktioniert
 weiter), `${ISAACLAB_PATH}/_isaac_sim` als Symlink auf `/isaac-sim` (alle Pfad-Referenzen halten), und
 die Isaac-Lab-Python-API (`isaaclab.sensors.TiledCamera`, `DirectRLEnv`, `ArticulationCfg` — die
 Kamera-Deprecation in 6.0 betrifft `isaacsim.sensors.camera`, **nicht** Isaac Labs eigene Wrapper).
+scipy/termcolor/wandb sind im 6.0-Bundle weiterhin enthalten und werden bewusst **nicht** gepinnt
+(die uv.lock-Versionen wären Downgrades; `scipy==1.15.3` würde wegen `numpy<2.5` sogar das
+Bundle-numpy mit-downgraden).
 
-**⚠️ Verbleibendes Hauptrisiko — flash-attn über die torch-Minor-Grenze:** Dao-AILab baut (Stand
-2026-08-07) pre-built Wheels nur bis **torch2.10**, Isaac Sim 6.0 bringt aber **torch 2.11**. Das
-gewählte Wheel stimmt auf den Achsen cu12, cxx11abiTRUE und cp312 exakt — nur die torch-Minor ist eine
-Version daneben. Hält der Import nicht (`undefined symbol`), bleibt nur ein **Source-Build**
-(CUDA-Toolkit/nvcc nachinstallieren, im isaac-lab-Image nicht vorhanden) oder Warten auf ein
-torch2.11-Wheel. Ein Fallback „ohne flash-attn" existiert **nicht**: `entrypoint_sim.sh` weist
-`NO_FLASH_ATTN=1` explizit zurück, weil Eagle-Block2A-2B-v2 `flash_attention_2` erzwingt.
-
-Der Bruch fällt **beim Image-Build** auf (Smoke-Test am Ende des Dockerfiles), nicht erst auf dem
-Server — und `server_rl_run.sh preflight` prüft ihn nochmal gegen die echte GPU.
+**⚠️ Verbleibendes Hauptrisiko — numpy 2.5:** gr00t ist gegen numpy 1.26.4 (uv.lock) entwickelt,
+das 6.0-Bundle bringt **numpy 2.5.1** (nicht ersetzbar, Isaac Sim hängt daran). Import-Brüche fängt
+der Smoke-Test im Dockerfile; ob das numerische Verhalten (Processor/Statistiken) identisch bleibt,
+zeigt erst der erste echte Lauf. Dazu bleibt Isaac Lab 3.0.0-beta2 eine **Beta** — API-Abweichungen
+in der Env-Konstruktion tauchen erst beim `check` auf.
 
 **Ablauf für den ersten Test:**
 ```bash
-./Simulation/update_sim_image.sh --vastai   # Rebuild auf Isaac Sim 6.0 (~60 min, bricht bei flash-attn-Problem ab)
+./Simulation/update_sim_image.sh --vastai   # Rebuild auf Isaac Sim 6.0 (~60 min; Smoke-Test bricht bei Dep-Lücken ab)
 # auf ikr-ki-server-01, nach git pull:
-./Simulation/server_rl_run.sh preflight      # Python 3.12 + torch + flash-attn + gr00t auf der GPU
+./Simulation/server_rl_run.sh clean          # alten Workbench-Container (5.1-Image) entsorgen!
+./Simulation/server_rl_run.sh preflight      # Python 3.12 + torch 2.10 + flash-attn + gr00t auf der GPU
 HF_TOKEN=hf_... ./Simulation/server_rl_run.sh check   # der eigentliche Blackwell-Nachweis
 ```
 

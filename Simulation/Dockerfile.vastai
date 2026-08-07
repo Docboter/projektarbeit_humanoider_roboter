@@ -143,22 +143,20 @@ RUN unset VIRTUAL_ENV && /workspace/isaaclab/_isaac_sim/python.sh -c \
     "import zmq, msgpack, numpy; print('OK: zmq+msgpack+numpy im Isaac-Sim-Python')"
 
 # rl_finetune.py läuft in-process mit isaaclab (Isaac-Sim-Python 3.12) — braucht daher
-# gr00t + flash-attn AUCH im Isaac-Sim-Python. Isaac Sim 6.0 bündelt Python 3.12 mit
-# torch 2.11.0+cu128 (cxx11abi=TRUE) — anders als die GR00T-venv (3.10, cxx11abiFALSE)!
+# gr00t + flash-attn AUCH im Isaac-Sim-Python. Das isaac-lab-3.0.0-beta2-Image bündelt
+# Python 3.12 mit torch 2.10.0+cu128 (cxx11abi=TRUE, per pip-list-Inventar 2026-08-07
+# verifiziert) — anders als die GR00T-venv (3.10, cxx11abiFALSE)!
 #
 # flash-attn MUSS als passendes pre-built Wheel per URL kommen. `pip install flash-attn`
 # (ohne Version) lädt den sdist und KOMPILIERT aus dem Quellcode → braucht nvcc, das das
-# isaac-lab-Image NICHT hat (kein CUDA-Toolkit) → Build-Abbruch.
-#
-# ⚠️ torch-Achse ist EINE Minor-Version daneben: Dao-AILab baut (Stand 2026-08) pre-built Wheels
-# nur bis torch2.10, Isaac Sim 6.0 bringt aber torch 2.11. Genommen wird daher das nächstliegende
-# passende Wheel (cu12 + torch2.10 + cxx11abiTRUE + cp312 aus v2.8.1); die cu12- und ABI-Achsen
-# stimmen exakt. Ob der Import über die torch-Minor-Grenze hält, entscheidet der Smoke-Test unten
-# — schlägt er mit `undefined symbol` fehl, ist ein Source-Build (nvcc/CUDA-Toolkit nachinstallieren)
-# der einzige Weg. Sobald Dao-AILab ein torch2.11-Wheel veröffentlicht: URL hier hochziehen.
+# isaac-lab-Image NICHT hat (kein CUDA-Toolkit) → Build-Abbruch. Das Wheel unten trifft
+# alle Achsen exakt: cu12 + torch2.10 + cxx11abiTRUE + cp312 (v2.8.1).
 #
 # transformers/tokenizers/accelerate auf die von gr00t erwarteten Versionen pinnen (uv.lock).
 # Latest transformers bricht GR00Ts eigenen Eagle-Modellcode (is_flash_attn_*-Imports).
+# Hinweis: das isaaclab-Paket im 6.0-Image pinnt transformers==4.57.6 — unser Downgrade auf
+# 4.51.3 erzeugt eine pip-Konflikt-WARNUNG. Unkritisch: Isaac Labs Kern (Envs/Sensoren/Assets)
+# importiert transformers nicht; nur dessen LLM-Extensions täten es, die wir nie laden.
 # gr00t: editable install ohne deps (torch, numpy etc. liefert Isaac Sim bereits; deepspeed
 # absichtlich nicht installiert).
 #
@@ -171,14 +169,25 @@ RUN unset VIRTUAL_ENV && /workspace/isaaclab/_isaac_sim/python.sh -c \
 #   albumentations(+cv2) -> Processor (processing_gr00t_n1d6.py)
 #   lmdb, av   -> Eagle-Processor (processing_eagle3_vl.py)
 #   tyro       -> gr00t.model.__init__ -> configs-Kette
-# Pins = uv.lock. Geprüft: ziehen weder torch noch transformers/numpy auf andere Versionen.
+#   pandas     -> Dataset-Kette (gr00t.model.__init__ → DatasetFactory → import pandas).
+#     War im Isaac-Sim-5.1-Bundle enthalten, im 6.0-Bundle NICHT mehr → explizit pinnen
+#     (Beweis: Build-Abbruch "No module named 'pandas'" beim ersten 6.0-Build, 2026-08-07).
+# scipy (1.18.0), termcolor (3.3.0), wandb (0.28.0) sind im 6.0-Bundle bereits enthalten
+# (pip-list-Inventar 2026-08-07) — NICHT pinnen: die uv.lock-Versionen wären Downgrades, und
+# scipy==1.15.3 verlangt numpy<2.5 → pip würde das Bundle-numpy (2.5.1) mit-downgraden!
+# torch/torchvision/numpy ebenso NICHT pinnen — liefert das Bundle (torch 2.10.0+cu128,
+# torchvision 0.25.0+cu128, numpy 2.5.1); ein uv.lock-Pin (torch 2.7.1) würde sie ersetzen.
+# ⚠️ numpy-Sprung: gr00t ist gegen numpy 1.26.4 (uv.lock) entwickelt, das Bundle hat 2.5.1 —
+# Import-Brüche fängt der Smoke-Test unten, numerisches Verhalten prüft der erste echte Lauf.
+# Übrige Pins = uv.lock. Geprüft: ziehen weder torch noch transformers/numpy um.
 RUN unset VIRTUAL_ENV && \
     /workspace/isaaclab/_isaac_sim/python.sh -m pip install \
         transformers==4.51.3 tokenizers==0.21.4 accelerate==1.13.0 \
         huggingface_hub==0.36.2 einops==0.8.1 safetensors==0.7.0 && \
     /workspace/isaaclab/_isaac_sim/python.sh -m pip install \
         albumentations==1.4.18 dm-tree==0.1.8 diffusers==0.35.1 peft==0.17.1 \
-        lmdb==1.7.5 av==16.1.0 tyro==0.9.17 && \
+        lmdb==1.7.5 av==16.1.0 tyro==0.9.17 \
+        pandas==2.2.3 && \
     /workspace/isaaclab/_isaac_sim/python.sh -m pip install \
         "https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.1/flash_attn-2.8.1+cu12torch2.10cxx11abiTRUE-cp312-cp312-linux_x86_64.whl" && \
     /workspace/isaaclab/_isaac_sim/python.sh -m pip install -e /app/Groot-1.6 --no-deps && \
