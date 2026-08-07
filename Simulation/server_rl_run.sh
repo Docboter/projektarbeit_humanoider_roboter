@@ -68,6 +68,10 @@ ASSET_PATH="${ASSET_PATH:-$CHECKPOINT_PATH/g1_dex3.usd}"
 ISAAC_PY="/workspace/isaaclab/_isaac_sim/python.sh"
 SIM_DIR="/workspace/g1_dex3_sim"
 
+# Repo-Wurzel (Elternverzeichnis dieses Skripts) — für den Live-Mount des Sim-Codes.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="${RL_REPO_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+
 # ── Kleine Helfer ─────────────────────────────────────────────────────────────
 require_docker() { command -v docker >/dev/null 2>&1 || { err "docker nicht gefunden."; exit 1; }; }
 
@@ -93,9 +97,14 @@ ensure_container() {
   local create_env=( -e PYTHONUNBUFFERED=1 )
   [[ -n "${HF_TOKEN:-}" ]]         && create_env+=( -e "HF_TOKEN=$HF_TOKEN" )
   [[ -n "${WANDB_API_KEY:-}" ]]    && create_env+=( -e "WANDB_API_KEY=$WANDB_API_KEY" )
+  # g1_dex3_sim aus dem Repo ÜBER die Image-Kopie mounten (Muster wie kisski_submit.sh /
+  # server_robocasa_ref_run.sh): LIVE-CHECK-Iterationen an rl_finetune.py & Co. brauchen dann
+  # nur `git pull` auf dem Server — kein Image-Rebuild, kein `clean`.
+  log "  Sim-Code-Mount -> $REPO_DIR/Simulation/g1_dex3_sim"
   docker run -d --name "$CONTAINER" --gpus "$GPUS" --ipc=host --shm-size="$SHM_SIZE" \
     "${create_env[@]}" \
     -v "$HOST_DATA_DIR:/data" \
+    -v "$REPO_DIR/Simulation/g1_dex3_sim:$SIM_DIR:ro" \
     --entrypoint bash "$IMAGE" -lc "sleep infinity" >/dev/null
   ok "Container läuft."
 }
@@ -175,13 +184,23 @@ do_setup() { ensure_checkpoint; ok "Setup abgeschlossen. Weiter mit:  $0 check";
 do_check() {
   ensure_checkpoint
   log "LIVE-CHECK (Schritt 5/7 in rl-anleitung.md): Aufbau von Env+Policy+Critic, KEIN Training."
-  docker exec -w "$SIM_DIR" "$CONTAINER" bash -lc "
+  # Exit-Code des Kit-Pythons ist NICHT belastbar: Isaac Sim beendet auch nach einem
+  # Python-Traceback mit 0 (beobachtet 2026-08-07: TypeError → trotzdem Exit 0). Erfolg
+  # daher ausschließlich am positiven Marker von rl_finetune.py --check festmachen.
+  local out
+  out=$(docker exec -w "$SIM_DIR" "$CONTAINER" bash -lc "
     unset VIRTUAL_ENV
     '$ISAAC_PY' '$SIM_DIR/rl_finetune.py' \
         --checkpoint '$CHECKPOINT_PATH' \
         --asset-path '$ASSET_PATH' \
-        --num-envs 2 --check"
-  ok "Check bestanden — Isaac Sim + RT-Core-Rendering + GR00T-Policy laufen auf dieser GPU."
+        --num-envs 2 --check" 2>&1 | tee /dev/stderr) || true
+  if grep -q "Aufbau OK" <<<"$out"; then
+    ok "Check bestanden — Isaac Sim + RT-Core-Rendering + GR00T-Policy laufen auf dieser GPU."
+  else
+    err "Check FEHLGESCHLAGEN — Erfolgsmarker ('Aufbau OK') fehlt in der Ausgabe."
+    err "  Traceback oben beachten; LIVE-CHECK-Stellen: docs/weiterfuehrend/rl-anleitung.md Schritt 7."
+    return 1
+  fi
 }
 
 do_rl() {

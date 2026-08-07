@@ -169,8 +169,8 @@ def main() -> None:
 
     # ── Policy: aktuelle (trainierbar) + eingefrorene Referenz (fuer KL) ───────
     emb = EmbodimentTag(args.embodiment_tag)
-    policy = Gr00tPolicy(model_path=args.checkpoint, embodiment_tag=emb)
-    ref_policy = Gr00tPolicy(model_path=args.checkpoint, embodiment_tag=emb)
+    policy = Gr00tPolicy(model_path=args.checkpoint, embodiment_tag=emb, device=device)
+    ref_policy = Gr00tPolicy(model_path=args.checkpoint, embodiment_tag=emb, device=device)
     model = policy.model
     ref_model = ref_policy.model
     for prm in ref_model.parameters():
