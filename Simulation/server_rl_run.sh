@@ -322,13 +322,16 @@ do_cams() {
   #   RL_AA_MODE        Anti-Aliasing-Modus
   #   RL_DOME_INTENSITY Belichtung — Basiswert der Szene
   #   RL_DOME_SWEEP     Belichtung — mehrere Werte in EINEM Lauf, z. B. "500,120,30"
+  #   DR_ENABLED=0      visuelle Domain Randomization aus (fasst als einziger Code die
+  #                     Shader von Tisch/Würfeln an — genau die fehlenden Objekte)
   log "Kamera-Posen dumpen (num_envs=${RL_NUM_ENVS:-4}, settle=${RL_SETTLE_STEPS:-8}," \
       "aa=${RL_AA_MODE:-<Isaac-Default>}, dome=${RL_DOME_INTENSITY:-2000}," \
-      "sweep=${RL_DOME_SWEEP:-<aus>}) → $HOST_DATA_DIR/cam_dump/"
+      "sweep=${RL_DOME_SWEEP:-<aus>}, DR=${DR_ENABLED:-1}) → $HOST_DATA_DIR/cam_dump/"
   docker exec -w "$SIM_DIR" \
     -e "RL_AA_MODE=${RL_AA_MODE:-}" \
     -e "RL_DOME_INTENSITY=${RL_DOME_INTENSITY:-2000}" \
     -e "RL_DOME_SWEEP=${RL_DOME_SWEEP:-}" \
+    -e "DR_ENABLED=${DR_ENABLED:-1}" \
     "$CONTAINER" bash -lc "
     unset VIRTUAL_ENV
     '$ISAAC_PY' '$SIM_DIR/dump_camera_poses.py' \

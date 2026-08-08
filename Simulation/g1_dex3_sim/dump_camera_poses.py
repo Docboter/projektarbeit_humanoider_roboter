@@ -42,6 +42,13 @@ parser.add_argument("--out-dir", type=str, default="/data/cam_dump", help="PNG-A
 parser.add_argument("--num-envs", type=int, default=4, help="Envs (Klon-Verhalten pruefen)")
 parser.add_argument("--settle-steps", type=int, default=8, help="Steps vor der Messung")
 parser.add_argument(
+    "--no-dr", action="store_true",
+    default=os.environ.get("DR_ENABLED", "1").strip() in ("0", "false", "no", "off"),
+    help="Visuelle Domain Randomization abschalten (DR_ENABLED=0). Sie ist der einzige "
+         "Code, der die Shader von Tisch/Würfeln/Stapel-Band anfasst — genau die "
+         "Objekte, die im Render fehlen, während der Roboter sichtbar ist.",
+)
+parser.add_argument(
     "--dome-sweep", type=str, default=os.environ.get("RL_DOME_SWEEP", ""),
     help="Kommaliste von Dome-Light-Intensitäten, die zusätzlich gerendert werden "
          "(z. B. '500,120,30'). Leer = aus. Prüft den Verdacht, dass Isaac Sim 6.0 die "
@@ -108,17 +115,40 @@ def scene_points(env, origins):
     return pts
 
 
-def frustum_report(cam_cfg, pos_w, quat_w, pts, width, height):
+def camera_tangents(cam, width, height):
+    """Halbwinkel-Tangenten aus der Intrinsik, die Isaac Lab SELBST meldet. -> (tan_h, tan_v).
+
+    Wichtiger als es aussieht: die Variante unten aus dem spawn-Cfg fällt auf eine
+    angenommene horizontal_aperture von 20.955 mm zurück, wenn das Feld fehlt oder in
+    Isaac Lab 3.0 anders heißt. Dann stimmt das Sichtfeld nicht und jedes „IM BILD" ist
+    wertlos. `data.intrinsic_matrices` kommt dagegen aus dem Renderer.
+    """
+    m = getattr(getattr(cam, "data", None), "intrinsic_matrices", None)
+    if m is None:
+        return None
+    try:
+        k = m[0].detach().cpu().numpy()
+        fx, fy = float(k[0, 0]), float(k[1, 1])
+    except Exception:  # noqa: BLE001
+        return None
+    if not (fx > 0 and fy > 0):
+        return None
+    return (width / (2 * fx), height / (2 * fy))
+
+
+def frustum_report(cam_cfg, pos_w, quat_w, pts, width, height, tangents=None):
     """Projiziert Szenenpunkte in eine Kamera. -> Zeilen (name, u, v, dist, drin?).
 
-    u/v sind auf [-1, 1] normiert (0 = Bildmitte). Intrinsics aus dem spawn-Cfg, damit
-    die Rechnung dieselbe Optik benutzt wie der Renderer.
+    u/v sind auf [-1, 1] normiert (0 = Bildmitte). `tangents` aus der Renderer-Intrinsik
+    hat Vorrang; ohne sie wird aus dem spawn-Cfg gerechnet (mit Annahme, siehe oben).
     """
     spawn = getattr(cam_cfg, "spawn", None)
-    f = float(getattr(spawn, "focal_length", 24.0))
-    ap_h = float(getattr(spawn, "horizontal_aperture", 20.955))
-    ap_v = ap_h * height / width
-    tan_h, tan_v = ap_h / (2 * f), ap_v / (2 * f)
+    if tangents is not None:
+        tan_h, tan_v = tangents
+    else:
+        f = float(getattr(spawn, "focal_length", 24.0))
+        ap_h = float(getattr(spawn, "horizontal_aperture", 20.955))
+        tan_h, tan_v = ap_h / (2 * f), (ap_h * height / width) / (2 * f)
     clip = getattr(spawn, "clipping_range", (0.0, 1e9))
 
     x = quat_rotate(quat_w, [1.0, 0.0, 0.0])   # Blickachse (convention="world")
@@ -206,9 +236,12 @@ def main() -> None:
     cfg.scene.num_envs = args.num_envs
     if args.asset_path:
         cfg.scene.robot.spawn.usd_path = args.asset_path
+    if args.no_dr:
+        cfg.dr_enabled = False
 
     print("=" * 72)
-    print(f"KAMERA-POSEN — konfiguriert vs. gerendert   (num_envs={args.num_envs})")
+    print(f"KAMERA-POSEN — konfiguriert vs. gerendert   (num_envs={args.num_envs}, "
+          f"DR={'aus' if args.no_dr else 'an'})")
     print("=" * 72, flush=True)
 
     env = G1Dex3BlockstackEnv(cfg)
@@ -279,6 +312,21 @@ def main() -> None:
         view = quat_rotate(quat_w[0], [1.0, 0.0, 0.0])
         print(f"  Blickrichtung (env 0, +X): {np.round(view, 3)}  "
               f"Pitch={np.degrees(np.arcsin(np.clip(view[2], -1, 1))):+.1f}°")
+        # Roll mit ausgeben. Die Treffer-Matrix unten prueft NUR die Blickachse — ueber die
+        # Drehung um diese Achse sagt sie nichts, und ein verdrehtes Bild waere fuer den
+        # eingefrorenen Vision-Encoder ein massiver Domain-Shift. 0° = Bild-Oben zeigt
+        # nach Welt-+Z. Bei den Handgelenkskameras haengt der Wert von der Armpose ab.
+        cam_up = quat_rotate(quat_w[0], [0.0, 0.0, 1.0])
+        cam_right = quat_rotate(quat_w[0], [0.0, 1.0, 0.0])
+        ref = np.array([0.0, 0.0, 1.0]) - float(np.dot([0.0, 0.0, 1.0], view)) * np.asarray(view)
+        if np.linalg.norm(ref) < 1e-6:
+            print("  Roll: Blickachse fast senkrecht — Roll undefiniert")
+        else:
+            ref = ref / np.linalg.norm(ref)
+            roll = np.degrees(np.arctan2(float(np.dot(ref, cam_right)),
+                                         float(np.dot(ref, cam_up))))
+            print(f"  Roll gegen Welt-Oben: {roll:+.1f}°"
+                  + ("" if abs(roll) < 2.0 else "   <-- Bild ist gegen die Senkrechte verdreht"))
         if cfg_rot is None:
             continue
         want = quat_rotate(cfg_rot, [1.0, 0.0, 0.0])
@@ -316,10 +364,20 @@ def main() -> None:
         # reines Render-Problem; deckt er sie nicht ab, stehen Kamera und Szene nicht
         # zueinander — dann ist die Pose zwar "richtig", aber die Szene woanders.
         if pts:
+            cw = int(getattr(cam_cfg, "width", 640))
+            ch = int(getattr(cam_cfg, "height", 480))
+            tangents = camera_tangents(cam, cw, ch)
+            if tangents is None:
+                print("  !! keine intrinsic_matrices — Sichtfeld aus dem Cfg GESCHÄTZT "
+                      "(horizontal_aperture-Annahme), 'IM BILD' entsprechend unsicher.")
+            else:
+                fov = (2 * np.degrees(np.arctan(tangents[0])),
+                       2 * np.degrees(np.arctan(tangents[1])))
+                print(f"  Sichtfeld aus der Renderer-Intrinsik: "
+                      f"{fov[0]:.1f}° x {fov[1]:.1f}°")
             print("  Sichtbarkeit der Szenenobjekte (u/v normiert, 0 = Bildmitte):")
             for name, u, w, dist, state in frustum_report(
-                cam_cfg, pos_w[0], quat_w[0], pts,
-                int(getattr(cam_cfg, "width", 640)), int(getattr(cam_cfg, "height", 480)),
+                cam_cfg, pos_w[0], quat_w[0], pts, cw, ch, tangents=tangents,
             ):
                 uv = "        —      " if u is None else f"u={u:+6.2f} v={w:+6.2f}"
                 print(f"    {name:<24}{uv}  d={dist:5.2f} m  {state}")

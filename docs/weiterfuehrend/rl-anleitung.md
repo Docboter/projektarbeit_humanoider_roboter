@@ -553,30 +553,58 @@ damit als Ursache ausgeschlossen — und zwar gemessen, nicht vermutet:
 | Kamerapose + Konvention | alle fünf Kameras `quat_w_world / +X` bei **0,0°** Abweichung |
 | Clipping-Ranges | Objekte liegen in allen Kameras innerhalb |
 
-**Aktuelle Hypothese: Belichtung.** Ein flaches 245–249 bei chroma ≈ 4 ist die Signatur einer
-überstrahlten Szene — nur sehr dunkle Dinge überleben (Bodengitter `min = 100`, Handschatten
-`min = 30`). Entscheidend ist der Versionssprung: die Referenzbilder mit korrektem Kontrast
-(32/229/239) entstanden unter **Isaac Sim 4.x**, die weißen unter **6.0** — bei identischem
-`DomeLightCfg(intensity=2000)`. `num_envs` ist dabei ein Ablenker, ein Ein-Env-Lauf sieht genauso
-aus.
+**Belichtung: widerlegt** (`runs/20260808/10`, `RL_DOME_SWEEP=500,120,30,8`). Das Bild wird nur
+dunkler, es kommt keine Struktur zum Vorschein:
 
-Nächster Schritt, ein Lauf für vier Werte (der App-Start kostet ~90 s, deshalb im selben Prozess):
+| intensity | 2000 | 500 | 120 | 30 | 8 |
+|---|---|---|---|---|---|
+| min/median/max | 227/233/234 | 182/193/201 | 83/96/97 | 25/31/32 | 5/7/7 |
+| Spannweite | 7 | 19 | 14 | 7 | 2 |
+
+**Was tatsächlich gerendert wird** (Kantenenergie und dominanter Farbanteil je PNG):
+
+| Kamera | Kanten x/y | eine Farbe | Befund |
+|---|---|---|---|
+| `cam_left_high` | 0.00 / 0.00 | 100,0 % | konstanter Puffer, **nichts** gerendert |
+| `cam_right_high` | 0.00 / 0.00 | 100,0 % | konstanter Puffer |
+| `cam_right_wrist` | 0.00 / 0.00 | 100,0 % | konstanter Puffer |
+| `cam_left_wrist` | 0.29 / 0.14 | 91,0 % | **DEX3-Hand klar sichtbar**, Rest Hintergrund |
+| `cam_scene` | 0.34 / 0.47 | 93,7 % | Bodengitter im Eck, Rest Hintergrund |
+
+Ein fehlgerichtetes Objektiv in einer beleuchteten Szene zeigt *irgendetwas*. Ein über alle fünf
+Belichtungen exakt einfarbiges Bild ist kein Blickwinkel-, sondern ein Renderproblem.
+
+**Aktuelle Hypothese: die visuelle Domain Randomization.** Was rendert, sind USD-Assets (Roboter)
+und globale Prims (Boden). Was fehlt, sind genau Tisch, Würfel und Stapel-Band — die drei
+prozeduralen `CuboidCfg`-Objekte, und damit exakt die Prims, deren Shader `_randomize_visuals()`
+pro Episode überschreibt (`_set_shader_color` schreibt auf `inputs:diffuseColor`). Passt auch zum
+Versionssprung: die kontrastreichen Referenzbilder (32/229/239) sind von Isaac Sim **4.x**, die
+weißen von **6.0**. `num_envs` ist ein Ablenker, ein Ein-Env-Lauf sieht genauso aus.
+
+Nächster Schritt — ein Lauf, DR aus:
 
 ```bash
-RL_DOME_SWEEP=500,120,30,8 HF_TOKEN=hf_... ./Simulation/server_rl_run.sh cams
-# PNGs: cam_left_high__dome500.png, …__dome120.png, … plus eine Statistiktabelle je Wert
+DR_ENABLED=0 RL_DOME_SWEEP=120 HF_TOKEN=hf_... ./Simulation/server_rl_run.sh cams
 ```
 
-Bringt ein Wert Kontrast zurück, ist er ab dann der Default für Dump **und** RL-Lauf:
+Erscheinen Tisch und Würfel, liegt es an der DR (dann `_set_shader_color` auf die
+Isaac-Sim-6.0-Shader-Inputs anpassen). Bleiben sie weg, ist der nächste Schnitt `TiledCamera`
+gegen die gewöhnliche `Camera` bei identischer Pose — beide sind schon importiert.
 
-```bash
-RL_DOME_INTENSITY=120 ./Simulation/server_rl_run.sh rl
-```
+> **Nebenbefund:** `_randomize_visuals()` würfelt die Dome-Intensität pro Episode neu
+> (`uniform(1000, 3800)`). `RL_DOME_INTENSITY` wirkt daher nur bei `DR_ENABLED=0` dauerhaft.
 
-> **Lehre aus dieser Fehlersuche:** Der Dump druckte die Objektposen env-relativ unter der
-> Überschrift „WELTPOSITION". Das hat zu einer kompletten Fehldiagnose geführt („alle Objekte am
-> Weltursprung"), obwohl die Szene korrekt war. Er gibt jetzt **beide** Spalten aus. Wenn eine
-> Diagnose aus einer einzelnen Zahlenspalte kommt, zuerst prüfen, in welchem Frame sie steht.
+**Zwei Lehren aus dieser Fehlersuche:**
+
+1. Der Dump druckte die Objektposen env-relativ unter der Überschrift „WELTPOSITION". Das hat zu
+   einer kompletten Fehldiagnose geführt („alle Objekte am Weltursprung"), obwohl die Szene
+   korrekt war. Er gibt jetzt **beide** Spalten aus.
+2. Die Treffer-Matrix („`quat_w_world/+X` bei 0,0°") vergleicht die *gerenderte* Quaternion gegen
+   eine Soll-Richtung aus **derselben** Config mit **derselben** Hilfsfunktion. Sie beweist, dass
+   Isaac Lab umsetzt, was verlangt wird — nicht, dass das Verlangte stimmt. Und sie prüft nur die
+   *Blickachse*, nicht die Drehung um sie. Der Dump gibt deshalb jetzt zusätzlich den **Roll**
+   gegen Welt-Oben aus und stützt die Frustum-Rechnung auf `data.intrinsic_matrices` statt auf
+   eine angenommene `horizontal_aperture`.
 
 ### Historisch: DLSS-Upscaling (nicht die Ursache)
 
