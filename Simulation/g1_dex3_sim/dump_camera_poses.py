@@ -124,15 +124,42 @@ def main() -> None:
                 line += f"  Δ zum Offset={d:.3f} m {'OK' if d < 0.02 else '<-- WEICHT AB'}"
             print(line)
 
-        # Blickrichtung: in convention="world" ist die Blickachse +X.
+        # Blickrichtung. In convention="world" ist die Blickachse +X.
         view = quat_rotate(quat_w[0], [1.0, 0.0, 0.0])
-        print(f"  Blickrichtung (env 0): {np.round(view, 3)}  "
+        print(f"  Blickrichtung (env 0, +X): {np.round(view, 3)}  "
               f"Pitch={np.degrees(np.arcsin(np.clip(view[2], -1, 1))):+.1f}°")
-        if cfg_rot is not None:
-            want = quat_rotate(cfg_rot, [1.0, 0.0, 0.0])
-            ang = np.degrees(np.arccos(np.clip(np.dot(view, want), -1, 1)))
-            print(f"  konfigurierte Richtung: {np.round(want, 3)}  "
-                  f"Abweichung={ang:.1f}° {'OK' if ang < 2 else '<-- WEICHT AB'}")
+        if cfg_rot is None:
+            continue
+        want = quat_rotate(cfg_rot, [1.0, 0.0, 0.0])
+        print(f"  SOLL-Richtung (aus der Config): {np.round(want, 3)}")
+
+        # Welche Konvention/Achse trifft die Sollrichtung? Isaac Lab meldet dieselbe
+        # physische Orientierung in mehreren Konventionen (world/ros/opengl), und die
+        # "Vorwaerts"-Achse ist je Konvention eine andere: world +X, ROS +Z, OpenGL -Z.
+        # Zeigt eine ANDERE Kombination als (world, +X) auf das Ziel, dann wendet Isaac Lab
+        # unsere rot anders an als gemeint — dann ist `convention=` der Fehler, nicht die Pose.
+        axes = {"+X": [1, 0, 0], "-X": [-1, 0, 0], "+Y": [0, 1, 0],
+                "-Y": [0, -1, 0], "+Z": [0, 0, 1], "-Z": [0, 0, -1]}
+        variants = {}
+        for qname in ("quat_w_world", "quat_w_ros", "quat_w_opengl", "quat_w"):
+            if hasattr(cam.data, qname):
+                variants[qname] = getattr(cam.data, qname).detach().cpu().numpy()[0]
+        best = None
+        print("  Treffer-Matrix (Winkel zur SOLL-Richtung, kleinster Wert gewinnt):")
+        for qname, q in variants.items():
+            row, cells = [], []
+            for aname, ax in axes.items():
+                a = np.degrees(np.arccos(np.clip(np.dot(quat_rotate(q, ax), want), -1, 1)))
+                cells.append(f"{aname} {a:6.1f}°")
+                row.append((a, qname, aname))
+            print(f"    {qname:<14} " + "  ".join(cells))
+            cand = min(row)
+            best = cand if best is None or cand[0] < best[0] else best
+        if best is not None:
+            ang, qname, aname = best
+            verdict = "OK" if (qname.endswith("world") and aname == "+X" and ang < 2) else \
+                      "<-- Konvention passt NICHT zu convention='world'"
+            print(f"  bester Treffer: {qname} / {aname} bei {ang:.1f}°   {verdict}")
 
     # Standbilder — belegen, was die Kamera wirklich sieht.
     os.makedirs(args.out_dir, exist_ok=True)
