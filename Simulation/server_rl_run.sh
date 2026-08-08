@@ -41,9 +41,11 @@
 #
 # Überschreibbar via Env (Defaults für diesen Server):
 #   RL_HOST_DATA_DIR (/home/lmuecke/project/data/RL), RL_IMAGE, RL_CONTAINER,
-#   RL_GPUS ("device=0" — RT-Core-Rendering + Training auf einer GPU, zweite frei),
+#   RL_GPUS ("device=1,0" — beide Karten; erste trägt Rendering+Training, zweite nur
+#            das eingefrorene Referenzmodell), RL_REF_DEVICE (auto|same|cuda:N),
 #   HF_TOKEN, HF_CHECKPOINT_REPO (luca-mue/groot-g1dex3-checkpoint),
 #   RL_NUM_ENVS, RL_ITERATIONS, RL_ROLLOUT_STEPS, RL_LR, RL_KL_COEF, RL_CLIP,
+#   RL_MINIBATCH_SIZE, RL_FPO_MC_SAMPLES, RL_EPOCHS_PER_ITER (Speicher-Stellschrauben),
 #   RL_SAVE_EVERY, WANDB_API_KEY, WANDB_MODE, RL_WANDB_VIDEO_EVERY, SHELL_ON_ERROR,
 #   LIVE_VIEW, LIVE_VIEW_PORT, LIVE_VIEW_EVERY_N, LIVE_VIEW_CAMS — durchgereicht.
 
@@ -59,7 +61,13 @@ err()  { printf '\033[1;31m!! \033[0m %s\n' "$*" >&2; }
 IMAGE="${RL_IMAGE:-lucam03/projekt-humanoider-roboter-sim-vastai:latest}"
 CONTAINER="${RL_CONTAINER:-groot-rl}"
 HOST_DATA_DIR="${RL_HOST_DATA_DIR:-/home/lmuecke/project/data/RL}"
-GPUS="${RL_GPUS:-\"device=0\"}"        # RT-Core-Rendering + Backprop teilen sich eine GPU; RL_GPUS=all für beide
+# Beide Karten, ABER in dieser Reihenfolge: die zuerst genannte wird im Container zu
+# cuda:0 und traegt Rendering + Policy + Optimizer; die zweite bekommt nur das
+# eingefrorene Referenzmodell (~6-7 GB, nur no_grad). Physische GPU 1 steht vorn, weil
+# dort am 2026-08-08 mehr frei war (llama-server: 41 GB auf GPU 0, 37 GB auf GPU 1).
+# → Vor einem langen Lauf `nvidia-smi` prüfen und ggf. auf "device=0,1" drehen.
+# Einzelkarte: RL_GPUS='"device=0"' — das Referenzmodell rückt dann automatisch mit auf.
+GPUS="${RL_GPUS:-\"device=1,0\"}"
 SHM_SIZE="${RL_SHM_SIZE:-16g}"
 
 HF_CHECKPOINT_REPO="${HF_CHECKPOINT_REPO:-luca-mue/groot-g1dex3-checkpoint}"
@@ -100,27 +108,36 @@ live_view_env() {
   return 0   # siehe Kommentar in build_rl_env: letzte Zeile darf kein `[[ … ]] &&` sein
 }
 
-# Warnt, wenn ein ALTER Container ohne -p 8900 läuft — sonst sucht man den Stream
-# vergeblich, obwohl im Log "[live] Live-Ansicht aktiv" steht (er lauscht dann nur
-# container-intern).
-warn_if_port_unpublished() {
-  [[ "${LIVE_VIEW:-0}" != "0" ]] || return 0
-  local ports; ports="$(docker inspect -f '{{json .NetworkSettings.Ports}}' "$CONTAINER" 2>/dev/null || echo '{}')"
-  if [[ "$ports" != *"\"$LIVE_VIEW_PORT/tcp\":[{"* ]]; then
-    warn "LIVE_VIEW=1, aber Container '$CONTAINER' hat Port $LIVE_VIEW_PORT NICHT veröffentlicht."
-    warn "  -p wirkt nur beim Anlegen. Einmalig neu anlegen:  $0 clean  (Daten bleiben erhalten)"
+# Sowohl -p als auch --gpus wirken NUR beim Anlegen des Containers. Ein langlebiger
+# Container aus einem früheren Lauf hat sie also nicht, egal was hier gesetzt ist —
+# und das äußert sich stumm: der Stream lauscht nur container-intern, bzw. das
+# Referenzmodell rückt mangels zweiter Karte auf die erste zurück.
+warn_if_container_stale() {
+  if [[ "${LIVE_VIEW:-0}" != "0" ]]; then
+    local ports; ports="$(docker inspect -f '{{json .NetworkSettings.Ports}}' "$CONTAINER" 2>/dev/null || echo '{}')"
+    if [[ "$ports" != *"\"$LIVE_VIEW_PORT/tcp\":[{"* ]]; then
+      warn "LIVE_VIEW=1, aber Container '$CONTAINER' hat Port $LIVE_VIEW_PORT NICHT veröffentlicht."
+      warn "  Einmalig neu anlegen:  $0 clean   (Daten unter $HOST_DATA_DIR bleiben)"
+    fi
+  fi
+  if [[ "$GPUS" == *,* || "$GPUS" == all ]] && [[ "${RL_REF_DEVICE:-auto}" != "same" ]]; then
+    local n; n="$(docker exec "$CONTAINER" bash -lc 'nvidia-smi -L 2>/dev/null | wc -l' 2>/dev/null || echo 0)"
+    if [[ "${n:-0}" -lt 2 ]]; then
+      warn "Container '$CONTAINER' sieht nur $n GPU(s) — das Referenzmodell bleibt auf der ersten."
+      warn "  Einmalig neu anlegen:  $0 clean   (Daten unter $HOST_DATA_DIR bleiben)"
+    fi
   fi
 }
 
 ensure_container() {
   local state; state="$(container_state)"
   if [[ "$state" == "true" ]]; then
-    warn_if_port_unpublished
+    warn_if_container_stale
     return 0
   elif [[ "$state" == "false" ]]; then
     log "Container '$CONTAINER' vorhanden (gestoppt) — starte ihn."
     docker start "$CONTAINER" >/dev/null
-    warn_if_port_unpublished
+    warn_if_container_stale
     return 0
   fi
   mkdir -p "$HOST_DATA_DIR"
@@ -173,6 +190,7 @@ build_rl_env() {
   [[ -n "${RL_MINIBATCH_SIZE:-}" ]]  && RL_ENV+=( -e "RL_MINIBATCH_SIZE=$RL_MINIBATCH_SIZE" )
   [[ -n "${RL_FPO_MC_SAMPLES:-}" ]]  && RL_ENV+=( -e "RL_FPO_MC_SAMPLES=$RL_FPO_MC_SAMPLES" )
   [[ -n "${RL_EPOCHS_PER_ITER:-}" ]] && RL_ENV+=( -e "RL_EPOCHS_PER_ITER=$RL_EPOCHS_PER_ITER" )
+  [[ -n "${RL_REF_DEVICE:-}" ]]      && RL_ENV+=( -e "RL_REF_DEVICE=$RL_REF_DEVICE" )
   # Gegen Fragmentierung — der OOM-Traceback empfahl es selbst (1,13 GB reserviert,
   # aber unbenutzt). Ueberschreibbar, falls es auf dieser Torch-Version stoert.
   RL_ENV+=( -e "PYTORCH_ALLOC_CONF=${PYTORCH_ALLOC_CONF:-expandable_segments:True}" )
@@ -249,7 +267,8 @@ do_check() {
   # LIVE_VIEW mitgeben: rl_finetune.py legt die Live-Ansicht VOR dem --check-Return an,
   # der Check weist damit auch Pillow + Port-Bindung im Kit-Python nach.
   live_view_env
-  out=$(docker exec -w "$SIM_DIR" "${LIVE_ENV[@]}" "$CONTAINER" bash -lc "
+  out=$(docker exec -w "$SIM_DIR" "${LIVE_ENV[@]}" \
+        -e "RL_REF_DEVICE=${RL_REF_DEVICE:-auto}" "$CONTAINER" bash -lc "
     unset VIRTUAL_ENV
     '$ISAAC_PY' '$SIM_DIR/rl_finetune.py' \
         --checkpoint '$CHECKPOINT_PATH' \

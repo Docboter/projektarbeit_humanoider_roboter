@@ -28,6 +28,12 @@ PPO-Likelihood-Ratio durch exp(proxy_new - proxy_old) mit proxy = -L_flow_matchi
 gemittelt ueber K (noise, t)-Ziehungen. Passt zur Flow-Matching-Policy von GR00T,
 ohne explizite Likelihood. VLM bleibt eingefroren (wie im BC-Training).
 
+GPU-Aufteilung: Das eingefrorene Referenzmodell (fuer die KL gegen den BC-Checkpoint)
+laeuft nur unter no_grad und wandert mit --ref-device auto auf eine zweite sichtbare
+Karte. Das nimmt ~6-7 GB Gewichte plus einen transienten Forward von der Karte, die
+sich Rendering, Policy, Optimizer-States und Aktivierungen ohnehin schon teilt. Mit nur
+einer sichtbaren GPU faellt es automatisch auf das alte Verhalten zurueck.
+
 Beobachtbarkeit: --live-view (bzw. LIVE_VIEW=1) blendet den laufenden Rollout als
 MJPEG-Stream im Browser ein (live_view.py, Port 8900), --wandb-video-every N schneidet
 zusaetzlich alle N Iterationen einen Rollout ins W&B-Dashboard. Beides ist opt-in und
@@ -78,6 +84,10 @@ def parse_args() -> argparse.Namespace:
                    help="Pfad zum g1_dex3.usd-Roboter-Asset (sonst cfg-Default in g1_dex3_cfg.py)")
     p.add_argument("--embodiment-tag", default="new_embodiment")
     p.add_argument("--output-dir", default="/data/g1_dex3_rl")
+    p.add_argument("--ref-device", default=os.environ.get("RL_REF_DEVICE", "auto"),
+                   help="Geraet fuer das eingefrorene Referenzmodell (KL): 'auto' = zweite "
+                        "GPU, falls sichtbar; 'same' = wie die Policy; sonst z. B. 'cuda:1'. "
+                        "Env: RL_REF_DEVICE.")
     p.add_argument("--num-envs", type=int, default=16, help="Parallele Sim-Envs")
     p.add_argument("--iterations", type=int, default=500, help="RL-Iterationen (Rollout+Update)")
     p.add_argument("--rollout-steps", type=int, default=32, help="Env-Steps pro Rollout pro Env")
@@ -172,6 +182,35 @@ def compute_gae(rewards, values, dones, last_values, gamma, lam, torch):
 # ---------------------------------------------------------------------------
 # FPO-Proxy: -L_flow_matching, gemittelt ueber K Ziehungen.
 # ---------------------------------------------------------------------------
+def resolve_ref_device(spec: str, device: str, torch) -> str:
+    """Geraet fuer das Referenzmodell bestimmen.
+
+    'auto' legt es auf die zweite sichtbare GPU, sonst auf dieselbe wie die Policy.
+    Sinn: Das Referenzmodell ist eingefroren und laeuft nur unter no_grad — es braucht
+    also nur seine ~6-7 GB Gewichte plus einen transienten Forward, aber keinen
+    Backward-Graphen. Genau dieser Ballast gehoert nicht auf die Karte, die sich
+    Rendering, Policy, Optimizer-States und Aktivierungen ohnehin schon teilen.
+    """
+    if spec == "same" or not device.startswith("cuda"):
+        return device
+    if spec != "auto":
+        return spec
+    return "cuda:1" if torch.cuda.device_count() > 1 else device
+
+
+def _to_device(obj, dev):
+    """Collated Batch rekursiv auf ein anderes Geraet kopieren; Nicht-Tensoren bleiben."""
+    if hasattr(obj, "to") and hasattr(obj, "device"):
+        return obj.to(dev, non_blocking=True)
+    if isinstance(obj, dict):
+        return {k: _to_device(v, dev) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_to_device(v, dev) for v in obj]
+    if isinstance(obj, tuple):
+        return tuple(_to_device(v, dev) for v in obj)
+    return obj
+
+
 def fpo_logprob_proxy(model, inputs_with_action, k_samples, torch):
     """Likelihood-freier Stand-in fuer log pi(a|s) (FPO, arXiv 2510.09976).
 
@@ -206,7 +245,16 @@ def main() -> None:
     from gr00t.policy.gr00t_policy import Gr00tPolicy
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
+    ref_device = resolve_ref_device(args.ref_device, device, torch)
     print(f"[rl] device={device}  num_envs={args.num_envs}", flush=True)
+    if ref_device != device:
+        print(f"[rl] Referenzmodell (KL) auf {ref_device} — entlastet {device}.", flush=True)
+    elif torch.cuda.is_available() and torch.cuda.device_count() == 1:
+        print(
+            "[rl] Nur EINE GPU sichtbar — Referenzmodell teilt sie sich mit der Policy. "
+            "Fuer die Aufteilung beide Karten durchreichen (RL_GPUS).",
+            flush=True,
+        )
 
     # ── Env (vektorisiert, shaped reward) ─────────────────────────────────────
     cfg = G1Dex3BlockstackEnvCfg()
@@ -220,7 +268,7 @@ def main() -> None:
     # ── Policy: aktuelle (trainierbar) + eingefrorene Referenz (fuer KL) ───────
     emb = EmbodimentTag(args.embodiment_tag)
     policy = Gr00tPolicy(model_path=args.checkpoint, embodiment_tag=emb, device=device)
-    ref_policy = Gr00tPolicy(model_path=args.checkpoint, embodiment_tag=emb, device=device)
+    ref_policy = Gr00tPolicy(model_path=args.checkpoint, embodiment_tag=emb, device=ref_device)
     model = policy.model
     ref_model = ref_policy.model
     for prm in ref_model.parameters():
@@ -367,9 +415,14 @@ def main() -> None:
                     idx = torch.as_tensor(ns, device=device, dtype=torch.long)
                     new_logp = fpo_logprob_proxy(model, inp, args.fpo_mc_samples, torch)[idx]
                     with torch.no_grad():
+                        # Liegt das Referenzmodell auf der zweiten Karte, werden die Inputs
+                        # EINMAL je Gruppe hinuebergeschoben — nicht je K-Ziehung, denn
+                        # fpo_logprob_proxy laeuft K-mal ueber genau dieselben Inputs.
+                        # Zurueck kommt nur ein (B,)-Vektor, der Rueckweg ist also gratis.
+                        ref_inp = inp if ref_device == device else _to_device(inp, ref_device)
                         ref_logp = fpo_logprob_proxy(
-                            ref_model, inp, args.fpo_mc_samples, torch
-                        )[idx]
+                            ref_model, ref_inp, args.fpo_mc_samples, torch
+                        ).to(device)[idx]
                     ratio = torch.exp(new_logp - old_logp[t, idx])
                     a = adv[t, idx]
                     unclipped = ratio * a

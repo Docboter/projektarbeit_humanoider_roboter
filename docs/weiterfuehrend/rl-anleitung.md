@@ -89,8 +89,17 @@ HF_TOKEN=hf_... WANDB_API_KEY=... LIVE_VIEW=1 RL_WANDB_VIDEO_EVERY=10 \
   Treiber 610.x — daher der Port auf Isaac Sim 6.0 (siehe Troubleshooting). `preflight` prüft
   Torch/flash-attn/gr00t; `check` ist der eigentliche Nachweis, dass Kamera-Rendering +
   Env-Konstruktion auf dieser GPU laufen (entspricht Schritt 5/7 unten).
-- **GPU-Zuteilung:** `server_rl_run.sh` pinnt standardmäßig auf eine GPU (`RL_GPUS='"device=0"'`) —
-  Rendering + Backprop teilen sich sonst unnötig zwei Karten; `RL_GPUS=all` überschreibt das.
+- **GPU-Zuteilung:** `server_rl_run.sh` reicht standardmäßig **beide** Karten durch
+  (`RL_GPUS='"device=1,0"'`). Der Trainer ist kein Data-Parallel-Setup — er nutzt die zweite Karte
+  gezielt für **ein** Stück Ballast: das eingefrorene Referenzmodell für die KL gegen den
+  BC-Checkpoint. Das läuft nur unter `no_grad`, braucht also seine ~6–7 GB Gewichte plus einen
+  transienten Forward, aber keinen Backward-Graphen — genau das gehört nicht auf die Karte, die
+  sich Rendering, Policy, Optimizer-States und Aktivierungen ohnehin teilt.
+  **Reihenfolge zählt:** die zuerst genannte Karte wird im Container zu `cuda:0` und trägt
+  Rendering + Training. Physische GPU 1 steht vorn, weil dort am 2026-08-08 mehr frei war — vor
+  einem langen Lauf `nvidia-smi` prüfen und ggf. auf `"device=0,1"` drehen.
+  Einzelkarte: `RL_GPUS='"device=0"'`, dann rückt das Referenzmodell automatisch mit auf (altes
+  Verhalten). Abschalten trotz zweier Karten: `RL_REF_DEVICE=same`.
 - **Daten:** Checkpoint-Cache, RL-Checkpoints (`/data/g1_dex3_rl/`) und Isaac-Sim-Shader-Cache liegen
   alle unter dem gemounteten `/data` — bleiben zwischen Läufen erhalten, bis `clean`.
 - **Live-Ansicht:** Der Port 8900 wird beim **Anlegen** des Containers gemappt (`-p` wirkt nur dort).
@@ -472,8 +481,9 @@ Reward-Hacking — `RL_KL_COEF` erhöhen oder die Shaped-Reward-Gewichte (`rew_*
 **Zuerst prüfen, wer sonst noch auf der GPU liegt** — `nvidia-smi`. Auf `ikr-ki-server-01` belegte
 am 2026-08-08 ein fremder `llama-server` dauerhaft **41 GB auf GPU 0** und 37 GB auf GPU 1; von den
 95 GB blieben also nur ~56 übrig. Die Fehlermeldung nennt das als „non-PyTorch memory" und ist
-leicht zu überlesen. Größter Hebel ist immer, diesen Prozess zu beenden oder auf die freiere Karte
-auszuweichen (`RL_GPUS='"device=1"'`).
+leicht zu überlesen. Größter Hebel ist immer, diesen Prozess zu beenden. Sonst: die freiere Karte
+in `RL_GPUS` **nach vorn** stellen (sie wird zu `cuda:0` und trägt Rendering + Training) — das
+Referenzmodell landet dann auf der anderen.
 
 **`RL_NUM_ENVS` zu senken half hier nicht — es machte es schlimmer.** Der Grund steckt in der
 Struktur des Update-Schritts: ein Minibatch besteht aus `(t, env)`-Paaren, und pro Zeitschritt
@@ -492,6 +502,7 @@ Reicht das nicht, in dieser Reihenfolge drehen:
 | `RL_MINIBATCH_SIZE` | `16` oder `8` | Weniger Paare je Update-Schritt |
 | `RL_NUM_ENVS` | `2` | Kleinere Batches beim Rendern und im Rollout — wirkt auf den Rollout, **nicht** auf den Update-Peak |
 | `RL_EPOCHS_PER_ITER` | `1` | Halbiert die Update-Arbeit je Iteration (kostet Sample-Effizienz) |
+| `RL_GPUS` | `'"device=1,0"'` | Zweite Karte durchreichen — das Referenzmodell zieht dorthin um und gibt ~6–7 GB auf der Trainingskarte frei (Default; `RL_REF_DEVICE=same` schaltet es ab) |
 
 `PYTORCH_ALLOC_CONF=expandable_segments:True` setzt `server_rl_run.sh` inzwischen selbst — der
 OOM-Traceback empfahl es (1,13 GB waren reserviert, aber unbenutzt: Fragmentierung).
