@@ -1301,6 +1301,39 @@ interessant, wenn überhaupt ein Erfolg auftritt.
   `sim_videos/` ab — vier Bilder, genau die Modell-Eingabe. Sind die leer, weiß oder schwarz, ist
   der Lauf ungültig und keine Aussage über die Policy.
 
+#### Zwischenstand (runs/20260808/23, erste 2 von 20 Episoden)
+
+Der Lauf startete 16:19 Uhr mit genau den Werten oben; das Log wurde bei Episode 3 kopiert. Beide
+fertigen Episoden: **misslungen, volle 3600 Steps**, kein früher Abbruch. Beide Vorprüfungen sind
+damit beantwortet — und keine der beiden erklärt das Ergebnis:
+
+* **Die Policy sieht die Szene.** `_debug_obs_cam_left_high.png` zeigt Tisch, alle drei Würfel und
+  beide schwarzen Hände scharf und mittig. Kein leeres oder überstrahltes Bild.
+* **Die Hand erreicht den Tisch.** Im Szenenvideo liegt die linke Hand über weite Strecken auf
+  Tischhöhe direkt neben dem roten Würfel. Die 15-cm-Abweichung äußert sich **nicht** als
+  „greift ins Leere". Damit fällt die einzige zugelassene Nicht-Sehen-Erklärung für eine 0 weg.
+
+Der eigentliche Befund steht aber nicht im Erfolgszähler, sondern im Video: **die Würfel bewegen
+sich in 7200 Steps kein einziges Mal.** Anfangs- und Endbild beider Episoden zeigen sie
+pixelgenau an derselben Stelle (die Startlagen sind zwischen den Episoden randomisiert, die
+Endlagen also nicht durch eine feste Szene erklärt). Die Arme bewegen sich dabei durchgehend: die
+Frame-zu-Frame-Differenz im Tischausschnitt liegt konstant bei 0,35–0,41 über alle sechs
+20-s-Fenster, ohne jede Phasenstruktur. Kein Anfahren, kein Greifen, kein Anheben — eine
+gleichförmige Bewegung, die den Würfel nie berührt.
+
+Das ist informativer als die Erfolgsrate und war mit dem bisherigen Instrumentarium nur per Auge
+am Video zu sehen. Deshalb protokolliert der Runner seit diesem Lauf zwei Zahlen je Episode
+(`env.get_reach_diagnostics()`, kostet keinen zusätzlichen Render-Pass):
+
+| Feld in `results.json` | Bedeutung |
+|---|---|
+| `min_reach_m` / `min_reach_step` | kleinster Abstand Hand↔Würfel in der Episode, und wann |
+| `block_shift_max_m` | größte Verschiebung eines Würfels gegenüber dem Reset-Layout |
+
+Damit trennt der nächste Lauf die beiden Lesarten quantitativ: kommt die Hand auf wenige
+Zentimeter heran und greift trotzdem nicht, ist es Wahrnehmung/Politik und `TUNE_VISUAL=1` steht;
+bleibt der Abstand groß, ist es Geometrie und ein ViT-Lauf wäre verschwendet.
+
 ### `isaaclab nicht importierbar`
 Das Skript braucht das **kombinierte** Image (`Dockerfile.vastai`), nicht das BC-Trainingsimage.
 

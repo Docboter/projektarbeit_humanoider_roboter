@@ -134,7 +134,8 @@ def run_episode(
     Führt eine einzelne Eval-Episode durch.
 
     Returns:
-        dict mit Feldern: success, num_steps, duration_s, success_step
+        dict mit Feldern: success, num_steps, duration_s, success_step,
+        min_reach_m, min_reach_step, block_shift_max_m
     """
     obs_dict, _ = env.reset()
     client.reset()
@@ -144,6 +145,15 @@ def run_episode(
     success = False
     success_step = -1
     t_start = time.perf_counter()
+
+    # Reichweiten-Diagnose (s. env.get_reach_diagnostics): hält fest, ob die Hand einem
+    # Würfel überhaupt nahekam und ob sich die Würfel bewegt haben. Ohne das ist ein 0/20
+    # nicht interpretierbar — "nie in Reichweite" und "in Reichweite, aber nicht gegriffen"
+    # führen zu völlig verschiedenen nächsten Schritten.
+    reach_start, block_pos_start = env.get_reach_diagnostics()
+    min_reach = reach_start
+    min_reach_step = 0
+    block_pos_last = block_pos_start
 
     max_steps = int(env.cfg.episode_length_s * env.cfg.policy_hz)
 
@@ -185,6 +195,13 @@ def run_episode(
                 chunk[t], dtype=torch.float32, device=env.device
             ).unsqueeze(0)  # (1, 28)
 
+            # VOR dem Step lesen — nach einem done hat DirectRLEnv bereits zurückgesetzt
+            # und die Werte gehörten zur nächsten Episode.
+            reach_now, block_pos_last = env.get_reach_diagnostics()
+            if reach_now < min_reach:
+                min_reach = reach_now
+                min_reach_step = step
+
             obs_step, _, terminated, time_out, info = env.step(action_t)
 
             # Video-Frame nach dem Step erfassen — aus der Szenen-Übersichtskamera (ganze Szene
@@ -225,11 +242,20 @@ def run_episode(
     if record_video and video_dir:
         save_episode_video(frames, episode, video_dir)
 
+    # Größte Verschiebung eines Würfels gegenüber dem Reset-Layout. Bleibt sie im
+    # Millimeterbereich, wurde in der ganzen Episode kein Würfel angefasst — dann ist
+    # die Erfolgsrate ohnehin nur die Bestätigung dieser Beobachtung.
+    block_shift = np.linalg.norm(block_pos_last - block_pos_start, axis=1)
+
     return {
         "success": success,
         "num_steps": step,
         "duration_s": round(duration, 2),
         "success_step": success_step,
+        "min_reach_m": round(min_reach, 4),
+        "min_reach_step": min_reach_step,
+        "block_shift_max_m": round(float(block_shift.max()), 4),
+        "block_shift_m": [round(float(v), 4) for v in block_shift],
     }
 
 
@@ -318,7 +344,10 @@ def main():
         print(
             f"  Episode {ep + 1}: {status} | "
             f"{ep_result['num_steps']} Steps | "
-            f"{ep_result['duration_s']:.1f}s"
+            f"{ep_result['duration_s']:.1f}s | "
+            f"min. Hand-Würfel-Abstand {ep_result['min_reach_m'] * 100:.1f} cm "
+            f"(Step {ep_result['min_reach_step']}) | "
+            f"Würfel verschoben max. {ep_result['block_shift_max_m'] * 100:.1f} cm"
         )
 
     # Auswertung
@@ -327,6 +356,17 @@ def main():
     print()
     print("=" * 60)
     print(f"Ergebnis: {n_success}/{len(results)} Erfolge — Success-Rate: {success_rate:.1%}")
+    # Bei 0 Erfolgen ist das die eigentliche Information: kam die Hand nie an einen Würfel
+    # (Geometrie), oder stand sie daneben ohne zu greifen (Wahrnehmung/Politik)?
+    if results:
+        reaches = sorted(r["min_reach_m"] for r in results)
+        shifts = [r["block_shift_max_m"] for r in results]
+        n_touched = sum(1 for s in shifts if s > 0.01)
+        print(
+            f"  Min. Hand-Würfel-Abstand: bester {reaches[0] * 100:.1f} cm, "
+            f"Median {reaches[len(reaches) // 2] * 100:.1f} cm"
+        )
+        print(f"  Episoden mit bewegtem Würfel (>1 cm): {n_touched}/{len(results)}")
     print("=" * 60)
 
     # Ergebnisse speichern

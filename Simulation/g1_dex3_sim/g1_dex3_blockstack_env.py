@@ -975,6 +975,24 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
             self._hand_body_ids = ids
         return self.robot.data.body_pos_w[:, self._hand_body_ids, :]
 
+    def get_reach_diagnostics(self) -> tuple[float, np.ndarray]:
+        """Kleinster Hand-Würfel-Abstand [m] und Würfel-Weltpositionen (3, 3), env 0.
+
+        Diagnose für die Eval: die binäre Erfolgsrate sagt bei 0/20 nicht, WORAN es lag.
+        Der Abstand trennt genau die zwei Fälle, die man sonst nur am Video auseinanderhält
+        — "Hand kommt nie an einen Würfel" (Geometrie/Reichweite, z. B. der offene
+        Tischabstand) gegen "Hand steht am Würfel, greift aber nicht" (Wahrnehmung/Politik).
+        Nur die zweite Lesart rechtfertigt TUNE_VISUAL=1.
+
+        Nutzt dieselben Tensoren wie _shaped_reward — kein zusätzlicher Sensor, kein
+        Render-Pass. Muss VOR env.step() gelesen werden: DirectRLEnv setzt bei done im
+        selben Step zurück, danach stünde hier schon das Layout der nächsten Episode.
+        """
+        block_pos = torch.stack([b.data.root_pos_w for b in self.blocks], dim=1)
+        hand_pos = self._get_hand_positions()
+        dists = torch.cdist(hand_pos, block_pos)           # (num_envs, 2, 3)
+        return float(dists[0].amin().item()), block_pos[0].cpu().numpy()
+
     def _shaped_reward(self) -> torch.Tensor:
         """Dichter, voll vektorisierter Reward fürs RL-Fine-tuning (alle num_envs).
 
