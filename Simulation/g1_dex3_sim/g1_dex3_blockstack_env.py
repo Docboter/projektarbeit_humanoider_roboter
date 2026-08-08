@@ -42,6 +42,70 @@ from g1_dex3_cfg import (
     RIGHT_DEX3_JOINTS,
 )
 
+
+# ---------------------------------------------------------------------------
+# Render-Konfiguration — DLSS-Upscaling abschalten
+# ---------------------------------------------------------------------------
+def _make_sim_cfg(**kwargs) -> SimulationCfg:
+    """SimulationCfg mit DLSS-freiem Rendering, soweit die Isaac-Lab-Version das kennt.
+
+    ANLASS (2026-08-08, Isaac Sim 6.0 / Isaac Lab 3.0.0-beta2): Alle fünf Kameras
+    lieferten praktisch leere Bilder — cam_left_high spannte über das ganze Bild nur die
+    Helligkeitsstufen 244–249. Die Ursache liegt NICHT bei den Posen: der Dump
+    (dump_camera_poses.py) belegt für jede Kamera Position und Blickrichtung
+    deckungsgleich mit der Config, `quat_w_world/+X` bei 0.0°. Im Kit-Log steht dagegen:
+
+        [Warning] [omni.rtx] DLSS increasing input dimensions:
+            Render resolution of (320, 240) is below minimal input resolution of 300.
+
+    DLSS rendert also intern auf halber Auflösung (640×480 → 320×240) und liegt damit
+    unter seinem eigenen Minimum. DLAA bzw. „Off" rendern in Native-Auflösung, wodurch
+    das Minimum entfällt. Die Kamera-Auflösung selbst bleibt bei 640×480, weil sie an den
+    Datensatz gebunden ist — sie hochzudrehen wäre der falsche Hebel.
+
+    Vorgeschichte: DLSS ist in diesem Projekt bereits als Renderproblem dokumentiert
+    (docs/fehlerbehebung.md, docs/simulation/archiv/gpu-kompatibilitaet.md) — dort als
+    `createDLSSContext error` auf GPUs ohne DLSS-RR-Unterstützung.
+
+    Defensiv gebaut, weil Isaac Lab 3.0 Beta ist und die Feldnamen wandern können: es
+    werden nur Felder gesetzt, die RenderCfg tatsächlich hat, und jeder Fehlschlag wird
+    LAUT gemeldet statt still ignoriert (falsche Kit-Settings schluckt Kit sonst
+    kommentarlos — genau die Falle, die hier Stunden gekostet hat).
+    """
+    import dataclasses
+
+    render = None
+    try:
+        from isaaclab.sim import RenderCfg
+    except ImportError:
+        print("[Env] WARN: isaaclab.sim.RenderCfg nicht vorhanden — DLSS bleibt aktiv.",
+              flush=True)
+    else:
+        available = {f.name for f in dataclasses.fields(RenderCfg)}
+        # DLAA = DLSS-Kantenglättung OHNE Upscaling; "Off" als Rückfall.
+        wanted = {"antialiasing_mode": "DLAA", "enable_dlssg": False, "dlss_mode": 2}
+        use = {k: v for k, v in wanted.items() if k in available}
+        missing = sorted(set(wanted) - set(use))
+        try:
+            render = RenderCfg(**use)
+        except (TypeError, ValueError) as e:
+            print(f"[Env] WARN: RenderCfg({use}) abgelehnt ({e}) — DLSS bleibt aktiv.",
+                  flush=True)
+            render = None
+        else:
+            print(f"[Env] RenderCfg gesetzt: {use}"
+                  + (f"  (nicht unterstützt: {missing})" if missing else ""), flush=True)
+
+    if render is None:
+        return SimulationCfg(**kwargs)
+    try:
+        return SimulationCfg(render=render, **kwargs)
+    except TypeError as e:
+        print(f"[Env] WARN: SimulationCfg kennt kein 'render' ({e}) — DLSS bleibt aktiv.",
+              flush=True)
+        return SimulationCfg(**kwargs)
+
+
 # ---------------------------------------------------------------------------
 # Szenenkonfiguration
 # ---------------------------------------------------------------------------
@@ -242,7 +306,7 @@ class G1Dex3BlockstackSceneCfg(InteractiveSceneCfg):
 @configclass
 class G1Dex3BlockstackEnvCfg(DirectRLEnvCfg):
     # Simulation
-    sim: SimulationCfg = SimulationCfg(
+    sim: SimulationCfg = _make_sim_cfg(
         dt=1.0 / 200.0,   # 200 Hz Physik
         render_interval=7, # Alle 7 Physics-Steps → ~28.6 Hz Policy-Obs
     )

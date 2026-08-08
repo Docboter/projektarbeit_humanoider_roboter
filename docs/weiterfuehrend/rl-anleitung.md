@@ -506,6 +506,53 @@ HF_TOKEN=hf_... ./Simulation/server_rl_run.sh check   # der eigentliche Blackwel
 ### `createDLSSContext error` / Rendering schlägt fehl
 GPU ohne RT-Cores. Nur L40 / RTX 30xx-40xx / A6000 — **kein A100/H100/V100**.
 
+### Kamerabilder praktisch leer (Isaac Sim 6.0) — DLSS-Upscaling
+
+**Symptom (2026-08-08, RTX PRO 6000 Blackwell):** Alle fünf Kameras liefern nahezu einfarbige
+Bilder. `cam_left_high` spannte über das gesamte Bild nur die Helligkeitsstufen **244–249**; die
+Chroma fiel von 6,0 (Juni, mit farbigen Würfeln) auf 2,0. Die Wrist-Kameras erwischten noch einen
+Streifen Hand am Bildrand, wo im Juni die Hand formatfüllend war. Zum Vergleich der Juni-Frame:
+`Simulation/old_videos/12/_debug_obs_cam_left_high.png` (Tisch, drei Würfel, beide Hände).
+
+**Was es NICHT ist** — drei per Messung ausgeschlossene Verdächtige:
+
+| Verdacht | Widerlegt durch |
+|---|---|
+| Kamera-Pose / -Orientierung falsch | `server_rl_run.sh cams`: für alle fünf Kameras Position deckungsgleich mit dem Offset, Blickrichtung deckungsgleich mit der Config, `quat_w_world/+X` bei **0,0°** |
+| Falsche Konvention (`convention="world"` als ROS/OpenGL interpretiert) | Treffer-Matrix im Dump: `quat_w_world/+X` gewinnt bei 0,0°; ROS und OpenGL liegen 22–130° daneben |
+| `TiledCamera`-Slicing bei mehreren Envs | Lauf mit `RL_NUM_ENVS=1` zeigt dasselbe Bild wie mit 4 |
+| Überbelichtung / Sättigung | Kein Kanal erreicht 255 (Max 247–249), und `cam_left_wrist` hat min=10 — Kontrast ist vorhanden |
+
+**Was es ist (Kit-Log):**
+
+```
+[Warning] [omni.rtx] DLSS increasing input dimensions:
+    Render resolution of (320, 240) is below minimal input resolution of 300.
+```
+
+DLSS rendert intern auf halber Auflösung (640×480 → 320×240) und liegt damit unter seinem
+eigenen Minimum. Die Env setzte bis dahin **keine** Render-Konfiguration, lief also auf den
+Isaac-Sim-6.0-Defaults.
+
+**Fix:** `_make_sim_cfg()` in
+[`g1_dex3_blockstack_env.py`](../../Simulation/g1_dex3_sim/g1_dex3_blockstack_env.py) setzt
+`RenderCfg(antialiasing_mode="DLAA", …)` — DLAA glättet Kanten in **Native-Auflösung**, das
+Minimum entfällt damit. Die Kamera-Auflösung bleibt bei 640×480, weil sie an den Datensatz
+gebunden ist; sie hochzudrehen wäre der falsche Hebel. Weil Isaac Lab 3.0 Beta ist, setzt die
+Funktion nur Felder, die `RenderCfg` wirklich hat, und meldet jeden Fehlschlag **laut** — falsche
+Kit-Settings schluckt Kit sonst kommentarlos.
+
+**Verifizieren:** `./Simulation/server_rl_run.sh cams` und die PNGs unter `/data/cam_dump/`
+ansehen. Erwartet wird die Startzeile `[Env] RenderCfg gesetzt: {...}` und ein Bild wie der
+Juni-Referenzframe. Bleibt es leer, ist der nächste Test die Kamera-Auflösung: `CAMERA_CFG.width`
+/`.height` testweise auf 1280×960 (intern dann 640×480, weit über dem Minimum) — bestätigt oder
+erledigt die Auflösungs-These, auch wenn der AA-Schalter nicht gegriffen hat.
+
+> **Folge fürs Training:** Solange die Policy-Kameras leer sind, sieht das Modell nichts — RL
+> optimiert dann gegen ein blindes Modell, während `reward_mean` sich weiter bewegt (der Shaped
+> Reward kommt aus Gelenkpositionen). Erst `cams` grün, dann RL starten. Die Juni-Auswertungen
+> sind unberührt: die liefen auf korrekt gerenderten Kameras.
+
 ### `isaaclab nicht importierbar`
 Das Skript braucht das **kombinierte** Image (`Dockerfile.vastai`), nicht das BC-Trainingsimage.
 
