@@ -522,6 +522,9 @@ Streifen Hand am Bildrand, wo im Juni die Hand formatfüllend war. Zum Vergleich
 | Falsche Konvention (`convention="world"` als ROS/OpenGL interpretiert) | Treffer-Matrix im Dump: `quat_w_world/+X` gewinnt bei 0,0°; ROS und OpenGL liegen 22–130° daneben |
 | `TiledCamera`-Slicing bei mehreren Envs | Lauf mit `RL_NUM_ENVS=1` zeigt dasselbe Bild wie mit 4 |
 | Überbelichtung / Sättigung | Kein Kanal erreicht 255 (Max 247–249), und `cam_left_wrist` hat min=10 — Kontrast ist vorhanden |
+| DLSS-Upscaling unter Mindestauflösung | `RL_AA_MODE=DLAA` beseitigte die Warnung, verschlechterte das Bild aber (Chroma 5,93 → 0,96); `RL_AA_MODE=Off` ändert nichts |
+| Render-Konvergenz (zu wenige Frames) | `RL_SETTLE_STEPS=60` macht die Läufe deterministisch (Median stabil 232) — aber weiterhin leer |
+| Clipping-Range zu eng | High-Kameras: `(0.1, 20.0)`, Tisch bei 0,79 m; Wrist: `(0.01, 5.0)`; Szene: `(0.1, 30.0)` — alles bequem drin |
 
 **Was es ist (Kit-Log):**
 

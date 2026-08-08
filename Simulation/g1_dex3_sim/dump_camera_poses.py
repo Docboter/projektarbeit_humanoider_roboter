@@ -69,6 +69,75 @@ def first_attr(obj, names):
     return None, None
 
 
+def scene_points(env, origins):
+    """Weltpositionen der Szenenobjekte zur LAUFZEIT — {Name: (3,)}.
+
+    Der bislang ungeprüfte Teil: Alle Frustum-Rechnungen gingen von den Werten aus der
+    Config aus (Tisch bei (0.5, 0, 0.435), Würfel bei z=0.915). Stehen die Objekte real
+    woanders — falscher USD-Maßstab, weggekippt, anderes Asset —, ist jede daraus
+    abgeleitete Aussage wertlos. Deshalb hier die echten Root-Posen aus der Physik.
+    """
+    pts = {}
+
+    def add(name, obj):
+        d = getattr(obj, "data", None)
+        p = getattr(d, "root_pos_w", None) if d is not None else None
+        if p is not None:
+            pts[name] = p.detach().cpu().numpy()[0]
+
+    add("table", getattr(env, "table", None))
+    for i, b in enumerate(getattr(env, "blocks", []) or []):
+        add(f"block_{i}", b)
+    robot = getattr(env, "robot", None)
+    add("robot_root", robot)
+    # Ein paar Links, die in den Kameras sichtbar sein MÜSSEN, wenn alles stimmt.
+    d = getattr(robot, "data", None)
+    names = list(getattr(d, "body_names", []) or []) if d is not None else []
+    bp = getattr(d, "body_pos_w", None) if d is not None else None
+    if bp is not None and names:
+        bp = bp.detach().cpu().numpy()[0]
+        for want in ("pelvis", "left_wrist_yaw_link", "right_wrist_yaw_link"):
+            if want in names:
+                pts[f"link:{want}"] = bp[names.index(want)]
+    return pts
+
+
+def frustum_report(cam_cfg, pos_w, quat_w, pts, width, height):
+    """Projiziert Szenenpunkte in eine Kamera. -> Zeilen (name, u, v, dist, drin?).
+
+    u/v sind auf [-1, 1] normiert (0 = Bildmitte). Intrinsics aus dem spawn-Cfg, damit
+    die Rechnung dieselbe Optik benutzt wie der Renderer.
+    """
+    spawn = getattr(cam_cfg, "spawn", None)
+    f = float(getattr(spawn, "focal_length", 24.0))
+    ap_h = float(getattr(spawn, "horizontal_aperture", 20.955))
+    ap_v = ap_h * height / width
+    tan_h, tan_v = ap_h / (2 * f), ap_v / (2 * f)
+    clip = getattr(spawn, "clipping_range", (0.0, 1e9))
+
+    x = quat_rotate(quat_w, [1.0, 0.0, 0.0])   # Blickachse (convention="world")
+    y = quat_rotate(quat_w, [0.0, 1.0, 0.0])
+    z = quat_rotate(quat_w, [0.0, 0.0, 1.0])
+    rows = []
+    for name, p in pts.items():
+        v = np.asarray(p, dtype=float) - np.asarray(pos_w, dtype=float)
+        fwd = float(np.dot(v, x))
+        if fwd <= 1e-6:
+            rows.append((name, None, None, fwd, "hinter der Kamera"))
+            continue
+        u = -float(np.dot(v, y)) / fwd / tan_h
+        w = float(np.dot(v, z)) / fwd / tan_v
+        dist = float(np.linalg.norm(v))
+        if not (clip[0] <= dist <= clip[1]):
+            state = f"ausserhalb clipping {tuple(clip)}"
+        elif abs(u) <= 1 and abs(w) <= 1:
+            state = "IM BILD"
+        else:
+            state = "ausserhalb des Bildes"
+        rows.append((name, u, w, dist, state))
+    return rows
+
+
 def main() -> None:
     cfg = G1Dex3BlockstackEnvCfg()
     cfg.scene.num_envs = args.num_envs
@@ -91,6 +160,19 @@ def main() -> None:
           f"{getattr(cfg.scene, 'env_spacing', '?')}):")
     for e, o in enumerate(origins):
         print(f"  env {e}: {np.round(o, 3)}")
+
+    # Szenengeometrie zur Laufzeit — die nie geprüfte Annahme.
+    pts = scene_points(env, origins)
+    print("\nSzenenobjekte, WELTPOSITION zur Laufzeit (env 0):")
+    print(f"  {'Objekt':<24}{'Position':<26}erwartet laut Config")
+    expect = {"table": "(0.5, 0.0, 0.435)", "block_0": "(0.34, -0.15, 0.915)",
+              "block_1": "(0.36, 0.0, 0.915)", "block_2": "(0.34, 0.15, 0.915)",
+              "robot_root": "(0, 0, ~0.85)"}
+    for name, p in pts.items():
+        rel = p - origins[0]
+        print(f"  {name:<24}{str(np.round(rel, 3)):<26}{expect.get(name, '—')}")
+    if not pts:
+        print("  !! keine Objektposen auslesbar — Attributnamen der Isaac-Lab-Version prüfen.")
 
     for name, cam in env.cameras.items():
         cam_cfg = getattr(cfg.scene, name, None)
@@ -160,6 +242,18 @@ def main() -> None:
             verdict = "OK" if (qname.endswith("world") and aname == "+X" and ang < 2) else \
                       "<-- Konvention passt NICHT zu convention='world'"
             print(f"  bester Treffer: {qname} / {aname} bei {ang:.1f}°   {verdict}")
+
+        # Was MÜSSTE diese Kamera sehen? Deckt der Frustum-Test die Objekte ab, ist es ein
+        # reines Render-Problem; deckt er sie nicht ab, stehen Kamera und Szene nicht
+        # zueinander — dann ist die Pose zwar "richtig", aber die Szene woanders.
+        if pts:
+            print("  Sichtbarkeit der Szenenobjekte (u/v normiert, 0 = Bildmitte):")
+            for name, u, w, dist, state in frustum_report(
+                cam_cfg, pos_w[0], quat_w[0], pts,
+                int(getattr(cam_cfg, "width", 640)), int(getattr(cam_cfg, "height", 480)),
+            ):
+                uv = "        —      " if u is None else f"u={u:+6.2f} v={w:+6.2f}"
+                print(f"    {name:<24}{uv}  d={dist:5.2f} m  {state}")
 
     # Standbilder — belegen, was die Kamera wirklich sieht.
     os.makedirs(args.out_dir, exist_ok=True)
