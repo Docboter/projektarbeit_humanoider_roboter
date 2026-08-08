@@ -55,6 +55,10 @@ parser.add_argument("--asset-path", type=str, default="",
 parser.add_argument("--grasp-test", action="store_true",
                     help="Würfel exakt an die aufgezeichneten Greifpunkte setzen (statt Zufall), "
                          "um die Greif-Physik zu prüfen: wird ein Würfel angehoben?")
+parser.add_argument("--grasp-hold", action="store_true",
+                    help="Würfel im Moment des Zugreifens direkt zwischen die Fingerspitzen "
+                         "setzen. Nimmt jede Platzierungs- und Timing-Annahme aus dem Test "
+                         "heraus und misst nur noch, ob die Hand einen Würfel halten kann.")
 
 AppLauncher.add_app_launcher_args(parser)
 args = parser.parse_args()
@@ -151,6 +155,26 @@ def main():
     # tiefster Greifpunkt je Hand (zeigt, WO ein Würfel liegen müsste, um die Greif-Physik zu testen)
     hand_low = [np.array([0.0, 0.0, 1e9]) for _ in palm_idx]
 
+    # Fingerspitzen — die Flächen, die den Würfel tatsächlich berühren. Der Handflächen-
+    # Abstand allein führt in die Irre: der Bezugskörper liegt innerhalb der Handgeometrie,
+    # genau dieser Fehler hat in Lauf 24 schon einmal die falsche Schlussfolgerung erzeugt.
+    # Namen kommen aus dem Env, damit Eval und Replay denselben Bezugsrahmen messen.
+    tip_names = list(G1Dex3BlockstackEnv._REACH_BODY_SETS[0][1])
+    try:
+        tip_ids, _ = env.robot.find_bodies(tip_names, preserve_order=True)
+    except ValueError:
+        tip_ids = []
+    if len(tip_ids) != len(tip_names):
+        tip_ids = []
+        print("[Replay] WARNUNG: Fingerspitzen-Links nicht gefunden — nur Handflächen-Diagnose.",
+              flush=True)
+    min_tip_cube, min_tip_step = float("inf"), -1
+    spread_max = [0.0, 0.0]                 # größte Fingeröffnung je Hand (links, rechts)
+    spread_min, close_step = [float("inf")] * 2, [-1, -1]
+    # --grasp-hold: Einsetz-Step, Halte-Zähler und Höhen je Hand
+    hold_step, hold_ok, hold_total = [-1, -1], [0, 0], [0, 0]
+    hold_insert_z, hold_max_z, hold_final_z = [0.0, 0.0], [0.0, 0.0], [0.0, 0.0]
+
     for i in range(n):
         action_t = torch.tensor(actions[i], dtype=torch.float32, device=env.device).unsqueeze(0)
         obs_step, _, terminated, time_out, info = env.step(action_t)
@@ -167,15 +191,60 @@ def main():
         np.maximum(ach_hi, achieved[14:], out=ach_hi)
 
         # Greif-Diagnose: min Hand→Würfel-Distanz + maximale Würfel-Anhebung
+        cubes = np.array([b.data.root_pos_w[0].cpu().numpy() for b in env.blocks])  # (3,3)
         if palm_idx:
             hands = env.robot.data.body_pos_w[0, palm_idx].cpu().numpy()           # (H,3)
-            cubes = np.array([b.data.root_pos_w[0].cpu().numpy() for b in env.blocks])  # (3,3)
             d = np.linalg.norm(hands[:, None, :] - cubes[None, :, :], axis=-1).min()
             min_hand_cube = min(min_hand_cube, float(d))
             max_cube_lift = max(max_cube_lift, float((cubes[:, 2] - init_cube_z).max()))
             for h in range(len(palm_idx)):
                 if hands[h, 2] < hand_low[h][2]:
                     hand_low[h] = hands[h].copy()
+
+        if tip_ids:
+            tips = env.robot.data.body_pos_w[0, tip_ids].cpu().numpy()             # (6,3)
+            d_tip = float(np.linalg.norm(tips[:, None, :] - cubes[None, :, :], axis=-1).min())
+            if d_tip < min_tip_cube:
+                min_tip_cube, min_tip_step = d_tip, i
+
+            for h in range(2):
+                t3 = tips[3 * h:3 * h + 3]                                         # Daumen/Zeige/Mittel
+                # mittlerer paarweiser Fingerspitzen-Abstand = Weite der Greiföffnung
+                spread = float(np.linalg.norm(t3[[0, 0, 1]] - t3[[1, 2, 2]], axis=-1).mean())
+                spread_max[h] = max(spread_max[h], spread)
+                if spread < spread_min[h]:
+                    spread_min[h], close_step[h] = spread, i
+
+                if h >= len(env.blocks):
+                    continue
+                # Der Würfel wird genau dann eingesetzt, wenn die Hand aus ihrer weitesten
+                # Öffnung heraus zugreift (< 70 %). Der Mittelpunkt der drei Fingerspitzen
+                # IST die Greiföffnung — damit ist Platzierung und Timing per Konstruktion
+                # richtig und es bleibt nur die Frage, ob die Hand überhaupt halten kann.
+                if (args.grasp_hold and hold_step[h] < 0 and i >= 60
+                        and spread_max[h] > 0.05 and spread < 0.7 * spread_max[h]):
+                    c = t3.mean(axis=0)
+                    pose = torch.tensor([[float(c[0]), float(c[1]), float(c[2]),
+                                          1.0, 0.0, 0.0, 0.0]],
+                                        device=env.device, dtype=torch.float32)
+                    env.blocks[h].write_root_pose_to_sim(pose)
+                    env.blocks[h].write_root_velocity_to_sim(
+                        torch.zeros((1, 6), device=env.device))
+                    hold_step[h] = i
+                    hold_insert_z[h] = float(c[2])
+                    # ab hier wird die Anhebung gegen den Einsetzpunkt gemessen, nicht
+                    # gegen den Tisch — sonst zählte das Einsetzen selbst als "Anhebung".
+                    init_cube_z[h] = float(c[2])
+                    print(f"[Replay] GRASP-HOLD: Würfel {h} bei Step {i} in die "
+                          f"{'linke' if h == 0 else 'rechte'} Greiföffnung gesetzt "
+                          f"(Spanne {spread * 100:.1f} cm von max. {spread_max[h] * 100:.1f} cm).",
+                          flush=True)
+                elif hold_step[h] >= 0:
+                    hold_total[h] += 1
+                    if float(np.linalg.norm(cubes[h] - t3.mean(axis=0))) < 0.04:
+                        hold_ok[h] += 1
+                    hold_max_z[h] = max(hold_max_z[h], float(cubes[h, 2]))
+                    hold_final_z[h] = float(cubes[h, 2])
 
         # Debug (einmalig, Step 0): alle 4 Kamera-Frames dumpen (wie im Modell-Eval)
         if i == 0 and args.video_dir:
@@ -224,6 +293,32 @@ def main():
     print("[Replay]   Distanz groß (>~15cm) → Greifbewegung trifft unsere Würfel nicht (Platzierung);"
           " Distanz klein + Anhebung≈0 → Greif-Physik prüfen; Anhebung>~2cm → Greifen FUNKTIONIERT.",
           flush=True)
+    if tip_ids:
+        print(f"[Replay]   min Fingerspitze→Würfelmitte = {min_tip_cube * 100:.1f} cm "
+              f"(Step {min_tip_step}) | engste Greiföffnung: "
+              f"links {spread_min[0] * 100:.1f} cm (Step {close_step[0]}), "
+              f"rechts {spread_min[1] * 100:.1f} cm (Step {close_step[1]})", flush=True)
+        print("[Replay]   Liegt der Step der engsten Greiföffnung weit weg vom Step des "
+              "kleinsten Fingerspitzen-Abstands, greift die Hand ins Leere — dann stimmt die "
+              "Würfel-Platzierung des Greif-Tests nicht, und die Physik ist nicht widerlegt.",
+              flush=True)
+
+    if args.grasp_hold:
+        for h in range(2):
+            if hold_step[h] < 0:
+                print(f"[Replay] GRASP-HOLD {'links' if h == 0 else 'rechts'}: kein Zugreifen "
+                      "erkannt (Finger schließen nie unter 70 % ihrer größten Öffnung).",
+                      flush=True)
+                continue
+            ratio = hold_ok[h] / max(hold_total[h], 1)
+            print(f"[Replay] GRASP-HOLD {'links' if h == 0 else 'rechts'}: Würfel ab Step "
+                  f"{hold_step[h]} zu {ratio * 100:.0f} % in der Hand "
+                  f"({hold_ok[h]}/{hold_total[h]} Steps), max. {(hold_max_z[h] - hold_insert_z[h]) * 100:+.1f} cm "
+                  f"über dem Einsetzpunkt, Endhöhe z={hold_final_z[h]:.3f}", flush=True)
+        print("[Replay]   Haltequote >~50 % → die Greif-Physik trägt, das Problem ist "
+              "Platzierung/Timing des Tests; ~0 % und Endhöhe ≈ Tischauflage → der Würfel "
+              "rutscht aus der geschlossenen Hand: Kontakt/Reibung.", flush=True)
+
     lbl = ["left", "right"]
     for h in range(len(palm_idx)):
         p = hand_low[h]
@@ -254,6 +349,19 @@ def main():
         "per_joint_max_error_rad": [round(float(x), 3) for x in per_joint_max],
         "min_hand_cube_dist_cm": round(min_hand_cube * 100, 1),
         "max_cube_lift_cm": round(max_cube_lift * 100, 1),
+        "grasp_mode": "hold" if args.grasp_hold else ("test" if args.grasp_test else "none"),
+        "min_fingertip_cube_dist_cm": (round(min_tip_cube * 100, 1)
+                                       if np.isfinite(min_tip_cube) else None),
+        "min_fingertip_step": min_tip_step,
+        "finger_spread_min_cm": [round(s * 100, 1) if np.isfinite(s) else None
+                                 for s in spread_min],
+        "finger_close_step": close_step,
+        "hold_step": hold_step if args.grasp_hold else None,
+        "hold_ratio": ([round(hold_ok[h] / max(hold_total[h], 1), 3) for h in range(2)]
+                       if args.grasp_hold else None),
+        "hold_rise_cm": ([round((hold_max_z[h] - hold_insert_z[h]) * 100, 1) for h in range(2)]
+                         if args.grasp_hold else None),
+        "hold_final_z": ([round(z, 3) for z in hold_final_z] if args.grasp_hold else None),
         "note": "Würfel-Posen entsprechen nicht exakt der realen Episode; "
                 "aussagekräftig ist die Arm-/Finger-Bewegung (vorwärts-greifen vs. wegdriften).",
     }

@@ -476,7 +476,12 @@ do_cams() {
 do_grasp() {
   ensure_checkpoint
   ensure_black_hands
-  log "Greif-Physik-Test (Open-Loop-Replay, Dataset-Aktionen)" \
+  # GRASP_MODE=test  → Würfel an die geschätzten Greifpunkte (Platzierung + Physik zusammen)
+  # GRASP_MODE=hold  → Würfel im Moment des Zugreifens zwischen die Fingerspitzen setzen;
+  #                    prüft die Greif-Physik allein, ohne jede Platzierungs-Annahme.
+  local grasp_flag="--grasp-test"
+  [ "${GRASP_MODE:-test}" = "hold" ] && grasp_flag="--grasp-hold"
+  log "Greif-Physik-Test (Open-Loop-Replay, Dataset-Aktionen, Modus ${GRASP_MODE:-test})" \
       "→ $HOST_DATA_DIR/sim_results_replay/"
   docker exec -w "$SIM_DIR" \
     -e "DR_ENABLED=${DR_ENABLED:-0}" \
@@ -486,7 +491,7 @@ do_grasp() {
     '$ISAAC_PY' '$SIM_DIR/run_g1_dex3_replay.py' \
         --headless --enable_cameras \
         --asset-path '$ASSET_PATH' \
-        --grasp-test" 2>&1 | tee /dev/stderr | grep -c "\[replay\] fertig" >/dev/null \
+        $grasp_flag" 2>&1 | tee /dev/stderr | grep -c "\[replay\] fertig" >/dev/null \
     && ok "Ergebnis: $HOST_DATA_DIR/sim_results_replay/results.json, Video unter sim_videos_replay/" \
     || { err "Greif-Test ohne Erfolgsmarker beendet (Traceback oben)."; return 1; }
 }
@@ -561,8 +566,11 @@ Aktionen:
   eval        BC-Erfolgsrate in der Sim (Closed Loop, GR00T-Server + Isaac-Lab-Client).
               Schritt 3 der Diagnosekette und der Nullpunkt fuer jeden RL-Vergleich.
               NUM_EPISODES (20), EXECUTION_HORIZON (8), EPISODE_LENGTH_S (0 = 300 s).
-  grasp       Greif-Physik isoliert: Open-Loop-Replay der Dataset-Aktionen mit --grasp-test,
-              kein Modell. Beantwortet, ob ein Wuerfel ueberhaupt angehoben werden KANN.
+  grasp       Greif-Physik isoliert: Open-Loop-Replay der Dataset-Aktionen, kein Modell.
+              Beantwortet, ob ein Wuerfel ueberhaupt angehoben werden KANN.
+              GRASP_MODE=test (Default): Wuerfel an den geschaetzten Greifpunkten.
+              GRASP_MODE=hold: Wuerfel im Moment des Zugreifens zwischen die Fingerspitzen
+              gesetzt — misst die Greif-Physik ohne jede Platzierungs-Annahme.
   rl          Echter RL-Lauf (Vordergrund). Checkpoints unter $HOST_DATA_DIR/g1_dex3_rl/.
   shell       Interaktive Shell im Container.
   clean       Container entfernen (Daten unter $HOST_DATA_DIR bleiben).
@@ -574,6 +582,8 @@ Beispiele:
   # Schritt 3 — BC-Erfolgsrate, 3x das Zeitbudget der menschlichen Demo (39 s):
   HF_TOKEN=hf_... NUM_EPISODES=20 EPISODE_LENGTH_S=120 DR_ENABLED=0 \\
       ./Simulation/server_rl_run.sh eval
+  # Greif-Physik ohne Platzierungs-Annahme (Wuerfel wird in die Greifoeffnung gesetzt):
+  HF_TOKEN=hf_... GRASP_MODE=hold ./Simulation/server_rl_run.sh grasp
   HF_TOKEN=hf_... WANDB_API_KEY=... RL_NUM_ENVS=4 ./Simulation/server_rl_run.sh rl
   # mit Live-Ansicht im Browser + W&B-Video alle 10 Iterationen:
   HF_TOKEN=hf_... WANDB_API_KEY=... LIVE_VIEW=1 RL_WANDB_VIDEO_EVERY=10 \\

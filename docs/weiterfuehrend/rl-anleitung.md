@@ -1444,6 +1444,9 @@ Damit ist entschieden:
 * **Es liegt nicht am Modell und nicht an der Wahrnehmung.** Der Fehler reproduziert sich ohne
   Modell in der Schleife. `TUNE_VISUAL=1` ist vorerst vom Tisch; ein 48-h-ViT-Lauf würde gegen ein
   Ziel trainieren, das die Sim physikalisch nicht hergibt.
+  *(Eingeschränkt durch Lauf 27, siehe unten: die Würfel-Positionen dieses Tests sind geschätzt,
+  ein ausbleibendes Anheben kann auch an der Platzierung liegen. Die Reihenfolge — erst Sim, dann
+  ViT — bleibt davon unberührt.)*
 * **Die BC-Erfolgsrate misst derzeit nicht die Policy.** Die 0/2 aus Lauf 25 sind kein Befund über
   den Checkpoint. Schritt 3 taugt als „Nullpunkt für jeden RL-Vergleich" erst, wenn ein Würfel
   überhaupt angehoben werden kann.
@@ -1472,6 +1475,70 @@ Gelenkgrenze die Greifbewegung ab und `_widen_finger_joint_limits()` greift nich
 Sind beide Spannen groß, schließen die Finger — dann liegt es an Kontakt/Reibung oder daran, dass
 der Würfel nicht zwischen den Fingern liegt. Gegen reine Reibung spricht dabei die Konfiguration:
 die Würfel wiegen 50 g bei `static_friction=3.0` / `dynamic_friction=2.5`.
+
+#### Nachmessung (runs/20260808/27): die Finger schließen — die Gelenkgrenze ist es nicht
+
+| Größe | Wert | Lesart |
+|---|---|---|
+| Finger-Tracking, mittel | 0,043 rad | die Fingergelenke folgen ihrem Kommando |
+| Fingerspanne kommandiert / erreicht | **2,09 / 2,10 rad** | die Greifbewegung wird vollständig gefahren |
+| Finger-Tracking, max | 0,77 rad | einzelner Ausschlag — Kontakt oder Transiente, nicht dauerhaft |
+| min Handfläche→Würfelmitte | 6,8 cm | unverändert |
+| max Würfel-Anhebung | 0,0 cm | unverändert |
+
+Damit ist der erste Zweig der Entscheidungsregel erledigt: `erreicht ≥ kommandiert`, also klemmt
+**keine Gelenkgrenze** die Greifbewegung ab, und `_widen_finger_joint_limits()` arbeitet wie
+vorgesehen. Die Hand öffnet und schließt über volle 2,1 rad.
+
+Übersehen wurde bis hierher die aussagekräftigste Zeile des Laufs — die Würfel-XY am Ende:
+
+| Würfel | gesetzt | am Ende | verschoben |
+|---|---|---|---|
+| links | (0,35 / 0,20) | (0,35 / 0,17) | 3,0 cm |
+| rechts | (0,37 / −0,16) | (0,37 / −0,11) | 5,0 cm |
+| Mitte | (0,35 / 0,00) | (0,37 / 0,03) | 3,6 cm |
+
+Alle drei werden **angefasst und weggeschoben**, keiner wird angehoben — in Lauf 26 und 27
+millimetergleich. Das ist die Signatur einer Hand, die den Würfel im Vorbeifahren wegstößt, nicht
+die einer Hand, aus der er herausrutscht.
+
+**Korrektur zu Lauf 26.** Die dortige Formulierung „der Griff scheitert auch ohne Modell" ist
+schwächer, als sie klingt. Die Würfel-Positionen des Greif-Tests sind eine *Schätzung*
+(tiefster Handflächenpunkt + 5 cm in +x, hart kodiert in
+[`run_g1_dex3_replay.py`](../../Simulation/g1_dex3_sim/run_g1_dex3_replay.py)); das Dataset
+speichert keine Objekt-Posen. Der Würfel liegt außerdem die ganze Episode dort, obwohl die Hand
+den Punkt nur einmal passiert. Ein ausbleibendes Anheben kann deshalb genauso gut an Ort und
+Zeitpunkt der Platzierung liegen wie an der Greif-Physik. Belastbar aus Lauf 26/27 bleibt: Arme
+und Finger fahren die aufgezeichnete Trajektorie sauber ab, und die Würfel werden berührt.
+
+#### Der Test ohne Platzierungs-Annahme: `GRASP_MODE=hold`
+
+Um die beiden Erklärungen zu trennen, setzt der Replay den Würfel jetzt wahlweise **im Moment des
+Zugreifens genau zwischen die drei Fingerspitzen**. Der Mittelpunkt des Fingerdreiecks *ist* die
+Greiföffnung, und der Auslöser ist die Greifbewegung selbst (Öffnung fällt unter 70 % ihrer
+bisher größten Weite) — Ort und Zeitpunkt sind damit per Konstruktion richtig, statt geschätzt.
+
+```bash
+HF_TOKEN=hf_... GRASP_MODE=hold ./Simulation/server_rl_run.sh grasp
+```
+
+| Feld in `sim_results_replay/results.json` | Bedeutung |
+|---|---|
+| `hold_ratio` | Anteil der Steps nach dem Einsetzen, in denen der Würfel < 4 cm am Fingerdreieck bleibt |
+| `hold_rise_cm` | maximale Höhe über dem Einsetzpunkt — die Hand trägt ihn nach oben |
+| `hold_final_z` | Endhöhe; ≈ 0,915 heißt: auf den Tisch gefallen |
+| `min_fingertip_cube_dist_cm` / `min_fingertip_step` | Abstand ab den **Fingerspitzen** (nicht der Handfläche), mit Zeitpunkt |
+| `finger_spread_min_cm` / `finger_close_step` | engste Greiföffnung je Hand und wann sie eintritt |
+
+**Entscheidungsregel:** `hold_ratio` > ~0,5 → die Greif-Physik trägt, und das Problem ist die
+Platzierung des Tests (bzw. im Closed Loop: die Politik trifft den Würfel nicht). `hold_ratio` ≈ 0
+bei Endhöhe ≈ Tischauflage → der Würfel rutscht aus der geschlossenen Hand, dann sind Kontakt und
+Reibung dran. Gegen letzteres spricht weiterhin die Konfiguration: 50 g bei `static_friction=3.0` /
+`dynamic_friction=2.5`.
+
+Unabhängig vom Modus laufen `min_fingertip_step` und `finger_close_step` ab sofort mit. Fallen die
+beiden Zeitpunkte weit auseinander, greift die Hand ins Leere — dann ist die Reihenfolge
+„erst Platzierung, dann Physik" ohnehin die richtige.
 
 #### Falscher Alarm „Sim-Eval ohne Erfolgsmarker beendet"
 
