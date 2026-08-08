@@ -320,6 +320,18 @@ class G1Dex3BlockstackSceneCfg(InteractiveSceneCfg):
 # Env-Konfiguration
 # ---------------------------------------------------------------------------
 
+def _parse_rgb(raw: str) -> tuple | None:
+    """"0.75,0.73,0.70" -> (0.75, 0.73, 0.70). Leer/unparsbar -> None (Default beibehalten)."""
+    parts = [p.strip() for p in (raw or "").split(",") if p.strip()]
+    if len(parts) != 3:
+        return None
+    try:
+        return tuple(float(p) for p in parts)
+    except ValueError:
+        print(f"[Env] RGB-Wert '{raw}' nicht lesbar — ignoriert.", flush=True)
+        return None
+
+
 def _quat_to_matrix(q) -> np.ndarray:
     """(w, x, y, z) -> 3x3-Rotationsmatrix in Spaltenvektor-Konvention (v_welt = R @ v_lokal)."""
     w, x, y, z = (float(v) for v in q)
@@ -497,7 +509,16 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
     def _setup_scene(self):
         # Boden und Licht manuell spawnen (GroundPlaneCfg/DomeLightCfg sind kein
         # gültiger InteractiveSceneCfg-Asset-Typ und müssen direkt aufgerufen werden)
+        # Der Isaac-Default-Boden ist fast schwarz mit weißem Raster und füllt in den
+        # Kopfkameras ~45 %, in den Wrist-Kameras ~25 % des Bildes — im Referenzbild ist
+        # dort heller Laborboden und weiße Wand. RL_GROUND_COLOR="0.75,0.73,0.70" hellt ihn
+        # auf; ungesetzt bleibt der Isaac-Default. Gemessen wird die Wirkung mit
+        #   RL_GROUND_COLOR=... ./Simulation/server_rl_run.sh cams  &&  … gap
         ground_cfg = sim_utils.GroundPlaneCfg()
+        ground_color = _parse_rgb(os.environ.get("RL_GROUND_COLOR", ""))
+        if ground_color is not None:
+            ground_cfg.color = ground_color
+            print(f"[Env] Bodenfarbe -> {ground_color} (RL_GROUND_COLOR)", flush=True)
         ground_cfg.func("/World/defaultGroundPlane", ground_cfg)
         # Dome-Intensität als Messhebel (RL_DOME_INTENSITY), Default unverändert 2000.
         # Die Juni-Referenzbilder mit korrektem Kontrast (min/median/max 32/229/239)
@@ -707,6 +728,63 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
 
         self._dr_light = stage.GetPrimAtPath("/World/Light")
         print(f"[DR] dome light: {'OK' if self._dr_light.IsValid() else 'NOT FOUND'}", flush=True)
+
+        self._recolor_hands(stage)
+
+    def _recolor_hands(self, stage) -> None:
+        """DEX3-Hände einfärben (RL_HAND_COLOR), unabhängig von dr_enabled.
+
+        Anlass: Die reale DEX3-Hand ist SCHWARZ, die aus dem URDF konvertierte ist weiß. In den
+        Wrist-Kameras füllt sie den Großteil des Bildes — weiß auf weißem Tisch statt schwarz auf
+        weiß. Gemessen (runs/20260808/20): Kontrast 44 gegen real 65, Domain-Gap 0,42, und zwar
+        stabil über einen 25-fachen Beleuchtungsbereich. Das ist Albedo, nicht Belichtung, und
+        deshalb über die Dome-Intensität nicht erreichbar.
+
+        Ungesetzt bleibt alles wie bisher.  RL_HAND_COLOR="0.05,0.05,0.05" macht sie schwarz.
+        """
+        from pxr import Usd, UsdShade
+
+        color = _parse_rgb(os.environ.get("RL_HAND_COLOR", ""))
+        if color is None:
+            return
+
+        # Nur env_0: die übrigen Envs sind Instanzen derselben Quelle, die Materialzuweisung
+        # wandert mit (gleiche Annahme wie in _randomize_visuals oben).
+        root = stage.GetPrimAtPath("/World/envs/env_0/robot")
+        if not root.IsValid():
+            print("[DR] Roboter-Prim nicht gefunden — RL_HAND_COLOR wirkungslos.", flush=True)
+            return
+
+        # Über die Material-Bindung gehen, nicht über den Prim-Pfad: der URDF-Import legt die
+        # Materialien unter einem eigenen Looks-Scope ab, deren Pfade enthalten kein '_hand_'.
+        # Getroffen werden also die Meshes der Hand-Links und daraus deren gebundenes Material.
+        touched: dict[str, int] = {}
+        for prim in Usd.PrimRange(root):
+            if "_hand_" not in prim.GetPath().pathString:
+                continue
+            material, _ = UsdShade.MaterialBindingAPI(prim).ComputeBoundMaterial()
+            if not material:
+                continue
+            source = material.ComputeSurfaceSource()
+            shader = source[0] if isinstance(source, tuple) else source
+            if not shader:
+                continue
+            if shader.GetIdAttr().Get() not in ("UsdPreviewSurface", "PreviewSurface"):
+                continue
+            path = material.GetPath().pathString
+            if path not in touched:
+                self._set_shader_color(shader, color)
+            touched[path] = touched.get(path, 0) + 1
+
+        print(f"[DR] Handfarbe -> {color} an {len(touched)} Materialien "
+              f"(RL_HAND_COLOR).", flush=True)
+        for path, hits in touched.items():
+            print(f"[DR]   {path}  ({hits} Meshes)", flush=True)
+        if not touched:
+            print("[DR] WARNUNG: kein Hand-Material getroffen — Bindungen prüfen "
+                  "(erwartet '_hand_' im Mesh-Pfad, UsdPreviewSurface).", flush=True)
+        # Teilt sich ein Material mit dem Arm, färbt es den Arm mit — im Rendering des
+        # nächsten 'cams'-Laufs sofort sichtbar, die Pfade oben sagen dann welches.
 
     def _set_shader_color(self, shader, rgb: tuple | list) -> None:
         from pxr import Gf

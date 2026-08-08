@@ -1067,6 +1067,75 @@ der Stufe mit dem kleinsten Gap. Zielgröße: Wrist-Helligkeit von ~233 auf ~105
 geclippter Pixel gegen 0. Bleibt der Gap auch bei der besten Stufe über 0,35, ist es nicht die
 Belichtung, und dann ist `TUNE_VISUAL=1` dran.
 
+#### Sweep-Ergebnis (`runs/20260808/20`) — Belichtung ist NICHT der Hebel
+
+Der Sweep lief mit `DR=0` (feste Beleuchtung) über 2000 → 1000 → 500 → 200 → 80, also einen
+Faktor 25:
+
+| Variante | left_high | right_high | left_wrist | right_wrist | Mittel |
+|---|---|---|---|---|---|
+| Basis (2000) | 0,1296 | 0,1586 | 0,4493 | 0,3098 | 0,2618 |
+| dome1000 | **0,1154** | **0,1375** | 0,4553 | 0,2973 | 0,2514 |
+| dome500 | 0,1346 | 0,1440 | 0,4472 | 0,2968 | 0,2556 |
+| dome200 | 0,1424 | 0,1477 | 0,4254 | 0,2796 | 0,2488 |
+| dome80 | 0,1450 | 0,1544 | **0,4169** | **0,2776** | **0,2485** |
+
+**Die Hypothese ist widerlegt.** 25-fach weniger Licht bringt 0,0133 — 5 %. Die Helligkeit wurde
+dabei nachweislich getroffen: die Wrist-Kameras fallen von 219 auf 119 Graustufen (real 108,5), die
+Kopfkameras liegen bei `dome500` mit 131,6 exakt auf dem Referenzwert 130,3, und Clipping
+verschwindet komplett. Der Hebel *wirkt*, er bewegt den Gap nur nicht. Noch deutlicher: die
+Kopfkameras werden bei `dome1000` **besser**, obwohl sie dort mit 152 zu hell sind, und bei
+`dome500` schlechter, obwohl die Helligkeit dort stimmt. Gap und Helligkeitstreffer laufen nicht
+einmal in dieselbe Richtung. Damit ist Belichtung als Erklärung erledigt — sie war die naheliegende
+Vermutung aus der Pixelstatistik und hat der Messung nicht standgehalten.
+
+#### Was es stattdessen ist: Albedo und Hintergrund
+
+Der Blick auf die Bilder beantwortet es sofort:
+
+| | Referenz (real) | Sim |
+|---|---|---|
+| DEX3-Hand | **schwarz**, glänzend, Schrauben und Kanten sichtbar | **weiß**, mattes Plastik ohne Details |
+| Unterarm | silbern/metallisch | weiß |
+| Hinter dem Tisch | heller Laborboden, weiße Wand | **schwarzes Raster** (Isaac-Default-Boden) |
+
+Das erklärt jede gemessene Zahl:
+
+* **Wrist-Kontrast 44 statt 65.** Die Hand füllt den Großteil des Wrist-Bildes. Real ist das
+  schwarz auf weißem Tisch — maximaler Kontrast. In der Sim weiß auf weiß. Kein Dimmen der Welt
+  ändert ein Verhältnis: dunkler wird beides gleichzeitig.
+* **Chroma 1,0–2,0 statt 3,6–5,3.** Weißer Roboter, weißer Tisch, graues Dome-Licht — die Szene ist
+  fast unbunt, bis auf drei Würfel.
+* **Der Gap ist über 25-fache Beleuchtung stabil.** Albedo ist eine Materialeigenschaft, keine
+  Beleuchtungsfrage. Genau das erwartet man, wenn die Ursache in der Oberfläche liegt.
+* **Der schwarze Rasterboden** füllt in den Kopfkameras ~45 % und in den Wrist-Kameras ~25 % des
+  Bildes — eine große, kontrastreiche Fläche, die im Referenzbild schlicht nicht vorkommt.
+
+Zwei Hebel dafür sind eingebaut, beide ungesetzt wirkungslos (nichts ändert sich still):
+
+| Variable | Beispiel | Wirkung |
+|---|---|---|
+| `RL_HAND_COLOR` | `0.05,0.05,0.05` | färbt die Materialien der `*_hand_*`-Links ein (über die Material-Bindung der Meshes, nicht über den Prim-Pfad — der URDF-Import legt Materialien in einem eigenen Looks-Scope ab) |
+| `RL_GROUND_COLOR` | `0.75,0.73,0.70` | hellt den Isaac-Default-Boden auf |
+
+```bash
+DR_ENABLED=0 RL_HAND_COLOR=0.05,0.05,0.05 RL_GROUND_COLOR=0.75,0.73,0.70 \
+    ./Simulation/server_rl_run.sh cams
+./Simulation/server_rl_run.sh gap
+```
+
+Der Log listet die getroffenen Materialpfade mit der Zahl der Meshes. Teilt sich die Hand ein
+Material mit dem Arm, färbt sich der Arm mit — das steht dann in der Liste und ist im Rendering
+sofort zu sehen. **Erwartung, damit sie prüfbar bleibt:** Wrist-Kontrast von 44 Richtung 65 und
+`cam_left_wrist` unter 0,35. Passiert das nicht, ist auch Albedo nicht die Erklärung, und dann ist
+`TUNE_VISUAL=1` an der Reihe — dann ist es Textur und Materialcharakteristik, und dagegen hilft nur,
+dem ViT die Sim-Optik beizubringen.
+
+**Einordnung, die dabei nicht untergehen soll:** Der Mittelwert liegt mit 0,2618 (bzw. 0,2485 bei
+`dome80`) **unter** der Grundlinie real↔real von 0,2726. Im Schnitt ist ein Sim-Bild seinem realen
+Gegenstück also näher, als zwei *echte* Kameras derselben Szene einander sind. Das Problem ist nicht
+das Mittel, sondern die Verteilung: Kopfkameras 0,13–0,16 (unauffällig), `cam_left_wrist` 0,42.
+
 ### `isaaclab nicht importierbar`
 Das Skript braucht das **kombinierte** Image (`Dockerfile.vastai`), nicht das BC-Trainingsimage.
 

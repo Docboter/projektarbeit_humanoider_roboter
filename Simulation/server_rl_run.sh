@@ -210,6 +210,9 @@ build_rl_env() {
   [[ -n "${RL_AA_MODE:-}" ]]         && RL_ENV+=( -e "RL_AA_MODE=$RL_AA_MODE" )
   [[ -n "${RL_DOME_INTENSITY:-}" ]]  && RL_ENV+=( -e "RL_DOME_INTENSITY=$RL_DOME_INTENSITY" )
   [[ -n "${RL_CAMERA_CLASS:-}" ]]    && RL_ENV+=( -e "RL_CAMERA_CLASS=$RL_CAMERA_CLASS" )
+  # Domain-Gap-Hebel (Albedo statt Belichtung, gemessen in runs/20260808/20).
+  [[ -n "${RL_GROUND_COLOR:-}" ]]    && RL_ENV+=( -e "RL_GROUND_COLOR=$RL_GROUND_COLOR" )
+  [[ -n "${RL_HAND_COLOR:-}" ]]      && RL_ENV+=( -e "RL_HAND_COLOR=$RL_HAND_COLOR" )
   [[ -n "${DR_ENABLED:-}" ]]         && RL_ENV+=( -e "DR_ENABLED=$DR_ENABLED" )
   # Gegen Fragmentierung — der OOM-Traceback empfahl es selbst (1,13 GB reserviert,
   # aber unbenutzt). Ueberschreibbar, falls es auf dieser Torch-Version stoert.
@@ -325,6 +328,10 @@ do_cams() {
   #   RL_AA_MODE        Anti-Aliasing-Modus
   #   RL_DOME_INTENSITY Belichtung — Basiswert der Szene
   #   RL_DOME_SWEEP     Belichtung — mehrere Werte in EINEM Lauf, z. B. "500,120,30"
+  #                     (WIDERLEGT als Domain-Gap-Hebel, runs/20260808/20: 25-fache
+  #                      Lichtspanne bewegt den Gap um 0,013)
+  #   RL_HAND_COLOR     Handfarbe, z. B. "0.05,0.05,0.05" — die reale DEX3 ist schwarz
+  #   RL_GROUND_COLOR   Bodenfarbe, z. B. "0.75,0.73,0.70" statt Isaacs schwarzem Raster
   #   DR_ENABLED=0      visuelle Domain Randomization aus (WIDERLEGT, Lauf 11)
   #   RL_CAMERA_CLASS=camera  gewöhnliche Camera statt TiledCamera (Halbierungstest)
   log "Kamera-Posen dumpen (num_envs=${RL_NUM_ENVS:-4}, settle=${RL_SETTLE_STEPS:-8}," \
@@ -337,6 +344,8 @@ do_cams() {
     -e "RL_DOME_SWEEP=${RL_DOME_SWEEP:-}" \
     -e "DR_ENABLED=${DR_ENABLED:-1}" \
     -e "RL_CAMERA_CLASS=${RL_CAMERA_CLASS:-tiled}" \
+    -e "RL_GROUND_COLOR=${RL_GROUND_COLOR:-}" \
+    -e "RL_HAND_COLOR=${RL_HAND_COLOR:-}" \
     "$CONTAINER" bash -lc "
     unset VIRTUAL_ENV
     '$ISAAC_PY' '$SIM_DIR/dump_camera_poses.py' \
