@@ -22,7 +22,7 @@ Detailed guides (all prose docs live under [`docs/`](docs/README.md)):
 - **Sim eval on vast.ai (German):** [`docs/simulation/vastai-anleitung.md`](docs/simulation/vastai-anleitung.md)
 - **Sim implementation notes & lessons learned:** [`docs/simulation/umsetzungsnotizen.md`](docs/simulation/umsetzungsnotizen.md)
 - **Results & evaluation (German):** [`docs/ergebnisse/`](docs/ergebnisse/README.md) — run analyses, domain-gap, sim methodology review, baseline
-- **Further work / concepts (German):** [`docs/weiterfuehrend/`](docs/weiterfuehrend/README.md) — RL plan + operative RL guide ([`rl-anleitung.md`](docs/weiterfuehrend/rl-anleitung.md); RL first impl built, validation pending), locomotion research, livestream plan (latter two not yet implemented)
+- **Further work / concepts (German):** [`docs/weiterfuehrend/`](docs/weiterfuehrend/README.md) — RL plan + operative RL guide ([`rl-anleitung.md`](docs/weiterfuehrend/rl-anleitung.md); RL runs end-to-end on the Blackwell server, learning effect still unproven), locomotion research, livestream plan (latter two not yet implemented)
 
 ## Key commands
 
@@ -173,7 +173,7 @@ repo root
 │   ├── ergebnisse/                     # evaluations: lauf1-auswertung.md, wandb-run-auswertung.md,
 │   │                                   #   domain-gap-analyse.md, sim-bewertung.md, baseline-unitree-g1.md
 │   ├── weiterfuehrend/                 # reinforcement-learning-plan.md (+ rl-anleitung.md operative guide;
-│   │                                   #   RL first impl built, validation pending), lokomotion-recherche.md,
+│   │                                   #   RL runs end-to-end, learning effect open), lokomotion-recherche.md,
 │   │                                   #   livestream-plan.md (latter two not yet implemented)
 │   ├── umgebungsanalyse.md             # cross-cutting audit
 │   └── fehlerbehebung.md               # cross-cutting troubleshooting
@@ -206,7 +206,7 @@ repo root
 │   │   ├── run_g1_dex3_replay.py       # Open-loop dataset-replay DIAGNOSTIC (no server/model)
 │   │   ├── replay_episode0.npz         # Bundled ground-truth actions (dataset ep. 0) for replay
 │   │   ├── g1_dex3_blockstack_env.py   # Isaac Lab env (robot, table, cubes, 4 policy + 1 scene cam; reward_mode binary|shaped, get_obs_batched)
-│   │   ├── rl_finetune.py              # FPO RL trainer (action-head only; shaped reward; first impl, validation pending)
+│   │   ├── rl_finetune.py              # FPO RL trainer (action-head only; shaped reward; one full iteration verified on hardware)
 │   │   ├── g1_dex3_cfg.py              # Articulation + camera config (look_at_world_quat helper)
 │   │   ├── client.py                   # ZMQ policy client + build_obs (state split into modality keys)
 │   │   ├── convert_urdf_to_usd.py      # One-time URDF→USD conversion

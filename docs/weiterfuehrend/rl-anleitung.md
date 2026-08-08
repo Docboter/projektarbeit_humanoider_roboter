@@ -6,29 +6,38 @@ oder ein eigener Server mit RT-Core-GPU, z. B. RTX PRO 6000 Blackwell). RL train
 **in genau der Sim**, in der sie auch evaluiert wird, und optimiert direkt auf **Aufgaben-Erfolg**
 statt nur Aktions-Nachahmung (Hintergrund: [reinforcement-learning-plan.md](reinforcement-learning-plan.md)).
 
-> ## ⚠️ Status: erste Implementierung — beim ersten Lauf zu verifizieren
+> ## ✅ Status: Pipeline läuft end-to-end — Lernwirkung noch offen
 >
-> Der RL-Pfad ist **echt gebaut** (Shaped Reward, batched Obs, FPO-Trainer, Launch-Infra) und der
-> **Algorithmus-Kern ist gegen die GR00T-API verifiziert** — aber **noch nicht end-to-end auf
-> RT-Core-Hardware gelaufen**. Diese Anleitung ist daher der geplante Ablauf; an den mit
-> **`# >>> LIVE-CHECK`** markierten Stellen in [`rl_finetune.py`](../../Simulation/g1_dex3_sim/rl_finetune.py)
-> muss beim ersten echten Lauf nachjustiert werden (Details in [Schritt 7](#schritt-7--live-check-was-beim-ersten-lauf-zu-prüfen-ist)).
-> Nutze zuerst den **Smoke-Test** (`--check`) und ein **kleines `RL_NUM_ENVS`**.
+> **Seit 2026-08-08 auf echter RT-Core-Hardware durchgelaufen** (Pfad B: RTX PRO 6000 Blackwell,
+> Isaac Sim 6.0). Eine vollständige Iteration — Rollout → GAE → FPO-Loss → `backward`/`optim.step`
+> → Checkpoint — ist mit `RL_NUM_ENVS=2 RL_ITERATIONS=1 RL_ROLLOUT_STEPS=2` fehlerfrei terminiert
+> und hat `rl-checkpoint-1` geschrieben. Die drei `# >>> LIVE-CHECK`-Stellen in
+> [`rl_finetune.py`](../../Simulation/g1_dex3_sim/rl_finetune.py) sind damit abgearbeitet
+> (was jeweils zu korrigieren war: [Schritt 7](#schritt-7--live-check-auf-hardware-nachgezogene-stellen)).
 >
-> **⚠️ Image-Rebuild-Pflicht:** Der zuletzt gepushte Tag von
-> `lucam03/projekt-humanoider-roboter-sim-vastai:latest` (2026-06-15) ist doppelt veraltet — es fehlen
-> sowohl die RL-Fixes aus Commit `8e01979` (2026-07-19) als auch der Isaac-Sim-6.0-Port (2026-08-07).
-> **Vor dem ersten Lauf neu bauen+pushen:** `./Simulation/update_sim_image.sh --vastai`.
-> `server_rl_run.sh preflight` (Pfad B unten) weist das automatisch nach.
+> **Was das noch nicht zeigt:** dass RL die Policy *verbessert*. Ein Ein-Iterations-Smoke-Test
+> sagt nichts über Lernverhalten. Offen bleiben deshalb:
+> - **Lernkurve** — steigt `success` über viele Iterationen? (Hyperparameter noch ungetunt.)
+> - **Durchsatz** — Render-FPS bei produktivem `RL_NUM_ENVS` mit 4 Kameras (Plan-Gruppe 0).
 >
-> **Hardware-Update (2026-08-05/07):** Der Server, der schon für den
+> Vorgehen daher weiterhin: erst **Smoke-Test** (`--check`), dann **kleines `RL_NUM_ENVS`**
+> hochskalieren.
+>
+> **⚠️ Image-Voraussetzung:** Es wird das **Isaac-Sim-6.0-Image** gebraucht (`isaac-lab`
+> 3.0.0-beta2-post1, gebaut 2026-08-07) — der davor gepushte Tag von
+> `lucam03/projekt-humanoider-roboter-sim-vastai:latest` (2026-06-15) ist doppelt veraltet: ihm
+> fehlen sowohl die RL-Fixes aus Commit `8e01979` (2026-07-19) als auch der 6.0-Port. Auf einer
+> Maschine ohne dieses Image zuerst `./Simulation/update_sim_image.sh --vastai` bauen+pushen;
+> `server_rl_run.sh preflight` (Pfad B unten) weist den Stand automatisch nach.
+>
+> **Hardware-Historie (2026-08-05/08):** Der Server, der schon für den
 > [RoboCasa-Referenz-Eval](robocasa-referenz-eval.md) genutzt wurde (2× RTX PRO 6000 Blackwell),
-> **hat RT-Cores** — RL kann dort grundsätzlich laufen, keine vast.ai-Miete nötig. **Aber:** der erste
-> `check`-Lauf dort ist mit einem Segfault in Isaac Sims RTX-Renderer abgestürzt (bekannte
-> Inkompatibilität zwischen Blackwell und Treiber-Branch 610.x, kein Bug in unserem Code) und der
-> Server-Treiber ist **nicht änderbar**. Reaktion: **Migration auf Isaac Sim 6.0** (`isaac-lab`
-> 2.3.2 → 3.0.0-beta2-post1), implementiert am 2026-08-07 — **auf Hardware noch nicht verifiziert**.
-> Details, Änderungstabelle und Restrisiken:
+> **hat RT-Cores** — RL läuft dort, keine vast.ai-Miete nötig. Der erste `check`-Lauf ist dort
+> allerdings mit einem Segfault in Isaac Sims RTX-Renderer abgestürzt (bekannte Inkompatibilität
+> zwischen Blackwell und Treiber-Branch 610.x, kein Bug in unserem Code); der Server-Treiber ist
+> **nicht änderbar**. Reaktion: **Migration auf Isaac Sim 6.0** (`isaac-lab` 2.3.2 →
+> 3.0.0-beta2-post1) — hat den Segfault behoben und ist seit 2026-08-08 im Betrieb bestätigt.
+> Details und Änderungstabelle:
 > [Troubleshooting](#segfault-in-librtxscenedbpluginso--carbonpluginstartup-beim-start-rtx-pro-6000-blackwell).
 > Fallback bleibt Pfad A (vast.ai, L40/RTX 4090).
 

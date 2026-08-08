@@ -52,8 +52,8 @@ Diese Sammlung speist das gleichnamige Kapitel der Projektarbeit.
 | Dokument | Inhalt |
 |---|---|
 | [weiterfuehrend/](weiterfuehrend/README.md) | **Einstieg Weiterführende Arbeiten** (Index) |
-| [weiterfuehrend/reinforcement-learning-plan.md](weiterfuehrend/reinforcement-learning-plan.md) | **RL-Plan + erste Implementierung** — Algorithmen-Vergleich, Infrastruktur, Status der gebauten Bausteine, offene Punkte |
-| [weiterfuehrend/rl-anleitung.md](weiterfuehrend/rl-anleitung.md) | **RL-Bedienungsanleitung (operativ)** — Image bauen → BC-Checkpoint → RT-Core-GPU (eigener Docker-Server via `server_rl_run.sh` oder vast.ai) → RL starten → überwachen → Checkpoints sichern; Smoke-Test + LIVE-CHECK-Punkte |
+| [weiterfuehrend/reinforcement-learning-plan.md](weiterfuehrend/reinforcement-learning-plan.md) | **RL-Plan + Implementierung** — Algorithmen-Vergleich, Infrastruktur, Status der gebauten Bausteine; Pipeline läuft seit 2026-08-08 end-to-end, offen ist die Lernwirkung |
+| [weiterfuehrend/rl-anleitung.md](weiterfuehrend/rl-anleitung.md) | **RL-Bedienungsanleitung (operativ)** — Image bauen → BC-Checkpoint → RT-Core-GPU (eigener Docker-Server via `server_rl_run.sh` oder vast.ai) → RL starten → überwachen → Checkpoints sichern; Smoke-Test + Aufarbeitung der LIVE-CHECK-Punkte |
 | [weiterfuehrend/lokomotion-recherche.md](weiterfuehrend/lokomotion-recherche.md) | **Lokomotions-Recherche** — Warum der Roboter fixiert ist, GR00T-N1.6-Whole-Body-Control (entkoppelt: RL-Beine + IK/VLA-Arme), Unitree-G1-Lokomotions-Stacks, Integrationspfade + Quellen |
 | [weiterfuehrend/livestream-plan.md](weiterfuehrend/livestream-plan.md) | **Livestream-Plan** — Live-Stream der Sim via WebRTC (Echtzeit-Viewport vom Remote-GPU), noch nicht umgesetzt |
 

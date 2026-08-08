@@ -1,28 +1,35 @@
 # Reinforcement-Learning-Training — Recherche & Umsetzungsplan
 
-> **Status: erste Implementierung vorhanden, End-to-End-Validierung offen.** Dieses Dokument
-> beschreibt Motivation, Bausteine und Phasen-Plan. Inzwischen ist ein **erster, echter
-> FPO-RL-Pfad gebaut** (Algorithmus-Kern gegen die GR00T-API verifiziert), aber **noch nicht
-> end-to-end validiert** — das braucht die GPU-Entscheidung aus [Gruppe 0](#gruppe-0--machbarkeit--entscheidungen-blockiert-alles-weitere) (RT-Cores).
+> **Status: Pipeline läuft end-to-end, Lernwirkung noch offen.** Dieses Dokument beschreibt
+> Motivation, Bausteine und Phasen-Plan. Der **FPO-RL-Pfad ist gebaut** (Algorithmus-Kern gegen
+> die GR00T-API verifiziert) und am **2026-08-08** erstmals **vollständig durchgelaufen** —
+> Rollout → GAE → FPO-Update → `backward`/`optim.step` → Checkpoint, auf RTX PRO 6000 Blackwell
+> unter Isaac Sim 6.0. Damit ist die Hardware-Frage aus [Gruppe 0](#gruppe-0--machbarkeit--entscheidungen-blockiert-alles-weitere)
+> beantwortet: **eigener Server, keine vast.ai-Miete**. Was der Lauf **nicht** zeigt, ist ob RL die
+> Policy verbessert — das ist der nächste Schritt.
 >
-> **Bereits umgesetzt** (Stand 2026-06-12):
+> **Bereits umgesetzt** (Stand 2026-06-12, Glue-Fixes 2026-08-07/08):
 > - **Gruppe 1 (Reward):** Shaped Reward im Env hinter `reward_mode="shaped"` —
 >   [`g1_dex3_blockstack_env.py`](../../Simulation/g1_dex3_sim/g1_dex3_blockstack_env.py) (`_shaped_reward`).
 > - **Gruppe 2 (Env RL-tauglich):** batched Observations (`get_obs_batched`), `num_envs` über
 >   `cfg.scene.num_envs` parametrierbar; Single-Env-Eval-Pfad unangetastet.
 > - **Gruppe 3 (RL-Loop):** FPO-Trainer [`rl_finetune.py`](../../Simulation/g1_dex3_sim/rl_finetune.py)
 >   — FPO-Surrogat aus dem Flow-Matching-Loss, GAE, PPO-Clip, KL gegen den BC-Checkpoint,
->   nur Action-Head trainierbar. Zwei Glue-Stellen sind als `# >>> LIVE-CHECK` markiert.
+>   nur Action-Head trainierbar. Die drei als `# >>> LIVE-CHECK` markierten Glue-Stellen sind
+>   am echten Lauf abgearbeitet (Obs-Format, Aktions-Injektion inkl. `action_mask`, Minibatch-Pfad).
 > - **Gruppe 4 (Infra):** [`Simulation/scripts/entrypoint_rl.sh`](../../Simulation/scripts/entrypoint_rl.sh),
 >   [`Training/kisski_rl_submit.sh`](../../Training/kisski_rl_submit.sh) (RT-Core-Guard),
 >   `USE_RL`-Hinweis-Schalter im BC-Entrypoint, RL-Env-Vars in [env-vars.md](../training/env-vars.md).
 >
-> **Noch offen:** die LIVE-CHECK-Stellen am echten Lauf scharf stellen, BC-Baseline-Erfolgsrate messen.
+> **Noch offen:** Lernkurve über viele Iterationen (Hyperparameter ungetunt), Render-Durchsatz bei
+> produktivem `num_envs`, BC-Baseline-Erfolgsrate als Vergleichsmaßstab.
 >
-> **GPU-/Render-Pfad (Gruppe 0) — Update 2026-08-05:** der Server vom
+> **GPU-/Render-Pfad (Gruppe 0) — geklärt (2026-08-05 bis -08):** der Server vom
 > [RoboCasa-Referenz-Eval](../simulation/robocasa-referenz-eval.md) (2× RTX PRO 6000 Blackwell) hat
-> RT-Cores — RL kann dort laufen, keine vast.ai-Miete nötig. Braucht vorher einen Image-Rebuild
-> (`update_sim_image.sh --vastai`), siehe Status-Callout in [rl-anleitung.md](rl-anleitung.md).
+> RT-Cores — RL läuft dort, keine vast.ai-Miete nötig. Isaac Sim 5.1 stürzte auf dem dortigen
+> Treiber-Branch 610.x im RTX-Renderer ab; der Treiber ist nicht änderbar, deshalb der Port auf
+> **Isaac Sim 6.0** (`isaac-lab` 3.0.0-beta2-post1). Auf einer Maschine ohne dieses Image zuerst
+> `update_sim_image.sh --vastai` bauen, siehe Status-Callout in [rl-anleitung.md](rl-anleitung.md).
 >
 > 👉 **Operative Schritt-für-Schritt-Anleitung zum Starten:** [rl-anleitung.md](rl-anleitung.md)
 > (Pfad B = eigener Server, Pfad A = vast.ai).
@@ -252,11 +259,15 @@ vektorisierten `_get_rewards` / `_get_dones` / `_check_success` / `_pre_physics_
 allem **(a) ein echter Reward**, **(b) echte Parallelität (`num_envs>1`)** und **(c) der RL-Loss-Loop**
 — der Rest ist Anpassung.
 
-### Gruppe 0 — Machbarkeit & Entscheidungen *(blockiert alles Weitere)*
+### Gruppe 0 — Machbarkeit & Entscheidungen *(war Blocker für alles Weitere)*
 
-- [ ] **GPU-/Render-Pfad festlegen** (§3.5, §6): Wo laufen Render-Rollouts (RT-Cores) und wo das
-  Training? Drei Optionen bewerten: vast.ai L40/A6000 · KISSKI Ada/L40-Partition prüfen · Render/Lerner
-  entkoppeln. → **Eine** Option auswählen und begründen.
+- [x] **GPU-/Render-Pfad festlegen** (§3.5, §6): Wo laufen Render-Rollouts (RT-Cores) und wo das
+  Training? Drei Optionen bewerteten: vast.ai L40/A6000 · KISSKI Ada/L40-Partition prüfen ·
+  Render/Lerner entkoppeln. → **Entschieden: eigener Server (RTX PRO 6000 Blackwell), Render und
+  Training auf derselben GPU.** Begründung: RT-Cores vorhanden, 96 GB VRAM, keine Mietkosten, keine
+  Netzwerk-Latenz zwischen Render und Lerner, und der Server war für den RoboCasa-Referenz-Eval
+  ohnehin schon eingerichtet. Am 2026-08-08 durch einen vollständigen RL-Durchlauf bestätigt.
+  vast.ai (Pfad A) bleibt als Fallback dokumentiert.
 - [ ] **Render-Durchsatz-Benchmark** (Vorbereitung, kein RL): Auf der gewählten GPU messen, wie viele
   parallele Envs **mit** 4-Kamera-Rendering bei akzeptabler FPS laufen (Anhaltspunkt Literatur: 320
   Envs auf 8× H100, aber **ohne** RT-Cores). Ergebnis bestimmt realistische `num_envs`.

@@ -4,27 +4,24 @@ RL-Fine-tuning des GR00T-N1.6-Action-Heads auf Block-Stacking (FPO).
 
 Status / Validierungsgrad
 -------------------------
-ERSTE ECHTE IMPLEMENTIERUNG. Der **Algorithmus-Kern** (FPO-Surrogat aus dem
-Flow-Matching-Loss, GAE, PPO-Clipping, KL-Regularisierung gegen den BC-Checkpoint,
-Optimierung NUR des Action-Heads) ist gegen die real gelesene GR00T-API verifiziert:
+Der **Algorithmus-Kern** (FPO-Surrogat aus dem Flow-Matching-Loss, GAE,
+PPO-Clipping, KL-Regularisierung gegen den BC-Checkpoint, Optimierung NUR des
+Action-Heads) ist gegen die real gelesene GR00T-API verifiziert:
   - gr00t/model/gr00t_n1d6/gr00t_n1d6.py: action_head.forward(...) liefert
     "action_loss" (pro Element) — der likelihood-freie FPO-Proxy für log pi(a|s).
   - gr00t/policy/gr00t_policy.py: Processor -> collate_fn -> model.get_action /
     model.forward -> processor.decode_action (Obs->Inputs->Aktion-Pipeline).
 
-Auf Hardware bestaetigt (RTX PRO 6000 Blackwell, Isaac Sim 6.0, 2026-08-07):
-  - Aufbau (Env + Policy + Critic) und Checkpoint-/Embodiment-Lade-Pfade.
-  - Obs-Konvertierung, Aktions-Sampling und Rollout-Schritt bis in die Env hinein.
-  - Update-Pfad: Eintritt in den FPO/PPO-Recompute (alle drei urspruenglichen
-    LIVE-CHECK-Punkte sind damit erledigt).
+END-TO-END auf Hardware gelaufen (RTX PRO 6000 Blackwell, Isaac Sim 6.0,
+2026-08-08): eine vollstaendige Iteration mit num_envs=2 / rollout_steps=2 —
+Aufbau, Obs-Konvertierung, Aktions-Sampling, Env-Step, GAE, FPO/PPO-Update,
+backward + optim.step, Checkpoint-Schreiben. Alle drei urspruenglichen
+LIVE-CHECK-Punkte sind damit erledigt.
 
-NOCH offen:
-  - Vollstaendiger Durchlauf einer Iteration inkl. backward/optim.step.
+NOCH offen (deshalb kein "fertiger" Trainer):
+  - Lernverhalten: dass die Erfolgsrate ueber viele Iterationen steigt.
+    Hyperparameter (lr, clip, kl_coef, fpo_mc_samples) sind ungetunt.
   - num_envs-Durchsatz mit 4-Kamera-Rendering (Render-FPS-Benchmark, Plan Gruppe 0).
-  - Lernverhalten: dass die Erfolgsrate ueber Iterationen steigt.
-
-Dieses Skript wird also weiterhin iterativ scharf gestellt — NICHT als bereits
-end-to-end gepruefter Trainer betrachten.
 
 Algorithmus: FPO (Flow Policy Optimization, arXiv 2510.09976) — ersetzt den
 PPO-Likelihood-Ratio durch exp(proxy_new - proxy_old) mit proxy = -L_flow_matching,
