@@ -722,9 +722,33 @@ diesmal durch und ist unauffällig: Boden, Tisch, alle drei Würfel, Band und Ro
    die Offset-Rotation jetzt aus `cam.cfg.offset`, also aus genau der Quelle, aus der auch Isaac Lab
    beim Spawn liest, und deckt damit alle fünf Kameras unabhängig von der Benennung ab.
 
-Erwartung im nächsten Lauf: `SOLL: OK (0.0°)` bei **allen fünf**, und die Wrist-Cams zeigen die Hand
-über dem Tisch statt einer weißen Fläche. Bleibt eine Abweichung stehen, wird das Prim nach dem
-Schreiben wieder überschrieben — dann muss der Fix hinter `sim.reset()` statt in `_setup_scene()`.
+**Abgeschlossen mit `runs/20260808/15`.** 20 Prims (5 Kameras × 4 Envs) neu ausgerichtet,
+`SOLL: OK (0.0°)` bei allen fünf, und die Bilder bestätigen es:
+
+| Kamera | Graustufen | Kantenenergie | Bild |
+|---|---|---|---|
+| `cam_left_high` | 248 | 2,12 | Tisch, Würfel, beide Hände |
+| `cam_right_high` | 240 | 2,11 | dito, dazu das `stack_band` |
+| `cam_left_wrist` | 156 | 1,25 | Unterarm + Hand, gelber und grüner Würfel |
+| `cam_right_wrist` | 206 | 1,10 | Unterarm + Hand, Tischkante |
+| `cam_scene` | 223 | 5,06 | ganze Szene |
+
+Zum Vergleich Lauf 12 (leer): 1–3 Graustufen bei Kantenenergie 0,00–0,31. Die Kameras sind damit
+repariert.
+
+**Die Selbstbewertung des Dumps musste dafür ausgetauscht werden.** Sie meldete in Lauf 15 drei
+intakte Kameras als „kein Kontrast, Bild praktisch leer", weil ihr Kriterium der Anteil dunkler
+Pixel war (`dunkel < 5 %`). Ein weißer Roboterarm vor einer weißen Tischplatte hat 0,0 % dunkle
+Pixel und ist trotzdem vollständig korrekt. Der Test läuft jetzt über **Graustufenzahl und
+Kantenenergie** — die messen, *ob* etwas gerendert wurde, statt *wie hell* es ist. An den echten
+Daten trennt das sauber: leere Frames 0,00–0,44, intakte 1,10–5,06. `dunkel%` und `chroma` bleiben
+als beschreibende Spalten stehen, ohne Urteil.
+
+Offen bleibt eine **Kalibrierfrage, kein Renderfehler**: `cam_right_wrist` blickt an der Tischkante
+vorbei ins Bodengitter, während `cam_left_wrist` die Würfel im Bild hat. Das deckt sich mit der
+schon in `g1_dex3_cfg.py` notierten Asymmetrie (Iteration 9: „~45°-Diagonal-Versatz rechts = reale
+Pose-Differenz"). Die konnte bisher niemand nachjustieren, weil die Kamera gar nichts gerendert
+hat — jetzt geht es.
 
 > **Konsequenz für alle bisherigen Ergebnisse:** Jeder Sim-Lauf seit der Isaac-Sim-6.0-Migration
 > hat die Policy auf Himmelsbildern laufen lassen. Erfolgsraten, Reward-Kurven und

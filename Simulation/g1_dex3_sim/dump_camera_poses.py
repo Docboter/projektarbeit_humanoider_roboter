@@ -351,14 +351,17 @@ def report_frames(obs, out_dir: str, suffix: str = "") -> None:
         return
     # Bildstatistik direkt mitausgeben. Diese Kennzahlen haben am 2026-08-08 die
     # Diagnose getragen, waehrend die PNGs allein nur "sieht falsch aus" sagten:
-    #   dunkel% = Anteil Pixel unter Helligkeit 100. Ein korrekter Frame (Referenz:
-    #     Simulation/old_videos/12/_debug_obs_cam_left_high.png) hat 11-22 % — der
-    #     Hintergrund ist dort dunkel. 0 % heisst: alles weiss, kein Kontrast.
-    #   chroma = mittleres max(RGB)-min(RGB). Referenz 5.7-6.0 (farbige Wuerfel).
-    #   min/max = Wertebereich. Referenz 32-239; ein Bereich wie 246-248 ist leer.
+    #   grau = Zahl verschiedener Graustufen, kanten = mittlerer Betrag der Nachbar-
+    #     differenz. Diese beiden entscheiden, OB etwas gerendert wurde: die leeren Frames
+    #     aus Lauf 11-13 hatten 1-2 Graustufen bei Kantenenergie 0.00.
+    #   dunkel% = Anteil Pixel unter Helligkeit 100, chroma = mittleres max(RGB)-min(RGB).
+    #     Beide beschreiben nur, WIE das Bild aussieht. Sie taugen NICHT als Leer-Test:
+    #     in Lauf 15 stand ein weisser Roboterarm vor einer weissen Tischplatte — 0.0 %
+    #     dunkel, Bild aber vollstaendig korrekt. Das alte Kriterium (dunkel < 5 %) hat
+    #     dort drei intakte Kameras als leer gemeldet.
     print()
-    print(f"  {'Kamera':<18}{'min':>5}{'median':>8}{'max':>5}{'chroma':>8}{'dunkel%':>9}"
-          f"   Referenz Juni: 32/229/239, chroma 6.0, dunkel 11-22%")
+    print(f"  {'Kamera':<18}{'min':>5}{'median':>8}{'max':>5}{'grau':>7}{'kanten':>8}"
+          f"{'chroma':>8}{'dunkel%':>9}   Referenz Juni: 32/229/239, chroma 6.0, dunkel 11-22%")
     for key in sorted(k for k in (obs or {}) if k.startswith("video.")):
         cam = key.split(".", 1)[1]
         frame = obs[key][0].detach().cpu().numpy().astype(np.uint8)[..., :3]
@@ -366,9 +369,12 @@ def report_frames(obs, out_dir: str, suffix: str = "") -> None:
         f = frame.reshape(-1, 3).astype(np.int16)
         chroma = float((f.max(1) - f.min(1)).mean())
         dark = float((f.mean(1) < 100).mean() * 100.0)
-        verdict = "" if dark > 5.0 else "   <-- kein Kontrast, Bild praktisch leer"
+        gray = frame.mean(axis=2)
+        levels = int(np.unique(np.round(gray)).size)
+        edges = float(np.abs(np.diff(gray, axis=1)).mean() + np.abs(np.diff(gray, axis=0)).mean())
+        verdict = "" if levels >= 16 and edges >= 0.5 else "   <-- keine Struktur, nichts gerendert"
         print(f"  {cam:<18}{frame.min():5d}{int(np.median(frame)):8d}{frame.max():5d}"
-              f"{chroma:8.2f}{dark:8.1f}%{verdict}", flush=True)
+              f"{levels:7d}{edges:8.2f}{chroma:8.2f}{dark:8.1f}%{verdict}", flush=True)
     print(f"\n[dump] PNGs in {out_dir}", flush=True)
 
 
