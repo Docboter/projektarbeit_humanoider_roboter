@@ -72,6 +72,13 @@ parser.add_argument(
     help="Pfad zum G1+Dex3 USD-Asset (überschreibt den Default in g1_dex3_cfg.py; "
          "leer = cfg-Default verwenden)"
 )
+parser.add_argument(
+    "--episode-length-s", type=float, default=0.0,
+    help="Zeitbudget je Episode in Sekunden (0 = cfg-Default, aktuell 300 s = 9000 Steps). "
+         "Bestimmt die Laufzeit unmittelbar: Steps = Wert * policy_hz, und jeder Step "
+         "rendert 4 Kameras. Anker für eine sinnvolle Wahl ist die menschliche "
+         "Teleop-Demo: replay_episode0.npz hat 1173 Steps = 39 s bei 30 Hz."
+)
 
 # Isaac-Lab-eigene Argumente hinzufügen und parsen
 AppLauncher.add_app_launcher_args(parser)
@@ -238,6 +245,11 @@ def main():
     cfg.execution_horizon = args.execution_horizon
     cfg.task_description = args.task_description
     cfg.dr_enabled = os.getenv("DR_ENABLED", "1") != "0"
+    # Wirkt an beiden Stellen gleichzeitig, weil beide dieselbe cfg lesen: run_episode
+    # bildet daraus max_steps, und _get_dones() den time_out. Ein Wert hier kann also
+    # nicht auseinanderlaufen mit dem, was die Umgebung selbst als Episodenende sieht.
+    if args.episode_length_s > 0:
+        cfg.episode_length_s = args.episode_length_s
 
     print("=" * 60)
     print("GR00T N1.6 — G1+Dex3 Closed-Loop Sim Eval")
@@ -249,6 +261,11 @@ def main():
     print(f"  Video-Dir:        {args.video_dir or '(kein Video)'}")
     print(f"  Asset:            {cfg.scene.robot.spawn.usd_path}")
     print(f"  Domain Rand.:     {'AN' if cfg.dr_enabled else 'AUS (DR_ENABLED=0)'}")
+    print(
+        f"  Episodenlaenge:   {cfg.episode_length_s:.0f}s "
+        f"= {int(cfg.episode_length_s * cfg.policy_hz)} Steps"
+        f"{'' if args.episode_length_s > 0 else '  (cfg-Default)'}"
+    )
     print()
 
     # Phase A-Check: Isaac Lab startet, Sim läuft
@@ -322,10 +339,16 @@ def main():
         "execution_horizon": args.execution_horizon,
         "episodes": results,
     }
+    summary["episode_length_s"] = cfg.episode_length_s
+    summary["max_steps_per_episode"] = int(cfg.episode_length_s * cfg.policy_hz)
     Path(args.results_file).parent.mkdir(parents=True, exist_ok=True)
     with open(args.results_file, "w") as f:
         json.dump(summary, f, indent=2)
     print(f"Ergebnisse gespeichert: {args.results_file}")
+    # Erfolgsmarker wie in dump_camera_poses.py / measure_domain_gap.py: isaaclab.sh gibt
+    # den Exit-Code des Pythons NICHT durch (ein Traceback endet trotzdem mit 0), ein
+    # Abbruch mitten in der Eval-Schleife bliebe sonst unbemerkt.
+    print("[eval] fertig.", flush=True)
 
     # Aufräumen
     client.close()

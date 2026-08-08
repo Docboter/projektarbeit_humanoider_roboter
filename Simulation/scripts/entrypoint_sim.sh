@@ -94,6 +94,10 @@ GROOT_ROOT="${GROOT_ROOT:-/app/Groot-1.6}"
 ZMQ_PORT="${ZMQ_PORT:-5555}"
 NUM_EPISODES="${NUM_EPISODES:-20}"
 EXECUTION_HORIZON="${EXECUTION_HORIZON:-8}"
+# Zeitbudget je Episode; 0 = cfg-Default (300 s = 9000 Steps à 4 gerenderte Kameras).
+# Der Wert bestimmt die Laufzeit direkt und ist deshalb der erste Hebel, wenn eine Eval
+# nicht in ein Zeitfenster passt. Anker: die menschliche Teleop-Demo braucht 39 s.
+EPISODE_LENGTH_S="${EPISODE_LENGTH_S:-0}"
 TASK_DESCRIPTION="${TASK_DESCRIPTION:-stack the blocks}"
 ASSET_PATH="${ASSET_PATH:-/workspace/assets/g1_dex3_blackhands.usd}"
 BLACK_HANDS="${BLACK_HANDS:-1}"
@@ -260,6 +264,11 @@ export PYTHONUNBUFFERED=1
 printf "    %-22s %s\n" "Server:"         "tcp://localhost:$ZMQ_PORT"
 printf "    %-22s %s\n" "Episoden:"       "$NUM_EPISODES"
 printf "    %-22s %s\n" "Exec-Horizon:"   "$EXECUTION_HORIZON"
+if [[ "$EPISODE_LENGTH_S" != "0" ]]; then
+    printf "    %-22s %s\n" "Episodenlaenge:" "${EPISODE_LENGTH_S}s (EPISODE_LENGTH_S)"
+else
+    printf "    %-22s %s\n" "Episodenlaenge:" "cfg-Default (300s = 9000 Steps)"
+fi
 printf "    %-22s %s\n" "Task:"           "$TASK_DESCRIPTION"
 printf "    %-22s %s\n" "Checkpoint:"     "$CHECKPOINT_PATH"
 printf "    %-22s %s\n" "Asset:"          "$ASSET_PATH"
@@ -328,6 +337,7 @@ ${ISAACLAB_PATH}/isaaclab.sh -p /workspace/g1_dex3_sim/run_g1_dex3_sim_eval.py \
     --video-dir      "$DATA_DIR/sim_videos" \
     --results-file   "$DATA_DIR/sim_results/results.json" \
     --asset-path     "$ASSET_PATH" \
+    --episode-length-s "$EPISODE_LENGTH_S" \
     --ping-retries   20
 
 # isaaclab.sh schluckt den Exit-Code des Python-Prozesses (ein Crash im Sim-Client liefert

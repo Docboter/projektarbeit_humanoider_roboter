@@ -347,6 +347,9 @@ do_check() {
 do_rl() {
   ensure_checkpoint
   ensure_black_hands   # muss VOR build_rl_env laufen: der Fallback ändert ASSET_PATH
+  # Wie in do_eval: /scripts liegt im Image, nicht im Mount. Ohne diese Zeile liefe ein
+  # Repo-Edit an entrypoint_rl.sh ins Leere und der Lauf nähme still die alte Fassung.
+  docker cp "$REPO_DIR/Simulation/scripts/entrypoint_rl.sh" "$CONTAINER:/scripts/entrypoint_rl.sh"
   build_rl_env
   log "Starte echten RL-Lauf (Vordergrund, laeuft je nach RL_ITERATIONS lange)."
   log "  Checkpoints -> $HOST_DATA_DIR/g1_dex3_rl/  (alle RL_SAVE_EVERY Iterationen)"
@@ -355,6 +358,63 @@ do_rl() {
     log "  Live-Ansicht -> http://${ip:-<server-ip>}:$LIVE_VIEW_PORT/"
   fi
   docker exec "${RL_ENV[@]}" "$CONTAINER" bash -lc "bash /scripts/entrypoint_rl.sh"
+}
+
+# Schritt 3 der Diagnosekette (rl-anleitung.md): BC-Erfolgsrate in der Sim.
+#
+# Misst die Zielgroesse direkt statt ueber den Proxy Domain-Gap — und entscheidet damit,
+# ob sich ein TUNE_VISUAL=1-Lauf (~48 h H100) lohnt. Zugleich der Nullpunkt, gegen den
+# jeder spaetere RL-Lauf zu vergleichen ist: ohne diese Zahl ist "RL hat geholfen" nicht
+# belegbar.
+#
+# Fuehrt NICHT rl_finetune.py aus, sondern /scripts/entrypoint_sim.sh — das ist die
+# vollstaendige Closed-Loop-Pipeline (GR00T-Policy-Server auf ZMQ + Isaac-Lab-Client) und
+# unterscheidet sich in einem fuer die Zahl entscheidenden Punkt vom RL-Rollout: der Client
+# fuehrt EXECUTION_HORIZON Schritte eines 16er-Chunks aus, waehrend rl_finetune.py jeden
+# Step neu plant und 15 von 16 vorhergesagten Schritten wegwirft. Gemessen werden soll der
+# Betriebsmodus, nicht der Trainingsmodus.
+do_eval() {
+  ensure_checkpoint
+  ensure_black_hands   # muss VOR dem Lauf passieren: der Fallback aendert ASSET_PATH
+  local eps="${NUM_EPISODES:-20}"
+  local horizon="${EXECUTION_HORIZON:-8}"
+  local ep_len="${EPISODE_LENGTH_S:-0}"
+  log "BC-Erfolgsrate messen: $eps Episoden, Exec-Horizon $horizon," \
+      "Episodenlaenge ${ep_len}s$([[ "$ep_len" == "0" ]] && echo ' (cfg-Default 300s)')," \
+      "DR=${DR_ENABLED:-1}"
+  if [[ "$ep_len" == "0" ]]; then
+    warn "Ohne EPISODE_LENGTH_S laeuft jede Episode bis zu 9000 Steps mit 4 gerenderten"
+    warn "  Kameras. Das kann bei 20 Episoden Stunden dauern. Anhaltspunkt: die"
+    warn "  menschliche Teleop-Demo (replay_episode0.npz) braucht 1173 Steps = 39 s."
+  fi
+  # /scripts ist ins Image GEBACKEN (nur $SIM_DIR ist gemountet) — eine Aenderung an
+  # entrypoint_sim.sh im Repo erreicht den Container sonst nie, und der Lauf liefe still
+  # mit der alten Fassung. Gleiches Muster wie bei measure_domain_gap.py in do_gap.
+  docker cp "$REPO_DIR/Simulation/scripts/entrypoint_sim.sh" "$CONTAINER:/scripts/entrypoint_sim.sh"
+  # SKIP_DOWNLOAD=1: ensure_checkpoint hat den Checkpoint bereits sichergestellt; ein
+  # zweiter HF-Zugriff im Entrypoint braeuchte nur wieder einen Token.
+  # BLACK_HANDS wird mitgereicht, obwohl entrypoint_sim.sh dieselbe Logik selbst hat —
+  # es findet das von ensure_black_hands erzeugte *_blackhands.usd dann einfach vor.
+  docker exec \
+    -e "SKIP_DOWNLOAD=1" \
+    -e "CHECKPOINT_PATH=$CHECKPOINT_PATH" \
+    -e "ASSET_PATH=$ASSET_PATH" \
+    -e "BLACK_HANDS=$BLACK_HANDS" \
+    -e "NUM_EPISODES=$eps" \
+    -e "EXECUTION_HORIZON=$horizon" \
+    -e "EPISODE_LENGTH_S=$ep_len" \
+    -e "TASK_DESCRIPTION=${TASK_DESCRIPTION:-stack the blocks}" \
+    -e "DR_ENABLED=${DR_ENABLED:-1}" \
+    -e "RL_GROUND_COLOR=${RL_GROUND_COLOR:-}" \
+    "$CONTAINER" bash -lc "bash /scripts/entrypoint_sim.sh" 2>&1 \
+    | tee /dev/stderr | grep -q "\[eval\] fertig" \
+    || { err "Sim-Eval ohne Erfolgsmarker beendet (Traceback oben)."; return 1; }
+  ok "Ergebnisse: $HOST_DATA_DIR/sim_results/results.json"
+  ok "Videos:     $HOST_DATA_DIR/sim_videos/"
+  docker exec "$CONTAINER" bash -lc \
+    "python3 -c \"import json;d=json.load(open('/data/sim_results/results.json'));\
+print('Erfolgsrate: %d/%d = %.1f%%' % (d['num_success'], d['num_episodes'], 100*d['success_rate']))\"" \
+    2>/dev/null || true
 }
 
 # Kamera-Diagnose: konfigurierte gegen tatsächlich gerenderte Pose + PNG je Kamera.
@@ -468,6 +528,9 @@ Aktionen:
   cams        Kamera-Diagnose: konfigurierte vs. gerenderte Pose + ein PNG je Kamera.
   gap         Domain-Gap real vs. sim je Policy-Kamera (SigLIP-ViT). Setzt 'cams' voraus.
               Sweep-Varianten (RL_DOME_SWEEP) werden automatisch mitgemessen.
+  eval        BC-Erfolgsrate in der Sim (Closed Loop, GR00T-Server + Isaac-Lab-Client).
+              Schritt 3 der Diagnosekette und der Nullpunkt fuer jeden RL-Vergleich.
+              NUM_EPISODES (20), EXECUTION_HORIZON (8), EPISODE_LENGTH_S (0 = 300 s).
   rl          Echter RL-Lauf (Vordergrund). Checkpoints unter $HOST_DATA_DIR/g1_dex3_rl/.
   shell       Interaktive Shell im Container.
   clean       Container entfernen (Daten unter $HOST_DATA_DIR bleiben).
@@ -476,6 +539,9 @@ Aktionen:
 Beispiele:
   ./Simulation/server_rl_run.sh preflight
   HF_TOKEN=hf_... ./Simulation/server_rl_run.sh check
+  # Schritt 3 — BC-Erfolgsrate, 3x das Zeitbudget der menschlichen Demo (39 s):
+  HF_TOKEN=hf_... NUM_EPISODES=20 EPISODE_LENGTH_S=120 DR_ENABLED=0 \\
+      ./Simulation/server_rl_run.sh eval
   HF_TOKEN=hf_... WANDB_API_KEY=... RL_NUM_ENVS=4 ./Simulation/server_rl_run.sh rl
   # mit Live-Ansicht im Browser + W&B-Video alle 10 Iterationen:
   HF_TOKEN=hf_... WANDB_API_KEY=... LIVE_VIEW=1 RL_WANDB_VIDEO_EVERY=10 \\
@@ -507,7 +573,7 @@ ACTION="${1:-help}"
 # 'shell' bleibt ungespiegelt (interaktives -it verträgt die Pipe nicht), 'help'/'clean'
 # haben nichts zu protokollieren.
 case "$ACTION" in
-  preflight|setup|check|cams|gap|rl) start_logging "$ACTION" ;;
+  preflight|setup|check|cams|gap|eval|rl) start_logging "$ACTION" ;;
 esac
 case "$ACTION" in
   preflight)  do_preflight ;;
@@ -515,6 +581,7 @@ case "$ACTION" in
   check)      do_check ;;
   cams)       do_cams ;;
   gap)        do_gap ;;
+  eval)       do_eval ;;
   rl)         do_rl ;;
   shell)      do_shell ;;
   clean|down) do_clean ;;

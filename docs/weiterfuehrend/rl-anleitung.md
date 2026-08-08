@@ -1249,6 +1249,58 @@ Der Modulkopf von `measure_domain_gap.py` warnt selbst davor, dass die Zahl Szen
 die Wrist-Kamera ist dafür die empfindlichste. Das ist für Schritt 3 ohnehin zu klären, weil eine
 unerreichbare Tischplatte jede Erfolgsrate auf 0 nagelt, unabhängig von der Optik.
 
+### Schritt 3 — BC-Erfolgsrate in der Sim (`server_rl_run.sh eval`)
+
+Der Domain-Gap ist ein Proxy. Diese Zahl ist die Zielgröße selbst: **schafft die BC-Policy die
+Aufgabe in der Simulation überhaupt?** Sie entscheidet zwei Dinge auf einmal — ob sich ein
+`TUNE_VISUAL=1`-Lauf über ~48 h lohnt, und was der Nullpunkt für jeden späteren RL-Vergleich ist.
+Ohne sie lässt sich „RL hat geholfen" nicht belegen, egal wie die RL-Kurve aussieht.
+
+```bash
+HF_TOKEN=hf_... NUM_EPISODES=20 EPISODE_LENGTH_S=120 DR_ENABLED=0 \
+    ./Simulation/server_rl_run.sh eval
+```
+
+Was hier läuft, ist **nicht** `rl_finetune.py`, sondern die vollständige Closed-Loop-Pipeline
+(`entrypoint_sim.sh`: GR00T-Policy-Server über ZMQ + Isaac-Lab-Client). Der Unterschied ist für die
+Zahl wesentlich: der Client führt 8 Schritte eines 16er-Chunks aus, während der RL-Rollout jeden
+Step neu plant und 15 von 16 Vorhersagen wegwirft. Gemessen werden soll der Betriebsmodus.
+
+| Parameter | Wert | Begründung |
+|---|---|---|
+| `NUM_EPISODES` | 20 | Auflösung siehe unten |
+| `EPISODE_LENGTH_S` | 120 | 3× die menschliche Demo. `replay_episode0.npz` hat 1173 Steps = 39 s bei 30 Hz. Der cfg-Default von 300 s ist das 7,7-fache und kostet nur Laufzeit |
+| `EXECUTION_HORIZON` | 8 (Default) | wie im Deployment |
+| `DR_ENABLED` | 0 | feste Beleuchtung, sonst ist jede Episode eine andere Szene |
+
+Laufzeit: bis zu 20 × 120 s × 30 Hz = 72 000 Env-Steps mit 5 gerenderten Kameras, dazu ~9000
+Policy-Aufrufe. Grobe Schätzung 1–2 h; erfolgreiche Episoden brechen früher ab. Ergebnisse landen in
+`$HOST_DATA_DIR/sim_results/results.json`, Videos je Episode in `$HOST_DATA_DIR/sim_videos/`.
+
+**Entscheidungsregel — vorher festgelegt, damit die Zahl nicht nachträglich gedeutet wird:**
+
+| Erfolgsrate | Konsequenz |
+|---|---|
+| **0/20** | Die Policy löst die Aufgabe in der Sim nicht. **Erst Geometrie ausschließen** (s. u.), dann ist `TUNE_VISUAL=1` bestätigt — RL auf einem Nullpunkt-Reward kann nichts lernen, dem fehlt das Startsignal |
+| **1–3/20** | Schwaches, aber echtes Signal — der beste Startpunkt für RL. Kein `TUNE_VISUAL`-Lauf, direkt RL, denn FPO braucht genau diesen seltenen Erfolg als Gradient |
+| **> 3/20** | BC funktioniert in der Sim. RL ist reine Verbesserung, `TUNE_VISUAL` erübrigt sich |
+
+**Was 0/20 statistisch heißt.** Bei 20 Episoden und null Erfolgen liegt die obere 95-%-Grenze der
+wahren Rate bei rund 14 %. „0/20" schließt also eine schwache Fähigkeit nicht aus, es schließt nur
+eine brauchbare aus. Für die Unterscheidung 0 % gegen 5 % wären ~60 Episoden nötig — das ist erst
+interessant, wenn überhaupt ein Erfolg auftritt.
+
+**Vor der Interpretation zu prüfen — sonst misst der Lauf etwas anderes als gedacht:**
+
+* **Erreicht die Hand den Tisch?** Die bekannte Abweichung von ~15 cm im Roboter-Tisch-Abstand
+  nagelt jede Erfolgsrate auf 0, unabhängig von der Optik. Die Videos in `sim_videos/` zeigen das
+  unmittelbar: greift der Roboter ins Leere oder daneben, ist das Ergebnis kein Aussagewert über das
+  Sehen. **Dieser Punkt ist die einzige zulässige Erklärung für eine 0, die nicht `TUNE_VISUAL=1`
+  auslöst** — und er ist vor dem Lauf offen, nicht danach erfunden.
+* **Sieht die Policy etwas?** Der Runner legt in Episode 1/Step 0 `_debug_obs_cam_*.png` in
+  `sim_videos/` ab — vier Bilder, genau die Modell-Eingabe. Sind die leer, weiß oder schwarz, ist
+  der Lauf ungültig und keine Aussage über die Policy.
+
 ### `isaaclab nicht importierbar`
 Das Skript braucht das **kombinierte** Image (`Dockerfile.vastai`), nicht das BC-Trainingsimage.
 
