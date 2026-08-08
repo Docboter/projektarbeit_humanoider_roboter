@@ -159,14 +159,17 @@ def main():
     # Abstand allein führt in die Irre: der Bezugskörper liegt innerhalb der Handgeometrie,
     # genau dieser Fehler hat in Lauf 24 schon einmal die falsche Schlussfolgerung erzeugt.
     # Namen kommen aus dem Env, damit Eval und Replay denselben Bezugsrahmen messen.
-    tip_names = list(G1Dex3BlockstackEnv._REACH_BODY_SETS[0][1])
+    # Die Kontaktpunkte kommen aus dem Env, damit Eval und Replay denselben Bezugspunkt
+    # messen. Wichtig ist der Versatz bis zur Kuppe: der Frame des distalen Fingerglieds
+    # DREHT sich beim Beugen nur, sein Ursprung wandert nicht — ohne Versatz ist der Griff
+    # in den Zahlen unsichtbar (genau das ist in Lauf 28 passiert).
     try:
-        tip_ids, _ = env.robot.find_bodies(tip_names, preserve_order=True)
-    except ValueError:
-        tip_ids = []
-    if len(tip_ids) != len(tip_names):
-        tip_ids = []
-        print("[Replay] WARNUNG: Fingerspitzen-Links nicht gefunden — nur Handflächen-Diagnose.",
+        has_tips = env.get_contact_points_w().shape[1] == 6
+    except RuntimeError as exc:
+        has_tips = False
+        print(f"[Replay] WARNUNG: keine Fingerkuppen-Diagnose ({exc})", flush=True)
+    if not has_tips:
+        print("[Replay] WARNUNG: Fingerkuppen nicht auflösbar — nur Handflächen-Diagnose.",
               flush=True)
     min_tip_cube, min_tip_step = float("inf"), -1
     spread_max = [0.0, 0.0]                 # größte Fingeröffnung je Hand (links, rechts)
@@ -201,8 +204,8 @@ def main():
                 if hands[h, 2] < hand_low[h][2]:
                     hand_low[h] = hands[h].copy()
 
-        if tip_ids:
-            tips = env.robot.data.body_pos_w[0, tip_ids].cpu().numpy()             # (6,3)
+        if has_tips:
+            tips = env.get_contact_points_w()[0].cpu().numpy()                    # (6,3)
             d_tip = float(np.linalg.norm(tips[:, None, :] - cubes[None, :, :], axis=-1).min())
             if d_tip < min_tip_cube:
                 min_tip_cube, min_tip_step = d_tip, i
@@ -221,7 +224,7 @@ def main():
                 # Öffnung heraus zugreift (< 70 %). Der Mittelpunkt der drei Fingerspitzen
                 # IST die Greiföffnung — damit ist Platzierung und Timing per Konstruktion
                 # richtig und es bleibt nur die Frage, ob die Hand überhaupt halten kann.
-                if (args.grasp_hold and hold_step[h] < 0 and i >= 60
+                if (args.grasp_hold and hold_step[h] < 0 and i >= 15
                         and spread_max[h] > 0.05 and spread < 0.7 * spread_max[h]):
                     c = t3.mean(axis=0)
                     pose = torch.tensor([[float(c[0]), float(c[1]), float(c[2]),
@@ -293,11 +296,12 @@ def main():
     print("[Replay]   Distanz groß (>~15cm) → Greifbewegung trifft unsere Würfel nicht (Platzierung);"
           " Distanz klein + Anhebung≈0 → Greif-Physik prüfen; Anhebung>~2cm → Greifen FUNKTIONIERT.",
           flush=True)
-    if tip_ids:
-        print(f"[Replay]   min Fingerspitze→Würfelmitte = {min_tip_cube * 100:.1f} cm "
+    if has_tips:
+        print(f"[Replay]   min Fingerkuppe→Würfelmitte = {min_tip_cube * 100:.1f} cm "
               f"(Step {min_tip_step}) | engste Greiföffnung: "
-              f"links {spread_min[0] * 100:.1f} cm (Step {close_step[0]}), "
-              f"rechts {spread_min[1] * 100:.1f} cm (Step {close_step[1]})", flush=True)
+              f"links {spread_min[0] * 100:.1f} cm von max. {spread_max[0] * 100:.1f} cm "
+              f"(Step {close_step[0]}), rechts {spread_min[1] * 100:.1f} cm von max. "
+              f"{spread_max[1] * 100:.1f} cm (Step {close_step[1]})", flush=True)
         print("[Replay]   Liegt der Step der engsten Greiföffnung weit weg vom Step des "
               "kleinsten Fingerspitzen-Abstands, greift die Hand ins Leere — dann stimmt die "
               "Würfel-Platzierung des Greif-Tests nicht, und die Physik ist nicht widerlegt.",
@@ -353,8 +357,9 @@ def main():
         "min_fingertip_cube_dist_cm": (round(min_tip_cube * 100, 1)
                                        if np.isfinite(min_tip_cube) else None),
         "min_fingertip_step": min_tip_step,
-        "finger_spread_min_cm": [round(s * 100, 1) if np.isfinite(s) else None
-                                 for s in spread_min],
+        "finger_spread_min_cm": [round(v * 100, 1) if np.isfinite(v) else None
+                                 for v in spread_min],
+        "finger_spread_max_cm": [round(v * 100, 1) for v in spread_max],
         "finger_close_step": close_step,
         "hold_step": hold_step if args.grasp_hold else None,
         "hold_ratio": ([round(hold_ok[h] / max(hold_total[h], 1), 3) for h in range(2)]

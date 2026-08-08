@@ -31,7 +31,7 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import Camera, CameraCfg, TiledCamera, TiledCameraCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
-from isaaclab.utils.math import quat_from_euler_xyz, sample_uniform
+from isaaclab.utils.math import quat_apply, quat_from_euler_xyz, sample_uniform
 
 from g1_dex3_cfg import (
     ALL_JOINTS_ORDERED,
@@ -496,6 +496,7 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
         self._hand_body_ids: list[int] | None = None  # Handwurzel-Links (für Shaped-Reward)
         self._reach_body_ids: list[int] | None = None  # Kontaktflächen (für die Reach-Diagnose)
         self._reach_frame: str = "?"
+        self._reach_offsets: torch.Tensor | None = None  # lokaler Versatz Gelenk→Fingerkuppe
 
         # Episode-Tracking
         self._episode_step = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
@@ -982,13 +983,62 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
     # kleiner Abstand auch "am Würfel". Die Fallbacks greifen, falls die USD-Konvertierung
     # andere Namen behalten hat; welcher Satz benutzt wurde, landet in results.json, damit
     # die Zahl nie ohne ihren Bezugsrahmen gelesen wird.
-    _REACH_BODY_SETS: tuple[tuple[str, list[str]], ...] = (
-        ("fingertip", ["left_hand_index_1_link", "left_hand_middle_1_link",
-                       "left_hand_thumb_2_link", "right_hand_index_1_link",
-                       "right_hand_middle_1_link", "right_hand_thumb_2_link"]),
-        ("palm", ["left_hand_palm_link", "right_hand_palm_link"]),
-        ("wrist", ["left_wrist_yaw_link", "right_wrist_yaw_link"]),
+    # Der Frame eines distalen Fingerglieds sitzt IM Gelenk, nicht an der Kuppe: die
+    # Kollisionsmesh reicht von dort noch 5,2 cm weiter (STL-Bounding-Box aus
+    # dexterous_hand_description/dex3_1, +x bei Zeige-/Mittelfinger, ∓y beim Daumen).
+    # Ohne diesen Versatz misst man das distale Gelenk und liegt um mehr als eine ganze
+    # Würfelkante daneben — und schlimmer: das Beugen dieses Gelenks DREHT den Frame nur,
+    # verschiebt seinen Ursprung also nicht. Der eigentliche Griff wäre unsichtbar.
+    _TIP_LEN: float = 0.052
+    _REACH_BODY_SETS: tuple[tuple[str, list[tuple[str, tuple[float, float, float]]]], ...] = (
+        ("fingertip", [
+            ("left_hand_index_1_link", (_TIP_LEN, 0.0, 0.0)),
+            ("left_hand_middle_1_link", (_TIP_LEN, 0.0, 0.0)),
+            ("left_hand_thumb_2_link", (0.0, -_TIP_LEN, 0.0)),
+            ("right_hand_index_1_link", (_TIP_LEN, 0.0, 0.0)),
+            ("right_hand_middle_1_link", (_TIP_LEN, 0.0, 0.0)),
+            ("right_hand_thumb_2_link", (0.0, _TIP_LEN, 0.0)),
+        ]),
+        ("palm", [("left_hand_palm_link", (0.0, 0.0, 0.0)),
+                  ("right_hand_palm_link", (0.0, 0.0, 0.0))]),
+        ("wrist", [("left_wrist_yaw_link", (0.0, 0.0, 0.0)),
+                   ("right_wrist_yaw_link", (0.0, 0.0, 0.0))]),
     )
+
+    def get_contact_points_w(self) -> torch.Tensor:
+        """Weltpositionen der Kontaktflächen (Fingerkuppen), (num_envs, n, 3).
+
+        Gemeinsame Quelle für Eval, Replay und jede Greif-Diagnose, damit alle drei
+        denselben Bezugspunkt messen. Der lokale Versatz wird mit der Körper-Orientierung
+        mitgedreht — sonst zeigte er beim gebeugten Finger in die falsche Richtung.
+        """
+        if self._reach_body_ids is None:
+            for tag, entries in self._REACH_BODY_SETS:
+                names = [n for n, _ in entries]
+                try:
+                    ids, _ = self.robot.find_bodies(names, preserve_order=True)
+                except ValueError:
+                    continue
+                if len(ids) == len(names):
+                    self._reach_body_ids = ids
+                    self._reach_frame = tag
+                    self._reach_offsets = torch.tensor(
+                        [o for _, o in entries], device=self.device, dtype=torch.float32
+                    )
+                    break
+            if self._reach_body_ids is None:
+                raise RuntimeError(
+                    "Reach-Diagnose: keiner der bekannten Messkörper im Asset gefunden "
+                    f"(geprüft: {[t for t, _ in self._REACH_BODY_SETS]}). "
+                    "Ohne Bezugskörper wäre die Zahl nicht interpretierbar."
+                )
+            print(f"[Reach-Diagnose] Messkörper: {self._reach_frame} "
+                  f"(Versatz bis {float(self._reach_offsets.abs().max()) * 100:.1f} cm)",
+                  flush=True)
+
+        pos = self.robot.data.body_pos_w[:, self._reach_body_ids, :]
+        quat = self.robot.data.body_quat_w[:, self._reach_body_ids, :]
+        return pos + quat_apply(quat, self._reach_offsets.expand_as(pos))
 
     def get_reach_diagnostics(self) -> tuple[float, np.ndarray, str]:
         """Kleinster Kontakt-Würfel-Abstand [m], Würfel-Weltpositionen (3, 3), Messkörper.
@@ -999,37 +1049,21 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
         Tischabstand) gegen "Hand steht am Würfel, greift aber nicht" (Wahrnehmung/Politik).
         Nur die zweite Lesart rechtfertigt TUNE_VISUAL=1.
 
-        Gemessen wird ab den Fingerspitzen, NICHT ab der Handwurzel wie im Shaped-Reward.
-        Zwischen left_wrist_yaw_link und der Fingerspitze liegen laut URDF rund 19 cm
-        (0.0415 Handwurzel→Handfläche + 0.0777 →Fingergrund + 0.0458 →Fingerglied). Ein
-        Handwurzel-Abstand von 15 cm ist deshalb mehrdeutig: er kann "Würfel liegt in der
-        Greiföffnung" ebenso bedeuten wie "Würfel 15 cm daneben". Genau diese Unterscheidung
-        soll die Diagnose treffen, also darf sie nicht am falschen Ende der Hand messen.
+        Gemessen wird ab den Fingerkuppen, NICHT ab der Handwurzel wie im Shaped-Reward.
+        Zwischen left_wrist_yaw_link und der Kuppe liegen laut URDF rund 22 cm
+        (0.0415 Handwurzel→Handfläche + 0.0777 →Fingergrund + 0.0458 →distales Gelenk
+        + 0.052 →Kuppe). Ein Handwurzel-Abstand von 15 cm ist deshalb mehrdeutig: er kann
+        "Würfel liegt in der Greiföffnung" ebenso bedeuten wie "Würfel 15 cm daneben".
+        Genau diese Unterscheidung soll die Diagnose treffen, also darf sie nicht am
+        falschen Ende der Hand messen — auch nicht am distalen Gelenk, das noch 5,2 cm
+        vor der Kuppe sitzt (Lauf 25/28 haben genau daran zu viel gemessen).
 
         Nutzt dieselben Tensoren wie _shaped_reward — kein zusätzlicher Sensor, kein
         Render-Pass. Muss VOR env.step() gelesen werden: DirectRLEnv setzt bei done im
         selben Step zurück, danach stünde hier schon das Layout der nächsten Episode.
         """
-        if self._reach_body_ids is None:
-            for tag, names in self._REACH_BODY_SETS:
-                try:
-                    ids, _ = self.robot.find_bodies(names, preserve_order=True)
-                except ValueError:
-                    continue
-                if len(ids) == len(names):
-                    self._reach_body_ids = ids
-                    self._reach_frame = tag
-                    break
-            if self._reach_body_ids is None:
-                raise RuntimeError(
-                    "Reach-Diagnose: keiner der bekannten Messkörper im Asset gefunden "
-                    f"(geprüft: {[t for t, _ in self._REACH_BODY_SETS]}). "
-                    "Ohne Bezugskörper wäre die Zahl nicht interpretierbar."
-                )
-            print(f"[Reach-Diagnose] Messkörper: {self._reach_frame}", flush=True)
-
+        contact_pos = self.get_contact_points_w()
         block_pos = torch.stack([b.data.root_pos_w for b in self.blocks], dim=1)
-        contact_pos = self.robot.data.body_pos_w[:, self._reach_body_ids, :]
         dists = torch.cdist(contact_pos, block_pos)        # (num_envs, n_contact, 3)
         return float(dists[0].amin().item()), block_pos[0].cpu().numpy(), self._reach_frame
 

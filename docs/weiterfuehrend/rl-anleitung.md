@@ -1376,6 +1376,10 @@ Konsequenz im Code (alles in `get_reach_diagnostics` / `run_g1_dex3_sim_eval.py`
 
 #### Die eigentliche Messung (runs/20260808/25) — die Hand ist am Würfel
 
+> **Nachtrag Lauf 28:** die „Fingerspitzen"-Abstände unten sind ab dem *distalen Gelenk* gemessen,
+> die Kuppe liegt 5,2 cm weiter. Alle Zahlen sind also um diesen Betrag zu groß — die Schlussfolgerung
+> „die Hand ist am Würfel" wird dadurch stärker. Details und Fix im Abschnitt zu Lauf 28.
+
 Derselbe Lauf mit korrigiertem Messpunkt, wieder 2 × 40 s, wieder 0/2:
 
 | Episode | `reach_start_m` → `min_reach_m` | `min_reach_step` | `block_shift_m` |
@@ -1539,6 +1543,56 @@ Reibung dran. Gegen letzteres spricht weiterhin die Konfiguration: 50 g bei `sta
 Unabhängig vom Modus laufen `min_fingertip_step` und `finger_close_step` ab sofort mit. Fallen die
 beiden Zeitpunkte weit auseinander, greift die Hand ins Leere — dann ist die Reihenfolge
 „erst Platzierung, dann Physik" ohnehin die richtige.
+
+#### Lauf 28: der Messpunkt war zum dritten Mal falsch
+
+`GRASP_MODE=hold` meldete für beide Hände „kein Zugreifen erkannt — Finger schließen nie unter
+70 % ihrer größten Öffnung", bei einer engsten Greiföffnung von 7,4 cm (links) und 7,6 cm
+(rechts). Das widerspricht der Fingerspanne aus demselben Lauf: 2,09 rad kommandiert, 2,09 rad
+erreicht. Eine Hand, deren Beugegelenke 120° durchfahren, kann ihre Fingerkuppen nicht nahezu
+still halten — also stimmte die Messung nicht.
+
+Die Gegenprobe lief ohne Sim, direkt auf der mitgelieferten Aktionsdatei
+[`replay_episode0.npz`](../../Simulation/g1_dex3_sim/replay_episode0.npz):
+
+| | linke Hand | rechte Hand |
+|---|---|---|
+| stärkste Beugung (aufgezeichnet) | Step 330 | Step 186 |
+| Beugung > 80 % | Steps 320–831 | Steps 102–203 |
+| engste Greiföffnung (gemessen) | Step 36 | Step 109 |
+
+Links liegen 294 Steps (rund 10 s) zwischen dem stärksten Zugreifen und dem, was die Diagnose als
+engste Öffnung ausgab. Die Ursache steht in der URDF: der Frame eines distalen Fingerglieds sitzt
+**im Gelenk**, und das Beugen dieses Gelenks **dreht den Frame nur** — sein Ursprung wandert nicht.
+Die Kollisionsmesh reicht von dort noch **5,2 cm** weiter (STL-Bounding-Box, `index_1`/`middle_1`
+lokal +x, `thumb_2` lokal ∓y). Gemessen wurde also das letzte Fingergelenk, und der Griff selbst
+war in den Zahlen unsichtbar.
+
+Das ist derselbe Fehler zum dritten Mal — Handwurzel (Lauf 24), Handfläche (Lauf 26), distales
+Gelenk (Lauf 25/28). **Regel: ein Körper-Frame ist keine Kontaktfläche.** Wer den Abstand zu einem
+5-cm-Würfel misst, darf nicht 5,2 cm vor der Kuppe anfangen.
+
+**Was dadurch neu zu lesen ist:** die „Fingerspitzen"-Abstände aus Lauf 25 (4,0 / 4,2 cm zur
+Würfelmitte) sind Abstände ab dem distalen Gelenk. Um die Kuppenlänge korrigiert liegen die echten
+Kontaktflächen im Würfel — die Politik war also in Kontaktreichweite, nicht 1,5 cm davor. Die
+Aussage „die Hand ist am Würfel" wird dadurch stärker, nicht schwächer; die 0,0 cm Anhebung bleibt
+das Rätsel.
+
+**Behoben in** [`g1_dex3_blockstack_env.py`](../../Simulation/g1_dex3_sim/g1_dex3_blockstack_env.py):
+`get_contact_points_w()` liefert jetzt die Kuppen — lokaler Versatz, mit der Körper-Orientierung
+mitgedreht (`quat_apply`), sonst zeigte er beim gebeugten Finger in die falsche Richtung. Eval,
+Replay und Greif-Test ziehen ihre Kontaktpunkte aus dieser einen Quelle, damit nicht wieder drei
+Stellen drei verschiedene Punkte messen. `results.json` bekommt zusätzlich
+`finger_spread_max_cm`, weil „nie unter 70 % des Maximums" ohne das Maximum nicht lesbar ist.
+
+**Nächster Schritt:** beide Messungen mit dem korrigierten Bezugspunkt wiederholen —
+
+```bash
+HF_TOKEN=hf_... GRASP_MODE=hold ./Simulation/server_rl_run.sh grasp
+```
+
+Erst wenn `finger_spread_min_cm` mit der Beugung aus der Tabelle oben zusammenfällt, misst die
+Diagnose, was sie behauptet. Danach entscheidet `hold_ratio` wie oben beschrieben.
 
 #### Falscher Alarm „Sim-Eval ohne Erfolgsmarker beendet"
 
