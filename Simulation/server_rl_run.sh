@@ -295,6 +295,22 @@ do_rl() {
   docker exec "${RL_ENV[@]}" "$CONTAINER" bash -lc "bash /scripts/entrypoint_rl.sh"
 }
 
+# Kamera-Diagnose: konfigurierte gegen tatsächlich gerenderte Pose + PNG je Kamera.
+# Anlass: cam_scene zeigte in der Live-Ansicht nur Hintergrund, obwohl die konfigurierte
+# Pose nachweislich Tisch + Roboter erfassen müsste.
+do_cams() {
+  ensure_checkpoint
+  log "Kamera-Posen dumpen (num_envs=${RL_NUM_ENVS:-4}) → $HOST_DATA_DIR/cam_dump/"
+  docker exec -w "$SIM_DIR" "$CONTAINER" bash -lc "
+    unset VIRTUAL_ENV
+    '$ISAAC_PY' '$SIM_DIR/dump_camera_poses.py' \
+        --headless --enable_cameras \
+        --asset-path '$ASSET_PATH' \
+        --num-envs ${RL_NUM_ENVS:-4}" 2>&1 | tee /dev/stderr | grep -q "\[dump\] fertig" \
+    && ok "PNGs + Posen unter $HOST_DATA_DIR/cam_dump/" \
+    || { err "Kamera-Dump ohne Erfolgsmarker beendet (Traceback oben)."; return 1; }
+}
+
 do_shell()  { ensure_container; docker exec -it "$CONTAINER" bash -l; }
 do_clean()  { log "Entferne Container '$CONTAINER' (Daten in $HOST_DATA_DIR bleiben)."; \
               docker rm -f "$CONTAINER" 2>/dev/null || warn "Container existierte nicht."; ok "Weg."; }
@@ -311,6 +327,7 @@ Aktionen:
   preflight   Image-Frische (gr00t+flash-attn im Isaac-Sim-Python) + GPU/RT-Cores testen. Kein HF_TOKEN nötig.
   setup       BC-Checkpoint + USD-Asset von HF laden (einmalig, ~10 GB).
   check       LIVE-CHECK: Env/Policy/Critic aufbauen, 2 Envs, KEIN Training (--check).
+  cams        Kamera-Diagnose: konfigurierte vs. gerenderte Pose + ein PNG je Kamera.
   rl          Echter RL-Lauf (Vordergrund). Checkpoints unter $HOST_DATA_DIR/g1_dex3_rl/.
   shell       Interaktive Shell im Container.
   clean       Container entfernen (Daten unter $HOST_DATA_DIR bleiben).
@@ -328,7 +345,9 @@ Live-Ansicht (opt-in, docs/weiterfuehrend/livestream-plan.md Spur B):
   LIVE_VIEW=1            MJPEG-Stream des Rollouts im Browser
   LIVE_VIEW_PORT         Host- und Container-Port (Default 8900; wird beim Anlegen gemappt)
   LIVE_VIEW_EVERY_N      nur jedes n-te Frame senden (Default 1)
-  LIVE_VIEW_CAMS         Kameras, kommagetrennt (Default cam_scene)
+  LIVE_VIEW_CAMS         Kameras, kommagetrennt (Default cam_left_high,cam_left_wrist —
+                         die kalibrierten Policy-Kameras, also die Modell-Eingabe.
+                         cam_scene ist unvalidiert, siehe Aktion 'cams')
   RL_WANDB_VIDEO_EVERY   alle N Iterationen einen Rollout ins W&B-Dashboard (0 = aus)
   -> Aufruf im Browser:  http://<server-ip>:$LIVE_VIEW_PORT/
      nur SSH?            ssh -L $LIVE_VIEW_PORT:localhost:$LIVE_VIEW_PORT <server>
@@ -345,6 +364,7 @@ case "$ACTION" in
   preflight)  do_preflight ;;
   setup)      do_setup ;;
   check)      do_check ;;
+  cams)       do_cams ;;
   rl)         do_rl ;;
   shell)      do_shell ;;
   clean|down) do_clean ;;

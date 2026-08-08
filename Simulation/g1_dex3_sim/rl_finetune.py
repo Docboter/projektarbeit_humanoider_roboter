@@ -121,8 +121,16 @@ def parse_args() -> argparse.Namespace:
                    help="HTTP-Port der Live-Ansicht. Env: LIVE_VIEW_PORT.")
     p.add_argument("--live-view-every-n", type=int, default=_env_int("LIVE_VIEW_EVERY_N", 1),
                    help="Nur jedes n-te Frame publizieren. Env: LIVE_VIEW_EVERY_N.")
-    p.add_argument("--live-view-cams", default=os.environ.get("LIVE_VIEW_CAMS", "cam_scene"),
-                   help="Kommagetrennte Kameras. Env: LIVE_VIEW_CAMS.")
+    # Default sind die KALIBRIERTEN Policy-Kameras, nicht cam_scene: nur diese vier sind
+    # per Overlay gegen die Dataset-Referenzframes justiert worden, und sie zeigen genau
+    # das, was das Modell als Eingabe bekommt — fuer die Frage "naehert sich die Hand dem
+    # Wuerfel?" also aussagekraeftiger als eine Uebersicht. cam_scene ist unvalidiert und
+    # lieferte am 2026-08-08 fast nur Hintergrund (Diagnose: dump_camera_poses.py).
+    p.add_argument("--live-view-cams",
+                   default=os.environ.get("LIVE_VIEW_CAMS", "cam_left_high,cam_left_wrist"),
+                   help="Kommagetrennte Kameras. Env: LIVE_VIEW_CAMS. Moeglich: "
+                        "cam_left_high, cam_right_high, cam_left_wrist, cam_right_wrist, "
+                        "cam_scene (unvalidiert).")
     p.add_argument("--check", action="store_true",
                    help="Nur Imports/Aufbau pruefen, kein Training (CI/Smoke-Test).")
     return p.parse_args()

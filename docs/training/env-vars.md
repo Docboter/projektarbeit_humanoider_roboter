@@ -72,7 +72,7 @@ Codepfad ein reiner Early-Return, das Verhalten also identisch zu vorher.
 | `LIVE_VIEW` | `0` | `1` = Live-Ansicht aktiv (`http://<server-ip>:8900/`) |
 | `LIVE_VIEW_PORT` | `8900` | HTTP-Port. Container-Port mappen (`-p 8900:8900`) — `server_rl_run.sh` tut das beim Anlegen automatisch |
 | `LIVE_VIEW_EVERY_N` | `1` | Nur jedes n-te Frame senden (Drosselung bei hohem Durchsatz) |
-| `LIVE_VIEW_CAMS` | `cam_scene` | Kameras, kommagetrennt — z. B. `cam_scene,cam_left_wrist` |
+| `LIVE_VIEW_CAMS` | `cam_left_high,cam_left_wrist` | Kameras, kommagetrennt. Default sind die **kalibrierten Policy-Kameras** — sie zeigen genau die Modell-Eingabe. Weitere: `cam_right_high`, `cam_right_wrist`. `cam_scene` (Übersicht) ist **unvalidiert** und zeigte am 2026-08-08 nur Hintergrund — Diagnose mit `server_rl_run.sh cams` |
 
 > Ohne offenen Port geht auch ein Tunnel: `ssh -L 8900:localhost:8900 <server>`, dann
 > `http://localhost:8900/`. Der Stream hat **keine Authentifizierung** — im VPN/Institutsnetz

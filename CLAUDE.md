@@ -104,7 +104,7 @@ On vast.ai: GPU must be **Ampere+ with RT-Cores** (L40, RTX 4090, A6000) — A10
 | `LIVE_VIEW` | `0` | `1` = MJPEG frame stream in the browser ("Spur B", [`live_view.py`](Simulation/g1_dex3_sim/live_view.py)) — plain HTTP, unlimited viewers, stateless, `ssh -L`-tunnelable. Wired into the RL trainer; costs no extra render pass (`cam_scene` is rendered every step anyway) |
 | `LIVE_VIEW_PORT` | `8900` | HTTP port of the frame stream (map `-p 8900:8900`; `server_rl_run.sh` does it on container creation) |
 | `LIVE_VIEW_EVERY_N` | `1` | Publish only every n-th frame |
-| `LIVE_VIEW_CAMS` | `cam_scene` | Comma-separated cameras shown side by side |
+| `LIVE_VIEW_CAMS` | `cam_left_high,cam_left_wrist` | Comma-separated cameras shown side by side. Defaults to the **calibrated policy cameras** (= the model's actual input). `cam_scene` is an unvalidated overview cam — diagnose with `server_rl_run.sh cams` ([`dump_camera_poses.py`](Simulation/g1_dex3_sim/dump_camera_poses.py)) |
 | `RL_WANDB_VIDEO_EVERY` | `0` | RL only: log a rollout video to W&B every N iterations (`0` = off) |
 
 ### Build the image
@@ -213,6 +213,7 @@ repo root
 │   │   ├── g1_dex3_blockstack_env.py   # Isaac Lab env (robot, table, cubes, 4 policy + 1 scene cam; reward_mode binary|shaped, get_obs_batched)
 │   │   ├── rl_finetune.py              # FPO RL trainer (action-head only; shaped reward; one full iteration verified on hardware)
 │   │   ├── live_view.py                # MJPEG live view (stdlib + Pillow; LIVE_VIEW=1) — hooked into the RL rollout
+│   │   ├── dump_camera_poses.py        # Diagnostic: configured vs. actually rendered camera pose + one PNG per cam
 │   │   ├── g1_dex3_cfg.py              # Articulation + camera config (look_at_world_quat helper)
 │   │   ├── client.py                   # ZMQ policy client + build_obs (state split into modality keys)
 │   │   ├── convert_urdf_to_usd.py      # One-time URDF→USD conversion

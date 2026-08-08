@@ -289,11 +289,34 @@ Diese Fehlerklassen erkennt man **visuell in Minuten** statt nach Stunden Rechen
 nachrüsten geht nicht: ein bereits laufender Job wird nicht rückwirkend beobachtbar.
 
 Eigenschaften: beliebig viele Zuschauer, zustandslos (Tab schließen und morgen wieder öffnen ändert
-nichts am Lauf), reines HTTP (tunnelbar). Kostet **keinen zusätzlichen Render-Pass** — `cam_scene`
-wird ohnehin jeden Env-Step gerendert; dazu kommen nur ein GPU→CPU-Copy und die JPEG-Kodierung,
-letztere nur solange tatsächlich jemand zuschaut. Drosseln mit `LIVE_VIEW_EVERY_N=3`, andere
-Kameras mit `LIVE_VIEW_CAMS=cam_scene,cam_left_wrist`. Bei `LIVE_VIEW=0` (Default) ist der
-Codepfad ein reiner Early-Return.
+nichts am Lauf), reines HTTP (tunnelbar). Kostet **keinen zusätzlichen Render-Pass** — alle Kameras
+werden ohnehin jeden Env-Step gerendert; dazu kommen nur ein GPU→CPU-Copy und die JPEG-Kodierung,
+letztere nur solange tatsächlich jemand zuschaut. Drosseln mit `LIVE_VIEW_EVERY_N=3`. Bei
+`LIVE_VIEW=0` (Default) ist der Codepfad ein reiner Early-Return.
+
+**Welche Kameras?** Default sind `cam_left_high,cam_left_wrist` — zwei der vier **kalibrierten
+Policy-Kameras**. Das ist bewusst so: nur diese vier wurden per Overlay gegen die
+Dataset-Referenzframes justiert (die zwölf Iterationen sind in
+[`g1_dex3_cfg.py`](../../Simulation/g1_dex3_sim/g1_dex3_cfg.py) dokumentiert), und sie zeigen
+exakt das, was das Modell als Eingabe bekommt. Für die Frage „nähert sich die Hand dem Würfel?"
+ist das aussagekräftiger als eine Übersicht. Alle vier gleichzeitig:
+`LIVE_VIEW_CAMS=cam_left_high,cam_right_high,cam_left_wrist,cam_right_wrist`.
+
+> ⚠️ **`cam_scene` ist unvalidiert.** Die Übersichtskamera trägt im Code den Vermerk „nur fürs
+> Video" und hat nie eine Kalibrierung gesehen. Am 2026-08-08 zeigte sie in der Live-Ansicht fast
+> nur den hellen Dome-Hintergrund und eine Ecke Bodengitter — obwohl die konfigurierte Pose
+> nachgerechnet Tisch, Würfel und Roboter vollständig erfassen müsste. Die Zahlen in
+> `g1_dex3_cfg.py` sind also nicht die Ursache; die Abweichung entsteht zwischen Konfiguration und
+> Render. Zum Nachmessen:
+>
+> ```bash
+> HF_TOKEN=hf_... ./Simulation/server_rl_run.sh cams
+> ```
+>
+> Das gibt je Kamera die konfigurierte gegen die tatsächlich gerenderte Pose aus — inklusive der
+> Pose **relativ zum Env-Ursprung**, weil die Kameras unter `{ENV_REGEX_NS}` hängen und je Env
+> geklont werden — und schreibt ein PNG je Kamera nach `/data/cam_dump/`. Auf das Training hat das
+> alles keinen Einfluss: `cam_scene` ist nicht Teil der Policy-Observation.
 
 > ⚠️ Der Stream hat **keine Authentifizierung**. Im VPN/Institutsnetz vertretbar — auf einer
 > öffentlichen vast.ai-IP nur per SSH-Tunnel nutzen, nicht den Port mappen.

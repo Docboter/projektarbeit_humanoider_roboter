@@ -13,11 +13,16 @@ Endpunkte (Default-Port 8900):
     GET /meta.json           {iteration, step, reward_mean, success_rate, fps, ...}
 
 Kostenmodell — warum das im RL-Lauf praktisch gratis ist:
-    Die Kamera `cam_scene` wird ohnehin JEDEN Env-Step gerendert (sie steht in
-    G1Dex3BlockstackEnv.cameras und laeuft durch _get_observations/get_obs_batched
-    mit). Es kommt also KEIN Render-Pass dazu, nur ein GPU->CPU-Copy (~1 MB) und die
-    JPEG-Kodierung. Letztere laeuft in einem eigenen Thread und NUR, solange
+    ALLE Kameras werden ohnehin JEDEN Env-Step gerendert (sie stehen in
+    G1Dex3BlockstackEnv.cameras und laufen durch _get_observations/get_obs_batched
+    mit). Es kommt also KEIN Render-Pass dazu, nur ein GPU->CPU-Copy (~1 MB je Kamera)
+    und die JPEG-Kodierung. Letztere laeuft in einem eigenen Thread und NUR, solange
     tatsaechlich jemand zuschaut (Zaehler `_viewers`).
+
+Kamera-Wahl: Default sind die vier per Overlay kalibrierten POLICY-Kameras
+    (cam_left_high, cam_right_high, cam_left_wrist, cam_right_wrist) — sie zeigen genau
+    die Modell-Eingabe. `cam_scene` ist eine unvalidierte Uebersichtskamera und lieferte
+    am 2026-08-08 fast nur Hintergrund; Diagnose dazu: dump_camera_poses.py.
 
 Robustheit: Diese Klasse darf einen mehrstuendigen Lauf niemals abschiessen. Jeder
 Fehler (Port belegt, Pillow fehlt, Client bricht ab) fuehrt zu _disable() mit einer
@@ -178,7 +183,7 @@ class LiveView:
         enabled: bool = False,
         port: int = 8900,
         every_n: int = 1,
-        cams=("cam_scene",),
+        cams=("cam_left_high", "cam_left_wrist"),
         env_index: int = 0,
         quality: int = 75,
         host: str = "0.0.0.0",
@@ -187,7 +192,7 @@ class LiveView:
         self.enabled = bool(enabled)
         self.port = int(port)
         self.every_n = max(1, int(every_n))
-        self.cams = [str(c) for c in cams] or ["cam_scene"]
+        self.cams = [str(c) for c in cams] or ["cam_left_high"]
         self.env_index = int(env_index)
         self.quality = int(quality)
         self.host = host

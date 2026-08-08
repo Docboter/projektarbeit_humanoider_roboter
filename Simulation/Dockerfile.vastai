@@ -248,7 +248,9 @@ ENV PATH="/app/Groot-1.6/.venv/bin:${PATH}" \
     LIVE_VIEW="0" \
     LIVE_VIEW_PORT="8900" \
     LIVE_VIEW_EVERY_N="1" \
-    LIVE_VIEW_CAMS="cam_scene"
+    # Default = die per Overlay kalibrierten POLICY-Kameras (= Modell-Eingabe).
+    # cam_scene ist eine unvalidierte Übersichtskamera; Diagnose: dump_camera_poses.py.
+    LIVE_VIEW_CAMS="cam_left_high,cam_left_wrist"
 
 # Livestream-Ports (nur Doku/Default; beim docker run separat mappen).
 # Spur A — WebRTC (auf vast.ai: -p 8211 -p 49100 -p 47998/udp).
