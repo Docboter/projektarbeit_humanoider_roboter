@@ -379,6 +379,13 @@ do_gap() {
   local gap_env=( -e "HF_HOME=${HF_HOME:-/data/hf_cache}" )
   [[ -n "${HF_TOKEN:-}" ]] && gap_env+=( -e "HF_TOKEN=$HF_TOKEN" )
 
+  # Warnung, keine Abbruchbedingung: mit DR=1 würfelt _randomize_visuals() die Dome-Intensität
+  # je Episode aus [1000, 3800]. Die Frames sind dann bei EINER zufälligen Beleuchtung
+  # entstanden — für Absolutwerte und erst recht für einen Sweep unbrauchbar.
+  warn "Gilt nur für die Beleuchtung, unter der 'cams' lief. Für vergleichbare Zahlen:"
+  warn "  DR_ENABLED=0 $0 cams        (feste Dome-Intensität statt zufälliger je Episode)"
+  warn "  DR_ENABLED=0 RL_DOME_SWEEP=1000,500,200 $0 cams   -> 'gap' misst alle Stufen mit"
+
   log "Domain-Gap messen (SigLIP-ViT, Sim-Frames aus $sim_dir)."
   docker exec "${gap_env[@]}" "$CONTAINER" bash -lc "
     unset VIRTUAL_ENV
@@ -407,6 +414,7 @@ Aktionen:
   check       LIVE-CHECK: Env/Policy/Critic aufbauen, 2 Envs, KEIN Training (--check).
   cams        Kamera-Diagnose: konfigurierte vs. gerenderte Pose + ein PNG je Kamera.
   gap         Domain-Gap real vs. sim je Policy-Kamera (SigLIP-ViT). Setzt 'cams' voraus.
+              Sweep-Varianten (RL_DOME_SWEEP) werden automatisch mitgemessen.
   rl          Echter RL-Lauf (Vordergrund). Checkpoints unter $HOST_DATA_DIR/g1_dex3_rl/.
   shell       Interaktive Shell im Container.
   clean       Container entfernen (Daten unter $HOST_DATA_DIR bleiben).

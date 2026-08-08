@@ -47,6 +47,11 @@ CAMERAS = ["cam_left_high", "cam_right_high", "cam_left_wrist", "cam_right_wrist
 SIM_PATTERNS = ["{cam}.png", "_debug_obs_{cam}.png", "sim_{cam}.png"]
 REAL_PATTERN = "dataset_{cam}.png"
 
+# dump_camera_poses.py haengt beim Dome-Light-Sweep (RL_DOME_SWEEP) ein Suffix an:
+#   cam_left_wrist__dome500.png  usw.  Solche Varianten werden automatisch mitgemessen,
+# damit EIN 'gap'-Lauf sagt, welche Beleuchtung den Gap minimiert.
+VARIANT_MARKER = "__"
+
 # Referenzmessung vom 2026-06-04 unter Isaac Sim 4.x (docs/ergebnisse/domain-gap-analyse.md).
 # Sie stammt aus der Zeit VOR dem Isaac-Sim-6.0-Port und vor der Kamera-Kalibrierung
 # (Iteration 13/14) — die Deltas unten sagen also, was diese beiden Eingriffe bewirkt haben.
@@ -91,6 +96,23 @@ def extract_embedding(model, processor, image_path: Path) -> np.ndarray:
     with torch.no_grad():
         outputs = model(**inputs)
     return outputs.pooler_output[0].cpu().float().numpy()
+
+
+def discover_variants(sim_dir: Path) -> list[str]:
+    """Sweep-Suffixe im Sim-Verzeichnis finden, numerisch sortiert (__dome30 vor __dome500)."""
+    found: set[str] = set()
+    for cam in CAMERAS:
+        for path in sim_dir.glob(f"{cam}{VARIANT_MARKER}*.png"):
+            found.add(path.stem[len(cam):])
+
+    def sort_key(suffix: str) -> tuple[float, str]:
+        digits = "".join(c for c in suffix if c.isdigit() or c == ".")
+        try:
+            return (float(digits), suffix)
+        except ValueError:
+            return (float("inf"), suffix)
+
+    return sorted(found, key=sort_key)
 
 
 def crossview_mean(embeddings: dict[str, np.ndarray]) -> float:
@@ -163,6 +185,22 @@ def main() -> None:
         print("\nKein einziges Bildpaar gefunden. Pfade pruefen.")
         raise SystemExit(1)
 
+    # --- Dome-Light-Sweep, falls dump_camera_poses.py Varianten geschrieben hat ---------
+    # Die Real-Embeddings sind schon berechnet; je Variante kommen nur vier Sim-Bilder dazu.
+    variants: dict[str, dict[str, float]] = {}
+    for suffix in discover_variants(sim_dir):
+        per_cam: dict[str, float] = {}
+        for cam in real_embeddings:
+            path = sim_dir / f"{cam}{suffix}.png"
+            if not path.exists():
+                continue
+            per_cam[cam] = cosine_distance(
+                real_embeddings[cam], extract_embedding(model, processor, path)
+            )
+        if per_cam:
+            per_cam["_mean"] = float(np.mean(list(per_cam.values())))
+            variants[suffix] = per_cam
+
     mean_dist = float(np.mean(list(results.values())))
     mean_rr = crossview_mean(real_embeddings)
     mean_ss = crossview_mean(sim_embeddings)
@@ -181,6 +219,28 @@ def main() -> None:
         f"  {'MITTEL':<18} {mean_dist:>8.4f} {BASELINE_JUNE['_mean']:>8.4f} "
         f"{mean_dist - BASELINE_JUNE['_mean']:>+8.4f}  {severity(mean_dist)}"
     )
+
+    if variants:
+        cams_shown = list(results)
+        print("\n" + "=" * 68)
+        print("DOME-LIGHT-SWEEP — Gap je Beleuchtung (Basis = Zeile 'gemessen')")
+        print("-" * 68)
+        heads = "".join(f"{c.replace('cam_', ''):>13}" for c in cams_shown)
+        print(f"  {'Variante':<14}" + heads + f"{'MITTEL':>9}")
+        print(f"  {'gemessen':<14}" + "".join(f"{results[c]:>13.4f}" for c in cams_shown)
+              + f"{mean_dist:>9.4f}")
+        for suffix, per_cam in variants.items():
+            row = "".join(
+                f"{per_cam[c]:>13.4f}" if c in per_cam else f"{'--':>13}" for c in cams_shown
+            )
+            print(f"  {suffix.lstrip('_'):<14}" + row + f"{per_cam['_mean']:>9.4f}")
+        print("-" * 68)
+        best = min(variants.items(), key=lambda kv: kv[1]["_mean"])
+        if best[1]["_mean"] < mean_dist:
+            print(f"  Bestes Sweep-Ergebnis: {best[0].lstrip('_')} "
+                  f"({best[1]['_mean']:.4f}, {best[1]['_mean'] - mean_dist:+.4f} gegen Basis)")
+        else:
+            print("  Keine Sweep-Variante schlaegt die Basis — Belichtung ist nicht der Hebel.")
 
     print(f"\n  Grundlinie real-gegen-real (andere Kamera): {mean_rr:.4f} "
           f"(Juni {BASELINE_JUNE['_real_real']:.4f})")
@@ -218,6 +278,7 @@ def main() -> None:
         "mean_real_sim": mean_dist,
         "mean_real_real_crossview": mean_rr,
         "mean_sim_sim_crossview": mean_ss,
+        "dome_sweep": variants,
         "baseline_20260604": BASELINE_JUNE,
         "verdict": verdict,
         "action": action,

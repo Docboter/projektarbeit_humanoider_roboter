@@ -998,6 +998,75 @@ Blickwinkelunterschied zweier realer Kameras.
 Besonders zu beobachten ist `cam_left_wrist`: mit 0,4275 war sie im Juni der einzige kritische Wert
 und ist zugleich die Kamera, die der Orientierungs-Fix am stärksten verändert hat.
 
+#### Ergebnis (`runs/20260808/19`) — der Gap sitzt in der Belichtung, nicht in der Geometrie
+
+| Kamera | jetzt | Juni | Delta | Bewertung |
+|---|---|---|---|---|
+| `cam_left_high` | 0,1885 | 0,1477 | +0,0408 | moderat |
+| `cam_right_high` | 0,1733 | 0,2136 | −0,0403 | moderat |
+| `cam_left_wrist` | 0,4284 | 0,4275 | +0,0009 | kritisch |
+| `cam_right_wrist` | 0,3422 | 0,2491 | +0,0931 | groß |
+| **Mittel** | **0,2831** | 0,2595 | +0,0236 | groß |
+| Grundlinie real↔real | 0,2726 | 0,2726 | ±0,0000 | — |
+
+**Die Messapparatur ist validiert.** Die Grundlinie real↔real kommt auf 0,27256725 — der Juniwert
+auf vier Stellen identisch, bei anderem Container, anderem Python, anderer Isaac-Sim-Version. Die
+Referenzbilder gehen also unverändert durch dieselbe Rechnung. Damit ist der Juni-Vergleich
+belastbar: Unterschiede in den Real→Sim-Werten liegen an den Sim-Bildern, nicht am Messweg.
+
+**Die Kalibrierung hat genau das getan, was sie sollte — und nichts darüber hinaus.** Der Mittelwert
+der beiden Kopfkameras liegt bei 0,1809 gegen 0,1807 im Juni, also unverändert; ihre *Spreizung*
+fällt von 0,066 auf 0,015, ein Faktor 4,3. Vorher schauten die beiden auf unterschiedliche Dinge
+(konvergierende Stereobasis, ±8,3° Gierwinkel), jetzt sind sie ein symmetrisches Paar. Iteration
+13/14 hat Geometrie repariert, nicht Erscheinung — und die Zahlen zeigen genau das.
+
+**Der verbleibende Gap ist Überbelichtung.** Bildstatistik der vier Kamerapaare (auf 224 px, also
+in der Auflösung, die der ViT sieht):
+
+| Kamera | Helligkeit real → sim | Kontrast real → sim | Chroma real → sim | Pixel ≥ 245 in sim |
+|---|---|---|---|---|
+| `cam_left_high` | 130 → 194 | 59 → 65 | 3,6 → 1,7 | 1,1 % |
+| `cam_right_high` | 128 → 194 | 59 → 65 | 4,7 → 1,6 | 1,1 % |
+| `cam_left_wrist` | 109 → **232** | 65 → **28** | 5,3 → 2,8 | **16,1 %** |
+| `cam_right_wrist` | 104 → **235** | 68 → **28** | 4,0 → **0,7** | **30,6 %** |
+
+Die Sim ist überall 64–131 Graustufen heller als die Referenz. Bei den Kopfkameras überlebt der
+Kontrast das noch (65 gegen 59), das Bild bleibt lesbar. Bei den Wrist-Kameras bricht er auf 28 ein,
+und 16 % bzw. 31 % aller Pixel liegen bei ≥ 245, sind also nach Weiß abgeschnitten. `cam_right_wrist`
+hat mit Chroma 0,71 praktisch keine Farbe mehr. **Die beiden Kameras mit dem größten Domain-Gap sind
+exakt die beiden mit abgeschnittenen Pixeln** — das ist die Erklärung, und es ist auch der Grund,
+warum die Kalibrierung hier nichts bewirken konnte: sie ändert, wohin die Kamera schaut, nicht wie
+hell die Szene ist. Der Kontrastverlust ist Folge des Clippings, also durch weniger Licht umkehrbar.
+
+**Zwei Einschränkungen, die den Juni-Vergleich betreffen:**
+
+* **Die Frames entstanden unter zufälliger Beleuchtung.** Der Dump lief mit `DR=1`, und
+  `_randomize_visuals()` würfelt die Dome-Intensität je Episode aus [1000, 3800]. Der Wert 0,2831 ist
+  damit eine Stichprobe, kein Betriebspunkt. Für vergleichbare Zahlen `DR_ENABLED=0` setzen.
+* **Der Szeneninhalt ist nicht derselbe wie im Juni.** Die Junimessung nutzte
+  `_debug_obs_cam_*.png` aus einem laufenden Eval-Rollout (Arme mitten in der Aufgabe), heute kommen
+  die Frames aus `dump_camera_poses.py` in der Reset-Pose. Das trifft vor allem `cam_right_wrist`:
+  in der Reset-Pose sieht sie Hand und leeren Tisch, im Referenzbild die Würfel. Ein Teil der
+  +0,093 ist deshalb Inhalt, nicht Belichtung. Innerhalb *eines* Sweeps entfällt der Effekt, weil
+  alle Stufen dieselbe Pose zeigen.
+
+**Entscheidung nach der vorab festgelegten Regel:** 0,2831 liegt im Band 0,20–0,35, also Schritt 3
+fahren und einen visuellen Eingriff einplanen. Als Eingriff kommt zuerst die Belichtung dran, nicht
+`TUNE_VISUAL=1`: der Hebel existiert bereits (`RL_DOME_INTENSITY`), die Messung dauert einen
+Dump-Lauf, und sie trifft genau die zwei Kameras, die durchfallen — ein ViT-Retraining kostet ein
+Vielfaches und würde dem Modell beibringen, mit weißgeclippten Bildern zu leben, statt sie zu
+vermeiden.
+
+```bash
+DR_ENABLED=0 RL_DOME_SWEEP=1000,500,200,80 ./Simulation/server_rl_run.sh cams
+./Simulation/server_rl_run.sh gap     # misst Basis + alle Sweep-Stufen in einem Lauf
+```
+
+`gap` erkennt die `__dome<wert>`-Varianten selbst und stellt sie als Tabelle nebeneinander, inklusive
+der Stufe mit dem kleinsten Gap. Zielgröße: Wrist-Helligkeit von ~233 auf ~105 und der Anteil
+geclippter Pixel gegen 0. Bleibt der Gap auch bei der besten Stufe über 0,35, ist es nicht die
+Belichtung, und dann ist `TUNE_VISUAL=1` dran.
+
 ### `isaaclab nicht importierbar`
 Das Skript braucht das **kombinierte** Image (`Dockerfile.vastai`), nicht das BC-Trainingsimage.
 
