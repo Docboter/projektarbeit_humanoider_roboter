@@ -574,22 +574,41 @@ dunkler, es kommt keine Struktur zum Vorschein:
 Ein fehlgerichtetes Objektiv in einer beleuchteten Szene zeigt *irgendetwas*. Ein über alle fünf
 Belichtungen exakt einfarbiges Bild ist kein Blickwinkel-, sondern ein Renderproblem.
 
-**Aktuelle Hypothese: die visuelle Domain Randomization.** Was rendert, sind USD-Assets (Roboter)
-und globale Prims (Boden). Was fehlt, sind genau Tisch, Würfel und Stapel-Band — die drei
-prozeduralen `CuboidCfg`-Objekte, und damit exakt die Prims, deren Shader `_randomize_visuals()`
-pro Episode überschreibt (`_set_shader_color` schreibt auf `inputs:diffuseColor`). Passt auch zum
-Versionssprung: die kontrastreichen Referenzbilder (32/229/239) sind von Isaac Sim **4.x**, die
-weißen von **6.0**. `num_envs` ist ein Ablenker, ein Ein-Env-Lauf sieht genauso aus.
+**Domain Randomization: widerlegt** (`runs/20260808/11`, `DR_ENABLED=0`). Die DR lieferte nur die
+Chroma (5,76 → 0,00), nicht die Objekte. Schärfer noch, gemessen an der Zahl verschiedener
+Grauwerte im ganzen 640×480-Bild:
 
-Nächster Schritt — ein Lauf, DR aus:
+| Kamera | Grauwerte | Befund |
+|---|---|---|
+| `cam_left_high` | **1** | unbeschriebener Puffer |
+| `cam_right_high` | **1** | unbeschriebener Puffer |
+| `cam_right_wrist` | **1** | unbeschriebener Puffer |
+| `cam_left_wrist` | 210 | Hand sichtbar |
+| `cam_scene` | 156 | Boden sichtbar |
+
+Ein einziger Grauwert ist kein „zu wenig Kontrast", das ist ein Sensor, der gar nichts schreibt.
+`cam_left_high` blickt mit −47,7° nach unten; zwischen x ≈ 0,9 m und 2,56 m müsste derselbe
+globale Boden im Bild stehen, den `cam_scene` zeigt, dazu die eigenen Arme wie im
+Dataset-Referenzbild. Nichts davon. Und `cam_left_wrist` und `cam_right_wrist` unterscheiden sich
+in nichts außer dem Link, an dem sie hängen — trotzdem zeigt nur eine von beiden etwas. Damit
+sind sowohl „Würfel rendern nicht" als auch jede Pose-Erklärung raus.
+
+**Nächster Schritt — Halbierung: `TiledCamera` gegen `Camera`.** `RL_CAMERA_CLASS=camera` stellt
+alle fünf Sensoren bei identischer Pose, Optik und Auflösung auf die gewöhnliche `Camera` um:
 
 ```bash
-DR_ENABLED=0 RL_DOME_SWEEP=120 HF_TOKEN=hf_... ./Simulation/server_rl_run.sh cams
+RL_CAMERA_CLASS=camera RL_DOME_SWEEP=120 HF_TOKEN=hf_... ./Simulation/server_rl_run.sh cams
 ```
 
-Erscheinen Tisch und Würfel, liegt es an der DR (dann `_set_shader_color` auf die
-Isaac-Sim-6.0-Shader-Inputs anpassen). Bleiben sie weg, ist der nächste Schnitt `TiledCamera`
-gegen die gewöhnliche `Camera` bei identischer Pose — beide sind schon importiert.
+Zeigt `Camera` den Tisch, liegt es an `TiledCamera` in Isaac Lab 3.0-beta — dann ist der Umbau
+die Lösung, auf Kosten von Durchsatz (ein Render-Product je Kamera und Env statt eines
+gekachelten). Bleibt sie leer, liegt es an Szene oder Render-Setup, nicht am Sensor.
+
+**Bestätigt nebenbei** (beides in Lauf 11 im Log): Die Renderer-Intrinsik meldet 47,2° × 36,3° für
+die High-Cams — genau das, was die vorher angenommene `horizontal_aperture` ergab, die
+Frustum-Rechnung war also korrekt. Und der Roll ist 0,0° bei beiden High-Cams und `cam_scene`
+(−90° an den Handgelenken, dort armposenabhängig). Die Diagonale in `cam_scene` ist die Kante der
+endlichen Bodenplatte, nicht ein gekippter Horizont.
 
 > **Nebenbefund:** `_randomize_visuals()` würfelt die Dome-Intensität pro Episode neu
 > (`uniform(1000, 3800)`). `RL_DOME_INTENSITY` wirkt daher nur bei `DR_ENABLED=0` dauerhaft.

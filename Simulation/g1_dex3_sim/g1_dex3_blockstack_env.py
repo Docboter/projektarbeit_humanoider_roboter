@@ -314,6 +314,26 @@ class G1Dex3BlockstackSceneCfg(InteractiveSceneCfg):
 # Env-Konfiguration
 # ---------------------------------------------------------------------------
 
+def _plain_camera_cfg(tc: TiledCameraCfg) -> CameraCfg:
+    """TiledCameraCfg -> CameraCfg mit identischer Pose, Optik und Auflösung.
+
+    Für den Halbierungstest bei leeren Kamerabildern: rendert die gewöhnliche `Camera`
+    dieselbe Pose korrekt, liegt es an `TiledCamera` in Isaac Lab 3.0-beta; bleibt auch
+    sie leer, liegt es an Szene oder Render-Setup. Kostet Durchsatz (ein Render-Product
+    je Kamera und Env statt eines gekachelten), ist also nur ein Messwerkzeug.
+    """
+    return CameraCfg(
+        prim_path=tc.prim_path,
+        offset=CameraCfg.OffsetCfg(
+            pos=tc.offset.pos, rot=tc.offset.rot, convention=tc.offset.convention,
+        ),
+        data_types=list(tc.data_types),
+        spawn=tc.spawn,
+        width=tc.width,
+        height=tc.height,
+    )
+
+
 @configclass
 class G1Dex3BlockstackEnvCfg(DirectRLEnvCfg):
     # Simulation
@@ -366,6 +386,32 @@ class G1Dex3BlockstackEnvCfg(DirectRLEnvCfg):
     rew_stack: float = 2.0    # Würfel horizontal zusammenführen + Turmhöhe aufbauen
     rew_success: float = 10.0  # Bonus für stabilen Stapel (nutzt _check_success)
     rew_smooth: float = 0.01  # Strafe auf Gelenkgeschwindigkeit (glättet Finger-Aktionen)
+
+    def __post_init__(self):
+        post = getattr(super(), "__post_init__", None)
+        if callable(post):
+            post()
+        # ── RL_CAMERA_CLASS=camera: Halbierungstest für leere Kamerabilder ──────────
+        # Befund 2026-08-08 (runs/20260808/11): cam_left_high, cam_right_high und
+        # cam_right_wrist liefern ein Bild mit GENAU EINEM Grauwert, während
+        # cam_left_wrist die Hand und cam_scene den Boden zeigen — bei identischer
+        # Konfiguration und mit abgeschalteter DR. Drei Sensoren schreiben ihren Puffer
+        # also gar nicht. Diese Umschaltung rendert dieselben Posen mit der
+        # gewöhnlichen `Camera`: zeigt die den Tisch, liegt es an `TiledCamera` in
+        # Isaac Lab 3.0-beta; bleibt sie leer, liegt es an Szene oder Render-Setup.
+        if os.environ.get("RL_CAMERA_CLASS", "tiled").strip().lower() != "camera":
+            return
+        done = []
+        for name in ("cam_left_high", "cam_right_high", "cam_left_wrist",
+                     "cam_right_wrist", "cam_scene"):
+            tc = getattr(self.scene, name, None)
+            if tc is None:
+                print(f"[cam] '{name}' nicht in der Szene — übersprungen.", flush=True)
+                continue
+            setattr(self.scene, name, _plain_camera_cfg(tc))
+            done.append(name)
+        print(f"[cam] RL_CAMERA_CLASS=camera → {len(done)} Sensoren auf Camera "
+              f"umgestellt: {', '.join(done) or '(keine!)'}", flush=True)
 
 
 # ---------------------------------------------------------------------------
