@@ -916,12 +916,37 @@ zwischen zwei Bildsensoren. `x` und `z` bleiben beim URDF-Wert, die sind eindeut
 rückt die Hand-Mitte damit von 359 auf 341 px (rechte Kamera spiegelbildlich 307 → 289), das Paar
 liegt also symmetrisch um die Bildmitte statt 13 px daneben.
 
-> **Offen, und keine Kamerafrage:** Der Tisch überspannt in der Sim vertikal 52,1°, im Referenzbild
-> nur 42,3°. Bei gleicher Tischtiefe entspricht das einem Roboter, der **~15 cm weiter vom Tisch
-> weg** sitzt als in der Sim. Das ist Szenenlayout, nicht Kalibrierung — und es zu ändern
-> verschiebt den erreichbaren Greifraum, der aus den Replay-Daten abgeleitet wurde
-> (`block_x_range`, Kommentar in `g1_dex3_blockstack_env.py`). Deshalb hier nur notiert:
-> eine Entscheidung, kein Fix.
+**Bestätigt in `runs/20260808/18`.** Die Stereobasis ist damit nicht mehr behauptet, sondern
+gemessen — an drei unabhängigen Stellen:
+
+| Prüfung | Ergebnis |
+|---|---|
+| Vorhersage vs. Rendering, grüner Würfel | links Δ = (−0, −0) px, rechts Δ = (−2, −0) px |
+| Disparität links/rechts, gerendert | +44,1 px (rot) / +43,9 px (grün) |
+| Disparität aus dem Modell | +42,1 px — **Referenzbilder real: +40 px** |
+
+Damit stimmen Sichtfeld, Montagepunkt und Basis. Der rote Würfel liegt in beiden Kameras um dieselben
+−17/−20 px daneben: das ist der Schwerpunkt-Bias der halb von der Hand verdeckten Fläche, kein
+Kameraversatz — ein Kamerafehler wäre nicht in beiden Bildern identisch.
+
+**Damit sind die Kopfkameras kalibriert.** Was im Overlay noch verschieden aussieht, sind keine
+Kameraparameter:
+
+* **Armpose.** Das Referenzbild zeigt die Arme mitten in der Aufgabe (Hände erhoben, Finger nach
+  oben), die Sim steht in der Reset-Pose. Handpositionen sind zwischen beiden nicht vergleichbar.
+* **Würfelplatzierung.** Die Sim würfelt sie pro Episode neu. In Lauf 17 lag ihr Schwerpunkt 28 px
+  über dem der Referenz, in Lauf 18 — bei identischer Kamera — 6 px darunter. Der Versatz misst den
+  Zufallsgenerator, nicht die Pose.
+* **Abstand zum Tisch.** Der Tisch überspannt in der Sim vertikal 52,1°, im Referenzbild nur 42,3°.
+  Bei gleicher Tischtiefe entspricht das einem Roboter, der **~15 cm weiter vom Tisch weg** sitzt.
+  Das ist Szenenlayout, und es zu ändern verschiebt den erreichbaren Greifraum, der aus den
+  Replay-Daten abgeleitet wurde (`block_x_range`, Kommentar in `g1_dex3_blockstack_env.py`).
+  Notiert als Entscheidung, nicht als Fix.
+
+Nächster Schritt ist damit nicht die nächste Overlay-Runde, sondern **Schritt 2: den Domain-Gap neu
+messen** (`Simulation/scripts/measure_domain_gap.py`). Der liefert eine Zahl statt eines
+Augenmaßes; die letzten Werte (Mittel 0,26, linke Wrist-Cam 0,43) stammen vom 4. Juni unter
+Isaac Sim 4.x und sagen über den heutigen Stand nichts.
 
 ### `isaaclab nicht importierbar`
 Das Skript braucht das **kombinierte** Image (`Dockerfile.vastai`), nicht das BC-Trainingsimage.
