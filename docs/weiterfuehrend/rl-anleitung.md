@@ -1111,30 +1111,84 @@ Das erklärt jede gemessene Zahl:
 * **Der schwarze Rasterboden** füllt in den Kopfkameras ~45 % und in den Wrist-Kameras ~25 % des
   Bildes — eine große, kontrastreiche Fläche, die im Referenzbild schlicht nicht vorkommt.
 
-Zwei Hebel dafür sind eingebaut, beide ungesetzt wirkungslos (nichts ändert sich still):
+Zwei Hebel dafür, beide ungesetzt wirkungslos (nichts ändert sich still):
 
-| Variable | Beispiel | Wirkung |
+| Hebel | Beispiel | Wirkung |
 |---|---|---|
-| `RL_HAND_COLOR` | `0.05,0.05,0.05` | färbt die Materialien der `*_hand_*`-Links ein (über die Material-Bindung der Meshes, nicht über den Prim-Pfad — der URDF-Import legt Materialien in einem eigenen Looks-Scope ab) |
-| `RL_GROUND_COLOR` | `0.75,0.73,0.70` | hellt den Isaac-Default-Boden auf |
+| `BLACK_HANDS=1` (Default) | — | `server_rl_run.sh` erzeugt und benutzt `g1_dex3_blackhands.usd` |
+| `RL_GROUND_COLOR` | `0.35,0.35,0.36` | hellt den Isaac-Default-Boden auf |
 
 ```bash
-DR_ENABLED=0 RL_HAND_COLOR=0.05,0.05,0.05 RL_GROUND_COLOR=0.75,0.73,0.70 \
-    ./Simulation/server_rl_run.sh cams
+DR_ENABLED=0 RL_GROUND_COLOR=0.35,0.35,0.36 ./Simulation/server_rl_run.sh cams
 ./Simulation/server_rl_run.sh gap
 ```
 
-Der Log listet die getroffenen Materialpfade mit der Zahl der Meshes. Teilt sich die Hand ein
-Material mit dem Arm, färbt sich der Arm mit — das steht dann in der Liste und ist im Rendering
-sofort zu sehen. **Erwartung, damit sie prüfbar bleibt:** Wrist-Kontrast von 44 Richtung 65 und
-`cam_left_wrist` unter 0,35. Passiert das nicht, ist auch Albedo nicht die Erklärung, und dann ist
-`TUNE_VISUAL=1` an der Reihe — dann ist es Textur und Materialcharakteristik, und dagegen hilft nur,
-dem ViT die Sim-Optik beizubringen.
+**Erwartung, damit sie prüfbar bleibt:** Wrist-Kontrast von 44 Richtung 65 und `cam_left_wrist`
+unter 0,35. Passiert das nicht, ist auch Albedo nicht die Erklärung, und dann ist `TUNE_VISUAL=1`
+an der Reihe — dann ist es Textur und Materialcharakteristik, und dagegen hilft nur, dem ViT die
+Sim-Optik beizubringen.
 
 **Einordnung, die dabei nicht untergehen soll:** Der Mittelwert liegt mit 0,2618 (bzw. 0,2485 bei
 `dome80`) **unter** der Grundlinie real↔real von 0,2726. Im Schnitt ist ein Sim-Bild seinem realen
 Gegenstück also näher, als zwei *echte* Kameras derselben Szene einander sind. Das Problem ist nicht
 das Mittel, sondern die Verteilung: Kopfkameras 0,13–0,16 (unauffällig), `cam_left_wrist` 0,42.
+
+#### Ergebnis (`runs/20260808/21`) — halb gemessen, und die Hälfte war schon gelöst
+
+Der Lauf sollte beide Albedo-Hebel prüfen. Gemessen wurde nur einer:
+
+```
+[Env] Bodenfarbe -> (0.75, 0.73, 0.7) (RL_GROUND_COLOR)
+[DR] Handfarbe -> (0.05, 0.05, 0.05) an 0 Materialien (RL_HAND_COLOR).
+[DR] WARNUNG: kein Hand-Material getroffen — Bindungen prüfen
+```
+
+**Der Boden allein macht es nicht besser, sondern schlechter.** Gap-Mittel 0,2618 → 0,2655,
+`cam_left_high` 0,1296 → 0,1542, `cam_right_wrist` 0,3098 → 0,3397; nur `cam_left_wrist` fällt
+(0,4493 → 0,4113). Die Pixelstatistik sagt, warum: Der Wert war zu hell gewählt und hat den
+Kontrast von einer Überschreitung in eine Unterschreitung gekippt.
+
+| Kopfkameras | real | Lauf 20 (schwarzer Boden) | Lauf 21 (Boden 0,75) |
+|---|---|---|---|
+| Helligkeit | 130,3 | 169,5 | 203,3 |
+| Kontrast | 59,4 | 79,3 | **39,4** |
+| Chroma | 9,1 | 2,7 | **23,3** |
+
+Ein Zwischenwert (`0.35,0.35,0.36`) ist der nächste Versuch — der schwarze Rasterboden bleibt
+falsch, 0,75 war nur die falsche Richtung von zu wenig zu zu viel.
+
+**Der Hand-Hebel konnte nicht funktionieren, und er war überflüssig.** Zwei Gründe:
+
+1. *Er kann es nicht.* Die `/visuals`-Prims des Roboters sind `instanceable`; die Meshes liegen in
+   USD-Prototypen. `Usd.PrimRange` läuft dort nicht hinein, und eine Bindung am Instance-Root
+   komponiert nicht in den Prototyp. Daher 0 Materialien. Der Prim-Pfad-Filter war zusätzlich
+   wirkungslos: der Roboter-Root heißt `g1_29dof_with_hand_rev_1_0` und enthält `_hand_` selbst,
+   also passte *jeder* Pfad darunter.
+2. *Es gab ihn schon.* [`recolor_hands_black.py`](../../Simulation/g1_dex3_sim/recolor_hands_black.py)
+   löst seit Juni exakt dieses Problem — de-instanziert die Hand-`/visuals` und bindet je Mesh mit
+   `strongerThanDescendants`. `data/g1_dex3_blackhands.usd` liegt seit dem 04.06. im Repo,
+   `g1_dex3_cfg.py` zeigt per Default darauf, `kisski_sim_submit.sh` erzeugt es automatisch.
+
+Warum die Hände auf dem Server trotzdem weiß sind: `server_rl_run.sh` setzte
+`ASSET_PATH=$CHECKPOINT_PATH/g1_dex3.usd` — das Original. Der KISSKI-Launcher zog das
+schwarzhändige Asset, dieses Skript nicht. Behoben: `BLACK_HANDS=1` ist Default, `ensure_black_hands`
+erzeugt das Asset bei Bedarf im Container und fällt bei Fehlschlag aufs Original zurück. Der
+Laufzeit-Hebel `RL_HAND_COLOR` ist entfernt — ein zweiter Mechanismus für dieselbe Sache, der
+nachweislich nicht greift.
+
+**Zwei Werkzeugfehler, die der Lauf offengelegt hat:**
+
+* Die Sweep-Zeilen in Lauf 21 sind **byteidentisch mit Lauf 20** (`md5sum` geprüft) — alte
+  `__dome*.png` überlebten im Container, obwohl `sweep=<aus>` lief. `cams` löscht sie jetzt vorher.
+* Das Sweep-Mittel wurde über *vorhandene* Kameras gebildet und gegen ein 4-Kamera-Mittel gestellt.
+  Deshalb stand da „Keine Sweep-Variante schlägt die Basis" — auf denselben zwei Kameras gerechnet
+  war es umgekehrt. `measure_domain_gap.py` vergleicht jetzt ein Delta gegen dieselben Kameras und
+  markiert unvollständige Zeilen mit `*`.
+
+**Stand der Vorhersage:** Das Kriterium (`cam_left_wrist` < 0,35) ist mit 0,4113 nicht erfüllt — der
+Test der eigentlichen Hypothese hat aber nie stattgefunden. Damit daraus kein Nachbessern bis zum
+Erfolg wird: **ein** Lauf mit schwarzen Händen und Boden 0,35. Bleibt `cam_left_wrist` dann über
+0,35, ist Albedo widerlegt und `TUNE_VISUAL=1` die Konsequenz — ohne weiteren Zwischenversuch.
 
 ### `isaaclab nicht importierbar`
 Das Skript braucht das **kombinierte** Image (`Dockerfile.vastai`), nicht das BC-Trainingsimage.

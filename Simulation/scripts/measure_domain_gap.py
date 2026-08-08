@@ -198,7 +198,15 @@ def main() -> None:
                 real_embeddings[cam], extract_embedding(model, processor, path)
             )
         if per_cam:
-            per_cam["_mean"] = float(np.mean(list(per_cam.values())))
+            # Vergleichsbasis ist der Mittelwert ueber GENAU DIESELBEN Kameras. Fehlt einer
+            # Variante eine Kamera, waere ihr Mittel sonst nicht mit der Basiszeile
+            # vergleichbar — in runs/20260808/21 lagen nur die zwei linken Varianten vor,
+            # deren 2-Kamera-Mittel gegen ein 4-Kamera-Mittel verglichen wurde.
+            cams_here = list(per_cam)
+            per_cam["_mean"] = float(np.mean([per_cam[c] for c in cams_here]))
+            per_cam["_base_mean"] = float(np.mean([results[c] for c in cams_here]))
+            per_cam["_delta"] = per_cam["_mean"] - per_cam["_base_mean"]
+            per_cam["_partial"] = float(len(cams_here) < len(results))
             variants[suffix] = per_cam
 
     mean_dist = float(np.mean(list(results.values())))
@@ -226,21 +234,30 @@ def main() -> None:
         print("DOME-LIGHT-SWEEP — Gap je Beleuchtung (Basis = Zeile 'gemessen')")
         print("-" * 68)
         heads = "".join(f"{c.replace('cam_', ''):>13}" for c in cams_shown)
-        print(f"  {'Variante':<14}" + heads + f"{'MITTEL':>9}")
+        print(f"  {'Variante':<14}" + heads + f"{'MITTEL':>9}{'Delta':>9}")
         print(f"  {'gemessen':<14}" + "".join(f"{results[c]:>13.4f}" for c in cams_shown)
-              + f"{mean_dist:>9.4f}")
+              + f"{mean_dist:>9.4f}{'':>9}")
+        partial = False
         for suffix, per_cam in variants.items():
             row = "".join(
                 f"{per_cam[c]:>13.4f}" if c in per_cam else f"{'--':>13}" for c in cams_shown
             )
-            print(f"  {suffix.lstrip('_'):<14}" + row + f"{per_cam['_mean']:>9.4f}")
+            mark = " *" if per_cam["_partial"] else ""
+            partial = partial or bool(per_cam["_partial"])
+            print(f"  {suffix.lstrip('_'):<14}" + row
+                  + f"{per_cam['_mean']:>9.4f}{per_cam['_delta']:>+9.4f}{mark}")
         print("-" * 68)
-        best = min(variants.items(), key=lambda kv: kv[1]["_mean"])
-        if best[1]["_mean"] < mean_dist:
+        # Delta statt Mittel vergleichen: nur das ist bei unvollstaendigen Varianten gueltig.
+        best = min(variants.items(), key=lambda kv: kv[1]["_delta"])
+        if best[1]["_delta"] < 0:
             print(f"  Bestes Sweep-Ergebnis: {best[0].lstrip('_')} "
-                  f"({best[1]['_mean']:.4f}, {best[1]['_mean'] - mean_dist:+.4f} gegen Basis)")
+                  f"({best[1]['_delta']:+.4f} gegen dieselben Kameras der Basis)")
         else:
             print("  Keine Sweep-Variante schlaegt die Basis — Belichtung ist nicht der Hebel.")
+        if partial:
+            print("  * unvollstaendig: nicht fuer alle Kameras vorhanden. Delta vergleicht nur")
+            print("    die vorhandenen. Stammen die Varianten aus einem AELTEREN Lauf, sagt die")
+            print("    Zeile nichts ueber die jetzige Szene — 'cams' loescht sie inzwischen.")
 
     print(f"\n  Grundlinie real-gegen-real (andere Kamera): {mean_rr:.4f} "
           f"(Juni {BASELINE_JUNE['_real_real']:.4f})")

@@ -729,62 +729,13 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
         self._dr_light = stage.GetPrimAtPath("/World/Light")
         print(f"[DR] dome light: {'OK' if self._dr_light.IsValid() else 'NOT FOUND'}", flush=True)
 
-        self._recolor_hands(stage)
-
-    def _recolor_hands(self, stage) -> None:
-        """DEX3-Hände einfärben (RL_HAND_COLOR), unabhängig von dr_enabled.
-
-        Anlass: Die reale DEX3-Hand ist SCHWARZ, die aus dem URDF konvertierte ist weiß. In den
-        Wrist-Kameras füllt sie den Großteil des Bildes — weiß auf weißem Tisch statt schwarz auf
-        weiß. Gemessen (runs/20260808/20): Kontrast 44 gegen real 65, Domain-Gap 0,42, und zwar
-        stabil über einen 25-fachen Beleuchtungsbereich. Das ist Albedo, nicht Belichtung, und
-        deshalb über die Dome-Intensität nicht erreichbar.
-
-        Ungesetzt bleibt alles wie bisher.  RL_HAND_COLOR="0.05,0.05,0.05" macht sie schwarz.
-        """
-        from pxr import Usd, UsdShade
-
-        color = _parse_rgb(os.environ.get("RL_HAND_COLOR", ""))
-        if color is None:
-            return
-
-        # Nur env_0: die übrigen Envs sind Instanzen derselben Quelle, die Materialzuweisung
-        # wandert mit (gleiche Annahme wie in _randomize_visuals oben).
-        root = stage.GetPrimAtPath("/World/envs/env_0/robot")
-        if not root.IsValid():
-            print("[DR] Roboter-Prim nicht gefunden — RL_HAND_COLOR wirkungslos.", flush=True)
-            return
-
-        # Über die Material-Bindung gehen, nicht über den Prim-Pfad: der URDF-Import legt die
-        # Materialien unter einem eigenen Looks-Scope ab, deren Pfade enthalten kein '_hand_'.
-        # Getroffen werden also die Meshes der Hand-Links und daraus deren gebundenes Material.
-        touched: dict[str, int] = {}
-        for prim in Usd.PrimRange(root):
-            if "_hand_" not in prim.GetPath().pathString:
-                continue
-            material, _ = UsdShade.MaterialBindingAPI(prim).ComputeBoundMaterial()
-            if not material:
-                continue
-            source = material.ComputeSurfaceSource()
-            shader = source[0] if isinstance(source, tuple) else source
-            if not shader:
-                continue
-            if shader.GetIdAttr().Get() not in ("UsdPreviewSurface", "PreviewSurface"):
-                continue
-            path = material.GetPath().pathString
-            if path not in touched:
-                self._set_shader_color(shader, color)
-            touched[path] = touched.get(path, 0) + 1
-
-        print(f"[DR] Handfarbe -> {color} an {len(touched)} Materialien "
-              f"(RL_HAND_COLOR).", flush=True)
-        for path, hits in touched.items():
-            print(f"[DR]   {path}  ({hits} Meshes)", flush=True)
-        if not touched:
-            print("[DR] WARNUNG: kein Hand-Material getroffen — Bindungen prüfen "
-                  "(erwartet '_hand_' im Mesh-Pfad, UsdPreviewSurface).", flush=True)
-        # Teilt sich ein Material mit dem Arm, färbt es den Arm mit — im Rendering des
-        # nächsten 'cams'-Laufs sofort sichtbar, die Pfade oben sagen dann welches.
+    # Hinweis zur Handfarbe (die reale DEX3 ist schwarz, das URDF-Asset weiß): das gehört
+    # NICHT hierher. Ein Laufzeit-Recolor über die Material-Bindung erreicht die Hand-Meshes
+    # nicht — sie liegen in USD-Prototypen (die /visuals-Prims sind instanceable), und eine
+    # Bindung am Instance-Root komponiert nicht hinein. Gemessen in runs/20260808/21:
+    # 0 getroffene Materialien. Erledigt wird das offline auf dem Asset, seit Juni:
+    #   Simulation/g1_dex3_sim/recolor_hands_black.py  (de-instanziert + bindet je Mesh)
+    # Die Launcher setzen ASSET_PATH auf das erzeugte g1_dex3_blackhands.usd.
 
     def _set_shader_color(self, shader, rgb: tuple | list) -> None:
         from pxr import Gf

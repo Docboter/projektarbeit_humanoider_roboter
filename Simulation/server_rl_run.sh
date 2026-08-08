@@ -73,7 +73,15 @@ SHM_SIZE="${RL_SHM_SIZE:-16g}"
 
 HF_CHECKPOINT_REPO="${HF_CHECKPOINT_REPO:-luca-mue/groot-g1dex3-checkpoint}"
 CHECKPOINT_PATH="${CHECKPOINT_PATH:-/data/checkpoints/groot-g1dex3-checkpoint}"
-ASSET_PATH="${ASSET_PATH:-$CHECKPOINT_PATH/g1_dex3.usd}"
+# Default = schwarzhändiges Asset (Domain-Gap-Fix vom Juni, s. ensure_black_hands).
+# kisski_sim_submit.sh tat das seit Juni, dieses Skript nicht — deshalb rendert der Server
+# bis runs/20260808/21 weiße Hände gegen schwarze im Datensatz. BLACK_HANDS=0 -> Original.
+BLACK_HANDS="${BLACK_HANDS:-1}"
+if [[ "$BLACK_HANDS" == "1" ]]; then
+  ASSET_PATH="${ASSET_PATH:-$CHECKPOINT_PATH/g1_dex3_blackhands.usd}"
+else
+  ASSET_PATH="${ASSET_PATH:-$CHECKPOINT_PATH/g1_dex3.usd}"
+fi
 
 # Live-Ansicht (MJPEG im Browser, Spur B des Livestream-Plans). Der Port wird IMMER
 # gemappt — auch bei LIVE_VIEW=0 —, weil -p nur beim ANLEGEN des langlebigen Containers
@@ -210,9 +218,9 @@ build_rl_env() {
   [[ -n "${RL_AA_MODE:-}" ]]         && RL_ENV+=( -e "RL_AA_MODE=$RL_AA_MODE" )
   [[ -n "${RL_DOME_INTENSITY:-}" ]]  && RL_ENV+=( -e "RL_DOME_INTENSITY=$RL_DOME_INTENSITY" )
   [[ -n "${RL_CAMERA_CLASS:-}" ]]    && RL_ENV+=( -e "RL_CAMERA_CLASS=$RL_CAMERA_CLASS" )
-  # Domain-Gap-Hebel (Albedo statt Belichtung, gemessen in runs/20260808/20).
+  # Domain-Gap-Hebel Hintergrund (Albedo statt Belichtung, gemessen in runs/20260808/20).
+  # Die Handfarbe läuft NICHT hierüber, sondern offline übers Asset — s. ensure_black_hands.
   [[ -n "${RL_GROUND_COLOR:-}" ]]    && RL_ENV+=( -e "RL_GROUND_COLOR=$RL_GROUND_COLOR" )
-  [[ -n "${RL_HAND_COLOR:-}" ]]      && RL_ENV+=( -e "RL_HAND_COLOR=$RL_HAND_COLOR" )
   [[ -n "${DR_ENABLED:-}" ]]         && RL_ENV+=( -e "DR_ENABLED=$DR_ENABLED" )
   # Gegen Fragmentierung — der OOM-Traceback empfahl es selbst (1,13 GB reserviert,
   # aber unbenutzt). Ueberschreibbar, falls es auf dieser Torch-Version stoert.
@@ -241,6 +249,35 @@ ensure_checkpoint() {
   docker exec -e "HF_TOKEN=$HF_TOKEN" -e "HUGGING_FACE_HUB_TOKEN=$HF_TOKEN" "$CONTAINER" \
     bash -lc "huggingface-cli download '$HF_CHECKPOINT_REPO' --local-dir '$CHECKPOINT_PATH'"
   ok "Checkpoint geladen."
+}
+
+# Stellt das schwarzhändige Asset sicher (Domain-Gap: reale DEX3 schwarz, URDF-Asset weiß).
+# Reines USD-Authoring, keine GPU, wenige Sekunden — deshalb bei jedem Lauf geprüft statt
+# einmalig dokumentiert. Schlägt der Recolor fehl, fällt ASSET_PATH aufs Original zurück,
+# damit ein kosmetischer Fehler keinen Lauf verhindert.
+ensure_black_hands() {
+  [[ "$BLACK_HANDS" == "1" ]] || return 0
+  [[ "$ASSET_PATH" == *g1_dex3_blackhands.usd ]] || return 0
+  local orig="$CHECKPOINT_PATH/g1_dex3.usd"
+
+  if docker exec "$CONTAINER" test -f "$ASSET_PATH"; then
+    ok "Schwarzhändiges Asset vorhanden: $ASSET_PATH"
+    return 0
+  fi
+  if ! docker exec "$CONTAINER" test -f "$orig"; then
+    warn "Weder $ASSET_PATH noch $orig im Container — Asset-Pfad prüfen."
+    return 0
+  fi
+  # Ausgabe MUSS neben das Original: der Wrapper referenziert configuration/ relativ.
+  log "Erzeuge schwarzhändiges Asset (Recolor, offline auf dem USD)."
+  if docker exec "$CONTAINER" bash -lc "
+      unset VIRTUAL_ENV
+      '$ISAAC_PY' '$SIM_DIR/recolor_hands_black.py' --in '$orig' --out '$ASSET_PATH'"; then
+    ok "Asset erzeugt: $ASSET_PATH"
+  else
+    warn "Recolor fehlgeschlagen — Fallback auf $orig (weiße Hände)."
+    ASSET_PATH="$orig"
+  fi
 }
 
 # ── Aktionen ──────────────────────────────────────────────────────────────────
@@ -282,6 +319,7 @@ do_setup() { ensure_checkpoint; ok "Setup abgeschlossen. Weiter mit:  $0 check";
 
 do_check() {
   ensure_checkpoint
+  ensure_black_hands
   log "LIVE-CHECK (Schritt 5/7 in rl-anleitung.md): Aufbau von Env+Policy+Critic, KEIN Training."
   # Exit-Code des Kit-Pythons ist NICHT belastbar: Isaac Sim beendet auch nach einem
   # Python-Traceback mit 0 (beobachtet 2026-08-07: TypeError → trotzdem Exit 0). Erfolg
@@ -308,6 +346,7 @@ do_check() {
 
 do_rl() {
   ensure_checkpoint
+  ensure_black_hands   # muss VOR build_rl_env laufen: der Fallback ändert ASSET_PATH
   build_rl_env
   log "Starte echten RL-Lauf (Vordergrund, laeuft je nach RL_ITERATIONS lange)."
   log "  Checkpoints -> $HOST_DATA_DIR/g1_dex3_rl/  (alle RL_SAVE_EVERY Iterationen)"
@@ -323,6 +362,7 @@ do_rl() {
 # Pose nachweislich Tisch + Roboter erfassen müsste.
 do_cams() {
   ensure_checkpoint
+  ensure_black_hands
   # Messhebel für die leeren Kamerabilder (je ein Lauf pro Wert, siehe rl-anleitung.md):
   #   RL_SETTLE_STEPS   Render-Konvergenz
   #   RL_AA_MODE        Anti-Aliasing-Modus
@@ -330,10 +370,15 @@ do_cams() {
   #   RL_DOME_SWEEP     Belichtung — mehrere Werte in EINEM Lauf, z. B. "500,120,30"
   #                     (WIDERLEGT als Domain-Gap-Hebel, runs/20260808/20: 25-fache
   #                      Lichtspanne bewegt den Gap um 0,013)
-  #   RL_HAND_COLOR     Handfarbe, z. B. "0.05,0.05,0.05" — die reale DEX3 ist schwarz
-  #   RL_GROUND_COLOR   Bodenfarbe, z. B. "0.75,0.73,0.70" statt Isaacs schwarzem Raster
+  #   RL_GROUND_COLOR   Bodenfarbe, z. B. "0.35,0.35,0.36" statt Isaacs schwarzem Raster
+  #                     (0.75,0.73,0.70 war zu hell: Kontrast 39 gegen real 59, runs/…/21)
+  #   BLACK_HANDS=0     Recolor der Hände aus (Default 1, s. ensure_black_hands)
   #   DR_ENABLED=0      visuelle Domain Randomization aus (WIDERLEGT, Lauf 11)
   #   RL_CAMERA_CLASS=camera  gewöhnliche Camera statt TiledCamera (Halbierungstest)
+  # Alte Sweep-Varianten weg: sie überleben sonst den nächsten Lauf und 'gap' vergleicht
+  # frische Basisbilder gegen Varianten von gestern (passiert in runs/20260808/21 —
+  # dessen Sweep-Zeilen sind byteidentisch mit Lauf 20).
+  docker exec "$CONTAINER" bash -lc "rm -f /data/cam_dump/*__*.png" 2>/dev/null || true
   log "Kamera-Posen dumpen (num_envs=${RL_NUM_ENVS:-4}, settle=${RL_SETTLE_STEPS:-8}," \
       "aa=${RL_AA_MODE:-<Isaac-Default>}, dome=${RL_DOME_INTENSITY:-2000}," \
       "sweep=${RL_DOME_SWEEP:-<aus>}, DR=${DR_ENABLED:-1}," \
@@ -345,7 +390,6 @@ do_cams() {
     -e "DR_ENABLED=${DR_ENABLED:-1}" \
     -e "RL_CAMERA_CLASS=${RL_CAMERA_CLASS:-tiled}" \
     -e "RL_GROUND_COLOR=${RL_GROUND_COLOR:-}" \
-    -e "RL_HAND_COLOR=${RL_HAND_COLOR:-}" \
     "$CONTAINER" bash -lc "
     unset VIRTUAL_ENV
     '$ISAAC_PY' '$SIM_DIR/dump_camera_poses.py' \
