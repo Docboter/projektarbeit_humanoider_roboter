@@ -511,9 +511,14 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
         # gültiger InteractiveSceneCfg-Asset-Typ und müssen direkt aufgerufen werden)
         # Der Isaac-Default-Boden ist fast schwarz mit weißem Raster und füllt in den
         # Kopfkameras ~45 %, in den Wrist-Kameras ~25 % des Bildes — im Referenzbild ist
-        # dort heller Laborboden und weiße Wand. RL_GROUND_COLOR="0.75,0.73,0.70" hellt ihn
-        # auf; ungesetzt bleibt der Isaac-Default. Gemessen wird die Wirkung mit
+        # dort heller Laborboden und weiße Wand. RL_GROUND_COLOR hellt ihn auf; ungesetzt
+        # bleibt der Isaac-Default. Gemessen wird die Wirkung mit
         #   RL_GROUND_COLOR=... ./Simulation/server_rl_run.sh cams  &&  … gap
+        # Achtung (runs/20260808/22): der Wert setzt KEINE neutrale Albedo, sondern wirkt als
+        # Tint auf Isaacs Rastertextur. Der nahezu neutrale Wert 0.35,0.35,0.36 rendert
+        # sichtbar blau, die Chroma steigt vom Default 2.7 auf 19.7 (real: 9.1). Aufhellen
+        # erhöht hier also zwangsläufig die Sättigung; ein wirklich neutraler Boden bräuchte
+        # ein ersetztes Material statt einer Tönung.
         ground_cfg = sim_utils.GroundPlaneCfg()
         ground_color = _parse_rgb(os.environ.get("RL_GROUND_COLOR", ""))
         if ground_color is not None:

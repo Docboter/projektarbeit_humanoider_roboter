@@ -2,14 +2,44 @@
 
 > Durchgeführt: 2026-06-04
 
-> ⚠️ **Überholt, Neumessung ausstehend (Stand 2026-08-08).** Die Zahlen unten stammen von vor dem
-> Isaac-Sim-6.0-Port und vor der Kamerakalibrierung (Iteration 13/14: Sichtfeld 47,2° → 75°,
-> Montagepunkt auf `d435_link`, parallele statt konvergierender Stereobasis). Sie beschreiben ein
-> Rendering, das es so nicht mehr gibt — insbesondere der kritische Wert für `cam_left_wrist`
-> (0,4275). **Nicht** betroffen vom Kamera-Orientierungsfehler: der trat erst mit dem 6.0-Port auf,
-> diese Messung liegt davor. Neu messen mit `./Simulation/server_rl_run.sh cams` gefolgt von
-> `gap` — Ablauf und Entscheidungsregel in
-> [`rl-anleitung.md`](../weiterfuehrend/rl-anleitung.md#schritt-2--domain-gap-neu-messen-server_rl_runsh-gap).
+> ⚠️ **Überholt — neu gemessen am 2026-08-08 (`runs/20260808/22`).** Die Zahlen im Hauptteil stammen
+> von vor dem Isaac-Sim-6.0-Port und vor der Kamerakalibrierung (Iteration 13/14: Sichtfeld 47,2° →
+> 75°, Montagepunkt auf `d435_link`, parallele statt konvergierender Stereobasis). Sie beschreiben
+> ein Rendering, das es so nicht mehr gibt. Sie bleiben als Referenzpunkt stehen; **gültig ist die
+> Neumessung unten.**
+
+## Neumessung 2026-08-08 (`runs/20260808/22`)
+
+Gemessen nach Kamerakalibrierung, mit schwarzen Händen (`BLACK_HANDS=1`) und aufgehelltem Boden
+(`RL_GROUND_COLOR=0.35,0.35,0.36`), feste Beleuchtung (`DR_ENABLED=0`, Dome 2000).
+
+| Kamera | Juni 2026 | **2026-08-08** | Delta |
+|---|---|---|---|
+| `cam_left_high` | 0,1477 | **0,1121** | −0,0356 |
+| `cam_right_high` | 0,2136 | **0,1310** | −0,0826 |
+| `cam_left_wrist` | 0,4275 | **0,3556** | −0,0719 |
+| `cam_right_wrist` | 0,2491 | **0,2930** | +0,0439 |
+| **Mittelwert** | 0,2595 | **0,2229** | −0,0366 |
+
+| Grundlinie | Juni | 2026-08-08 |
+|---|---|---|
+| real → real (andere Kamera) | 0,2726 | 0,2726 |
+| sim → sim (andere Kamera) | 0,2111 | 0,2163 |
+
+**Was sich geändert hat.** Der Mittelwert liegt jetzt bei 0,2229 und damit unter der real↔real-
+Grundlinie (0,2726) und praktisch auf der sim-internen Streuung (0,2163): real→sim ist das
+0,8-fache des real↔real-Abstands. Ursache war zu einem großen Teil **Albedo**, nicht Beleuchtung —
+die reale DEX3-Hand ist schwarz, das URDF-Asset weiß, und ein Beleuchtungsfaktor kann ein
+Kontrastverhältnis nicht ändern. Mit schwarzen Händen trifft der Wrist-Kontrast 68,9 bei real 65,0
+(vorher 36,1), der Kopfkamera-Kontrast 59,0 bei real 59,4.
+
+**Was offen bleibt.** `cam_left_wrist` ist mit 0,3556 weiter der Ausreißer (1,3× real↔real) und
+verfehlt das vorab festgelegte Kriterium von < 0,35. Konsequenz nach der in
+[`rl-anleitung.md`](../weiterfuehrend/rl-anleitung.md) festgehaltenen Regel: kein weiterer
+Albedo-Versuch, sondern Option 3 (`TUNE_VISUAL=1`) — vorher aber Schritt 3 (BC-Erfolgsrate in der
+Sim), der die Zielgröße direkt misst statt über den Proxy. Zu beachten: die Kennzahl enthält auch
+Szeneninhalt (Armpose, Würfel, **Tischabstand ~15 cm abweichend**), nicht nur Renderqualität — und
+die Wrist-Kamera ist dafür die empfindlichste.
 
 ---
 

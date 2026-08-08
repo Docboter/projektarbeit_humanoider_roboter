@@ -1190,6 +1190,65 @@ Test der eigentlichen Hypothese hat aber nie stattgefunden. Damit daraus kein Na
 Erfolg wird: **ein** Lauf mit schwarzen Händen und Boden 0,35. Bleibt `cam_left_wrist` dann über
 0,35, ist Albedo widerlegt und `TUNE_VISUAL=1` die Konsequenz — ohne weiteren Zwischenversuch.
 
+#### Ergebnis (`runs/20260808/22`) — Albedo bestätigt, Kriterium um 0,0056 verfehlt
+
+Diesmal liefen beide Hebel, nachweisbar im Log:
+
+```
+OK: schwarzes Material an 16 Hand-/visuals-Roots gebunden (de-instanziert, strongerThanDescendants)
+Asset erzeugt: /data/checkpoints/groot-g1dex3-checkpoint/g1_dex3_blackhands.usd
+[Env] Bodenfarbe -> (0.35, 0.35, 0.36) (RL_GROUND_COLOR)
+```
+
+| Kamera | Juni | Lauf 20 | Lauf 21 | **Lauf 22** | Δ zu Juni |
+|---|---|---|---|---|---|
+| `cam_left_high` | 0,1477 | 0,1296 | 0,1542 | **0,1121** | −0,0356 |
+| `cam_right_high` | 0,2136 | 0,1586 | 0,1567 | **0,1310** | −0,0826 |
+| `cam_left_wrist` | 0,4275 | 0,4493 | 0,4113 | **0,3556** | −0,0719 |
+| `cam_right_wrist` | 0,2491 | 0,3098 | 0,3397 | **0,2930** | +0,0439 |
+| **MITTEL** | 0,2595 | 0,2618 | 0,2655 | **0,2229** | −0,0366 |
+
+Alle vier Kameras verbessern sich gegenüber Lauf 21, drei von vier gegenüber Juni. Das Mittel liegt
+mit 0,2229 unter der Grundlinie real↔real (0,2726) und praktisch auf der sim-internen Streuung
+(0,2163) — real→sim ist damit das 0,8-fache des real→real-Abstands.
+
+Die Pixelstatistik zeigt, dass der Mechanismus der vermutete war. Der Kontrast der Kopfkameras
+trifft jetzt den realen Wert fast exakt, nachdem er in Lauf 20 zu hoch und in Lauf 21 zu niedrig war:
+
+| Kopfkameras | real | Lauf 20 | Lauf 21 | **Lauf 22** |
+|---|---|---|---|---|
+| Helligkeit | 130,3 | 169,5 | 203,3 | 184,9 |
+| Kontrast | 59,4 | 79,3 | 39,4 | **59,0** |
+| Chroma | 9,1 | 2,7 | 23,3 | 19,7 |
+
+Der Wrist-Kontrast, der Auslöser der ganzen Hypothese, geht von 36,1 (Lauf 20) auf **68,9** bei real
+65,0 — die schwarze Hand auf hellem Tisch stellt genau das Verhältnis her, das im Datensatz steht.
+
+**`RL_GROUND_COLOR` macht den Boden nicht grau, sondern entdimmt Isaacs blaue Rastertextur.**
+Ein nahezu neutraler Wert (0,35/0,35/0,36) rendert sichtbar blau, und die Chroma steigt vom
+Isaac-Default 2,7 auf 19,7 bei real 9,1. Ein neutraler Eingang kann kein farbiges Ergebnis
+erzeugen, wenn er die Albedo direkt setzt — er wirkt also als Tint auf eine Textur (vermutlich
+`Looks/theGrid.inputs:diffuseColor` des Default-Bodens; in der Quelle nicht geprüft, Isaac Lab liegt
+nur im Container). Praktische Folge: Aufhellen des Bodens erhöht zwangsläufig die Sättigung. Für
+einen wirklich neutralen Boden müsste das Material ersetzt statt getönt werden. Betroffen sind vor
+allem die Kopfkameras — und die sind mit 0,11/0,13 ohnehin unauffällig.
+
+**Stand der Vorhersage:** `cam_left_wrist` liegt bei **0,3556**, das Kriterium war **< 0,35**. Um
+0,0056 verfehlt. Das wird hier nicht gerundet: Albedo erklärt einen großen, messbaren Teil des Gaps
+— es reicht aber nicht, um die Wrist-Kamera aus der Ausreißerrolle zu holen (sie ist weiterhin das
+1,3-fache der real↔real-Grundlinie). Nach der Regel gilt damit: **kein weiterer Albedo-Versuch**,
+`TUNE_VISUAL=1` ist die Konsequenz.
+
+Bevor dafür ein H100-Lauf über ~48 h gebucht wird, ist Schritt 3 (BC-Erfolgsrate in der Sim) fällig
+— er stand ohnehin als Nächstes an, kostet eine Sim-Eval statt eines Trainings und misst die
+Größe, die `TUNE_VISUAL=1` verbessern soll, direkt statt über den Proxy. Ist die Erfolgsrate 0,
+ist die Entscheidung bestätigt. Das ist ausdrücklich **kein** weiterer Renderversuch.
+
+Offen und in derselben Kamera wirksam: die bekannte Abweichung von ~15 cm im Roboter-Tisch-Abstand.
+Der Modulkopf von `measure_domain_gap.py` warnt selbst davor, dass die Zahl Szeneninhalt enthält;
+die Wrist-Kamera ist dafür die empfindlichste. Das ist für Schritt 3 ohnehin zu klären, weil eine
+unerreichbare Tischplatte jede Erfolgsrate auf 0 nagelt, unabhängig von der Optik.
+
 ### `isaaclab nicht importierbar`
 Das Skript braucht das **kombinierte** Image (`Dockerfile.vastai`), nicht das BC-Trainingsimage.
 
