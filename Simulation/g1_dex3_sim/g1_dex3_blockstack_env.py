@@ -314,6 +314,45 @@ class G1Dex3BlockstackSceneCfg(InteractiveSceneCfg):
 # Env-Konfiguration
 # ---------------------------------------------------------------------------
 
+def _quat_to_matrix(q) -> np.ndarray:
+    """(w, x, y, z) -> 3x3-Rotationsmatrix in Spaltenvektor-Konvention (v_welt = R @ v_lokal)."""
+    w, x, y, z = (float(v) for v in q)
+    n = (w * w + x * x + y * y + z * z) ** 0.5
+    w, x, y, z = w / n, x / n, y / n, z / n
+    return np.array([
+        [1 - 2 * (y * y + z * z), 2 * (x * y - w * z), 2 * (x * z + w * y)],
+        [2 * (x * y + w * z), 1 - 2 * (x * x + z * z), 2 * (y * z - w * x)],
+        [2 * (x * z - w * y), 2 * (y * z + w * x), 1 - 2 * (x * x + y * y)],
+    ])
+
+
+def _matrix_to_quat(r: np.ndarray) -> np.ndarray:
+    """3x3-Rotationsmatrix (Spaltenvektor-Konvention) -> (w, x, y, z).
+
+    Shepperd-Variante: es wird immer die betragsgrößte Komponente zuerst bestimmt, damit
+    keine Division durch eine fast-Null-Spur entsteht.
+    """
+    m = np.asarray(r, dtype=float)
+    tr = m[0, 0] + m[1, 1] + m[2, 2]
+    if tr > 0.0:
+        s = 0.5 / np.sqrt(tr + 1.0)
+        q = np.array([0.25 / s, (m[2, 1] - m[1, 2]) * s,
+                      (m[0, 2] - m[2, 0]) * s, (m[1, 0] - m[0, 1]) * s])
+    elif m[0, 0] > m[1, 1] and m[0, 0] > m[2, 2]:
+        s = 2.0 * np.sqrt(1.0 + m[0, 0] - m[1, 1] - m[2, 2])
+        q = np.array([(m[2, 1] - m[1, 2]) / s, 0.25 * s,
+                      (m[0, 1] + m[1, 0]) / s, (m[0, 2] + m[2, 0]) / s])
+    elif m[1, 1] > m[2, 2]:
+        s = 2.0 * np.sqrt(1.0 + m[1, 1] - m[0, 0] - m[2, 2])
+        q = np.array([(m[0, 2] - m[2, 0]) / s, (m[0, 1] + m[1, 0]) / s,
+                      0.25 * s, (m[1, 2] + m[2, 1]) / s])
+    else:
+        s = 2.0 * np.sqrt(1.0 + m[2, 2] - m[0, 0] - m[1, 1])
+        q = np.array([(m[1, 0] - m[0, 1]) / s, (m[0, 2] + m[2, 0]) / s,
+                      (m[1, 2] + m[2, 1]) / s, 0.25 * s])
+    return q / np.linalg.norm(q)
+
+
 def _plain_camera_cfg(tc: TiledCameraCfg) -> CameraCfg:
     """TiledCameraCfg -> CameraCfg mit identischer Pose, Optik und Auflösung.
 
@@ -480,6 +519,93 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
         }
 
         self.scene.filter_collisions(global_prim_paths=[])
+
+        self._force_camera_prim_orientations()
+
+    # ------------------------------------------------------------------
+    # Kamera-Ausrichtung direkt in die Stage schreiben
+    # ------------------------------------------------------------------
+
+    # Spalten = die lokalen USD-Kameraachsen, ausgedrückt in Isaac-Lab-``convention="world"``
+    # (dort ist +X Blickrichtung, +Y links, +Z oben). USD blickt entlang -Z, oben ist +Y,
+    # rechts ist +X:  X_usd = -Y_welt,  Y_usd = +Z_welt,  Z_usd = -X_welt.
+    _WORLD_TO_USD = np.array([[0.0, 0.0, -1.0],
+                              [-1.0, 0.0, 0.0],
+                              [0.0, 1.0, 0.0]])
+
+    def _force_camera_prim_orientations(self):
+        """Die Orientierung jedes Kamera-Prims selbst schreiben, statt sie Isaac Lab zu überlassen.
+
+        Befund 2026-08-08 (``runs/20260808/13``): der USD-Abgleich in ``dump_camera_poses.py``
+        zeigt, dass die Kamera-Prims in der Stage **anders** ausgerichtet sind als
+        ``cam.data`` meldet — 95.6° bei den High-Cams, 102.8° bei den Wrist-Cams, 136.8° bei
+        ``cam_scene``. Die Position stimmt exakt, die Optik am Prim (focal/aperture) auch.
+
+        Warum ``cam.data`` das nicht sieht: Isaac Lab rechnet die Offset-Rotation beim Spawn
+        von ``convention="world"`` nach OpenGL um und beim Lesen wieder zurück. Ist die
+        Umrechnung fehlerhaft, hebt der Rückweg sie auf — ``quat_w_world`` gibt brav die
+        Config zurück, während der Renderer die verdrehte Pose benutzt. Genau deshalb waren
+        alle bisherigen „IM BILD"-Aussagen wertlos.
+
+        Dass die Stage-Pose die gerenderte ist, bestätigen die Bilder Zug um Zug: die
+        High-Cams blicken nach oben (nur Dome), ``cam_right_wrist`` in den leeren Raum
+        (genau EIN Grauwert), ``cam_left_wrist`` in den Roboter (die einzige Kamera mit
+        Inhalt) und ``cam_scene`` knapp über den Horizont (der schmale Bodenkeil unten).
+
+        Abschalten mit ``RL_CAM_USD_FIX=0``.
+        """
+        if os.environ.get("RL_CAM_USD_FIX", "1").strip().lower() in ("0", "false", "no"):
+            print("[cam] RL_CAM_USD_FIX=0 → Prim-Orientierung bleibt wie von Isaac Lab "
+                  "geschrieben.", flush=True)
+            return
+        try:
+            import omni.usd
+            from pxr import Gf, Usd, UsdGeom
+            stage = omni.usd.get_context().get_stage()
+        except Exception as e:  # noqa: BLE001
+            print(f"[cam] !! USD-Stage nicht erreichbar ({e}) — Orientierung unverändert.",
+                  flush=True)
+            return
+        if stage is None:
+            print("[cam] !! USD-Stage ist None — Orientierung unverändert.", flush=True)
+            return
+
+        fixed, failed = 0, 0
+        for name in self.cameras:
+            cfg_entry = getattr(CAMERA_CFG, name, None)
+            if not cfg_entry or "rot" not in cfg_entry:
+                print(f"[cam] !! '{name}' hat keine rot in CAMERA_CFG — übersprungen.",
+                      flush=True)
+                continue
+            quat = np.asarray(cfg_entry["rot"], dtype=float)      # (w, x, y, z), Welt-Konvention
+            rot_usd = _quat_to_matrix(quat) @ self._WORLD_TO_USD  # Spaltenvektor-Konvention
+            q_usd = _matrix_to_quat(rot_usd)                      # (w, x, y, z)
+
+            prims = [p for p in stage.Traverse()
+                     if p.GetName() == name and p.IsA(UsdGeom.Camera)]
+            if not prims:
+                print(f"[cam] !! Kein Camera-Prim namens '{name}' in der Stage.", flush=True)
+                continue
+            for prim in prims:
+                try:
+                    xf = UsdGeom.Xformable(prim)
+                    # Die lokale Translation erhalten und den Op-Stack neu und eindeutig
+                    # aufbauen — sonst konkurriert ein evtl. vorhandener rotateXYZ-Op.
+                    local = xf.GetLocalTransformation(Usd.TimeCode.Default())
+                    t = local.ExtractTranslation()
+                    xf.ClearXformOpOrder()
+                    xf.AddTranslateOp().Set(Gf.Vec3d(t[0], t[1], t[2]))
+                    xf.AddOrientOp(UsdGeom.XformOp.PrecisionDouble).Set(
+                        Gf.Quatd(float(q_usd[0]),
+                                 Gf.Vec3d(float(q_usd[1]), float(q_usd[2]), float(q_usd[3]))))
+                    fixed += 1
+                except Exception as e:  # noqa: BLE001
+                    print(f"[cam] !! '{prim.GetPath()}' nicht beschreibbar ({e})", flush=True)
+                    failed += 1
+        print(f"[cam] RL_CAM_USD_FIX: {fixed} Kamera-Prims neu ausgerichtet"
+              + (f", {failed} fehlgeschlagen" if failed else "")
+              + ". Kontrolle: der USD-Abgleich im Kamera-Dump muss jetzt 0.0° melden.",
+              flush=True)
 
     # ------------------------------------------------------------------
     # Finger-Gelenkgrenzen weiten

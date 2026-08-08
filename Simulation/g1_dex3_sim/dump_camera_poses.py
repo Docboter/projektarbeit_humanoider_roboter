@@ -143,14 +143,19 @@ def usd_truth_report(cam_names) -> None:
         return
 
     def world_basis(prim):
-        """(pos, forward, up) des Prims in Weltkoordinaten, USD-Kamerakonvention."""
+        """(pos, forward, up, forward_spalten) des Prims in Weltkoordinaten, USD-Konvention.
+
+        USD ist Zeilenvektor-Konvention (v_welt = v_lokal * M), die Zeilen sind also die
+        Weltrichtungen der lokalen Achsen X/Y/Z, und USD-Kameras blicken entlang lokal -Z.
+        Zurückgegeben wird zusätzlich die Spalten-Lesart: weicht die Blickrichtung von
+        `cam.data` ab, muss ausgeschlossen sein, dass nur diese Lesart falsch herum ist.
+        """
         m = UsdGeom.Xformable(prim).ComputeLocalToWorldTransform(Usd.TimeCode.Default())
         r = m.ExtractRotationMatrix()
-        # USD ist Zeilenvektor-Konvention: v_welt = v_lokal * M. Die Zeilen von r sind
-        # damit die Weltrichtungen der lokalen Achsen X/Y/Z.
         rows = [np.array([r[i][0], r[i][1], r[i][2]], dtype=float) for i in range(3)]
+        cols = [np.array([r[0][j], r[1][j], r[2][j]], dtype=float) for j in range(3)]
         pos = m.ExtractTranslation()
-        return np.array([pos[0], pos[1], pos[2]]), -rows[2], rows[1]
+        return np.array([pos[0], pos[1], pos[2]]), -rows[2], rows[1], -cols[2]
 
     print("\n" + "=" * 72)
     print("USD-STAGE — unabhängig von cam.data")
@@ -173,15 +178,24 @@ def usd_truth_report(cam_names) -> None:
             kids = [c for c in prim.GetChildren() if c.IsA(UsdGeom.Camera)]
             cam_prim = kids[0] if kids else prim
         try:
-            pos, fwd, up = world_basis(cam_prim)
+            pos, fwd, up, fwd_cols = world_basis(cam_prim)
         except Exception as e:  # noqa: BLE001
             print(f"  {name:<16} !! Transform nicht lesbar ({e})")
             continue
         line = f"  {name:<16} pos={np.round(pos, 3)}  blick={np.round(fwd, 3)}"
         if expect_dir is not None:
-            ang = np.degrees(np.arccos(np.clip(float(np.dot(fwd, expect_dir)), -1.0, 1.0)))
+            def _ang(v):
+                return np.degrees(np.arccos(np.clip(float(np.dot(v, expect_dir)), -1.0, 1.0)))
+            ang, ang_c = _ang(fwd), _ang(fwd_cols)
             flag = "OK" if ang < 1.0 else f"<-- WEICHT AB ({ang:.1f}°)"
             line += f"  Abweichung zu cam.data: {ang:5.1f}° {flag}"
+            if ang >= 1.0:
+                line += (f"\n  {'':<16} Gegenprobe Spalten-Lesart: blick={np.round(fwd_cols, 3)} "
+                         f"bei {ang_c:5.1f}°"
+                         + ("  <-- diese passt, die Lesart oben ist transponiert"
+                            if ang_c < 1.0 else "  (passt auch nicht — Prim ist wirklich "
+                                                "verdreht)"))
+        line += f"\n  {'':<16} oben={np.round(up, 3)}"
         print(f"{line}  ({cam_prim.GetPath()})")
         gc = UsdGeom.Camera(cam_prim)
         if gc:
@@ -209,7 +223,14 @@ def usd_truth_report(cam_names) -> None:
             continue
         img = UsdGeom.Imageable(prim)
         vis = img.ComputeVisibility(Usd.TimeCode.Default()) if img else "?"
-        purpose = img.ComputePurpose(Usd.TimeCode.Default()) if img else "?"
+        # ComputePurpose() nimmt in USD 25.11 (Isaac Sim 6.0) KEINE TimeCode mehr —
+        # in älteren Builds dagegen schon. Beide Signaturen bedienen.
+        try:
+            purpose = img.ComputePurpose() if img else "?"
+        except TypeError:
+            purpose = img.ComputePurpose(Usd.TimeCode.Default()) if img else "?"
+        except Exception as e:  # noqa: BLE001
+            purpose = f"?({e.__class__.__name__})"
         try:
             rng = cache.ComputeWorldBound(prim).ComputeAlignedRange()
             box = ("LEER (nichts zu rendern!)" if rng.IsEmpty() else

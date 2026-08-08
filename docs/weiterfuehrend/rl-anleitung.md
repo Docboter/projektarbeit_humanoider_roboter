@@ -540,7 +540,12 @@ unberührt; der 0-%-Befund dort bleibt der Domain-Gap.
 Aufgabe — die Würfel lagen außerhalb der Reichweite am Boden. `reward_mean` bewegte sich trotzdem,
 weil der Shaped Reward aus Gelenk- und Abstandsgrößen kommt.
 
-### Kamerabilder gleichmäßig weiß — OFFEN, aber die Szene ist es nicht
+### Kamerabilder gleichmäßig weiß — URSACHE GEFUNDEN (`runs/20260808/13`), Fix eingebaut
+
+**Kurzfassung für Eilige:** Die Kamera-Prims stehen in der USD-Stage **anders ausgerichtet** als
+`cam.data` meldet — 95,6° bei den High-Cams, 102,8° an den Handgelenken, 136,8° bei `cam_scene`.
+Die Kameras filmen den Himmel. `_setup_scene()` schreibt die Orientierung jetzt selbst
+(`RL_CAM_USD_FIX=1`, Default an). Herleitung unten.
 
 **Stand 2026-08-08 nach `runs/20260808/09`:** Der Würfel-Fix oben ist wirksam, die Bilder sind
 trotzdem gleichmäßig hell (min/median/max **245/248/249**, chroma 4,0, dunkel 0 %). Die Szene ist
@@ -550,7 +555,7 @@ damit als Ursache ausgeschlossen — und zwar gemessen, nicht vermutet:
 |---|---|
 | Objektposen zur Laufzeit | Tisch, Roboter, Würfel alle korrekt in ihrer Env |
 | Würfel im Blickfeld? | `IM BILD` bei 0,66–0,71 m, u/v deutlich innerhalb des Frustums |
-| Kamerapose + Konvention | alle fünf Kameras `quat_w_world / +X` bei **0,0°** Abweichung |
+| Kamerapose + Konvention | alle fünf Kameras `quat_w_world / +X` bei **0,0°** Abweichung — ⚠️ **diese Zeile war die Falle**, siehe Lauf 13 |
 | Clipping-Ranges | Objekte liegen in allen Kameras innerhalb |
 
 **Belichtung: widerlegt** (`runs/20260808/10`, `RL_DOME_SWEEP=500,120,30,8`). Das Bild wird nur
@@ -571,8 +576,11 @@ dunkler, es kommt keine Struktur zum Vorschein:
 | `cam_left_wrist` | 0.29 / 0.14 | 91,0 % | **DEX3-Hand klar sichtbar**, Rest Hintergrund |
 | `cam_scene` | 0.34 / 0.47 | 93,7 % | Bodengitter im Eck, Rest Hintergrund |
 
-Ein fehlgerichtetes Objektiv in einer beleuchteten Szene zeigt *irgendetwas*. Ein über alle fünf
-Belichtungen exakt einfarbiges Bild ist kein Blickwinkel-, sondern ein Renderproblem.
+~~Ein fehlgerichtetes Objektiv in einer beleuchteten Szene zeigt *irgendetwas*. Ein über alle fünf
+Belichtungen exakt einfarbiges Bild ist kein Blickwinkel-, sondern ein Renderproblem.~~
+**Falsch, und dieser Fehlschluss hat drei Läufe gekostet.** Eine Kamera, die in den leeren Himmel
+über einer Domelight-Kuppel blickt, zeigt eben *nicht* irgendetwas, sondern exakt eine Farbe. Der
+Schluss „einfarbig ⇒ kein Blickwinkelproblem" war genau verkehrt herum (Lauf 13).
 
 **Domain Randomization: widerlegt** (`runs/20260808/11`, `DR_ENABLED=0`). Die DR lieferte nur die
 Chroma (5,76 → 0,00), nicht die Objekte. Schärfer noch, gemessen an der Zahl verschiedener
@@ -590,11 +598,14 @@ Ein einziger Grauwert ist kein „zu wenig Kontrast", das ist ein Sensor, der ni
 schreibt. (Damals als „unbeschriebener Puffer" gelesen — Lauf 12 zeigt, dass es die Dome-Farbe
 ist, also ein korrekt gerendertes Bild von leerem Raum. Das verschiebt die Ursache vom Sensor auf
 das, was der Renderer an dieser Stelle vorfindet.)
-`cam_left_high` blickt mit −47,7° nach unten; zwischen x ≈ 0,9 m und 2,56 m müsste derselbe
-globale Boden im Bild stehen, den `cam_scene` zeigt, dazu die eigenen Arme wie im
+`cam_left_high` blickt *laut `cam.data`* mit −47,7° nach unten; zwischen x ≈ 0,9 m und 2,56 m
+müsste derselbe globale Boden im Bild stehen, den `cam_scene` zeigt, dazu die eigenen Arme wie im
 Dataset-Referenzbild. Nichts davon. Und `cam_left_wrist` und `cam_right_wrist` unterscheiden sich
-in nichts außer dem Link, an dem sie hängen — trotzdem zeigt nur eine von beiden etwas. Damit
-sind sowohl „Würfel rendern nicht" als auch jede Pose-Erklärung raus.
+in nichts außer dem Link, an dem sie hängen — trotzdem zeigt nur eine von beiden etwas.
+~~Damit sind sowohl „Würfel rendern nicht" als auch jede Pose-Erklärung raus.~~ **Auch das war
+verkehrt:** dass ausgerechnet eine der beiden baugleichen Wrist-Cams etwas zeigt, ist der
+*stärkste* Hinweis auf ein Pose-Problem — die eine blickt in den Roboter, die andere von ihm weg
+(Lauf 13).
 
 **Sensorklasse: widerlegt** (`runs/20260808/12`, `RL_CAMERA_CLASS=camera`). Alle fünf Sensoren
 liefen als gewöhnliche `Camera` statt `TiledCamera`, bei identischer Pose, Optik und Auflösung —
@@ -619,41 +630,85 @@ vertikalem Öffnungswinkel der Boden 97 % des Frames füllen; sichtbar ist er au
 Gleichzeitig **rendert** `cam_left_wrist` die DEX3-Hand sauber, inklusive UNITREE-Schriftzug — das
 Roboter-USD ist also im Render-Graph. Nur eben nicht dort, wo `cam.data` es verortet.
 
-**Nächster Schritt — die USD-Stage als unabhängiger Zeuge.** Bisher stammten Soll-Richtung,
-Treffer-Matrix und Frustum-Rechnung alle aus `data.quat_w_world`; ein Widerspruch zwischen zwei
-Ableitungen aus einer Quelle ist mit dieser Quelle nicht auflösbar. `dump_camera_poses.py` liest
-jetzt zusätzlich direkt aus der Stage:
+**Auflösung: die USD-Stage als unabhängiger Zeuge** (`runs/20260808/13`). Bisher stammten
+Soll-Richtung, Treffer-Matrix und Frustum-Rechnung alle aus `data.quat_w_world`; ein Widerspruch
+zwischen zwei Ableitungen aus einer Quelle ist mit dieser Quelle nicht auflösbar.
+`dump_camera_poses.py` liest deshalb zusätzlich direkt aus der Stage — und der erste Lauf
+entscheidet die Sache:
 
-* die echte Welt-Transform des Kamera-Prims (USD-Kameras blicken entlang lokal −Z) und den Winkel
-  zur gemeldeten Blickrichtung,
-* `focalLength` / `aperture` / `clippingRange` / `projection` am Prim,
-* Welt-Bounding-Box, `visibility` und `purpose` von Boden, Tisch, Würfeln, Band und Roboter.
+| Kamera | Prim-Position | Blick laut Stage | Blick laut `cam.data` | Abweichung |
+|---|---|---|---|---|
+| `cam_left_high` | `[1.0, −0.92, 1.45]` | `[0.673, 0, 0.739]` | `[0.666, −0.097, −0.739]` | **95,6°** |
+| `cam_right_high` | `[1.0, −1.08, 1.45]` | `[0.673, 0, 0.739]` | `[0.666, +0.097, −0.739]` | **95,6°** |
+| `cam_left_wrist` | `[1.16, −0.851, 1.045]` | `[0, −0.882, 0.471]` | `[0.882, 0, −0.471]` | **102,8°** |
+| `cam_right_wrist` | `[1.16, −1.149, 1.045]` | `[0, −0.882, 0.471]` | `[0.882, 0, −0.471]` | **102,8°** |
+| `cam_scene` | `[2.8, 0.6, 1.7]` | `[0.925, 0, 0.38]` | `[−0.633, −0.675, −0.38]` | **136,8°** |
+
+**Position und Optik stimmen exakt** — auch `focalLength`/`aperture` am Prim ergeben genau die
+47,2° × 36,3°, die der Renderer meldet. Es ist ausschließlich die Rotation.
+
+*Warum `cam.data` das nicht sehen kann:* Isaac Lab rechnet die Offset-Rotation beim Spawn von
+`convention="world"` nach OpenGL um und beim Lesen wieder zurück. Ist diese Umrechnung fehlerhaft,
+hebt der Rückweg sie auf — `quat_w_world` liefert brav die Config zurück, während der Renderer die
+verdrehte Pose benutzt. Die Treffer-Matrix konnte diesen Fehler also **prinzipiell** nicht finden.
+
+*Warum die Stage-Pose die gerenderte ist:* weil sie alle fünf Bilder erklärt, Zug um Zug, während
+die gemeldete Pose keines erklärt.
+
+| Kamera | Stage-Pose zeigt auf | Bild |
+|---|---|---|
+| `cam_left_high` / `cam_right_high` | +42,6° nach **oben** — Tisch liegt darunter | reine Dome-Farbe ✔ |
+| `cam_right_wrist` | −Y, vom Roboter **weg**, +28° nach oben | genau **1** Grauwert ✔ |
+| `cam_left_wrist` | −Y, in den Roboter **hinein**, 0,15 m | DEX3-Hand formatfüllend ✔ |
+| `cam_scene` | +X und +22° nach oben, Frame reicht bis −1,3° unter den Horizont | schmaler Bodenkeil unten ✔ |
+
+Besonders `cam_right_wrist` ist beweiskräftig: unter der *gemeldeten* Pose stünde `block_0` in
+0,22 m Entfernung mitten im Bild — ein Würfel auf 22 cm rendert garantiert. Unter der Stage-Pose
+ist dort leerer Raum. Das Bild hat genau einen Grauwert.
+
+Bei den drei statischen Kameras hat der Fehler eine saubere Signatur: die gerenderte Blickrichtung
+ist `(√(fx²+fy²), 0, −fz)` der gemeldeten — **der Yaw wird verworfen und das Vorzeichen des Pitch
+gekippt**. Für die Handgelenke fällt das anders aus, weil dort die Link-Rotation dazwischenliegt.
+Als feste Konventionsmatrix oder als Vertauschung der Quaternion-Komponenten ließ sich das nicht
+nachbauen; der genaue Mechanismus in Isaac Lab 3.0-beta2 bleibt offen — für die Reparatur ist er
+auch nicht nötig.
+
+**Der Fix — die Orientierung selbst schreiben.** `_setup_scene()` ruft am Ende
+`_force_camera_prim_orientations()`: für jede Kamera wird aus dem Config-Quaternion (Welt-Konvention)
+die USD-Orientierung gebildet — `R_usd = R_welt · C` mit den Spalten von `C` als USD-Achsen
+(`X_usd = −Y_welt`, `Y_usd = +Z_welt`, `Z_usd = −X_welt`) — und als `xformOp:orient` direkt auf das
+Prim geschrieben. Der Op-Stack wird dabei neu aufgebaut (Translate + Orient), damit kein
+konkurrierender `rotateXYZ` danebensteht. Die Umrechnung ist offline gegen alle vier Config-Posen
+geprüft: Rückweg über die Quaternion trifft die Soll-Blickachse auf < 0,03°.
+
+Abschalten mit `RL_CAM_USD_FIX=0` — dann bleibt die Isaac-Lab-Variante stehen, für den direkten
+Vergleich im selben Dump.
+
+Zusätzlich behoben: `ComputePurpose()` nimmt in USD 25.11 keine `TimeCode` mehr, der Geometrieblock
+des Dumps ist daran abgestürzt (Zeile 212). Deshalb fehlen `visibility`/`purpose`/BBox in Lauf 13
+noch; beide Signaturen werden jetzt bedient.
 
 ```bash
 git pull
-RL_CAMERA_CLASS=camera RL_DOME_SWEEP=120 HF_TOKEN=hf_... ./Simulation/server_rl_run.sh cams
+HF_TOKEN=hf_... ./Simulation/server_rl_run.sh cams
 ```
 
-Drei mögliche Ausgänge, alle verwertbar:
-
-| Befund im neuen Block | Bedeutung |
-|---|---|
-| Kamera-Prim weicht von `cam.data` ab | Die gemeldete Pose ist nicht die gerenderte — alle bisherigen „IM BILD"-Aussagen sind wertlos, und der Fehler sitzt in der Offset-/Konventionsumsetzung. |
-| `purpose=guide` oder `visibility=invisible` bei Tisch/Würfeln | Geometrie ist physikalisch korrekt da und im Render bewusst ausgeblendet — ein Einzeiler in `_setup_scene()`. |
-| BBox **LEER** oder an falscher Stelle | Die Prims tragen keine renderbare Geometrie (oder stehen woanders) — dann ist der `CuboidCfg`-Spawn unter Isaac Sim 6.0 die Ursache. |
+Erwartung: Der Stage-Abgleich meldet für alle fünf Kameras **0,0°**, und die High-Cams zeigen den
+Tisch mit den Würfeln. Bleibt die Abweichung stehen, wird das Prim nach dem Schreiben wieder
+überschrieben — dann muss der Fix hinter `sim.reset()` statt in `_setup_scene()`.
 
 **Bestätigt nebenbei** (beides in Lauf 11 im Log): Die Renderer-Intrinsik meldet 47,2° × 36,3° für
 die High-Cams — genau das, was die vorher angenommene `horizontal_aperture` ergab, die
 Frustum-Rechnung war also korrekt. Und der Roll ist 0,0° bei beiden High-Cams und `cam_scene`
-(−90° an den Handgelenken, dort armposenabhängig) — beides allerdings wieder aus `cam.data`, also
-nur so belastbar wie diese Quelle; genau deshalb der Stage-Abgleich unten. Die Diagonale in
-`cam_scene` hielt ich für die Kante der endlichen Bodenplatte; nach Lauf 12 ist sie eher Teil des
-Befunds, denn sichtbar sind nur ~8 % Boden statt der rechnerischen 97 %.
+(−90° an den Handgelenken, dort armposenabhängig) — beides allerdings wieder aus `cam.data` und
+damit nach Lauf 13 hinfällig, solange der Fix nicht bestätigt ist. Die Diagonale in `cam_scene`
+hielt ich für die Kante der endlichen Bodenplatte; sie ist der streifende Blick knapp über den
+Horizont — sichtbar sind nur ~8 % Boden statt der rechnerischen 97 %.
 
 > **Nebenbefund:** `_randomize_visuals()` würfelt die Dome-Intensität pro Episode neu
 > (`uniform(1000, 3800)`). `RL_DOME_INTENSITY` wirkt daher nur bei `DR_ENABLED=0` dauerhaft.
 
-**Zwei Lehren aus dieser Fehlersuche:**
+**Drei Lehren aus dieser Fehlersuche:**
 
 1. Der Dump druckte die Objektposen env-relativ unter der Überschrift „WELTPOSITION". Das hat zu
    einer kompletten Fehldiagnose geführt („alle Objekte am Weltursprung"), obwohl die Szene
@@ -664,6 +719,12 @@ Befunds, denn sichtbar sind nur ~8 % Boden statt der rechnerischen 97 %.
    *Blickachse*, nicht die Drehung um sie. Der Dump gibt deshalb jetzt zusätzlich den **Roll**
    gegen Welt-Oben aus und stützt die Frustum-Rechnung auf `data.intrinsic_matrices` statt auf
    eine angenommene `horizontal_aperture`.
+3. Und das ist die eigentliche Lehre: **eine Größe, die durch einen Hin- und Rückweg derselben
+   Umrechnung läuft, kann diese Umrechnung nicht prüfen.** `quat_w_world` meldete fünf Läufe lang
+   0,0° Abweichung, während der Renderer 96–137° danebenlag. Vier Hypothesen (Belichtung, DR,
+   Anti-Aliasing, Sensorklasse) wurden widerlegt, bevor jemand die Stage selbst gefragt hat. Wenn
+   Diagnostik und Beobachtung sich widersprechen, ist die nächste Messung nicht die fünfte
+   Variante der Diagnostik, sondern **eine zweite Quelle**.
 
 ### Historisch: DLSS-Upscaling (nicht die Ursache)
 
