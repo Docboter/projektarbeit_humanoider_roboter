@@ -240,18 +240,29 @@ vastai ssh <instance-id>            # SSH-Befehl
 
 ---
 
-### Schritt 7 — LIVE-CHECK: was beim ersten Lauf zu prüfen ist
+### Schritt 7 — LIVE-CHECK: auf Hardware nachgezogene Stellen
 
-Diese Stellen sind im Code als `# >>> LIVE-CHECK` markiert und können erst auf echter Hardware
-final verifiziert werden:
+Diese Stellen waren im Code als `# >>> LIVE-CHECK` markiert und ließen sich erst auf echter
+Hardware final verifizieren. Alle drei sind am 2026-08-07 auf der RTX PRO 6000 Blackwell
+(Isaac Sim 6.0) durchlaufen und korrigiert worden — hier als Nachschlagewerk, falls beim
+Portieren auf eine andere Checkpoint-/Embodiment-Kombination Ähnliches auftritt:
 
 1. **Aktions-Injektion** ([`rl_finetune.py`](../../Simulation/g1_dex3_sim/rl_finetune.py),
-   `main` + `fpo_logprob_proxy`): Die gesampelte normalisierte Aktion wird als
-   `inputs["action"]` an `model.forward` gegeben, damit `action_head.forward` sie als
-   `action_input.action` sieht. Schlüsselname/Shape am echten collated-Input bestätigen.
-2. **Obs→Inputs-Adapter** (`_obs_batched_to_policy_dict` / `_sample_action`): Zeitdimension/Dtype
-   gegen den echten Processor prüfen.
-3. **Minibatch-Slicing** (`_select_env`): bei verschachtelten `eagle_*`-Strukturen ggf. rekursiv.
+   `main` + `fpo_logprob_proxy`): Die gesampelte normalisierte Aktion muss in den **inneren**
+   Batch — der Collator liefert `BatchFeature({"inputs": batch})`, `model.forward` erwartet
+   genau die `inputs`-Ebene. Zusätzlich muss `action_mask` mitgegeben werden, sonst mittelt der
+   FPO-Proxy über Padding-Horizont und -Dimensionen.
+2. **Obs→Inputs-Adapter** (`_obs_batched_to_policy_dict` / `_sample_action`): Der Sim-Pfad baut
+   ein **flaches** Dot-Key-Dict (`video.ego_view`, …), `_unbatch_observation` erwartet aber ein
+   **verschachteltes** (`{"video": {...}, "state": {...}}`). Konvertierung in `_flat_to_nested`.
+   Beim Zurückschreiben liefert `decode_action` **bare** Gruppen-Namen (`left_arm`, …) — das
+   `action.`-Präfix setzt erst der ZMQ-Wrapper, den dieses Skript umgeht.
+3. **Minibatch-Slicing**: Ein einzelner Batch-Eintrag lässt sich aus den collated Eagle-Inputs
+   **nicht** herausschneiden — `pixel_values` ist über Envs *und* Kameras auf Dim 0 gepackt
+   (`(B*n_cams, C, H, W)`), `input_ids` dagegen `(B, L)`. Ein naives `[n:n+1]` gab 1 statt
+   4 Bildern und Eagle brach mit `size of tensor a (324) must match tensor b (81)` ab.
+   Gelöst durch Gruppieren nach Zeitschritt: ein Forward je `t` über den vollen Env-Batch,
+   danach die benötigten Env-Indizes herausgreifen (`_select_env` ist entfallen).
 4. **USD-Asset**: ist `ASSET_PATH` korrekt? Sonst nutzt die Env den cfg-Default aus
    [`g1_dex3_cfg.py`](../../Simulation/g1_dex3_sim/g1_dex3_cfg.py).
 

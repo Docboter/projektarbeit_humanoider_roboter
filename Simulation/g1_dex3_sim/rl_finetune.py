@@ -14,12 +14,12 @@ Optimierung NUR des Action-Heads) ist gegen die real gelesene GR00T-API verifizi
 
 Auf Hardware bestaetigt (RTX PRO 6000 Blackwell, Isaac Sim 6.0, 2026-08-07):
   - Aufbau (Env + Policy + Critic) und Checkpoint-/Embodiment-Lade-Pfade.
-  - Obs-Konvertierung, Aktions-Sampling und Rollout-Schritt bis in die Env hinein
-    (die urspruenglichen LIVE-CHECK-Punkte 1 und 3 sind damit erledigt).
+  - Obs-Konvertierung, Aktions-Sampling und Rollout-Schritt bis in die Env hinein.
+  - Update-Pfad: Eintritt in den FPO/PPO-Recompute (alle drei urspruenglichen
+    LIVE-CHECK-Punkte sind damit erledigt).
 
 NOCH offen:
-  - _select_env: Minibatch-Slicing der Eagle-Bild-Tensoren im Update-Pfad
-    (markiert mit  # >>> LIVE-CHECK) — feuert erst nach dem Rollout.
+  - Vollstaendiger Durchlauf einer Iteration inkl. backward/optim.step.
   - num_envs-Durchsatz mit 4-Kamera-Rendering (Render-FPS-Benchmark, Plan Gruppe 0).
   - Lernverhalten: dass die Erfolgsrate ueber Iterationen steigt.
 
@@ -227,7 +227,10 @@ def main() -> None:
             inputs_with_action = dict(collated)
             inputs_with_action["action"] = norm_action
             inputs_with_action["action_mask"] = act_mask
-            logp = fpo_logprob_proxy(model, inputs_with_action, args.fpo_mc_samples, torch)
+            # old_logp wird ohnehin detached gepuffert -> kein Graph noetig (spart im
+            # Rollout den kompletten VLM-Aktivierungsgraph ueber alle Envs).
+            with torch.no_grad():
+                logp = fpo_logprob_proxy(model, inputs_with_action, args.fpo_mc_samples, torch)
 
             # Env-Step mit physischer Aktion (28-dim absolut)
             act_t = torch.as_tensor(phys_action, device=device, dtype=torch.float32)
@@ -263,23 +266,38 @@ def main() -> None:
         for _epoch in range(args.epochs_per_iter):
             for start in range(0, len(flat_idx), args.minibatch_size):
                 mb = flat_idx[start:start + args.minibatch_size]
+                # Nach Zeitschritt gruppieren: EIN Forward je t ueber alle benoetigten
+                # Envs, danach die gebrauchten Env-Indizes herausgreifen.
+                # Grund: aus den collated Eagle-Inputs laesst sich ein einzelner
+                # Batch-Eintrag nicht schneiden — pixel_values ist ueber Envs UND
+                # Kameras auf Dim 0 gepackt ((B*n_cams, C, H, W)), input_ids dagegen
+                # (B, L). Naives [n:n+1] lieferte 1 statt n_cams Bildern, und Eagle
+                # brach mit "size of tensor a (324) must match tensor b (81)" ab
+                # (324 = 4 Kameras * 81 Bild-Token, 81 = 1 Kamera).
+                # Nebeneffekt: identische Batch-Zusammensetzung wie beim Rollout,
+                # old_logp und new_logp sind damit exakt vergleichbar.
+                by_t = {}
+                for (t, n) in mb:
+                    by_t.setdefault(t, []).append(n)
                 pol_loss = torch.zeros((), device=device)
                 val_loss = torch.zeros((), device=device)
                 kl_loss = torch.zeros((), device=device)
-                for (t, n) in mb:
+                for t, ns in by_t.items():
                     inp, _na = buf_inputs[t]
-                    inp_n = _select_env(inp, n, torch)
-                    new_logp = fpo_logprob_proxy(model, inp_n, args.fpo_mc_samples, torch)[0]
+                    idx = torch.as_tensor(ns, device=device, dtype=torch.long)
+                    new_logp = fpo_logprob_proxy(model, inp, args.fpo_mc_samples, torch)[idx]
                     with torch.no_grad():
-                        ref_logp = fpo_logprob_proxy(ref_model, inp_n, args.fpo_mc_samples, torch)[0]
-                    ratio = torch.exp(new_logp - old_logp[t, n])
-                    a = adv[t, n]
+                        ref_logp = fpo_logprob_proxy(
+                            ref_model, inp, args.fpo_mc_samples, torch
+                        )[idx]
+                    ratio = torch.exp(new_logp - old_logp[t, idx])
+                    a = adv[t, idx]
                     unclipped = ratio * a
                     clipped = torch.clamp(ratio, 1 - args.clip, 1 + args.clip) * a
-                    pol_loss = pol_loss - torch.min(unclipped, clipped)
-                    kl_loss = kl_loss + (ref_logp - new_logp)
-                    v = value_head(buf_state[t][n:n + 1]).squeeze()
-                    val_loss = val_loss + (v - returns[t, n]) ** 2
+                    pol_loss = pol_loss - torch.min(unclipped, clipped).sum()
+                    kl_loss = kl_loss + (ref_logp - new_logp).sum()
+                    v = value_head(buf_state[t][idx]).squeeze(-1)
+                    val_loss = val_loss + ((v - returns[t, idx]) ** 2).sum()
                 m = max(len(mb), 1)
                 loss = (pol_loss + args.kl_coef * kl_loss) / m + args.value_coef * val_loss / m
                 optim.zero_grad()
@@ -476,17 +494,6 @@ def _assemble_phys_action(policy, action_dict):
             f"Die Env indiziert feste Gelenk-Indizes — zu schmal endet im CUDA-Assert."
         )
     return full.astype(np.float32)
-
-
-def _select_env(inputs, n, torch):
-    """Waehlt Env-Index n aus einem batched collated-inputs-Dict (Minibatch-Recompute).
-
-    >>> LIVE-CHECK: bei verschachtelten eagle_*-Strukturen ggf. rekursiv slicen.
-    """
-    out = {}
-    for k, v in inputs.items():
-        out[k] = v[n:n + 1] if hasattr(v, "__getitem__") and not isinstance(v, str) else v
-    return out
 
 
 if __name__ == "__main__":
