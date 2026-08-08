@@ -115,6 +115,112 @@ def scene_points(env, origins):
     return pts
 
 
+def usd_truth_report(cam_names) -> None:
+    """Die USD-Stage direkt befragen — der einzige Zeuge, der nicht aus `cam.data` stammt.
+
+    Am 2026-08-08 stand Aussage gegen Aussage: die Frustum-Rechnung meldete für
+    `cam_left_high` den Tisch 1,13 m entfernt mitten im Bild, das gerenderte Bild zeigte
+    aber pixelgenau die Dome-Farbe und sonst nichts. Beide Aussagen hingen an derselben
+    Quaternion `data.quat_w_world` — ein Widerspruch zwischen zwei Ableitungen aus einer
+    Quelle ist mit dieser Quelle nicht auflösbar. Hier deshalb unabhängig aus der Stage:
+
+      * die tatsächliche Welt-Transform des Kamera-Prims (USD-Kameras blicken entlang
+        lokal -Z, oben ist lokal +Y) gegen die gemeldete Blickrichtung,
+      * Brennweite / Apertur / Clipping direkt am Prim,
+      * Welt-Bounding-Box, `visibility` und `purpose` der Szenengeometrie. Ein Prim mit
+        purpose='guide' oder visibility='invisible' steht in der Physik völlig korrekt
+        und ist im Render trotzdem nicht vorhanden — genau das Bild, das wir sehen.
+    """
+    try:
+        import omni.usd
+        from pxr import Usd, UsdGeom
+        stage = omni.usd.get_context().get_stage()
+    except Exception as e:  # noqa: BLE001
+        print(f"\n  !! USD-Stage nicht lesbar ({e}) — Abgleich übersprungen.")
+        return
+    if stage is None:
+        print("\n  !! USD-Stage ist None — Abgleich übersprungen.")
+        return
+
+    def world_basis(prim):
+        """(pos, forward, up) des Prims in Weltkoordinaten, USD-Kamerakonvention."""
+        m = UsdGeom.Xformable(prim).ComputeLocalToWorldTransform(Usd.TimeCode.Default())
+        r = m.ExtractRotationMatrix()
+        # USD ist Zeilenvektor-Konvention: v_welt = v_lokal * M. Die Zeilen von r sind
+        # damit die Weltrichtungen der lokalen Achsen X/Y/Z.
+        rows = [np.array([r[i][0], r[i][1], r[i][2]], dtype=float) for i in range(3)]
+        pos = m.ExtractTranslation()
+        return np.array([pos[0], pos[1], pos[2]]), -rows[2], rows[1]
+
+    print("\n" + "=" * 72)
+    print("USD-STAGE — unabhängig von cam.data")
+    print("=" * 72)
+
+    print("\nKamera-Prims (env 0):")
+    for name, expect_dir in cam_names.items():
+        path = f"/World/envs/env_0/{name}"
+        prim = stage.GetPrimAtPath(path)
+        if not (prim and prim.IsValid()):
+            # Wrist-Cams hängen unter dem Roboter-Link.
+            hits = [p for p in stage.Traverse() if p.GetName() == name]
+            prim = hits[0] if hits else None
+        if not (prim and prim.IsValid()):
+            print(f"  {name:<16} !! Prim nicht in der Stage gefunden")
+            continue
+        # Der Sensor kann ein Kind-Prim vom Typ Camera tragen.
+        cam_prim = prim
+        if not prim.IsA(UsdGeom.Camera):
+            kids = [c for c in prim.GetChildren() if c.IsA(UsdGeom.Camera)]
+            cam_prim = kids[0] if kids else prim
+        try:
+            pos, fwd, up = world_basis(cam_prim)
+        except Exception as e:  # noqa: BLE001
+            print(f"  {name:<16} !! Transform nicht lesbar ({e})")
+            continue
+        line = f"  {name:<16} pos={np.round(pos, 3)}  blick={np.round(fwd, 3)}"
+        if expect_dir is not None:
+            ang = np.degrees(np.arccos(np.clip(float(np.dot(fwd, expect_dir)), -1.0, 1.0)))
+            flag = "OK" if ang < 1.0 else f"<-- WEICHT AB ({ang:.1f}°)"
+            line += f"  Abweichung zu cam.data: {ang:5.1f}° {flag}"
+        print(f"{line}  ({cam_prim.GetPath()})")
+        gc = UsdGeom.Camera(cam_prim)
+        if gc:
+            try:
+                print(f"  {'':<16} focal={gc.GetFocalLengthAttr().Get()}  "
+                      f"aperture={gc.GetHorizontalApertureAttr().Get()}x"
+                      f"{gc.GetVerticalApertureAttr().Get()}  "
+                      f"clip={gc.GetClippingRangeAttr().Get()}  "
+                      f"proj={gc.GetProjectionAttr().Get()}")
+            except Exception as e:  # noqa: BLE001
+                print(f"  {'':<16} !! Kamera-Attribute nicht lesbar ({e})")
+
+    print("\nSzenengeometrie in der Stage (Welt-BBox aus purposes default+render):")
+    print(f"  {'Prim':<44}{'sichtbar':<11}{'purpose':<9}Welt-BBox min → max")
+    cache = UsdGeom.BBoxCache(Usd.TimeCode.Default(), [UsdGeom.Tokens.default_,
+                                                       UsdGeom.Tokens.render])
+    targets = ["/World/defaultGroundPlane", "/World/envs/env_0/table",
+               "/World/envs/env_0/block_0", "/World/envs/env_0/block_1",
+               "/World/envs/env_0/block_2", "/World/envs/env_0/stack_band",
+               "/World/envs/env_0/robot"]
+    for path in targets:
+        prim = stage.GetPrimAtPath(path)
+        if not (prim and prim.IsValid()):
+            print(f"  {path:<44}!! nicht in der Stage")
+            continue
+        img = UsdGeom.Imageable(prim)
+        vis = img.ComputeVisibility(Usd.TimeCode.Default()) if img else "?"
+        purpose = img.ComputePurpose(Usd.TimeCode.Default()) if img else "?"
+        try:
+            rng = cache.ComputeWorldBound(prim).ComputeAlignedRange()
+            box = ("LEER (nichts zu rendern!)" if rng.IsEmpty() else
+                   f"{np.round(np.array(rng.GetMin()), 3)} → "
+                   f"{np.round(np.array(rng.GetMax()), 3)}")
+        except Exception as e:  # noqa: BLE001
+            box = f"!! BBox-Fehler ({e})"
+        mark = "" if str(vis) == "inherited" else "  <-- UNSICHTBAR"
+        print(f"  {path:<44}{str(vis):<11}{str(purpose):<9}{box}{mark}")
+
+
 def camera_tangents(cam, width, height):
     """Halbwinkel-Tangenten aus der Intrinsik, die Isaac Lab SELBST meldet. -> (tan_h, tan_v).
 
@@ -276,6 +382,7 @@ def main() -> None:
     if not pts:
         print("  !! keine Objektposen auslesbar — Attributnamen der Isaac-Lab-Version prüfen.")
 
+    reported_dirs = {}
     for name, cam in env.cameras.items():
         cam_cfg = getattr(cfg.scene, name, None)
         off = getattr(cam_cfg, "offset", None) if cam_cfg is not None else None
@@ -310,6 +417,7 @@ def main() -> None:
 
         # Blickrichtung. In convention="world" ist die Blickachse +X.
         view = quat_rotate(quat_w[0], [1.0, 0.0, 0.0])
+        reported_dirs[name] = np.asarray(view, dtype=float)
         print(f"  Blickrichtung (env 0, +X): {np.round(view, 3)}  "
               f"Pitch={np.degrees(np.arcsin(np.clip(view[2], -1, 1))):+.1f}°")
         # Roll mit ausgeben. Die Treffer-Matrix unten prueft NUR die Blickachse — ueber die
@@ -381,6 +489,10 @@ def main() -> None:
             ):
                 uv = "        —      " if u is None else f"u={u:+6.2f} v={w:+6.2f}"
                 print(f"    {name:<24}{uv}  d={dist:5.2f} m  {state}")
+
+    # Der unabhängige Zeuge. Muss VOR den Standbildern kommen: sagt er, dass die Geometrie
+    # gar nicht im Render-Graph steht, erübrigt sich jede weitere Deutung der Bilder.
+    usd_truth_report(reported_dirs)
 
     # Standbilder — belegen, was die Kamera wirklich sieht.
     report_frames(obs, args.out_dir)

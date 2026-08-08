@@ -580,35 +580,75 @@ Grauwerte im ganzen 640×480-Bild:
 
 | Kamera | Grauwerte | Befund |
 |---|---|---|
-| `cam_left_high` | **1** | unbeschriebener Puffer |
-| `cam_right_high` | **1** | unbeschriebener Puffer |
-| `cam_right_wrist` | **1** | unbeschriebener Puffer |
+| `cam_left_high` | **1** | nur Dome-Farbe (Lauf 12: kanalweise nachgewiesen) |
+| `cam_right_high` | **1** | nur Dome-Farbe |
+| `cam_right_wrist` | **1** | nur Dome-Farbe |
 | `cam_left_wrist` | 210 | Hand sichtbar |
 | `cam_scene` | 156 | Boden sichtbar |
 
-Ein einziger Grauwert ist kein „zu wenig Kontrast", das ist ein Sensor, der gar nichts schreibt.
+Ein einziger Grauwert ist kein „zu wenig Kontrast", das ist ein Sensor, der nichts von der Szene
+schreibt. (Damals als „unbeschriebener Puffer" gelesen — Lauf 12 zeigt, dass es die Dome-Farbe
+ist, also ein korrekt gerendertes Bild von leerem Raum. Das verschiebt die Ursache vom Sensor auf
+das, was der Renderer an dieser Stelle vorfindet.)
 `cam_left_high` blickt mit −47,7° nach unten; zwischen x ≈ 0,9 m und 2,56 m müsste derselbe
 globale Boden im Bild stehen, den `cam_scene` zeigt, dazu die eigenen Arme wie im
 Dataset-Referenzbild. Nichts davon. Und `cam_left_wrist` und `cam_right_wrist` unterscheiden sich
 in nichts außer dem Link, an dem sie hängen — trotzdem zeigt nur eine von beiden etwas. Damit
 sind sowohl „Würfel rendern nicht" als auch jede Pose-Erklärung raus.
 
-**Nächster Schritt — Halbierung: `TiledCamera` gegen `Camera`.** `RL_CAMERA_CLASS=camera` stellt
-alle fünf Sensoren bei identischer Pose, Optik und Auflösung auf die gewöhnliche `Camera` um:
+**Sensorklasse: widerlegt** (`runs/20260808/12`, `RL_CAMERA_CLASS=camera`). Alle fünf Sensoren
+liefen als gewöhnliche `Camera` statt `TiledCamera`, bei identischer Pose, Optik und Auflösung —
+das Ergebnis ist dasselbe: `cam_left_high` und `cam_right_high` haben 2 Grauwerte (Spannweite 1,4
+bei std 0,20 — Denoiser-Rauschen), `cam_right_wrist` genau 1. `TiledCamera` ist damit raus, der
+Fehler sitzt in Szene oder Render-Setup.
+
+Lauf 12 hat aber die Ursache eingekreist, weil die Bilder erstmals der Diagnostik **widersprechen**:
+
+| | `cam_left_high` | `cam_scene` |
+|---|---|---|
+| Diagnostik sagt | Tisch `u=+0.02 v=−0.87`, 1,13 m, **IM BILD** | Tisch, Roboter, alle 3 Würfel **IM BILD**, 2,2–2,55 m |
+| Bild zeigt | reine Dome-Farbe | Bodengitter im Eck, sonst reine Dome-Farbe |
+
+Die „leeren" Frames sind kanalweise **exakt** die Dome-Farbe (R 246 / G 244 / B 241 bei
+Intensität 2000, R 93 / G 85 / B 76 bei 120) — der 0,75-Graupunkt des `DomeLightCfg` durchs
+Tonemapping. Das ist kein unbeschriebener Puffer, das ist ein korrekt gerendertes Bild **von
+nichts**: der Renderer sieht an dieser Stelle Himmel. Und `cam_scene` zeigt es am deutlichsten —
+Boden ja, Tisch und Roboter mitten im Bild nein. Rechnerisch müsste bei Pitch −22,3° und 47,2°
+vertikalem Öffnungswinkel der Boden 97 % des Frames füllen; sichtbar ist er auf ~8 %.
+
+Gleichzeitig **rendert** `cam_left_wrist` die DEX3-Hand sauber, inklusive UNITREE-Schriftzug — das
+Roboter-USD ist also im Render-Graph. Nur eben nicht dort, wo `cam.data` es verortet.
+
+**Nächster Schritt — die USD-Stage als unabhängiger Zeuge.** Bisher stammten Soll-Richtung,
+Treffer-Matrix und Frustum-Rechnung alle aus `data.quat_w_world`; ein Widerspruch zwischen zwei
+Ableitungen aus einer Quelle ist mit dieser Quelle nicht auflösbar. `dump_camera_poses.py` liest
+jetzt zusätzlich direkt aus der Stage:
+
+* die echte Welt-Transform des Kamera-Prims (USD-Kameras blicken entlang lokal −Z) und den Winkel
+  zur gemeldeten Blickrichtung,
+* `focalLength` / `aperture` / `clippingRange` / `projection` am Prim,
+* Welt-Bounding-Box, `visibility` und `purpose` von Boden, Tisch, Würfeln, Band und Roboter.
 
 ```bash
+git pull
 RL_CAMERA_CLASS=camera RL_DOME_SWEEP=120 HF_TOKEN=hf_... ./Simulation/server_rl_run.sh cams
 ```
 
-Zeigt `Camera` den Tisch, liegt es an `TiledCamera` in Isaac Lab 3.0-beta — dann ist der Umbau
-die Lösung, auf Kosten von Durchsatz (ein Render-Product je Kamera und Env statt eines
-gekachelten). Bleibt sie leer, liegt es an Szene oder Render-Setup, nicht am Sensor.
+Drei mögliche Ausgänge, alle verwertbar:
+
+| Befund im neuen Block | Bedeutung |
+|---|---|
+| Kamera-Prim weicht von `cam.data` ab | Die gemeldete Pose ist nicht die gerenderte — alle bisherigen „IM BILD"-Aussagen sind wertlos, und der Fehler sitzt in der Offset-/Konventionsumsetzung. |
+| `purpose=guide` oder `visibility=invisible` bei Tisch/Würfeln | Geometrie ist physikalisch korrekt da und im Render bewusst ausgeblendet — ein Einzeiler in `_setup_scene()`. |
+| BBox **LEER** oder an falscher Stelle | Die Prims tragen keine renderbare Geometrie (oder stehen woanders) — dann ist der `CuboidCfg`-Spawn unter Isaac Sim 6.0 die Ursache. |
 
 **Bestätigt nebenbei** (beides in Lauf 11 im Log): Die Renderer-Intrinsik meldet 47,2° × 36,3° für
 die High-Cams — genau das, was die vorher angenommene `horizontal_aperture` ergab, die
 Frustum-Rechnung war also korrekt. Und der Roll ist 0,0° bei beiden High-Cams und `cam_scene`
-(−90° an den Handgelenken, dort armposenabhängig). Die Diagonale in `cam_scene` ist die Kante der
-endlichen Bodenplatte, nicht ein gekippter Horizont.
+(−90° an den Handgelenken, dort armposenabhängig) — beides allerdings wieder aus `cam.data`, also
+nur so belastbar wie diese Quelle; genau deshalb der Stage-Abgleich unten. Die Diagonale in
+`cam_scene` hielt ich für die Kante der endlichen Bodenplatte; nach Lauf 12 ist sie eher Teil des
+Befunds, denn sichtbar sind nur ~8 % Boden statt der rechnerischen 97 %.
 
 > **Nebenbefund:** `_randomize_visuals()` würfelt die Dome-Intensität pro Episode neu
 > (`uniform(1000, 3800)`). `RL_DOME_INTENSITY` wirkt daher nur bei `DR_ENABLED=0` dauerhaft.
