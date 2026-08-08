@@ -134,8 +134,8 @@ def run_episode(
     Führt eine einzelne Eval-Episode durch.
 
     Returns:
-        dict mit Feldern: success, num_steps, duration_s, success_step,
-        min_reach_m, min_reach_step, block_shift_max_m
+        dict mit Feldern: success, num_steps, duration_s, success_step, reach_frame,
+        reach_start_m, min_reach_m, min_reach_step, block_shift_max_m, block_shift_m
     """
     obs_dict, _ = env.reset()
     client.reset()
@@ -150,10 +150,16 @@ def run_episode(
     # Würfel überhaupt nahekam und ob sich die Würfel bewegt haben. Ohne das ist ein 0/20
     # nicht interpretierbar — "nie in Reichweite" und "in Reichweite, aber nicht gegriffen"
     # führen zu völlig verschiedenen nächsten Schritten.
-    reach_start, block_pos_start = env.get_reach_diagnostics()
+    reach_start, block_pos_start, reach_frame = env.get_reach_diagnostics()
     min_reach = reach_start
     min_reach_step = 0
     block_pos_last = block_pos_start
+
+    # Karenzzeit für die Würfel-Verschiebung: nach dem Reset setzt der Kontakt-Solver die
+    # Würfel noch ein Stück zurecht — in Lauf 24 rund 2 cm, und zwar bei ALLEN dreien,
+    # obwohl keine Hand in ihrer Nähe war. Ohne diese Karenz meldet die Diagnose in jeder
+    # Episode "Würfel bewegt" und misst damit den Solver statt den Roboter.
+    settle_steps = 30   # 1 s bei 30 Hz
 
     max_steps = int(env.cfg.episode_length_s * env.cfg.policy_hz)
 
@@ -197,10 +203,12 @@ def run_episode(
 
             # VOR dem Step lesen — nach einem done hat DirectRLEnv bereits zurückgesetzt
             # und die Werte gehörten zur nächsten Episode.
-            reach_now, block_pos_last = env.get_reach_diagnostics()
+            reach_now, block_pos_last, _ = env.get_reach_diagnostics()
             if reach_now < min_reach:
                 min_reach = reach_now
                 min_reach_step = step
+            if step < settle_steps:
+                block_pos_start = block_pos_last
 
             obs_step, _, terminated, time_out, info = env.step(action_t)
 
@@ -242,8 +250,8 @@ def run_episode(
     if record_video and video_dir:
         save_episode_video(frames, episode, video_dir)
 
-    # Größte Verschiebung eines Würfels gegenüber dem Reset-Layout. Bleibt sie im
-    # Millimeterbereich, wurde in der ganzen Episode kein Würfel angefasst — dann ist
+    # Größte Verschiebung eines Würfels gegenüber dem eingeschwungenen Layout. Bleibt sie
+    # im Millimeterbereich, wurde in der ganzen Episode kein Würfel angefasst — dann ist
     # die Erfolgsrate ohnehin nur die Bestätigung dieser Beobachtung.
     block_shift = np.linalg.norm(block_pos_last - block_pos_start, axis=1)
 
@@ -252,6 +260,11 @@ def run_episode(
         "num_steps": step,
         "duration_s": round(duration, 2),
         "success_step": success_step,
+        "reach_frame": reach_frame,
+        # Abstand zum Zeitpunkt 0 als Bezugsgröße: erst die Differenz zu min_reach_m zeigt,
+        # ob die Politik den Abstand überhaupt verkleinert hat oder ob der beste Wert der
+        # Episode einfach die Ausgangspose war.
+        "reach_start_m": round(reach_start, 4),
         "min_reach_m": round(min_reach, 4),
         "min_reach_step": min_reach_step,
         "block_shift_max_m": round(float(block_shift.max()), 4),
@@ -345,7 +358,8 @@ def main():
             f"  Episode {ep + 1}: {status} | "
             f"{ep_result['num_steps']} Steps | "
             f"{ep_result['duration_s']:.1f}s | "
-            f"min. Hand-Würfel-Abstand {ep_result['min_reach_m'] * 100:.1f} cm "
+            f"{ep_result['reach_frame']}-Würfel-Abstand "
+            f"{ep_result['reach_start_m'] * 100:.1f} → {ep_result['min_reach_m'] * 100:.1f} cm "
             f"(Step {ep_result['min_reach_step']}) | "
             f"Würfel verschoben max. {ep_result['block_shift_max_m'] * 100:.1f} cm"
         )
@@ -359,14 +373,24 @@ def main():
     # Bei 0 Erfolgen ist das die eigentliche Information: kam die Hand nie an einen Würfel
     # (Geometrie), oder stand sie daneben ohne zu greifen (Wahrnehmung/Politik)?
     if results:
+        frame = results[0]["reach_frame"]
         reaches = sorted(r["min_reach_m"] for r in results)
         shifts = [r["block_shift_max_m"] for r in results]
         n_touched = sum(1 for s in shifts if s > 0.01)
+        # Wie weit hat die Politik den Abstand gegenüber der Ausgangspose verkleinert?
+        # Werte um 0 heißen: die beste Annäherung der Episode war der Reset selbst, der
+        # Roboter hat sich also nie auf einen Würfel zubewegt.
+        gains = sorted(r["reach_start_m"] - r["min_reach_m"] for r in results)
         print(
-            f"  Min. Hand-Würfel-Abstand: bester {reaches[0] * 100:.1f} cm, "
+            f"  Min. {frame}-Würfel-Abstand: bester {reaches[0] * 100:.1f} cm, "
             f"Median {reaches[len(reaches) // 2] * 100:.1f} cm"
         )
-        print(f"  Episoden mit bewegtem Würfel (>1 cm): {n_touched}/{len(results)}")
+        print(
+            f"  Annäherung ggü. Startpose: bester {gains[-1] * 100:.1f} cm, "
+            f"Median {gains[len(gains) // 2] * 100:.1f} cm"
+        )
+        print(f"  Episoden mit bewegtem Würfel (>1 cm nach Einschwingen): "
+              f"{n_touched}/{len(results)}")
     print("=" * 60)
 
     # Ergebnisse speichern

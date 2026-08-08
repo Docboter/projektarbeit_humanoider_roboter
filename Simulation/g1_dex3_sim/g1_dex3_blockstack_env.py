@@ -494,6 +494,8 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
         self._arm_joint_ids: list[int] | None = None
         self._hand_joint_ids: list[int] | None = None
         self._hand_body_ids: list[int] | None = None  # Handwurzel-Links (für Shaped-Reward)
+        self._reach_body_ids: list[int] | None = None  # Kontaktflächen (für die Reach-Diagnose)
+        self._reach_frame: str = "?"
 
         # Episode-Tracking
         self._episode_step = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
@@ -975,8 +977,21 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
             self._hand_body_ids = ids
         return self.robot.data.body_pos_w[:, self._hand_body_ids, :]
 
-    def get_reach_diagnostics(self) -> tuple[float, np.ndarray]:
-        """Kleinster Hand-Würfel-Abstand [m] und Würfel-Weltpositionen (3, 3), env 0.
+    # Messkörper für die Reach-Diagnose, in absteigender Aussagekraft. Die Fingerspitzen
+    # sind die Flächen, die den Würfel tatsächlich berühren — nur bei ihnen heißt ein
+    # kleiner Abstand auch "am Würfel". Die Fallbacks greifen, falls die USD-Konvertierung
+    # andere Namen behalten hat; welcher Satz benutzt wurde, landet in results.json, damit
+    # die Zahl nie ohne ihren Bezugsrahmen gelesen wird.
+    _REACH_BODY_SETS: tuple[tuple[str, list[str]], ...] = (
+        ("fingertip", ["left_hand_index_1_link", "left_hand_middle_1_link",
+                       "left_hand_thumb_2_link", "right_hand_index_1_link",
+                       "right_hand_middle_1_link", "right_hand_thumb_2_link"]),
+        ("palm", ["left_hand_palm_link", "right_hand_palm_link"]),
+        ("wrist", ["left_wrist_yaw_link", "right_wrist_yaw_link"]),
+    )
+
+    def get_reach_diagnostics(self) -> tuple[float, np.ndarray, str]:
+        """Kleinster Kontakt-Würfel-Abstand [m], Würfel-Weltpositionen (3, 3), Messkörper.
 
         Diagnose für die Eval: die binäre Erfolgsrate sagt bei 0/20 nicht, WORAN es lag.
         Der Abstand trennt genau die zwei Fälle, die man sonst nur am Video auseinanderhält
@@ -984,14 +999,39 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
         Tischabstand) gegen "Hand steht am Würfel, greift aber nicht" (Wahrnehmung/Politik).
         Nur die zweite Lesart rechtfertigt TUNE_VISUAL=1.
 
+        Gemessen wird ab den Fingerspitzen, NICHT ab der Handwurzel wie im Shaped-Reward.
+        Zwischen left_wrist_yaw_link und der Fingerspitze liegen laut URDF rund 19 cm
+        (0.0415 Handwurzel→Handfläche + 0.0777 →Fingergrund + 0.0458 →Fingerglied). Ein
+        Handwurzel-Abstand von 15 cm ist deshalb mehrdeutig: er kann "Würfel liegt in der
+        Greiföffnung" ebenso bedeuten wie "Würfel 15 cm daneben". Genau diese Unterscheidung
+        soll die Diagnose treffen, also darf sie nicht am falschen Ende der Hand messen.
+
         Nutzt dieselben Tensoren wie _shaped_reward — kein zusätzlicher Sensor, kein
         Render-Pass. Muss VOR env.step() gelesen werden: DirectRLEnv setzt bei done im
         selben Step zurück, danach stünde hier schon das Layout der nächsten Episode.
         """
+        if self._reach_body_ids is None:
+            for tag, names in self._REACH_BODY_SETS:
+                try:
+                    ids, _ = self.robot.find_bodies(names, preserve_order=True)
+                except ValueError:
+                    continue
+                if len(ids) == len(names):
+                    self._reach_body_ids = ids
+                    self._reach_frame = tag
+                    break
+            if self._reach_body_ids is None:
+                raise RuntimeError(
+                    "Reach-Diagnose: keiner der bekannten Messkörper im Asset gefunden "
+                    f"(geprüft: {[t for t, _ in self._REACH_BODY_SETS]}). "
+                    "Ohne Bezugskörper wäre die Zahl nicht interpretierbar."
+                )
+            print(f"[Reach-Diagnose] Messkörper: {self._reach_frame}", flush=True)
+
         block_pos = torch.stack([b.data.root_pos_w for b in self.blocks], dim=1)
-        hand_pos = self._get_hand_positions()
-        dists = torch.cdist(hand_pos, block_pos)           # (num_envs, 2, 3)
-        return float(dists[0].amin().item()), block_pos[0].cpu().numpy()
+        contact_pos = self.robot.data.body_pos_w[:, self._reach_body_ids, :]
+        dists = torch.cdist(contact_pos, block_pos)        # (num_envs, n_contact, 3)
+        return float(dists[0].amin().item()), block_pos[0].cpu().numpy(), self._reach_frame
 
     def _shaped_reward(self) -> torch.Tensor:
         """Dichter, voll vektorisierter Reward fürs RL-Fine-tuning (alle num_envs).

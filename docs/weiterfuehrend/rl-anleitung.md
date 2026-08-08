@@ -1334,6 +1334,60 @@ Damit trennt der nächste Lauf die beiden Lesarten quantitativ: kommt die Hand a
 Zentimeter heran und greift trotzdem nicht, ist es Wahrnehmung/Politik und `TUNE_VISUAL=1` steht;
 bleibt der Abstand groß, ist es Geometrie und ein ViT-Lauf wäre verschwendet.
 
+#### Erste Messung (runs/20260808/24) — und warum sie so noch nichts entscheidet
+
+Zwei Episoden à 40 s (1200 Steps), 0/2, mit aktiver Diagnose:
+
+| Episode | `min_reach_m` | `min_reach_step` | `block_shift_m` (drei Würfel) |
+|---|---|---|---|
+| 1 | 0,1476 | 13 | 0,0189 / 0,0165 / 0,0200 |
+| 2 | 0,1473 | 18 | 0,0209 / 0,0140 / 0,0200 |
+
+Die naheliegende Lesart — „15 cm Abstand, genau die bekannte Tischabweichung, also Geometrie" —
+hält der Prüfung **nicht** stand. Beide Spalten messen etwas anderes als gedacht:
+
+* **Der Abstand war am falschen Ende der Hand gemessen.** `_get_hand_positions()` liefert
+  `left/right_wrist_yaw_link`, also die Handwurzel. Laut URDF liegen zwischen ihr und dem letzten
+  Fingergelenk 0,0415 + 0,0777 + 0,0458 = **16,5 cm**, die Fingerspitze noch etwas weiter. Ein
+  Handwurzel-Abstand von 14,7 cm liegt damit *innerhalb der eigenen Handgeometrie* und ist
+  mehrdeutig: er beschreibt „Würfel liegt in der Greiföffnung" genauso gut wie „Würfel 15 cm
+  daneben". Die Zahl kann die Frage, für die sie eingebaut wurde, in dieser Form nicht beantworten.
+* **Die Würfel-Verschiebung misst den Solver, nicht den Roboter.** Alle drei Würfel verschieben
+  sich um 1,4–2,1 cm, in beiden Episoden, auch die, in deren Nähe nie eine Hand war (der dritte
+  in beiden Episoden auf 4 Stellen identisch: 0,0200). Das ist das Einschwingen des Kontakts nach
+  dem Reset. Das Kriterium „>1 cm = angefasst" meldete deshalb 2/2 — ein reiner Fehlalarm.
+
+Belastbar ist dagegen `min_reach_step`: **13 bzw. 18 von 1200.** Die größte Annäherung der
+gesamten Episode fällt in die erste halbe Sekunde und wird in den folgenden 40 s nie wieder
+unterboten. Das gilt unabhängig vom Bezugspunkt — welchen Offset die Handwurzel auch hat, er ist
+konstant. Zusammen mit Lauf 23 (Würfel über 3600 Steps unbewegt, Armbewegung durchgehend und
+strukturlos) heißt das: die Arme bewegen sich, aber zu keinem Zeitpunkt auf einen Würfel zu.
+
+Konsequenz im Code (alles in `get_reach_diagnostics` / `run_g1_dex3_sim_eval.py`):
+
+| Änderung | Grund |
+|---|---|
+| Messkörper = Fingerspitzen (`*_hand_index_1_link`, `*_middle_1_link`, `*_thumb_2_link`), Fallback Handfläche → Handwurzel | nur an der Kontaktfläche heißt „klein" auch „am Würfel" |
+| `reach_frame` in `results.json` + Startzeile | die Zahl darf nie ohne ihren Bezugsrahmen gelesen werden |
+| `reach_start_m` zusätzlich zu `min_reach_m` | erst die Differenz zeigt, ob sich der Roboter überhaupt angenähert hat |
+| Würfel-Grundlage erst nach 30 Steps Karenz | schneidet das Einschwingen ab, das sonst als „angefasst" zählt |
+
+**Nächster Schritt:** derselbe 2×40-s-Lauf noch einmal (rund 4 Minuten). Fingerspitzen-Abstand im
+einstelligen Zentimeterbereich → der Würfel ist in der Hand, es scheitert am Greifen; zweistellig
+→ die Hand kommt nicht hin. Nur wenn der Wert dazwischen landet, braucht es eine absolute
+Referenz — die liefert dann `run_g1_dex3_replay.py` mit denselben Kennzahlen auf den echten
+Dataset-Aktionen.
+
+#### Falscher Alarm „Sim-Eval ohne Erfolgsmarker beendet"
+
+Lauf 24 meldete das direkt nach einem sauberen `[eval] fertig.` — der Marker war da. Ursache war
+`… | tee /dev/stderr | grep -q "\[eval\] fertig"` unter `set -o pipefail`: `grep -q` steigt beim
+ersten Treffer aus, `tee` bekommt beim nächsten Schreibversuch SIGPIPE, und `pipefail` reicht
+dessen Status 141 als Pipeline-Ergebnis durch. Isaac Sim schreibt nach dem Marker noch
+Shutdown-Zeilen, deshalb traf es `eval` und nicht `dump`/`gap`, wo der Marker die letzte Zeile
+ist. `grep -c … >/dev/null` liest bis EOF und kann nicht früher schließen; alle drei Stellen in
+[`server_rl_run.sh`](../../Simulation/server_rl_run.sh) sind umgestellt.
+
 ### `isaaclab nicht importierbar`
 Das Skript braucht das **kombinierte** Image (`Dockerfile.vastai`), nicht das BC-Trainingsimage.
 

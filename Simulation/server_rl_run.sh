@@ -407,7 +407,12 @@ do_eval() {
     -e "DR_ENABLED=${DR_ENABLED:-1}" \
     -e "RL_GROUND_COLOR=${RL_GROUND_COLOR:-}" \
     "$CONTAINER" bash -lc "bash /scripts/entrypoint_sim.sh" 2>&1 \
-    | tee /dev/stderr | grep -q "\[eval\] fertig" \
+    `# grep -c statt -q: -q steigt beim ersten Treffer aus, das vorgeschaltete tee bekommt` \
+    `# SIGPIPE, und unter 'set -o pipefail' (Z. 53) galt der Lauf dann als gescheitert —` \
+    `# in Lauf 24 als falscher Alarm "ohne Erfolgsmarker", obwohl der Marker da war.` \
+    `# Isaac Sim schreibt nach '[eval] fertig.' noch Shutdown-Zeilen, daher trat es genau` \
+    `# hier auf und bei dump/gap nicht. -c liest bis EOF und kann nicht früher schließen.` \
+    | tee /dev/stderr | grep -c "\[eval\] fertig" >/dev/null \
     || { err "Sim-Eval ohne Erfolgsmarker beendet (Traceback oben)."; return 1; }
   ok "Ergebnisse: $HOST_DATA_DIR/sim_results/results.json"
   ok "Videos:     $HOST_DATA_DIR/sim_videos/"
@@ -456,7 +461,7 @@ do_cams() {
         --headless --enable_cameras \
         --asset-path '$ASSET_PATH' \
         --settle-steps ${RL_SETTLE_STEPS:-8} \
-        --num-envs ${RL_NUM_ENVS:-4}" 2>&1 | tee /dev/stderr | grep -q "\[dump\] fertig" \
+        --num-envs ${RL_NUM_ENVS:-4}" 2>&1 | tee /dev/stderr | grep -c "\[dump\] fertig" >/dev/null \
     && ok "PNGs + Posen unter $HOST_DATA_DIR/cam_dump/" \
     || { err "Kamera-Dump ohne Erfolgsmarker beendet (Traceback oben)."; return 1; }
 }
@@ -504,7 +509,7 @@ do_gap() {
     unset VIRTUAL_ENV
     '$ISAAC_PY' /workspace/measure_domain_gap.py \
         --real-dir /workspace/camera_reference \
-        --sim-dir '$sim_dir'" 2>&1 | tee /dev/stderr | grep -q "\[gap\] fertig" \
+        --sim-dir '$sim_dir'" 2>&1 | tee /dev/stderr | grep -c "\[gap\] fertig" >/dev/null \
     && ok "Ergebnisse auch als JSON unter $HOST_DATA_DIR/${sim_dir#/data/}/domain_gap_results.json" \
     || { err "Domain-Gap-Messung ohne Erfolgsmarker beendet (Traceback oben)."; return 1; }
 }
