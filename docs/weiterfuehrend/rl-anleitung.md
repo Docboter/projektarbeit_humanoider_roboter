@@ -896,6 +896,33 @@ Im Overlay muss der Tisch beide Bilder füllen, die Hinterkante annähernd waage
 eigene Kopf verschwunden sein. Taucht der Kopf weiter auf, sitzt der `d435`-Punkt innerhalb der
 Kopfschale — dann `left_high_eye`/`right_high_eye` um 2–3 cm in +X schieben.
 
+**Ergebnis in `runs/20260808/17`:** Der Kopf ist weg, der Tisch füllt symmetrisch das Bild, beide
+Hände kommen von unten herein, das Log meldet 75,0° × 59,8°. Zwei Messungen aus dem Overlay:
+
+* **Sichtfeld bestätigt.** Die 5-cm-Würfel messen real 45 × 50 px und in der Sim 45 × 53 px — bei
+  vergleichbarem Motivabstand (0,52–0,54 m gegenüber ~0,57 m). Mit den alten 47,2° wären sie rund
+  1,6-fach zu groß gewesen.
+* **Das Projektionsmodell trägt.** Rechnet man die im Log protokollierten Würfelpositionen durch die
+  neue Kamera, landen sie im gerenderten Bild auf ±wenigen Pixeln (grün exakt, mittlere Abweichung
+  −6/+6 px; die Ausreißer sind der von der Hand halb verdeckte rote Würfel und der
+  Schwerpunkt-Bias der sichtbaren Würfelfläche). Framing lässt sich damit **vorausrechnen**, statt
+  es zu errendern — jede weitere Iteration kostet keinen Renderlauf mehr.
+
+**Iteration 14 (aus Lauf 17):** Die Stereobasis wird um `y=0` zentriert statt um die `y=0.0175` des
+`d435_link`. In der Reset-Pose stehen die Handgelenke fast symmetrisch (`y=+0.158` / `−0.144`), und
+im Referenzbild liegen beide Hände symmetrisch um die Bildmitte — die reale Kamera sitzt also auf
+der Mittellinie. Das `d435_link` ist der Montageflansch eines Moduls, nicht der Mittelpunkt
+zwischen zwei Bildsensoren. `x` und `z` bleiben beim URDF-Wert, die sind eindeutig. Rechnerisch
+rückt die Hand-Mitte damit von 359 auf 341 px (rechte Kamera spiegelbildlich 307 → 289), das Paar
+liegt also symmetrisch um die Bildmitte statt 13 px daneben.
+
+> **Offen, und keine Kamerafrage:** Der Tisch überspannt in der Sim vertikal 52,1°, im Referenzbild
+> nur 42,3°. Bei gleicher Tischtiefe entspricht das einem Roboter, der **~15 cm weiter vom Tisch
+> weg** sitzt als in der Sim. Das ist Szenenlayout, nicht Kalibrierung — und es zu ändern
+> verschiebt den erreichbaren Greifraum, der aus den Replay-Daten abgeleitet wurde
+> (`block_x_range`, Kommentar in `g1_dex3_blockstack_env.py`). Deshalb hier nur notiert:
+> eine Entscheidung, kein Fix.
+
 ### `isaaclab nicht importierbar`
 Das Skript braucht das **kombinierte** Image (`Dockerfile.vastai`), nicht das BC-Trainingsimage.
 

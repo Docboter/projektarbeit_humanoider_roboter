@@ -297,9 +297,16 @@ class G1Dex3CameraCfg:
         # der Bildhöhe, der Tisch also vollständig im Bild wie in der Referenz, und die
         # Würfel stehen mittig. Beide Hände sind dabei 21,5° von der Blickachse entfernt
         # und damit deutlich innerhalb des 75°×59,9°-Sichtfelds.
+        #
+        # Iteration 14 (Lauf 17): Die Basis wird um y=0 zentriert statt um die y=0.0175 des
+        # `d435_link`. Grund: in der Reset-Pose stehen die Handgelenke fast symmetrisch
+        # (y=+0.158 / −0.144), und im Referenzbild liegen beide Hände symmetrisch um die
+        # Bildmitte — die reale Kamera sitzt also auf der Mittellinie. Das `d435_link` ist
+        # der Montageflansch eines Moduls, nicht der Mittelpunkt zwischen zwei Bildsensoren.
+        # x und z bleiben beim URDF-Wert, die sind eindeutig.
         high_target_x, high_target_z = 0.34, 0.915
-        left_high_eye  = (0.0537,  0.0425, 1.3239)   # d435_link + halbe Stereobasis
-        right_high_eye = (0.0537, -0.0075, 1.3239)   # d435_link - halbe Stereobasis
+        left_high_eye  = (0.0537,  0.025, 1.3239)   # halbe Stereobasis links der Mittellinie
+        right_high_eye = (0.0537, -0.025, 1.3239)   # halbe Stereobasis rechts der Mittellinie
         self.cam_left_high = {
             "pos": left_high_eye,
             "rot": look_at_world_quat(
