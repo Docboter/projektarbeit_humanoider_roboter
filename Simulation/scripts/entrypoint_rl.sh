@@ -34,6 +34,14 @@
 
 set -euo pipefail
 
+# ── Instance-Log ──────────────────────────────────────────────────────────────
+# Alle Ausgaben zusätzlich nach /data/logs/entrypoint_rl.log spiegeln — identisch zu
+# entrypoint_sim.sh / _replay.sh / _baseline.sh, die das längst tun; der RL-Entrypoint
+# war der einzige ohne. Bei einem Lauf über Stunden ist der Terminal-Scrollback als
+# einzige Quelle zu wenig. Erreichbar mit: tail -f /data/logs/entrypoint_rl.log
+mkdir -p "${DATA_DIR:-/data}/logs"
+exec > >(tee -a "${DATA_DIR:-/data}/logs/entrypoint_rl.log") 2>&1
+
 log()  { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
 ok()   { printf '\033[1;32m v \033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m ! \033[0m %s\n' "$*"; }

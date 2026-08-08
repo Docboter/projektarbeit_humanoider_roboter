@@ -86,6 +86,20 @@ SIM_DIR="/workspace/g1_dex3_sim"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="${RL_REPO_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 
+# ── Log-Spiegelung ────────────────────────────────────────────────────────────
+# Jede nicht-interaktive Aktion landet zusätzlich in einer Datei unter dem gemounteten
+# Datenverzeichnis — auf dem Host also direkt lesbar, ohne `docker cp`.
+# Grund: `rl` läuft Stunden im Vordergrund und tmux-Scrollback ist endlich; und Ausgaben
+# wie die Kamera-Pose-Tabelle aus `cams` will man nachträglich noch lesen können.
+# Muster wie in entrypoint_sim.sh (dort /data/logs/entrypoint.log).
+start_logging() {
+  LOG_DIR="$HOST_DATA_DIR/logs"
+  mkdir -p "$LOG_DIR"
+  LOG_FILE="$LOG_DIR/$1-$(date +%Y%m%d-%H%M%S).log"
+  exec > >(tee -a "$LOG_FILE") 2>&1
+  log "Log dieses Aufrufs: $LOG_FILE"
+}
+
 # ── Kleine Helfer ─────────────────────────────────────────────────────────────
 require_docker() { command -v docker >/dev/null 2>&1 || { err "docker nicht gefunden."; exit 1; }; }
 
@@ -352,6 +366,10 @@ Live-Ansicht (opt-in, docs/weiterfuehrend/livestream-plan.md Spur B):
   -> Aufruf im Browser:  http://<server-ip>:$LIVE_VIEW_PORT/
      nur SSH?            ssh -L $LIVE_VIEW_PORT:localhost:$LIVE_VIEW_PORT <server>
 
+Logs (jede Aktion außer 'shell' wird gespiegelt):
+  Host-Seite:      $HOST_DATA_DIR/logs/<aktion>-<zeitstempel>.log
+  Container-Seite: $HOST_DATA_DIR/logs/entrypoint_rl.log   (= /data/logs/… im Container)
+
 Datenverzeichnis (Host): $HOST_DATA_DIR   ->  Container /data
 Image:                    $IMAGE
 EOF
@@ -360,6 +378,11 @@ EOF
 # ── Dispatch ──────────────────────────────────────────────────────────────────
 require_docker
 ACTION="${1:-help}"
+# 'shell' bleibt ungespiegelt (interaktives -it verträgt die Pipe nicht), 'help'/'clean'
+# haben nichts zu protokollieren.
+case "$ACTION" in
+  preflight|setup|check|cams|rl) start_logging "$ACTION" ;;
+esac
 case "$ACTION" in
   preflight)  do_preflight ;;
   setup)      do_setup ;;

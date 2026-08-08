@@ -271,6 +271,20 @@ vastai ssh <instance-id>            # SSH-Befehl
 
 **VRAM prüfen:** `watch -n 2 nvidia-smi`.
 
+**Logs werden mitgeschrieben** (Pfad B). Jede Aktion außer `shell` spiegelt ihre komplette
+Ausgabe in eine Datei — der Terminal-Scrollback ist bei einem Lauf über Stunden keine
+verlässliche Quelle, und Ausgaben wie die Kamera-Pose-Tabelle aus `cams` will man später noch
+lesen:
+
+```bash
+$RL_HOST_DATA_DIR/logs/rl-20260808-141530.log     # Host-Seite (server_rl_run.sh)
+$RL_HOST_DATA_DIR/logs/entrypoint_rl.log          # Container-Seite (entrypoint_rl.sh)
+tail -f "$RL_HOST_DATA_DIR"/logs/rl-*.log         # mitlesen
+```
+
+Beide liegen unter dem gemounteten `/data`, sind also ohne `docker cp` direkt auf dem Host
+lesbar. `RL_HOST_DATA_DIR` ist standardmäßig `/home/lmuecke/project/data/RL`.
+
 #### Live zusehen (`LIVE_VIEW=1`) — dringend empfohlen beim ersten großen Lauf
 
 Mit `LIVE_VIEW=1` blendet der Trainer den laufenden Rollout als **MJPEG-Stream im Browser** ein
