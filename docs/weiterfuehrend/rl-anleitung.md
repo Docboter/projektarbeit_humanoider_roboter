@@ -534,19 +534,37 @@ DLSS rendert intern auf halber Auflösung (640×480 → 320×240) und liegt dami
 eigenen Minimum. Die Env setzte bis dahin **keine** Render-Konfiguration, lief also auf den
 Isaac-Sim-6.0-Defaults.
 
-**Fix:** `_make_sim_cfg()` in
-[`g1_dex3_blockstack_env.py`](../../Simulation/g1_dex3_sim/g1_dex3_blockstack_env.py) setzt
-`RenderCfg(antialiasing_mode="DLAA", …)` — DLAA glättet Kanten in **Native-Auflösung**, das
-Minimum entfällt damit. Die Kamera-Auflösung bleibt bei 640×480, weil sie an den Datensatz
-gebunden ist; sie hochzudrehen wäre der falsche Hebel. Weil Isaac Lab 3.0 Beta ist, setzt die
-Funktion nur Felder, die `RenderCfg` wirklich hat, und meldet jeden Fehlschlag **laut** — falsche
-Kit-Settings schluckt Kit sonst kommentarlos.
+**Auch das war es nicht.** `RenderCfg(antialiasing_mode="DLAA")` ließ sich sauber setzen (alle
+Felder akzeptiert, die DLSS-Warnung verschwand), machte die Bilder aber **schlechter**: Chroma
+5,93 → 0,96, Wertebereich auf 246–248 geschrumpft. DLAA ist selbst ein temporales Verfahren.
+Der Modus ist deshalb **kein Default mehr**, sondern ein Messhebel (`RL_AA_MODE`).
 
-**Verifizieren:** `./Simulation/server_rl_run.sh cams` und die PNGs unter `/data/cam_dump/`
-ansehen. Erwartet wird die Startzeile `[Env] RenderCfg gesetzt: {...}` und ein Bild wie der
-Juni-Referenzframe. Bleibt es leer, ist der nächste Test die Kamera-Auflösung: `CAMERA_CFG.width`
-/`.height` testweise auf 1280×960 (intern dann 640×480, weit über dem Minimum) — bestätigt oder
-erledigt die Auflösungs-These, auch wenn der AA-Schalter nicht gegriffen hat.
+**Die zwei belastbarsten Spuren** — beide aus den Messreihen, nicht aus Logzeilen:
+
+1. **Die dunklen Bildbereiche fehlen.** Im Juni waren 11–22 % der Pixel dunkler als Helligkeit
+   100 (Hintergrund und Schatten), heute 0 %. Ein weißer Tisch vor weißem Hintergrund ist
+   unsichtbar, egal wie exakt die Kamera steht. Das deutet auf Beleuchtung/Hintergrund.
+2. **Die Läufe schwanken.** Bei identischer Szene ergaben aufeinanderfolgende Läufe deutlich
+   verschiedene Helligkeiten und Chroma-Werte. Ein konvergierter Render ist deterministisch —
+   das deutet auf zu wenige Render-Frames vor der Messung (temporaler Denoiser).
+
+**Zwei Hebel zum Eingrenzen**, je ein `cams`-Lauf (~2 min):
+
+```bash
+# 1) Render-Konvergenz: viel länger settlen lassen
+RL_SETTLE_STEPS=60 HF_TOKEN=hf_... ./Simulation/server_rl_run.sh cams
+# 2) Anti-Aliasing-Modus durchprobieren (Off|FXAA|DLAA|DLSS|TAA; leer = Isaac-Default)
+RL_AA_MODE=Off RL_SETTLE_STEPS=60 HF_TOKEN=hf_... ./Simulation/server_rl_run.sh cams
+```
+
+`cams` gibt jetzt selbst eine Kennzahlen-Tabelle aus (min/median/max, chroma, dunkel-%) samt der
+Juni-Referenzwerte und markiert leere Bilder mit `<-- kein Kontrast`. Damit ist der Vergleich
+direkt im Log ablesbar, ohne die PNGs auszuwerten.
+
+Falls beide Hebel nichts bringen, ist der nächste Schritt eine Halbierung des Problems:
+dieselbe Pose einmal mit `TiledCamera` **und** einmal mit der gewöhnlichen `Camera` rendern
+(beide sind in `g1_dex3_blockstack_env.py` schon importiert). Rendert `Camera` korrekt, liegt es
+an `TiledCamera` in Isaac Lab 3.0-beta — dann ist der Umbau die Lösung, auf Kosten von Durchsatz.
 
 > **Folge fürs Training:** Solange die Policy-Kameras leer sind, sieht das Modell nichts — RL
 > optimiert dann gegen ein blindes Modell, während `reward_mean` sich weiter bewegt (der Shaped

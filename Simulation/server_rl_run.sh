@@ -314,12 +314,16 @@ do_rl() {
 # Pose nachweislich Tisch + Roboter erfassen müsste.
 do_cams() {
   ensure_checkpoint
-  log "Kamera-Posen dumpen (num_envs=${RL_NUM_ENVS:-4}) → $HOST_DATA_DIR/cam_dump/"
-  docker exec -w "$SIM_DIR" "$CONTAINER" bash -lc "
+  # RL_SETTLE_STEPS und RL_AA_MODE sind die beiden Messhebel für die leeren Kamerabilder
+  # (Render-Konvergenz bzw. Anti-Aliasing-Modus) — je ein Lauf pro Wert, siehe rl-anleitung.md.
+  log "Kamera-Posen dumpen (num_envs=${RL_NUM_ENVS:-4}, settle=${RL_SETTLE_STEPS:-8}," \
+      "aa=${RL_AA_MODE:-<Isaac-Default>}) → $HOST_DATA_DIR/cam_dump/"
+  docker exec -w "$SIM_DIR" -e "RL_AA_MODE=${RL_AA_MODE:-}" "$CONTAINER" bash -lc "
     unset VIRTUAL_ENV
     '$ISAAC_PY' '$SIM_DIR/dump_camera_poses.py' \
         --headless --enable_cameras \
         --asset-path '$ASSET_PATH' \
+        --settle-steps ${RL_SETTLE_STEPS:-8} \
         --num-envs ${RL_NUM_ENVS:-4}" 2>&1 | tee /dev/stderr | grep -q "\[dump\] fertig" \
     && ok "PNGs + Posen unter $HOST_DATA_DIR/cam_dump/" \
     || { err "Kamera-Dump ohne Erfolgsmarker beendet (Traceback oben)."; return 1; }

@@ -168,12 +168,28 @@ def main() -> None:
     except Exception as e:  # noqa: BLE001
         print(f"\n[dump] Pillow fehlt ({e}) — keine PNGs.", flush=True)
     else:
+        # Bildstatistik direkt mitausgeben. Diese Kennzahlen haben am 2026-08-08 die
+        # Diagnose getragen, waehrend die PNGs allein nur "sieht falsch aus" sagten:
+        #   dunkel% = Anteil Pixel unter Helligkeit 100. Ein korrekter Frame (Referenz:
+        #     Simulation/old_videos/12/_debug_obs_cam_left_high.png) hat 11-22 % — der
+        #     Hintergrund ist dort dunkel. 0 % heisst: alles weiss, kein Kontrast.
+        #   chroma = mittleres max(RGB)-min(RGB). Referenz 5.7-6.0 (farbige Wuerfel).
+        #   min/max = Wertebereich. Referenz 32-239; ein Bereich wie 246-248 ist leer.
         print()
+        print(f"  {'Kamera':<18}{'min':>5}{'median':>8}{'max':>5}{'chroma':>8}{'dunkel%':>9}"
+              f"   Referenz Juni: 32/229/239, chroma 6.0, dunkel 11-22%")
         for key in sorted(k for k in (obs or {}) if k.startswith("video.")):
             frame = obs[key][0].detach().cpu().numpy().astype(np.uint8)[..., :3]
             path = os.path.join(args.out_dir, f"{key.split('.', 1)[1]}.png")
             Image.fromarray(frame).save(path)
-            print(f"[dump] {path}  {frame.shape}", flush=True)
+            f = frame.reshape(-1, 3).astype(np.int16)
+            chroma = float((f.max(1) - f.min(1)).mean())
+            dark = float((f.mean(1) < 100).mean() * 100.0)
+            verdict = "" if dark > 5.0 else "   <-- kein Kontrast, Bild praktisch leer"
+            print(f"  {key.split('.', 1)[1]:<18}{frame.min():5d}"
+                  f"{int(np.median(frame)):8d}{frame.max():5d}{chroma:8.2f}{dark:8.1f}%"
+                  f"{verdict}", flush=True)
+        print(f"\n[dump] PNGs in {args.out_dir}", flush=True)
 
     env.close()
     print("\n[dump] fertig.", flush=True)

@@ -47,7 +47,7 @@ from g1_dex3_cfg import (
 # Render-Konfiguration — DLSS-Upscaling abschalten
 # ---------------------------------------------------------------------------
 def _make_sim_cfg(**kwargs) -> SimulationCfg:
-    """SimulationCfg mit DLSS-freiem Rendering, soweit die Isaac-Lab-Version das kennt.
+    """SimulationCfg; Anti-Aliasing-Modus per RL_AA_MODE einstellbar (Default: Isaac-Defaults).
 
     ANLASS (2026-08-08, Isaac Sim 6.0 / Isaac Lab 3.0.0-beta2): Alle fünf Kameras
     lieferten praktisch leere Bilder — cam_left_high spannte über das ganze Bild nur die
@@ -73,27 +73,38 @@ def _make_sim_cfg(**kwargs) -> SimulationCfg:
     kommentarlos — genau die Falle, die hier Stunden gekostet hat).
     """
     import dataclasses
+    import os
+
+    # BEFUND 2026-08-08: antialiasing_mode="DLAA" wurde sauber gesetzt (alle drei Felder
+    # akzeptiert, die DLSS-Auflösungswarnung verschwand) — die Bilder wurden dadurch aber
+    # SCHLECHTER, nicht besser: Chroma 5.93 -> 0.96, Wertebereich auf 246-248 geschrumpft.
+    # DLAA ist selbst ein temporales Verfahren; bei wenigen Settle-Steps verschlimmert es
+    # die Konvergenz womöglich. Daher KEIN Default mehr, sondern ein Messhebel:
+    #   RL_AA_MODE=DLAA|DLSS|FXAA|Off|TAA   (leer/ungesetzt = Isaac-Sim-Defaults)
+    # So kostet ein Sweep über die Modi je einen `cams`-Lauf statt einer Code-Änderung.
+    mode = os.environ.get("RL_AA_MODE", "").strip()
+    if not mode:
+        return SimulationCfg(**kwargs)
 
     render = None
     try:
         from isaaclab.sim import RenderCfg
     except ImportError:
-        print("[Env] WARN: isaaclab.sim.RenderCfg nicht vorhanden — DLSS bleibt aktiv.",
+        print("[Env] WARN: isaaclab.sim.RenderCfg nicht vorhanden — RL_AA_MODE wirkungslos.",
               flush=True)
     else:
         available = {f.name for f in dataclasses.fields(RenderCfg)}
-        # DLAA = DLSS-Kantenglättung OHNE Upscaling; "Off" als Rückfall.
-        wanted = {"antialiasing_mode": "DLAA", "enable_dlssg": False, "dlss_mode": 2}
+        wanted = {"antialiasing_mode": mode, "enable_dlssg": False}
         use = {k: v for k, v in wanted.items() if k in available}
         missing = sorted(set(wanted) - set(use))
         try:
             render = RenderCfg(**use)
         except (TypeError, ValueError) as e:
-            print(f"[Env] WARN: RenderCfg({use}) abgelehnt ({e}) — DLSS bleibt aktiv.",
+            print(f"[Env] WARN: RenderCfg({use}) abgelehnt ({e}) — Defaults bleiben aktiv.",
                   flush=True)
             render = None
         else:
-            print(f"[Env] RenderCfg gesetzt: {use}"
+            print(f"[Env] RenderCfg gesetzt (RL_AA_MODE={mode}): {use}"
                   + (f"  (nicht unterstützt: {missing})" if missing else ""), flush=True)
 
     if render is None:
