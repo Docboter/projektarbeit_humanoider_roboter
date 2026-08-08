@@ -1424,6 +1424,55 @@ später. Zum Kontext: die Finger-Positionsgrenzen waren schon einmal die Ursache
 fallengelassenen Würfels; `_widen_finger_joint_limits()` weitet sie seit Juni auf die echte
 Dataset-Range, dieser Pfad ist also bereits abgedeckt.
 
+#### Antwort (runs/20260808/26): der Griff scheitert auch ohne Modell
+
+`grasp` beantwortet (a) eindeutig — und zwar in die zweite Richtung:
+
+| Größe | Wert | Lesart |
+|---|---|---|
+| Arm-Tracking, mittel | **0,019 rad** | der Sim führt die aufgezeichneten Aktionen sauber aus (Schwelle 0,1) |
+| worst arm joints | 0,10–0,12 rad | keine zu schwachen PD-Gains |
+| min Handfläche→Würfelmitte | 6,8 cm | die Hand ist am Würfel |
+| **max Würfel-Anhebung** | **0,0 cm** | **kein Würfel wird angehoben** |
+
+Aufbau: echte Dataset-Aktionen, kein Modell, kein Server, und die Würfel per `--grasp-test`
+exakt an den aufgezeichneten Greifpunkten. Unter diesen Bedingungen ist die Politik vollständig
+aus der Kette entfernt — **und der Griff scheitert trotzdem.**
+
+Damit ist entschieden:
+
+* **Es liegt nicht am Modell und nicht an der Wahrnehmung.** Der Fehler reproduziert sich ohne
+  Modell in der Schleife. `TUNE_VISUAL=1` ist vorerst vom Tisch; ein 48-h-ViT-Lauf würde gegen ein
+  Ziel trainieren, das die Sim physikalisch nicht hergibt.
+* **Die BC-Erfolgsrate misst derzeit nicht die Policy.** Die 0/2 aus Lauf 25 sind kein Befund über
+  den Checkpoint. Schritt 3 taugt als „Nullpunkt für jeden RL-Vergleich" erst, wenn ein Würfel
+  überhaupt angehoben werden kann.
+* **RL wäre in diesem Zustand wirkungslos.** Sowohl `reward_mode=binary` als auch die
+  `stack`/`height`-Terme des Shaped-Reward setzen ein Anheben voraus. FPO bekäme aus diesen
+  Komponenten nie ein Signal — der Lauf liefe, ohne lernen zu können. Das erklärt den bisher
+  unbewiesenen Lerneffekt zwanglos.
+
+Erste Spur, noch nicht beweisend: der tiefste **Handflächen**punkt liegt bei z = 0,953 (links)
+bzw. 0,943 (rechts), die Würfel-Oberkante bei 0,940 — die Handflächen bleiben also über dem
+Würfel. Da die Finger von der Handfläche aus nach vorn zeigen, ist damit noch nicht gesagt, ob sie
+die Seiten umschließen. (Die Zeile war bis Lauf 26 als „Würfel-Oberseite z≈0,915" beschriftet,
+tatsächlich ist das die Würfel-*Mitte* — dieselbe Sorte Beschriftungsfehler wie bei der Handwurzel
+in Lauf 24, jetzt korrigiert.)
+
+Deshalb misst `grasp` ab sofort zusätzlich, ob die Finger überhaupt schließen:
+
+| Feld in `sim_results_replay/results.json` | Bedeutung |
+|---|---|
+| `mean_finger_tracking_error_rad` | folgen die Fingergelenke ihrem Kommando? |
+| `finger_span_commanded_rad` / `finger_span_achieved_rad` | Greifbewegung kommandiert vs. tatsächlich gefahren |
+
+**Nächster Schritt:** `grasp` noch einmal (rund 5 Minuten, kein Modell nötig). Bleibt
+`finger_span_achieved_rad` deutlich hinter `finger_span_commanded_rad` zurück, klemmt eine
+Gelenkgrenze die Greifbewegung ab und `_widen_finger_joint_limits()` greift nicht wie gedacht.
+Sind beide Spannen groß, schließen die Finger — dann liegt es an Kontakt/Reibung oder daran, dass
+der Würfel nicht zwischen den Fingern liegt. Gegen reine Reibung spricht dabei die Konfiguration:
+die Würfel wiegen 50 g bei `static_friction=3.0` / `dynamic_friction=2.5`.
+
 #### Falscher Alarm „Sim-Eval ohne Erfolgsmarker beendet"
 
 Lauf 24 meldete das direkt nach einem sauberen `[eval] fertig.` — der Marker war da. Ursache war

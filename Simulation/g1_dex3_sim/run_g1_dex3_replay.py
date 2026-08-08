@@ -131,7 +131,15 @@ def main():
     success = False
     success_step = -1
     arm_err = []          # mittlerer |kommandiert - erreicht| pro Step (Arm-Gelenke 0:14)
+    finger_err = []       # dito für die 14 Dex3-Fingergelenke (14:28)
     per_joint_max = np.zeros(28, dtype=np.float32)
+    # Spannweite der Fingergelenke, kommandiert gegen erreicht. Bleibt "erreicht" deutlich
+    # hinter "kommandiert" zurück, klemmt der Sim die Greifbewegung an einer Gelenkgrenze ab
+    # (genau der Fehler, den _widen_finger_joint_limits im Env behebt) — dann liegt es nicht
+    # an Reibung. Sind beide groß und der Würfel bleibt trotzdem liegen, ist es Kontakt/
+    # Reibung oder der Würfel liegt gar nicht in der Greiföffnung.
+    cmd_lo, cmd_hi = np.full(14, np.inf), np.full(14, -np.inf)
+    ach_lo, ach_hi = np.full(14, np.inf), np.full(14, -np.inf)
 
     # Greif-Diagnose: kommt eine Hand nah an einen Würfel, und hebt sich ein Würfel?
     body_names = list(env.robot.data.body_names)
@@ -151,7 +159,12 @@ def main():
         achieved = obs_step["joint_pos"][0].cpu().numpy()
         err = np.abs(achieved - actions[i])
         arm_err.append(float(err[:14].mean()))
+        finger_err.append(float(err[14:].mean()))
         per_joint_max = np.maximum(per_joint_max, err)
+        np.minimum(cmd_lo, actions[i][14:], out=cmd_lo)
+        np.maximum(cmd_hi, actions[i][14:], out=cmd_hi)
+        np.minimum(ach_lo, achieved[14:], out=ach_lo)
+        np.maximum(ach_hi, achieved[14:], out=ach_hi)
 
         # Greif-Diagnose: min Hand→Würfel-Distanz + maximale Würfel-Anhebung
         if palm_idx:
@@ -197,7 +210,16 @@ def main():
           f"R_sh_pitch={per_joint_max[7]:.2f} R_elbow={per_joint_max[10]:.2f}", flush=True)
     print("[Replay]   > ~0.3 rad mittel = Arme folgen NICHT (PD-Gains zu schwach = Sim-Bug);"
           " < ~0.1 = Tracking ok (dann Geometrie/Modell).", flush=True)
-    print(f"[Replay] GREIF-DIAGNOSE: min Hand→Würfel-Distanz = {min_hand_cube*100:.1f} cm | "
+    mean_finger_err = float(np.mean(finger_err)) if finger_err else 0.0
+    cmd_span, ach_span = cmd_hi - cmd_lo, ach_hi - ach_lo
+    print(f"[Replay] FINGER-TRACKING: mittel={mean_finger_err:.3f} rad | "
+          f"max={per_joint_max[14:].max():.2f} rad")
+    print(f"[Replay]   Fingerspanne kommandiert={cmd_span.max():.2f} rad, "
+          f"erreicht={ach_span.max():.2f} rad", flush=True)
+    print("[Replay]   erreicht ≪ kommandiert → Griff wird an einer Gelenkgrenze abgeklemmt;"
+          " beide groß + Anhebung 0 → Kontakt/Reibung oder Würfel nicht in der Greiföffnung.",
+          flush=True)
+    print(f"[Replay] GREIF-DIAGNOSE: min Hand(Handfläche)→Würfelmitte = {min_hand_cube*100:.1f} cm | "
           f"max Würfel-Anhebung = {max_cube_lift*100:.1f} cm", flush=True)
     print("[Replay]   Distanz groß (>~15cm) → Greifbewegung trifft unsere Würfel nicht (Platzierung);"
           " Distanz klein + Anhebung≈0 → Greif-Physik prüfen; Anhebung>~2cm → Greifen FUNKTIONIERT.",
@@ -207,8 +229,12 @@ def main():
         p = hand_low[h]
         print(f"[Replay]   tiefster {lbl[h] if h < 2 else h}-Hand-Punkt (Welt): "
               f"x={p[0]:.3f} y={p[1]:.3f} z={p[2]:.3f}", flush=True)
+    # init_cube_z ist die Würfel-MITTE (block_z_surface = Tisch 0.89 + halbe Kantenlänge
+    # 0.025), nicht die Oberkante — die Zeile war bis Lauf 26 falsch beschriftet, und genau
+    # solche Beschriftungen haben hier schon einmal zu einem falschen Schluss geführt.
     cz = float(init_cube_z[0])
-    print(f"[Replay]   (Würfel-Oberseite liegt bei z≈{cz:.3f}; aktuelle Würfel-XY: "
+    print(f"[Replay]   (Würfel-MITTE z≈{cz:.3f}, Oberkante z≈{cz + 0.025:.3f}; "
+          f"tiefster Handflächenpunkt darüber = Hand bleibt über dem Würfel. Würfel-XY: "
           f"{[tuple(round(float(c),2) for c in b.data.root_pos_w[0,:2].cpu()) for b in env.blocks]})",
           flush=True)
 
@@ -222,6 +248,9 @@ def main():
         "success": success,
         "success_step": success_step,
         "mean_arm_tracking_error_rad": round(mean_arm_err, 4),
+        "mean_finger_tracking_error_rad": round(mean_finger_err, 4),
+        "finger_span_commanded_rad": round(float(cmd_span.max()), 3),
+        "finger_span_achieved_rad": round(float(ach_span.max()), 3),
         "per_joint_max_error_rad": [round(float(x), 3) for x in per_joint_max],
         "min_hand_cube_dist_cm": round(min_hand_cube * 100, 1),
         "max_cube_lift_cm": round(max_cube_lift * 100, 1),
