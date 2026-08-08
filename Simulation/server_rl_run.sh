@@ -44,7 +44,8 @@
 #   RL_GPUS ("device=0" — RT-Core-Rendering + Training auf einer GPU, zweite frei),
 #   HF_TOKEN, HF_CHECKPOINT_REPO (luca-mue/groot-g1dex3-checkpoint),
 #   RL_NUM_ENVS, RL_ITERATIONS, RL_ROLLOUT_STEPS, RL_LR, RL_KL_COEF, RL_CLIP,
-#   RL_SAVE_EVERY, WANDB_API_KEY, SHELL_ON_ERROR — an entrypoint_rl.sh durchgereicht.
+#   RL_SAVE_EVERY, WANDB_API_KEY, WANDB_MODE, RL_WANDB_VIDEO_EVERY, SHELL_ON_ERROR,
+#   LIVE_VIEW, LIVE_VIEW_PORT, LIVE_VIEW_EVERY_N, LIVE_VIEW_CAMS — durchgereicht.
 
 set -euo pipefail
 
@@ -157,6 +158,10 @@ build_rl_env() {
   )
   [[ -n "${HF_TOKEN:-}" ]]         && RL_ENV+=( -e "HF_TOKEN=$HF_TOKEN" )
   [[ -n "${WANDB_API_KEY:-}" ]]    && RL_ENV+=( -e "WANDB_API_KEY=$WANDB_API_KEY" )
+  # Ohne das hier wäre WANDB_MODE=online wirkungslos: entrypoint_rl.sh setzt sonst
+  # stur 'offline', und die Rollout-Videos (RL_WANDB_VIDEO_EVERY) lägen unerreichbar
+  # im Container statt im Dashboard.
+  [[ -n "${WANDB_MODE:-}" ]]       && RL_ENV+=( -e "WANDB_MODE=$WANDB_MODE" )
   [[ -n "${RL_NUM_ENVS:-}" ]]      && RL_ENV+=( -e "RL_NUM_ENVS=$RL_NUM_ENVS" )
   [[ -n "${RL_ITERATIONS:-}" ]]    && RL_ENV+=( -e "RL_ITERATIONS=$RL_ITERATIONS" )
   [[ -n "${RL_ROLLOUT_STEPS:-}" ]] && RL_ENV+=( -e "RL_ROLLOUT_STEPS=$RL_ROLLOUT_STEPS" )
