@@ -221,10 +221,13 @@ class G1Dex3BlockstackSceneCfg(InteractiveSceneCfg):
         ),
         data_types=["rgb"],
         spawn=sim_utils.PinholeCameraCfg(
-            focal_length=24.0,
+            focal_length=CAMERA_CFG.focal_high,
             focus_distance=400.0,
-            horizontal_aperture=20.955,
-            clipping_range=(0.1, 20.0),
+            horizontal_aperture=CAMERA_CFG.horizontal_aperture_mm,
+            # Nahebene 0.15 statt 0.1: schneidet die eigene Kopfschale weg, falls der
+            # d435-Montagepunkt knapp innerhalb der Geometrie liegt. Aufgabenrelevantes
+            # kommt der Kopfkamera nicht naeher als 0.4 m.
+            clipping_range=(0.15, 20.0),
         ),
         width=CAMERA_CFG.width,
         height=CAMERA_CFG.height,
@@ -239,10 +242,13 @@ class G1Dex3BlockstackSceneCfg(InteractiveSceneCfg):
         ),
         data_types=["rgb"],
         spawn=sim_utils.PinholeCameraCfg(
-            focal_length=24.0,
+            focal_length=CAMERA_CFG.focal_high,
             focus_distance=400.0,
-            horizontal_aperture=20.955,
-            clipping_range=(0.1, 20.0),
+            horizontal_aperture=CAMERA_CFG.horizontal_aperture_mm,
+            # Nahebene 0.15 statt 0.1: schneidet die eigene Kopfschale weg, falls der
+            # d435-Montagepunkt knapp innerhalb der Geometrie liegt. Aufgabenrelevantes
+            # kommt der Kopfkamera nicht naeher als 0.4 m.
+            clipping_range=(0.15, 20.0),
         ),
         width=CAMERA_CFG.width,
         height=CAMERA_CFG.height,
@@ -258,9 +264,9 @@ class G1Dex3BlockstackSceneCfg(InteractiveSceneCfg):
         ),
         data_types=["rgb"],
         spawn=sim_utils.PinholeCameraCfg(
-            focal_length=18.0,
+            focal_length=CAMERA_CFG.focal_wrist,
             focus_distance=400.0,
-            horizontal_aperture=20.955,
+            horizontal_aperture=CAMERA_CFG.horizontal_aperture_mm,
             clipping_range=(0.01, 5.0),
         ),
         width=CAMERA_CFG.width,
@@ -276,9 +282,9 @@ class G1Dex3BlockstackSceneCfg(InteractiveSceneCfg):
         ),
         data_types=["rgb"],
         spawn=sim_utils.PinholeCameraCfg(
-            focal_length=18.0,
+            focal_length=CAMERA_CFG.focal_wrist,
             focus_distance=400.0,
-            horizontal_aperture=20.955,
+            horizontal_aperture=CAMERA_CFG.horizontal_aperture_mm,
             clipping_range=(0.01, 5.0),
         ),
         width=CAMERA_CFG.width,
@@ -297,9 +303,9 @@ class G1Dex3BlockstackSceneCfg(InteractiveSceneCfg):
         ),
         data_types=["rgb"],
         spawn=sim_utils.PinholeCameraCfg(
-            focal_length=18.0,
+            focal_length=CAMERA_CFG.focal_scene,
             focus_distance=400.0,
-            horizontal_aperture=20.955,
+            horizontal_aperture=CAMERA_CFG.horizontal_aperture_mm,
             clipping_range=(0.1, 30.0),
         ),
         width=CAMERA_CFG.width,

@@ -756,7 +756,8 @@ hat — jetzt geht es.
 
 **Bestätigt nebenbei** (beides in Lauf 11 im Log): Die Renderer-Intrinsik meldet 47,2° × 36,3° für
 die High-Cams — genau das, was die vorher angenommene `horizontal_aperture` ergab, die
-Frustum-Rechnung war also korrekt. Und der Roll ist 0,0° bei beiden High-Cams und `cam_scene`
+Frustum-Rechnung war also korrekt. (Dass diese 47,2° *selbst* falsch waren — projektiert sind 75° —
+fiel erst bei der Kalibrierung auf, siehe Iteration 13 weiter unten.) Und der Roll ist 0,0° bei beiden High-Cams und `cam_scene`
 (−90° an den Handgelenken, dort armposenabhängig) — beides allerdings wieder aus `cam.data` und
 damit nach Lauf 13 hinfällig, solange der Fix nicht bestätigt ist. Die Diagonale in `cam_scene`
 hielt ich für die Kante der endlichen Bodenplatte; sie ist der streifende Blick knapp über den
@@ -841,19 +842,59 @@ RL_AA_MODE=Off RL_SETTLE_STEPS=60 HF_TOKEN=hf_... ./Simulation/server_rl_run.sh 
 RL_DOME_SWEEP=500,120,30,8 HF_TOKEN=hf_... ./Simulation/server_rl_run.sh cams
 ```
 
-`cams` gibt jetzt selbst eine Kennzahlen-Tabelle aus (min/median/max, chroma, dunkel-%) samt der
-Juni-Referenzwerte und markiert leere Bilder mit `<-- kein Kontrast`. Damit ist der Vergleich
-direkt im Log ablesbar, ohne die PNGs auszuwerten.
-
-Falls beide Hebel nichts bringen, ist der nächste Schritt eine Halbierung des Problems:
-dieselbe Pose einmal mit `TiledCamera` **und** einmal mit der gewöhnlichen `Camera` rendern
-(beide sind in `g1_dex3_blockstack_env.py` schon importiert). Rendert `Camera` korrekt, liegt es
-an `TiledCamera` in Isaac Lab 3.0-beta — dann ist der Umbau die Lösung, auf Kosten von Durchsatz.
+`cams` gibt selbst eine Kennzahlen-Tabelle aus (min/median/max, Graustufen, Kantenenergie, chroma,
+dunkel-%) samt der Juni-Referenzwerte und markiert strukturlose Bilder mit
+`<-- keine Struktur, nichts gerendert`. Damit ist der Vergleich direkt im Log ablesbar, ohne die
+PNGs auszuwerten.
 
 > **Folge fürs Training:** Solange die Policy-Kameras leer sind, sieht das Modell nichts — RL
 > optimiert dann gegen ein blindes Modell, während `reward_mean` sich weiter bewegt (der Shaped
 > Reward kommt aus Gelenkpositionen). Erst `cams` grün, dann RL starten. Die Juni-Auswertungen
 > sind unberührt: die liefen auf korrekt gerenderten Kameras.
+
+### Kopfkameras kalibrieren — Iteration 13 (2026-08-08), Renderprüfung offen
+
+Nachdem die Kameras wieder rendern (`runs/20260808/16`), zeigt der Overlay gegen
+`Simulation/camera_reference/`, dass die Sim-Ansicht **nicht** die Ansicht des Datensatzes ist.
+Drei Abweichungen, alle gegen eine unabhängige Quelle geprüft statt geschätzt:
+
+| Befund | Beleg | Korrektur |
+|---|---|---|
+| **Sichtfeld 47,2° statt 75°** | `hfov_deg = 75.0` stand seit jeher in `g1_dex3_cfg.py`, wurde aber **nirgends gelesen** — gespawnt wurde die fest eingetragene `focal_length=24.0` | `focal_high/_wrist/_scene` aus `hfov_*_deg` berechnet, Env liest sie. 75° → 13,65 mm |
+| **Kopf verdeckt ein Bilddrittel** | Kameras auf `z=1.45`, `y=±0.08` — neben und über dem Kopf. Der echte G1 trägt sie laut URDF im `d435_link`, pelvis-relativ `(0.0537, 0.0175, 0.4739)` | Montagepunkt env-lokal `(0.0537, 0.0175, 1.3239)`; Nahebene 0,1 → 0,15 m als Absicherung gegen die Kopfschale |
+| **Schräge Tischkante** | Beide Kameras zielten auf **einen** Punkt → ±8,3° Gierwinkel. Ein reales Stereopaar blickt parallel | Ziel je Kamera auf der eigenen y-Linie, Gier exakt 0,00° |
+
+Die **Stereobasis** kam aus den Referenzbildern selbst: Querversatz 40 px (SAD-Minimum über die
+Tischplatte), Würfelkante 40–46 px bei bekannten 5 cm → Motivabstand ~0,57 m → Basis ~4,7 cm. Der
+Wert hängt nicht am angenommenen FOV, weil Abstand und Winkel gemeinsam mitskalieren; er deckt sich
+mit den 50 mm einer RealSense D435. Statt ±0,08 (16 cm) also **±0,025**.
+
+Vorausberechnung der neuen Bildaufteilung (Blickachse −55,0°, Gier 0,00°, 75° × 59,8°):
+
+| Punkt | Bildzeile von 480 | |
+|---|---|---|
+| Tisch-Hinterkante | 29 | Tisch vollständig im Bild wie in der Referenz |
+| Würfel (Mitte) | 240 | exakt Bildmitte |
+| rechte / linke Hand | 322 / 355 | von unten ins Bild, wie in der Referenz |
+| Tisch-Vorderkante | 473 | gerade noch drin |
+
+**Die Handgelenkskameras bleiben unangetastet** — bewusst. Der Stage-Abgleich zeigt für beide
+dieselbe lokale Blickrichtung (`[0.882, 0, −0.471]`), sie sind also identisch konfiguriert. Dass
+`cam_right_wrist` die Würfel verfehlt und `cam_left_wrist` nicht, kommt somit von der Armpose, nicht
+von der Kamera. Eine einseitige Korrektur würde die Symmetrie zerstören, die der reale Roboter hat.
+
+Nächster Schritt: rendern und den Overlay erneut ansetzen.
+
+```bash
+git pull
+HF_TOKEN=hf_... ./Simulation/server_rl_run.sh cams
+# Frames herunterladen, dann lokal:
+python Simulation/scripts/overlay_camera_check.py --sim-dir Simulation/runs/<datum>/<nr>/cam_dump
+```
+
+Im Overlay muss der Tisch beide Bilder füllen, die Hinterkante annähernd waagerecht liegen und der
+eigene Kopf verschwunden sein. Taucht der Kopf weiter auf, sitzt der `d435`-Punkt innerhalb der
+Kopfschale — dann `left_high_eye`/`right_high_eye` um 2–3 cm in +X schieben.
 
 ### `isaaclab nicht importierbar`
 Das Skript braucht das **kombinierte** Image (`Dockerfile.vastai`), nicht das BC-Trainingsimage.

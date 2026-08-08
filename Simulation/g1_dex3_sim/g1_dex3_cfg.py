@@ -222,7 +222,20 @@ class G1Dex3CameraCfg:
 
     # Horizontaler FOV in Grad. Overlay-Iteration: 69° zu eng (Sim zu nah), 90° zu weit
     # (Szene zu sparse, Hände winzig). 75° als Kompromiss.
+    #
+    # ACHTUNG, 2026-08-08: Dieser Wert war reine Dokumentation — er stand hier, wurde aber
+    # nirgends gelesen. Die Kameras liefen mit der fest eingetragenen `focal_length=24.0`
+    # aus `g1_dex3_blockstack_env.py`, also mit 47,2° statt 75°. Die Sim-Bilder waren damit
+    # dauerhaft zu eng, und die damals als „zu eng" verworfenen 69° waren nie im Bild.
+    # `focal_high`/`focal_wrist`/`focal_scene` unten rechnen die Werte jetzt tatsächlich um.
     hfov_deg: float = 75.0
+    # Handgelenks- und Szenenkamera behalten vorerst ihr bisheriges Sichtfeld (focal 18.0 =
+    # 60,4°) — für die ist keine Overlay-Iteration dokumentiert, ein Wechsel wäre geraten.
+    hfov_wrist_deg: float = 60.4
+    hfov_scene_deg: float = 60.4
+
+    # Sensorbreite in mm. Isaac Lab leitet die vertikale Apertur aus dem Seitenverhältnis ab.
+    horizontal_aperture_mm: float = 20.955
 
     # Kamera-Posen (pos in Meter, rot als (w, x, y, z) Quaternion, World-Frame)
     # WICHTIG: Aus den Dataset-Videos rekonstruieren! Dies sind Schätzwerte.
@@ -234,7 +247,19 @@ class G1Dex3CameraCfg:
     # Szenen-Übersichtskamera — NUR fürs Video, NICHT Policy-Observation
     cam_scene: dict = None
 
+    # Aus hfov_*_deg berechnet (siehe __post_init__) — die Env liest diese Werte.
+    focal_high: float = None
+    focal_wrist: float = None
+    focal_scene: float = None
+
     def __post_init__(self):
+        # Brennweiten aus dem gewünschten Sichtfeld, damit die hfov-Angaben oben wirken.
+        def focal(hfov_deg: float) -> float:
+            return self.horizontal_aperture_mm / (2.0 * np.tan(np.radians(hfov_deg) / 2.0))
+
+        self.focal_high = float(focal(self.hfov_deg))       # 75.0° -> 13.65 mm (vorher 24.0)
+        self.focal_wrist = float(focal(self.hfov_wrist_deg))  # 60.4° -> 18.0 mm (unverändert)
+        self.focal_scene = float(focal(self.hfov_scene_deg))  # 60.4° -> 18.0 mm (unverändert)
         # Externe Kameras: Kopf-Stereo-Paar, blickt von vorne-oben NACH UNTEN auf den Tisch.
         # Rekonstruiert aus den Dataset-Frames (Simulation/camera_reference/dataset_cam_*_high.png):
         # beide Hände kommen von unten ins Bild, Tisch füllt die unteren ~2/3.
@@ -247,16 +272,43 @@ class G1Dex3CameraCfg:
         # Iter 5 (target z=0.80, steil nach unten) ließ die Arme aus dem Bild fallen.
         # Fix: eye zentriert auf Kopfhöhe (z=1.45, x=0), Target weit nach VORNE (x=0.55) auf
         # Tischhöhe → flacher Pitch (~46°), Arme reichen von unten ins Bild, Tisch in der Mitte.
-        high_target = (0.55, 0.0, 0.84)
-        left_high_eye  = (0.0,  0.08, 1.45)
-        right_high_eye = (0.0, -0.08, 1.45)
+        #
+        # Iteration 13 (2026-08-08), nachdem die Kameras überhaupt wieder rendern. Der
+        # Overlay gegen Simulation/camera_reference/ zeigte drei Abweichungen, alle drei
+        # gegen eine unabhängige Quelle geprüft statt geschätzt:
+        #
+        # a) MONTAGEPUNKT. Die Kameras standen auf z=1.45 und y=±0.08 — also NEBEN und ÜBER
+        #    dem Kopf, weshalb der eigene Kopf ein Drittel des Bildes verdeckte (Lauf 16).
+        #    Der echte G1 trägt seine Kopfkamera laut URDF im `d435_link`, pelvis-relativ
+        #    (0.0537, 0.0175, 0.4739); das Pelvis sitzt env-lokal auf z=0.85, macht
+        #    (0.0537, 0.0175, 1.3239).
+        # b) STEREO-BASIS. ±0.08 wären 16 cm Basis. Aus den beiden Referenzbildern gemessen:
+        #    Querversatz 40 px (SAD-Minimum über die Tischplatte), Würfelkantenlänge 40–46 px
+        #    bei bekannten 5 cm → Motivabstand ~0.57 m → Basis ~4.7 cm. Der Wert hängt nicht
+        #    am angenommenen FOV, weil Abstand und Winkel gemeinsam mitskalieren. Passt zu
+        #    den 50 mm einer RealSense D435, also ±0.025.
+        # c) PARALLEL STATT KONVERGENT. Beide Kameras auf EIN gemeinsames Ziel zu richten
+        #    erzeugte ±8,3° Gierwinkel und damit die schräge Tischkante im Bild. Ein reales
+        #    Stereopaar blickt parallel — deshalb bekommt jede Kamera ihr Ziel auf der
+        #    eigenen y-Linie.
+        #
+        # Zielpunkt = Mitte des Würfel-Spawnbereichs (x≈0.34, z≈0.915). Das ergibt 55°
+        # Neigung; damit liegt die Tischhinterkante bei ~5 % und die Vorderkante bei ~99 %
+        # der Bildhöhe, der Tisch also vollständig im Bild wie in der Referenz, und die
+        # Würfel stehen mittig. Beide Hände sind dabei 21,5° von der Blickachse entfernt
+        # und damit deutlich innerhalb des 75°×59,9°-Sichtfelds.
+        high_target_x, high_target_z = 0.34, 0.915
+        left_high_eye  = (0.0537,  0.0425, 1.3239)   # d435_link + halbe Stereobasis
+        right_high_eye = (0.0537, -0.0075, 1.3239)   # d435_link - halbe Stereobasis
         self.cam_left_high = {
             "pos": left_high_eye,
-            "rot": look_at_world_quat(left_high_eye, high_target),
+            "rot": look_at_world_quat(
+                left_high_eye, (high_target_x, left_high_eye[1], high_target_z)),
         }
         self.cam_right_high = {
             "pos": right_high_eye,
-            "rot": look_at_world_quat(right_high_eye, high_target),
+            "rot": look_at_world_quat(
+                right_high_eye, (high_target_x, right_high_eye[1], high_target_z)),
         }
         # Wrist-Kameras: am jeweiligen Wrist-Yaw-Link montiert (convention="world", Link-Frame).
         # Die Hand ragt entlang +X (Palm-Joint bei x=0.0415, Finger weiter bei +X). Look-at von

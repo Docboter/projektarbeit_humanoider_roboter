@@ -128,13 +128,18 @@ def main() -> None:
 
     for real_name, sim_name, label in CAMERA_PAIRS:
         real_path = real_dir / real_name
-        sim_path  = sim_dir  / sim_name
+        # Beide Namensschemata bedienen: capture_camera_frames.sh schreibt
+        # `_debug_obs_cam_*.png`, der Kamera-Dump (`server_rl_run.sh cams`) dagegen
+        # `cam_*.png`. Damit laesst sich der Overlay direkt auf ein Run-Verzeichnis
+        # unter Simulation/runs/<datum>/<nr>/cam_dump/ ansetzen.
+        candidates = [sim_dir / sim_name, sim_dir / sim_name.replace("_debug_obs_", "")]
+        sim_path = next((p for p in candidates if p.exists()), None)
 
         if not real_path.exists():
             print(f"  [SKIP] Real-Frame nicht gefunden: {real_path}")
             continue
-        if not sim_path.exists():
-            print(f"  [SKIP] Sim-Frame nicht gefunden: {sim_path}")
+        if sim_path is None:
+            print(f"  [SKIP] Sim-Frame nicht gefunden: {' oder '.join(str(p) for p in candidates)}")
             continue
 
         real_img = Image.open(real_path).convert("RGB")
