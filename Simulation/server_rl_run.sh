@@ -37,6 +37,7 @@
 #   HF_TOKEN=hf_... ./Simulation/server_rl_run.sh setup        # Checkpoint+USD von HF laden (einmalig)
 #   HF_TOKEN=hf_... ./Simulation/server_rl_run.sh check        # LIVE-CHECK: Aufbau ohne Training (--check, 2 Envs)
 #   HF_TOKEN=hf_... ./Simulation/server_rl_run.sh rl           # echter RL-Lauf (Vordergrund, lange Laufzeit)
+#   ./Simulation/server_rl_run.sh gap                          # Domain-Gap real vs. sim messen (nach 'cams')
 #   ./Simulation/server_rl_run.sh shell|clean|help
 #
 # Überschreibbar via Env (Defaults für diesen Server):
@@ -347,6 +348,47 @@ do_cams() {
     || { err "Kamera-Dump ohne Erfolgsmarker beendet (Traceback oben)."; return 1; }
 }
 
+# Domain-Gap: Kosinus-Distanz real gegen sim je Policy-Kamera durch den eingefrorenen
+# SigLIP-ViT (= GR00Ts Vision-Backbone, da BC mit tune_visual=false lief).
+# Braucht die Frames aus 'cams' — misst also genau die Bilder, die auch die Policy sieht.
+#
+# Skript und Referenzbilder werden per `docker cp` hineingelegt statt gemountet:
+#   - /scripts ist ins Image gebacken (kein Mount) -> ein Edit braeuchte sonst einen Rebuild;
+#   - Simulation/camera_reference/ liegt im Image ueberhaupt nicht;
+#   - ein zusaetzliches -v wirkt nur beim ANLEGEN des Containers, verlangte also 'clean'.
+# `docker cp` in den laufenden Container umgeht alle drei Punkte.
+do_gap() {
+  ensure_container
+  local sim_dir="${GAP_SIM_DIR:-/data/cam_dump}"
+
+  if ! docker exec "$CONTAINER" test -f "$sim_dir/cam_left_high.png"; then
+    err "Keine Sim-Frames unter $sim_dir im Container."
+    err "  Zuerst den Kamera-Dump fahren:  HF_TOKEN=hf_... $0 cams"
+    return 1
+  fi
+
+  log "Referenzbilder + Messskript in den Container kopieren."
+  docker exec "$CONTAINER" mkdir -p /workspace/camera_reference
+  docker cp "$REPO_DIR/Simulation/camera_reference/." "$CONTAINER:/workspace/camera_reference/"
+  docker cp "$REPO_DIR/Simulation/scripts/measure_domain_gap.py" \
+            "$CONTAINER:/workspace/measure_domain_gap.py"
+
+  # HF_HOME unter /data: der SigLIP-Download (~1,6 GB) ueberlebt so ein 'clean'.
+  # HF_TOKEN nur durchreichen, wenn gesetzt — ein leerer Wert gilt huggingface_hub als
+  # gesetzter, ungueltiger Token. Fuer das oeffentliche SigLIP wird er ohnehin nicht gebraucht.
+  local gap_env=( -e "HF_HOME=${HF_HOME:-/data/hf_cache}" )
+  [[ -n "${HF_TOKEN:-}" ]] && gap_env+=( -e "HF_TOKEN=$HF_TOKEN" )
+
+  log "Domain-Gap messen (SigLIP-ViT, Sim-Frames aus $sim_dir)."
+  docker exec "${gap_env[@]}" "$CONTAINER" bash -lc "
+    unset VIRTUAL_ENV
+    '$ISAAC_PY' /workspace/measure_domain_gap.py \
+        --real-dir /workspace/camera_reference \
+        --sim-dir '$sim_dir'" 2>&1 | tee /dev/stderr | grep -q "\[gap\] fertig" \
+    && ok "Ergebnisse auch als JSON unter $HOST_DATA_DIR/${sim_dir#/data/}/domain_gap_results.json" \
+    || { err "Domain-Gap-Messung ohne Erfolgsmarker beendet (Traceback oben)."; return 1; }
+}
+
 do_shell()  { ensure_container; docker exec -it "$CONTAINER" bash -l; }
 do_clean()  { log "Entferne Container '$CONTAINER' (Daten in $HOST_DATA_DIR bleiben)."; \
               docker rm -f "$CONTAINER" 2>/dev/null || warn "Container existierte nicht."; ok "Weg."; }
@@ -364,6 +406,7 @@ Aktionen:
   setup       BC-Checkpoint + USD-Asset von HF laden (einmalig, ~10 GB).
   check       LIVE-CHECK: Env/Policy/Critic aufbauen, 2 Envs, KEIN Training (--check).
   cams        Kamera-Diagnose: konfigurierte vs. gerenderte Pose + ein PNG je Kamera.
+  gap         Domain-Gap real vs. sim je Policy-Kamera (SigLIP-ViT). Setzt 'cams' voraus.
   rl          Echter RL-Lauf (Vordergrund). Checkpoints unter $HOST_DATA_DIR/g1_dex3_rl/.
   shell       Interaktive Shell im Container.
   clean       Container entfernen (Daten unter $HOST_DATA_DIR bleiben).
@@ -403,13 +446,14 @@ ACTION="${1:-help}"
 # 'shell' bleibt ungespiegelt (interaktives -it verträgt die Pipe nicht), 'help'/'clean'
 # haben nichts zu protokollieren.
 case "$ACTION" in
-  preflight|setup|check|cams|rl) start_logging "$ACTION" ;;
+  preflight|setup|check|cams|gap|rl) start_logging "$ACTION" ;;
 esac
 case "$ACTION" in
   preflight)  do_preflight ;;
   setup)      do_setup ;;
   check)      do_check ;;
   cams)       do_cams ;;
+  gap)        do_gap ;;
   rl)         do_rl ;;
   shell)      do_shell ;;
   clean|down) do_clean ;;

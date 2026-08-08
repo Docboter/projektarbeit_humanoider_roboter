@@ -2,6 +2,15 @@
 
 > Durchgeführt: 2026-06-04
 
+> ⚠️ **Überholt, Neumessung ausstehend (Stand 2026-08-08).** Die Zahlen unten stammen von vor dem
+> Isaac-Sim-6.0-Port und vor der Kamerakalibrierung (Iteration 13/14: Sichtfeld 47,2° → 75°,
+> Montagepunkt auf `d435_link`, parallele statt konvergierender Stereobasis). Sie beschreiben ein
+> Rendering, das es so nicht mehr gibt — insbesondere der kritische Wert für `cam_left_wrist`
+> (0,4275). **Nicht** betroffen vom Kamera-Orientierungsfehler: der trat erst mit dem 6.0-Port auf,
+> diese Messung liegt davor. Neu messen mit `./Simulation/server_rl_run.sh cams` gefolgt von
+> `gap` — Ablauf und Entscheidungsregel in
+> [`rl-anleitung.md`](../weiterfuehrend/rl-anleitung.md#schritt-2--domain-gap-neu-messen-server_rl_runsh-gap).
+
 ---
 
 ## Fragestellung

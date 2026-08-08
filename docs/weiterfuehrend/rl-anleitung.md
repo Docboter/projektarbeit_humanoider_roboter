@@ -948,6 +948,56 @@ messen** (`Simulation/scripts/measure_domain_gap.py`). Der liefert eine Zahl sta
 Augenmaßes; die letzten Werte (Mittel 0,26, linke Wrist-Cam 0,43) stammen vom 4. Juni unter
 Isaac Sim 4.x und sagen über den heutigen Stand nichts.
 
+### Schritt 2 — Domain-Gap neu messen (`server_rl_run.sh gap`)
+
+Die Junizahlen beschreiben ein Rendering, das es nicht mehr gibt: sie stammen von **vor** dem
+Isaac-Sim-6.0-Port, vor dem Orientierungs-Fix (die Kameras filmten danach den Himmel) und vor der
+Kalibrierung aus Iteration 13/14. Die Messung wird deshalb wiederholt — mit unverändertem Skript und
+unveränderten Referenzbildern, damit der Vergleich trägt.
+
+```bash
+HF_TOKEN=hf_... ./Simulation/server_rl_run.sh cams   # erzeugt /data/cam_dump/cam_*.png
+./Simulation/server_rl_run.sh gap                    # misst dagegen
+```
+
+`gap` legt Referenzbilder und Messskript per `docker cp` in den laufenden Container — kein
+Image-Rebuild und kein `clean` nötig, obwohl `/scripts` ins Image gebacken ist und
+`Simulation/camera_reference/` dort gar nicht existiert. Gerechnet wird im Isaac-Sim-Kit-Python
+(dort liegt `transformers`); der SigLIP-Download (~1,6 GB) landet unter `/data/hf_cache` und
+überlebt damit ein `clean`. Ergebnisse: Tabelle auf stdout, dazu
+`/data/cam_dump/domain_gap_results.json`.
+
+Gemessen wird die Kosinus-Distanz der Bild-Embeddings durch `google/siglip-so400m-patch14-224` —
+identisch mit GR00Ts Vision-Backbone, weil das BC-Fine-tuning mit `tune_visual=false` lief. Das
+Skript stellt jeder Kamera ihren Juniwert und das Delta daneben.
+
+| Kamera | 2026-06-04 (Isaac Sim 4.x) | Bewertung damals |
+|---|---|---|
+| `cam_left_high` | 0,1477 | moderat |
+| `cam_right_high` | 0,2136 | groß |
+| `cam_right_wrist` | 0,2491 | groß |
+| `cam_left_wrist` | **0,4275** | kritisch |
+| **Mittel** | **0,2595** | groß |
+| Grundlinie real↔real (andere Kamera) | 0,2726 | — |
+
+**Was die Zahl nicht kann.** Sie vergleicht ganze Bilder und enthält damit auch den Szeneninhalt:
+Das Referenzbild zeigt die Arme mitten in der Aufgabe, der Kamera-Dump die Reset-Pose, die Würfel
+liegen woanders und der Tisch ist ~15 cm näher (siehe oben). Ein Teil der Distanz ist also nicht
+Renderqualität. Maßstab dafür ist die Grundlinie real↔real: 0,27 zwischen zwei *echten* Kameras
+derselben Szene. Liegt der Real→Sim-Wert darunter, ist der Erscheinungs-Gap kleiner als der
+Blickwinkelunterschied zweier realer Kameras.
+
+**Entscheidungsregel — vorher festgelegt, damit die Zahl nicht nachträglich passend gedeutet wird:**
+
+| Mittelwert | Konsequenz |
+|---|---|
+| < 0,20 | direkt weiter zu Schritt 3 (BC-Erfolgsrate), kein ViT-Eingriff |
+| 0,20–0,35 | Schritt 3 trotzdem fahren, aber `TUNE_VISUAL=1` bzw. stärkere Domain-Randomisierung einplanen |
+| > 0,35 | der visuelle Gap dominiert; RL auf diesem BC-Checkpoint trainiert gegen eine Policy, die die Szene nicht erkennt — erst Sehen reparieren |
+
+Besonders zu beobachten ist `cam_left_wrist`: mit 0,4275 war sie im Juni der einzige kritische Wert
+und ist zugleich die Kamera, die der Orientierungs-Fix am stärksten verändert hat.
+
 ### `isaaclab nicht importierbar`
 Das Skript braucht das **kombinierte** Image (`Dockerfile.vastai`), nicht das BC-Trainingsimage.
 
