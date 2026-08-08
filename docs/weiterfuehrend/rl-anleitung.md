@@ -540,12 +540,14 @@ unberührt; der 0-%-Befund dort bleibt der Domain-Gap.
 Aufgabe — die Würfel lagen außerhalb der Reichweite am Boden. `reward_mean` bewegte sich trotzdem,
 weil der Shaped Reward aus Gelenk- und Abstandsgrößen kommt.
 
-### Kamerabilder gleichmäßig weiß — URSACHE GEFUNDEN (`runs/20260808/13`), Fix eingebaut
+### Kamerabilder gleichmäßig weiß — GELÖST (`runs/20260808/13` + `14`)
 
-**Kurzfassung für Eilige:** Die Kamera-Prims stehen in der USD-Stage **anders ausgerichtet** als
-`cam.data` meldet — 95,6° bei den High-Cams, 102,8° an den Handgelenken, 136,8° bei `cam_scene`.
-Die Kameras filmen den Himmel. `_setup_scene()` schreibt die Orientierung jetzt selbst
-(`RL_CAM_USD_FIX=1`, Default an). Herleitung unten.
+**Kurzfassung für Eilige:** Die Kamera-Prims standen in der USD-Stage **anders ausgerichtet** als
+`cam.data` meldete — 95,6° bei den High-Cams, 102,8° an den Handgelenken, 136,8° bei `cam_scene`.
+Die Kameras filmten den Himmel. `_setup_scene()` schreibt die Orientierung jetzt selbst
+(`RL_CAM_USD_FIX=1`, Default an). In Lauf 14 zeigen `cam_left_high`, `cam_right_high` und
+`cam_scene` wieder die Szene; die beiden Wrist-Cams wurden dort wegen eines Namensfehlers noch
+übersprungen und sind seitdem nachgezogen. Herleitung unten.
 
 **Stand 2026-08-08 nach `runs/20260808/09`:** Der Würfel-Fix oben ist wirksam, die Bilder sind
 trotzdem gleichmäßig hell (min/median/max **245/248/249**, chroma 4,0, dunkel 0 %). Die Szene ist
@@ -693,9 +695,40 @@ git pull
 HF_TOKEN=hf_... ./Simulation/server_rl_run.sh cams
 ```
 
-Erwartung: Der Stage-Abgleich meldet für alle fünf Kameras **0,0°**, und die High-Cams zeigen den
-Tisch mit den Würfeln. Bleibt die Abweichung stehen, wird das Prim nach dem Schreiben wieder
-überschrieben — dann muss der Fix hinter `sim.reset()` statt in `_setup_scene()`.
+**Bestätigt in `runs/20260808/14`** — und zwar an den Bildern gemessen, nicht an der Diagnostik:
+
+| Kamera | min/median/max | chroma | dunkel % | Bild |
+|---|---|---|---|---|
+| `cam_left_high` | 0 / 229 / 241 | 6,93 | 26,9 % | Tisch, Würfel, eigene Hand |
+| `cam_right_high` | 0 / 232 / 242 | 7,83 | 18,7 % | dito, gespiegelt |
+| `cam_scene` | 10 / 129 / 243 | 7,75 | 32,1 % | ganze Szene: Roboter, Tisch, drei Würfel |
+| Juni-Referenz (Isaac Sim 4.x) | 32 / 229 / 239 | 6,0 | 11–22 % | — |
+
+Die High-Cams treffen die Referenz von vor der Migration praktisch exakt. Der Geometrieblock lief
+diesmal durch und ist unauffällig: Boden, Tisch, alle drei Würfel, Band und Roboter stehen
+`inherited` / `purpose=default` mit korrekten Welt-BBoxen in der Stage — die Hypothesen
+„ausgeblendet" und „keine renderbare Geometrie" sind damit beide erledigt.
+
+**Zwei Nachträge aus Lauf 14:**
+
+1. `cam.data` meldet seit dem Fix eine *falsche* Blickrichtung (`cam_left_high`: 174,4° neben dem
+   Prim), während das Prim exakt auf der SOLL-Richtung sitzt — dieselbe kaputte Umrechnung, nur
+   rückwärts, und damit ein zweiter unabhängiger Beleg. Praktische Folge: **Frustum-Rechnung und
+   Treffer-Matrix im Dump sind jetzt unbrauchbar**, Referenz ist das Bild. Der Stage-Abgleich prüft
+   deshalb neu gegen die *lokale* Config-Rotation im selben Elternframe (Spalte `SOLL:`); die
+   `cam.data`-Spalte bleibt nur noch als Anzeige der Isaac-Lab-Umrechnung stehen.
+2. Die beiden Wrist-Cams wurden übersprungen — sie heißen in `CAMERA_CFG`
+   `cam_left_wrist_local` / `cam_right_wrist_local`, der Fix suchte unter dem Sensornamen. Er liest
+   die Offset-Rotation jetzt aus `cam.cfg.offset`, also aus genau der Quelle, aus der auch Isaac Lab
+   beim Spawn liest, und deckt damit alle fünf Kameras unabhängig von der Benennung ab.
+
+Erwartung im nächsten Lauf: `SOLL: OK (0.0°)` bei **allen fünf**, und die Wrist-Cams zeigen die Hand
+über dem Tisch statt einer weißen Fläche. Bleibt eine Abweichung stehen, wird das Prim nach dem
+Schreiben wieder überschrieben — dann muss der Fix hinter `sim.reset()` statt in `_setup_scene()`.
+
+> **Konsequenz für alle bisherigen Ergebnisse:** Jeder Sim-Lauf seit der Isaac-Sim-6.0-Migration
+> hat die Policy auf Himmelsbildern laufen lassen. Erfolgsraten, Reward-Kurven und
+> Domain-Gap-Zahlen aus dieser Zeit sind gegenstandslos und müssen neu erhoben werden.
 
 **Bestätigt nebenbei** (beides in Lauf 11 im Log): Die Renderer-Intrinsik meldet 47,2° × 36,3° für
 die High-Cams — genau das, was die vorher angenommene `horizontal_aperture` ergab, die

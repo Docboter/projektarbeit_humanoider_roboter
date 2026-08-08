@@ -552,6 +552,14 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
         (genau EIN Grauwert), ``cam_left_wrist`` in den Roboter (die einzige Kamera mit
         Inhalt) und ``cam_scene`` knapp über den Horizont (der schmale Bodenkeil unten).
 
+        **Bestätigt in ``runs/20260808/14``:** nach dem Schreiben zeigt `cam_left_high`
+        Tisch, Würfel und die eigene Hand (min/median/max 0/229/241, chroma 6.9, dunkel
+        26.9 % — die Juni-Referenz unter Isaac Sim 4.x lag bei 32/229/239, chroma 6.0,
+        11–22 %), `cam_scene` die vollständige Szene mit Roboter, Tisch und Würfeln.
+        Umgekehrt meldet ``cam.data`` seitdem eine *falsche* Blickrichtung — dieselbe
+        kaputte Umrechnung, nur rückwärts. Die Frustum-Diagnostik im Kamera-Dump ist damit
+        unbrauchbar, das Bild ist die Referenz.
+
         Abschalten mit ``RL_CAM_USD_FIX=0``.
         """
         if os.environ.get("RL_CAM_USD_FIX", "1").strip().lower() in ("0", "false", "no"):
@@ -571,13 +579,21 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
             return
 
         fixed, failed = 0, 0
-        for name in self.cameras:
-            cfg_entry = getattr(CAMERA_CFG, name, None)
-            if not cfg_entry or "rot" not in cfg_entry:
-                print(f"[cam] !! '{name}' hat keine rot in CAMERA_CFG — übersprungen.",
-                      flush=True)
+        for name, cam in self.cameras.items():
+            # Die Offset-Rotation vom Sensor selbst holen, nicht über CAMERA_CFG: die
+            # Wrist-Kameras heißen dort `cam_*_wrist_local` und wurden in Lauf 14 deshalb
+            # stillschweigend übersprungen. `cam.cfg.offset` ist genau die Quelle, aus der
+            # auch Isaac Lab beim Spawn liest — parent-relativ, für alle fünf gleich.
+            offset = getattr(getattr(cam, "cfg", None), "offset", None)
+            if offset is None or getattr(offset, "rot", None) is None:
+                print(f"[cam] !! '{name}' hat keinen offset.rot — übersprungen.", flush=True)
                 continue
-            quat = np.asarray(cfg_entry["rot"], dtype=float)      # (w, x, y, z), Welt-Konvention
+            convention = str(getattr(offset, "convention", "world")).lower()
+            if convention != "world":
+                print(f"[cam] !! '{name}' nutzt convention='{convention}' — dieser Fix rechnet "
+                      f"nur von 'world' um, übersprungen.", flush=True)
+                continue
+            quat = np.asarray(offset.rot, dtype=float)            # (w, x, y, z), Welt-Konvention
             rot_usd = _quat_to_matrix(quat) @ self._WORLD_TO_USD  # Spaltenvektor-Konvention
             q_usd = _matrix_to_quat(rot_usd)                      # (w, x, y, z)
 

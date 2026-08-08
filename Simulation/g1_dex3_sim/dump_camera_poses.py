@@ -142,27 +142,35 @@ def usd_truth_report(cam_names) -> None:
         print("\n  !! USD-Stage ist None — Abgleich übersprungen.")
         return
 
-    def world_basis(prim):
-        """(pos, forward, up, forward_spalten) des Prims in Weltkoordinaten, USD-Konvention.
+    def basis(m):
+        """(pos, forward, up, forward_spalten) aus einer USD-Transform, Kamerakonvention.
 
         USD ist Zeilenvektor-Konvention (v_welt = v_lokal * M), die Zeilen sind also die
         Weltrichtungen der lokalen Achsen X/Y/Z, und USD-Kameras blicken entlang lokal -Z.
-        Zurückgegeben wird zusätzlich die Spalten-Lesart: weicht die Blickrichtung von
-        `cam.data` ab, muss ausgeschlossen sein, dass nur diese Lesart falsch herum ist.
+        Zurückgegeben wird zusätzlich die Spalten-Lesart: weicht die Blickrichtung ab, muss
+        ausgeschlossen sein, dass nur diese Lesart falsch herum ist.
         """
-        m = UsdGeom.Xformable(prim).ComputeLocalToWorldTransform(Usd.TimeCode.Default())
         r = m.ExtractRotationMatrix()
         rows = [np.array([r[i][0], r[i][1], r[i][2]], dtype=float) for i in range(3)]
         cols = [np.array([r[0][j], r[1][j], r[2][j]], dtype=float) for j in range(3)]
         pos = m.ExtractTranslation()
         return np.array([pos[0], pos[1], pos[2]]), -rows[2], rows[1], -cols[2]
 
+    def angle(a, b):
+        return np.degrees(np.arccos(np.clip(float(np.dot(a, b)), -1.0, 1.0)))
+
     print("\n" + "=" * 72)
     print("USD-STAGE — unabhängig von cam.data")
     print("=" * 72)
 
     print("\nKamera-Prims (env 0):")
-    for name, expect_dir in cam_names.items():
+    print("  Maßgeblich ist die SOLL-Spalte: sie vergleicht die LOKALE Prim-Drehung gegen das\n"
+          "  Config-Quaternion im selben Elternframe. Die cam.data-Spalte ist nur noch ein\n"
+          "  Seitenbefund — seit Lauf 14 ist belegt, dass Isaac Labs Rückrechnung selbst falsch\n"
+          "  ist, ein Ausschlag dort also die Umrechnung anzeigt und nicht die Pose.")
+    for name, entry in cam_names.items():
+        expect_dir = entry.get("data_dir") if isinstance(entry, dict) else entry
+        cfg_dir = entry.get("cfg_dir") if isinstance(entry, dict) else None
         path = f"/World/envs/env_0/{name}"
         prim = stage.GetPrimAtPath(path)
         if not (prim and prim.IsValid()):
@@ -177,25 +185,31 @@ def usd_truth_report(cam_names) -> None:
         if not prim.IsA(UsdGeom.Camera):
             kids = [c for c in prim.GetChildren() if c.IsA(UsdGeom.Camera)]
             cam_prim = kids[0] if kids else prim
+        xf = UsdGeom.Xformable(cam_prim)
         try:
-            pos, fwd, up, fwd_cols = world_basis(cam_prim)
+            pos, fwd, up, fwd_cols = basis(
+                xf.ComputeLocalToWorldTransform(Usd.TimeCode.Default()))
+            # Der eigentliche Test läuft LOKAL: die Config-Rotation ist elternrelativ, und
+            # bei den Wrist-Cams dreht der Link dazwischen mit. Ein Weltvergleich wäre dort
+            # nur bei zufällig aufrechter Armpose aussagekräftig.
+            _, fwd_local, _, _ = basis(xf.GetLocalTransformation(Usd.TimeCode.Default()))
         except Exception as e:  # noqa: BLE001
             print(f"  {name:<16} !! Transform nicht lesbar ({e})")
             continue
         line = f"  {name:<16} pos={np.round(pos, 3)}  blick={np.round(fwd, 3)}"
+        if cfg_dir is not None:
+            ang = angle(fwd_local, cfg_dir)
+            line += ("  SOLL: " + ("OK (0.0°)" if ang < 1.0 else f"<-- WEICHT AB ({ang:.1f}°)"))
         if expect_dir is not None:
-            def _ang(v):
-                return np.degrees(np.arccos(np.clip(float(np.dot(v, expect_dir)), -1.0, 1.0)))
-            ang, ang_c = _ang(fwd), _ang(fwd_cols)
-            flag = "OK" if ang < 1.0 else f"<-- WEICHT AB ({ang:.1f}°)"
-            line += f"  Abweichung zu cam.data: {ang:5.1f}° {flag}"
-            if ang >= 1.0:
+            ang_d, ang_c = angle(fwd, expect_dir), angle(fwd_cols, expect_dir)
+            line += f"  |  cam.data: {ang_d:5.1f}°"
+            if ang_d >= 1.0 and cfg_dir is None:
                 line += (f"\n  {'':<16} Gegenprobe Spalten-Lesart: blick={np.round(fwd_cols, 3)} "
                          f"bei {ang_c:5.1f}°"
                          + ("  <-- diese passt, die Lesart oben ist transponiert"
                             if ang_c < 1.0 else "  (passt auch nicht — Prim ist wirklich "
                                                 "verdreht)"))
-        line += f"\n  {'':<16} oben={np.round(up, 3)}"
+        line += f"\n  {'':<16} oben={np.round(up, 3)}  lokal blick={np.round(fwd_local, 3)}"
         print(f"{line}  ({cam_prim.GetPath()})")
         gc = UsdGeom.Camera(cam_prim)
         if gc:
@@ -438,7 +452,12 @@ def main() -> None:
 
         # Blickrichtung. In convention="world" ist die Blickachse +X.
         view = quat_rotate(quat_w[0], [1.0, 0.0, 0.0])
-        reported_dirs[name] = np.asarray(view, dtype=float)
+        reported_dirs[name] = {
+            "data_dir": np.asarray(view, dtype=float),
+            # elternrelative SOLL-Blickachse; None, wenn keine Config-Rotation vorliegt
+            "cfg_dir": (None if cfg_rot is None
+                        else np.asarray(quat_rotate(cfg_rot, [1.0, 0.0, 0.0]), dtype=float)),
+        }
         print(f"  Blickrichtung (env 0, +X): {np.round(view, 3)}  "
               f"Pitch={np.degrees(np.arcsin(np.clip(view[2], -1, 1))):+.1f}°")
         # Roll mit ausgeben. Die Treffer-Matrix unten prueft NUR die Blickachse — ueber die
