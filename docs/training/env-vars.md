@@ -58,7 +58,7 @@ Diese Schalter aktivieren einzelne Verfahren beim Trainingsstart — alle unabh�
 | `RL_REF_DEVICE` | `auto` | Gerät des eingefrorenen Referenzmodells (KL). `auto` = zweite sichtbare GPU, `same` = wie die Policy, sonst z. B. `cuda:1`. Entlastet die Trainingskarte um ~6–7 GB; mit nur einer GPU wirkungslos |
 | `RL_WANDB_VIDEO_EVERY` | `0` | Alle N Iterationen einen Rollout als Video ins W&B-Dashboard (`0` = aus). Braucht `WANDB_API_KEY`; ohne `moviepy` fällt der Trainer automatisch auf einen Filmstreifen aus Einzelbildern zurück |
 
-> **Hinweis:** Der RL-Trainer ([`rl_finetune.py`](../../Simulation/g1_dex3_sim/rl_finetune.py)) läuft seit 2026-08-08 end-to-end auf RT-Core-Hardware (RTX PRO 6000 Blackwell, Isaac Sim 6.0) — Rollout, FPO-Update und Checkpoint-Schreiben sind nachgewiesen. Offen ist die **Lernwirkung** (steigt `success_rate` über viele Iterationen?); die Hyperparameter oben sind ungetunt. Details: [rl-anleitung.md](../weiterfuehrend/rl-anleitung.md).
+> **Hinweis:** Der RL-Trainer ([`rl_finetune.py`](../../Simulation/g1_dex3_sim/rl_finetune.py)) läuft seit 2026-08-08 end-to-end auf RT-Core-Hardware (RTX PRO 6000 Blackwell, Isaac Sim 6.0) — Rollout, FPO-Update und Checkpoint-Schreiben sind nachgewiesen. Offen ist die **Lernwirkung** (steigt `success_rate` über viele Iterationen?); die Hyperparameter oben sind ungetunt. **Zusätzlich blockiert derzeit ein Greif-Physik-Befund (Läufe 25–28): auch ohne Modell wird im Replay kein Würfel angehoben — ohne Anheben liefert kein Reward-Term ein Lernsignal.** Details: [rl-anleitung.md](../weiterfuehrend/rl-anleitung.md).
 
 ### Live-Ansicht des Laufs (nur im Sim-Image, opt-in)
 

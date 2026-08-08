@@ -92,7 +92,7 @@ findet sich in \doc{docs/training/env-vars.md}.
     \midrule
     \texttt{HF\_TOKEN}          & ---     & Pflicht: HuggingFace-Zugang \\
     \texttt{GLOBAL\_BATCH\_SIZE}& \texttt{8} & globale Batch-Größe (VRAM-abhängig) \\
-    \texttt{MAX\_STEPS}         & \texttt{30000} & Trainingsschritte \\
+    \texttt{MAX\_STEPS}         & \texttt{20000} & Trainingsschritte \\
     \texttt{NUM\_GPUS}          & \texttt{1} & GPUs (aktiviert \texttt{torchrun}) \\
     \texttt{LEARNING\_RATE}     & \texttt{1e-4} & Lernrate \\
     \texttt{TUNE\_VISUAL}       & \texttt{0} & Vision-Encoder mittrainieren \\
@@ -322,9 +322,21 @@ Isaac~Sim: gebündeltes Python~3.11). Die vollständige Bedienung beschreibt
   \emph{Ausgerechnet die starken Trainings-GPUs A100 und H100 besitzen keine
   RT-Cores} und sind daher für die Sim-Eval ungeeignet -- die
   KISSKI-Trainingspartitionen können die Closed-Loop-Eval nicht ausführen. Die
-  Sim-Eval lief deshalb auf vast.ai (NVIDIA~L40). Hintergrund:
+  Sim-Eval lief deshalb zunächst auf vast.ai (NVIDIA~L40); ab Juli~2026 stand
+  ein institutseigener Server mit zwei RT-Core-fähigen RTX~PRO~6000
+  (Blackwell) zur Verfügung, auf dem auch die Referenz-Eval und das
+  RL-Fine-Tuning liefen. Hintergrund:
   \doc{docs/simulation/umsetzungsnotizen.md}.
 \end{warningbox}
+
+\paragraph{Referenz-Eval zur Pipeline-Validierung.}
+Ergänzend zu den beiden internen Evaluationsgleisen wurde eine \emph{externe}
+Kontrolle vorgesehen: Das un-feinabgestimmte Basismodell wird auf einer
+Referenzaufgabe mit von NVIDIA publizierten Erfolgsquoten (RoboCasa GR-1
+Tabletop) ausgeführt. Reproduziert die eigene Inferenz-Kette diese Sollwerte,
+sind Checkpoint-Laden, Embodiment-Konfiguration und Observation-/Action-Mapping
+als Fehlerquellen für ein Null-Resultat ausgeschlossen. Durchführung und
+Ergebnis beschreibt \cref{sec:robocasa}.
 
 \paragraph{Baseline.}
 Als unterer Vergleichswert war eine Baseline mit dem \emph{un}-feinabgestimmten

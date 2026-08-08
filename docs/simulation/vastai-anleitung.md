@@ -236,6 +236,7 @@ lucam03/projekt-humanoider-roboter-sim-vastai:latest
 | `HF_CHECKPOINT_REPO` | `luca-mue/groot-g1dex3-checkpoint` | Ja (für HF-Download) |
 | `ASSET_PATH` | `/data/checkpoints/groot-g1dex3-checkpoint/g1_dex3.usd` | Ja |
 | `NUM_EPISODES` | `20` | Nein (default 20) |
+| `EPISODE_LENGTH_S` | `40` | Nein — **empfohlen**: ohne Angabe läuft jede Episode bis zu 9000 Steps; 20 Episoden können dann Stunden dauern |
 | `EXECUTION_HORIZON` | `8` | Nein (default 8) |
 | `TASK_DESCRIPTION` | `stack the blocks` | Nein |
 | `SHELL_ON_ERROR` | `1` | Empfohlen (für Debugging) |

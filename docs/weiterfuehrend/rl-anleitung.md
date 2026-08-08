@@ -6,7 +6,7 @@ oder ein eigener Server mit RT-Core-GPU, z. B. RTX PRO 6000 Blackwell). RL train
 **in genau der Sim**, in der sie auch evaluiert wird, und optimiert direkt auf **Aufgaben-Erfolg**
 statt nur Aktions-Nachahmung (Hintergrund: [reinforcement-learning-plan.md](reinforcement-learning-plan.md)).
 
-> ## ✅ Status: Pipeline läuft end-to-end — Lernwirkung noch offen
+> ## ✅ Status: Pipeline läuft end-to-end — Lernwirkung offen, Greif-Physik ungeklärt
 >
 > **Seit 2026-08-08 auf echter RT-Core-Hardware durchgelaufen** (Pfad B: RTX PRO 6000 Blackwell,
 > Isaac Sim 6.0). Eine vollständige Iteration — Rollout → GAE → FPO-Loss → `backward`/`optim.step`
@@ -17,6 +17,14 @@ statt nur Aktions-Nachahmung (Hintergrund: [reinforcement-learning-plan.md](rein
 >
 > **Was das noch nicht zeigt:** dass RL die Policy *verbessert*. Ein Ein-Iterations-Smoke-Test
 > sagt nichts über Lernverhalten. Offen bleiben deshalb:
+> - **⛔ Greif-Physik-Blocker (Läufe 25–28, 2026-08-08):** Auch im Open-Loop-Replay **ohne
+>   Modell** wird kein Würfel angehoben (`max_cube_lift` 0,0 cm) — obwohl die Hand die Würfel
+>   nachweislich erreicht und berührt und die Finger vollständig schließen (2,09/2,10 rad).
+>   Solange nichts angehoben werden kann, liefern weder `reward_mode=binary` noch die
+>   `stack`/`height`-Terme des Shaped-Reward ein Signal — **ein RL-Lauf würde in diesem Zustand
+>   laufen, ohne lernen zu können.** Ob Test-Platzierung oder Kontakt-Physik die Ursache ist,
+>   entscheidet der noch ausstehende `GRASP_MODE=hold`-Lauf mit dem in Lauf 28 korrigierten
+>   Fingerkuppen-Messpunkt (Details: [Läufe 25–28 unten](#lauf-28-der-messpunkt-war-zum-dritten-mal-falsch)).
 > - **Lernkurve** — steigt `success` über viele Iterationen? (Hyperparameter noch ungetunt.)
 > - **Durchsatz** — Render-FPS bei produktivem `RL_NUM_ENVS` mit 4 Kameras (Plan-Gruppe 0).
 >

@@ -119,7 +119,7 @@ Gesetzt in [Training/kisski_submit.sh](../../Training/kisski_submit.sh) bzw.
 
 | Parameter | Wert | Anmerkung |
 |---|---|---|
-| `MAX_STEPS` | 175.000 | ~5 Epochen (281k Frames / Batch 8 ≈ 35k Schritte/Epoche) |
+| `MAX_STEPS` | 175.000 | ~5 Epochen (281k Frames / Batch 8 ≈ 35k Schritte/Epoche); das Konfig-Feld `num_train_epochs = 3` wird davon überschrieben |
 | `GLOBAL_BATCH_SIZE` | 8 | A100 80 GB verträgt mehr (siehe [env-vars.md](env-vars.md)) |
 | `LEARNING_RATE` | 1e-4 | |
 | `WARMUP_RATIO` | 0.05 | |

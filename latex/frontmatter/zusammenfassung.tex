@@ -21,10 +21,18 @@ synthetischen Simulationsbildern als Ursache; eine SigLIP-basierte Messung
 quantifizierte ihn (kritisch: die Handgelenk-Kamera). Literaturgestützt
 (SIMPLER) wird gezeigt, dass dieses Null-Resultat für ein auf Realbildern
 trainiertes Modell mit eingefrorenem Encoder \emph{erwartbar} ist und kein Urteil
-über die Modellqualität darstellt. Die Arbeit schließt mit einer methodischen
-Empfehlung (Open-Loop-Eval und reale Rollouts statt Closed-Loop-Sim als
-Benchmark) sowie einem konzeptionellen Ausblick auf Lokomotion und
-Reinforcement-Learning-Fine-Tuning.
+über die Modellqualität darstellt. Nachgelagerte Arbeiten erhärteten diese
+Diagnose: Die Inferenz-Pipeline reproduzierte einen unabhängigen, publizierten
+Benchmark (RoboCasa GR-1: 47,7\,\% gemessen vs.\ 47,8\,\% erwartet) und ist
+damit als Fehlerquelle ausgeschlossen; Kamera-Neukalibrierung und
+Albedo-Korrekturen senkten den mittleren Domain-Gap unter die
+Real-zu-Real-Referenz. Ergänzend wurde eine FPO-basierte
+Reinforcement-Learning-Pipeline implementiert und end-to-end auf eigener
+Hardware validiert; ihr Lernnachweis steht noch aus, blockiert durch einen
+offenen Befund zur Greif-Physik der migrierten Simulation. Die Arbeit schließt
+mit einer methodischen Empfehlung (Open-Loop-Eval und reale Rollouts statt
+Closed-Loop-Sim als Benchmark) sowie einem Ausblick auf Lokomotion und den
+produktiven RL-Einsatz.
 
 \bigskip
 \noindent\textbf{Schlüsselwörter:}
@@ -58,10 +66,17 @@ the visual \textbf{domain gap} between real training images and synthetic
 simulation images as the cause, quantified via SigLIP embeddings (the wrist camera
 being critical). Supported by the literature (SIMPLER), the report shows that this
 null result is \emph{expected} for a model trained on real images with a frozen
-encoder and does not constitute a verdict on model quality. The work concludes with
-a methodological recommendation (open-loop evaluation and real-world rollouts rather
-than closed-loop simulation as a benchmark) and a conceptual outlook on locomotion
-and reinforcement-learning fine-tuning.
+encoder and does not constitute a verdict on model quality. Follow-up work
+corroborated this diagnosis: the inference pipeline reproduced an independent,
+published benchmark (RoboCasa GR-1: 47.7\,\% measured vs.\ 47.8\,\% expected),
+ruling it out as an error source, and camera recalibration together with albedo
+corrections reduced the mean domain gap below the real-to-real reference. In
+addition, an FPO-based reinforcement-learning pipeline was implemented and
+validated end-to-end on local hardware; evidence of actual learning is still
+pending, blocked by an open grasp-physics finding in the migrated simulation.
+The work concludes with a methodological recommendation (open-loop evaluation
+and real-world rollouts rather than closed-loop simulation as a benchmark) and
+an outlook on locomotion and productive RL deployment.
 
 \bigskip
 \noindent\textbf{Keywords:}

@@ -22,7 +22,7 @@ Detailed guides (all prose docs live under [`docs/`](docs/README.md)):
 - **Sim eval on vast.ai (German):** [`docs/simulation/vastai-anleitung.md`](docs/simulation/vastai-anleitung.md)
 - **Sim implementation notes & lessons learned:** [`docs/simulation/umsetzungsnotizen.md`](docs/simulation/umsetzungsnotizen.md)
 - **Results & evaluation (German):** [`docs/ergebnisse/`](docs/ergebnisse/README.md) — run analyses, domain-gap, sim methodology review, baseline
-- **Further work / concepts (German):** [`docs/weiterfuehrend/`](docs/weiterfuehrend/README.md) — RL plan + operative RL guide ([`rl-anleitung.md`](docs/weiterfuehrend/rl-anleitung.md); RL runs end-to-end on the Blackwell server, learning effect still unproven), locomotion research, livestream plan (latter two not yet implemented)
+- **Further work / concepts (German):** [`docs/weiterfuehrend/`](docs/weiterfuehrend/README.md) — RL plan + operative RL guide ([`rl-anleitung.md`](docs/weiterfuehrend/rl-anleitung.md); RL runs end-to-end on the Blackwell server, but learning is currently blocked by an open grasp-physics finding: no cube lift even in model-free replay, runs 25–28), locomotion research (not implemented), livestream plan (Spur A/WebRTC open; Spur B/MJPEG `LIVE_VIEW` is built)
 
 ## Key commands
 
@@ -98,6 +98,7 @@ On vast.ai: GPU must be **Ampere+ with RT-Cores** (L40, RTX 4090, A6000) — A10
 | `CHECKPOINT_PATH` | `/data/checkpoints/groot-g1dex3-checkpoint` | Path after download |
 | `ASSET_PATH` | `/data/checkpoints/groot-g1dex3-checkpoint/g1_dex3.usd` | USD robot asset |
 | `NUM_EPISODES` | `20` | Eval episodes |
+| `EPISODE_LENGTH_S` | `40` | Cap episode length in seconds. Unset = up to 9000 steps per episode — 20 episodes can take hours |
 | `SHELL_ON_ERROR` | `1` | Drop to shell on failure (recommended) |
 | `LIVESTREAM` | `0` | `0`=headless (default), `1`=WebRTC public, `2`=WebRTC private — live 3D-viewport stream (opt-in, "Spur A", **untested on hardware**) |
 | `LIVESTREAM_PORT` | `49100` | WebRTC signaling port. **On vast.ai: set to the externally-mapped port** (internal==external, else SDP port mismatch). Also map `-p 8211 -p 49100 -p 47998/udp`. See [livestream-plan.md](docs/weiterfuehrend/livestream-plan.md) |
@@ -178,8 +179,9 @@ repo root
 │   ├── ergebnisse/                     # evaluations: lauf1-auswertung.md, wandb-run-auswertung.md,
 │   │                                   #   domain-gap-analyse.md, sim-bewertung.md, baseline-unitree-g1.md
 │   ├── weiterfuehrend/                 # reinforcement-learning-plan.md (+ rl-anleitung.md operative guide;
-│   │                                   #   RL runs end-to-end, learning effect open), lokomotion-recherche.md,
-│   │                                   #   livestream-plan.md (latter two not yet implemented)
+│   │                                   #   RL runs end-to-end, but blocked by open grasp-physics finding —
+│   │                                   #   no cube lift even in model-free replay), lokomotion-recherche.md
+│   │                                   #   (not implemented), livestream-plan.md (Spur A open, Spur B built)
 │   ├── umgebungsanalyse.md             # cross-cutting audit
 │   └── fehlerbehebung.md               # cross-cutting troubleshooting
 ├── Training/                           # Everything training-related (build, run scripts)
@@ -204,7 +206,11 @@ repo root
 │   ├── Dockerfile                      # KISSKI-only: slim Isaac Lab sim-client (no GR00T)
 │   ├── Dockerfile.vastai               # vast.ai: combined Isaac Sim + GR00T in one container
 │   ├── kisski_sim_submit.sh            # SLURM job for sim eval (jupyter partition, RTX 5000)
+│   ├── server_rl_run.sh                # ★ Own-server workflow (Docker): preflight/setup/check/cams/
+│   │                                   #   gap/eval/grasp/rl/shell/clean subcommands (see rl-anleitung.md)
+│   ├── server_robocasa_ref_run.sh      # Own-server RoboCasa GR-1 reference eval (pipeline validation)
 │   ├── update_sim_image.ps1            # Build/push tool (-VastAI flag for Dockerfile.vastai)
+│   ├── update_sim_image.sh             # Linux/bash port of update_sim_image.ps1
 │   │                                   #   (sim docs moved to docs/simulation/)
 │   ├── g1_dex3_sim/                    # COPIED into image at /workspace/g1_dex3_sim/
 │   │   ├── run_g1_dex3_sim_eval.py     # Main eval loop (model-based, ZMQ client to GR00T server)
@@ -219,6 +225,8 @@ repo root
 │   │   ├── convert_urdf_to_usd.py      # One-time URDF→USD conversion
 │   │   └── ...
 │   ├── camera_reference/               # Dataset reference frames (camera-calibration targets)
+│   ├── g1_gripper_sim/                 # Stock-G1 gripper baseline sim (SIM_MODE=baseline)
+│   ├── robocasa_reference/             # RoboCasa GR-1 reference-eval scripts (run_robocasa_ref_eval.sh)
 │   └── scripts/                        # COPIED into vastai image at /scripts/
 │       ├── entrypoint_sim.sh           # Autonomous entrypoint (model eval) for Dockerfile.vastai
 │       ├── entrypoint_replay.sh        # Entrypoint for the open-loop replay diagnostic

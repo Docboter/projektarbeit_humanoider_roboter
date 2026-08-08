@@ -25,7 +25,9 @@ ist für einen auf Realbildern trainierten Encoder geradezu der ungünstigste Fa
 
 Verstärkt wird dies durch die in \cref{sec:domain-gap-ergebnis} gemessene
 Verteilung des Domain-Gaps: Nicht der Durchschnitt ist das Problem, sondern der
-\emph{eine} kritische Kameraeingang (\texttt{cam\_left\_wrist}, Distanz~0,427).
+\emph{eine} kritische Kameraeingang (\texttt{cam\_left\_wrist}, Distanz~0,427
+in der Erstmessung; nach Kamera-Neukalibrierung und Albedo-Fixes noch~0,356,
+\cref{sec:neukalibrierung}).
 Da das \ac{vlm} alle vier Kameras gemeinsam einbettet, propagiert ein einzelner
 stark abweichender Eingang in das gesamte Vision-Language-Embedding -- die in
 \cref{sec:imitation-learning} beschriebenen \emph{compounding errors} tun dann
@@ -79,8 +81,10 @@ plausibilisiert; sinnvoll wäre es erst zusammen mit sim- oder
 Die kritische Selbstprüfung der Sim-Eval kommt zu einem klaren Urteil: Die
 Simulation ist \textbf{technisch korrekt gebaut, aber als Bewertungsinstrument
 für dieses Modell methodisch am Ziel vorbei.} Der Steuerungspfad ist durch den
-Replay-Test nachweislich korrekt (\cref{sec:kalibrierung}); die Closed-Loop-
-Erfolgsrate misst jedoch primär den Domain-Gap, nicht die Modellgüte. Bei der
+Replay-Test nachweislich korrekt (\cref{sec:kalibrierung}), und die
+Inferenz-Hälfte reproduziert einen unabhängigen, publizierten Benchmark auf
+0,1~Prozentpunkte genau (\cref{sec:robocasa}); die Closed-Loop-Erfolgsrate
+misst jedoch primär den Domain-Gap, nicht die Modellgüte. Bei der
 Durchsicht der Eval-Implementierung wurden zudem einige kleinere, teils
 kosmetische Mängel identifiziert (\cref{tab:codebefunde}), die für die
 Interpretation relevant sind, das Null-Resultat aber \emph{nicht} erklären.
@@ -113,6 +117,44 @@ werden: der ausgeführte Aktionshorizont (8~von~16, eine Lehrbuch-Konvention fü
 Receding-Horizon-Politiken), die geringe Frequenzabweichung und die
 absolut/relativ-Umsetzung der Aktionen. Sie sind nicht die Fehlerursache.
 
+\section{Messartefakte und ihre Lehren}
+\label{sec:messartefakte}
+
+Die Diagnose-Serien vom August~2026 (\cref{sec:neukalibrierung,sec:grasp-befund})
+förderten über die Sachbefunde hinaus zwei wiederkehrende
+\emph{Messartefakt-Muster} zutage, die für simulationsgestützte
+Robotik-Evaluationen verallgemeinerbar sind:
+
+\begin{description}
+  \item[Zirkuläre Prüfgrößen.] Der Kamera-Orientierungsfehler
+    (\cref{sec:neukalibrierung}) blieb fünf Diagnose-Läufe lang unentdeckt,
+    weil die Kontrollgröße aus \emph{derselben} fehlerhaften
+    Koordinaten-Umrechnung stammte wie die geprüfte Kamerapose: Eine Größe,
+    die auf Hin- und Rückweg durch dieselbe Transformation läuft, kann diese
+    Transformation nicht prüfen. Erst eine unabhängige Messquelle -- der
+    direkte Zugriff auf die USD-Szene -- machte die Abweichung von bis
+    zu~137° sichtbar. Kontrollmessungen müssen den geprüften Codepfad
+    umgehen.
+  \item[Körper-Frames sind keine Kontaktflächen.] Der Abstand
+    \enquote{Hand--Würfel} wurde in der Greif-Diagnostik dreimal
+    nacheinander von einem falschen Referenzpunkt aus gemessen -- Handwurzel,
+    Handfläche, distales Fingergelenk --, dessen Ursprung jeweils
+    zentimeterweit (zuletzt 5,2~cm) vor der tatsächlichen Kontaktfläche der
+    Fingerkuppe liegt. Jede dieser Messungen erzeugte eine falsche
+    Zwischen-Schlussfolgerung; so erwies sich der zunächst alarmierende
+    Befund \enquote{die Arme nähern sich dem Würfel nie} als reines
+    Messartefakt der Handwurzel-Referenz. Bei einem Würfel von 5~cm
+    Kantenlänge entscheidet die Wahl des Referenzpunkts über das Vorzeichen
+    des Ergebnisses.
+\end{description}
+
+Beide Muster teilen eine Konsequenz: Quantitative Diagnostik ist nur so
+belastbar wie die Unabhängigkeit und die physikalische Bedeutung ihrer
+Messpunkte. Die im Projekt daraus abgeleiteten Regeln -- Kontrollgrößen aus
+unabhängigen Quellen beziehen, Abstände an Kontaktflächen statt an
+Körper-Frames messen und jeden Messwert mit seinem Bezugsrahmen protokollieren
+-- sind in \doc{docs/weiterfuehrend/rl-anleitung.md} operationalisiert.
+
 \section{Limitierungen}
 \label{sec:limitierungen}
 
@@ -131,6 +173,15 @@ mangels Alternative genommen, obwohl die Loss-Kurve bereits ab~$\approx$~100\,00
 plateaut. Der zusätzlich aufgedeckte inaktive Train/Test-Split
 (\cref{sec:split-befund}) bedeutet, dass für diesen Lauf keine sauber gehaltene
 Testmenge existiert.
+
+\subsection{Abhängigkeit von der Simulator-Version}
+Der Wechsel von Isaac~Sim~4.x auf~6.0 (\cref{sec:neukalibrierung}) zeigte, dass
+zentrale Validierungsergebnisse an die Simulator-Version gebunden sind: Die im
+Juni belegte Greif-Physik (2,8~cm Hubhöhe im Replay) ließ sich nach der
+Migration zunächst nicht reproduzieren (\cref{sec:grasp-befund}); die Ursache
+war zum Redaktionsschluss ungeklärt. Simulationsgestützte Befunde sollten daher
+stets mit der Simulator-Version ausgewiesen und nach Versionswechseln erneut
+geprüft werden.
 
 \subsection{Sim-to-Real-Transfer}
 Die Evaluation fand ausschließlich in Simulation statt. Der entscheidende Test --

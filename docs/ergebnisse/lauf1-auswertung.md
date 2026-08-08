@@ -37,7 +37,7 @@ Partial-Finetune auf Unitree G1 + DEX3, Task „stack the blocks".
 | Run-ID / Name | `i6n1t613` / `g1_dex3_blockstacking_v1` |
 | State | `finished` |
 | Node / GPUs | `ggpu177` (KISSKI), `num_gpus = 1` (A100) |
-| Steps | **175.000** (`num_train_epochs = 3` ≈ 3 Datendurchläufe) |
+| Steps | **175.000** (`num_train_epochs = 3` ist nur der Konfig-Wert und wird von `max_steps` überschrieben — effektiv ≈ 5 Datendurchläufe: 175.000 × 8 / 281.196) |
 | Laufzeit | ~77.200 s (**~21,4 h**), ~2,27 Steps/s |
 | `global_batch_size` / per-device | 8 / 8, `gradient_accumulation = 1` |
 | Action-Horizon / Denoising-Steps | 16 / 4 |
@@ -52,7 +52,7 @@ Partial-Finetune auf Unitree G1 + DEX3, Task „stack the blocks".
 
 | Metrik | Verlauf | Bewertung |
 |---|---|---|
-| `train/loss` | 0,10 → ~0,03 (Step ~25k) → ~0,01 (Step ~100k) → **~0,008 final** (avg `train_loss` 0,030) | sauberer Abfall, kein NaN |
+| `train/loss` | 1,37 (Start, ungeglättet; vgl. §8.1) → ~0,03 (Step ~25k) → ~0,01 (Step ~100k) → **~0,008 final (geglättet)**; ungeglätteter W&B-Endwert 0,1024, avg `train_loss` 0,030 | sauberer Abfall, kein NaN |
 | `train/grad_norm` | früh ~0,3–0,8 → stabil ~0,1; vereinzelt kleine Peaks | gesund, kein Divergieren |
 | `train/learning_rate` | Cosine, Peak 1e-4 (nach Warmup 5 %) → Ende ~0 (8,9e-15) | korrekt für 175k Steps |
 
@@ -195,6 +195,11 @@ liegen **nicht** am Training.
 Nach einer systematischen Kalibrierungs-Session (Details in
 [`umsetzungsnotizen.md §14`](../simulation/umsetzungsnotizen.md)) wurde das Replay-Ergebnis
 von `max_cube_lift = 1,0 cm` (kein Greifen) auf **2,8 cm** (Greifen bestätigt) verbessert.
+
+> ⚠️ **Einschränkung (2026-08-08):** Dieser Befund gilt für Isaac Sim 4.x. Nach der
+> Isaac-Sim-6.0-Migration hebt derselbe Replay-Testtyp keinen Würfel mehr an (0,0 cm);
+> die Ursache (Test-Platzierung vs. Kontakt-Physik) ist noch offen — siehe
+> [`rl-anleitung.md`](../weiterfuehrend/rl-anleitung.md), Läufe 25–28.
 
 Die wesentlichen Fixes:
 

@@ -1,7 +1,15 @@
 # Sim-Eval Implementation Notes — Lessons Learned & aktueller Stand
 
 Dieses Dokument fasst Erkenntnisse zusammen, die beim Aufbau des Sim-Eval-Workflows
-gewonnen wurden und in keinem anderen Dokument stehen. Stand: 2026-05-31.
+gewonnen wurden und in keinem anderen Dokument stehen. Stand: 2026-05-31
+(Abschnitte 10–16 ergänzt bis 2026-06-05).
+
+> **Neuere Erkenntnisse (August 2026)** — Isaac-Sim-6.0-Migration, Kamera-Pose-Bug und
+> Neukalibrierung (Sichtfeld, Montagepunkt, Stereobasis), Domain-Gap-Neumessung sowie die
+> Greif-Diagnostik-Kette (Läufe 9–28) — sind im Troubleshooting-Teil von
+> [../weiterfuehrend/rl-anleitung.md](../weiterfuehrend/rl-anleitung.md) dokumentiert.
+> Insbesondere gilt der Befund „Greifen validiert" aus §13 unter Isaac Sim 6.0 nicht mehr
+> uneingeschränkt (siehe Hinweis dort).
 
 ---
 
@@ -475,6 +483,12 @@ Für reproduzierbaren Stand: Image neu bauen + pushen.
 
 Diese Session hat die Greif-Physik der Sim systematisch kalibriert, ausgehend von
 `max_cube_lift = 1,0 cm` (kein Greifen). Endergebnis: **2,8 cm — Greifen validiert**.
+
+> ⚠️ **Einschränkung (2026-08-08):** Das Ergebnis „2,8 cm — Greifen validiert" wurde unter
+> Isaac Sim 4.x gemessen. Nach der Isaac-Sim-6.0-Migration hebt derselbe Replay-Testtyp
+> **keinen Würfel mehr an** (0,0 cm, trotz vollständigem Fingerschluss); ob Test-Platzierung
+> oder Kontakt-Physik die Ursache ist, ist noch offen. Details:
+> [../weiterfuehrend/rl-anleitung.md](../weiterfuehrend/rl-anleitung.md) (Läufe 25–28).
 
 ### 14.1 Finger-Aktuatoren (`g1_dex3_cfg.py`)
 

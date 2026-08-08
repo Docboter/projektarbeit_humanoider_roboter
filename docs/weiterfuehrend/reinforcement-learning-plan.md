@@ -8,6 +8,13 @@
 > beantwortet: **eigener Server, keine vast.ai-Miete**. Was der Lauf **nicht** zeigt, ist ob RL die
 > Policy verbessert — das ist der nächste Schritt.
 >
+> **⛔ Aktueller Blocker (Läufe 25–28, 2026-08-08):** Im Open-Loop-Replay **ohne Modell** wird
+> kein Würfel angehoben (0,0 cm), obwohl Hand und Finger die aufgezeichnete Trajektorie sauber
+> abfahren und die Würfel berührt werden. Ohne Anheben liefern weder der binäre noch der Shaped
+> Reward ein Lernsignal — RL wäre in diesem Zustand wirkungslos. Klärung (Platzierung vs.
+> Kontakt-Physik) über `GRASP_MODE=hold` mit korrigiertem Fingerkuppen-Messpunkt:
+> [rl-anleitung.md](rl-anleitung.md).
+>
 > **Bereits umgesetzt** (Stand 2026-06-12, Glue-Fixes 2026-08-07/08):
 > - **Gruppe 1 (Reward):** Shaped Reward im Env hinter `reward_mode="shaped"` —
 >   [`g1_dex3_blockstack_env.py`](../../Simulation/g1_dex3_sim/g1_dex3_blockstack_env.py) (`_shaped_reward`).

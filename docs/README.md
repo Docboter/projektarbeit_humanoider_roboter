@@ -28,7 +28,7 @@ Operativer Sim-Eval-Workflow. Mess- und Methodik-Ergebnisse stehen unter [Ergebn
 |---|---|
 | [simulation/](simulation/README.md) | **Einstieg Simulation** (Index) |
 | [simulation/vastai-anleitung.md](simulation/vastai-anleitung.md) | **Primärer Workflow** — Closed-Loop-Sim-Eval auf vast.ai, Schritt für Schritt (inkl. Open-Loop-Replay-Diagnose) |
-| [simulation/umsetzungsnotizen.md](simulation/umsetzungsnotizen.md) | **READ FIRST** — Lessons Learned, bekannte Fixes, aktueller Stand |
+| [simulation/umsetzungsnotizen.md](simulation/umsetzungsnotizen.md) | **READ FIRST** — Lessons Learned, bekannte Fixes (Stand bis Juni 2026; die Sim-Fixes seit August — Isaac-Sim-6.0-Port, Kamera-Neukalibrierung, Greif-Diagnostik — stehen in [weiterfuehrend/rl-anleitung.md](weiterfuehrend/rl-anleitung.md)) |
 | [simulation/archiv/](simulation/archiv/) | Historische Planungs-/Analyse-Docs (überholt, als Kontext erhalten) |
 
 ## Ergebnisse & Evaluation
@@ -40,19 +40,20 @@ Alle Auswertungen, Messungen und Methodik-Reviews gebündelt — die „Was kam 
 | [ergebnisse/](ergebnisse/README.md) | **Einstieg Ergebnisse** (Index) |
 | [ergebnisse/lauf1-auswertung.md](ergebnisse/lauf1-auswertung.md) | **Abschluss-Auswertung 1. Lauf** (175k Steps) — Metriken + Verhaltens-Evaluation, Diagnose (visueller Domain-Gap), Empfehlungen |
 | [ergebnisse/wandb-run-auswertung.md](ergebnisse/wandb-run-auswertung.md) | W&B-Run-Auswertung — Metriken-Momentaufnahme des 1. Laufs (Detail-Charts in [`wandb-run-charts.html`](ergebnisse/wandb-run-charts.html)) |
-| [ergebnisse/domain-gap-analyse.md](ergebnisse/domain-gap-analyse.md) | **Domain-Gap-Messung** — Cosine-Distanz Real→Sim pro Kamera via frozen SigLIP-ViT (Mittel 0.26, `cam_left_wrist` kritisch bei 0.43) + drei Handlungsoptionen |
+| [ergebnisse/domain-gap-analyse.md](ergebnisse/domain-gap-analyse.md) | **Domain-Gap-Messung** — Cosine-Distanz Real→Sim pro Kamera via frozen SigLIP-ViT. Neumessung 2026-08-08 nach Kamerakalibrierung + Albedo-Fixes: Mittel 0.22, `cam_left_wrist` 0.36 (Juni-Erstmessung 0.26/0.43 überholt) |
 | [ergebnisse/sim-bewertung.md](ergebnisse/sim-bewertung.md) | **Methodik-Review** — Ist Closed-Loop-Sim sinnvoll/korrekt? Belegt: 0-%-Ergebnis ist der erwartete Real→Sim-Gap; Open-Loop-MSE ist die valide Metrik. Mit Code-Befunden + Quellen |
 | [ergebnisse/baseline-unitree-g1.md](ergebnisse/baseline-unitree-g1.md) | **Baseline-Vergleich** — un-finetuntes `GR00T-N1.6-3B` + stock G1-Greifer (`UNITREE_G1`) auf Block-Stacking; parallele Pipeline (`SIM_MODE=baseline`) + TODO-Checkliste vor dem ersten Run |
 
 ## Weiterführende Arbeiten
 
-Konzept- und Planungs-Dokumente für Folgeschritte — **recherchiert, aber noch nicht umgesetzt**.
+Konzept- und Planungs-Dokumente für Folgeschritte — recherchiert; **RL-Pipeline und
+Livestream-Spur B sind inzwischen umgesetzt**, die Lokomotion bleibt Konzept.
 Diese Sammlung speist das gleichnamige Kapitel der Projektarbeit.
 
 | Dokument | Inhalt |
 |---|---|
 | [weiterfuehrend/](weiterfuehrend/README.md) | **Einstieg Weiterführende Arbeiten** (Index) |
-| [weiterfuehrend/reinforcement-learning-plan.md](weiterfuehrend/reinforcement-learning-plan.md) | **RL-Plan + Implementierung** — Algorithmen-Vergleich, Infrastruktur, Status der gebauten Bausteine; Pipeline läuft seit 2026-08-08 end-to-end, offen ist die Lernwirkung |
+| [weiterfuehrend/reinforcement-learning-plan.md](weiterfuehrend/reinforcement-learning-plan.md) | **RL-Plan + Implementierung** — Algorithmen-Vergleich, Infrastruktur, Status der gebauten Bausteine; Pipeline läuft seit 2026-08-08 end-to-end, offen sind Lernwirkung **und ein Greif-Physik-Blocker** (kein Würfel-Anheben auch ohne Modell, Läufe 25–28) |
 | [weiterfuehrend/rl-anleitung.md](weiterfuehrend/rl-anleitung.md) | **RL-Bedienungsanleitung (operativ)** — Image bauen → BC-Checkpoint → RT-Core-GPU (eigener Docker-Server via `server_rl_run.sh` oder vast.ai) → RL starten → überwachen → Checkpoints sichern; Smoke-Test + Aufarbeitung der LIVE-CHECK-Punkte |
 | [weiterfuehrend/lokomotion-recherche.md](weiterfuehrend/lokomotion-recherche.md) | **Lokomotions-Recherche** — Warum der Roboter fixiert ist, GR00T-N1.6-Whole-Body-Control (entkoppelt: RL-Beine + IK/VLA-Arme), Unitree-G1-Lokomotions-Stacks, Integrationspfade + Quellen |
 | [weiterfuehrend/livestream-plan.md](weiterfuehrend/livestream-plan.md) | **Livestream-Plan** — zwei Spuren: **Spur B** (MJPEG-Frame-Stream im Browser, `LIVE_VIEW=1`) ist für den RL-Lauf **gebaut**; **Spur A** (WebRTC-Echtzeit-Viewport für die Sim-Eval) bleibt offen und ungetestet |

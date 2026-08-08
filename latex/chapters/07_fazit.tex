@@ -36,6 +36,20 @@ sich wie folgt zusammenfassen:
     Urteil über die Modellqualität. Die offizielle, domain-gap-freie Metrik
     (Open-Loop-\ac{mse}) deutet darauf hin, dass das Modell die Aufgabe im Prinzip
     gelernt hat.
+  \item \textbf{Extern validierte Pipeline, eingegrenzter Domain-Gap.} Die
+    Inferenz-Kette reproduzierte einen unabhängigen, publizierten Benchmark
+    (RoboCasa GR-1: gemessen 47,7\,\% vs.\ erwartet 47,8\,\%,
+    \cref{sec:robocasa}) und ist damit als Fehlerquelle ausgeschlossen.
+    Kamera-Neukalibrierung und Albedo-Korrekturen senkten den mittleren
+    Real$\to$Sim-Abstand anschließend unter die Real$\to$Real-Referenz
+    (\cref{sec:neukalibrierung}); als dominante Gap-Ursache erwies sich die
+    Materialfarbe (Albedo), nicht die Beleuchtung.
+  \item \textbf{RL-Pipeline implementiert, Lernwirkung offen.} Das als
+    Konzept gestartete RL-Fine-Tuning wurde als FPO-Trainer umgesetzt und
+    absolvierte eine vollständige Trainingsiteration auf institutseigener
+    Blackwell-Hardware (\cref{sec:rl-stand}). Sein produktiver Einsatz ist
+    durch einen zum Redaktionsschluss offenen Greif-Physik-Befund der
+    migrierten Simulation blockiert (\cref{sec:grasp-befund}).
 \end{itemize}
 
 Der wichtigste Beitrag dieser Arbeit ist somit weniger eine hohe Erfolgsrate als
@@ -47,20 +61,32 @@ Roboter-Rollouts zu belegen.
 \section{Ausblick}
 \label{sec:ausblick}
 
-\paragraph{Domain-Gap schließen.}
-Der direkteste nächste Schritt ist das Angleichen der Sim-Optik an die realen
-Bilder (Visual Matching) bzw.\ \acl{dr} während des Trainings, gezielt für die
-kritische Handgelenk-Kamera. Erst danach ist ein Mittrainieren des
-Vision-Encoders (\texttt{TUNE\_VISUAL}) sinnvoll -- auf reinen Realdaten schließt es
-den Gap nicht, sondern verschlechterte das Verhalten bis zum Politik-Kollaps, wie
-der zweite Lauf empirisch zeigte (\cref{sec:vision-lauf,sec:frozen-vs-tuned}).
+\paragraph{Greif-Physik klären.}
+Der unmittelbarste nächste Schritt ist der platzierungsunabhängige Greif-Test
+(\cref{sec:grasp-befund}): Er entscheidet, ob die ausbleibende Würfel-Anhebung
+unter Isaac~Sim~6.0 an der Test-Platzierung oder an den Kontaktparametern der
+migrierten Simulation liegt. Von seinem Ausgang hängen sowohl die
+Interpretierbarkeit der Closed-Loop-Erfolgsrate als auch der produktive
+RL-Einsatz ab.
 
-\paragraph{Reinforcement-Learning-Fine-Tuning.}
+\paragraph{Domain-Gap weiter schließen.}
+Visual Matching hat sich als wirksam erwiesen: Kamera-Neukalibrierung und
+Albedo-Korrekturen senkten den mittleren Gap unter die Real$\to$Real-Referenz
+(\cref{sec:neukalibrierung}). Für die verbleibende kritische Handgelenk-Kamera
+ist der nächste Hebel ein Mittrainieren des Vision-Encoders
+(\texttt{TUNE\_VISUAL}) -- allerdings nur \emph{mit} Simulations- oder
+\acs{dr}-variierten Bildern: Auf reinen Realdaten schließt es den Gap nicht,
+sondern verschlechterte das Verhalten bis zum Politik-Kollaps, wie der zweite
+Lauf empirisch zeigte (\cref{sec:vision-lauf,sec:frozen-vs-tuned}).
+
+\paragraph{Reinforcement-Learning-Fine-Tuning produktiv machen.}
 Wie in \cref{sec:rl-weiterfuehrend} ausgeführt, adressiert RL die \ac{bc}-Schwäche
 an der Wurzel und löst den Domain-Gap konzeptionell auf, da in derselben Sim
-trainiert und evaluiert wird. Der $\pi_{\mathrm{RL}}$-Ansatz~\cite{pirl2025} ist
-für die flow-basierte Architektur von GR00T besonders geeignet; kritischer Pfad
-bleibt die GPU-Frage (RT-Cores~+~Trainings-FLOPs).
+trainiert und evaluiert wird. Die ursprünglich kritische GPU-Frage ist durch den
+institutseigenen Blackwell-Server beantwortet, die FPO-Pipeline implementiert
+und end-to-end validiert (\cref{sec:rl-stand}). Nach Klärung der Greif-Physik
+stehen der erste produktive Lauf, der Nachweis der Lernwirkung und das
+Hyperparameter-Tuning an.
 
 \paragraph{Lokomotion.}
 Mit der entkoppelten Architektur (\cref{sec:loco-pfade}) lässt sich der bislang

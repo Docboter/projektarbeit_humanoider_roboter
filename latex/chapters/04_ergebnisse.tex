@@ -8,7 +8,13 @@ stattfand, und stellt die jeweils gewonnenen Ergebnisse vor. Der rote Faden ist
 die fortschreitende Diagnose: Das Training selbst war erfolgreich, doch die
 Closed-Loop-Evaluation offenbarte ein Verhalten, das erst durch eine Kette
 gezielter Tests auf seine eigentliche Ursache -- den visuellen Domain-Gap --
-zurückgeführt werden konnte.
+zurückgeführt werden konnte. Den Abschluss bilden drei nachgelagerte
+Arbeitsschritte (Juli/August 2026): die \emph{externe} Validierung der
+Inferenz-Pipeline anhand einer Referenzaufgabe mit publiziertem Sollwert
+(\cref{sec:robocasa}), die Neukalibrierung der simulierten Kameras mit
+anschließender Neumessung des Domain-Gaps (\cref{sec:neukalibrierung}) sowie ein
+dabei aufgedeckter, zum Redaktionsschluss noch offener Befund zur Greif-Physik
+der Simulation (\cref{sec:grasp-befund}).
 
 \section{Trainingsverlauf}
 \label{sec:trainingsverlauf}
@@ -229,7 +235,10 @@ Arbeitsschritt. Die wichtigsten Korrekturen (vollständig in
 Erst nach dieser Kalibrierung gelang im Replay ein messbares Anheben des Würfels
 (maximale Hubhöhe von~1,0~cm auf~2,8~cm; Schwelle für \enquote{gegriffen}:
 $>2$~cm) -- die Bestätigung, dass Simulation und Steuerungspfad korrekt sind und
-das Closed-Loop-Versagen folglich nicht an ihnen liegt.
+das Closed-Loop-Versagen folglich nicht an ihnen liegt. Dieser Referenzwert
+entstand unter Isaac~Sim~4.x; nach der späteren Migration auf Isaac~Sim~6.0 ließ
+sich das Anheben im selben Testtyp zunächst \emph{nicht} reproduzieren -- ein
+Befund, der in \cref{sec:grasp-befund} gesondert behandelt wird.
 
 \section{Quantifizierung des Domain-Gaps}
 \label{sec:domain-gap-ergebnis}
@@ -257,8 +266,10 @@ GR00T-Vision-Encoder geschickt und die Cosine-Distanz ihrer Embeddings berechnet
     \bottomrule
   \end{tabularx}
   \caption{Cosine-Distanz Real$\to$Sim pro Kamera (SigLIP-Embeddings;
-    0~=~identisch). Zum Vergleich: Distanz zwischen zwei realen Ansichten
-    (Real$\to$Real) und zwei Sim-Ansichten (Sim$\to$Sim).
+    0~=~identisch), \textbf{Erstmessung Juni 2026}. Zum Vergleich: Distanz
+    zwischen zwei realen Ansichten (Real$\to$Real) und zwei Sim-Ansichten
+    (Sim$\to$Sim). Die Neumessung nach Kamera-Neukalibrierung und Albedo-Fixes
+    zeigt \cref{tab:domain-gap-neu} in \cref{sec:neukalibrierung}.
     Quelle: \doc{docs/ergebnisse/domain-gap-analyse.md}.}
   \label{tab:domain-gap}
 \end{table}
@@ -349,3 +360,143 @@ des ersten Laufs.
   formulierte und in \cref{sec:frozen-vs-tuned} theoretisch begründete Vorhersage ist
   damit empirisch bestätigt.
 \end{infobox}
+
+\section{Externe Validierung der Inferenz-Pipeline}
+\label{sec:robocasa}
+
+Die bisherige Diagnose stützte sich ausschließlich auf \emph{interne} Tests. Eine
+Restunsicherheit blieb damit bestehen: Auch ein Fehler in der eigenen
+Inferenz-Kette -- Checkpoint-Laden, Embodiment-Konfiguration,
+Observation-/Action-Mapping, \ac{zmq}-Transport -- hätte ein Null-Resultat
+erzeugen können. Um diese Fehlerklasse auszuschließen, wurde die Pipeline im
+Juli~2026 an einer \textbf{Referenzaufgabe mit publiziertem Sollwert} geprüft:
+Das \emph{un}-feinabgestimmte Basismodell \texttt{GR00T-N1.6-3B} wurde zero-shot
+(Embodiment \texttt{GR1}) auf dem RoboCasa-GR-1-Tabletop-Benchmark
+(robosuite/MuJoCo) ausgeführt, für den NVIDIA offizielle Erfolgsquoten
+veröffentlicht. Die Ausführung erfolgte auf einem institutseigenen Server mit
+zwei RTX~PRO~6000 (Blackwell-Generation) -- derselben Maschine, die später auch
+das RL-Fine-Tuning trug (\cref{sec:rl-stand}).
+
+Das Ergebnis bestätigt die Pipeline präzise: Über zwölf abgeschlossene Tasks
+(je 100~Episoden) lag die gemessene mittlere Erfolgsrate bei \textbf{47,7\,\%}
+gegenüber \textbf{47,8\,\%} erwartetem Mittel der entsprechenden publizierten
+Einzelwerte -- eine Abweichung von nur~0,1~Prozentpunkten
+(\doc{docs/ergebnisse/basismodell-referenz-eval.md}). Damit ist die
+GR00T-Inferenz-Hälfte der Evaluationsarchitektur \emph{extern} validiert: Sie
+reproduziert einen unabhängigen, publizierten Benchmark. Das Null-Resultat der
+eigenen Isaac-Lab-Szene ist folglich nicht auf eine defekte Harness
+zurückzuführen, sondern -- wie diagnostiziert -- auf den Domain-Gap. Diese
+Gegenprobe schließt die in \cref{sec:diagnose} begonnene Beweiskette nach außen
+ab.
+
+\section{Kamera-Neukalibrierung und Neumessung des Domain-Gaps}
+\label{sec:neukalibrierung}
+
+Im August~2026 wurde die Simulationsumgebung auf \textbf{Isaac~Sim~6.0}
+migriert, da die bisherige Version auf der Blackwell-GPU des Servers mit dem
+installierten Treiber reproduzierbar abstürzte. Bei der anschließenden
+Wiederinbetriebnahme deckte eine Diagnose-Serie einen schwerwiegenden, zuvor
+unentdeckten Rendering-Fehler auf: Die Orientierungen der Kamera-Prims wichen
+je nach Kamera um 95--137° von der konfigurierten Pose ab -- die Policy-Kameras
+filmten teils \enquote{den Himmel} statt der Szene. Bemerkenswert ist, warum der
+Fehler fünf Diagnose-Läufe lang unsichtbar blieb: Die Prüfgröße stammte aus
+derselben fehlerhaften Orientierungs-Umrechnung wie die Kamerapose selbst; erst
+der direkte Zugriff auf die USD-Szene als \emph{unabhängige} Messquelle machte
+die Abweichung sichtbar. Die methodische Lehre daraus wird in
+\cref{sec:messartefakte} diskutiert.
+
+Auf die Fehlerbehebung folgte eine systematische \textbf{Neukalibrierung der
+Kopfkameras} gegen Referenzbilder des Datensatzes -- diesmal nicht iterativ
+angenähert, sondern aus den Bilddaten \emph{berechnet}: Das konfigurierte
+Sichtfeld (75°) wurde durch einen Auslese-Bug zuvor nie angewendet (effektiv
+47,2°); der Montagepunkt wurde auf die \texttt{d435\_link}-Position der
+\ac{urdf} gesetzt; und die Stereobasis wurde aus der Pixel-Disparität des realen
+Stereopaars zu $\pm$0,025~m (parallel statt konvergierend) zurückgerechnet.
+Danach traf das gerenderte Stereopaar die Referenzbilder bis auf wenige Pixel.
+Als wirksamster Hebel gegen den verbleibenden Erscheinungs-Unterschied erwies
+sich die \textbf{Albedo}: Die reale DEX3-Hand ist schwarz, das USD-Asset weiß --
+ein Beleuchtungsfaktor kann ein solches Kontrastverhältnis prinzipiell nicht
+korrigieren, was ein Helligkeits-Sweep bestätigte (Faktor~25 in der
+Lichtintensität verschob den Gap um lediglich~$\approx$~5\,\%). Mit schwarz
+eingefärbten Händen erreichte der Bildkontrast der Handgelenkkamera~68,9
+gegenüber real~65,0 (zuvor: 36,1).
+
+\begin{table}[htb]
+  \centering
+  \begin{tabularx}{\linewidth}{Xrrr}
+    \toprule
+    \textbf{Kamera} & \textbf{Juni 2026} & \textbf{Aug.\ 2026} & \textbf{Delta} \\
+    \midrule
+    \texttt{cam\_left\_high}   & 0,148 & 0,112 & $-$0,036 \\
+    \texttt{cam\_right\_high}  & 0,214 & 0,131 & $-$0,083 \\
+    \texttt{cam\_right\_wrist} & 0,249 & 0,293 & $+$0,044 \\
+    \texttt{cam\_left\_wrist}  & \textbf{0,427} & \textbf{0,356} & $-$0,072 \\
+    \midrule
+    \textbf{Mittelwert Real$\to$Sim} & 0,260 & \textbf{0,223} & $-$0,037 \\
+    Referenz Real$\to$Real     & 0,273 & 0,273 & \\
+    Referenz Sim$\to$Sim       & 0,211 & 0,216 & \\
+    \bottomrule
+  \end{tabularx}
+  \caption{Domain-Gap vor und nach Kamera-Neukalibrierung und Albedo-Fixes
+    (Cosine-Distanz der SigLIP-Embeddings). Der Mittelwert liegt nun
+    \emph{unter} der Real$\to$Real-Referenz; \texttt{cam\_left\_wrist} bleibt
+    der Ausreißer und verfehlt das vorab festgelegte Kriterium ($<0{,}35$)
+    knapp um~0,006. Quelle: \doc{docs/ergebnisse/domain-gap-analyse.md}.}
+  \label{tab:domain-gap-neu}
+\end{table}
+
+Die Neumessung (\cref{tab:domain-gap-neu}) bestätigt die Wirksamkeit beider
+Maßnahmen: Der mittlere Real$\to$Sim-Abstand sank von~0,260 auf~\textbf{0,223}
+und liegt damit unter der Distanz zweier realer Kameraperspektiven (0,273) --
+die Sim-Bilder sind im Embedding-Raum im Mittel nicht mehr fremder als eine
+andere reale Ansicht. Die kritische Handgelenkkamera verbesserte sich
+von~0,427 auf~0,356, verfehlt das vorab festgelegte Zielkriterium ($<0{,}35$)
+jedoch knapp. Nach der zuvor festgelegten Entscheidungsregel wurde daraufhin
+kein weiterer Albedo-Versuch unternommen; der nächste logische Schritt -- ein
+\texttt{TUNE\_VISUAL}-Training \emph{mit} Simulationsbildern -- wurde jedoch
+zurückgestellt, bis der folgende Befund geklärt ist.
+
+\section{Offener Befund: Greif-Physik unter Isaac Sim 6.0}
+\label{sec:grasp-befund}
+
+Mit neu kalibrierten Kameras sollte die Closed-Loop-Erfolgsrate erneut gemessen
+werden, um einen belastbaren Nullpunkt für das RL-Fine-Tuning
+(\cref{sec:rl-stand}) zu erhalten. Die Messung ergab erneut keinen Erfolg --
+diesmal jedoch mit einem qualitativ anderen Bild, das eine eigene
+Diagnose-Kette auslöste (vollständig dokumentiert in
+\doc{docs/weiterfuehrend/rl-anleitung.md}):
+
+\begin{itemize}
+  \item \textbf{Die Hand erreicht den Würfel.} Mit korrekt an den Fingerkuppen
+    gemessenem Abstand nähert sich die Hand der Startpose gegenüber
+    um~$\approx$~9,5~cm und erreicht den Würfel; genau ein Würfel wird dabei
+    nachweislich berührt und um 1,5~bzw.~5,7~cm verschoben.
+  \item \textbf{Die Finger schließen vollständig.} Im modellfreien Greif-Test
+    (echte Datensatz-Aktionen, kein Policy-Server) durchfahren die
+    Fingergelenke die volle kommandierte Spannweite (2,09~rad kommandiert,
+    2,10~rad erreicht) -- keine Gelenkgrenze blockiert die Greifbewegung.
+  \item \textbf{Dennoch wird kein Würfel angehoben.} Die maximale Hubhöhe
+    beträgt in allen August-Tests \textbf{0,0~cm} -- auch dann, wenn die
+    Würfel direkt an die geschätzten Greifpunkte der aufgezeichneten
+    Trajektorie gesetzt werden. Alle drei Würfel werden angefasst und
+    weggeschoben, keiner angehoben.
+\end{itemize}
+
+Damit steht der Juni-Befund \enquote{Greifen validiert} (2,8~cm Hubhöhe unter
+Isaac~Sim~4.x, \cref{sec:kalibrierung}) unter Isaac~Sim~6.0 in Frage. Zwei
+Erklärungen sind zum Redaktionsschluss nicht getrennt: (a)~die
+\emph{Platzierung} des Tests -- die Würfelpositionen sind geschätzt, da der
+Datensatz keine Objektposen speichert -- oder (b)~die \emph{Kontakt-Physik}
+der migrierten Simulation hält den Würfel nicht. Ein platzierungsunabhängiger
+Test, der den Würfel im Moment des Zugreifens konstruktionsbedingt korrekt
+zwischen die Fingerkuppen setzt, ist implementiert, stand zum
+Redaktionsschluss aber noch aus.
+
+\begin{warningbox}[Konsequenz für RL und Erfolgsraten-Messung]
+  Solange in der Simulation kein Würfel angehoben werden kann, liefert weder
+  das binäre Erfolgssignal noch die Stapel-/Höhen-Terme des geformten Rewards
+  ein Lernsignal -- ein RL-Lauf würde ausgeführt, ohne lernen zu können
+  (\cref{sec:rl-stand}). Auch die gemessene Closed-Loop-Erfolgsrate ist in
+  diesem Zustand kein Befund über den Checkpoint. Die Klärung der Greif-Physik
+  ist damit der kritische Pfad aller weiteren simulationsbasierten Arbeiten.
+\end{warningbox}

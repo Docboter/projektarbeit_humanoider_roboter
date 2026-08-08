@@ -3,15 +3,20 @@
 \chapter{Weiterführende Arbeiten}
 \label{chap:weiterfuehrend}
 
-Zwei Stränge weisen über den umgesetzten Projektkern hinaus und wurden im Rahmen
-dieser Arbeit \emph{recherchiert und konzipiert, aber nicht implementiert}: die
-Aktivierung der \textbf{Lokomotion} (der Roboter soll sich bewegen, nicht nur
-greifen) und das \textbf{Reinforcement-Learning-Fine-Tuning} der Politik (als
-Antwort auf die in \cref{chap:diskussion} diagnostizierte \ac{bc}-Schwäche).
-Beide Konzeptarbeiten sind ausführlich in der Projektdokumentation hinterlegt
+Zwei Stränge weisen über den umgesetzten Projektkern hinaus: die Aktivierung der
+\textbf{Lokomotion} (der Roboter soll sich bewegen, nicht nur greifen) und das
+\textbf{Reinforcement-Learning-Fine-Tuning} der Politik (als Antwort auf die in
+\cref{chap:diskussion} diagnostizierte \ac{bc}-Schwäche). Die Lokomotion wurde
+\emph{recherchiert und konzipiert, aber nicht implementiert}. Das
+RL-Fine-Tuning ging im Projektverlauf über den Konzeptstatus hinaus: Die
+FPO-basierte Trainings-Pipeline wurde implementiert und lief am 08.08.2026
+erstmals vollständig auf eigener Hardware durch (\cref{sec:rl-stand}); ihre
+\emph{Lernwirkung} ist noch unbelegt und derzeit durch den Greif-Physik-Befund
+aus \cref{sec:grasp-befund} blockiert. Beide Arbeiten sind ausführlich in der
+Projektdokumentation hinterlegt
 (\doc{docs/weiterfuehrend/lokomotion-recherche.md} bzw.\
-\doc{docs/weiterfuehrend/reinforcement-learning-plan.md}); dieses Kapitel fasst ihre
-Argumentation und die Entscheidungswege zusammen.
+\doc{docs/weiterfuehrend/reinforcement-learning-plan.md}); dieses Kapitel fasst
+Argumentation, Entscheidungswege und Umsetzungsstand zusammen.
 
 \section{Lokomotion}
 \label{sec:locomotion}
@@ -189,29 +194,59 @@ Aktions-Experten -- entworfen wurde und sich mit dem Setup dieser Arbeit deckt.
 \subsection{Vorhandene Infrastruktur und das RL-Delta}
 \label{sec:rl-infra}
 
-Vieles ist bereits vorhanden: Die Isaac-Lab-Umgebung
+Vieles war bereits vorhanden: Die Isaac-Lab-Umgebung
 \texttt{g1\_dex3\_blockstack\_env.py} ist schon eine \texttt{DirectRLEnv} mit
 vektorisierten Erfolgs- und Done-Funktionen, der BC-Checkpoint dient als
 Startpunkt, und die ZMQ-Client-Pipeline (\cref{fig:zmq}) ist eine Vorlage für die
-Rollout-Schleife. Neu zu bauen ist im Wesentlichen: (1) ein \emph{geformter}
-Reward (statt des nur für Ablationen gedachten binären Erfolgs-Signals), (2) echte
-Parallelität (\texttt{num\_envs > 1}) und (3) der flow-kompatible RL-Loss-Loop --
-sinnvollerweise mit KL-Regularisierung gegen den BC-Checkpoint, um Reward-Hacking
-und Vergessen zu vermeiden.
+Rollout-Schleife. Das ursprünglich identifizierte RL-Delta -- (1) ein
+\emph{geformter} Reward statt des nur für Ablationen gedachten binären
+Erfolgs-Signals, (2) echte Parallelität (\texttt{num\_envs > 1}) und (3) der
+flow-kompatible RL-Loss-Loop mit KL-Regularisierung gegen den BC-Checkpoint --
+wurde im Projektverlauf vollständig umgesetzt (\cref{sec:rl-stand}).
 
-\subsection{Der kritische Pfad: GPU- und Rendering-Konflikt}
+\subsection{Der kritische Pfad: GPU- und Rendering-Konflikt -- und seine Auflösung}
 \label{sec:rl-gpu}
 
-Das größte Risiko ist nicht der Algorithmus, sondern die Hardware -- und es ist
+Das größte Risiko war zunächst nicht der Algorithmus, sondern die Hardware --
 dasselbe Spannungsfeld wie bei der Closed-Loop-Eval (\cref{sec:eval-methodik}):
 Bildbasiertes RL braucht \emph{gleichzeitig} RT-Core-Rendering (Isaac-Sim-Raytracing
 $\to$ L40/RTX~4090/A6000) \emph{und} Trainings-FLOPs in großer Zahl, idealerweise
 über viele parallele Umgebungen. Die starken Trainings-GPUs A100/H100 besitzen
 keine RT-Cores; die RT-Core-fähigen Karten sind teils zu schwach fürs gleichzeitige
-Training. Als realistischster Weg gilt eine Ampere-plus-GPU mit RT-Cores auf
-vast.ai. Ein \emph{State-only}-Pilot (RL ohne Kamera-Rendering) kann die
-RL-Mechanik isoliert validieren, umgeht aber gerade das eigentliche Ziel -- das
-bildkonditionierte Schließen des Regelkreises.
+Training. Aufgelöst wurde der Konflikt durch den bereits in \cref{sec:robocasa}
+eingeführten institutseigenen Server: Dessen zwei RTX~PRO~6000
+(Blackwell-Generation, je 96~GB) besitzen RT-Cores \emph{und} ausreichende
+Trainings-FLOPs, sodass keine vast.ai-Miete nötig ist. Das eingefrorene
+KL-Referenzmodell läuft dabei auf der zweiten GPU und entlastet die
+Trainingskarte. Der Weg dorthin erforderte allerdings die Migration auf
+Isaac~Sim~6.0, da die zuvor verwendete Version auf Blackwell mit dem
+installierten Treiber reproduzierbar abstürzte (\cref{sec:neukalibrierung}).
+
+\subsection{Stand der Umsetzung}
+\label{sec:rl-stand}
+
+Umgesetzt wurde von den drei Verfahren aus \cref{tab:rl-verfahren}
+\textbf{FPO}: Sein likelihood-freier Proxy verwendet den vorhandenen
+Flow-Matching-Loss unverändert wieder und greift damit am wenigsten in die
+GR00T-Trainings-API ein. Der Trainer (\texttt{rl\_finetune.py}) tunt
+ausschließlich den Aktionskopf, regularisiert per KL-Term gegen den
+BC-Checkpoint und bezieht seinen geformten Reward aus der um
+\texttt{reward\_mode="shaped"} und gebatchte Beobachtungen erweiterten
+Isaac-Lab-Umgebung. Am \textbf{08.08.2026} terminierte erstmals eine
+vollständige Trainingsiteration -- Rollout $\to$ \ac{gae} $\to$ FPO-Update
+$\to$ Checkpoint -- fehlerfrei auf dem Blackwell-Server unter Isaac~Sim~6.0
+(Smoke-Test-Konfiguration mit zwei parallelen Umgebungen;
+\doc{docs/weiterfuehrend/rl-anleitung.md}).
+
+Damit ist die \emph{Machbarkeit} der Pipeline belegt, nicht ihre
+\emph{Lernwirkung}: Ob die Erfolgsrate über viele Iterationen steigt, ist
+offen -- und derzeit auch nicht messbar, denn der in \cref{sec:grasp-befund}
+beschriebene Greif-Physik-Befund entzieht sowohl dem binären als auch dem
+geformten Reward das Lernsignal, solange in der Simulation kein Würfel
+angehoben werden kann. Die Klärung dieses Befunds ist damit die unmittelbare
+Voraussetzung für den ersten produktiven RL-Lauf; danach stehen
+Hyperparameter-Tuning und ein Durchsatz-Benchmark (Render-FPS bei produktiver
+Umgebungszahl) an.
 
 \begin{tipbox}
   Bemerkenswert ist, dass RL die Domain-Gap-Problematik aus \cref{chap:diskussion}
@@ -219,5 +254,7 @@ bildkonditionierte Schließen des Regelkreises.
   in der sie evaluiert wird -- Trainings- und Testverteilung fallen zusammen, der
   Distribution-Shift verschwindet, und der Reward erzwingt aktives Handeln statt
   Einfrieren. RL ist damit nicht nur eine Leistungssteigerung, sondern eine
-  konzeptionell passende Antwort auf den zentralen Befund dieser Arbeit.
+  konzeptionell passende Antwort auf den zentralen Befund dieser Arbeit --
+  vorausgesetzt, die Simulation lässt den Aufgabenerfolg physikalisch zu
+  (\cref{sec:grasp-befund}).
 \end{tipbox}

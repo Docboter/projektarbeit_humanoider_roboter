@@ -73,7 +73,7 @@ apptainer exec --nv \
   --env HF_TOKEN="${HF_TOKEN}" \
   --env WANDB_API_KEY="${WANDB_API_KEY:-}" \
   --env GLOBAL_BATCH_SIZE="${GLOBAL_BATCH_SIZE:-8}" \
-  --env MAX_STEPS="${MAX_STEPS:-175000}" \
+  --env MAX_STEPS="${MAX_STEPS:-44000}" \
   --env NUM_GPUS="${NUM_GPUS:-1}" \
   "${SIF_IMAGE}" \
   bash /scripts/entrypoint.sh
@@ -96,13 +96,16 @@ apptainer exec --nv \
     Paketmanager              & \texttt{uv} \\
     DeepSpeed                 & 0.17.6 \\
     Weights \& Biases         & 0.23.0 \\
-    Isaac~Lab (Sim-Basisimage)& \texttt{nvcr.io/nvidia/isaac-lab:2.3.2} \\
+    Sim-Basisimage (bis Juli 2026) & \texttt{nvcr.io/nvidia/isaac-lab:2.3.2} \\
+    Sim-Basisimage (ab Aug.\ 2026) & \texttt{isaac-lab:3.0.0-beta2-post1} (Isaac~Sim~6.0) \\
     Python (Isaac~Sim)        & 3.11 \\
     GR00T (Fork)              & lucam06, gepinnter Commit \\
     \bottomrule
   \end{tabular}
   \caption{Software-Versionen der Trainings- und Simulationsumgebung
-    (soweit dokumentiert).}
+    (soweit dokumentiert). Die Migration auf Isaac~Sim~6.0 im August~2026 war
+    durch eine Treiber-Inkompatibilität der Blackwell-GPU erzwungen
+    (\cref{sec:neukalibrierung}).}
   \label{tab:anh-software}
 \end{table}
 
