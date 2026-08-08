@@ -506,7 +506,43 @@ HF_TOKEN=hf_... ./Simulation/server_rl_run.sh check   # der eigentliche Blackwel
 ### `createDLSSContext error` / Rendering schlägt fehl
 GPU ohne RT-Cores. Nur L40 / RTX 30xx-40xx / A6000 — **kein A100/H100/V100**.
 
-### Kamerabilder praktisch leer (Isaac Sim 6.0) — DLSS-Upscaling
+### Würfel liegen auf dem Boden statt auf dem Tisch (`num_envs > 1`) — GELÖST
+
+**Symptom (2026-08-08):** Im RL-Lauf mit 4 Envs waren die Kamerabilder gleichmäßig weiß, und
+`success_rate` konnte gar nicht steigen. Der Kamera-Dump zeigte:
+
+```
+block_0   [-0.488  1.077  0.025]   erwartet (0.34, -0.15, 0.915)
+```
+
+`z = 0.025` ist die halbe Würfelkante — die Würfel lagen **auf dem Boden**. Rechnet man die
+Env-Verschiebung heraus (env 0 bei `(1, -0.92, 0)`), landen sie bei den Weltkoordinaten
+(0.51, 0.16) / (0.31, −0.11) / (0.36, 0.47): ihren konfigurierten **Tisch**koordinaten, nur in
+der falschen Env — dort steht kein Tisch, also fielen sie durch.
+
+**Ursache:** `_reset_idx()` übergab die env-lokalen `block_*_range`-Werte direkt an
+`write_root_pose_to_sim()`, das **Weltkoordinaten** erwartet. `self.scene.env_origins` fehlte.
+**Mit `num_envs=1` ist der Fehler unsichtbar** (Env-Ursprung ist `(0,0,0)`) — deshalb fiel er in
+allen Sim-Evals und Replay-Läufen nie auf und erst im RL-Lauf mit mehreren Envs.
+
+**Nicht betroffen:** Reward und Erfolgskriterium rechnen ausschließlich mit *Differenzen*
+(`cdist` Hand↔Würfel, paarweise Würfelabstände, Höhendifferenz) und sind damit
+frame-unabhängig. Ebenso die per `init_state` gespawnten Objekte (Tisch, Stapel-Band) — Isaac Lab
+setzt die selbst env-relativ. Und die Juni-Auswertungen liefen mit `num_envs=1`, sind also
+unberührt; der 0-%-Befund dort bleibt der Domain-Gap.
+
+**Folge:** Alle bisherigen RL-Läufe (`RL_NUM_ENVS` 2 und 4) trainierten auf einer unlösbaren
+Aufgabe — die Würfel lagen außerhalb der Reichweite am Boden. `reward_mean` bewegte sich
+trotzdem, weil der Shaped Reward aus Gelenk- und Abstandsgrößen kommt.
+
+### Kamerabilder gleichmäßig weiß — was es NICHT war
+
+> Der Befund oben war die Ursache. Die folgende Liste dokumentiert die Verdächtigen, die auf dem
+> Weg dahin per Messung ausgeschlossen wurden — nützlich, falls das Symptom wiederkehrt.
+> **Lehre daraus:** Ein gleichmäßig weißes Bild war hier das *korrekte* Rendering einer weißen
+> Tischplatte, auf der nichts lag. Nicht die Kamera prüfen, sondern erst die Szene.
+
+### Historisch: DLSS-Upscaling (nicht die Ursache)
 
 **Symptom (2026-08-08, RTX PRO 6000 Blackwell):** Alle fünf Kameras liefern nahezu einfarbige
 Bilder. `cam_left_high` spannte über das gesamte Bild nur die Helligkeitsstufen **244–249**; die

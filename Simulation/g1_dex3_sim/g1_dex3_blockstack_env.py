@@ -586,7 +586,19 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
         self.robot.set_joint_position_target(default_pos, env_ids=env_ids)
         self.robot.write_joint_state_to_sim(default_pos, default_vel, env_ids=env_ids)
 
-        # Würfel neu sampeln (randomisierte Positionen auf dem Tisch)
+        # Würfel neu sampeln (randomisierte Positionen auf dem Tisch).
+        # ACHTUNG env_origins: write_root_pose_to_sim() erwartet WELT-Koordinaten, die
+        # block_*_range aus der Config sind aber env-lokal (relativ zum Tisch). Ohne den
+        # Aufschlag landen alle Würfel am Weltursprung — wo bei num_envs>1 KEIN Tisch
+        # steht, weil jede Env ihren eigenen bei env_origin+(0.5,0,…) hat. Sie fallen dann
+        # auf den Boden.
+        # So gefunden am 2026-08-08: der Dump zeigte block_* bei z=0.025 (halbe Kantenlänge
+        # = auf dem Boden liegend) und, nach Herausrechnen von env 0s Ursprung (1,-0.92,0),
+        # bei Weltkoordinaten (0.51,0.16)/(0.31,-0.11)/(0.36,0.47) — exakt die
+        # konfigurierten Tischkoordinaten, nur in der falschen Env.
+        # Mit num_envs=1 ist der Fehler unsichtbar (env_origin = 0) — deshalb fiel er in
+        # allen früheren Ein-Env-Läufen nicht auf und erst im RL-Lauf mit 4 Envs.
+        env_offset = self.scene.env_origins[env_ids]
         for block in self.blocks:
             block_pos = torch.zeros(len(env_ids), 3, device=self.device)
             block_pos[:, 0] = sample_uniform(
@@ -598,6 +610,7 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
                 (len(env_ids),), device=self.device
             )
             block_pos[:, 2] = self.cfg.block_z_surface
+            block_pos += env_offset
             block_quat = torch.zeros(len(env_ids), 4, device=self.device)
             block_quat[:, 0] = 1.0  # Identity-Quaternion (w=1)
             block.write_root_pose_to_sim(
