@@ -506,41 +506,77 @@ HF_TOKEN=hf_... ./Simulation/server_rl_run.sh check   # der eigentliche Blackwel
 ### `createDLSSContext error` / Rendering schlägt fehl
 GPU ohne RT-Cores. Nur L40 / RTX 30xx-40xx / A6000 — **kein A100/H100/V100**.
 
-### Würfel liegen auf dem Boden statt auf dem Tisch (`num_envs > 1`) — GELÖST
+### Würfel landen nicht auf dem Tisch (`num_envs > 1`) — GELÖST, zwei unabhängige Ursachen
 
-**Symptom (2026-08-08):** Im RL-Lauf mit 4 Envs waren die Kamerabilder gleichmäßig weiß, und
-`success_rate` konnte gar nicht steigen. Der Kamera-Dump zeigte:
+**Symptom (2026-08-08):** Im RL-Lauf mit 4 Envs konnte `success_rate` gar nicht steigen. Der
+Kamera-Dump zeigte `block_0` bei `z = 0.025` — die halbe Würfelkante, die Würfel lagen also **auf
+dem Boden**.
 
-```
-block_0   [-0.488  1.077  0.025]   erwartet (0.34, -0.15, 0.915)
-```
+**Ursache 1 — fehlender Env-Versatz.** `_reset_idx()` übergab die env-lokalen `block_*_range`-Werte
+direkt an `write_root_pose_to_sim()`, das **Weltkoordinaten** erwartet; `self.scene.env_origins`
+fehlte. Die Würfel landeten damit am Weltursprung, wo bei `num_envs > 1` kein Tisch steht (jede Env
+hat ihren eigenen bei `env_origin + (0.5, 0, …)`), und fielen durch.
+**Mit `num_envs=1` ist der Fehler unsichtbar** (Env-Ursprung `(0,0,0)`) — deshalb fiel er in allen
+Sim-Evals und Replay-Läufen nie auf und erst im RL-Lauf mit mehreren Envs.
+Behoben mit `block_pos += self.scene.env_origins[env_ids]`; in `runs/20260808/09` nachgemessen:
+Würfel bei Welt `(1.37, -1.17, 0.895)`, also auf dem Tisch von env 0 (Oberkante 0.87 + 0.025).
 
-`z = 0.025` ist die halbe Würfelkante — die Würfel lagen **auf dem Boden**. Rechnet man die
-Env-Verschiebung heraus (env 0 bei `(1, -0.92, 0)`), landen sie bei den Weltkoordinaten
-(0.51, 0.16) / (0.31, −0.11) / (0.36, 0.47): ihren konfigurierten **Tisch**koordinaten, nur in
-der falschen Env — dort steht kein Tisch, also fielen sie durch.
-
-**Ursache:** `_reset_idx()` übergab die env-lokalen `block_*_range`-Werte direkt an
-`write_root_pose_to_sim()`, das **Weltkoordinaten** erwartet. `self.scene.env_origins` fehlte.
-**Mit `num_envs=1` ist der Fehler unsichtbar** (Env-Ursprung ist `(0,0,0)`) — deshalb fiel er in
-allen Sim-Evals und Replay-Läufen nie auf und erst im RL-Lauf mit mehreren Envs.
+**Ursache 2 — überlappende Startpositionen.** Alle drei Würfel wurden unabhängig aus **demselben**
+Rechteck gezogen (x 0.30–0.40, y −0.20–0.20). Zwei 5-cm-Würfel überlappen dort mit ~18 % je Paar,
+bei drei Paaren also in **44,9 %** aller Resets (Monte-Carlo, 200 000 Ziehungen). PhysX löst die
+Durchdringung auf, indem es die Würfel auseinanderschießt — in `runs/20260808/08` lagen sie danach
+gut 1 m entfernt am Boden. Behoben mit disjunkten y-Bändern je Würfel plus 3 cm Rand:
+Überlappungsrate 0,00 %, garantierter Mindestabstand 6 cm bei 5 cm Kantenlänge, x bleibt voll
+randomisiert und die y-Gesamtspanne unverändert.
 
 **Nicht betroffen:** Reward und Erfolgskriterium rechnen ausschließlich mit *Differenzen*
-(`cdist` Hand↔Würfel, paarweise Würfelabstände, Höhendifferenz) und sind damit
-frame-unabhängig. Ebenso die per `init_state` gespawnten Objekte (Tisch, Stapel-Band) — Isaac Lab
-setzt die selbst env-relativ. Und die Juni-Auswertungen liefen mit `num_envs=1`, sind also
+(`cdist` Hand↔Würfel, paarweise Würfelabstände, Höhendifferenz) und sind damit frame-unabhängig.
+Ebenso die per `init_state` gespawnten Objekte — Tisch und Roboter sind nachgemessen korrekt
+(`table` Welt `(1.5, -1, 0.435)`, `robot_root` `(1, -1, 0.85)` bei `env_origin (1, -1, 0)`), Isaac
+Lab setzt die selbst env-relativ. Und die Juni-Auswertungen liefen mit `num_envs=1`, sind also
 unberührt; der 0-%-Befund dort bleibt der Domain-Gap.
 
-**Folge:** Alle bisherigen RL-Läufe (`RL_NUM_ENVS` 2 und 4) trainierten auf einer unlösbaren
-Aufgabe — die Würfel lagen außerhalb der Reichweite am Boden. `reward_mean` bewegte sich
-trotzdem, weil der Shaped Reward aus Gelenk- und Abstandsgrößen kommt.
+**Folge:** Alle RL-Läufe vor dem Fix mit `RL_NUM_ENVS` 2 oder 4 trainierten auf einer unlösbaren
+Aufgabe — die Würfel lagen außerhalb der Reichweite am Boden. `reward_mean` bewegte sich trotzdem,
+weil der Shaped Reward aus Gelenk- und Abstandsgrößen kommt.
 
-### Kamerabilder gleichmäßig weiß — was es NICHT war
+### Kamerabilder gleichmäßig weiß — OFFEN, aber die Szene ist es nicht
 
-> Der Befund oben war die Ursache. Die folgende Liste dokumentiert die Verdächtigen, die auf dem
-> Weg dahin per Messung ausgeschlossen wurden — nützlich, falls das Symptom wiederkehrt.
-> **Lehre daraus:** Ein gleichmäßig weißes Bild war hier das *korrekte* Rendering einer weißen
-> Tischplatte, auf der nichts lag. Nicht die Kamera prüfen, sondern erst die Szene.
+**Stand 2026-08-08 nach `runs/20260808/09`:** Der Würfel-Fix oben ist wirksam, die Bilder sind
+trotzdem gleichmäßig hell (min/median/max **245/248/249**, chroma 4,0, dunkel 0 %). Die Szene ist
+damit als Ursache ausgeschlossen — und zwar gemessen, nicht vermutet:
+
+| geprüft | Ergebnis |
+|---|---|
+| Objektposen zur Laufzeit | Tisch, Roboter, Würfel alle korrekt in ihrer Env |
+| Würfel im Blickfeld? | `IM BILD` bei 0,66–0,71 m, u/v deutlich innerhalb des Frustums |
+| Kamerapose + Konvention | alle fünf Kameras `quat_w_world / +X` bei **0,0°** Abweichung |
+| Clipping-Ranges | Objekte liegen in allen Kameras innerhalb |
+
+**Aktuelle Hypothese: Belichtung.** Ein flaches 245–249 bei chroma ≈ 4 ist die Signatur einer
+überstrahlten Szene — nur sehr dunkle Dinge überleben (Bodengitter `min = 100`, Handschatten
+`min = 30`). Entscheidend ist der Versionssprung: die Referenzbilder mit korrektem Kontrast
+(32/229/239) entstanden unter **Isaac Sim 4.x**, die weißen unter **6.0** — bei identischem
+`DomeLightCfg(intensity=2000)`. `num_envs` ist dabei ein Ablenker, ein Ein-Env-Lauf sieht genauso
+aus.
+
+Nächster Schritt, ein Lauf für vier Werte (der App-Start kostet ~90 s, deshalb im selben Prozess):
+
+```bash
+RL_DOME_SWEEP=500,120,30,8 HF_TOKEN=hf_... ./Simulation/server_rl_run.sh cams
+# PNGs: cam_left_high__dome500.png, …__dome120.png, … plus eine Statistiktabelle je Wert
+```
+
+Bringt ein Wert Kontrast zurück, ist er ab dann der Default für Dump **und** RL-Lauf:
+
+```bash
+RL_DOME_INTENSITY=120 ./Simulation/server_rl_run.sh rl
+```
+
+> **Lehre aus dieser Fehlersuche:** Der Dump druckte die Objektposen env-relativ unter der
+> Überschrift „WELTPOSITION". Das hat zu einer kompletten Fehldiagnose geführt („alle Objekte am
+> Weltursprung"), obwohl die Szene korrekt war. Er gibt jetzt **beide** Spalten aus. Wenn eine
+> Diagnose aus einer einzelnen Zahlenspalte kommt, zuerst prüfen, in welchem Frame sie steht.
 
 ### Historisch: DLSS-Upscaling (nicht die Ursache)
 
@@ -587,13 +623,17 @@ Der Modus ist deshalb **kein Default mehr**, sondern ein Messhebel (`RL_AA_MODE`
    verschiedene Helligkeiten und Chroma-Werte. Ein konvergierter Render ist deterministisch —
    das deutet auf zu wenige Render-Frames vor der Messung (temporaler Denoiser).
 
-**Zwei Hebel zum Eingrenzen**, je ein `cams`-Lauf (~2 min):
+**Drei Hebel zum Eingrenzen**, je ein `cams`-Lauf (~2 min):
 
 ```bash
 # 1) Render-Konvergenz: viel länger settlen lassen
+#    ERLEDIGT: settle=60 macht die Läufe reproduzierbar (median stabil 232), bleibt aber weiß.
 RL_SETTLE_STEPS=60 HF_TOKEN=hf_... ./Simulation/server_rl_run.sh cams
 # 2) Anti-Aliasing-Modus durchprobieren (Off|FXAA|DLAA|DLSS|TAA; leer = Isaac-Default)
+#    ERLEDIGT für DLAA: griff sauber, machte die Bilder aber SCHLECHTER (chroma 5,93 -> 0,96).
 RL_AA_MODE=Off RL_SETTLE_STEPS=60 HF_TOKEN=hf_... ./Simulation/server_rl_run.sh cams
+# 3) Belichtung: mehrere Dome-Intensitäten in EINEM Lauf (aktuell der beste Verdacht)
+RL_DOME_SWEEP=500,120,30,8 HF_TOKEN=hf_... ./Simulation/server_rl_run.sh cams
 ```
 
 `cams` gibt jetzt selbst eine Kennzahlen-Tabelle aus (min/median/max, chroma, dunkel-%) samt der

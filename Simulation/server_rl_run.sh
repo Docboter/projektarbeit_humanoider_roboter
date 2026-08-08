@@ -205,6 +205,9 @@ build_rl_env() {
   [[ -n "${RL_FPO_MC_SAMPLES:-}" ]]  && RL_ENV+=( -e "RL_FPO_MC_SAMPLES=$RL_FPO_MC_SAMPLES" )
   [[ -n "${RL_EPOCHS_PER_ITER:-}" ]] && RL_ENV+=( -e "RL_EPOCHS_PER_ITER=$RL_EPOCHS_PER_ITER" )
   [[ -n "${RL_REF_DEVICE:-}" ]]      && RL_ENV+=( -e "RL_REF_DEVICE=$RL_REF_DEVICE" )
+  # Render-/Belichtungshebel, damit ein per `cams` gefundener Wert auch im RL-Lauf gilt.
+  [[ -n "${RL_AA_MODE:-}" ]]         && RL_ENV+=( -e "RL_AA_MODE=$RL_AA_MODE" )
+  [[ -n "${RL_DOME_INTENSITY:-}" ]]  && RL_ENV+=( -e "RL_DOME_INTENSITY=$RL_DOME_INTENSITY" )
   # Gegen Fragmentierung — der OOM-Traceback empfahl es selbst (1,13 GB reserviert,
   # aber unbenutzt). Ueberschreibbar, falls es auf dieser Torch-Version stoert.
   RL_ENV+=( -e "PYTORCH_ALLOC_CONF=${PYTORCH_ALLOC_CONF:-expandable_segments:True}" )
@@ -314,11 +317,19 @@ do_rl() {
 # Pose nachweislich Tisch + Roboter erfassen müsste.
 do_cams() {
   ensure_checkpoint
-  # RL_SETTLE_STEPS und RL_AA_MODE sind die beiden Messhebel für die leeren Kamerabilder
-  # (Render-Konvergenz bzw. Anti-Aliasing-Modus) — je ein Lauf pro Wert, siehe rl-anleitung.md.
+  # Messhebel für die leeren Kamerabilder (je ein Lauf pro Wert, siehe rl-anleitung.md):
+  #   RL_SETTLE_STEPS   Render-Konvergenz
+  #   RL_AA_MODE        Anti-Aliasing-Modus
+  #   RL_DOME_INTENSITY Belichtung — Basiswert der Szene
+  #   RL_DOME_SWEEP     Belichtung — mehrere Werte in EINEM Lauf, z. B. "500,120,30"
   log "Kamera-Posen dumpen (num_envs=${RL_NUM_ENVS:-4}, settle=${RL_SETTLE_STEPS:-8}," \
-      "aa=${RL_AA_MODE:-<Isaac-Default>}) → $HOST_DATA_DIR/cam_dump/"
-  docker exec -w "$SIM_DIR" -e "RL_AA_MODE=${RL_AA_MODE:-}" "$CONTAINER" bash -lc "
+      "aa=${RL_AA_MODE:-<Isaac-Default>}, dome=${RL_DOME_INTENSITY:-2000}," \
+      "sweep=${RL_DOME_SWEEP:-<aus>}) → $HOST_DATA_DIR/cam_dump/"
+  docker exec -w "$SIM_DIR" \
+    -e "RL_AA_MODE=${RL_AA_MODE:-}" \
+    -e "RL_DOME_INTENSITY=${RL_DOME_INTENSITY:-2000}" \
+    -e "RL_DOME_SWEEP=${RL_DOME_SWEEP:-}" \
+    "$CONTAINER" bash -lc "
     unset VIRTUAL_ENV
     '$ISAAC_PY' '$SIM_DIR/dump_camera_poses.py' \
         --headless --enable_cameras \

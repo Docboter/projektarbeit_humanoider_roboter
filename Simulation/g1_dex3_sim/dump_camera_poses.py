@@ -41,6 +41,12 @@ parser.add_argument("--asset-path", type=str, default=None, help="G1+Dex3 USD-As
 parser.add_argument("--out-dir", type=str, default="/data/cam_dump", help="PNG-Ausgabe")
 parser.add_argument("--num-envs", type=int, default=4, help="Envs (Klon-Verhalten pruefen)")
 parser.add_argument("--settle-steps", type=int, default=8, help="Steps vor der Messung")
+parser.add_argument(
+    "--dome-sweep", type=str, default=os.environ.get("RL_DOME_SWEEP", ""),
+    help="Kommaliste von Dome-Light-Intensitäten, die zusätzlich gerendert werden "
+         "(z. B. '500,120,30'). Leer = aus. Prüft den Verdacht, dass Isaac Sim 6.0 die "
+         "Intensitäts-Einheit anders interpretiert als 4.x und die Szene überstrahlt.",
+)
 AppLauncher.add_app_launcher_args(parser)
 args = parser.parse_args()
 
@@ -138,6 +144,63 @@ def frustum_report(cam_cfg, pos_w, quat_w, pts, width, height):
     return rows
 
 
+def set_dome_intensity(value: float) -> bool:
+    """Intensität des Dome-Lights unter /World/Light zur Laufzeit setzen. -> Erfolg?
+
+    Gibt bei jedem Fehlschlag laut aus. Der Sweep darf den Dump nicht abbrechen, aber
+    er darf auch nicht stillschweigend nichts tun und dann vier identische Bilder als
+    "kein Effekt" ausgeben.
+    """
+    try:
+        import omni.usd
+        stage = omni.usd.get_context().get_stage()
+    except Exception as e:  # noqa: BLE001
+        print(f"  !! omni.usd nicht verfügbar ({e}) — Dome-Sweep nicht möglich.")
+        return False
+    prim = stage.GetPrimAtPath("/World/Light") if stage is not None else None
+    if prim is None or not prim.IsValid():
+        print("  !! /World/Light nicht gefunden — Dome-Sweep nicht möglich.")
+        return False
+    for attr_name in ("inputs:intensity", "intensity"):
+        attr = prim.GetAttribute(attr_name)
+        if attr and attr.IsValid():
+            attr.Set(float(value))
+            return True
+    print(f"  !! /World/Light ohne intensity-Attribut: {list(prim.GetPropertyNames())}")
+    return False
+
+
+def report_frames(obs, out_dir: str, suffix: str = "") -> None:
+    """PNGs schreiben und die Bildstatistik selbstbewertend ausgeben."""
+    os.makedirs(out_dir, exist_ok=True)
+    try:
+        from PIL import Image
+    except Exception as e:  # noqa: BLE001
+        print(f"\n[dump] Pillow fehlt ({e}) — keine PNGs.", flush=True)
+        return
+    # Bildstatistik direkt mitausgeben. Diese Kennzahlen haben am 2026-08-08 die
+    # Diagnose getragen, waehrend die PNGs allein nur "sieht falsch aus" sagten:
+    #   dunkel% = Anteil Pixel unter Helligkeit 100. Ein korrekter Frame (Referenz:
+    #     Simulation/old_videos/12/_debug_obs_cam_left_high.png) hat 11-22 % — der
+    #     Hintergrund ist dort dunkel. 0 % heisst: alles weiss, kein Kontrast.
+    #   chroma = mittleres max(RGB)-min(RGB). Referenz 5.7-6.0 (farbige Wuerfel).
+    #   min/max = Wertebereich. Referenz 32-239; ein Bereich wie 246-248 ist leer.
+    print()
+    print(f"  {'Kamera':<18}{'min':>5}{'median':>8}{'max':>5}{'chroma':>8}{'dunkel%':>9}"
+          f"   Referenz Juni: 32/229/239, chroma 6.0, dunkel 11-22%")
+    for key in sorted(k for k in (obs or {}) if k.startswith("video.")):
+        cam = key.split(".", 1)[1]
+        frame = obs[key][0].detach().cpu().numpy().astype(np.uint8)[..., :3]
+        Image.fromarray(frame).save(os.path.join(out_dir, f"{cam}{suffix}.png"))
+        f = frame.reshape(-1, 3).astype(np.int16)
+        chroma = float((f.max(1) - f.min(1)).mean())
+        dark = float((f.mean(1) < 100).mean() * 100.0)
+        verdict = "" if dark > 5.0 else "   <-- kein Kontrast, Bild praktisch leer"
+        print(f"  {cam:<18}{frame.min():5d}{int(np.median(frame)):8d}{frame.max():5d}"
+              f"{chroma:8.2f}{dark:8.1f}%{verdict}", flush=True)
+    print(f"\n[dump] PNGs in {out_dir}", flush=True)
+
+
 def main() -> None:
     cfg = G1Dex3BlockstackEnvCfg()
     cfg.scene.num_envs = args.num_envs
@@ -163,14 +226,20 @@ def main() -> None:
 
     # Szenengeometrie zur Laufzeit — die nie geprüfte Annahme.
     pts = scene_points(env, origins)
-    print("\nSzenenobjekte, WELTPOSITION zur Laufzeit (env 0):")
-    print(f"  {'Objekt':<24}{'Position':<26}erwartet laut Config")
+    # BEIDE Spalten ausgeben. Vorher stand hier nur die env-relative Position unter der
+    # Überschrift "WELTPOSITION" — das hat am 2026-08-08 zu einer kompletten Fehldiagnose
+    # geführt ("alle Objekte am Weltursprung"), obwohl die Szene korrekt war. Die
+    # Erwartungswerte aus der Config sind env-lokal, die Frustum-Rechnung unten arbeitet
+    # dagegen in Weltkoordinaten — wer nur eine Spalte sieht, vergleicht Äpfel mit Birnen.
+    print("\nSzenenobjekte zur Laufzeit (env 0):")
+    print(f"  {'Objekt':<24}{'welt':<26}{'rel. zum Ursprung':<26}erwartet (env-lokal, Config)")
     expect = {"table": "(0.5, 0.0, 0.435)", "block_0": "(0.34, -0.15, 0.915)",
               "block_1": "(0.36, 0.0, 0.915)", "block_2": "(0.34, 0.15, 0.915)",
               "robot_root": "(0, 0, ~0.85)"}
     for name, p in pts.items():
         rel = p - origins[0]
-        print(f"  {name:<24}{str(np.round(rel, 3)):<26}{expect.get(name, '—')}")
+        print(f"  {name:<24}{str(np.round(p, 3)):<26}"
+              f"{str(np.round(rel, 3)):<26}{expect.get(name, '—')}")
     if not pts:
         print("  !! keine Objektposen auslesbar — Attributnamen der Isaac-Lab-Version prüfen.")
 
@@ -256,34 +325,35 @@ def main() -> None:
                 print(f"    {name:<24}{uv}  d={dist:5.2f} m  {state}")
 
     # Standbilder — belegen, was die Kamera wirklich sieht.
-    os.makedirs(args.out_dir, exist_ok=True)
-    try:
-        from PIL import Image
-    except Exception as e:  # noqa: BLE001
-        print(f"\n[dump] Pillow fehlt ({e}) — keine PNGs.", flush=True)
-    else:
-        # Bildstatistik direkt mitausgeben. Diese Kennzahlen haben am 2026-08-08 die
-        # Diagnose getragen, waehrend die PNGs allein nur "sieht falsch aus" sagten:
-        #   dunkel% = Anteil Pixel unter Helligkeit 100. Ein korrekter Frame (Referenz:
-        #     Simulation/old_videos/12/_debug_obs_cam_left_high.png) hat 11-22 % — der
-        #     Hintergrund ist dort dunkel. 0 % heisst: alles weiss, kein Kontrast.
-        #   chroma = mittleres max(RGB)-min(RGB). Referenz 5.7-6.0 (farbige Wuerfel).
-        #   min/max = Wertebereich. Referenz 32-239; ein Bereich wie 246-248 ist leer.
-        print()
-        print(f"  {'Kamera':<18}{'min':>5}{'median':>8}{'max':>5}{'chroma':>8}{'dunkel%':>9}"
-              f"   Referenz Juni: 32/229/239, chroma 6.0, dunkel 11-22%")
-        for key in sorted(k for k in (obs or {}) if k.startswith("video.")):
-            frame = obs[key][0].detach().cpu().numpy().astype(np.uint8)[..., :3]
-            path = os.path.join(args.out_dir, f"{key.split('.', 1)[1]}.png")
-            Image.fromarray(frame).save(path)
-            f = frame.reshape(-1, 3).astype(np.int16)
-            chroma = float((f.max(1) - f.min(1)).mean())
-            dark = float((f.mean(1) < 100).mean() * 100.0)
-            verdict = "" if dark > 5.0 else "   <-- kein Kontrast, Bild praktisch leer"
-            print(f"  {key.split('.', 1)[1]:<18}{frame.min():5d}"
-                  f"{int(np.median(frame)):8d}{frame.max():5d}{chroma:8.2f}{dark:8.1f}%"
-                  f"{verdict}", flush=True)
-        print(f"\n[dump] PNGs in {args.out_dir}", flush=True)
+    report_frames(obs, args.out_dir)
+
+    # ── Dome-Light-Sweep ──────────────────────────────────────────────────────────
+    # Alle Intensitäten im SELBEN Prozess: der App-Start kostet ~90 s, ein Sweep über
+    # vier Werte in vier Läufen also 6 Minuten Leerlauf. Hier ist es einmal.
+    # Hintergrund: die Juni-Referenzbilder (32/229/239) entstanden unter Isaac Sim 4.x,
+    # die gleichmäßig hellen unter 6.0 — bei identischem DomeLightCfg(intensity=2000).
+    # Wenn niedrigere Werte Kontrast zurückbringen, ist es die Belichtung und nicht die
+    # Szene (die ist ab runs/20260808/09 nachgemessen korrekt: Würfel auf dem Tisch,
+    # im Frustum, 0,66–0,71 m vor der Kamera).
+    sweep = [v.strip() for v in (args.dome_sweep or "").split(",") if v.strip()]
+    if sweep:
+        base = os.environ.get("RL_DOME_INTENSITY", "2000 (Default)")
+        print("\n" + "=" * 72)
+        print(f"DOME-LIGHT-SWEEP — {len(sweep)} Werte, Basis: {base}")
+        print("=" * 72, flush=True)
+        settle = max(4, min(args.settle_steps, 20))
+        for raw in sweep:
+            try:
+                val = float(raw)
+            except ValueError:
+                print(f"  !! '{raw}' ist keine Zahl — übersprungen.")
+                continue
+            if not set_dome_intensity(val):
+                break
+            for _ in range(settle):
+                obs, _, _, _, _ = env.step(zero)
+            print(f"\nintensity = {val:g}   ({settle} Steps gerendert)")
+            report_frames(obs, args.out_dir, suffix=f"__dome{val:g}")
 
     env.close()
     print("\n[dump] fertig.", flush=True)

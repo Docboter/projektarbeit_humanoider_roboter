@@ -17,6 +17,7 @@ Abnahmekriterien (siehe ISAAC_LAB_SIM_PLAN.md):
 from __future__ import annotations
 
 import math
+import os
 from dataclasses import MISSING
 from typing import Any
 
@@ -73,7 +74,6 @@ def _make_sim_cfg(**kwargs) -> SimulationCfg:
     kommentarlos — genau die Falle, die hier Stunden gekostet hat).
     """
     import dataclasses
-    import os
 
     # BEFUND 2026-08-08: antialiasing_mode="DLAA" wurde sauber gesetzt (alle drei Felder
     # akzeptiert, die DLSS-Auflösungswarnung verschwand) — die Bilder wurden dadurch aber
@@ -408,7 +408,14 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
         # gültiger InteractiveSceneCfg-Asset-Typ und müssen direkt aufgerufen werden)
         ground_cfg = sim_utils.GroundPlaneCfg()
         ground_cfg.func("/World/defaultGroundPlane", ground_cfg)
-        light_cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
+        # Dome-Intensität als Messhebel (RL_DOME_INTENSITY), Default unverändert 2000.
+        # Die Juni-Referenzbilder mit korrektem Kontrast (min/median/max 32/229/239)
+        # entstanden unter Isaac Sim 4.x, die gleichmäßig hellen (245/248/249) unter 6.0 —
+        # bei identischer Config. Verdacht: 6.0 bewertet die Intensitätseinheit anders und
+        # überstrahlt die Szene. Diagnose in einem Lauf:
+        #   RL_DOME_SWEEP=500,120,30 ./Simulation/server_rl_run.sh cams
+        dome_intensity = float(os.environ.get("RL_DOME_INTENSITY", 2000.0))
+        light_cfg = sim_utils.DomeLightCfg(intensity=dome_intensity, color=(0.75, 0.75, 0.75))
         light_cfg.func("/World/Light", light_cfg)
 
         self.robot: Articulation = self.scene["robot"]
@@ -580,33 +587,41 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
             self._setup_visual_dr()
         self._randomize_visuals()
 
+        # env_origins: write_root_pose_to_sim() erwartet WELT-Koordinaten, block_*_range aus
+        # der Config ist env-LOKAL. Roboter, Tisch und Stapel-Band brauchen hier nichts —
+        # deren Posen kommen aus dem Spawn unter dem Env-Xform und sind bereits korrekt
+        # (nachgemessen am 2026-08-08: table welt=(1.5,-1,0.435), robot_root=(1,-1,0.85)
+        # bei env_origin=(1,-1,0)). Nur die selbst gesampelten Würfel müssen den Versatz
+        # bekommen, weil sie als Weltkoordinaten geschrieben werden.
+        env_offset = self.scene.env_origins[env_ids]
+
         # Roboter in Home-Pose zurücksetzen
         default_pos = self.robot.data.default_joint_pos[env_ids]
         default_vel = torch.zeros_like(default_pos)
         self.robot.set_joint_position_target(default_pos, env_ids=env_ids)
         self.robot.write_joint_state_to_sim(default_pos, default_vel, env_ids=env_ids)
 
-        # Würfel neu sampeln (randomisierte Positionen auf dem Tisch).
-        # ACHTUNG env_origins: write_root_pose_to_sim() erwartet WELT-Koordinaten, die
-        # block_*_range aus der Config sind aber env-lokal (relativ zum Tisch). Ohne den
-        # Aufschlag landen alle Würfel am Weltursprung — wo bei num_envs>1 KEIN Tisch
-        # steht, weil jede Env ihren eigenen bei env_origin+(0.5,0,…) hat. Sie fallen dann
-        # auf den Boden.
-        # So gefunden am 2026-08-08: der Dump zeigte block_* bei z=0.025 (halbe Kantenlänge
-        # = auf dem Boden liegend) und, nach Herausrechnen von env 0s Ursprung (1,-0.92,0),
-        # bei Weltkoordinaten (0.51,0.16)/(0.31,-0.11)/(0.36,0.47) — exakt die
-        # konfigurierten Tischkoordinaten, nur in der falschen Env.
-        # Mit num_envs=1 ist der Fehler unsichtbar (env_origin = 0) — deshalb fiel er in
-        # allen früheren Ein-Env-Läufen nicht auf und erst im RL-Lauf mit 4 Envs.
-        env_offset = self.scene.env_origins[env_ids]
-        for block in self.blocks:
+        # Würfel neu sampeln (randomisierte Positionen auf dem Tisch, env-lokal → + Versatz).
+        #
+        # Jeder Würfel bekommt ein EIGENES y-Band. Vorher zogen alle drei unabhängig aus
+        # demselben Rechteck (x 0.30–0.40, y -0.20–0.20): zwei 5-cm-Würfel überlappen dort
+        # mit ~18 % je Paar, bei drei Paaren also in ~44 % aller Resets. PhysX löst die
+        # Durchdringung auf, indem es die Würfel auseinanderschießt — in runs/20260808/08
+        # lagen sie danach bei z=0.025, also auf dem Boden, 1,5 m vom Tisch entfernt.
+        # Mit disjunkten Bändern plus Rand ist Überlappung ausgeschlossen; die x-Achse
+        # bleibt voll randomisiert und die y-Gesamtspanne unverändert.
+        n_blocks = max(len(self.blocks), 1)
+        y_lo, y_hi = self.cfg.block_y_range
+        slot = (y_hi - y_lo) / n_blocks
+        margin = min(0.03, 0.4 * slot)   # >= 2*margin Abstand zum Nachbarband
+        for i, block in enumerate(self.blocks):
             block_pos = torch.zeros(len(env_ids), 3, device=self.device)
             block_pos[:, 0] = sample_uniform(
                 self.cfg.block_x_range[0], self.cfg.block_x_range[1],
                 (len(env_ids),), device=self.device
             )
             block_pos[:, 1] = sample_uniform(
-                self.cfg.block_y_range[0], self.cfg.block_y_range[1],
+                y_lo + i * slot + margin, y_lo + (i + 1) * slot - margin,
                 (len(env_ids),), device=self.device
             )
             block_pos[:, 2] = self.cfg.block_z_surface
