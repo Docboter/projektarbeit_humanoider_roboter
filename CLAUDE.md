@@ -99,8 +99,13 @@ On vast.ai: GPU must be **Ampere+ with RT-Cores** (L40, RTX 4090, A6000) — A10
 | `ASSET_PATH` | `/data/checkpoints/groot-g1dex3-checkpoint/g1_dex3.usd` | USD robot asset |
 | `NUM_EPISODES` | `20` | Eval episodes |
 | `SHELL_ON_ERROR` | `1` | Drop to shell on failure (recommended) |
-| `LIVESTREAM` | `0` | `0`=headless (default), `1`=WebRTC public, `2`=WebRTC private — live 3D-viewport stream (opt-in) |
+| `LIVESTREAM` | `0` | `0`=headless (default), `1`=WebRTC public, `2`=WebRTC private — live 3D-viewport stream (opt-in, "Spur A", **untested on hardware**) |
 | `LIVESTREAM_PORT` | `49100` | WebRTC signaling port. **On vast.ai: set to the externally-mapped port** (internal==external, else SDP port mismatch). Also map `-p 8211 -p 49100 -p 47998/udp`. See [livestream-plan.md](docs/weiterfuehrend/livestream-plan.md) |
+| `LIVE_VIEW` | `0` | `1` = MJPEG frame stream in the browser ("Spur B", [`live_view.py`](Simulation/g1_dex3_sim/live_view.py)) — plain HTTP, unlimited viewers, stateless, `ssh -L`-tunnelable. Wired into the RL trainer; costs no extra render pass (`cam_scene` is rendered every step anyway) |
+| `LIVE_VIEW_PORT` | `8900` | HTTP port of the frame stream (map `-p 8900:8900`; `server_rl_run.sh` does it on container creation) |
+| `LIVE_VIEW_EVERY_N` | `1` | Publish only every n-th frame |
+| `LIVE_VIEW_CAMS` | `cam_scene` | Comma-separated cameras shown side by side |
+| `RL_WANDB_VIDEO_EVERY` | `0` | RL only: log a rollout video to W&B every N iterations (`0` = off) |
 
 ### Build the image
 
@@ -207,6 +212,7 @@ repo root
 │   │   ├── replay_episode0.npz         # Bundled ground-truth actions (dataset ep. 0) for replay
 │   │   ├── g1_dex3_blockstack_env.py   # Isaac Lab env (robot, table, cubes, 4 policy + 1 scene cam; reward_mode binary|shaped, get_obs_batched)
 │   │   ├── rl_finetune.py              # FPO RL trainer (action-head only; shaped reward; one full iteration verified on hardware)
+│   │   ├── live_view.py                # MJPEG live view (stdlib + Pillow; LIVE_VIEW=1) — hooked into the RL rollout
 │   │   ├── g1_dex3_cfg.py              # Articulation + camera config (look_at_world_quat helper)
 │   │   ├── client.py                   # ZMQ policy client + build_obs (state split into modality keys)
 │   │   ├── convert_urdf_to_usd.py      # One-time URDF→USD conversion

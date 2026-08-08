@@ -28,16 +28,44 @@ PPO-Likelihood-Ratio durch exp(proxy_new - proxy_old) mit proxy = -L_flow_matchi
 gemittelt ueber K (noise, t)-Ziehungen. Passt zur Flow-Matching-Policy von GR00T,
 ohne explizite Likelihood. VLM bleibt eingefroren (wie im BC-Training).
 
+Beobachtbarkeit: --live-view (bzw. LIVE_VIEW=1) blendet den laufenden Rollout als
+MJPEG-Stream im Browser ein (live_view.py, Port 8900), --wandb-video-every N schneidet
+zusaetzlich alle N Iterationen einen Rollout ins W&B-Dashboard. Beides ist opt-in und
+im Aus-Zustand ein reiner Early-Return. Hintergrund: docs/weiterfuehrend/livestream-plan.md.
+
 Aufruf (im kombinierten Isaac-Sim + GR00T-Container, vgl. Dockerfile.vastai):
     python rl_finetune.py \
         --checkpoint /data/checkpoints/groot-g1dex3-checkpoint \
-        --num-envs 16 --iterations 500 --rollout-steps 32
+        --num-envs 16 --iterations 500 --rollout-steps 32 \
+        --live-view --wandb --wandb-video-every 10
 """
 
 from __future__ import annotations
 
 import argparse
+import os
 import sys
+
+from live_view import LiveView
+
+
+# ---------------------------------------------------------------------------
+# Env-Defaults fuer die CLI
+# ---------------------------------------------------------------------------
+# Warum die Live-View-Flags ihre Defaults aus Env-Vars ziehen statt nur aus der
+# Kommandozeile: server_rl_run.sh mountet Simulation/g1_dex3_sim LIVE in den Container,
+# /scripts (entrypoint_rl.sh) dagegen NICHT — das steckt fest im Image. Liest dieses
+# Skript LIVE_VIEW* selbst, genuegt ein `-e LIVE_VIEW=1` am docker exec und es braucht
+# keinen Image-Rebuild (~30 min) nur um einen Schalter durchzureichen.
+def _env_flag(name: str) -> bool:
+    return os.environ.get(name, "0").strip().lower() not in ("", "0", "false", "no", "off")
+
+
+def _env_int(name: str, default: int) -> int:
+    try:
+        return int(os.environ.get(name, default))
+    except (TypeError, ValueError):
+        return default
 
 
 # ---------------------------------------------------------------------------
@@ -61,10 +89,23 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--clip", type=float, default=0.2, help="PPO/FPO-Clip-Epsilon")
     p.add_argument("--kl-coef", type=float, default=0.1, help="KL-Regularisierung gegen BC")
     p.add_argument("--value-coef", type=float, default=0.5)
-    p.add_argument("--fpo-mc-samples", type=int, default=4, help="K (noise,t)-Ziehungen fuer den Proxy")
+    p.add_argument("--fpo-mc-samples", type=int, default=4,
+                   help="K (noise,t)-Ziehungen fuer den Proxy")
     p.add_argument("--save-every", type=int, default=50)
     p.add_argument("--wandb", action="store_true")
     p.add_argument("--wandb-project", default="gr00t-g1-dex3-rl")
+    p.add_argument("--wandb-video-every", type=int, default=_env_int("RL_WANDB_VIDEO_EVERY", 0),
+                   help="Alle N Iterationen einen Rollout als W&B-Video loggen "
+                        "(0 = aus). Env: RL_WANDB_VIDEO_EVERY.")
+    # ── Live-Ansicht im Browser (MJPEG, Spur B des Livestream-Plans) ─────────
+    p.add_argument("--live-view", action="store_true", default=_env_flag("LIVE_VIEW"),
+                   help="Live-Ansicht des Rollouts im Browser. Env: LIVE_VIEW.")
+    p.add_argument("--live-view-port", type=int, default=_env_int("LIVE_VIEW_PORT", 8900),
+                   help="HTTP-Port der Live-Ansicht. Env: LIVE_VIEW_PORT.")
+    p.add_argument("--live-view-every-n", type=int, default=_env_int("LIVE_VIEW_EVERY_N", 1),
+                   help="Nur jedes n-te Frame publizieren. Env: LIVE_VIEW_EVERY_N.")
+    p.add_argument("--live-view-cams", default=os.environ.get("LIVE_VIEW_CAMS", "cam_scene"),
+                   help="Kommagetrennte Kameras. Env: LIVE_VIEW_CAMS.")
     p.add_argument("--check", action="store_true",
                    help="Nur Imports/Aufbau pruefen, kein Training (CI/Smoke-Test).")
     return p.parse_args()
@@ -191,8 +232,22 @@ def main() -> None:
     value_head = build_value_head(cfg.observation_space, device, torch)
     optim = torch.optim.AdamW(trainable + list(value_head.parameters()), lr=args.lr)
 
+    # ── Live-Ansicht (opt-in) ─────────────────────────────────────────────────
+    # Kostet keinen zusaetzlichen Render-Pass: cam_scene steht ohnehin in env.cameras
+    # und wird jeden Step mitgerendert. Bewusst VOR dem --check-Return, damit der
+    # Smoke-Test schon zeigt, ob Port und Pillow im Kit-Python in Ordnung sind.
+    view_cams = [c.strip() for c in args.live_view_cams.split(",") if c.strip()] or ["cam_scene"]
+    live = LiveView(
+        enabled=args.live_view,
+        port=args.live_view_port,
+        every_n=args.live_view_every_n,
+        cams=view_cams,
+        title=f"G1 DEX3 — RL-Fine-tuning (FPO), {args.num_envs} Envs",
+    )
+
     if args.check:
         print("[rl] --check: Aufbau OK (Env + Policy + Critic instanziiert).", flush=True)
+        live.close()
         simulation_app.close()
         return
 
@@ -205,9 +260,19 @@ def main() -> None:
     for it in range(args.iterations):
         # Speicher fuer den Rollout
         buf_logp, buf_val, buf_rew, buf_done, buf_inputs, buf_state = [], [], [], [], [], []
+        # Option C (Livestream-Plan §5): nur in jeder N-ten Iteration mitschneiden —
+        # rollout_steps Frames à ~1 MB, das lohnt nicht bei jeder Iteration.
+        rec = [] if (
+            args.wandb and args.wandb_video_every > 0 and it % args.wandb_video_every == 0
+        ) else None
 
         for _step in range(args.rollout_steps):
             obs = env.get_obs_batched()                  # batched GPU-Tensoren
+            live.publish_obs(obs, iteration=it, step=_step)
+            if rec is not None:
+                fr = obs.get(f"video.{view_cams[0]}")
+                if fr is not None:
+                    rec.append(fr[0].detach().cpu().numpy())
             state = obs["state.joint_pos"].float().detach()
             raw = _obs_batched_to_policy_dict(obs, cfg.task_description, args.num_envs)
 
@@ -305,18 +370,58 @@ def main() -> None:
         succ = float(env._episode_success.float().mean().item())
         mean_rew = float(rewards.mean().item())
         print(f"[rl] iter {it:04d}  reward={mean_rew:+.3f}  success={succ:.3f}", flush=True)
+        live.update_meta(
+            iteration=it, reward_mean=round(mean_rew, 4), success_rate=round(succ, 4)
+        )
         if args.wandb:
             import wandb
-            wandb.log({"iter": it, "reward_mean": mean_rew, "success_rate": succ})
+            payload = {"iter": it, "reward_mean": mean_rew, "success_rate": succ}
+            if rec:
+                # In DENSELBEN log()-Aufruf, nicht in einen zweiten: wandb zaehlt sonst
+                # einen eigenen Step hoch und Video und Metriken landen versetzt.
+                payload.update(_rollout_video_payload(rec))
+            wandb.log(payload)
 
         if (it + 1) % args.save_every == 0:
-            import os
+            # os wird modulweit importiert. Ein lokales `import os` hier drin waere eine
+            # Falle: es macht `os` fuer die GANZE Funktion lokal, und die erste kuenftige
+            # Nutzung weiter oben stuerbte mit UnboundLocalError ab — mitten im Lauf.
             ckpt = os.path.join(args.output_dir, f"rl-checkpoint-{it + 1}")
             os.makedirs(ckpt, exist_ok=True)
             model.save_pretrained(ckpt)
             print(f"[rl] Checkpoint gespeichert: {ckpt}", flush=True)
 
+    live.close()
     simulation_app.close()
+
+
+# ---------------------------------------------------------------------------
+# Option C aus dem Livestream-Plan (§5): Rollout als W&B-Artefakt archivieren
+# ---------------------------------------------------------------------------
+def _rollout_video_payload(frames) -> dict:
+    """Mitgeschnittene Frames -> W&B-Log-Eintrag. Wirft nie.
+
+    Ergaenzt die (fluechtige) Live-Ansicht um etwas Bleibendes: im W&B-Dashboard
+    abrufbar, von ueberall erreichbar und in der Projektarbeit zitierbar.
+
+    wandb.Video braucht fuer numpy-Eingaben moviepy — das ist im Isaac-Sim-Python NICHT
+    installiert. Statt dafuer eine Dependency ins Image zu ziehen, faellt die Funktion
+    auf einen Filmstreifen aus acht Einzelbildern zurueck (wandb.Image braucht nur PIL).
+    """
+    import numpy as np
+    import wandb
+
+    arr = np.stack(frames)  # (T, H, W, 3) uint8
+    try:
+        return {"rollout_video": wandb.Video(arr.transpose(0, 3, 1, 2), fps=10)}
+    except Exception as e:
+        print(f"[rl] wandb.Video nicht moeglich ({e}) — logge Filmstreifen.", flush=True)
+        try:
+            sel = arr[:: max(1, len(arr) // 8)][:8]
+            return {"rollout_frames": [wandb.Image(f) for f in sel]}
+        except Exception as e2:
+            print(f"[rl] auch Filmstreifen fehlgeschlagen ({e2}) — ueberspringe.", flush=True)
+            return {}
 
 
 # ---------------------------------------------------------------------------

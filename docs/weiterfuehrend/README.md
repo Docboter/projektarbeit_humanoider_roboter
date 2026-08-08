@@ -1,8 +1,9 @@
 # Weiterführende Arbeiten
 
 Konzept- und Planungs-Dokumente für mögliche Folgeschritte — überwiegend **recherchiert, noch nicht
-end-to-end validiert** (Ausnahme: RL ist gebaut und läuft seit 2026-08-08 end-to-end auf
-RT-Core-Hardware, siehe unten).
+end-to-end validiert**. Ausnahmen: **RL** ist gebaut und läuft seit 2026-08-08 end-to-end auf
+RT-Core-Hardware, und die **Live-Ansicht des RL-Laufs** („Spur B" des Livestream-Plans) ist seit
+2026-08-08 umgesetzt — beides siehe unten.
 Sie grenzen sich bewusst von den operativen Anleitungen ([`../training/`](../training/README.md),
 [`../simulation/`](../simulation/README.md)) ab und speisen das gleichnamige Kapitel der Projektarbeit.
 
@@ -11,7 +12,7 @@ Sie grenzen sich bewusst von den operativen Anleitungen ([`../training/`](../tra
 | [rl-anleitung.md](rl-anleitung.md) | **RL-Bedienungsanleitung (operativ).** Schritt-für-Schritt: Image bauen, BC-Checkpoint hochladen, vast.ai-Instanz (RT-Core-GPU) konfigurieren, RL starten (`entrypoint_rl.sh` + `RL_*`-Env-Vars), überwachen (W&B-Erfolgsrate), RL-Checkpoints sichern. Inkl. Smoke-Test + Aufarbeitung der LIVE-CHECK-Punkte. Enthält als Pfad B den eigenen Blackwell-Server (ohne vast.ai-Miete). |
 | [reinforcement-learning-plan.md](reinforcement-learning-plan.md) | **RL-Plan + Implementierung.** Bausteine (Reward, Flow-kompatibler RL-Algorithmus, Rollouts), Phasen-Plan und GPU-/Rendering-Konflikt. **Gebaut und gelaufen:** Shaped Reward, batched Obs, FPO-Trainer ([`rl_finetune.py`](../../Simulation/g1_dex3_sim/rl_finetune.py)) + Launch-Infra (`USE_RL`, `entrypoint_rl.sh`, `kisski_rl_submit.sh`) — eine vollständige Iteration ist am 2026-08-08 auf RTX PRO 6000 Blackwell / Isaac Sim 6.0 durchgelaufen; offen bleibt die **Lernwirkung** (Erfolgsrate über viele Iterationen) und der Render-Durchsatz. Motiviert durch den Domain-Gap-Befund aus [`../ergebnisse/lauf1-auswertung.md`](../ergebnisse/lauf1-auswertung.md). |
 | [lokomotion-recherche.md](lokomotion-recherche.md) | **Lokomotions-Recherche.** Warum der Roboter aktuell fixiert ist (Code-Analyse), GR00T-N1.6-Whole-Body-Control (entkoppelt: RL-Beine + IK/VLA-Arme), Unitree-G1-Lokomotions-Stacks (`unitree_rl_gym`/`unitree_rl_lab`, SDK `LocoClient`), Loco-Manipulation-Forschung, konkrete Integrationspfade + Quellen. |
-| [livestream-plan.md](livestream-plan.md) | **Live-Ansicht-Plan (v2).** Live-Äquivalent zu den MP4s, zweigleisig: **Spur A** WebRTC-Viewport (Isaac Sim nativ, für Sim-/Baseline-Eval) und **Spur B** leichtgewichtiger MJPEG-Frame-Stream im Browser (für den langen RL-Lauf + als Fallback). Enthält 6 konkrete Defekte am bestehenden v1-Code (u. a. Port 8211 in Isaac Sim 6.0 entfallen, veraltete Kit-Settings-Pfade) und einen Phasenplan. v1-Code umgesetzt, aber nie auf Hardware getestet. |
+| [livestream-plan.md](livestream-plan.md) | **Live-Ansicht-Plan (v3).** Live-Äquivalent zu den MP4s, zweigleisig: **Spur A** WebRTC-Viewport (Isaac Sim nativ, für Sim-/Baseline-Eval) und **Spur B** leichtgewichtiger MJPEG-Frame-Stream im Browser. **Spur B ist für den RL-Lauf gebaut** ([`live_view.py`](../../Simulation/g1_dex3_sim/live_view.py), `LIVE_VIEW=1`) — Bedienung in [rl-anleitung.md](rl-anleitung.md) Schritt 6; dazu Option C (Rollout-Video ins W&B-Dashboard). **Spur A bleibt offen**: 6 dokumentierte Defekte am v1-Code (u. a. Port 8211 in Isaac Sim 6.0 entfallen, veraltete Kit-Settings-Pfade), nie auf Hardware getestet. |
 
 > **Kurzfassung Lokomotion:** Der G1 steht heute fest, weil (1) der Sim-Root-Link hart fixiert
 > ist (`fix_root_link=True`), (2) das GR00T-Embodiment nur 28 DOF (Arme + Hände, **keine Beine**)

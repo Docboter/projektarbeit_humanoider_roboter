@@ -20,7 +20,17 @@
 #   RL_CLIP              (default 0.2)  PPO/FPO-Clip-Epsilon
 #   RL_SAVE_EVERY        (default 100)  Checkpoint alle N Iterationen (ganzes Modell ~6 GB/Ckpt)
 #   WANDB_API_KEY        (optional)     ohne → ohne W&B
+#   RL_WANDB_VIDEO_EVERY (default 0)    alle N Iterationen einen Rollout als W&B-Video (0 = aus)
 #   SHELL_ON_ERROR       (default 0)    bei Fehler in Shell fallen
+#
+# Live-Ansicht im Browser (opt-in, docs/weiterfuehrend/livestream-plan.md „Spur B"):
+#   LIVE_VIEW            (default 0)    1 = MJPEG-Stream des Rollouts
+#   LIVE_VIEW_PORT       (default 8900) HTTP-Port (Container-Port mappen!)
+#   LIVE_VIEW_EVERY_N    (default 1)    nur jedes n-te Frame senden
+#   LIVE_VIEW_CAMS       (default cam_scene) Kameras, kommagetrennt
+# Diese vier werden hier BEWUSST NICHT als CLI-Flags durchgereicht: rl_finetune.py liest
+# sie selbst als argparse-Defaults. Damit wirken sie auch mit einem älteren Image — auf dem
+# Server ist g1_dex3_sim gemountet, dieses Skript hier dagegen fest im Image.
 
 set -euo pipefail
 
@@ -110,6 +120,13 @@ if [[ -n "${WANDB_API_KEY:-}" ]]; then
     ok "W&B aktiv (Modus: ${WANDB_MODE})."
 else
     warn "Kein WANDB_API_KEY — RL läuft ohne W&B."
+fi
+
+# ── Live-Ansicht (rein informativ; rl_finetune.py liest LIVE_VIEW* selbst) ─────
+if [[ "${LIVE_VIEW:-0}" != "0" ]]; then
+    ok "Live-Ansicht an → http://<server-ip>:${LIVE_VIEW_PORT:-8900}/  (Port mappen nicht vergessen)"
+else
+    warn "Live-Ansicht aus (LIVE_VIEW=1 setzen, um im Browser zuzusehen)."
 fi
 
 mkdir -p "$RL_OUTPUT_DIR"

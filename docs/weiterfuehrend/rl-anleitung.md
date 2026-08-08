@@ -21,7 +21,10 @@ statt nur Aktions-Nachahmung (Hintergrund: [reinforcement-learning-plan.md](rein
 > - **Durchsatz** — Render-FPS bei produktivem `RL_NUM_ENVS` mit 4 Kameras (Plan-Gruppe 0).
 >
 > Vorgehen daher weiterhin: erst **Smoke-Test** (`--check`), dann **kleines `RL_NUM_ENVS`**
-> hochskalieren.
+> hochskalieren — und den ersten längeren Lauf mit `LIVE_VIEW=1` starten
+> ([Schritt 6](#live-zusehen-live_view1--dringend-empfohlen-beim-ersten-großen-lauf)). `reward_mean`
+> allein unterscheidet nicht zwischen „Hand nähert sich dem Block" und „Blöcke spawnen außer
+> Reichweite"; das sieht man nur im Bild, und in einen laufenden Job lässt es sich nicht nachrüsten.
 >
 > **⚠️ Image-Voraussetzung:** Es wird das **Isaac-Sim-6.0-Image** gebraucht (`isaac-lab`
 > 3.0.0-beta2-post1, gebaut 2026-08-07) — der davor gepushte Tag von
@@ -74,6 +77,10 @@ RT-Core-GPU (z. B. die RTX PRO 6000 Blackwell aus dem RoboCasa-Lauf) bereits zur
 HF_TOKEN=hf_... ./Simulation/server_rl_run.sh setup  # BC-Checkpoint + USD von HF laden (einmalig)
 HF_TOKEN=hf_... ./Simulation/server_rl_run.sh check  # LIVE-CHECK: Aufbau, 2 Envs, kein Training
 HF_TOKEN=hf_... WANDB_API_KEY=... ./Simulation/server_rl_run.sh rl   # echter RL-Lauf
+
+# mit Live-Ansicht im Browser (empfohlen — siehe Schritt 6) + W&B-Video alle 10 Iterationen:
+HF_TOKEN=hf_... WANDB_API_KEY=... LIVE_VIEW=1 RL_WANDB_VIDEO_EVERY=10 \
+    RL_NUM_ENVS=4 ./Simulation/server_rl_run.sh rl
 ```
 
 - **Image-Rebuild zuerst:** anders als beim RoboCasa-Server-Pfad ist hier ein Rebuild **nötig** (siehe
@@ -86,6 +93,14 @@ HF_TOKEN=hf_... WANDB_API_KEY=... ./Simulation/server_rl_run.sh rl   # echter RL
   Rendering + Backprop teilen sich sonst unnötig zwei Karten; `RL_GPUS=all` überschreibt das.
 - **Daten:** Checkpoint-Cache, RL-Checkpoints (`/data/g1_dex3_rl/`) und Isaac-Sim-Shader-Cache liegen
   alle unter dem gemounteten `/data` — bleiben zwischen Läufen erhalten, bis `clean`.
+- **Live-Ansicht:** Der Port 8900 wird beim **Anlegen** des Containers gemappt (`-p` wirkt nur dort).
+  Läuft bereits ein älterer Container ohne dieses Mapping, warnt `server_rl_run.sh` und man legt ihn
+  einmalig per `clean` neu an — die Daten unter `/data` bleiben dabei erhalten.
+- **Code-Änderungen ohne Rebuild:** `Simulation/g1_dex3_sim` ist in den Container **gemountet**,
+  `Simulation/scripts` (Entrypoints) dagegen nicht. Änderungen am Trainer wirken darum nach einem
+  `git pull` sofort; nur Entrypoint-Änderungen brauchen einen Image-Rebuild. Deshalb liest
+  `rl_finetune.py` die `LIVE_VIEW*`-Variablen auch direkt aus der Umgebung statt über CLI-Flags
+  des Entrypoints.
 
 ---
 
@@ -246,6 +261,48 @@ vastai ssh <instance-id>            # SSH-Befehl
   Verdacht auf **Reward-Hacking** (dann `RL_KL_COEF` erhöhen oder Reward-Gewichte anpassen).
 
 **VRAM prüfen:** `watch -n 2 nvidia-smi`.
+
+#### Live zusehen (`LIVE_VIEW=1`) — dringend empfohlen beim ersten großen Lauf
+
+Mit `LIVE_VIEW=1` blendet der Trainer den laufenden Rollout als **MJPEG-Stream im Browser** ein
+(„Spur B" aus dem [Livestream-Plan](livestream-plan.md), Modul
+[`live_view.py`](../../Simulation/g1_dex3_sim/live_view.py)):
+
+```
+http://<server-ip>:8900/            # Bild + Live-Metriken (Iteration, reward_mean, success_rate)
+ssh -L 8900:localhost:8900 <server> # falls nur SSH möglich → http://localhost:8900/
+```
+
+**Warum das nicht optional-nice, sondern beim ersten Lauf wichtig ist:** `reward_mean` ist ein
+Distanzmaß, kein Erfolgsmaß. Ein flacher Reward-Verlauf sieht identisch aus, egal ob die Hand sich
+dem Block nähert, die Blöcke außerhalb der Reichweite spawnen oder die Kamerabilder schwarz sind.
+Diese Fehlerklassen erkennt man **visuell in Minuten** statt nach Stunden Rechenzeit. Und
+nachrüsten geht nicht: ein bereits laufender Job wird nicht rückwirkend beobachtbar.
+
+Eigenschaften: beliebig viele Zuschauer, zustandslos (Tab schließen und morgen wieder öffnen ändert
+nichts am Lauf), reines HTTP (tunnelbar). Kostet **keinen zusätzlichen Render-Pass** — `cam_scene`
+wird ohnehin jeden Env-Step gerendert; dazu kommen nur ein GPU→CPU-Copy und die JPEG-Kodierung,
+letztere nur solange tatsächlich jemand zuschaut. Drosseln mit `LIVE_VIEW_EVERY_N=3`, andere
+Kameras mit `LIVE_VIEW_CAMS=cam_scene,cam_left_wrist`. Bei `LIVE_VIEW=0` (Default) ist der
+Codepfad ein reiner Early-Return.
+
+> ⚠️ Der Stream hat **keine Authentifizierung**. Im VPN/Institutsnetz vertretbar — auf einer
+> öffentlichen vast.ai-IP nur per SSH-Tunnel nutzen, nicht den Port mappen.
+
+**Zusätzlich archivierbar:** `RL_WANDB_VIDEO_EVERY=10` schneidet alle 10 Iterationen einen
+kompletten Rollout ins W&B-Dashboard mit. Nicht live (eine Iteration Verzug), dafür dauerhaft
+abrufbar und in der Projektarbeit zitierbar — der MJPEG-Stream ist flüchtig.
+
+**Smoke-Test der Live-Ansicht** (billig, vor dem großen Lauf):
+
+```bash
+HF_TOKEN=hf_... LIVE_VIEW=1 ./Simulation/server_rl_run.sh check   # prüft Port-Bindung + Pillow
+HF_TOKEN=hf_... LIVE_VIEW=1 RL_NUM_ENVS=2 RL_ITERATIONS=1 RL_ROLLOUT_STEPS=8 \
+    ./Simulation/server_rl_run.sh rl                              # Browser zeigt bewegtes Bild
+```
+
+Startet der Server nicht (Port belegt, Pillow fehlt), schaltet sich die Live-Ansicht mit einer
+`[live] …deaktiviert:`-Zeile ab — der RL-Lauf läuft in jedem Fall weiter.
 
 ---
 

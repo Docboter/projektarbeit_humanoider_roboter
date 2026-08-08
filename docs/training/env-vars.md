@@ -51,8 +51,28 @@ Diese Schalter aktivieren einzelne Verfahren beim Trainingsstart — alle unabh�
 | `RL_LR` | `1e-5` | Lernrate (nur Action-Head wird getunt) |
 | `RL_KL_COEF` | `0.1` | KL-Regularisierung gegen den BC-Checkpoint |
 | `RL_CLIP` | `0.2` | PPO/FPO-Clip-Epsilon |
+| `RL_SAVE_EVERY` | `100` | Checkpoint alle N Iterationen (ganzes Modell, ~6 GB je Checkpoint) |
+| `RL_WANDB_VIDEO_EVERY` | `0` | Alle N Iterationen einen Rollout als Video ins W&B-Dashboard (`0` = aus). Braucht `WANDB_API_KEY`; ohne `moviepy` fällt der Trainer automatisch auf einen Filmstreifen aus Einzelbildern zurück |
 
-> **Hinweis:** Der RL-Trainer ([`rl_finetune.py`](../../Simulation/g1_dex3_sim/rl_finetune.py)) ist die erste Implementierung; der Algorithmus-Kern (FPO, GAE, KL) ist gegen die GR00T-API verifiziert, die End-to-End-Validierung steht aber noch aus (braucht RT-Core-GPU + Isaac Sim, siehe Gruppe 0 im RL-Plan).
+> **Hinweis:** Der RL-Trainer ([`rl_finetune.py`](../../Simulation/g1_dex3_sim/rl_finetune.py)) läuft seit 2026-08-08 end-to-end auf RT-Core-Hardware (RTX PRO 6000 Blackwell, Isaac Sim 6.0) — Rollout, FPO-Update und Checkpoint-Schreiben sind nachgewiesen. Offen ist die **Lernwirkung** (steigt `success_rate` über viele Iterationen?); die Hyperparameter oben sind ungetunt. Details: [rl-anleitung.md](../weiterfuehrend/rl-anleitung.md).
+
+### Live-Ansicht des Laufs (nur im Sim-Image, opt-in)
+
+MJPEG-Stream des laufenden Rollouts im Browser („Spur B" aus dem
+[Livestream-Plan](../weiterfuehrend/livestream-plan.md)). Kostet **keinen zusätzlichen
+Render-Pass** — `cam_scene` wird ohnehin jeden Env-Step gerendert. Bei `LIVE_VIEW=0` ist der
+Codepfad ein reiner Early-Return, das Verhalten also identisch zu vorher.
+
+| Variable | Default | Beschreibung |
+|---|---|---|
+| `LIVE_VIEW` | `0` | `1` = Live-Ansicht aktiv (`http://<server-ip>:8900/`) |
+| `LIVE_VIEW_PORT` | `8900` | HTTP-Port. Container-Port mappen (`-p 8900:8900`) — `server_rl_run.sh` tut das beim Anlegen automatisch |
+| `LIVE_VIEW_EVERY_N` | `1` | Nur jedes n-te Frame senden (Drosselung bei hohem Durchsatz) |
+| `LIVE_VIEW_CAMS` | `cam_scene` | Kameras, kommagetrennt — z. B. `cam_scene,cam_left_wrist` |
+
+> Ohne offenen Port geht auch ein Tunnel: `ssh -L 8900:localhost:8900 <server>`, dann
+> `http://localhost:8900/`. Der Stream hat **keine Authentifizierung** — im VPN/Institutsnetz
+> vertretbar, auf einer öffentlichen vast.ai-IP nur per SSH-Tunnel nutzen.
 
 
 

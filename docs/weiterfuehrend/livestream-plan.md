@@ -1,8 +1,20 @@
 # Implementierungsplan — Live-Ansicht der Isaac-Lab-Sim
 
-**Status:** v1 (WebRTC/vast.ai) codeseitig umgesetzt, **nie auf Hardware getestet** ·
-v2 erweitert auf den Docker-Server + zweite, risikoarme Spur ·
-**Erstellt:** 2026-06-02 · **Revision v2:** 2026-08-07
+**Status:** **Spur B für den RL-Lauf ist gebaut** ([`live_view.py`](../../Simulation/g1_dex3_sim/live_view.py),
+2026-08-08) · Spur A (WebRTC) unverändert offen und **nie auf Hardware getestet** ·
+**Erstellt:** 2026-06-02 · **Revision v2:** 2026-08-07 · **v3:** 2026-08-08
+
+> ## Umsetzungsstand
+>
+> | Teil | Stand |
+> |---|---|
+> | **Spur B — Frame-Stream, RL-Pfad** | ✅ **umgesetzt.** `live_view.py` + Hook in der Rollout-Schleife von [`rl_finetune.py`](../../Simulation/g1_dex3_sim/rl_finetune.py), `LIVE_VIEW*`-Env-Vars, Port-Mapping in [`server_rl_run.sh`](../../Simulation/server_rl_run.sh). Modul isoliert getestet (Index, `meta.json`, `frame.jpg`, MJPEG-Strom, Kamera-Fallback, belegter Port). **Noch nicht auf der Server-GPU im echten Lauf gesehen.** |
+> | **Option C — W&B-Video** | ✅ **umgesetzt.** `RL_WANDB_VIDEO_EVERY=N`, mit Fallback auf einen Bild-Filmstreifen (kein `moviepy` im Kit-Python). |
+> | **Spur B — Sim-Eval + Baseline-Eval** | ⬜ offen. `live_view.py` ist lauf-agnostisch, es fehlt nur der Hook (§4.2). |
+> | **Spur A — WebRTC** | ⬜ offen, bewusst zurückgestellt (D1–D4, D6). Begründung: §1 — für einen tagelangen RL-Lauf ist der Viewport der falsche Mechanismus, und er trägt das gesamte Isaac-Sim-6.0-Risiko. |
+>
+> Vorgehen bewusst so geschnitten: Beobachtbarkeit **vor** dem ersten großen RL-Lauf, weil sie
+> sich nicht nachrüsten lässt — und mit dem billigsten Teil, nicht dem attraktivsten.
 
 > **Ziel:** Das Live-Äquivalent zu den heutigen MP4s aus `/data/sim_videos`. Statt nach dem
 > Lauf per `docker cp` Videos zu holen, soll der Roboter **während** des Laufs im Browser
@@ -73,7 +85,7 @@ vor dem ersten Test korrigiert bzw. verifiziert werden müssen:
 | **D2** | **Kit-Settings-Pfad veraltet.** Wir setzen `--/app/livestream/port` + `--/app/livestream/publicEndpointAddress`. Isaac Sim 6.0 dokumentiert `--/exts/omni.kit.livestream.app/primaryStream/{signalPort,streamPort,publicIp}`. | [`entrypoint_sim.sh:277-280`](../../Simulation/scripts/entrypoint_sim.sh#L277-L280) | Im Container die tatsächlich akzeptierten Settings prüfen (Phase 0) und den Pfad versionsabhängig setzen. Falsche Kit-Settings werden von Kit **still ignoriert** — das wird sonst zur stundenlangen Fehlersuche. |
 | **D3** | **Doppelte Port-Belegung.** Der Isaac-Lab-`AppLauncher` injiziert bei `livestream=1` selbst `--/app/livestream/port=49100`; unser `--kit_args` hängt einen zweiten, ggf. abweichenden Port an. Welcher gewinnt, hängt von der argv-Reihenfolge ab. | [`entrypoint_sim.sh:277`](../../Simulation/scripts/entrypoint_sim.sh#L277) | Auf dem Server `LIVESTREAM=2` (privat) nutzen — dort injiziert der AppLauncher **keinen** Port und der Konflikt entfällt. Abweichende Ports nur für den vast.ai-Sonderfall. |
 | **D4** | **`curl ifconfig.me` läuft auch bei `LIVESTREAM=2`** (privates Netz), wo `PUBLIC_IP` bedeutungslos ist — im Institutsnetz ggf. ein 10-s-Timeout beim Start. | [`entrypoint_sim.sh:109-110`](../../Simulation/scripts/entrypoint_sim.sh#L109-L110) | Nur bei `LIVESTREAM=1` ausführen. |
-| **D5** | **RL kennt keinen Livestream.** `AppLauncher(headless=True, enable_cameras=True)` ist hartkodiert, `entrypoint_rl.sh` reicht keine App-Flags durch. | [`rl_finetune.py:150`](../../Simulation/g1_dex3_sim/rl_finetune.py#L150), [`entrypoint_rl.sh:123`](../../Simulation/scripts/entrypoint_rl.sh#L123) | Für Spur B genügt ein Publish-Hook (§4.2). Für Spur A müsste `AppLauncher` zusätzlich `livestream=` bekommen — **niedrige Priorität**, siehe §1. |
+| **D5** | ~~**RL kennt keinen Livestream.**~~ **Für Spur B erledigt (2026-08-08):** Publish-Hook in der Rollout-Schleife, `LIVE_VIEW*` als argparse-Defaults aus der Umgebung. `AppLauncher(headless=True, enable_cameras=True)` bleibt hartkodiert — für den Frame-Stream ist das genau richtig. | [`rl_finetune.py`](../../Simulation/g1_dex3_sim/rl_finetune.py) | Spur A (RL im WebRTC-Viewport) bliebe offen: dafür müsste `AppLauncher` zusätzlich `livestream=` bekommen — **niedrige Priorität**, siehe §1. |
 | **D6** | **Kein Server-Launcher für die Sim-Eval.** Es gibt [`server_rl_run.sh`](../../Simulation/server_rl_run.sh) und `server_robocasa_ref_run.sh`, aber **kein** `server_sim_run.sh` — die Eval hat auf `ikr-ki-server-01` also noch gar keinen Startweg, geschweige denn Port-Publishing. | — | Neues Skript `Simulation/server_sim_run.sh` nach dem Muster von `server_rl_run.sh` (Workbench-Container, `docker exec`), inkl. `-p`-Mappings. |
 
 ---
@@ -192,11 +204,18 @@ Läufe bleibt bit-identisch.
 | Baseline-Eval | derselbe Codepfad (nutzt dasselbe Eval-Skript) | dito |
 | RL | Rollout-Schleife in [`rl_finetune.py`](../../Simulation/g1_dex3_sim/rl_finetune.py#L230-L290), zusätzlich Metriken am Iterations-Ende (`reward_mean`, `success`, [Zeile 283](../../Simulation/g1_dex3_sim/rl_finetune.py#L283)) | `obs[f"video.{cam}"][0]` — Env 0 der vektorisierten Envs |
 
-**Kostenpunkt:** Die Frames werden ohnehin gerendert (Policy-Obs bzw. MP4-Aufzeichnung), es
-kommt nur die JPEG-Kodierung dazu. `LIVE_VIEW_EVERY_N` (z. B. 2–5) drosselt das im RL-Lauf
-zusätzlich. **Zu verifizieren (Phase 1):** ob `cam_scene` im RL-Lauf überhaupt gerendert wird
-— falls nicht, entweder auf eine Policy-Kamera ausweichen oder `cam_scene` gezielt aktivieren
-(kostet dann echte GPU-Zeit und braucht eine Messung).
+**Kostenpunkt — die offene Frage ist beantwortet (2026-08-08, Code-Befund):** `cam_scene` **wird
+im RL-Lauf gerendert**. Sie steht in
+[`G1Dex3BlockstackEnv.cameras`](../../Simulation/g1_dex3_sim/g1_dex3_blockstack_env.py#L351)
+(mit dem Kommentar „nur fürs Video"), `_get_observations()` iteriert über *alle* Einträge dieses
+Dicts, und `get_obs_batched()` reicht sie als `video.cam_scene` an den RL-Trainer durch. Der
+Rollout hat das Bild also ohnehin in der Hand — **kein zusätzlicher Render-Pass**, nur ein
+GPU→CPU-Copy (~1 MB) und die JPEG-Kodierung. Letztere läuft in einem eigenen Thread und nur,
+solange tatsächlich jemand zuschaut. `LIVE_VIEW_EVERY_N` (z. B. 2–5) drosselt zusätzlich.
+
+Nebenbefund: Die Policy selbst nutzt `cam_scene` **nicht** (nur die vier Policy-Kameras gehen an
+GR00T). Wer den Render-Durchsatz optimieren will, könnte sie im RL-Pfad also abschalten — dann
+verschwindet aber genau dieses Gratis-Bild. Erst messen (Gruppe 0 im RL-Plan), dann entscheiden.
 
 ### 4.3 Neue Env-Vars
 
@@ -206,9 +225,20 @@ zusätzlich. **Zu verifizieren (Phase 1):** ob `cam_scene` im RL-Lauf überhaupt
 | `LIVE_VIEW_PORT` | `8900` | HTTP-Port des Frame-Streams |
 | `LIVE_VIEW_EVERY_N` | `1` | nur jedes n-te Frame publizieren (RL-Drosselung) |
 | `LIVE_VIEW_CAMS` | `cam_scene` | kommagetrennt; mehrere Kameras nebeneinander auf der Seite |
+| `RL_WANDB_VIDEO_EVERY` | `0` | Option C (§5): alle N Iterationen einen Rollout ins W&B-Dashboard |
 
-Container-Start ergänzen um `-p 8900:8900`. Aufruf: `http://<server-ip>:8900/` — und, falls
-mal nur SSH geht, `ssh -L 8900:localhost:8900 <server>` und dann `http://localhost:8900/`.
+Alle fünf sind umgesetzt und stehen in der zentralen Referenz
+[`docs/training/env-vars.md`](../training/env-vars.md). Container-Start ergänzen um
+`-p 8900:8900` — [`server_rl_run.sh`](../../Simulation/server_rl_run.sh) macht das beim Anlegen
+selbst und warnt, wenn ein älterer Container das Mapping nicht hat. Aufruf:
+`http://<server-ip>:8900/` — und, falls mal nur SSH geht, `ssh -L 8900:localhost:8900 <server>`
+und dann `http://localhost:8900/`.
+
+**Umsetzungsdetail, das Zeit spart:** Die `LIVE_VIEW*`-Vars liest
+[`rl_finetune.py`](../../Simulation/g1_dex3_sim/rl_finetune.py) **selbst** als argparse-Defaults,
+statt sie über `entrypoint_rl.sh` als CLI-Flags durchzureichen. Grund: `server_rl_run.sh` mountet
+`g1_dex3_sim` live in den Container, `/scripts` dagegen nicht — so wirkt der Schalter ohne
+Image-Rebuild (~30 min).
 
 ### 4.4 Warum Spur B für RL die richtige ist
 
@@ -220,14 +250,21 @@ davon. Zusätzlich lässt sich auf derselben Seite direkt zeigen, was beim RL in
 
 ---
 
-## 5. Option C — W&B als Zero-Effort-Semi-Live (nur RL)
+## 5. Option C — W&B als Zero-Effort-Semi-Live (nur RL) — ✅ umgesetzt
 
-`rl_finetune.py` loggt bereits nach W&B ([Zeile 285](../../Simulation/g1_dex3_sim/rl_finetune.py#L285)).
-Ein `wandb.log({"rollout": wandb.Video(frames_np, fps=30)})` alle N Iterationen liefert für
-**~5 Zeilen Code** eine im W&B-Dashboard abrufbare, ständig aktualisierte Videosequenz — kein
-Port, keine Firewall, von überall erreichbar. Das ist **nicht live** (Verzögerung = eine
-Iteration), aber es ist die billigste nützliche Stufe und ein guter Zwischenschritt, falls
-Phase 1 sich verzögert.
+`RL_WANDB_VIDEO_EVERY=N` schneidet alle N Iterationen den Rollout von Env 0 mit und hängt ihn an
+denselben `wandb.log()`-Aufruf wie `reward_mean`/`success_rate` (bewusst derselbe Aufruf — ein
+zweiter würde einen eigenen W&B-Step erzeugen und Video und Metriken versetzt ablegen).
+
+Das ist **nicht live** (Verzögerung = eine Iteration), dafür aber **bleibend**: im Dashboard
+abrufbar, von überall erreichbar, kein Port, keine Firewall — und damit in der Projektarbeit
+zitierbar. Genau darin ergänzt es den MJPEG-Stream, der flüchtig ist.
+
+**Stolperstein, den die Umsetzung umgeht:** `wandb.Video` braucht für numpy-Eingaben `moviepy`,
+und das ist im Isaac-Sim-Kit-Python **nicht** installiert. Statt dafür eine Dependency ins Image
+zu ziehen, fällt `_rollout_video_payload()` auf einen Filmstreifen aus acht Einzelbildern zurück
+(`wandb.Image` braucht nur Pillow) und protokolliert das. Ein fehlendes Wheel kostet damit
+höchstens Komfort, nie den Lauf.
 
 ---
 
@@ -235,17 +272,24 @@ Phase 1 sich verzögert.
 
 | Phase | Inhalt | Aufwand | Abbruch-/Weiter-Kriterium |
 |---|---|---|---|
-| **0 — Machbarkeit** | Auf `ikr-ki-server-01`: UDP 47998 zwischen Arbeitsplatz und Server prüfen; im Container `omni.services.livestream.nvcf` + akzeptierte Kit-Settings-Pfade verifizieren (D2); NVENC im Container prüfen (`nvidia-smi -q -d ENCODER`) | ~1–2 h | UDP blockiert oder Extension fehlt → **Spur A zurückstellen**, direkt Phase 1+3 |
-| **1 — Spur B bauen** | `live_view.py` + Hook in der Sim-Eval; Test mit dem **Replay-Diagnose-Lauf** (kein Modell, kein Server nötig → billigster Smoke-Test) | ~3–4 h | Browser zeigt bewegtes Bild → weiter |
-| **2 — Spur B auf RL + Baseline** | Hooks in `rl_finetune.py` (inkl. Metriken) und Durchreichen in `entrypoint_rl.sh`/`entrypoint_baseline.sh`; `LIVE_VIEW_EVERY_N` messen | ~2–3 h | RL-Lauf mit `--check` zeigt Bild + Zahlen |
-| **3 — Spur A reparieren** | D1–D4 in beiden Entrypoints; `server_sim_run.sh` (D6) mit Port-Mappings | ~3–4 h | — |
-| **4 — Spur A testen** | `NUM_EPISODES=2`, `LIVESTREAM=2`, nativer WebRTC-Client → Viewport sichtbar und flüssig? | ~2 h | Bei Fehlschlag: Isaac-Sim-6.0-Web-Viewer (Port 8210, Docker Compose) als zweiter Versuch; sonst Spur B bleibt die Lösung |
-| **5 — Doku** | [`vastai-anleitung.md`](../simulation/vastai-anleitung.md), [`rl-anleitung.md`](rl-anleitung.md), [`umsetzungsnotizen.md`](../simulation/umsetzungsnotizen.md), Env-Var-Tabellen in [`CLAUDE.md`](../../CLAUDE.md) + [`env-vars.md`](../training/env-vars.md) | ~1–2 h | — |
+| **0 — Machbarkeit** | Auf `ikr-ki-server-01`: UDP 47998 zwischen Arbeitsplatz und Server prüfen; im Container `omni.services.livestream.nvcf` + akzeptierte Kit-Settings-Pfade verifizieren (D2); NVENC im Container prüfen (`nvidia-smi -q -d ENCODER`) | ~1–2 h | ⬜ offen — betrifft nur noch Spur A |
+| **1 — Spur B bauen** ✅ | `live_view.py` (stdlib + Pillow, Latest-Frame-Slot, Encoder-Thread, MJPEG/`meta.json`/`frame.jpg`) — isoliert getestet inkl. Kamera-Fallback und belegtem Port | erledigt 2026-08-08 | ✅ |
+| **2 — Spur B auf RL** ✅ | Hook in der Rollout-Schleife von `rl_finetune.py` + Metriken je Iteration, `LIVE_VIEW*` als Env-Defaults, `-p 8900` in `server_rl_run.sh`, Option C (§5) | erledigt 2026-08-08 | ✅ — offen bleibt die Messung von `LIVE_VIEW_EVERY_N` im echten Lauf |
+| **2b — Spur B auf Sim-/Baseline-Eval** | Hook an derselben Stelle wie `frames.append(frame)` (§4.2); `live_view.py` ist lauf-agnostisch, es fehlt nur der Aufruf | ~1 h | ⬜ offen — nicht nötig für den RL-Lauf |
+| **3 — Spur A reparieren** | D1–D4 in beiden Entrypoints; `server_sim_run.sh` (D6) mit Port-Mappings | ~3–4 h | ⬜ offen |
+| **4 — Spur A testen** | `NUM_EPISODES=2`, `LIVESTREAM=2`, nativer WebRTC-Client → Viewport sichtbar und flüssig? | ~2 h | ⬜ offen. Bei Fehlschlag: Isaac-Sim-6.0-Web-Viewer (Port 8210, Docker Compose) als zweiter Versuch; sonst bleibt Spur B die Lösung |
+| **5 — Doku** ✅ (RL-Teil) | [`rl-anleitung.md`](rl-anleitung.md) Schritt 6, [`env-vars.md`](../training/env-vars.md), [`CLAUDE.md`](../../CLAUDE.md). Offen: [`vastai-anleitung.md`](../simulation/vastai-anleitung.md) + [`umsetzungsnotizen.md`](../simulation/umsetzungsnotizen.md) (gehören zu Phase 2b/3) | erledigt 2026-08-08 | ✅ |
 
 **Reihenfolge-Begründung:** Spur B zuerst, obwohl der Viewport das attraktivere Ziel ist —
 weil Phase 1+2 mit hoher Sicherheit funktionieren und danach *unabhängig vom Isaac-Sim-6.0-Risiko*
 eine Live-Ansicht existiert. Phase 0 ist trotzdem ganz vorne, weil ihr Ergebnis darüber
 entscheidet, ob Phase 3/4 überhaupt sinnvoll sind.
+
+**Abweichung vom Plan (2026-08-08):** Umgesetzt wurde nur der RL-Strang (Phase 1 + 2 + Doku),
+nicht Phase 1's ursprünglicher Sim-Eval-Einstieg. Auslöser war der anstehende erste große RL-Lauf:
+Beobachtbarkeit lässt sich in einen bereits laufenden Mehrstunden-Job nicht nachrüsten, und
+`cam_scene` liegt im RL-Rollout ohnehin gerendert vor (§4.2). Aus den geplanten ~12–15 h wurden
+so ~2 h für den Teil, der vor dem Lauf tatsächlich gebraucht wird.
 
 **Image-Rebuild:** Alle Skripte unter `Simulation/scripts/` und `g1_dex3_sim/` werden ins Image
 **kopiert**, nicht gemountet → nach jeder Änderung `./Simulation/update_sim_image.sh --vastai`.
@@ -254,6 +298,29 @@ Für die Iteration in Phase 1–2 lohnt ein Bind-Mount (`-v $(pwd)/Simulation/g1
 ---
 
 ## 7. Test- und Validierungsplan
+
+### 7.0 Bereits abgehakt (2026-08-08, lokal ohne GPU)
+
+`live_view.py` hängt an nichts Isaac-spezifischem und ließ sich deshalb komplett auf dem
+Arbeitsrechner prüfen — mit synthetischen Frames statt Sim-Bildern:
+
+| Geprüft | Ergebnis |
+|---|---|
+| `enabled=False` ist ein reiner No-Op | kein Server, kein Thread, keine Exception |
+| `GET /` liefert die Seite mit `<img src="/stream.mjpg?cam=…">` je Kamera | ✅ |
+| `GET /meta.json` enthält die gemergten Metriken + `frames_pro_s` | ✅ |
+| `GET /frame.jpg` ist ein gültiges JPEG in Bildgröße, RGBA→RGB gestutzt | ✅ (64×48, `mode=RGB`) |
+| `GET /stream.mjpg` liefert Boundary + JPEG-Teile, während nebenher publiziert wird | ✅ |
+| falsch gesetzte `LIVE_VIEW_CAMS` | weicht mit Warnung auf eine vorhandene Kamera aus |
+| Port bereits belegt | deaktiviert sich mit Meldung, wirft nicht |
+| `LIVE_VIEW*` als argparse-Defaults (an/aus/Müllwerte/CLI schlägt Env) | ✅ |
+
+**Was das nicht zeigt:** dass Pillow im Isaac-Sim-Kit-Python vorhanden ist (dort nicht explizit
+installiert, kommt als harte Abhängigkeit von `torchvision` und `diffusers` — deshalb der
+Fallback statt einer Annahme), und dass echte `cam_scene`-Bilder wie erwartet aussehen. Beides
+klärt Punkt 3 unten auf der Server-GPU.
+
+### 7.1 Auf Hardware zu prüfen
 
 1. **Regression (beide Spuren):** `LIVESTREAM=0` + `LIVE_VIEW=0` → exakt das alte Verhalten
    (headless, MP4s in `/data/sim_videos`, `results.json`). Das ist das wichtigste Kriterium.

@@ -242,14 +242,22 @@ ENV PATH="/app/Groot-1.6/.venv/bin:${PATH}" \
     # WebRTC-Livestream (opt-in): 0=aus, 1=öffentlich, 2=privat/lokal.
     # LIVESTREAM_PORT auf vast.ai auf den EXTERN gemappten Port setzen (intern==extern).
     LIVESTREAM="0" \
-    LIVESTREAM_PORT="49100"
+    LIVESTREAM_PORT="49100" \
+    # Live-Ansicht "Spur B" (MJPEG im Browser, live_view.py) — braucht weder NVENC
+    # noch UDP und überlebt Netzabbrüche; empfohlen für den langen RL-Lauf.
+    LIVE_VIEW="0" \
+    LIVE_VIEW_PORT="8900" \
+    LIVE_VIEW_EVERY_N="1" \
+    LIVE_VIEW_CAMS="cam_scene"
 
-# WebRTC-Livestream-Ports (nur Doku/Default; auf vast.ai separat per Docker-Options mappen:
-#   -p 8211 -p 49100 -p 47998/udp). NVENC ist in NVIDIA_DRIVER_CAPABILITIES=all enthalten.
-#   8211/tcp  = WebRTC Browser-Client + Signaling
+# Livestream-Ports (nur Doku/Default; beim docker run separat mappen).
+# Spur A — WebRTC (auf vast.ai: -p 8211 -p 49100 -p 47998/udp).
+#   NVENC ist in NVIDIA_DRIVER_CAPABILITIES=all enthalten.
+#   8211/tcp  = WebRTC Browser-Client + Signaling (in Isaac Sim 6.0 entfallen)
 #   49100/tcp = WebRTC Streaming (Signaling/Steuerung)
 #   47998/udp = WebRTC Medien-Stream (Video)
-EXPOSE 8211 49100
+# Spur B — MJPEG-Frame-Stream (-p 8900:8900), reines HTTP, tunnelbar per ssh -L.
+EXPOSE 8211 49100 8900
 EXPOSE 47998/udp
 
 WORKDIR /workspace

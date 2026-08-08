@@ -65,6 +65,11 @@ HF_CHECKPOINT_REPO="${HF_CHECKPOINT_REPO:-luca-mue/groot-g1dex3-checkpoint}"
 CHECKPOINT_PATH="${CHECKPOINT_PATH:-/data/checkpoints/groot-g1dex3-checkpoint}"
 ASSET_PATH="${ASSET_PATH:-$CHECKPOINT_PATH/g1_dex3.usd}"
 
+# Live-Ansicht (MJPEG im Browser, Spur B des Livestream-Plans). Der Port wird IMMER
+# gemappt — auch bei LIVE_VIEW=0 —, weil -p nur beim ANLEGEN des langlebigen Containers
+# wirkt: sonst müsste man für ein späteres LIVE_VIEW=1 erst `clean` fahren.
+LIVE_VIEW_PORT="${LIVE_VIEW_PORT:-8900}"
+
 ISAAC_PY="/workspace/isaaclab/_isaac_sim/python.sh"
 SIM_DIR="/workspace/g1_dex3_sim"
 
@@ -82,13 +87,39 @@ require_hf_token() {
 
 container_state() { docker inspect -f '{{.State.Running}}' "$CONTAINER" 2>/dev/null || echo missing; }
 
+# Ist der Host-Port frei? Reines Bash (kein ss/netstat/lsof im Image-losen Fall nötig).
+port_free() { ! (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null; }
+
+# -e-Flags für die Live-Ansicht. rl_finetune.py liest LIVE_VIEW* SELBST als CLI-Defaults —
+# deshalb wirkt das auch ohne Image-Rebuild (g1_dex3_sim ist gemountet, /scripts nicht).
+live_view_env() {
+  LIVE_ENV=( -e "LIVE_VIEW=${LIVE_VIEW:-0}" -e "LIVE_VIEW_PORT=$LIVE_VIEW_PORT" )
+  [[ -n "${LIVE_VIEW_EVERY_N:-}" ]] && LIVE_ENV+=( -e "LIVE_VIEW_EVERY_N=$LIVE_VIEW_EVERY_N" )
+  [[ -n "${LIVE_VIEW_CAMS:-}" ]]    && LIVE_ENV+=( -e "LIVE_VIEW_CAMS=$LIVE_VIEW_CAMS" )
+  return 0   # siehe Kommentar in build_rl_env: letzte Zeile darf kein `[[ … ]] &&` sein
+}
+
+# Warnt, wenn ein ALTER Container ohne -p 8900 läuft — sonst sucht man den Stream
+# vergeblich, obwohl im Log "[live] Live-Ansicht aktiv" steht (er lauscht dann nur
+# container-intern).
+warn_if_port_unpublished() {
+  [[ "${LIVE_VIEW:-0}" != "0" ]] || return 0
+  local ports; ports="$(docker inspect -f '{{json .NetworkSettings.Ports}}' "$CONTAINER" 2>/dev/null || echo '{}')"
+  if [[ "$ports" != *"\"$LIVE_VIEW_PORT/tcp\":[{"* ]]; then
+    warn "LIVE_VIEW=1, aber Container '$CONTAINER' hat Port $LIVE_VIEW_PORT NICHT veröffentlicht."
+    warn "  -p wirkt nur beim Anlegen. Einmalig neu anlegen:  $0 clean  (Daten bleiben erhalten)"
+  fi
+}
+
 ensure_container() {
   local state; state="$(container_state)"
   if [[ "$state" == "true" ]]; then
+    warn_if_port_unpublished
     return 0
   elif [[ "$state" == "false" ]]; then
     log "Container '$CONTAINER' vorhanden (gestoppt) — starte ihn."
     docker start "$CONTAINER" >/dev/null
+    warn_if_port_unpublished
     return 0
   fi
   mkdir -p "$HOST_DATA_DIR"
@@ -101,8 +132,16 @@ ensure_container() {
   # server_robocasa_ref_run.sh): LIVE-CHECK-Iterationen an rl_finetune.py & Co. brauchen dann
   # nur `git pull` auf dem Server — kein Image-Rebuild, kein `clean`.
   log "  Sim-Code-Mount -> $REPO_DIR/Simulation/g1_dex3_sim"
+  local port_flag=()
+  if port_free "$LIVE_VIEW_PORT"; then
+    port_flag=( -p "$LIVE_VIEW_PORT:$LIVE_VIEW_PORT" )
+    log "  Live-Ansicht  -> Port $LIVE_VIEW_PORT veröffentlicht (nutzbar mit LIVE_VIEW=1)"
+  else
+    warn "Host-Port $LIVE_VIEW_PORT ist belegt — Live-Ansicht bleibt unveröffentlicht."
+    warn "  Anderen Port wählen:  LIVE_VIEW_PORT=8901 $0 clean && … $0 rl"
+  fi
   docker run -d --name "$CONTAINER" --gpus "$GPUS" --ipc=host --shm-size="$SHM_SIZE" \
-    "${create_env[@]}" \
+    "${create_env[@]}" "${port_flag[@]}" \
     -v "$HOST_DATA_DIR:/data" \
     -v "$REPO_DIR/Simulation/g1_dex3_sim:$SIM_DIR:ro" \
     --entrypoint bash "$IMAGE" -lc "sleep infinity" >/dev/null
@@ -126,6 +165,9 @@ build_rl_env() {
   [[ -n "${RL_CLIP:-}" ]]          && RL_ENV+=( -e "RL_CLIP=$RL_CLIP" )
   [[ -n "${RL_SAVE_EVERY:-}" ]]    && RL_ENV+=( -e "RL_SAVE_EVERY=$RL_SAVE_EVERY" )
   [[ -n "${SHELL_ON_ERROR:-}" ]]   && RL_ENV+=( -e "SHELL_ON_ERROR=$SHELL_ON_ERROR" )
+  [[ -n "${RL_WANDB_VIDEO_EVERY:-}" ]] && RL_ENV+=( -e "RL_WANDB_VIDEO_EVERY=$RL_WANDB_VIDEO_EVERY" )
+  live_view_env
+  RL_ENV+=( "${LIVE_ENV[@]}" )
   # PFLICHT: Ist die letzte Zeile ein nicht zutreffendes `[[ … ]] && …`, gibt die Funktion 1
   # zurück und `set -e` beendet das Skript STILL — genau vor dem RL-Start (beobachtet 2026-08-07,
   # als SHELL_ON_ERROR ungesetzt war). Nie durch eine weitere Bedingung ersetzen.
@@ -192,7 +234,10 @@ do_check() {
   # Python-Traceback mit 0 (beobachtet 2026-08-07: TypeError → trotzdem Exit 0). Erfolg
   # daher ausschließlich am positiven Marker von rl_finetune.py --check festmachen.
   local out
-  out=$(docker exec -w "$SIM_DIR" "$CONTAINER" bash -lc "
+  # LIVE_VIEW mitgeben: rl_finetune.py legt die Live-Ansicht VOR dem --check-Return an,
+  # der Check weist damit auch Pillow + Port-Bindung im Kit-Python nach.
+  live_view_env
+  out=$(docker exec -w "$SIM_DIR" "${LIVE_ENV[@]}" "$CONTAINER" bash -lc "
     unset VIRTUAL_ENV
     '$ISAAC_PY' '$SIM_DIR/rl_finetune.py' \
         --checkpoint '$CHECKPOINT_PATH' \
@@ -212,6 +257,10 @@ do_rl() {
   build_rl_env
   log "Starte echten RL-Lauf (Vordergrund, laeuft je nach RL_ITERATIONS lange)."
   log "  Checkpoints -> $HOST_DATA_DIR/g1_dex3_rl/  (alle RL_SAVE_EVERY Iterationen)"
+  if [[ "${LIVE_VIEW:-0}" != "0" ]]; then
+    local ip; ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
+    log "  Live-Ansicht -> http://${ip:-<server-ip>}:$LIVE_VIEW_PORT/"
+  fi
   docker exec "${RL_ENV[@]}" "$CONTAINER" bash -lc "bash /scripts/entrypoint_rl.sh"
 }
 
@@ -240,6 +289,18 @@ Beispiele:
   ./Simulation/server_rl_run.sh preflight
   HF_TOKEN=hf_... ./Simulation/server_rl_run.sh check
   HF_TOKEN=hf_... WANDB_API_KEY=... RL_NUM_ENVS=4 ./Simulation/server_rl_run.sh rl
+  # mit Live-Ansicht im Browser + W&B-Video alle 10 Iterationen:
+  HF_TOKEN=hf_... WANDB_API_KEY=... LIVE_VIEW=1 RL_WANDB_VIDEO_EVERY=10 \\
+      RL_NUM_ENVS=4 ./Simulation/server_rl_run.sh rl
+
+Live-Ansicht (opt-in, docs/weiterfuehrend/livestream-plan.md Spur B):
+  LIVE_VIEW=1            MJPEG-Stream des Rollouts im Browser
+  LIVE_VIEW_PORT         Host- und Container-Port (Default 8900; wird beim Anlegen gemappt)
+  LIVE_VIEW_EVERY_N      nur jedes n-te Frame senden (Default 1)
+  LIVE_VIEW_CAMS         Kameras, kommagetrennt (Default cam_scene)
+  RL_WANDB_VIDEO_EVERY   alle N Iterationen einen Rollout ins W&B-Dashboard (0 = aus)
+  -> Aufruf im Browser:  http://<server-ip>:$LIVE_VIEW_PORT/
+     nur SSH?            ssh -L $LIVE_VIEW_PORT:localhost:$LIVE_VIEW_PORT <server>
 
 Datenverzeichnis (Host): $HOST_DATA_DIR   ->  Container /data
 Image:                    $IMAGE
