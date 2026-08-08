@@ -1359,9 +1359,10 @@ hält der Prüfung **nicht** stand. Beide Spalten messen etwas anderes als gedac
 
 Belastbar ist dagegen `min_reach_step`: **13 bzw. 18 von 1200.** Die größte Annäherung der
 gesamten Episode fällt in die erste halbe Sekunde und wird in den folgenden 40 s nie wieder
-unterboten. Das gilt unabhängig vom Bezugspunkt — welchen Offset die Handwurzel auch hat, er ist
-konstant. Zusammen mit Lauf 23 (Würfel über 3600 Steps unbewegt, Armbewegung durchgehend und
-strukturlos) heißt das: die Arme bewegen sich, aber zu keinem Zeitpunkt auf einen Würfel zu.
+unterboten. Daraus schien zu folgen, dass sich die Arme nie auf einen Würfel zubewegen — **auch
+das war ein Artefakt des Messpunkts** (s. Lauf 25): die Handwurzel bleibt zurück, während sich die
+Finger nach vorn strecken, ihr Minimum liegt deshalb früh. Von Lauf 24 bleibt am Ende nur, dass
+seine Zahlen die Frage nicht beantworten konnten.
 
 Konsequenz im Code (alles in `get_reach_diagnostics` / `run_g1_dex3_sim_eval.py`):
 
@@ -1371,12 +1372,57 @@ Konsequenz im Code (alles in `get_reach_diagnostics` / `run_g1_dex3_sim_eval.py`
 | `reach_frame` in `results.json` + Startzeile | die Zahl darf nie ohne ihren Bezugsrahmen gelesen werden |
 | `reach_start_m` zusätzlich zu `min_reach_m` | erst die Differenz zeigt, ob sich der Roboter überhaupt angenähert hat |
 | Würfel-Grundlage erst nach 30 Steps Karenz | schneidet das Einschwingen ab, das sonst als „angefasst" zählt |
+| `finger_span_max_rad` (Action-Dims 14:28) | zeigt, ob überhaupt ein Griff kommandiert wurde |
 
-**Nächster Schritt:** derselbe 2×40-s-Lauf noch einmal (rund 4 Minuten). Fingerspitzen-Abstand im
-einstelligen Zentimeterbereich → der Würfel ist in der Hand, es scheitert am Greifen; zweistellig
-→ die Hand kommt nicht hin. Nur wenn der Wert dazwischen landet, braucht es eine absolute
-Referenz — die liefert dann `run_g1_dex3_replay.py` mit denselben Kennzahlen auf den echten
-Dataset-Aktionen.
+#### Die eigentliche Messung (runs/20260808/25) — die Hand ist am Würfel
+
+Derselbe Lauf mit korrigiertem Messpunkt, wieder 2 × 40 s, wieder 0/2:
+
+| Episode | `reach_start_m` → `min_reach_m` | `min_reach_step` | `block_shift_m` |
+|---|---|---|---|
+| 1 | 0,135 → **0,0396** | 58 | 0,0147 / 0,0 / 0,0 |
+| 2 | 0,127 → **0,0420** | 1014 | 0,0570 / 0,0 / 0,0 |
+
+Das kehrt den Befund aus Lauf 24 um:
+
+* **Der Roboter nähert sich.** 9,5 cm Annäherung gegenüber der Startpose, in beiden Episoden auf
+  den Millimeter gleich. Das ist kein Zufallsprodukt einer wackelnden Bewegung.
+* **Die Fingerspitzen erreichen den Würfel.** 4,0 bzw. 4,2 cm zum Würfel*mittelpunkt*, bei 5 cm
+  Kantenlänge also rund **1,5 cm zur Oberfläche**.
+* **Es gibt echten Kontakt.** Genau ein Würfel verschiebt sich (1,5 bzw. 5,7 cm), die beiden
+  anderen exakt 0,0 — die Karenzzeit funktioniert, und der bewegte Würfel wurde angefasst.
+
+Damit ist die Vorprüfung „Geometrie" endgültig erledigt: die Hand kommt hin, berührt den Würfel
+und schiebt ihn. Was fehlt, ist der Griff. Dafür bleiben zwei Erklärungen, und die vorregistrierte
+Regel („in Reichweite, greift nicht → `TUNE_VISUAL=1`") unterscheidet sie nicht:
+
+1. **Die Politik versucht keinen Griff** — die Finger bleiben starr, der Würfel wird nur
+   angestoßen. Das wäre Wahrnehmung/Politik und `TUNE_VISUAL=1` wäre richtig.
+2. **Der Griff rutscht** — die Finger schließen, aber Reibung/Kontaktparameter halten den Würfel
+   nicht. Das wäre Sim-Physik, und ein 48-h-ViT-Lauf wäre verschwendet.
+
+Ein 5,7-cm-Schub spricht eher für (1), beweist es aber nicht. Deshalb protokolliert der Runner
+zusätzlich `finger_span_max_rad`: die größte Spannweite, die ein Fingergelenk-**Kommando**
+(Action-Dims 14:28) über die Episode durchläuft. Nahe 0 heißt „die Finger wurden nie bewegt" und
+entscheidet (1) direkt am Kommando, noch vor jeder Physikfrage.
+
+**Nächster Schritt** — beides, in dieser Reihenfolge, zusammen unter 15 Minuten:
+
+```bash
+# a) Greif-Physik isoliert: Würfel exakt an die aufgezeichneten Greifpunkte, echte
+#    Dataset-Aktionen, kein Modell. Wird ein Würfel angehoben?  (neue Aktion 'grasp')
+HF_TOKEN=hf_... ./Simulation/server_rl_run.sh grasp
+
+# b) Eval erneut, jetzt mit Fingerspur
+HF_TOKEN=hf_... NUM_EPISODES=2 EPISODE_LENGTH_S=40 DR_ENABLED=0 \
+    ./Simulation/server_rl_run.sh eval
+```
+
+Hebt (a) den Würfel (`max_cube_lift_cm` > ~2) und ist die Fingerspanne in (b) klein →
+Politik/Wahrnehmung, `TUNE_VISUAL=1` steht. Hebt (a) nichts → zuerst die Kontaktparameter, ViT
+später. Zum Kontext: die Finger-Positionsgrenzen waren schon einmal die Ursache eines
+fallengelassenen Würfels; `_widen_finger_joint_limits()` weitet sie seit Juni auf die echte
+Dataset-Range, dieser Pfad ist also bereits abgedeckt.
 
 #### Falscher Alarm „Sim-Eval ohne Erfolgsmarker beendet"
 

@@ -232,6 +232,10 @@ def main():
     with open(args.results_file, "w") as f:
         json.dump(result, f, indent=2)
     print(f"\n[Replay] Ergebnis: success={success} (Step {success_step}) → {args.results_file}")
+    # Erfolgsmarker für server_rl_run.sh: isaaclab.sh verschluckt den Exit-Code, der
+    # Wrapper erkennt einen sauberen Durchlauf deshalb nur an dieser Zeile (wie
+    # '[eval] fertig.' / '[dump] fertig.' / '[gap] fertig.').
+    print("[replay] fertig.", flush=True)
 
     env.close()
     simulation_app.close()

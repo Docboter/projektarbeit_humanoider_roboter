@@ -466,6 +466,31 @@ do_cams() {
     || { err "Kamera-Dump ohne Erfolgsmarker beendet (Traceback oben)."; return 1; }
 }
 
+# Greif-Physik isoliert: Open-Loop-Replay der ECHTEN Dataset-Aktionen, kein Modell, kein
+# Server. Mit --grasp-test liegen die Wuerfel exakt an den aufgezeichneten Greifpunkten —
+# damit haengt das Ergebnis nur noch an Reibung/Kontakt/Fingerschluss, nicht mehr an der
+# Politik. Trennt die beiden Erklaerungen, die 'eval' offenlaesst, wenn die Fingerspitzen
+# den Wuerfel erreichen (4 cm, runs/20260808/25), aber kein Stapel entsteht:
+#   Anhebung > ~2 cm  -> Greifen funktioniert -> es liegt an der Politik (TUNE_VISUAL=1)
+#   Anhebung ~ 0      -> Kontaktparameter zuerst, ein ViT-Lauf waere verschwendet
+do_grasp() {
+  ensure_checkpoint
+  ensure_black_hands
+  log "Greif-Physik-Test (Open-Loop-Replay, Dataset-Aktionen)" \
+      "→ $HOST_DATA_DIR/sim_results_replay/"
+  docker exec -w "$SIM_DIR" \
+    -e "DR_ENABLED=${DR_ENABLED:-0}" \
+    -e "RL_GROUND_COLOR=${RL_GROUND_COLOR:-}" \
+    "$CONTAINER" bash -lc "
+    unset VIRTUAL_ENV
+    '$ISAAC_PY' '$SIM_DIR/run_g1_dex3_replay.py' \
+        --headless --enable_cameras \
+        --asset-path '$ASSET_PATH' \
+        --grasp-test" 2>&1 | tee /dev/stderr | grep -c "\[replay\] fertig" >/dev/null \
+    && ok "Ergebnis: $HOST_DATA_DIR/sim_results_replay/results.json, Video unter sim_videos_replay/" \
+    || { err "Greif-Test ohne Erfolgsmarker beendet (Traceback oben)."; return 1; }
+}
+
 # Domain-Gap: Kosinus-Distanz real gegen sim je Policy-Kamera durch den eingefrorenen
 # SigLIP-ViT (= GR00Ts Vision-Backbone, da BC mit tune_visual=false lief).
 # Braucht die Frames aus 'cams' — misst also genau die Bilder, die auch die Policy sieht.
@@ -536,6 +561,8 @@ Aktionen:
   eval        BC-Erfolgsrate in der Sim (Closed Loop, GR00T-Server + Isaac-Lab-Client).
               Schritt 3 der Diagnosekette und der Nullpunkt fuer jeden RL-Vergleich.
               NUM_EPISODES (20), EXECUTION_HORIZON (8), EPISODE_LENGTH_S (0 = 300 s).
+  grasp       Greif-Physik isoliert: Open-Loop-Replay der Dataset-Aktionen mit --grasp-test,
+              kein Modell. Beantwortet, ob ein Wuerfel ueberhaupt angehoben werden KANN.
   rl          Echter RL-Lauf (Vordergrund). Checkpoints unter $HOST_DATA_DIR/g1_dex3_rl/.
   shell       Interaktive Shell im Container.
   clean       Container entfernen (Daten unter $HOST_DATA_DIR bleiben).
@@ -578,7 +605,7 @@ ACTION="${1:-help}"
 # 'shell' bleibt ungespiegelt (interaktives -it verträgt die Pipe nicht), 'help'/'clean'
 # haben nichts zu protokollieren.
 case "$ACTION" in
-  preflight|setup|check|cams|gap|eval|rl) start_logging "$ACTION" ;;
+  preflight|setup|check|cams|gap|eval|grasp|rl) start_logging "$ACTION" ;;
 esac
 case "$ACTION" in
   preflight)  do_preflight ;;
@@ -587,6 +614,7 @@ case "$ACTION" in
   cams)       do_cams ;;
   gap)        do_gap ;;
   eval)       do_eval ;;
+  grasp)      do_grasp ;;
   rl)         do_rl ;;
   shell)      do_shell ;;
   clean|down) do_clean ;;

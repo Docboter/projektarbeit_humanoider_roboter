@@ -135,7 +135,8 @@ def run_episode(
 
     Returns:
         dict mit Feldern: success, num_steps, duration_s, success_step, reach_frame,
-        reach_start_m, min_reach_m, min_reach_step, block_shift_max_m, block_shift_m
+        reach_start_m, min_reach_m, min_reach_step, block_shift_max_m, block_shift_m,
+        finger_span_max_rad
     """
     obs_dict, _ = env.reset()
     client.reset()
@@ -160,6 +161,15 @@ def run_episode(
     # obwohl keine Hand in ihrer Nähe war. Ohne diese Karenz meldet die Diagnose in jeder
     # Episode "Würfel bewegt" und misst damit den Solver statt den Roboter.
     settle_steps = 30   # 1 s bei 30 Hz
+
+    # Fingerspur: versucht die Politik überhaupt zu greifen? Die Dims 14:28 des
+    # Action-Vektors sind die 14 Dex3-Fingergelenke (s. ALL_JOINTS_ORDERED in
+    # g1_dex3_cfg.py). Bleibt ihre Spannweite über die Episode nahe 0, hält die Politik
+    # die Finger starr — dann scheitert der Griff nicht an der Kontaktphysik, sondern
+    # daran, dass nie einer versucht wurde. Das trennt die beiden Erklärungen, die ein
+    # "Fingerspitzen am Würfel, aber kein Stapel" sonst offenlässt.
+    hand_cmd_min = np.full(14, np.inf)
+    hand_cmd_max = np.full(14, -np.inf)
 
     max_steps = int(env.cfg.episode_length_s * env.cfg.policy_hz)
 
@@ -210,6 +220,10 @@ def run_episode(
             if step < settle_steps:
                 block_pos_start = block_pos_last
 
+            hand_cmd = np.asarray(chunk[t][14:28], dtype=float)
+            np.minimum(hand_cmd_min, hand_cmd, out=hand_cmd_min)
+            np.maximum(hand_cmd_max, hand_cmd, out=hand_cmd_max)
+
             obs_step, _, terminated, time_out, info = env.step(action_t)
 
             # Video-Frame nach dem Step erfassen — aus der Szenen-Übersichtskamera (ganze Szene
@@ -255,6 +269,11 @@ def run_episode(
     # die Erfolgsrate ohnehin nur die Bestätigung dieser Beobachtung.
     block_shift = np.linalg.norm(block_pos_last - block_pos_start, axis=1)
 
+    # Bei einem Abbruch vor dem ersten Chunk stehen hier noch die inf-Startwerte.
+    finger_span = (
+        hand_cmd_max - hand_cmd_min if np.isfinite(hand_cmd_min).all() else np.zeros(14)
+    )
+
     return {
         "success": success,
         "num_steps": step,
@@ -269,6 +288,7 @@ def run_episode(
         "min_reach_step": min_reach_step,
         "block_shift_max_m": round(float(block_shift.max()), 4),
         "block_shift_m": [round(float(v), 4) for v in block_shift],
+        "finger_span_max_rad": round(float(finger_span.max()), 4),
     }
 
 
@@ -361,7 +381,8 @@ def main():
             f"{ep_result['reach_frame']}-Würfel-Abstand "
             f"{ep_result['reach_start_m'] * 100:.1f} → {ep_result['min_reach_m'] * 100:.1f} cm "
             f"(Step {ep_result['min_reach_step']}) | "
-            f"Würfel verschoben max. {ep_result['block_shift_max_m'] * 100:.1f} cm"
+            f"Würfel verschoben max. {ep_result['block_shift_max_m'] * 100:.1f} cm | "
+            f"Fingerspanne {ep_result['finger_span_max_rad']:.2f} rad"
         )
 
     # Auswertung
@@ -391,6 +412,8 @@ def main():
         )
         print(f"  Episoden mit bewegtem Würfel (>1 cm nach Einschwingen): "
               f"{n_touched}/{len(results)}")
+        spans = sorted(r["finger_span_max_rad"] for r in results)
+        print(f"  Fingerspanne (Kommando): Median {spans[len(spans) // 2]:.2f} rad")
     print("=" * 60)
 
     # Ergebnisse speichern
