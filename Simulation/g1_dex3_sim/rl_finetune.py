@@ -81,16 +81,23 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--num-envs", type=int, default=16, help="Parallele Sim-Envs")
     p.add_argument("--iterations", type=int, default=500, help="RL-Iterationen (Rollout+Update)")
     p.add_argument("--rollout-steps", type=int, default=32, help="Env-Steps pro Rollout pro Env")
-    p.add_argument("--epochs-per-iter", type=int, default=2, help="PPO-Epochen je Rollout")
-    p.add_argument("--minibatch-size", type=int, default=64)
+    # Die folgenden drei sind die Speicher-Stellschrauben bei OOM (Env-Defaults, damit
+    # sie ohne Image-Rebuild wirken — Begruendung oben bei _env_flag).
+    p.add_argument("--epochs-per-iter", type=int, default=_env_int("RL_EPOCHS_PER_ITER", 2),
+                   help="PPO-Epochen je Rollout. Env: RL_EPOCHS_PER_ITER.")
+    p.add_argument("--minibatch-size", type=int, default=_env_int("RL_MINIBATCH_SIZE", 64),
+                   help="Paare (t,env) je Update-Schritt. Env: RL_MINIBATCH_SIZE.")
     p.add_argument("--lr", type=float, default=1e-5)
     p.add_argument("--gamma", type=float, default=0.99)
     p.add_argument("--gae-lambda", type=float, default=0.95)
     p.add_argument("--clip", type=float, default=0.2, help="PPO/FPO-Clip-Epsilon")
     p.add_argument("--kl-coef", type=float, default=0.1, help="KL-Regularisierung gegen BC")
     p.add_argument("--value-coef", type=float, default=0.5)
-    p.add_argument("--fpo-mc-samples", type=int, default=4,
-                   help="K (noise,t)-Ziehungen fuer den Proxy")
+    # K skaliert Speicher UND Rechenzeit linear: die K Ziehungen muessen bis zur Bildung
+    # von exp(mean_K(new) - old) alle im Graphen bleiben, lassen sich also nicht wie die
+    # Zeitschritt-Gruppen einzeln zurueckrechnen. Erste Stellschraube bei OOM.
+    p.add_argument("--fpo-mc-samples", type=int, default=_env_int("RL_FPO_MC_SAMPLES", 4),
+                   help="K (noise,t)-Ziehungen fuer den Proxy. Env: RL_FPO_MC_SAMPLES.")
     p.add_argument("--save-every", type=int, default=50)
     p.add_argument("--wandb", action="store_true")
     p.add_argument("--wandb-project", default="gr00t-g1-dex3-rl")
@@ -325,6 +332,7 @@ def main() -> None:
         # ── FPO/PPO-Update ────────────────────────────────────────────────────
         T, N = rewards.shape
         flat_idx = [(t, n) for t in range(T) for n in range(N)]
+        last_losses = (0.0, 0.0, 0.0)   # (policy, kl, value) des letzten Minibatch
         for _epoch in range(args.epochs_per_iter):
             for start in range(0, len(flat_idx), args.minibatch_size):
                 mb = flat_idx[start:start + args.minibatch_size]
@@ -341,9 +349,19 @@ def main() -> None:
                 by_t = {}
                 for (t, n) in mb:
                     by_t.setdefault(t, []).append(n)
-                pol_loss = torch.zeros((), device=device)
-                val_loss = torch.zeros((), device=device)
-                kl_loss = torch.zeros((), device=device)
+                # Gradienten-Akkumulation je Zeitschritt-Gruppe statt EINES grossen
+                # Graphen ueber das ganze Minibatch. Mathematisch identisch (die
+                # Gradienten der Summe sind die Summe der Gradienten), aber der Graph
+                # jeder Gruppe wird sofort nach ihrem backward() frei.
+                # Vorher lebten alle Gruppen gleichzeitig: bei T=32/N=4/minibatch=64
+                # umfasst ein Minibatch 16 Zeitschritte, mal fpo_mc_samples=4 sind das
+                # 64 gehaltene Forward-Graphen — das war der OOM am 2026-08-08
+                # (Traceback im Qwen3-lm_head, 54 GB im Prozess). Perfide dabei: ein
+                # KLEINERES num_envs machte es schlimmer, weil dann mehr Zeitschritte
+                # in dasselbe Minibatch passen.
+                m = max(len(mb), 1)
+                optim.zero_grad(set_to_none=True)
+                pol_sum = kl_sum = val_sum = 0.0
                 for t, ns in by_t.items():
                     inp, _na = buf_inputs[t]
                     idx = torch.as_tensor(ns, device=device, dtype=torch.long)
@@ -356,26 +374,35 @@ def main() -> None:
                     a = adv[t, idx]
                     unclipped = ratio * a
                     clipped = torch.clamp(ratio, 1 - args.clip, 1 + args.clip) * a
-                    pol_loss = pol_loss - torch.min(unclipped, clipped).sum()
-                    kl_loss = kl_loss + (ref_logp - new_logp).sum()
+                    pol = -torch.min(unclipped, clipped).sum()
+                    kl = (ref_logp - new_logp).sum()
                     v = value_head(buf_state[t][idx]).squeeze(-1)
-                    val_loss = val_loss + ((v - returns[t, idx]) ** 2).sum()
-                m = max(len(mb), 1)
-                loss = (pol_loss + args.kl_coef * kl_loss) / m + args.value_coef * val_loss / m
-                optim.zero_grad()
-                loss.backward()
+                    vl = ((v - returns[t, idx]) ** 2).sum()
+                    group_loss = (pol + args.kl_coef * kl) / m + args.value_coef * vl / m
+                    group_loss.backward()
+                    pol_sum += float(pol.detach()) / m
+                    kl_sum += float(kl.detach()) / m
+                    val_sum += float(vl.detach()) / m
                 torch.nn.utils.clip_grad_norm_(trainable + list(value_head.parameters()), 1.0)
                 optim.step()
+                last_losses = (pol_sum, kl_sum, val_sum)
 
         succ = float(env._episode_success.float().mean().item())
         mean_rew = float(rewards.mean().item())
-        print(f"[rl] iter {it:04d}  reward={mean_rew:+.3f}  success={succ:.3f}", flush=True)
+        pol_l, kl_l, val_l = last_losses
+        print(
+            f"[rl] iter {it:04d}  reward={mean_rew:+.3f}  success={succ:.3f}  "
+            f"pol={pol_l:+.4f}  kl={kl_l:+.4f}  val={val_l:.4f}",
+            flush=True,
+        )
         live.update_meta(
-            iteration=it, reward_mean=round(mean_rew, 4), success_rate=round(succ, 4)
+            iteration=it, reward_mean=round(mean_rew, 4), success_rate=round(succ, 4),
+            policy_loss=round(pol_l, 5), kl=round(kl_l, 5), value_loss=round(val_l, 5),
         )
         if args.wandb:
             import wandb
-            payload = {"iter": it, "reward_mean": mean_rew, "success_rate": succ}
+            payload = {"iter": it, "reward_mean": mean_rew, "success_rate": succ,
+                       "policy_loss": pol_l, "kl": kl_l, "value_loss": val_l}
             if rec:
                 # In DENSELBEN log()-Aufruf, nicht in einen zweiten: wandb zaehlt sonst
                 # einen eigenen Step hoch und Video und Metriken landen versetzt.

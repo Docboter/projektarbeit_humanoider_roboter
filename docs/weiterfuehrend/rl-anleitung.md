@@ -467,9 +467,39 @@ Das Skript braucht das **kombinierte** Image (`Dockerfile.vastai`), nicht das BC
 Reward-Hacking — `RL_KL_COEF` erhöhen oder die Shaped-Reward-Gewichte (`rew_*` in
 [`g1_dex3_blockstack_env.py`](../../Simulation/g1_dex3_sim/g1_dex3_blockstack_env.py)) nachjustieren.
 
-### OOM / zu langsam
-`RL_NUM_ENVS` senken (Rendering + Modell + Backprop teilen sich den VRAM). Erst mit 2–4 Envs
-stabilisieren, dann hochfahren.
+### `torch.OutOfMemoryError` im Update-Schritt
+
+**Zuerst prüfen, wer sonst noch auf der GPU liegt** — `nvidia-smi`. Auf `ikr-ki-server-01` belegte
+am 2026-08-08 ein fremder `llama-server` dauerhaft **41 GB auf GPU 0** und 37 GB auf GPU 1; von den
+95 GB blieben also nur ~56 übrig. Die Fehlermeldung nennt das als „non-PyTorch memory" und ist
+leicht zu überlesen. Größter Hebel ist immer, diesen Prozess zu beenden oder auf die freiere Karte
+auszuweichen (`RL_GPUS='"device=1"'`).
+
+**`RL_NUM_ENVS` zu senken half hier nicht — es machte es schlimmer.** Der Grund steckt in der
+Struktur des Update-Schritts: ein Minibatch besteht aus `(t, env)`-Paaren, und pro Zeitschritt
+darin läuft ein eigener Forward. Bei kleinerem `RL_NUM_ENVS` passen *mehr Zeitschritte* in
+dasselbe Minibatch, also laufen mehr Forwards. Mit `RL_MINIBATCH_SIZE=64` und `RL_NUM_ENVS=4`
+sind das 16 Zeitschritte × `RL_FPO_MC_SAMPLES=4` = **64 Forward-Graphen**, die bis zum `backward()`
+gleichzeitig im Speicher lagen. Seit 2026-08-08 rechnet der Trainer jede Zeitschritt-Gruppe
+einzeln zurück (Gradienten-Akkumulation, mathematisch identisch) — das senkt den Spitzenbedarf
+um den Faktor `RL_MINIBATCH_SIZE / RL_NUM_ENVS`.
+
+Reicht das nicht, in dieser Reihenfolge drehen:
+
+| Variable | Notfallwert | Wirkung |
+|---|---|---|
+| `RL_FPO_MC_SAMPLES` | `2` statt `4` | Halbiert Speicher **und** Rechenzeit. Die K Ziehungen müssen bis zur Bildung von `exp(mean_K(new) − old)` alle im Graphen bleiben, lassen sich also nicht einzeln zurückrechnen — deshalb der erste Hebel |
+| `RL_MINIBATCH_SIZE` | `16` oder `8` | Weniger Paare je Update-Schritt |
+| `RL_NUM_ENVS` | `2` | Kleinere Batches beim Rendern und im Rollout — wirkt auf den Rollout, **nicht** auf den Update-Peak |
+| `RL_EPOCHS_PER_ITER` | `1` | Halbiert die Update-Arbeit je Iteration (kostet Sample-Effizienz) |
+
+`PYTORCH_ALLOC_CONF=expandable_segments:True` setzt `server_rl_run.sh` inzwischen selbst — der
+OOM-Traceback empfahl es (1,13 GB waren reserviert, aber unbenutzt: Fragmentierung).
+
+### Zu langsam
+Wanduhrzeit zwischen zwei `[rl] iter`-Zeilen messen. Eine Iteration kostet grob
+`rollout_steps × (1 + K)` Forwards im Rollout plus `epochs × minibatches × Zeitschritte × 2K`
+im Update — `RL_FPO_MC_SAMPLES` und `RL_EPOCHS_PER_ITER` sind daher auch hier die stärksten Hebel.
 
 ---
 

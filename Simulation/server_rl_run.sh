@@ -169,6 +169,13 @@ build_rl_env() {
   [[ -n "${RL_KL_COEF:-}" ]]       && RL_ENV+=( -e "RL_KL_COEF=$RL_KL_COEF" )
   [[ -n "${RL_CLIP:-}" ]]          && RL_ENV+=( -e "RL_CLIP=$RL_CLIP" )
   [[ -n "${RL_SAVE_EVERY:-}" ]]    && RL_ENV+=( -e "RL_SAVE_EVERY=$RL_SAVE_EVERY" )
+  # Speicher-Stellschrauben bei OOM (rl_finetune.py liest sie selbst als CLI-Defaults).
+  [[ -n "${RL_MINIBATCH_SIZE:-}" ]]  && RL_ENV+=( -e "RL_MINIBATCH_SIZE=$RL_MINIBATCH_SIZE" )
+  [[ -n "${RL_FPO_MC_SAMPLES:-}" ]]  && RL_ENV+=( -e "RL_FPO_MC_SAMPLES=$RL_FPO_MC_SAMPLES" )
+  [[ -n "${RL_EPOCHS_PER_ITER:-}" ]] && RL_ENV+=( -e "RL_EPOCHS_PER_ITER=$RL_EPOCHS_PER_ITER" )
+  # Gegen Fragmentierung — der OOM-Traceback empfahl es selbst (1,13 GB reserviert,
+  # aber unbenutzt). Ueberschreibbar, falls es auf dieser Torch-Version stoert.
+  RL_ENV+=( -e "PYTORCH_ALLOC_CONF=${PYTORCH_ALLOC_CONF:-expandable_segments:True}" )
   [[ -n "${SHELL_ON_ERROR:-}" ]]   && RL_ENV+=( -e "SHELL_ON_ERROR=$SHELL_ON_ERROR" )
   [[ -n "${RL_WANDB_VIDEO_EVERY:-}" ]] && RL_ENV+=( -e "RL_WANDB_VIDEO_EVERY=$RL_WANDB_VIDEO_EVERY" )
   live_view_env

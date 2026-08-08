@@ -52,6 +52,9 @@ Diese Schalter aktivieren einzelne Verfahren beim Trainingsstart — alle unabh�
 | `RL_KL_COEF` | `0.1` | KL-Regularisierung gegen den BC-Checkpoint |
 | `RL_CLIP` | `0.2` | PPO/FPO-Clip-Epsilon |
 | `RL_SAVE_EVERY` | `100` | Checkpoint alle N Iterationen (ganzes Modell, ~6 GB je Checkpoint) |
+| `RL_MINIBATCH_SIZE` | `64` | `(t, env)`-Paare je Update-Schritt |
+| `RL_FPO_MC_SAMPLES` | `4` | K Ziehungen für den FPO-Proxy. Skaliert Speicher **und** Rechenzeit linear — erster Hebel bei OOM |
+| `RL_EPOCHS_PER_ITER` | `2` | PPO-Epochen je Rollout |
 | `RL_WANDB_VIDEO_EVERY` | `0` | Alle N Iterationen einen Rollout als Video ins W&B-Dashboard (`0` = aus). Braucht `WANDB_API_KEY`; ohne `moviepy` fällt der Trainer automatisch auf einen Filmstreifen aus Einzelbildern zurück |
 
 > **Hinweis:** Der RL-Trainer ([`rl_finetune.py`](../../Simulation/g1_dex3_sim/rl_finetune.py)) läuft seit 2026-08-08 end-to-end auf RT-Core-Hardware (RTX PRO 6000 Blackwell, Isaac Sim 6.0) — Rollout, FPO-Update und Checkpoint-Schreiben sind nachgewiesen. Offen ist die **Lernwirkung** (steigt `success_rate` über viele Iterationen?); die Hyperparameter oben sind ungetunt. Details: [rl-anleitung.md](../weiterfuehrend/rl-anleitung.md).
