@@ -235,6 +235,8 @@ repo root
 │       ├── measure_domain_gap.py       # Real→sim cosine-distance per camera via frozen SigLIP-ViT
 │       ├── overlay_camera_check.py     # Overlays dataset vs sim camera frames (calibration check)
 │       ├── dump_unitree_g1_dims.py     # Dumps stock UNITREE_G1 link/joint dimensions
+│       ├── check_action_norm.py        # Static check: checkpoint action-norm stats vs. dataset (no GPU/torch)
+│       ├── finger_span_openloop.py     # Commanded finger span on REAL images — domain-gap vs. model discriminator
 │       └── upload_checkpoint.py        # HuggingFace upload helper (skips optimizer.pt by default)
 ├── data/                               # Local assets and submodules (mostly gitignored)
 │   ├── unitree_ros/                    # Git submodule — Unitree ROS packages (URDF source)

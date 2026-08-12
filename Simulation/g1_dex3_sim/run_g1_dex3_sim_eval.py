@@ -118,6 +118,31 @@ def save_episode_video(frames: list[np.ndarray], episode: int, video_dir: str) -
 
 
 # ---------------------------------------------------------------------------
+# Gestufte Meilensteine
+# ---------------------------------------------------------------------------
+# Der binäre Stapel-Erfolg steht bei 0/20 und bewegt sich nicht. Eine Maßnahme
+# (TUNE_VISUAL, anderer Checkpoint, Kontaktparameter) lässt sich dagegen nicht
+# bewerten: 0/20 vorher, 0/20 nachher, kein Erkenntnisgewinn. Diese Leiter macht
+# den Fortschritt VOR dem Stapeln sichtbar. Jede Schwelle mit Begründung, damit
+# sie nicht später zurechtgebogen wird.
+
+# Fingerkuppe→Würfelmitte. 4 cm ist derselbe Wert, mit dem der Replay-Greiftest
+# "Würfel noch in der Hand" prüft (run_g1_dex3_replay.py), also derselbe Maßstab.
+REACH_THRESHOLD_M = 0.04
+# Würfel-Verschiebung nach der Karenzzeit. 1 cm liegt klar über dem Solver-Rauschen
+# von ~2 mm, das nach dem Einschwingen übrig bleibt.
+TOUCH_THRESHOLD_M = 0.01
+# Anhebung. Schwelle aus der vorregistrierten Regel in rl-anleitung.md ("hebt (a)
+# den Würfel, max_cube_lift_cm > ~2"). Zum Vergleich: Lauf 29 erreichte 7,9 cm.
+LIFT_THRESHOLD_M = 0.02
+# Fingerspanne des Kommandos. Referenz ist die menschliche Demonstration aus
+# replay_episode0.npz: 2,094 rad über die Episode (Lauf 29). 30 % davon trennt
+# "hat einen Griff versucht" von dem 0,39-rad-Zucken aus Lauf 30 (19 %).
+DEMO_FINGER_SPAN_RAD = 2.094
+GRASP_ATTEMPT_FRACTION = 0.30
+
+
+# ---------------------------------------------------------------------------
 # Einzelne Episode
 # ---------------------------------------------------------------------------
 
@@ -136,7 +161,7 @@ def run_episode(
     Returns:
         dict mit Feldern: success, num_steps, duration_s, success_step, reach_frame,
         reach_start_m, min_reach_m, min_reach_step, block_shift_max_m, block_shift_m,
-        finger_span_max_rad
+        finger_span_max_rad, max_cube_lift_cm, milestones
     """
     obs_dict, _ = env.reset()
     client.reset()
@@ -170,6 +195,14 @@ def run_episode(
     # "Fingerspitzen am Würfel, aber kein Stapel" sonst offenlässt.
     hand_cmd_min = np.full(14, np.inf)
     hand_cmd_max = np.full(14, -np.inf)
+
+    # Anhebung: die fehlende Zwischenstufe zwischen "Würfel berührt" und "gestapelt".
+    # Ohne sie liefert jede Maßnahme 0/20 zurück, ohne zu sagen, ob sie in die richtige
+    # Richtung ging — gegen eine Metrik, die immer 0 ist, lässt sich nichts optimieren.
+    # Bezug ist das EINGESCHWUNGENE Layout (nach settle_steps), nicht der Reset: der
+    # Kontakt-Solver setzt die Würfel direkt nach dem Reset noch zurecht, das zählte
+    # sonst als Anhebung (derselbe Fehler, den die Karenzzeit bei block_shift behebt).
+    max_cube_lift = 0.0
 
     max_steps = int(env.cfg.episode_length_s * env.cfg.policy_hz)
 
@@ -219,6 +252,10 @@ def run_episode(
                 min_reach_step = step
             if step < settle_steps:
                 block_pos_start = block_pos_last
+            else:
+                # z-Differenz gegen das eingeschwungene Layout, größter Wert über alle Würfel
+                lift = float((block_pos_last[:, 2] - block_pos_start[:, 2]).max())
+                max_cube_lift = max(max_cube_lift, lift)
 
             hand_cmd = np.asarray(chunk[t][14:28], dtype=float)
             np.minimum(hand_cmd_min, hand_cmd, out=hand_cmd_min)
@@ -289,6 +326,18 @@ def run_episode(
         "block_shift_max_m": round(float(block_shift.max()), 4),
         "block_shift_m": [round(float(v), 4) for v in block_shift],
         "finger_span_max_rad": round(float(finger_span.max()), 4),
+        "max_cube_lift_cm": round(max_cube_lift * 100, 2),
+        # Gestufte Meilensteine: jede Stufe für sich auswertbar, damit ein 0/20 beim
+        # Stapeln nicht mehr die einzige Information der Episode ist.
+        "milestones": {
+            "reached": bool(min_reach <= REACH_THRESHOLD_M),
+            "grasp_attempted": bool(
+                finger_span.max() >= GRASP_ATTEMPT_FRACTION * DEMO_FINGER_SPAN_RAD
+            ),
+            "touched": bool(block_shift.max() > TOUCH_THRESHOLD_M),
+            "lifted": bool(max_cube_lift > LIFT_THRESHOLD_M),
+            "stacked": bool(success),
+        },
     }
 
 
@@ -382,8 +431,11 @@ def main():
             f"{ep_result['reach_start_m'] * 100:.1f} → {ep_result['min_reach_m'] * 100:.1f} cm "
             f"(Step {ep_result['min_reach_step']}) | "
             f"Würfel verschoben max. {ep_result['block_shift_max_m'] * 100:.1f} cm | "
-            f"Fingerspanne {ep_result['finger_span_max_rad']:.2f} rad"
+            f"Fingerspanne {ep_result['finger_span_max_rad']:.2f} rad | "
+            f"Anhebung max. {ep_result['max_cube_lift_cm']:.1f} cm"
         )
+        reached_stages = [k for k, v in ep_result["milestones"].items() if v]
+        print(f"      Meilensteine: {' → '.join(reached_stages) if reached_stages else '(keiner)'}")
 
     # Auswertung
     n_success = sum(1 for r in results if r["success"])
@@ -413,7 +465,32 @@ def main():
         print(f"  Episoden mit bewegtem Würfel (>1 cm nach Einschwingen): "
               f"{n_touched}/{len(results)}")
         spans = sorted(r["finger_span_max_rad"] for r in results)
-        print(f"  Fingerspanne (Kommando): Median {spans[len(spans) // 2]:.2f} rad")
+        median_span = spans[len(spans) // 2]
+        print(
+            f"  Fingerspanne (Kommando): Median {median_span:.2f} rad "
+            f"= {median_span / DEMO_FINGER_SPAN_RAD:.0%} der Demonstration "
+            f"({DEMO_FINGER_SPAN_RAD:.2f} rad)"
+        )
+        lifts = sorted(r["max_cube_lift_cm"] for r in results)
+        print(
+            f"  Würfel-Anhebung: beste {lifts[-1]:.1f} cm, "
+            f"Median {lifts[len(lifts) // 2]:.1f} cm"
+        )
+        print()
+        # Die Leiter als Ganzes: an welcher Stufe bricht es ab? Das ist die Zahl, gegen
+        # die sich eine Maßnahme bewerten lässt — nicht die Erfolgsrate, die 0 bleibt.
+        #
+        # Die Stufen sind bewusst NICHT als monotone Kette implementiert (jede prüft ihre
+        # eigene Bedingung), weil die Abweichungen davon informativ sind: 'touched' ohne
+        # 'reached' heißt, dass etwas anderes als die sechs Fingerkuppen den Würfel
+        # angestoßen hat — Handfläche oder Fingerglieder. Genau das zeigen die Zahlen aus
+        # Lauf 30 (Würfel 3,8 cm verschoben bei 6,3 cm Kuppenabstand). Eine erzwungene
+        # Monotonie würde diesen Fall unsichtbar machen.
+        print("  Meilenstein-Leiter (Episoden, die die Stufe erreichen):")
+        for stage in ("reached", "grasp_attempted", "touched", "lifted", "stacked"):
+            n = sum(1 for r in results if r["milestones"][stage])
+            bar = "#" * round(20 * n / len(results))
+            print(f"    {stage:<16} {n:>3}/{len(results)}  {bar}")
     print("=" * 60)
 
     # Ergebnisse speichern

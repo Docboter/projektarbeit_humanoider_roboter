@@ -16,6 +16,14 @@
 > und wieviel Auflöse-Impuls des Einsetzens (der Test setzt den Würfel in die Fingergeometrie
 > hinein). Details: [rl-anleitung.md](rl-anleitung.md#lauf-29-der-würfel-hebt-ab-mit-einem-vorbehalt).
 >
+> **⛔ RL ist trotzdem nicht der nächste Schritt (Lauf 30, 2026-08-12).** Die BC-Baseline steht bei
+> **0/20**, und die vorregistrierte Regel sagt dafür: einem Nullpunkt-Reward fehlt das Startsignal.
+> Lauf 30 liefert die Begründung — die Politik kommandiert **0,39 rad Fingerspanne gegen 2,09 rad
+> in der Demonstration (19 %)**, versucht also gar keinen Griff. Die Regel zeigt damit auf
+> **Wahrnehmung/Politik** (`TUNE_VISUAL=1`), nicht auf RL. Der FPO-Pfad bleibt gebaut und auf
+> Hardware validiert — er wartet auf eine BC-Policy, die überhaupt gelegentlich Erfolg hat.
+> Details: [rl-anleitung.md](rl-anleitung.md#lauf-30-die-vorregistrierte-regel-ist-geschlossen--die-politik-greift-nicht).
+>
 > **Bereits umgesetzt** (Stand 2026-06-12, Glue-Fixes 2026-08-07/08):
 > - **Gruppe 1 (Reward):** Shaped Reward im Env hinter `reward_mode="shaped"` —
 >   [`g1_dex3_blockstack_env.py`](../../Simulation/g1_dex3_sim/g1_dex3_blockstack_env.py) (`_shaped_reward`).

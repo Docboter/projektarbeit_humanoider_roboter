@@ -6,7 +6,7 @@ oder ein eigener Server mit RT-Core-GPU, z. B. RTX PRO 6000 Blackwell). RL train
 **in genau der Sim**, in der sie auch evaluiert wird, und optimiert direkt auf **Aufgaben-Erfolg**
 statt nur Aktions-Nachahmung (Hintergrund: [reinforcement-learning-plan.md](reinforcement-learning-plan.md)).
 
-> ## ✅ Status: Pipeline läuft end-to-end — erster Würfel angehoben, Lernwirkung offen
+> ## ✅ Status: Pipeline läuft end-to-end — Diagnose abgeschlossen, RL vorerst nicht der nächste Schritt
 >
 > **Seit 2026-08-08 auf echter RT-Core-Hardware durchgelaufen** (Pfad B: RTX PRO 6000 Blackwell,
 > Isaac Sim 6.0). Eine vollständige Iteration — Rollout → GAE → FPO-Loss → `backward`/`optim.step`
@@ -26,6 +26,13 @@ statt nur Aktions-Nachahmung (Hintergrund: [reinforcement-learning-plan.md](rein
 >   **Vorbehalt:** Der Test setzt den Würfel in die Fingergeometrie hinein; ein Teil des Hubs
 >   kann Penetrations-Impuls sein. Der Hub ist belegt, aber nicht sauber quantifiziert
 >   (Details: [Lauf 29 unten](#lauf-29-der-würfel-hebt-ab-mit-einem-vorbehalt)).
+> - **⛔ RL ist derzeit nicht der nächste Schritt (Lauf 30, 2026-08-12).** Die BC-Baseline steht
+>   bei **0/20**, und die vorregistrierte Regel sagt dafür: einem Nullpunkt-Reward fehlt das
+>   Startsignal. Lauf 30 zeigt warum — die Politik kommandiert **0,39 rad Fingerspanne gegen
+>   2,09 rad in der Demonstration (19 %)**, greift also gar nicht. Damit ist die Regel geschlossen
+>   und zeigt auf **Wahrnehmung/Politik** (`TUNE_VISUAL=1`), nicht auf RL. Vorher gehört der
+>   billige Gegentest gemacht, ob eine gestauchte Aktions-Dekodierung dieselbe Signatur erzeugt
+>   (Details: [Lauf 30 unten](#lauf-30-die-vorregistrierte-regel-ist-geschlossen--die-politik-greift-nicht)).
 > - **Lernkurve** — steigt `success` über viele Iterationen? (Hyperparameter noch ungetunt.)
 > - **Durchsatz** — Render-FPS bei produktivem `RL_NUM_ENVS` mit 4 Kameras (Plan-Gruppe 0).
 >
@@ -1681,6 +1688,142 @@ Schwerpunkt).
 Unabhängig davon ist der RL-Pfad **entblockiert**: ein Anheben ist in dieser Sim möglich, der
 Shaped Reward kann also ein Signal liefern. Die verbleibende Frage ist nicht mehr „geht es
 überhaupt", sondern „wie zuverlässig" — und das ist eine Frage, an der RL arbeiten kann.
+
+#### Lauf 30: die vorregistrierte Regel ist geschlossen — die Politik greift nicht
+
+`runs/20260812/02` (2026-08-12), Closed-Loop-Eval, 2 × 40 s, `EXECUTION_HORIZON=8`, `DR_ENABLED=0`.
+Der erste Eval seit dem Einbau von `finger_span_max_rad` — damit liegt die zweite Hälfte der
+Entscheidungsregel aus [Schritt 3](#schritt-3--bc-erfolgsrate-in-der-sim-server_rl_runsh-eval) vor.
+
+| | Fingerspanne (Kommando) | Verhältnis |
+|---|---|---|
+| Dataset / menschliche Demo (Lauf 29) | **2,094 rad** ≈ 120° | — |
+| Policy, Episode 1 / 2 | **0,347 / 0,390 rad** ≈ 22° | **19 %** |
+
+Die Politik kommandiert rund ein Sechstel der Greifbewegung, die in der Demonstration steckt. Das
+ist kein misslungener Griff, sondern keiner. Die Annäherung zeigt dasselbe Muster — ab den in
+Lauf 28 korrigierten Fingerkuppen gemessen:
+
+| Episode | Abstand Start → min | bei Step | Würfel verschoben |
+|---|---|---|---|
+| 1 | 14,4 → **6,3 cm** | 272 | 3,8 cm |
+| 2 | 14,3 → **4,6 cm** | 984 | 1,3 cm |
+
+Bei 5 cm Kantenlänge sind 4,6 cm zur Würfel*mitte* rund 2 cm zur Oberfläche: nah dran, aber die
+Finger umschließen nichts. Beide Defizite zeigen in dieselbe Richtung — die Politik produziert eine
+**zum Mittelwert gezogene, verwaschene Version** der Demonstration. Das ist die Signatur einer
+Policy, die nicht erkennt, in welcher Phase der Aufgabe sie ist, und deshalb nahe der
+Durchschnittsaktion ausgibt: das erwartete Verhalten bei Out-of-Distribution-Eingaben.
+
+**Damit ist die Regel erfüllt:**
+
+| Bedingung | Ergebnis |
+|---|---|
+| (a) `max_cube_lift_cm` > ~2 | ✅ 7,9 cm (Lauf 29) |
+| (b) Fingerspanne klein | ✅ 19 % der Demo (Lauf 30) |
+| **Konsequenz laut Regel** | **Politik/Wahrnehmung → `TUNE_VISUAL=1`** |
+
+#### Gate vor den 48 GPU-Stunden: drei Erklärungen, eine schon widerlegt
+
+Ein **Normalisierungs- oder Skalierungsfehler in der Aktions-Dekodierung erzeugt exakt dieselbe
+Signatur** wie ein Domain-Gap — systematisch gestauchte Ausgaben über eine ganze Aktionsgruppe.
+`TUNE_VISUAL` würde ihn nicht beheben. Dass ausgerechnet die Finger-Dimensionen um Faktor 5
+gestaucht sind, während die Arme plausibel fahren, ist auffällig genug, um das vor einem 48-h-Lauf
+auszuschließen. Drei Kandidaten:
+
+| | Erklärung | Status |
+|---|---|---|
+| **(b)** | Die De-Normalisierung staucht den Ausgang | **widerlegt**, s. u. |
+| **(a1)** | Domain-Gap — die Policy kann greifen, die Sim-Bilder brechen sie | offen |
+| **(a2)** | Die Policy hat den Griff nie gelernt (Training/Daten) | offen |
+
+**(b) ist erledigt, statisch, in Sekunden** — [`check_action_norm.py`](../../Simulation/scripts/check_action_norm.py)
+liest `statistics.json` + `processor_config.json` aus dem Checkpoint (reines JSON, kein torch,
+keine GPU) und vergleicht sie mit `meta/stats.json` des Datensatzes:
+
+```bash
+python3 Simulation/scripts/check_action_norm.py <checkpoint-dir> <dataset-dir>
+```
+
+Ergebnis auf `checkpoint-175000`: **alle vier Aktionsgruppen stimmen auf 1e-5 mit dem Datensatz
+überein**, `use_percentiles=False` (also min/max), und die maximal de-normalisierbare Fingerspanne
+ist **exakt 2,0944 rad** — genau der Wert aus der Demonstration. Ein Modellausgang von normiert
+−1 → +1 gäbe die volle Spanne aus. Die beobachteten 0,39 rad entsprechen einer normierten Amplitude
+von **0,372 von 2,0 (18,6 %)**. Die Stauchung entsteht also **im Modell selbst**, nicht beim
+Dekodieren.
+
+Zwei Nebenbefunde aus derselben Untersuchung, die später zur Falle werden können:
+`override_pretraining_statistics` ist per Default `False` und `set_statistics` **überspringt** einen
+bereits vorhandenen Embodiment-Tag — hier unkritisch (die Stats stimmen ja 1:1), aber bei einem
+künftigen Datensatz-Wechsel unter demselben Tag würden stillschweigend die alten Statistiken
+weiterverwendet. Und `clip_outliers=True` clippt nur auf [−1, 1], kann also begrenzen, nicht stauchen.
+
+**Offen bleibt (a1) gegen (a2)** — und das ist die teuerste Frage im Projekt, weil nur bei (a1) ein
+`TUNE_VISUAL`-Lauf begründet ist. Der Diskriminator ist dieselbe Policy und dieselbe Metrik wie im
+Closed Loop, aber auf **echten Datensatz-Bildern** statt Sim-Renderings:
+[`finger_span_openloop.py`](../../Simulation/scripts/finger_span_openloop.py). Als Bezugsgröße
+läuft die Ground-Truth-Spanne derselben Episode mit, der Vergleich hängt also nicht an einer
+notierten Zahl aus einem anderen Lauf.
+
+```bash
+python3 Simulation/scripts/finger_span_openloop.py \
+    --model-path /data/checkpoints/groot-g1dex3-checkpoint \
+    --dataset-path /data/unitreerobotics/G1_Dex3_BlockStacking \
+    --traj-ids 0 1 2 3 4
+```
+
+| Vorhersage/Ground-Truth | Lesart |
+|---|---|
+| **≥ 70 %** | Das Modell kann greifen, die Sim-Bilder brechen es → **Domain-Gap bestätigt, `TUNE_VISUAL` begründet** |
+| **≤ 35 %** | Das Modell greift auch auf echten Bildern nicht → **ViT-Lauf ginge an der Ursache vorbei**; Training, Checkpoint-Wahl und Datenaufbereitung prüfen |
+| dazwischen | Teilstauchung schon auf echten Bildern — Domain-Gap ist ein Faktor, nicht der einzige; mehr Trajektorien messen |
+
+Die Schwellen stehen im Skript, damit die Zahl nicht nachträglich gedeutet wird. Braucht den
+**echten** Datensatz mit Videos (auf dem Server unter `/data/unitreerobotics/`); lokal liegt nur
+`meta/`, das reicht nicht.
+
+**Erledigt durch diese Messung:** `EXECUTION_HORIZON` kleiner zu setzen (Neuplanen statt 8 offener
+Schritte) war als billiger Hebel im Gespräch. Bei 22° kommandierter Fingerbewegung greift die Hand
+auch bei perfekter Ausführung nicht — das Problem sitzt in dem, was kommandiert wird, nicht in der
+Ausführung.
+
+**Wo die Stauchung *nicht* herkommt** — drei Glieder der Kette sind ausgeschlossen, bevor der
+teure Verdacht geprüft wird:
+
+| Glied | staucht? | Beleg |
+|---|---|---|
+| Env (Gelenkgrenzen, PD-Regler) | nein | Replay fährt 2,09 rad kommandiert → **2,10 rad erreicht** (Lauf 29) |
+| Sim-Client | nein | [`client.py`](../../Simulation/g1_dex3_sim/client.py) konkateniert die Aktionsgruppen nur, keine Skalierung |
+| Dimensions-Zuordnung | korrekt | `ACTION_KEYS = [left_arm, right_arm, left_dex3, right_dex3]` → Dims 14:28 sind exakt die beiden Hände |
+
+Die Stauchung sitzt damit **vollständig upstream**: in der Policy-Ausgabe selbst oder in der
+server-seitigen De-Normalisierung von GR00T. Nur dort lohnt die Suche.
+
+#### Gestufte Meilensteine in der Closed-Loop-Eval (2026-08-12)
+
+Bis Lauf 30 protokollierte die Eval **kein** `max_cube_lift_cm` — die Zahl existierte nur im
+Replay-Pfad. Zwischen „Würfel berührt" und „gestapelt" (0/20) fehlte damit die entscheidende
+Zwischenstufe, und **gegen eine Metrik, die immer 0 ist, lässt sich keine Maßnahme bewerten**: Ein
+`TUNE_VISUAL`-Lauf, der mit 0/20 zurückkommt, sagt nicht, ob er in die richtige Richtung ging.
+
+[`run_g1_dex3_sim_eval.py`](../../Simulation/g1_dex3_sim/run_g1_dex3_sim_eval.py) schreibt deshalb
+jetzt `max_cube_lift_cm` je Episode plus eine Meilenstein-Leiter. Die Schwellen sind im Code als
+Konstanten dokumentiert, damit sie nicht nachträglich zurechtgebogen werden:
+
+| Stufe | Schwelle | Herkunft der Schwelle |
+|---|---|---|
+| `reached` | Fingerkuppe ≤ 4 cm zur Würfelmitte | derselbe Wert, mit dem der Replay „noch in der Hand" prüft |
+| `grasp_attempted` | Fingerspanne ≥ 30 % der Demo (0,63 rad) | Demo-Referenz 2,094 rad aus Lauf 29 |
+| `touched` | Würfel > 1 cm verschoben (nach Karenz) | klar über dem Solver-Rauschen von ~2 mm |
+| `lifted` | Würfel > 2 cm angehoben | die Schwelle der vorregistrierten Regel; Lauf 29 erreichte 7,9 cm |
+| `stacked` | binärer Erfolg | unverändert |
+
+Auf die Lauf-30-Zahlen angewandt ergibt das `touched` 2/2, alles andere 0/2 — und einen Befund,
+den die Leiter sichtbar macht: **`touched` ohne `reached`.** Ein Würfel bewegt sich 3,8 cm, während
+die Fingerkuppen nie näher als 6,3 cm an eine Würfelmitte kommen. Angestoßen hat ihn also etwas
+anderes als die sechs Kuppen — Handfläche oder Fingerglieder. Die Stufen sind deshalb bewusst
+**nicht** als erzwungen monotone Kette implementiert; genau solche Abweichungen sind die
+interessanten.
 
 #### Falscher Alarm „Sim-Eval ohne Erfolgsmarker beendet"
 
