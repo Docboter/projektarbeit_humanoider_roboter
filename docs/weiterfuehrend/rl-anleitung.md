@@ -1777,9 +1777,19 @@ HF_TOKEN=hf_... ./Simulation/server_rl_run.sh span
 > **GR00T-venv** `/app/Groot-1.6/.venv/bin/python`, nicht mit dem Isaac-Python: für reine
 > Policy-Inferenz wird Isaac Sim nicht gebraucht.
 >
-> Der Sim-Container lädt nur Checkpoint und USD, **nicht** den 18-GB-Datensatz. `span` prüft das
-> vorab und bricht mit dem Download-Befehl ab, statt erst nach dem Modell-Laden zu scheitern.
-> Anderen Pfad angeben: `SPAN_DATASET=/data/… `, andere Episoden: `SPAN_TRAJ_IDS="0 1 2"`.
+> **Der Datensatz wird bei Bedarf selbst geholt** — und zwar in drei Schritten, nicht nur einem
+> Download. Genau die Reihenfolge aus [`entrypoint.sh`](../../Training/scripts/entrypoint.sh):
+>
+> | Schritt | Was | Warum nötig |
+> |---|---|---|
+> | 1 | HF-Download `unitreerobotics/G1_Dex3_BlockStacking_Dataset` (~18 GB) | der Sim-Container lädt von sich aus nur Checkpoint + USD |
+> | 2 | Konvertierung LeRobot v3.0 → v2.1 | legt zusätzlich ein Backup `*_v3.0` an → **~40 GB Spitzenbedarf** |
+> | 3 | `modality_4cam.json` → `meta/modality.json` | erst damit ist der Datensatz für gr00t lesbar |
+>
+> **Ein bloßes `huggingface-cli download` reicht nicht** — ohne Schritt 2 und 3 fehlt
+> `modality.json` und der Loader scheitert. Einmalig, rund eine Stunde; ein `clean` löscht den
+> Datensatz nicht (er liegt unter dem gemounteten `/data`). Abschalten mit `SPAN_AUTO_FETCH=0`,
+> anderen Pfad angeben mit `SPAN_DATASET=/data/…`, andere Episoden mit `SPAN_TRAJ_IDS="0 1 2"`.
 
 | Vorhersage/Ground-Truth | Lesart |
 |---|---|

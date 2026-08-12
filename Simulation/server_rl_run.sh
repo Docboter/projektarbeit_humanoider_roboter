@@ -254,6 +254,66 @@ ensure_checkpoint() {
   ok "Checkpoint geladen."
 }
 
+# Stellt den ECHTEN Trainingsdatensatz im Container sicher (fuer die Aktion 'span').
+#
+# Der Sim-Container laedt von sich aus nur Checkpoint + USD. Der Datensatz braucht DREI
+# Schritte, nicht nur einen Download — genau die Reihenfolge aus Training/scripts/entrypoint.sh:
+#   1. HF-Download (~18 GB, LeRobot v3.0)
+#   2. Konvertierung v3.0 -> v2.1 (legt zusaetzlich ein Backup *_v3.0 an -> Platzbedarf ~2x)
+#   3. modality_4cam.json -> meta/modality.json   (erst das macht ihn fuer gr00t lesbar)
+# Ein blosser `huggingface-cli download` reicht NICHT: ohne Schritt 2+3 fehlt modality.json
+# und der Loader scheitert.
+#
+# Automatisch, weil ensure_checkpoint es mit seinen ~10 GB genauso haelt und HF_TOKEN
+# ohnehin schon uebergeben wurde. Abschalten mit SPAN_AUTO_FETCH=0.
+ensure_dataset() {
+  local ds="$1"
+  if docker exec "$CONTAINER" test -f "$ds/meta/modality.json"; then
+    ok "Datensatz einsatzbereit: $ds"
+    return 0
+  fi
+
+  if [[ "${SPAN_AUTO_FETCH:-1}" != "1" ]]; then
+    err "Kein Datensatz mit meta/modality.json unter $ds (SPAN_AUTO_FETCH=0)."
+    err "  Vorhandenen Pfad angeben:  SPAN_DATASET=/data/... $0 span"
+    return 1
+  fi
+
+  require_hf_token
+  local repo="unitreerobotics/G1_Dex3_BlockStacking_Dataset"
+
+  if ! docker exec "$CONTAINER" bash -lc "[ -n \"\$(ls -A '$ds' 2>/dev/null)\" ]"; then
+    warn "Datensatz fehlt. Lade ihn jetzt: ~18 GB Download, danach Konvertierung mit"
+    warn "  Backup-Kopie — rechne mit ~40 GB Spitzenbedarf unter $HOST_DATA_DIR und"
+    warn "  einer knappen Stunde. Einmalig; ein 'clean' loescht ihn nicht."
+    log "Download $repo -> $ds"
+    docker exec -e "HF_TOKEN=$HF_TOKEN" -e "HUGGING_FACE_HUB_TOKEN=$HF_TOKEN" "$CONTAINER" \
+      bash -lc "huggingface-cli download '$repo' --repo-type dataset --local-dir '$ds'" \
+      || { err "Download fehlgeschlagen."; return 1; }
+    ok "Download abgeschlossen."
+  else
+    log "Datensatz vorhanden, aber ohne modality.json — nur Konvertierung nachholen."
+  fi
+
+  # Konvertierung + modality.json: identisch zu entrypoint.sh, nur mit dem venv-Python
+  # statt `uv run` (im Sim-Image ist das GR00T-venv der Interpreter fuer gr00t).
+  log "Konvertiere LeRobot v3.0 -> v2.1 (dauert; schreibt Backup ${ds##*/}_v3.0)."
+  docker exec "$CONTAINER" bash -lc "
+    unset VIRTUAL_ENV
+    cd '$GROOT_ROOT' && '$GROOT_ROOT/.venv/bin/python' \
+        scripts/lerobot_conversion/convert_v3_to_v2_standalone.py \
+        --repo-id '$repo' --root /data" \
+    || { err "Konvertierung fehlgeschlagen."; return 1; }
+
+  docker exec "$CONTAINER" bash -lc \
+    "cp '$GROOT_ROOT/examples/G1_DEX3/modality_4cam.json' '$ds/meta/modality.json'" \
+    || { err "modality.json konnte nicht kopiert werden."; return 1; }
+
+  docker exec "$CONTAINER" test -f "$ds/meta/modality.json" \
+    || { err "modality.json fehlt nach der Konvertierung — Ablauf pruefen."; return 1; }
+  ok "Datensatz einsatzbereit: $ds"
+}
+
 # Stellt das schwarzhändige Asset sicher (Domain-Gap: reale DEX3 schwarz, URDF-Asset weiß).
 # Reines USD-Authoring, keine GPU, wenige Sekunden — deshalb bei jedem Lauf geprüft statt
 # einmalig dokumentiert. Schlägt der Recolor fehl, fällt ASSET_PATH aufs Original zurück,
@@ -513,18 +573,7 @@ do_span() {
   local ds="${SPAN_DATASET:-/data/unitreerobotics/G1_Dex3_BlockStacking_Dataset}"
   local trajs="${SPAN_TRAJ_IDS:-0 1 2 3 4}"
 
-  # Der Sim-Container laedt nur Checkpoint + USD — den 18-GB-Datensatz hat er nicht
-  # zwangslaeufig. Ohne diese Pruefung scheitert das Skript erst nach dem Modell-Laden.
-  if ! docker exec "$CONTAINER" test -f "$ds/meta/modality.json"; then
-    err "Kein Datensatz mit meta/modality.json unter $ds im Container."
-    err "  Dieser Test braucht die ECHTEN Bilder (Videos), nicht nur meta/."
-    err "  Vorhandenen Pfad angeben:   SPAN_DATASET=/data/... $0 span"
-    err "  Oder im Container laden (~18 GB):"
-    err "    $0 shell"
-    err "    huggingface-cli download unitreerobotics/G1_Dex3_BlockStacking_Dataset \\"
-    err "        --repo-type dataset --local-dir '$ds'"
-    return 1
-  fi
+  ensure_dataset "$ds" || return 1
 
   docker cp "$REPO_DIR/Simulation/scripts/finger_span_openloop.py" \
             "$CONTAINER:/workspace/finger_span_openloop.py"
@@ -619,9 +668,10 @@ Aktionen:
               gesetzt — misst die Greif-Physik ohne jede Platzierungs-Annahme.
   span        Fingerspanne der Policy auf ECHTEN Datensatz-Bildern (offene Schleife, kein
               Isaac Sim). Trennt Domain-Gap von "Modell hat den Griff nie gelernt" — das
-              Gate vor einem TUNE_VISUAL-Lauf. Braucht den Datensatz MIT Videos im
-              Container: SPAN_DATASET (Default /data/unitreerobotics/G1_Dex3_BlockStacking_Dataset),
-              SPAN_TRAJ_IDS (Default "0 1 2 3 4").
+              Gate vor einem TUNE_VISUAL-Lauf. Holt den echten Datensatz bei Bedarf selbst
+              (Download + v3->v2-Konvertierung + modality.json, ~18 GB, einmalig).
+              SPAN_DATASET (Default /data/unitreerobotics/G1_Dex3_BlockStacking_Dataset),
+              SPAN_TRAJ_IDS (Default "0 1 2 3 4"), SPAN_AUTO_FETCH=0 schaltet das Holen ab.
   rl          Echter RL-Lauf (Vordergrund). Checkpoints unter $HOST_DATA_DIR/g1_dex3_rl/.
   shell       Interaktive Shell im Container.
   clean       Container entfernen (Daten unter $HOST_DATA_DIR bleiben).
