@@ -90,6 +90,9 @@ LIVE_VIEW_PORT="${LIVE_VIEW_PORT:-8900}"
 
 ISAAC_PY="/workspace/isaaclab/_isaac_sim/python.sh"
 SIM_DIR="/workspace/g1_dex3_sim"
+# GR00T-venv im Container: fuer reine Policy-Inferenz ohne Isaac Sim (Aktion 'span').
+# Gleicher Pfad wie in entrypoint_sim.sh.
+GROOT_ROOT="${GROOT_ROOT:-/app/Groot-1.6}"
 
 # Repo-Wurzel (Elternverzeichnis dieses Skripts) — für den Live-Mount des Sim-Codes.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -496,6 +499,49 @@ do_grasp() {
     || { err "Greif-Test ohne Erfolgsmarker beendet (Traceback oben)."; return 1; }
 }
 
+# Fingerspanne der Policy auf ECHTEN Datensatz-Bildern (offene Schleife).
+#
+# Trennt die letzten beiden Erklaerungen fuer die gestauchten Fingerkommandos aus Lauf 30
+# (0,39 rad statt 2,09 rad): Domain-Gap gegen "das Modell hat den Griff nie gelernt".
+# Nur bei Ersterem ist ein TUNE_VISUAL-Lauf ueber ~48 GPU-Stunden begruendet.
+#
+# Laeuft im GR00T-venv, NICHT im Isaac-Python: hier wird kein Isaac Sim gebraucht, nur
+# Policy-Inferenz auf Datensatz-Frames. Skript per `docker cp` wie bei do_gap — /scripts
+# ist ins Image gebacken, ein Edit wuerde sonst einen Rebuild verlangen.
+do_span() {
+  ensure_checkpoint
+  local ds="${SPAN_DATASET:-/data/unitreerobotics/G1_Dex3_BlockStacking_Dataset}"
+  local trajs="${SPAN_TRAJ_IDS:-0 1 2 3 4}"
+
+  # Der Sim-Container laedt nur Checkpoint + USD — den 18-GB-Datensatz hat er nicht
+  # zwangslaeufig. Ohne diese Pruefung scheitert das Skript erst nach dem Modell-Laden.
+  if ! docker exec "$CONTAINER" test -f "$ds/meta/modality.json"; then
+    err "Kein Datensatz mit meta/modality.json unter $ds im Container."
+    err "  Dieser Test braucht die ECHTEN Bilder (Videos), nicht nur meta/."
+    err "  Vorhandenen Pfad angeben:   SPAN_DATASET=/data/... $0 span"
+    err "  Oder im Container laden (~18 GB):"
+    err "    $0 shell"
+    err "    huggingface-cli download unitreerobotics/G1_Dex3_BlockStacking_Dataset \\"
+    err "        --repo-type dataset --local-dir '$ds'"
+    return 1
+  fi
+
+  docker cp "$REPO_DIR/Simulation/scripts/finger_span_openloop.py" \
+            "$CONTAINER:/workspace/finger_span_openloop.py"
+
+  log "Fingerspanne auf echten Datensatz-Bildern messen (Trajektorien: $trajs)."
+  docker exec "$CONTAINER" bash -lc "
+    unset VIRTUAL_ENV
+    '$GROOT_ROOT/.venv/bin/python' /workspace/finger_span_openloop.py \
+        --model-path '$CHECKPOINT_PATH' \
+        --dataset-path '$ds' \
+        --json-out /data/finger_span_openloop.json \
+        --traj-ids $trajs" 2>&1 | tee /dev/stderr \
+    | grep -c "Median Vorhersage" >/dev/null \
+    && ok "Ergebnis auch als JSON: $HOST_DATA_DIR/finger_span_openloop.json" \
+    || { err "Fingerspannen-Test ohne Ergebniszeile beendet (Traceback oben)."; return 1; }
+}
+
 # Domain-Gap: Kosinus-Distanz real gegen sim je Policy-Kamera durch den eingefrorenen
 # SigLIP-ViT (= GR00Ts Vision-Backbone, da BC mit tune_visual=false lief).
 # Braucht die Frames aus 'cams' — misst also genau die Bilder, die auch die Policy sieht.
@@ -571,6 +617,11 @@ Aktionen:
               GRASP_MODE=test (Default): Wuerfel an den geschaetzten Greifpunkten.
               GRASP_MODE=hold: Wuerfel im Moment des Zugreifens zwischen die Fingerspitzen
               gesetzt — misst die Greif-Physik ohne jede Platzierungs-Annahme.
+  span        Fingerspanne der Policy auf ECHTEN Datensatz-Bildern (offene Schleife, kein
+              Isaac Sim). Trennt Domain-Gap von "Modell hat den Griff nie gelernt" — das
+              Gate vor einem TUNE_VISUAL-Lauf. Braucht den Datensatz MIT Videos im
+              Container: SPAN_DATASET (Default /data/unitreerobotics/G1_Dex3_BlockStacking_Dataset),
+              SPAN_TRAJ_IDS (Default "0 1 2 3 4").
   rl          Echter RL-Lauf (Vordergrund). Checkpoints unter $HOST_DATA_DIR/g1_dex3_rl/.
   shell       Interaktive Shell im Container.
   clean       Container entfernen (Daten unter $HOST_DATA_DIR bleiben).
@@ -584,6 +635,8 @@ Beispiele:
       ./Simulation/server_rl_run.sh eval
   # Greif-Physik ohne Platzierungs-Annahme (Wuerfel wird in die Greifoeffnung gesetzt):
   HF_TOKEN=hf_... GRASP_MODE=hold ./Simulation/server_rl_run.sh grasp
+  # Gate vor TUNE_VISUAL — greift die Policy auf ECHTEN Bildern?
+  HF_TOKEN=hf_... ./Simulation/server_rl_run.sh span
   HF_TOKEN=hf_... WANDB_API_KEY=... RL_NUM_ENVS=4 ./Simulation/server_rl_run.sh rl
   # mit Live-Ansicht im Browser + W&B-Video alle 10 Iterationen:
   HF_TOKEN=hf_... WANDB_API_KEY=... LIVE_VIEW=1 RL_WANDB_VIDEO_EVERY=10 \\
@@ -625,6 +678,7 @@ case "$ACTION" in
   gap)        do_gap ;;
   eval)       do_eval ;;
   grasp)      do_grasp ;;
+span)       do_span ;;
   rl)         do_rl ;;
   shell)      do_shell ;;
   clean|down) do_clean ;;

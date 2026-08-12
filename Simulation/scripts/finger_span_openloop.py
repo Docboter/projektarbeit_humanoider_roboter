@@ -37,15 +37,23 @@ Lesart des Ergebnisses
                                 Trainings-/Datenproblem — ein ViT-Lauf ginge an
                                 der Ursache vorbei.
 
-Voraussetzung: der ECHTE Datensatz (nicht die Sim). Auf dem Server liegt er
-unter /data/unitreerobotics/... — lokal ist nur meta/ vorhanden, das reicht
-nicht (es werden die Videos gebraucht).
+Voraussetzung: der ECHTE Datensatz **mit Videos** (nicht die Sim, und nicht der
+reine meta/-Download). Braucht gr00t + torch, läuft also im Container, nicht auf
+dem Host.
 
-Beispiel
---------
-    python finger_span_openloop.py \\
+Aufruf
+------
+Normalerweise nicht direkt, sondern über den Wrapper — der kopiert das Skript in
+den laufenden Container (``/scripts`` ist ins Image gebacken) und nutzt das
+GR00T-venv statt des Isaac-Python:
+
+    HF_TOKEN=hf_... ./Simulation/server_rl_run.sh span
+
+Direkt im Container:
+
+    /app/Groot-1.6/.venv/bin/python finger_span_openloop.py \\
         --model-path /data/checkpoints/groot-g1dex3-checkpoint \\
-        --dataset-path /data/unitreerobotics/G1_Dex3_BlockStacking \\
+        --dataset-path /data/unitreerobotics/G1_Dex3_BlockStacking_Dataset \\
         --traj-ids 0 1 2 3 4
 """
 

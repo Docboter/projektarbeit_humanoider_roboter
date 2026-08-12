@@ -1766,11 +1766,20 @@ läuft die Ground-Truth-Spanne derselben Episode mit, der Vergleich hängt also 
 notierten Zahl aus einem anderen Lauf.
 
 ```bash
-python3 Simulation/scripts/finger_span_openloop.py \
-    --model-path /data/checkpoints/groot-g1dex3-checkpoint \
-    --dataset-path /data/unitreerobotics/G1_Dex3_BlockStacking \
-    --traj-ids 0 1 2 3 4
+HF_TOKEN=hf_... ./Simulation/server_rl_run.sh span
 ```
+
+> ⚠️ **Nicht direkt mit dem Host-Python aufrufen.** Auf `ikr-ki-server-01` gibt es kein numpy
+> außerhalb des Containers (`ModuleNotFoundError: No module named 'numpy'`), und Module lassen sich
+> dort nicht installieren. Die Aktion `span` erledigt beides: sie kopiert das Skript per
+> `docker cp` in den laufenden Container (`/scripts` ist ins Image **gebacken**, ein Edit im Repo
+> erreicht ihn sonst nie — dasselbe Muster wie bei `gap` und `eval`) und startet es mit dem
+> **GR00T-venv** `/app/Groot-1.6/.venv/bin/python`, nicht mit dem Isaac-Python: für reine
+> Policy-Inferenz wird Isaac Sim nicht gebraucht.
+>
+> Der Sim-Container lädt nur Checkpoint und USD, **nicht** den 18-GB-Datensatz. `span` prüft das
+> vorab und bricht mit dem Download-Befehl ab, statt erst nach dem Modell-Laden zu scheitern.
+> Anderen Pfad angeben: `SPAN_DATASET=/data/… `, andere Episoden: `SPAN_TRAJ_IDS="0 1 2"`.
 
 | Vorhersage/Ground-Truth | Lesart |
 |---|---|
@@ -1824,6 +1833,39 @@ die Fingerkuppen nie näher als 6,3 cm an eine Würfelmitte kommen. Angestoßen 
 anderes als die sechs Kuppen — Handfläche oder Fingerglieder. Die Stufen sind deshalb bewusst
 **nicht** als erzwungen monotone Kette implementiert; genau solche Abweichungen sind die
 interessanten.
+
+#### Lauf 31 (`runs/20260812/03`): die Leiter im Einsatz — und zwei neue Zahlen
+
+Erster Eval mit der Leiter, 5 Episoden à 40 s. Erfolgsrate weiterhin 0/5 — aber das ist ab jetzt
+nicht mehr die einzige Information:
+
+| Episode | Fingerkuppe→Würfel | Fingerspanne | **Anhebung** | Verschiebung | erreichte Stufen |
+|---|---|---|---|---|---|
+| 1 | 14,5 → 3,8 cm | 0,43 rad | 0,22 cm | 0,3 cm | `reached` |
+| 2 | 14,0 → 4,1 cm | 0,47 rad | 0,60 cm | 7,1 cm | `touched` |
+| 3 | 14,4 → 4,2 cm | 0,49 rad | **1,03 cm** | 3,3 cm | `touched` |
+| 4 | 14,1 → 3,7 cm | 0,39 rad | 0,47 cm | 0,8 cm | `reached` |
+| 5 | 14,2 → 2,9 cm | 0,41 rad | 0,90 cm | 3,7 cm | `reached`, `touched` |
+
+Leiter: `reached` 3/5 · `grasp_attempted` **0/5** · `touched` 3/5 · `lifted` 0/5 · `stacked` 0/5
+
+**Die Würfel heben sich zum ersten Mal messbar.** 0,22–1,03 cm, in *jeder* Episode ungleich null.
+Das liegt unter der 2-cm-Schwelle, ist also kein Greifen — aber es ist auch nicht die 0,0, die
+`grasp` im Open Loop vor Lauf 29 lieferte. Vorher war diese Zahl im Closed Loop schlicht
+unsichtbar; sie ist jetzt die Größe, an der sich eine Maßnahme zuerst zeigen wird.
+
+**Der Greif-Befund ist bestätigt und hat jetzt n=7.** Die Fingerspanne liegt über fünf Episoden
+zwischen 0,39 und 0,49 rad (Median 0,43 = **20,5 %** der Demonstration) — dieselbe Größenordnung
+wie die 0,35/0,39 rad aus Lauf 30. Die Streuung ist gering, das ist kein Rauschen, sondern ein
+stabiles, reproduzierbares Defizit.
+
+**Die Annäherung ist besser als Lauf 30 vermuten ließ.** 2,9–4,2 cm statt 4,6/6,3 cm — die zwei
+Episoden aus Lauf 30 waren nicht repräsentativ. Damit fällt allerdings auf, dass die
+`reached`-Schwelle (4 cm) **mitten in der Datenverteilung** liegt: Episode 2 verfehlt sie um 1 mm,
+Episode 3 um 2 mm. Der Boolean kippt dadurch fast zufällig, und `touched` ohne `reached` in
+Episode 2/3 ist eher ein Schwellenartefakt als der in Lauf 30 vermutete Handflächen-Kontakt.
+**Die Rohzahl (2,9–4,2 cm bei rund 10 cm Annäherung) ist hier aussagekräftiger als die Stufe** —
+die Schwelle taugt zum Verfolgen einer Veränderung, nicht zur Aussage über einen einzelnen Lauf.
 
 #### Falscher Alarm „Sim-Eval ohne Erfolgsmarker beendet"
 

@@ -207,7 +207,7 @@ repo root
 │   ├── Dockerfile.vastai               # vast.ai: combined Isaac Sim + GR00T in one container
 │   ├── kisski_sim_submit.sh            # SLURM job for sim eval (jupyter partition, RTX 5000)
 │   ├── server_rl_run.sh                # ★ Own-server workflow (Docker): preflight/setup/check/cams/
-│   │                                   #   gap/eval/grasp/rl/shell/clean subcommands (see rl-anleitung.md)
+│   │                                   #   gap/eval/grasp/span/rl/shell/clean subcommands (see rl-anleitung.md)
 │   ├── server_robocasa_ref_run.sh      # Own-server RoboCasa GR-1 reference eval (pipeline validation)
 │   ├── update_sim_image.ps1            # Build/push tool (-VastAI flag for Dockerfile.vastai)
 │   ├── update_sim_image.sh             # Linux/bash port of update_sim_image.ps1
