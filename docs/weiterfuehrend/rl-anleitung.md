@@ -1790,6 +1790,18 @@ HF_TOKEN=hf_... ./Simulation/server_rl_run.sh span
 > `modality.json` und der Loader scheitert. Einmalig, rund eine Stunde; ein `clean` löscht den
 > Datensatz nicht (er liegt unter dem gemounteten `/data`). Abschalten mit `SPAN_AUTO_FETCH=0`,
 > anderen Pfad angeben mit `SPAN_DATASET=/data/…`, andere Episoden mit `SPAN_TRAJ_IDS="0 1 2"`.
+>
+> **`ffmpeg` im Sim-Image (2026-08-12).** Schritt 2 schneidet die zusammenhängenden MP4s per
+> Subprozess in Einzel-Episoden und scheiterte mit `FileNotFoundError: 'ffmpeg'` — das Paket war
+> im Training-Image seit jeher drin, im Sim-Image nicht, weil der Sim-Pfad den Trainingsdatensatz
+> nie brauchte. [`Dockerfile.vastai`](../../Simulation/Dockerfile.vastai) hat es jetzt; bis zum
+> nächsten Rebuild installiert `ensure_dataset` es zur Laufzeit nach, damit kein 60-Minuten-Build
+> zwischen dir und der Messung steht. Die Laufzeit-Installation überlebt `clean` nicht.
+>
+> **Ein Abbruch in Schritt 2 ist ungefährlich.** `convert_v3_to_v2_standalone.py` verschiebt das
+> Original erst *nach* vollständiger Konvertierung ins Backup und räumt Teilstände (`*_v2.1`,
+> `*_v3.0`) beim nächsten Start selbst weg. Der 18-GB-Download bleibt erhalten; ein erneutes
+> `span` setzt direkt bei der Konvertierung auf.
 
 | Vorhersage/Ground-Truth | Lesart |
 |---|---|

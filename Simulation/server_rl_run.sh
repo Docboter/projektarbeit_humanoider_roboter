@@ -295,6 +295,20 @@ ensure_dataset() {
     log "Datensatz vorhanden, aber ohne modality.json — nur Konvertierung nachholen."
   fi
 
+  # ffmpeg: die Konvertierung schneidet die zusammenhaengenden MP4s in Einzel-Episoden
+  # (_extract_video_segment ruft es als Subprozess). Im Training-Image ist es drin, im
+  # Sim-Image fehlte es bis 2026-08-12 — der Sim-Pfad brauchte den Datensatz nie.
+  # Dockerfile.vastai hat es jetzt; bis zum naechsten Rebuild wird es hier nachinstalliert,
+  # damit ein 60-Minuten-Rebuild nicht zwischen dir und der Messung steht.
+  if ! docker exec "$CONTAINER" bash -lc "command -v ffmpeg >/dev/null"; then
+    warn "ffmpeg fehlt im Container (Image aelter als der Dockerfile-Fix) — installiere es."
+    docker exec "$CONTAINER" bash -lc \
+      "apt-get update -qq && apt-get install -y -qq --no-install-recommends ffmpeg" \
+      || { err "ffmpeg-Installation fehlgeschlagen. Image neu bauen:"
+           err "  ./Simulation/update_sim_image.sh --vastai"; return 1; }
+    ok "ffmpeg installiert (nur in diesem Container; ueberlebt 'clean' nicht)."
+  fi
+
   # Konvertierung + modality.json: identisch zu entrypoint.sh, nur mit dem venv-Python
   # statt `uv run` (im Sim-Image ist das GR00T-venv der Interpreter fuer gr00t).
   log "Konvertiere LeRobot v3.0 -> v2.1 (dauert; schreibt Backup ${ds##*/}_v3.0)."

@@ -57,6 +57,11 @@ ENV ACCEPT_EULA=Y \
 # System-Pakete (zusätzlich zum Isaac-Lab-Basis-Image)
 # Isaac Lab 3.0.0-beta2 basiert weiterhin auf Ubuntu 24.04 (Noble) — python3.10-* nicht im Haupt-Repo.
 # Deadsnakes-PPA liefert Python 3.10, das mit dem uv.lock des Training-Containers kompatibel ist.
+# ffmpeg wird von der LeRobot-v3.0->v2.1-Konvertierung gebraucht: sie schneidet die
+# zusammenhaengenden MP4s per Subprozess in Einzel-Episoden (convert_v3_to_v2_standalone.py,
+# _extract_video_segment). Der Training-Container hat es seit jeher; hier fehlte es bis
+# 2026-08-12, weil der Sim-Pfad den Trainingsdatensatz nie brauchte — die Aktion 'span'
+# in server_rl_run.sh braucht ihn jetzt.
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && apt-get install -y --no-install-recommends \
@@ -72,6 +77,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         curl \
         wget \
         openssh-server \
+        ffmpeg \
     && git lfs install \
     && mkdir -p /var/run/sshd /root/.ssh \
     && chmod 700 /root/.ssh \
