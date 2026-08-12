@@ -6,7 +6,7 @@ oder ein eigener Server mit RT-Core-GPU, z. B. RTX PRO 6000 Blackwell). RL train
 **in genau der Sim**, in der sie auch evaluiert wird, und optimiert direkt auf **Aufgaben-Erfolg**
 statt nur Aktions-Nachahmung (Hintergrund: [reinforcement-learning-plan.md](reinforcement-learning-plan.md)).
 
-> ## ✅ Status: Pipeline läuft end-to-end — Lernwirkung offen, Greif-Physik ungeklärt
+> ## ✅ Status: Pipeline läuft end-to-end — erster Würfel angehoben, Lernwirkung offen
 >
 > **Seit 2026-08-08 auf echter RT-Core-Hardware durchgelaufen** (Pfad B: RTX PRO 6000 Blackwell,
 > Isaac Sim 6.0). Eine vollständige Iteration — Rollout → GAE → FPO-Loss → `backward`/`optim.step`
@@ -17,14 +17,15 @@ statt nur Aktions-Nachahmung (Hintergrund: [reinforcement-learning-plan.md](rein
 >
 > **Was das noch nicht zeigt:** dass RL die Policy *verbessert*. Ein Ein-Iterations-Smoke-Test
 > sagt nichts über Lernverhalten. Offen bleiben deshalb:
-> - **⛔ Greif-Physik-Blocker (Läufe 25–28, 2026-08-08):** Auch im Open-Loop-Replay **ohne
->   Modell** wird kein Würfel angehoben (`max_cube_lift` 0,0 cm) — obwohl die Hand die Würfel
->   nachweislich erreicht und berührt und die Finger vollständig schließen (2,09/2,10 rad).
->   Solange nichts angehoben werden kann, liefern weder `reward_mode=binary` noch die
->   `stack`/`height`-Terme des Shaped-Reward ein Signal — **ein RL-Lauf würde in diesem Zustand
->   laufen, ohne lernen zu können.** Ob Test-Platzierung oder Kontakt-Physik die Ursache ist,
->   entscheidet der noch ausstehende `GRASP_MODE=hold`-Lauf mit dem in Lauf 28 korrigierten
->   Fingerkuppen-Messpunkt (Details: [Läufe 25–28 unten](#lauf-28-der-messpunkt-war-zum-dritten-mal-falsch)).
+> - **🟡 Greif-Physik (Läufe 25–29):** Der Blocker aus den Läufen 25–28 — „auch ohne Modell wird
+>   kein Würfel angehoben", `max_cube_lift` 0,0 cm — **ist gefallen.** In **Lauf 29**
+>   (`runs/20260812/01`, 2026-08-12) hebt die linke Hand im `GRASP_MODE=hold`-Test mit dem in
+>   Lauf 28 korrigierten Fingerkuppen-Messpunkt einen Würfel **7,9 cm** an und hält ihn über
+>   202 Steps. Die Greif-Physik trägt also grundsätzlich, und die `height`/`stack`-Terme des
+>   Shaped Reward können feuern — **RL hat damit ein erreichbares Lernsignal.**
+>   **Vorbehalt:** Der Test setzt den Würfel in die Fingergeometrie hinein; ein Teil des Hubs
+>   kann Penetrations-Impuls sein. Der Hub ist belegt, aber nicht sauber quantifiziert
+>   (Details: [Lauf 29 unten](#lauf-29-der-würfel-hebt-ab-mit-einem-vorbehalt)).
 > - **Lernkurve** — steigt `success` über viele Iterationen? (Hyperparameter noch ungetunt.)
 > - **Durchsatz** — Render-FPS bei produktivem `RL_NUM_ENVS` mit 4 Kameras (Plan-Gruppe 0).
 >
@@ -1601,6 +1602,85 @@ HF_TOKEN=hf_... GRASP_MODE=hold ./Simulation/server_rl_run.sh grasp
 
 Erst wenn `finger_spread_min_cm` mit der Beugung aus der Tabelle oben zusammenfällt, misst die
 Diagnose, was sie behauptet. Danach entscheidet `hold_ratio` wie oben beschrieben.
+
+#### Lauf 29: der Würfel hebt ab, mit einem Vorbehalt
+
+`runs/20260812/01` (2026-08-12), `GRASP_MODE=hold` mit dem korrigierten Fingerkuppen-Messpunkt.
+**`max_cube_lift_cm` = 7,9** — nach vier Läufen mit 0,0 cm hebt zum ersten Mal ein Würfel ab.
+
+Zuerst der Nachweis, dass die Messung jetzt misst, was sie behauptet (die Bedingung aus Lauf 28):
+
+| | Lauf 28 (distales Gelenk) | Lauf 29 (Fingerkuppe) |
+|---|---|---|
+| engste Greiföffnung links | 7,4 cm → „kein Zugreifen erkannt" | **5,2 cm** von max. 11,0 cm |
+| engste Greiföffnung rechts | 7,6 cm → „kein Zugreifen erkannt" | **4,9 cm** von max. 10,5 cm |
+| min Fingerkuppe→Würfelmitte | — | **2,9 cm** (Step 338) |
+| min Handfläche→Würfelmitte | 6,8 cm | 9,8 cm |
+
+Die Hand öffnet und schließt jetzt sichtbar über 11,0 → 5,2 cm. Der Unterschied zwischen
+Handflächen- und Fingerkuppen-Abstand (9,8 gegen 2,9 cm) beziffert die Messpunkt-Verschiebung,
+die drei Läufe lang die Interpretation verdorben hat, auf rund 7 cm.
+
+**Die beiden Hände erzählen unterschiedliche Geschichten:**
+
+| | links (`block_0`, rot) | rechts (`block_1`, grün) |
+|---|---|---|
+| Einsetzen bei Step | 323 | 91 |
+| Haltequote | **0,238** (202/849) | 0,002 (2/1081) |
+| max. Anhebung über Einsetzpunkt | **+7,9 cm** | −1,8 cm |
+| Endhöhe | 0,899 (Tisch) | 0,895 (Tisch) |
+| engste Öffnung bei Step | 719 | 136 |
+
+**Die linke Hand ist der gültige Test.** Ihr Einsetz-Step 323 fällt genau in das Beugefenster, das
+die npz-Gegenprobe aus Lauf 28 vorhergesagt hatte (stärkste Beugung Step 330, > 80 % ab Step 320).
+Dort greift die Hand zu, hebt den Würfel 7,9 cm an und hält ihn über 202 Steps.
+
+**Die rechte Hand hat zu früh ausgelöst.** Trigger bei Step 91, echtes Zugreifen laut npz erst bei
+Step 186 (> 80 % ab Step 102). Der Würfel wurde in eine Hand gesetzt, die noch gar nicht griff.
+Die 0,2 % Haltequote sind ein Artefakt der 70-%-Heuristik, **kein Physik-Befund** — die Schwelle
+bezieht sich auf das bis dahin gesehene Maximum, und das ist früh in der Episode noch nicht das
+globale.
+
+**Die 24 % ehrlich gelesen.** Das liegt unter der 0,5-Schwelle der Entscheidungsregel oben — aber
+die Regel war für ein binäres Ergebnis geschrieben und trifft einen dritten Fall nicht, den sie
+nicht vorsah: der Griff **bildet sich und rutscht dann**. Das ist etwas anderes als „der Griff
+bildet sich nie", und für RL ist es der entscheidende Unterschied.
+
+> ⚠️ **Vorbehalt — der Test setzt den Würfel in die Fingergeometrie hinein.** Der Würfel wird auf
+> den Schwerpunkt der drei Fingerspitzen gesetzt; bei einer Greiföffnung von 7,2 cm und 5 cm
+> Kantenlänge überlappt er dabei die Finger. PhysX löst Durchdringung mit harten Impulsen auf.
+> Damit ist offen, wieviel der 7,9 cm getragener Hub ist und wieviel Auflöse-Impuls — und die
+> −1,8 cm rechts sind eher „herausgeschossen" als „fallengelassen", also kein Reibungsbefund.
+> **Was für einen echten Griff spricht:** 202 Steps innerhalb 4 cm am Fingerdreieck sind rund
+> 6,7 s. Ein Penetrations-Impuls ist ballistisch und in Millisekunden vorbei, nicht über
+> 200 Steps. Die Zahl ist also nicht wertlos, aber kein sauberer Beweis.
+
+#### Die Würfel „springen" im Video — das ist der Test, kein Bug
+
+Wer sich `replay_episode0.mp4` aus einem `GRASP_MODE=hold`-Lauf ansieht, sieht Würfel ohne
+Roboterkontakt von einer Position zur anderen springen. Das ist die **eingebaute Teleportation**
+des Tests, nicht Physik. Das Video hat 1173 Frames bei 30 fps (39,1 s), also **exakt ein Frame je
+Step** — die Ereignisse lassen sich damit direkt zuordnen:
+
+| Ereignis | Step | Videozeit | Würfel |
+|---|---|---|---|
+| Einsetzen rechte Hand | 91 | **3,0 s** | `block_1` (grün) |
+| Einsetzen linke Hand | 323 | **10,8 s** | `block_0` (rot) |
+
+Beide Einsetzungen sind One-Shot (`hold_step[h] < 0`-Guard in
+[`run_g1_dex3_replay.py`](../../Simulation/g1_dex3_sim/run_g1_dex3_replay.py)), und `block_2`
+(gelb) wird in diesem Modus nie angefasst. Springt im Video etwas **anderes** als diese zwei
+Ereignisse, ist das ein echter Befund — dann lohnt der Blick auf Durchdringungen beim Einsetzen.
+
+**Nächster Schritt — das entscheidet das Video, nicht die nächste Messung:** Sekunde 10,8 bis
+etwa 18 ansehen. Fährt der rote Würfel ruhig mit der Hand mit, trägt der Griff. Wird er
+weggeschleudert und der Hub ist ein einzelner Sprung, ist es ein Impuls-Artefakt und der Test
+braucht ein Einsetzen ohne Überlappung (Würfel eine Kantenlänge vor die Kuppen statt in ihren
+Schwerpunkt).
+
+Unabhängig davon ist der RL-Pfad **entblockiert**: ein Anheben ist in dieser Sim möglich, der
+Shaped Reward kann also ein Signal liefern. Die verbleibende Frage ist nicht mehr „geht es
+überhaupt", sondern „wie zuverlässig" — und das ist eine Frage, an der RL arbeiten kann.
 
 #### Falscher Alarm „Sim-Eval ohne Erfolgsmarker beendet"
 

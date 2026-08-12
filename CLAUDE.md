@@ -22,7 +22,7 @@ Detailed guides (all prose docs live under [`docs/`](docs/README.md)):
 - **Sim eval on vast.ai (German):** [`docs/simulation/vastai-anleitung.md`](docs/simulation/vastai-anleitung.md)
 - **Sim implementation notes & lessons learned:** [`docs/simulation/umsetzungsnotizen.md`](docs/simulation/umsetzungsnotizen.md)
 - **Results & evaluation (German):** [`docs/ergebnisse/`](docs/ergebnisse/README.md) — run analyses, domain-gap, sim methodology review, baseline
-- **Further work / concepts (German):** [`docs/weiterfuehrend/`](docs/weiterfuehrend/README.md) — RL plan + operative RL guide ([`rl-anleitung.md`](docs/weiterfuehrend/rl-anleitung.md); RL runs end-to-end on the Blackwell server, but learning is currently blocked by an open grasp-physics finding: no cube lift even in model-free replay, runs 25–28), locomotion research (not implemented), livestream plan (Spur A/WebRTC open; Spur B/MJPEG `LIVE_VIEW` is built)
+- **Further work / concepts (German):** [`docs/weiterfuehrend/`](docs/weiterfuehrend/README.md) — RL plan + operative RL guide ([`rl-anleitung.md`](docs/weiterfuehrend/rl-anleitung.md); RL runs end-to-end on the Blackwell server; the runs 25–28 grasp-physics blocker fell in run 29 (2026-08-12) — with the corrected fingertip reference point the hand lifts a cube 7.9 cm, so a reward signal is reachable; learning effect still unverified), locomotion research (not implemented), livestream plan (Spur A/WebRTC open; Spur B/MJPEG `LIVE_VIEW` is built)
 
 ## Key commands
 
@@ -179,8 +179,8 @@ repo root
 │   ├── ergebnisse/                     # evaluations: lauf1-auswertung.md, wandb-run-auswertung.md,
 │   │                                   #   domain-gap-analyse.md, sim-bewertung.md, baseline-unitree-g1.md
 │   ├── weiterfuehrend/                 # reinforcement-learning-plan.md (+ rl-anleitung.md operative guide;
-│   │                                   #   RL runs end-to-end, but blocked by open grasp-physics finding —
-│   │                                   #   no cube lift even in model-free replay), lokomotion-recherche.md
+│   │                                   #   RL runs end-to-end; runs 25–28 grasp blocker fell in run 29 —
+│   │                                   #   cube lifts 7.9 cm), lokomotion-recherche.md
 │   │                                   #   (not implemented), livestream-plan.md (Spur A open, Spur B built)
 │   ├── umgebungsanalyse.md             # cross-cutting audit
 │   └── fehlerbehebung.md               # cross-cutting troubleshooting

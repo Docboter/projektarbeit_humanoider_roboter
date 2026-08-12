@@ -8,12 +8,13 @@
 > beantwortet: **eigener Server, keine vast.ai-Miete**. Was der Lauf **nicht** zeigt, ist ob RL die
 > Policy verbessert — das ist der nächste Schritt.
 >
-> **⛔ Aktueller Blocker (Läufe 25–28, 2026-08-08):** Im Open-Loop-Replay **ohne Modell** wird
-> kein Würfel angehoben (0,0 cm), obwohl Hand und Finger die aufgezeichnete Trajektorie sauber
-> abfahren und die Würfel berührt werden. Ohne Anheben liefern weder der binäre noch der Shaped
-> Reward ein Lernsignal — RL wäre in diesem Zustand wirkungslos. Klärung (Platzierung vs.
-> Kontakt-Physik) über `GRASP_MODE=hold` mit korrigiertem Fingerkuppen-Messpunkt:
-> [rl-anleitung.md](rl-anleitung.md).
+> **🟡 Greif-Physik — Blocker gefallen (Lauf 29, 2026-08-12):** Die Läufe 25–28 meldeten, dass
+> auch ohne Modell kein Würfel angehoben wird (0,0 cm) — ohne Anheben liefert kein Reward-Term
+> ein Lernsignal. Ursache war ein falscher Messpunkt (distales Fingergelenk statt Kuppe). Mit der
+> Korrektur hebt die linke Hand im `GRASP_MODE=hold`-Test **7,9 cm** und hält den Würfel über
+> 202 Steps: **RL hat ein erreichbares Lernsignal.** Offen bleibt, wieviel des Hubs getragen ist
+> und wieviel Auflöse-Impuls des Einsetzens (der Test setzt den Würfel in die Fingergeometrie
+> hinein). Details: [rl-anleitung.md](rl-anleitung.md#lauf-29-der-würfel-hebt-ab-mit-einem-vorbehalt).
 >
 > **Bereits umgesetzt** (Stand 2026-06-12, Glue-Fixes 2026-08-07/08):
 > - **Gruppe 1 (Reward):** Shaped Reward im Env hinter `reward_mode="shaped"` —
