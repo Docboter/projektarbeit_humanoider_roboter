@@ -101,6 +101,16 @@ def main() -> None:
     p.add_argument("--execution-horizon", type=int, default=8,
                    help="Wie viele Schritte eines Chunks ausgeführt werden (Budget-Bezug)")
     p.add_argument("--policy-hz", type=float, default=30.0)
+    # Zerlegung der Latenz. Der Flow-Matching-Kopf iteriert num_inference_timesteps-mal
+    # (Default 4), der Backbone — Vision-Tower + LLM, der teure Teil — läuft davor GENAU
+    # EINMAL (gr00t_n1d6.py: backbone_features werden vor der Denoising-Schleife berechnet).
+    # Misst man mehrere Werte, trennt die Steigung den iterativen Kopf vom festen Backbone:
+    #   t(n) ≈ backbone + n * kopf     -> Steigung = Kopf je Schritt, Achsenabschnitt = Backbone
+    # Das sagt, wo eine Optimierung für echte Hardware überhaupt ansetzen müsste.
+    p.add_argument("--denoising-sweep", default="",
+                   help="Kommagetrennte Werte für num_inference_timesteps, z. B. '1,2,4'. "
+                        "Reine LATENZ-Diagnose — weniger Schritte heißt auch gröbere "
+                        "Aktionen, das ist keine Empfehlung.")
     p.add_argument("--json-out", default="", help="Ergebnisse zusätzlich als JSON ablegen")
     args = p.parse_args()
 
@@ -137,23 +147,25 @@ def main() -> None:
             print(f"  Chunk:        '{key}' → {arr.shape}")
             break
 
-    for _ in range(max(args.warmup - 1, 0)):
-        wrapped.get_action(obs)
-    if device == "cuda":
-        torch.cuda.synchronize()
+    def timed_run(n_iter: int, progress: bool = True) -> list[float]:
+        """n_iter Aufrufe messen, jeden einzeln synchronisiert.
 
-    # Jede Messung einzeln synchronisieren: CUDA-Aufrufe sind asynchron, ohne synchronize()
-    # misst perf_counter nur, wie schnell die Arbeit in die Queue geschoben wurde.
-    samples = []
-    for i in range(args.iterations):
-        t0 = time.perf_counter()
-        wrapped.get_action(obs)
-        if device == "cuda":
-            torch.cuda.synchronize()
-        samples.append((time.perf_counter() - t0) * 1000.0)
-        if (i + 1) % 10 == 0:
-            print(f"    … {i + 1}/{args.iterations}  (letzte {samples[-1]:.1f} ms)", flush=True)
+        CUDA-Aufrufe sind asynchron — ohne synchronize() misst perf_counter nur, wie
+        schnell die Arbeit in die Queue geschoben wurde, nicht wie lange sie dauert.
+        """
+        out = []
+        for i in range(n_iter):
+            t0 = time.perf_counter()
+            wrapped.get_action(obs)
+            if device == "cuda":
+                torch.cuda.synchronize()
+            out.append((time.perf_counter() - t0) * 1000.0)
+            if progress and (i + 1) % 10 == 0:
+                print(f"    … {i + 1}/{n_iter}  (letzte {out[-1]:.1f} ms)", flush=True)
+        return out
 
+    timed_run(max(args.warmup - 1, 0), progress=False)
+    samples = timed_run(args.iterations)
     samples.sort()
     mean = statistics.fmean(samples)
     median = statistics.median(samples)
@@ -176,6 +188,45 @@ def main() -> None:
         print("     eine Lücke in der Aktionsfolge. Asynchrone Inferenz überdeckt so etwas.")
     print("-" * 70)
 
+    # ── Zerlegung: fester Backbone gegen iterativen Aktionskopf ────────────────
+    sweep_rows = []
+    if args.denoising_sweep:
+        model = getattr(policy, "model", None)
+        default_n = getattr(model, "num_inference_timesteps", None)
+        if default_n is None:
+            print("  !! num_inference_timesteps am Modell nicht gefunden — Sweep entfällt.")
+        else:
+            print()
+            print("  Zerlegung über num_inference_timesteps "
+                  f"(Modell-Default: {default_n}):")
+            try:
+                for raw in args.denoising_sweep.split(","):
+                    raw = raw.strip()
+                    if not raw:
+                        continue
+                    n = int(raw)
+                    model.num_inference_timesteps = n
+                    timed_run(2, progress=False)                  # kurzer Warmlauf
+                    s = sorted(timed_run(max(args.iterations // 2, 5), progress=False))
+                    m = statistics.fmean(s)
+                    sweep_rows.append({"denoising_steps": n, "mean_ms": round(m, 2)})
+                    print(f"    {n:>2} Schritte → {m:7.1f} ms")
+            finally:
+                # Zustand IMMER zurücksetzen: das Policy-Objekt lebt weiter, und ein
+                # verstellter Wert würde jede folgende Messung still verfälschen.
+                model.num_inference_timesteps = default_n
+
+            if len(sweep_rows) >= 2:
+                lo, hi = sweep_rows[0], sweep_rows[-1]
+                d_steps = hi["denoising_steps"] - lo["denoising_steps"]
+                if d_steps:
+                    per_step = (hi["mean_ms"] - lo["mean_ms"]) / d_steps
+                    backbone = lo["mean_ms"] - per_step * lo["denoising_steps"]
+                    print(f"    -> Aktionskopf ~{per_step:.1f} ms je Denoising-Schritt, "
+                          f"fester Anteil (Vision+LLM+Transformation) ~{backbone:.1f} ms")
+                    print("       Der feste Anteil ist die Untergrenze: er faellt an, egal "
+                          "wie wenige Schritte der Kopf laeuft.")
+
     if args.json_out:
         with open(args.json_out, "w") as f:
             json.dump(
@@ -197,6 +248,7 @@ def main() -> None:
                     },
                     "budget_ms": round(budget_ms, 2),
                     "max_rate_hz": round(1000.0 / mean, 2),
+                    "denoising_sweep": sweep_rows,
                 },
                 f,
                 indent=2,

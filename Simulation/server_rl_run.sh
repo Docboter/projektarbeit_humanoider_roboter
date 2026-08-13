@@ -813,6 +813,7 @@ do_latency() {
         --model-path '$CHECKPOINT_PATH' \
         --iterations $iters \
         --execution-horizon $horizon \
+        --denoising-sweep '${LATENCY_SWEEP:-1,2,4}' \
         --json-out /data/policy_latency.json" 2>&1 | tee /dev/stderr \
     | grep -c "\[latency\] fertig" >/dev/null \
     && ok "Ergebnis auch als JSON: $HOST_DATA_DIR/policy_latency.json" \
