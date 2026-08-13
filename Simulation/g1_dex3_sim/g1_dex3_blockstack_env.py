@@ -448,6 +448,47 @@ class G1Dex3BlockstackEnvCfg(DirectRLEnvCfg):
         post = getattr(super(), "__post_init__", None)
         if callable(post):
             post()
+
+        # ── SCENE_CAM=0: Übersichtskamera weglassen ────────────────────────────────
+        # Gemessen im Sim-Eval (2026-08-13, LIVESTREAM=2): 94 % der Wanduhr stecken in
+        # Sim+Render, nur 5 % in der Policy-Inferenz. Von den fünf Kameras geht genau
+        # eine — cam_scene — ausschließlich ins MP4; die Policy sieht sie nie. Läuft der
+        # Lauf live (WebRTC-Viewport) oder ohne Video, wird sie also jeden Step umsonst
+        # gerendert. Abschalten kostet daher NICHTS an Aussagekraft: die Modell-Eingabe
+        # bleibt Byte für Byte dieselbe, Erfolgsraten bleiben vergleichbar.
+        if os.environ.get("SCENE_CAM", "1").strip().lower() in ("0", "false", "no"):
+            if "cam_scene" in vars(self.scene):
+                delattr(self.scene, "cam_scene")
+                print("[cam] SCENE_CAM=0 → cam_scene wird nicht angelegt (eine von fünf "
+                      "Kameras weniger je Step). Kein MP4, keine Übersicht in Spur B.",
+                      flush=True)
+
+        # ── CAM_RES_SCALE: Kameraauflösung skalieren ───────────────────────────────
+        # Der stärkste Renderhebel (Pixelzahl geht quadratisch ein), aber der einzige, der
+        # die MODELL-EINGABE verändert: die 640×480 sind gegen die Dataset-Referenzframes
+        # kalibriert. Ein Lauf mit Skalierung ist zum Zuschauen gedacht — seine Erfolgsrate
+        # ist NICHT mit den bisherigen Läufen vergleichbar. Deshalb Default 1.0 und eine
+        # laute Warnung, statt still schneller zu werden.
+        try:
+            scale = float(os.environ.get("CAM_RES_SCALE", "1").strip() or 1.0)
+        except ValueError:
+            scale = 1.0
+        if scale > 0 and abs(scale - 1.0) > 1e-6:
+            for name in ("cam_left_high", "cam_right_high", "cam_left_wrist",
+                         "cam_right_wrist", "cam_scene"):
+                cam = vars(self.scene).get(name)
+                if cam is None:
+                    continue
+                # Auf Vielfache von 8 runden — der Tiled-Renderer legt die Bilder in einem
+                # gemeinsamen Puffer ab, krumme Kantenlängen sind dort unnötiges Risiko.
+                cam.width = max(64, int(round(cam.width * scale / 8)) * 8)
+                cam.height = max(64, int(round(cam.height * scale / 8)) * 8)
+            first = vars(self.scene).get("cam_left_high")
+            print(f"[cam] !! CAM_RES_SCALE={scale} → Kameras auf "
+                  f"{getattr(first, 'width', '?')}×{getattr(first, 'height', '?')}. "
+                  f"Das ist NICHT die kalibrierte Auflösung: nur zum Zuschauen, "
+                  f"Erfolgsraten dieses Laufs nicht mit anderen vergleichen.", flush=True)
+
         # ── RL_CAMERA_CLASS=camera: Halbierungstest für leere Kamerabilder ──────────
         # Befund 2026-08-08 (runs/20260808/11): cam_left_high, cam_right_high und
         # cam_right_wrist liefern ein Bild mit GENAU EINEM Grauwert, während
@@ -461,7 +502,9 @@ class G1Dex3BlockstackEnvCfg(DirectRLEnvCfg):
         done = []
         for name in ("cam_left_high", "cam_right_high", "cam_left_wrist",
                      "cam_right_wrist", "cam_scene"):
-            tc = getattr(self.scene, name, None)
+            # vars() statt getattr: nach einem SCENE_CAM=0-delattr könnte getattr sonst
+            # einen Klassen-Default zurückgeben und die Kamera hier wieder eintragen.
+            tc = vars(self.scene).get(name)
             if tc is None:
                 print(f"[cam] '{name}' nicht in der Szene — übersprungen.", flush=True)
                 continue
@@ -550,8 +593,16 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
             "cam_right_high": self.scene["cam_right_high"],
             "cam_left_wrist": self.scene["cam_left_wrist"],
             "cam_right_wrist": self.scene["cam_right_wrist"],
-            "cam_scene": self.scene["cam_scene"],  # nur fürs Video
         }
+        # Nur fürs Video — bei SCENE_CAM=0 gar nicht erst angelegt. Alles, was sie
+        # konsumiert, kennt den Fall bereits: der Eval-Runner weicht auf cam_left_high
+        # aus, die Live-Ansicht ebenso, und _force_camera_prim_orientations() läuft über
+        # genau dieses Dict.
+        try:
+            self.cameras["cam_scene"] = self.scene["cam_scene"]
+        except KeyError:
+            print("[cam] cam_scene nicht in der Szene — Übersicht/Video entfallen "
+                  "(SCENE_CAM=0).", flush=True)
 
         self.scene.filter_collisions(global_prim_paths=[])
 

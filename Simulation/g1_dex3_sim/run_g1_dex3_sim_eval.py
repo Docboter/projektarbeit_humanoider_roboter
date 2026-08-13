@@ -213,6 +213,14 @@ def run_episode(
     #   Rendering dominiert -> weniger/kleinere Kameras, Livestream aus.
     # Die Messung kostet nur perf_counter-Aufrufe und läuft deshalb immer mit.
     t_obs = t_infer = t_env = 0.0
+    # Inferenz zusätzlich ABSOLUT je Aufruf, nicht nur als Anteil. Grund: der Anteil ist eine
+    # reine Sim-Größe (er misst vor allem, wie teuer das Kamera-Rendering ist, das es auf
+    # echter Hardware gar nicht gibt). Für den Weg auf einen realen Roboter zählt die
+    # Latenz je Aufruf gegen die Zeit, die ein Chunk abdeckt (16 Schritte / 30 Hz = 533 ms) —
+    # und dort ist der SCHLECHTESTE Aufruf die relevante Zahl, nicht der Mittelwert: ein
+    # einzelner Ausreißer über dem Budget ist eine Lücke in der Aktionsfolge.
+    n_infer = 0
+    t_infer_max = 0.0
 
     while step < max_steps:
         # Observation fürs Modell aufbauen
@@ -248,7 +256,10 @@ def run_episode(
         except Exception as e:
             print(f"[Episode] Fehler bei get_action (Step {step}): {e}")
             break
-        t_infer += time.perf_counter() - _t0
+        _dt_infer = time.perf_counter() - _t0
+        t_infer += _dt_infer
+        n_infer += 1
+        t_infer_max = max(t_infer_max, _dt_infer)
 
         # Chunk schrittweise ausführen
         for t in range(min(execution_horizon, len(chunk))):
@@ -295,11 +306,14 @@ def run_episode(
                 # 10 = zehnmal langsamer. Dazu die Aufteilung, WOHIN die Zeit geht.
                 _sim_s = step / env.cfg.policy_hz
                 _rt = _el / max(_sim_s, 1e-6)
+                _ms = 1000 * t_infer / max(n_infer, 1)
                 print(
                     f"    … Step {step}/{max_steps} ({_el:.0f}s, "
                     f"{step / max(_el, 1e-6):.1f} Steps/s, {_rt:.1f}x Echtzeit) | "
                     f"Obs {t_obs / _el:.0%} · Inferenz {t_infer / _el:.0%} · "
-                    f"Sim+Render {t_env / _el:.0%}",
+                    f"Sim+Render {t_env / _el:.0%} | Inferenz {_ms:.0f} ms/Aufruf "
+                    f"(max {1000 * t_infer_max:.0f}), Budget "
+                    f"{1000 * execution_horizon / env.cfg.policy_hz:.0f} ms",
                     flush=True,
                 )
 
@@ -344,6 +358,15 @@ def run_episode(
             "obs": round(t_obs / duration, 3) if duration > 0 else 0.0,
             "inference": round(t_infer / duration, 3) if duration > 0 else 0.0,
             "sim_render": round(t_env / duration, 3) if duration > 0 else 0.0,
+        },
+        # Die einzige hier gemessene Zahl, die auch für echte Hardware gilt: dort entfällt
+        # das Rendering ersatzlos, die Policy-Latenz bleibt. Vergleichsmaßstab ist
+        # budget_ms = wie lange die ausgeführten Schritte eines Chunks dauern.
+        "inference_ms": {
+            "mean": round(1000 * t_infer / n_infer, 1) if n_infer else 0.0,
+            "max": round(1000 * t_infer_max, 1),
+            "calls": n_infer,
+            "budget_ms": round(1000 * execution_horizon / env.cfg.policy_hz, 1),
         },
         "success_step": success_step,
         "reach_frame": reach_frame,

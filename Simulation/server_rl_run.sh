@@ -597,6 +597,12 @@ do_eval() {
     -e "TASK_DESCRIPTION=${TASK_DESCRIPTION:-stack the blocks}" \
     -e "DR_ENABLED=${DR_ENABLED:-1}" \
     -e "RL_GROUND_COLOR=${RL_GROUND_COLOR:-}" \
+    `# Render-Hebel (gemessen 2026-08-13: 94 % der Laufzeit sind Sim+Render, 5 % Inferenz).` \
+    `# SCENE_CAM=0 ist gratis — cam_scene geht nur ins MP4, die Policy sieht sie nie.` \
+    `# CAM_RES_SCALE veraendert dagegen die Modell-Eingabe: nur zum Zuschauen.` \
+    -e "SCENE_CAM=${SCENE_CAM:-1}" \
+    -e "CAM_RES_SCALE=${CAM_RES_SCALE:-1}" \
+    -e "RL_AA_MODE=${RL_AA_MODE:-}" \
     "${LS_ENV[@]}" \
     "$CONTAINER" bash -lc "bash /scripts/entrypoint_sim.sh" 2>&1 \
     `# grep -c statt -q: -q steigt beim ersten Treffer aus, das vorgeschaltete tee bekommt` \
@@ -693,6 +699,9 @@ do_grasp() {
   docker exec -w "$SIM_DIR" \
     -e "DR_ENABLED=${DR_ENABLED:-0}" \
     -e "RL_GROUND_COLOR=${RL_GROUND_COLOR:-}" \
+    -e "SCENE_CAM=${SCENE_CAM:-1}" \
+    -e "CAM_RES_SCALE=${CAM_RES_SCALE:-1}" \
+    -e "RL_AA_MODE=${RL_AA_MODE:-}" \
     "$CONTAINER" bash -lc "
     unset VIRTUAL_ENV
     '$ISAAC_PY' '$SIM_DIR/run_g1_dex3_replay.py' \
@@ -782,6 +791,34 @@ do_span() {
     || { err "Fingerspannen-Test ohne Ergebniszeile beendet (Traceback oben)."; return 1; }
 }
 
+# Reine Policy-Latenz — die einzige hier messbare Zahl, die auch fuer echte Hardware gilt.
+#
+# Die Sim-Eval laeuft 3,5x langsamer als Echtzeit, aber 94 % davon sind Kamera-Rendering,
+# das es auf einem realen Roboter nicht gibt. Was dort uebrig bleibt, ist die Zeit vom
+# Observation-Dict bis zum Action-Chunk — und die misst dieses Skript in-process, also
+# ohne ZMQ-Roundtrip (~3,7 MB unkomprimierte Bilder je Aufruf) und ohne Isaac Sim.
+# Die Differenz zur Zahl aus der Eval ("Inferenz X ms/Aufruf") ist der Transport-Overhead.
+#
+# Laeuft im GR00T-venv wie 'span', nicht im Isaac-Python: kein Isaac Sim noetig.
+do_latency() {
+  ensure_checkpoint
+  docker cp "$REPO_DIR/Simulation/scripts/policy_latency.py" \
+            "$CONTAINER:/workspace/policy_latency.py"
+  local iters="${LATENCY_ITERS:-50}"
+  local horizon="${EXECUTION_HORIZON:-8}"
+  log "Policy-Latenz messen ($iters Aufrufe, Budget-Bezug: Exec-Horizon $horizon bei 30 Hz)."
+  docker exec "$CONTAINER" bash -lc "
+    unset VIRTUAL_ENV
+    '$GROOT_ROOT/.venv/bin/python' /workspace/policy_latency.py \
+        --model-path '$CHECKPOINT_PATH' \
+        --iterations $iters \
+        --execution-horizon $horizon \
+        --json-out /data/policy_latency.json" 2>&1 | tee /dev/stderr \
+    | grep -c "\[latency\] fertig" >/dev/null \
+    && ok "Ergebnis auch als JSON: $HOST_DATA_DIR/policy_latency.json" \
+    || { err "Latenz-Messung ohne Erfolgsmarker beendet (Traceback oben)."; return 1; }
+}
+
 # Domain-Gap: Kosinus-Distanz real gegen sim je Policy-Kamera durch den eingefrorenen
 # SigLIP-ViT (= GR00Ts Vision-Backbone, da BC mit tune_visual=false lief).
 # Braucht die Frames aus 'cams' — misst also genau die Bilder, die auch die Policy sieht.
@@ -864,6 +901,10 @@ Aktionen:
               SPAN_DATASET (Default /data/unitreerobotics/G1_Dex3_BlockStacking_Dataset),
               SPAN_TRAJ_IDS (Default "0 1 2 3 4"), SPAN_AUTO_FETCH=0 schaltet das Holen ab.
   rl          Echter RL-Lauf (Vordergrund). Checkpoints unter $HOST_DATA_DIR/g1_dex3_rl/.
+  latency     Reine Policy-Latenz (ms je Action-Chunk), in-process ohne Sim und ohne ZMQ.
+              Die einzige hier messbare Zahl, die auch auf echter Hardware gilt — dort
+              faellt das Rendering weg, das in der Eval 94 % der Zeit frisst.
+              LATENCY_ITERS (50), EXECUTION_HORIZON (8, nur als Budget-Bezug).
   livecheck   Phase 0 der LIVE-Variante: NVENC, Livestream-Extension, Isaac-Sim-Version
               und Port-Veroeffentlichung pruefen — vor dem ersten LIVESTREAM=2-Lauf.
   shell       Interaktive Shell im Container.
@@ -884,6 +925,16 @@ Beispiele:
   # mit Live-Ansicht im Browser + W&B-Video alle 10 Iterationen:
   HF_TOKEN=hf_... WANDB_API_KEY=... LIVE_VIEW=1 RL_WANDB_VIDEO_EVERY=10 \\
       RL_NUM_ENVS=4 ./Simulation/server_rl_run.sh rl
+
+Tempo der Sim (gemessen 2026-08-13: 94 % Sim+Render, 5 % Inferenz, 3,5x langsamer
+als Echtzeit). Die Zahlen stehen live in der "Step …"-Zeile und in results.json:
+  SCENE_CAM=0        Uebersichtskamera cam_scene weglassen — eine von fuenf Kameras je
+                     Step. GRATIS: die Policy sieht cam_scene nie, Erfolgsraten bleiben
+                     vergleichbar. Kostet nur MP4/Uebersichtsbild.
+  CAM_RES_SCALE=0.5  Kameraaufloesung halbieren (Pixel gehen quadratisch ein). Aendert
+                     die MODELL-EINGABE -> nur zum Zuschauen, nicht fuer Messlaeufe.
+  RL_AA_MODE=Off     Anti-Aliasing aus (sonst Isaac-Defaults).
+  EXECUTION_HORIZON  wirkt nur auf die 5 % Inferenz — hier fast wirkungslos.
 
 LIVE-Variante — Isaac Sim auf dem eigenen Rechner (opt-in, "Spur A"):
   Statt hinterher MP4s zu holen, streamt Isaac Sim seinen 3D-Viewport per WebRTC. Auf dem
@@ -929,7 +980,7 @@ ACTION="${1:-help}"
 # 'shell' bleibt ungespiegelt (interaktives -it verträgt die Pipe nicht), 'help'/'clean'
 # haben nichts zu protokollieren.
 case "$ACTION" in
-  preflight|setup|check|cams|gap|eval|grasp|span|rl|livecheck) start_logging "$ACTION" ;;
+  preflight|setup|check|cams|gap|eval|grasp|span|rl|livecheck|latency) start_logging "$ACTION" ;;
 esac
 case "$ACTION" in
   preflight)  do_preflight ;;
@@ -940,6 +991,7 @@ case "$ACTION" in
   eval)       do_eval ;;
   grasp)      do_grasp ;;
   span)       do_span ;;
+  latency)    do_latency ;;
   livecheck)  do_livecheck ;;
   rl)         do_rl ;;
   shell)      do_shell ;;
