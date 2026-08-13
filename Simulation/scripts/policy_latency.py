@@ -112,10 +112,17 @@ def main() -> None:
                         "Reine LATENZ-Diagnose — weniger Schritte heißt auch gröbere "
                         "Aktionen, das ist keine Empfehlung.")
     p.add_argument("--json-out", default="", help="Ergebnisse zusätzlich als JSON ablegen")
+    # Fremdlast auf derselben Karte verfälscht die Messung massiv: dieselbe Policy kam am
+    # 2026-08-13 einmal auf 78 ms (ruhige GPU) und einmal auf 108 ms mit Ausreißern bis
+    # 188 ms, während nebenher gerendert wurde. Für eine belastbare Zahl gehört der Bench
+    # auf eine freie Karte — deshalb hier wählbar.
+    p.add_argument("--device", default="",
+                   help="z. B. 'cuda:1', um auf eine freie Karte auszuweichen "
+                        "(leer = cuda:0 bzw. CPU)")
     args = p.parse_args()
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    gpu = torch.cuda.get_device_name(0) if device == "cuda" else "(CPU)"
+    device = args.device or ("cuda" if torch.cuda.is_available() else "cpu")
+    gpu = torch.cuda.get_device_name(device) if device.startswith("cuda") else "(CPU)"
     print("=" * 70)
     print("GR00T — Policy-Latenz (in-process, ohne Sim und ohne ZMQ)")
     print("=" * 70)
@@ -124,6 +131,17 @@ def main() -> None:
     print(f"  torch:        {torch.__version__}")
     print(f"  Eingabe:      {len(CAMERAS)} Kameras à {args.width}×{args.height}")
     print(f"  Aufrufe:      {args.iterations} (+{args.warmup} Warmlauf)")
+    # Belegung VOR dem Laden des Modells: was hier schon weg ist, gehört jemand anderem.
+    # Eine mitlaufende Sim oder ein llama-server erklärt Ausreißer, die sonst wie
+    # Modell-Jitter aussehen — und die Zahl wäre dann nicht die des Roboters.
+    if device.startswith("cuda"):
+        free_b, total_b = torch.cuda.mem_get_info(device)
+        used_gb = (total_b - free_b) / 1024**3
+        print(f"  VRAM vorher:  {used_gb:.1f} GB belegt von {total_b / 1024**3:.1f} GB")
+        if used_gb > 1.0:
+            print("                ^ von anderen Prozessen. Die Messung teilt sich die Karte")
+            print("                  mit ihnen — fuer eine belastbare Zahl --device auf eine")
+            print("                  freie Karte legen (z. B. --device cuda:1).")
     print()
 
     policy = Gr00tPolicy(
@@ -191,21 +209,32 @@ def main() -> None:
     # ── Zerlegung: fester Backbone gegen iterativen Aktionskopf ────────────────
     sweep_rows = []
     if args.denoising_sweep:
-        model = getattr(policy, "model", None)
-        default_n = getattr(model, "num_inference_timesteps", None)
-        if default_n is None:
-            print("  !! num_inference_timesteps am Modell nicht gefunden — Sweep entfällt.")
+        # Rekursiv suchen statt den Pfad zu raten: das Attribut sitzt auf
+        # Gr00tN1d6ActionHead, also eine Ebene unter policy.model — ein fest verdrahtetes
+        # policy.model.num_inference_timesteps lief 2026-08-13 ins Leere. named_modules()
+        # findet es unabhängig davon, wie tief es künftig hängt.
+        owners = [
+            (name or "<root>", mod)
+            for name, mod in getattr(policy, "model", None).named_modules()
+            if hasattr(mod, "num_inference_timesteps")
+        ] if getattr(policy, "model", None) is not None else []
+
+        if not owners:
+            print("  !! num_inference_timesteps nirgends im Modell gefunden — Sweep entfällt.")
         else:
+            defaults = [(m, m.num_inference_timesteps) for _n, m in owners]
+            default_n = defaults[0][1]
             print()
-            print("  Zerlegung über num_inference_timesteps "
-                  f"(Modell-Default: {default_n}):")
+            print(f"  Zerlegung über num_inference_timesteps (Default {default_n}, gesetzt auf "
+                  f"{', '.join(n for n, _m in owners)}):")
             try:
                 for raw in args.denoising_sweep.split(","):
                     raw = raw.strip()
                     if not raw:
                         continue
                     n = int(raw)
-                    model.num_inference_timesteps = n
+                    for _name, mod in owners:
+                        mod.num_inference_timesteps = n
                     timed_run(2, progress=False)                  # kurzer Warmlauf
                     s = sorted(timed_run(max(args.iterations // 2, 5), progress=False))
                     m = statistics.fmean(s)
@@ -214,7 +243,8 @@ def main() -> None:
             finally:
                 # Zustand IMMER zurücksetzen: das Policy-Objekt lebt weiter, und ein
                 # verstellter Wert würde jede folgende Messung still verfälschen.
-                model.num_inference_timesteps = default_n
+                for mod, val in defaults:
+                    mod.num_inference_timesteps = val
 
             if len(sweep_rows) >= 2:
                 lo, hi = sweep_rows[0], sweep_rows[-1]

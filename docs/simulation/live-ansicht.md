@@ -183,6 +183,32 @@ und 30 Hz also 267 ms. Berichtet werden Mittel, Median, p95 und **Maximum** — 
 ist der schlechteste Aufruf die relevante Zahl, weil ein einzelner Ausreißer über dem Budget
 eine Lücke in der Aktionsfolge bedeutet.
 
+**Messung 2026-08-13** (RTX PRO 6000 Blackwell, 50 Aufrufe, 4 Kameras à 640×480):
+
+| Bedingung | Mittel | Spanne | Budget-Auslastung (schlechtester Aufruf) |
+|---|---|---|---|
+| **freie GPU** | **74,4 ms** | 72,1–79,5 ms | 30 % |
+| GPU geteilt (zweiter GR00T-Server) | 107,8 ms | 91,4–188,2 ms | 71 % |
+| über ZMQ, in der Sim gemessen | ~88 ms | — | — |
+
+Drei Ablesungen daraus:
+
+1. **Die Policy ist schnell genug.** 74 ms gegen 267 ms Budget heißt 3,6-fache Reserve; die
+   Streuung von 7 ms macht sie zudem vorhersagbar. Ein *synchroner* 30-Hz-Regelkreis wäre mit
+   13,4 Hz zwar unmöglich — genau dafür gibt es das Action-Chunking, das 16 Schritte auf
+   einmal liefert.
+2. **Der Transport kostet ~14 ms** (88 − 74). Der ZMQ-Weg mit 3,7 MB unkomprimierten Bildern
+   je Aufruf ist lokal also kein Engpass. Über ein Netz zum Roboter wäre er einer.
+3. **Fremdlast ist das eigentliche Risiko.** Eine geteilte Karte kostet nicht nur 45 % im
+   Mittel, sie macht die Latenz unvorhersagbar (Spanne 97 statt 7 ms). Auf einem Roboter
+   gehört die Policy auf eine dedizierte GPU — für Echtzeit zählt die Vorhersagbarkeit, nicht
+   der Durchschnitt.
+
+> **Noch offen:** dieselbe Messung auf der Zielhardware (z. B. Jetson Thor). Eine RTX PRO 6000
+> mit 300 W ist keine Referenz für das, was auf dem Roboter steckt — dort ist mit einem
+> Vielfachen zu rechnen, und erst dann entscheidet sich, ob `EXECUTION_HORIZON` oder die
+> Modellgröße angefasst werden muss.
+
 Die Differenz zwischen dieser Zahl und dem `Inferenz … ms/Aufruf` aus der Eval ist der
 **Transport-Overhead** des ZMQ-Wegs (4 unkomprimierte Bilder ≈ 3,7 MB je Aufruf).
 
