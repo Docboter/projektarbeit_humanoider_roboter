@@ -91,7 +91,7 @@ RUN mkdir -p /data/models /data/unitreerobotics /data/G1_Dex3_BlockStacking /dat
 
 # Scripts ins Image kopieren — kein Volume-Mount mehr nötig
 COPY scripts/ /scripts/
-RUN chmod +x /scripts/*.sh
+RUN chmod +x /scripts/*.sh && chmod +x /scripts/*.py
 
 # Defaults für autonomen Container-Lauf (vast.ai etc.)
 # HF_TOKEN und WANDB_API_KEY MÜSSEN beim docker run via -e gesetzt werden.

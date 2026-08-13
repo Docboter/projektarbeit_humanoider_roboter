@@ -209,6 +209,40 @@ Drei Ablesungen daraus:
 > Vielfachen zu rechnen, und erst dann entscheidet sich, ob `EXECUTION_HORIZON` oder die
 > Modellgröße angefasst werden muss.
 
+### Woraus die 74 ms bestehen
+
+`--denoising-sweep` variiert `num_inference_timesteps` und trennt über die Steigung den
+iterativen Aktionskopf vom festen Rest (der Backbone läuft **einmal**, vor der
+Denoising-Schleife — [`gr00t_n1d6.py`](../../app/Groot-1.6/gr00t/model/gr00t_n1d6/gr00t_n1d6.py)):
+
+| Denoising-Schritte | Latenz |
+|---|---|
+| 1 | 45,2 ms |
+| 2 | 54,7 ms |
+| 4 (Default) | 74,0 ms |
+
+```
+t(n) = 35,6 ms + n × 9,6 ms        (Vorhersage für n=2: 54,8 ms — gemessen 54,7 ms)
+```
+
+Damit ist der **Aktionskopf die größere Hälfte**: 4 × 9,6 = 38,4 ms gegen 35,6 ms für Vision,
+LLM und Transformationen zusammen. Das war nicht die Erwartung — bei vier Kamerabildern durch
+einen 3B-VLM hätte man den Backbone vorn vermutet — und es dreht die Rangfolge der Hebel um:
+
+- **Für eine langsamere Zielplattform** ist `num_inference_timesteps` der erste Hebel:
+  4 → 2 spart 26 % der Latenz, 4 → 1 spart 39 %.
+- **35,6 ms sind die Untergrenze.** Darunter kommt man nur über den Backbone: weniger Kameras,
+  kleinere Eingabe, TensorRT/FP8.
+- **Heute wird nichts davon gebraucht** — 74 ms gegen 267 ms Budget. Die Zerlegung ist ein
+  Planungswerkzeug für die Portierung, keine offene Baustelle.
+
+> ⚠️ **Falle:** [`open_loop_eval.py`](../../app/Groot-1.6/gr00t/eval/open_loop_eval.py) im
+> GR00T-Fork deklariert eine Option `denoising_steps`, **wendet sie aber nirgends an** (der
+> Name kommt in der Datei genau einmal vor, in seiner eigenen Definition). Wer die
+> Qualitätskosten damit misst, vergleicht zwei identische Läufe. Für eine echte Messung muss
+> der Wert nach dem Laden am `action_head` gesetzt werden — so, wie es
+> [`policy_latency.py`](../../Simulation/scripts/policy_latency.py) tut.
+
 Die Differenz zwischen dieser Zahl und dem `Inferenz … ms/Aufruf` aus der Eval ist der
 **Transport-Overhead** des ZMQ-Wegs (4 unkomprimierte Bilder ≈ 3,7 MB je Aufruf).
 

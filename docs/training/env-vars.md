@@ -41,13 +41,44 @@ Diese Schalter aktivieren einzelne Verfahren beim Trainingsstart — alle unabh�
 
 | Variable | Default | Beschreibung |
 |---|---|---|
-| `TRAIN_TEST_SPLIT` | `0` | `1` = 80/20-Split scharf schalten: `run_finetuning.sh` patcht `meta/info.json`, sodass nur die ersten `TRAIN_SPLIT_RATIO` der Episoden als `train` geladen werden; die restlichen stehen als `test` für die Open-Loop-Eval auf **ungesehenen** Episoden bereit. `0` = kompletter Datensatz (bisheriges Verhalten); ein zuvor gesetzter Split wird dann automatisch zurückgesetzt. |
+| `TRAIN_TEST_SPLIT` | `0` | `1` = 80/20-Split scharf schalten: [`lib_split.sh`](../../Training/scripts/lib_split.sh) patcht `meta/info.json`, sodass nur die ersten `TRAIN_SPLIT_RATIO` der Episoden als `train` geladen werden; die restlichen stehen als `test` für die Open-Loop-Eval auf **ungesehenen** Episoden bereit. Zusätzlich landet ein Protokoll `split.json` im `OUTPUT_DIR`. `0` = kompletter Datensatz; ein zuvor gesetzter Split wird dann automatisch zurückgesetzt. **Gilt seit 2026-08-13 auch für `TUNE_VISUAL=1`** (vorher nur im Standard-Skript). |
 | `TRAIN_SPLIT_RATIO` | `0.8` | Trainingsanteil bei `TRAIN_TEST_SPLIT=1` (Rest = Test). |
-| `USE_AUGMENTATION` | `1` | Bild-Augmentierung / Domain-Randomization (Color-Jitter, optional Rotation/State-Dropout) gegen den Sim-Real-Domain-Gap. `0` = explizit aus (Color-Jitter auf 0, kein Modell-Default-Jitter). |
+| `USE_AUGMENTATION` | `1` | Bild-Augmentierung / Domain-Randomization (Color-Jitter, optional Rotation/State-Dropout) gegen den Sim-Real-Domain-Gap. `0` = explizit aus (Color-Jitter auf 0, kein Modell-Default-Jitter). **Gilt seit 2026-08-13 auch für `TUNE_VISUAL=1`** — vorher war der Jitter im Vision-Skript fest verdrahtet und der Schalter dort wirkungslos. |
 | `CJ_BRIGHTNESS` / `CJ_CONTRAST` / `CJ_SATURATION` / `CJ_HUE` | `0.3` / `0.4` / `0.5` / `0.08` | Color-Jitter-Stärken (nur bei `USE_AUGMENTATION=1`). |
 | `RANDOM_ROTATION_ANGLE` | *(leer)* | Max. Rotationswinkel (Grad) für Bild-Rotations-Augmentierung; leer = aus. |
 | `STATE_DROPOUT_PROB` | `0.0` | Dropout-Wahrscheinlichkeit auf den State-Inputs (Regularisierung); `0.0` = aus. |
 | `USE_RL` | `0` | `1` = RL-Fine-tuning (FPO) gewünscht. Läuft **nicht** im BC-Trainingsimage (kein Isaac Sim): der BC-Entrypoint bricht mit einem Hinweis auf den RL-Pfad ab. RL braucht den kombinierten Isaac-Sim + GR00T-Container ([`Simulation/scripts/entrypoint_rl.sh`](../../Simulation/scripts/entrypoint_rl.sh) bzw. [`Training/kisski_rl_submit.sh`](../../Training/kisski_rl_submit.sh)) auf einer **RT-Core-GPU**. Details: [reinforcement-learning-plan.md](../weiterfuehrend/reinforcement-learning-plan.md). |
+
+### Checkpoint-Auswahl nach dem Lauf ([`checkpoint_sweep.py`](../../Training/scripts/checkpoint_sweep.py))
+
+> **Warum ein eigenes Werkzeug:** Der GR00T-Fork hat **keine** Eval während des Trainings.
+> `enable_open_loop_eval`, `eval_set_split_ratio` und `open_loop_eval_*` stehen zwar in
+> `TrainingConfig`, werden aber **nirgends gelesen**; und `DatasetFactory.build()` bricht mit
+> `assert eval_strategy == "no"` ab, gibt fest `split="train"` vor und liefert `eval_dataset=None`.
+> Ein `eval_strategy="steps"` würde also nicht evaluieren, sondern abstürzen. Die Validierung
+> muss deshalb **nach** dem Lauf über die gespeicherten Checkpoints laufen.
+
+Der Sweep lädt jeden `checkpoint-*` einzeln und misst MSE/MAE gegen die **zurückgehaltenen**
+Episoden. Voraussetzung ist ein Trainingslauf mit `TRAIN_TEST_SPLIT=1`.
+
+| Variable | Default | Beschreibung |
+|---|---|---|
+| `RUN_DIR` | `/data/g1_dex3_finetune/blockstacking` | Lauf-Verzeichnis; wird **rekursiv** nach `checkpoint-<step>` durchsucht. Für den Vision-Lauf: `…/blockstacking_vision`. |
+| `EVAL_SPLIT` | `test` | Datensatz-Split. `test` = die zurückgehaltenen Episoden — das ist der Sinn der Übung. |
+| `EVAL_NUM_TRAJ` | `6` | Anzahl gleichmäßig über den Split verteilter Episoden. |
+| `EVAL_TRAJ_POSITIONS` | *(leer)* | Statt `EVAL_NUM_TRAJ`: explizite Positionen **im Split** (kommagetrennt). |
+| `EVAL_STEPS` | `300` | Max. Steps je Episode (auf die Episodenlänge gedeckelt). |
+| `EVAL_CHECKPOINTS` | *(leer)* | Nur bestimmte Step-Nummern auswerten; leer = alle gefundenen. |
+| `EVAL_OUT` | `<run-dir>/checkpoint_sweep.json` | JSON mit Tabelle, bestem Step und den ausgewerteten Episoden. |
+| `EVAL_PLOT_DIR` | `<run-dir>/open_loop_plots` | Plots (Ist- vs. Vorhersage-Aktionen), je Checkpoint und Episode. |
+| `EVAL_DEVICE` | *(leer)* | Torch-Device, z. B. `cuda:1`, wenn die andere GPU belegt ist. |
+
+> ⚠️ **Positionen ≠ Episoden-Indizes.** `loader[idx]` indiziert in die **gefilterte** Liste. Nach
+> einem 80/20-Split ist Position 0 die Episode 240, nicht die Episode 0. Der Sweep protokolliert
+> deshalb immer beides. Aus demselben Grund taugt `gr00t/eval/open_loop_eval.py` nicht direkt: es
+> reicht kein `split` durch und misst nach einem Split-Lauf gegen **Trainings**-Episoden.
+
+Auf KISSKI als Job: [`Training/kisski_open_loop_eval.sh`](../../Training/kisski_open_loop_eval.sh).
 
 ### RL-Env-Vars (nur im Sim-Image, `entrypoint_rl.sh`)
 

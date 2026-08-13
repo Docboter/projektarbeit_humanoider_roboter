@@ -203,7 +203,13 @@ repo root
 │       ├── download_data.sh            # HuggingFace download (model + dataset)
 │       ├── run_finetuning.sh           # Training launcher (called by entrypoint; torchrun for NUM_GPUS>1)
 │       ├── run_finetuning.ps1          # Windows variant of the training launcher
-│       └── run_finetuning_vision.sh    # Vision-encoder variant (TUNE_VISUAL=1, blockstacking_vision namespace)
+│       ├── run_finetuning_vision.sh    # Vision-encoder variant (TUNE_VISUAL=1, blockstacking_vision namespace)
+│       ├── lib_split.sh                # Shared train/test-split logic, sourced by both training launchers;
+│       │                               #   writes a split.json record next to the checkpoints
+│       └── checkpoint_sweep.py         # ★ Checkpoint SELECTION: open-loop MSE/MAE of every checkpoint on the
+│                                       #   HELD-OUT episodes. The fork has no in-training eval
+│                                       #   (enable_open_loop_eval is dead config; factory.py asserts
+│                                       #   eval_strategy=="no"), so validation happens after the run
 ├── Simulation/                         # Closed-loop sim eval
 │   ├── Dockerfile                      # KISSKI-only: slim Isaac Lab sim-client (no GR00T)
 │   ├── Dockerfile.vastai               # vast.ai: combined Isaac Sim + GR00T in one container

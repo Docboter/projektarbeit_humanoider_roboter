@@ -108,6 +108,20 @@ WANDB_PROJECT="${WANDB_PROJECT:-gr00t-g1-dex3}"
 SAVE_STEPS="${SAVE_STEPS:-5000}"
 SAVE_TOTAL_LIMIT="${SAVE_TOTAL_LIMIT:-40}"
 
+# Train-Test-Split + Augmentierung: müssen hier definiert und unten explizit an den
+# Container durchgereicht werden — Apptainer erbt die Job-Umgebung NICHT automatisch.
+# Ohne den Durchgriff bliebe ein `TRAIN_TEST_SPLIT=1 sbatch …` wirkungslos, es gäbe
+# keine zurückgehaltenen Episoden und die Checkpoint-Auswahl bliebe blind.
+TRAIN_TEST_SPLIT="${TRAIN_TEST_SPLIT:-0}"
+TRAIN_SPLIT_RATIO="${TRAIN_SPLIT_RATIO:-0.8}"
+USE_AUGMENTATION="${USE_AUGMENTATION:-1}"
+CJ_BRIGHTNESS="${CJ_BRIGHTNESS:-0.3}"
+CJ_CONTRAST="${CJ_CONTRAST:-0.4}"
+CJ_SATURATION="${CJ_SATURATION:-0.5}"
+CJ_HUE="${CJ_HUE:-0.08}"
+RANDOM_ROTATION_ANGLE="${RANDOM_ROTATION_ANGLE:-}"
+STATE_DROPOUT_PROB="${STATE_DROPOUT_PROB:-0.0}"
+
 SKIP_DOWNLOAD="${SKIP_DOWNLOAD:-1}"
 SKIP_CONVERT="${SKIP_CONVERT:-0}"
 SKIP_TRAIN="${SKIP_TRAIN:-0}"
@@ -173,6 +187,12 @@ echo "    LEARNING_RATE:     $LEARNING_RATE"
 echo "    WARMUP_RATIO:      $WARMUP_RATIO"
 echo "    WANDB_PROJECT:     $WANDB_PROJECT"
 echo "    TUNE_VISUAL:       $TUNE_VISUAL"
+echo "    TRAIN_TEST_SPLIT:  $TRAIN_TEST_SPLIT  (Ratio=$TRAIN_SPLIT_RATIO)"
+echo "    USE_AUGMENTATION:  $USE_AUGMENTATION"
+if [[ "$TRAIN_TEST_SPLIT" != "1" ]]; then
+    echo "    ! Ohne Split gibt es hinterher nichts zu validieren — die Checkpoint-Auswahl"
+    echo "      bleibt blind (so lief es in Lauf 1 und Lauf 2)."
+fi
 echo ""
 
 module load apptainer
@@ -226,6 +246,15 @@ APPTAINER_ARGS=(
     --env "SKIP_CONVERT=$SKIP_CONVERT"
     --env "SKIP_TRAIN=$SKIP_TRAIN"
     --env "TUNE_VISUAL=$TUNE_VISUAL"
+    --env "TRAIN_TEST_SPLIT=$TRAIN_TEST_SPLIT"
+    --env "TRAIN_SPLIT_RATIO=$TRAIN_SPLIT_RATIO"
+    --env "USE_AUGMENTATION=$USE_AUGMENTATION"
+    --env "CJ_BRIGHTNESS=$CJ_BRIGHTNESS"
+    --env "CJ_CONTRAST=$CJ_CONTRAST"
+    --env "CJ_SATURATION=$CJ_SATURATION"
+    --env "CJ_HUE=$CJ_HUE"
+    --env "RANDOM_ROTATION_ANGLE=$RANDOM_ROTATION_ANGLE"
+    --env "STATE_DROPOUT_PROB=$STATE_DROPOUT_PROB"
 )
 
 # Repo-Skripte in den Container mounten, damit GitHub-Änderungen sofort wirken

@@ -64,8 +64,14 @@ DRY_RUN=0
 [[ "${1:-}" == "--dry-run" ]] && DRY_RUN=1
 
 # ── Helfer ────────────────────────────────────────────────────────────────────
-log() { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
-err() { printf '\033[1;31m!! \033[0m%s\n' "$*" >&2; }
+log()  { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
+err()  { printf '\033[1;31m!! \033[0m%s\n' "$*" >&2; }
+warn() { printf '\033[1;33m ! \033[0m%s\n' "$*"; }
+
+# Split-Logik teilen sich beide Trainings-Skripte.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib_split.sh
+source "$SCRIPT_DIR/lib_split.sh"
 
 # ── 1. Laufumgebung verifizieren ──────────────────────────────────────────────
 if [[ ! -f /.dockerenv ]] && [[ -z "${APPTAINER_NAME:-}" ]] && [[ -z "${SINGULARITY_NAME:-}" ]]; then
@@ -94,49 +100,10 @@ fi
 mkdir -p "$OUTPUT_DIR"
 
 # ── 3b. Train-Test-Split scharf schalten (optional) ───────────────────────────
-# Der Split-Code (_apply_split_filter) liest den Bereich aus meta/info.json; der
-# Trainings-Datensatz fragt fest "train" ab (factory.py). Wir müssen also nur den
-# splits-Eintrag in info.json setzen. Default (TRAIN_TEST_SPLIT=0) lässt info.json
-# unangetastet → kompletter Datensatz wie bisher.
+# Details und Begründung in lib_split.sh. Default (TRAIN_TEST_SPLIT=0) lässt den
+# kompletten Datensatz trainieren — dann gibt es hinterher aber nichts zu validieren.
 INFO_JSON="$DATASET_PATH/meta/info.json"
-if [[ "$TRAIN_TEST_SPLIT" == "1" ]]; then
-    [[ -f "$INFO_JSON" ]] || { err "TRAIN_TEST_SPLIT=1, aber info.json fehlt: $INFO_JSON"; exit 1; }
-    log "TRAIN_TEST_SPLIT=1 — setze 80/20-Split (Ratio=$TRAIN_SPLIT_RATIO) in info.json"
-    python - "$INFO_JSON" "$TRAIN_SPLIT_RATIO" <<'PY'
-import json, sys
-info_path, ratio = sys.argv[1], float(sys.argv[2])
-with open(info_path) as f:
-    info = json.load(f)
-total = int(info.get("total_episodes") or 0)
-if total <= 0:
-    sys.exit(f"info.json hat kein gueltiges total_episodes ({total}).")
-n_train = int(total * ratio)
-if not (0 < n_train < total):
-    sys.exit(f"Ungueltiger Split: ratio={ratio} -> n_train={n_train} von {total}.")
-info["splits"] = {"train": f"0:{n_train}", "test": f"{n_train}:{total}"}
-with open(info_path, "w") as f:
-    json.dump(info, f, indent=4)
-print(f"[split] train=0:{n_train}  test={n_train}:{total}  (gesamt {total} Episoden)")
-PY
-    log "Split aktiv: Test-Episoden werden NICHT mittrainiert (Eval danach mit split=\"test\")."
-else
-    # Sicherstellen, dass ein evtl. zuvor gesetzter Split wieder auf den vollen Datensatz
-    # zurückfällt, damit ein Folge-Lauf ohne Split reproduzierbar alle Episoden sieht.
-    if [[ -f "$INFO_JSON" ]] && grep -q '"test"' "$INFO_JSON" 2>/dev/null; then
-        warn "TRAIN_TEST_SPLIT=0, aber info.json enthält einen test-Split — setze auf vollen Datensatz zurück."
-        python - "$INFO_JSON" <<'PY'
-import json, sys
-info_path = sys.argv[1]
-with open(info_path) as f:
-    info = json.load(f)
-total = int(info.get("total_episodes") or 0)
-info["splits"] = {"train": f"0:{total}"}
-with open(info_path, "w") as f:
-    json.dump(info, f, indent=4)
-print(f"[split] zurückgesetzt: train=0:{total} (voller Datensatz)")
-PY
-    fi
-fi
+split_apply "$INFO_JSON" "$TRAIN_TEST_SPLIT" "$TRAIN_SPLIT_RATIO" "$OUTPUT_DIR"
 
 # ── 4. W&B-Login (nur via WANDB_API_KEY-Env-Var, kein interaktiver Fallback) ──
 if [[ "$USE_WANDB" == "1" ]]; then
@@ -230,8 +197,12 @@ EXIT_CODE=${PIPESTATUS[0]}
 echo
 if [[ "$EXIT_CODE" == "0" ]]; then
     log "Training erfolgreich beendet."
-    LAST_CKPT=$(ls -d "$OUTPUT_DIR"/checkpoint-* 2>/dev/null | sort -V | tail -1 || true)
+    LAST_CKPT=$(find "$OUTPUT_DIR" -maxdepth 3 -type d -name 'checkpoint-*' 2>/dev/null | sort -V | tail -1 || true)
     [[ -n "$LAST_CKPT" ]] && log "Letzter Checkpoint: $LAST_CKPT"
+    if [[ "$TRAIN_TEST_SPLIT" == "1" ]]; then
+        log "Checkpoint-Auswahl (nicht blind den letzten nehmen):"
+        log "    python /scripts/checkpoint_sweep.py --run-dir $OUTPUT_DIR --dataset-path $DATASET_PATH"
+    fi
 else
     err "Training mit Exit-Code $EXIT_CODE beendet — siehe $LOG_FILE"
 fi

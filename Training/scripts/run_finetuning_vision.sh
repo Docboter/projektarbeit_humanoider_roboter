@@ -41,6 +41,26 @@ LEARNING_RATE="${LEARNING_RATE:-1e-4}"
 WEIGHT_DECAY="${WEIGHT_DECAY:-1e-5}"
 WARMUP_RATIO="${WARMUP_RATIO:-0.05}"
 
+# ── Train-Test-Split (optional, Standard AUS) ─────────────────────────────────
+# Ohne Split gibt es keine zurückgehaltenen Episoden — und damit hinterher keine
+# Validierungs-Zahl für die Checkpoint-Auswahl. Genau das war die strukturelle
+# Lücke von Lauf 1 und Lauf 2 (beide haben blind den letzten Step genommen).
+TRAIN_TEST_SPLIT="${TRAIN_TEST_SPLIT:-0}"
+TRAIN_SPLIT_RATIO="${TRAIN_SPLIT_RATIO:-0.8}"
+
+# ── Bild-Augmentierung / Domain Randomization (optional, Standard AN) ──────────
+# Identisch zu run_finetuning.sh. Vorher war der Color-Jitter hier fest verdrahtet,
+# obwohl die Doku USE_AUGMENTATION als Schalter auswies — für den Vision-Lauf ist
+# genau dieser Schalter der entscheidende Unterschied zu Lauf 2 (der lief noch ganz
+# ohne Jitter; USE_AUGMENTATION kam erst danach dazu).
+USE_AUGMENTATION="${USE_AUGMENTATION:-1}"
+CJ_BRIGHTNESS="${CJ_BRIGHTNESS:-0.3}"
+CJ_CONTRAST="${CJ_CONTRAST:-0.4}"
+CJ_SATURATION="${CJ_SATURATION:-0.5}"
+CJ_HUE="${CJ_HUE:-0.08}"
+RANDOM_ROTATION_ANGLE="${RANDOM_ROTATION_ANGLE:-}"   # leer = keine Rotation
+STATE_DROPOUT_PROB="${STATE_DROPOUT_PROB:-0.0}"
+
 USE_WANDB="${USE_WANDB:-1}"
 WANDB_PROJECT="${WANDB_PROJECT:-gr00t-g1-dex3}"
 
@@ -48,8 +68,14 @@ DRY_RUN=0
 [[ "${1:-}" == "--dry-run" ]] && DRY_RUN=1
 
 # ── Helfer ────────────────────────────────────────────────────────────────────
-log() { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
-err() { printf '\033[1;31m!! \033[0m%s\n' "$*" >&2; }
+log()  { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
+err()  { printf '\033[1;31m!! \033[0m%s\n' "$*" >&2; }
+warn() { printf '\033[1;33m ! \033[0m%s\n' "$*"; }
+
+# Split-Logik teilen sich beide Trainings-Skripte.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib_split.sh
+source "$SCRIPT_DIR/lib_split.sh"
 
 # ── 1. Laufumgebung verifizieren ──────────────────────────────────────────────
 if [[ ! -f /.dockerenv ]] && [[ -z "${APPTAINER_NAME:-}" ]] && [[ -z "${SINGULARITY_NAME:-}" ]]; then
@@ -76,6 +102,11 @@ if [[ ! -f "$DATASET_PATH/meta/modality.json" ]]; then
 fi
 
 mkdir -p "$OUTPUT_DIR"
+
+# ── 3b. Train-Test-Split scharf schalten (optional) ───────────────────────────
+# Details und Begründung in lib_split.sh.
+INFO_JSON="$DATASET_PATH/meta/info.json"
+split_apply "$INFO_JSON" "$TRAIN_TEST_SPLIT" "$TRAIN_SPLIT_RATIO" "$OUTPUT_DIR"
 
 # ── 4. W&B-Login (nur via WANDB_API_KEY-Env-Var, kein interaktiver Fallback) ──
 if [[ "$USE_WANDB" == "1" ]]; then
@@ -125,9 +156,27 @@ TRAIN_CMD=(
     --weight_decay           "$WEIGHT_DECAY"
     --warmup_ratio           "$WARMUP_RATIO"
     --dataloader_num_workers "$DATALOADER_WORKERS"
-    --color_jitter_params    brightness 0.3 contrast 0.4 saturation 0.5 hue 0.08
     --tune_visual            # ← einziger funktionaler Unterschied zu run_finetuning.sh
 )
+
+# ── Bild-Augmentierung / Domain Randomization (optional) ──────────────────────
+# Für den Vision-Lauf ist das der entscheidende Schalter: ein aufgetauter Encoder,
+# der im Training nur unveränderte Realbilder sieht, spezialisiert sich noch stärker
+# auf sie (Lauf 2, Politik-Kollaps). Erst variierte Bilder geben dem Auftauen
+# überhaupt eine Chance gegen den Sim-Domain-Gap.
+if [[ "$USE_AUGMENTATION" == "1" ]]; then
+    log "Augmentierung AN — Color-Jitter (b=$CJ_BRIGHTNESS c=$CJ_CONTRAST s=$CJ_SATURATION h=$CJ_HUE)"
+    TRAIN_CMD+=(--color_jitter_params brightness "$CJ_BRIGHTNESS" contrast "$CJ_CONTRAST" saturation "$CJ_SATURATION" hue "$CJ_HUE")
+    [[ -n "$RANDOM_ROTATION_ANGLE" ]] && TRAIN_CMD+=(--random_rotation_angle "$RANDOM_ROTATION_ANGLE")
+    if [[ "$STATE_DROPOUT_PROB" != "0.0" && "$STATE_DROPOUT_PROB" != "0" ]]; then
+        TRAIN_CMD+=(--state_dropout_prob "$STATE_DROPOUT_PROB")
+    fi
+else
+    warn "Augmentierung AUS bei --tune_visual — das ist die Konfiguration von Lauf 2,"
+    warn "die zum Politik-Kollaps geführt hat (siehe docs/ergebnisse/lauf2-vision-auswertung.md)."
+    TRAIN_CMD+=(--color_jitter_params brightness 0 contrast 0 saturation 0 hue 0)
+fi
+
 [[ "$USE_WANDB" == "1" ]] && TRAIN_CMD+=(--use_wandb --wandb_project "$WANDB_PROJECT")
 
 log "Vision-Encoder-Tuning AKTIV (--tune_visual). LLM bleibt eingefroren."
@@ -154,8 +203,12 @@ EXIT_CODE=${PIPESTATUS[0]}
 echo
 if [[ "$EXIT_CODE" == "0" ]]; then
     log "Training erfolgreich beendet."
-    LAST_CKPT=$(ls -d "$OUTPUT_DIR"/checkpoint-* 2>/dev/null | sort -V | tail -1 || true)
+    LAST_CKPT=$(find "$OUTPUT_DIR" -maxdepth 3 -type d -name 'checkpoint-*' 2>/dev/null | sort -V | tail -1 || true)
     [[ -n "$LAST_CKPT" ]] && log "Letzter Checkpoint: $LAST_CKPT"
+    if [[ "$TRAIN_TEST_SPLIT" == "1" ]]; then
+        log "Checkpoint-Auswahl (nicht blind den letzten nehmen):"
+        log "    python /scripts/checkpoint_sweep.py --run-dir $OUTPUT_DIR --dataset-path $DATASET_PATH"
+    fi
 else
     err "Training mit Exit-Code $EXIT_CODE beendet — siehe $LOG_FILE"
 fi
