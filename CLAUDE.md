@@ -100,8 +100,10 @@ On vast.ai: GPU must be **Ampere+ with RT-Cores** (L40, RTX 4090, A6000) — A10
 | `NUM_EPISODES` | `20` | Eval episodes |
 | `EPISODE_LENGTH_S` | `40` | Cap episode length in seconds. Unset = up to 9000 steps per episode — 20 episodes can take hours |
 | `SHELL_ON_ERROR` | `1` | Drop to shell on failure (recommended) |
-| `LIVESTREAM` | `0` | `0`=headless (default), `1`=WebRTC public, `2`=WebRTC private — live 3D-viewport stream (opt-in, "Spur A", **untested on hardware**) |
-| `LIVESTREAM_PORT` | `49100` | WebRTC signaling port. **On vast.ai: set to the externally-mapped port** (internal==external, else SDP port mismatch). Also map `-p 8211 -p 49100 -p 47998/udp`. See [livestream-plan.md](docs/weiterfuehrend/livestream-plan.md) |
+| `LIVESTREAM` | `0` | `0`=headless (default), `1`=WebRTC public, `2`=WebRTC private/local — **the LIVE variant**: Isaac Sim streams its 3D viewport, opened by the native *Isaac Sim WebRTC Streaming Client* on your own machine. Applies to all four runs (sim-eval, baseline, replay/grasp, RL). Replaces MP4 recording by default. Shared logic in [`lib_livestream.sh`](Simulation/scripts/lib_livestream.sh); guide: [live-ansicht.md](docs/simulation/live-ansicht.md). Built 2026-08-13, **untested on hardware** — run `server_rl_run.sh livecheck` first |
+| `LIVESTREAM_PORT` | `49100` | WebRTC signaling port (TCP). **On vast.ai: set to the externally-mapped port** (internal==external, else SDP port mismatch). `server_rl_run.sh` maps `49100/tcp` + `47998/udp` when creating the container |
+| `LIVESTREAM_MEDIA_PORT` | `47998` | WebRTC media port (UDP) — must pass the firewall, else the client connects but the picture stays black |
+| `LIVE_KEEP_VIDEO` | `0` | `1` = also write MP4s while the LIVE variant runs (default: live **instead of** video — `--video-dir` is passed empty) |
 | `LIVE_VIEW` | `0` | `1` = MJPEG frame stream in the browser ("Spur B", [`live_view.py`](Simulation/g1_dex3_sim/live_view.py)) — plain HTTP, unlimited viewers, stateless, `ssh -L`-tunnelable. Wired into the RL trainer; costs no extra render pass (`cam_scene` is rendered every step anyway) |
 | `LIVE_VIEW_PORT` | `8900` | HTTP port of the frame stream (map `-p 8900:8900`; `server_rl_run.sh` does it on container creation) |
 | `LIVE_VIEW_EVERY_N` | `1` | Publish only every n-th frame |
@@ -207,7 +209,8 @@ repo root
 │   ├── Dockerfile.vastai               # vast.ai: combined Isaac Sim + GR00T in one container
 │   ├── kisski_sim_submit.sh            # SLURM job for sim eval (jupyter partition, RTX 5000)
 │   ├── server_rl_run.sh                # ★ Own-server workflow (Docker): preflight/setup/check/cams/
-│   │                                   #   gap/eval/grasp/span/rl/shell/clean subcommands (see rl-anleitung.md)
+│   │                                   #   gap/eval/grasp/span/livecheck/rl/shell/clean subcommands
+│   │                                   #   (see rl-anleitung.md; livecheck = phase 0 of the LIVE variant)
 │   ├── server_robocasa_ref_run.sh      # Own-server RoboCasa GR-1 reference eval (pipeline validation)
 │   ├── update_sim_image.ps1            # Build/push tool (-VastAI flag for Dockerfile.vastai)
 │   ├── update_sim_image.sh             # Linux/bash port of update_sim_image.ps1
@@ -232,6 +235,9 @@ repo root
 │       ├── entrypoint_replay.sh        # Entrypoint for the open-loop replay diagnostic
 │       ├── entrypoint_baseline.sh      # Entrypoint for baseline eval (SIM_MODE=baseline: un-finetuned model + stock G1)
 │       ├── entrypoint_rl.sh            # Entrypoint for RL fine-tuning (FPO; loads BC checkpoint, runs rl_finetune.py)
+│       ├── lib_livestream.sh           # Shared LIVE-variant logic (WebRTC viewport): sourced by all four
+│       │                               #   entrypoints AND by server_rl_run.sh on the host. Version-aware Kit
+│       │                               #   settings, live-instead-of-video rule, connection banner
 │       ├── measure_domain_gap.py       # Real→sim cosine-distance per camera via frozen SigLIP-ViT
 │       ├── overlay_camera_check.py     # Overlays dataset vs sim camera frames (calibration check)
 │       ├── dump_unitree_g1_dims.py     # Dumps stock UNITREE_G1 link/joint dimensions

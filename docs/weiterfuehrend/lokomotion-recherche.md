@@ -59,7 +59,7 @@ Balance-Controller nötig, der Roboter kippt nicht um. Derselbe Trick steht auch
 ### 1.2 Der Action-/State-Vektor hat keine Beine
 
 Aus [`examples/G1_DEX3/README.md`](../../app/Groot-1.6/examples/G1_DEX3/README.md) und
-[`g1_dex3_cfg.py`](../../Simulation/g1_dex3_sim/g1_dex3_cfg.py#L75-L78):
+[`g1_dex3_cfg.py`](../../Simulation/g1_dex3_sim/g1_dex3_cfg.py#L7-L12):
 
 ```
 [0:7]   left_arm    — Shoulder P/R/Y, Elbow, Wrist R/P/Y

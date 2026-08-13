@@ -1,8 +1,16 @@
 # Konfiguration über Env-Vars
 
 Alle Trainings-Parameter werden über Umgebungsvariablen gesteuert — auf vast.ai, KISSKI und
-lokal **identisch**. Der Entrypoint (`/scripts/entrypoint.sh`) liest sie ein; Defaults sind als
-`ENV` im [Dockerfile](../../Training/Dockerfile) gesetzt.
+lokal **identisch**. Der Entrypoint (`/scripts/entrypoint.sh`) liest sie ein.
+
+> **Wo die Defaults stehen:** Ein Teil ist als `ENV` im [Dockerfile](../../Training/Dockerfile)
+> gesetzt (`MAX_STEPS`, `GLOBAL_BATCH_SIZE`, `NUM_GPUS`, `WANDB_PROJECT`, `DATA_DIR`,
+> `SKIP_*`, `SHELL_ON_ERROR`). Die übrigen — u. a. `TUNE_VISUAL`, `USE_RL`,
+> `TRAIN_TEST_SPLIT`, `USE_AUGMENTATION`, `LEARNING_RATE`, `SAVE_STEPS`, `WEIGHT_DECAY`,
+> `WARMUP_RATIO` — sind Shell-Defaults in
+> [`entrypoint.sh`](../../Training/scripts/entrypoint.sh) bzw.
+> [`run_finetuning.sh`](../../Training/scripts/run_finetuning.sh). Für die Bedienung macht das
+> keinen Unterschied; beim Suchen im Code schon.
 
 | Variable | Default | Beschreibung |
 |---|---|---|
@@ -18,7 +26,9 @@ lokal **identisch**. Der Entrypoint (`/scripts/entrypoint.sh`) liest sie ein; De
 | `SKIP_TRAIN` | `0` | `1` = nur Setup, dann Shell |
 | `SHELL_ON_ERROR` | `0` | `1` = bei Fehler in Shell fallen statt zu beenden |
 | `TUNE_VISUAL` | `0` | `1` = Vision-Encoder mittrainieren (`--tune_visual`). Entrypoint startet dann `run_finetuning_vision.sh` mit eigenem Output-/Experiment-Namespace (`blockstacking_vision`). LLM bleibt eingefroren. Höherer VRAM-Bedarf. |
-| `LEARNING_RATE` | `1e-4` | Lernrate (`--learning_rate`) |
+| `LEARNING_RATE` | `1e-4` | Lernrate (`--learning_rate`); KISSKI-Multi-GPU-Default: `2e-4` |
+| `WEIGHT_DECAY` | `1e-5` | Gewichtszerfall (`--weight_decay`) |
+| `WARMUP_RATIO` | `0.05` | Anteil Warmup-Steps (`--warmup_ratio`); bei `TUNE_VISUAL=1` auf KISSKI: `0.1` |
 | `DATALOADER_WORKERS` | `8` | Dataloader-Worker (`--dataloader_num_workers`); KISSKI-Default: `4` |
 | `SAVE_STEPS` | `2000` | Checkpoint-Intervall in Steps (`--save_steps`); KISSKI-Default: `5000`. `2000` + Limit `10` → 10 gleichmäßig verteilte Checkpoints über den 20k-Lauf (Basis für die Open-Loop-Checkpoint-Auswahl). |
 | `SAVE_TOTAL_LIMIT` | `10` | Max. Anzahl behaltener Checkpoints (`--save_total_limit`); KISSKI-Default: `40` |
@@ -77,6 +87,32 @@ Codepfad ein reiner Early-Return, das Verhalten also identisch zu vorher.
 > Ohne offenen Port geht auch ein Tunnel: `ssh -L 8900:localhost:8900 <server>`, dann
 > `http://localhost:8900/`. Der Stream hat **keine Authentifizierung** — im VPN/Institutsnetz
 > vertretbar, auf einer öffentlichen vast.ai-IP nur per SSH-Tunnel nutzen.
+
+### LIVE-Variante: Isaac-Sim-Viewport statt Videos (nur im Sim-Image, opt-in)
+
+„Spur A" aus dem [Livestream-Plan](../weiterfuehrend/livestream-plan.md): Isaac Sim streamt
+seinen **3D-Viewport** per WebRTC, geöffnet wird er von der Desktop-App *Isaac Sim WebRTC
+Streaming Client* — freie Kamera, Szene drehen, Isaac-Sim-UI. Wirkt auf **alle vier Läufe**
+(Sim-Eval, Baseline, Replay/Greif-Test, RL). Bedienung inkl. Client-Installation und
+Fehlersuche: **[live-ansicht.md](../simulation/live-ansicht.md)**.
+
+Bei `LIVESTREAM=0` (Default) ist das Verhalten identisch zu vorher; bei `≠0` wird
+`--video-dir` leer übergeben — **live statt Video**, es entstehen also keine MP4s.
+
+| Variable | Default | Beschreibung |
+|---|---|---|
+| `LIVESTREAM` | `0` | `0`=aus (headless), `1`=WebRTC öffentlich (vast.ai; ungeschützt!), `2`=WebRTC privat/lokal — auf dem eigenen Server der richtige Wert |
+| `LIVESTREAM_PORT` | `49100` | Signaling, **TCP**. Intern == extern mappen (WebRTC bettet den Port in die SDP-Aushandlung ein); `server_rl_run.sh` mappt beim Anlegen |
+| `LIVESTREAM_MEDIA_PORT` | `47998` | Medien, **UDP**. Muss durch die Firewall — der wahrscheinlichste Stolperstein |
+| `LIVE_KEEP_VIDEO` | `0` | `1` = zusätzlich MP4s schreiben (Live **und** Video) |
+| `LIVESTREAM_UPDATE_EVERY_N` | `1` | Nur RL: alle n Rollout-Steps `simulation_app.update()`, damit der Viewport nachzieht. `0` = nie |
+| `LIVESTREAM_SETTINGS_STYLE` | `auto` | `auto\|new\|old\|both` — welche Kit-Settings-Pfade gesetzt werden. `auto` liest die Isaac-Sim-`VERSION` (6.0 benannte sie um) |
+| `LIVESTREAM_KIT_ARGS` | — | Manueller Override der kompletten Kit-Settings-Zeile |
+| `PUBLIC_IP` | — | Nur bei `LIVESTREAM=1`; sonst wird sie gar nicht erst ermittelt |
+
+> **Reifegrad:** Der Code ist vollständig und trocken geprüft, lief aber **noch nie auf
+> Hardware**. Vor dem ersten Versuch `./Simulation/server_rl_run.sh livecheck` (prüft NVENC,
+> Livestream-Extension, Isaac-Sim-Version, Port-Veröffentlichung).
 
 
 

@@ -196,10 +196,13 @@ Nach einer systematischen Kalibrierungs-Session (Details in
 [`umsetzungsnotizen.md §14`](../simulation/umsetzungsnotizen.md)) wurde das Replay-Ergebnis
 von `max_cube_lift = 1,0 cm` (kein Greifen) auf **2,8 cm** (Greifen bestätigt) verbessert.
 
-> ⚠️ **Einschränkung (2026-08-08):** Dieser Befund gilt für Isaac Sim 4.x. Nach der
-> Isaac-Sim-6.0-Migration hebt derselbe Replay-Testtyp keinen Würfel mehr an (0,0 cm);
-> die Ursache (Test-Platzierung vs. Kontakt-Physik) ist noch offen — siehe
-> [`rl-anleitung.md`](../weiterfuehrend/rl-anleitung.md), Läufe 25–28.
+> ⚠️ **Einschränkung (2026-08-08) — inzwischen aufgelöst:** Dieser Befund gilt für Isaac Sim 4.x.
+> Nach der Isaac-Sim-6.0-Migration hob derselbe Replay-Testtyp zunächst keinen Würfel mehr an
+> (0,0 cm).
+> **Aufgelöst mit Lauf 29 (2026-08-12):** Ursache war der Referenzpunkt der Messung — sie lief
+> am distalen Gelenk statt an den Fingerspitzen. Korrigiert hebt die Hand einen Würfel **7,9 cm**;
+> die Greif-Physik war nicht defekt. Siehe
+> [`rl-anleitung.md`](../weiterfuehrend/rl-anleitung.md), Läufe 25–29.
 
 Die wesentlichen Fixes:
 

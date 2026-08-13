@@ -1,5 +1,15 @@
 # GPU-Eignung für die Isaac-Sim-Closed-Loop-Sim auf GWDG
 
+> ⚠️ **ARCHIVIERT — die zentrale Schlussfolgerung dieses Dokuments ist widerlegt.**
+> Es empfiehlt unten in §3 die **Quadro RTX 5000** (`jupyter`-Partition) als „die Lösung".
+> Das ist **falsch**: Die RTX 5000 hat zwar RT-Cores, ist aber Turing (Compute Capability 7.5)
+> und damit eine Generation unter dem Ampere-Minimum von Isaac Sim — sie scheitert am
+> Kamera-Rendering (`createDLSSContext error`). Auf GWDG gibt es **keine** GPU, die RT-Cores
+> *und* Ampere+ erfüllt.
+> **Quelle der Wahrheit:** [umsetzungsnotizen.md §1](../umsetzungsnotizen.md).
+> Der reguläre Sim-Eval-Weg läuft auf L40 / RTX 4090 / A6000 (vast.ai) bzw. auf dem eigenen
+> Blackwell-Server. Das Dokument bleibt als Herleitung der RT-Core-Anforderung erhalten.
+
 > **TL;DR:** Die Closed-Loop-Sim aus [isaac-lab-plan.md](isaac-lab-plan.md)
 > **läuft NICHT auf den KISSKI-Partitionen** (A100/H100), weil Isaac Sim zum Rendern
 > der Kameras **RT-Cores** braucht und A100/H100 keine haben. Der einzige Weg auf GWDG

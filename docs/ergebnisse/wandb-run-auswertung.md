@@ -152,7 +152,7 @@ Siehe [train-test-split.md](../training/train-test-split.md).
 
 | Punkt | Wert | Anmerkung |
 |---|---|---|
-| `save_steps` / `save_total_limit` | 5000 / 40 | ~35 Checkpoints × ~6 GB ≈ **~200 GB** auf `/scratch` — beobachten |
+| `save_steps` / `save_total_limit` | 5000 / 40 | ~35 Checkpoints × ~6 GB ≈ **~200 GB** auf `/data` (VAST-Projektspeicher) — beobachten |
 | `deepspeed_stage` | 2 (single GPU) | ZeRO-2 spart Optimizer-Memory, ok |
 | `color_jitter` (Modell) | hue .08 / contrast .4 / bright .3 / sat .5 | kräftige Augmentation → gut gegen Overfitting |
 | `dataloader_num_workers` | 8 | passt |

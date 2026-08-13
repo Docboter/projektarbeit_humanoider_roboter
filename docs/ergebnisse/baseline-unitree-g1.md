@@ -72,7 +72,10 @@ Diese Schritte sind **noch nicht** automatisiert/erledigt und müssen vor dem er
   ```
   (Bereits geschehen, falls `data/unitree_ros/robots/g1_description/` existiert.)
 
-- [ ] **USD-Asset `g1_gripper.usd` einmalig erzeugen.** Es existiert **kein** vorgefertigtes
+- [x] **USD-Asset `g1_gripper.usd` einmalig erzeugen.** ✅ **Erledigt** — das Asset liegt im Repo
+  (`data/g1_gripper.usd` plus `data/configuration/g1_gripper_{base,physics,robot,sensor}.usd`,
+  Base-Datei ~27 MB). Die Anleitung bleibt für eine Neuerzeugung stehen.
+  Ausgangslage war: es existierte **kein** vorgefertigtes
   stock-Greifer-Asset — nur DEX3-USDs. Der Konverter braucht `isaaclab.sh`, das **nur im
   Sim-Container** existiert → **nicht** auf dem nackten Host ausführen, sondern in einem
   **lokal gestarteten Docker-Container** (genau wie das DEX3-Asset, siehe

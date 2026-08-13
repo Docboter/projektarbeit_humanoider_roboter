@@ -112,22 +112,28 @@ Der Action-Head ist eine **Flow-Matching-/Diffusions-Policy**:
 Vor dem Training konvertiert die Pipeline den Datensatz ins LeRobot-Format und ergänzt bei Bedarf
 `meta/modality.json` aus `modality_4cam.json` (siehe `run_finetuning.sh`).
 
-## 7. Trainings-Hyperparameter (aktueller KISSKI-Lauf)
+## 7. Trainings-Hyperparameter — Lauf 1 (1× A100, historische Referenz)
+
+> ⚠️ **Nicht mehr der aktuelle KISSKI-Default.** Die Tabelle beschreibt den ersten Lauf auf
+> **einer** A100. Seit der Multi-GPU-Umstellung gilt in
+> [`kisski_submit.sh`](../../Training/kisski_submit.sh): `MAX_STEPS=44000`,
+> `GLOBAL_BATCH_SIZE=32`, `NUM_GPUS=4`, `LEARNING_RATE=2e-4` (Nicht-Vision-Pfad).
+> Hintergrund: [multi-gpu.md](multi-gpu.md).
 
 Gesetzt in [Training/kisski_submit.sh](../../Training/kisski_submit.sh) bzw.
 `Training/scripts/run_finetuning.sh`:
 
-| Parameter | Wert | Anmerkung |
+| Parameter | Wert (Lauf 1) | Anmerkung |
 |---|---|---|
 | `MAX_STEPS` | 175.000 | ~5 Epochen (281k Frames / Batch 8 ≈ 35k Schritte/Epoche); das Konfig-Feld `num_train_epochs = 3` wird davon überschrieben |
 | `GLOBAL_BATCH_SIZE` | 8 | A100 80 GB verträgt mehr (siehe [env-vars.md](env-vars.md)) |
-| `LEARNING_RATE` | 1e-4 | |
+| `LEARNING_RATE` | 1e-4 | aktueller Default: `2e-4` |
 | `WARMUP_RATIO` | 0.05 | |
 | `WEIGHT_DECAY` | 1e-5 | |
 | Optimierer | AdamW | (HF-Trainer-Default) |
 | Aktions-Horizont | 16 Schritte | |
 | Objektiv | Flow-Matching-Loss | |
-| `SAVE_STEPS` / `SAVE_TOTAL_LIMIT` | 5.000 / 40 | 35 Checkpoints über den ganzen Lauf verteilt |
+| `SAVE_STEPS` / `SAVE_TOTAL_LIMIT` | 5.000 / 40 | 35 Checkpoints über den 175k-Lauf verteilt. Skript-Default ist inzwischen `SAVE_STEPS=2000` (Vision-Variante: 1000) |
 
 ## 8. Abgrenzung — was es *nicht* ist
 

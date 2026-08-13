@@ -53,8 +53,8 @@ uv run --no-sync "${LAUNCHER[@]}" "$GROOT_ROOT/gr00t/experiment/launch_finetune.
 
 ```bash
 #SBATCH -G A100:4        # statt A100:1
-#SBATCH -c 64            # genug CPU-Kerne (dataloader_num_workers × 4 GPUs)
-#SBATCH --mem=256G       # passt
+#SBATCH -c 96            # genug CPU-Kerne (dataloader_num_workers × 4 GPUs)
+#SBATCH --mem=384G       # 256G reichten nicht — siehe "Verifikation" unten (OOM-Kill)
 # ...
 NUM_GPUS="${NUM_GPUS:-4}"
 GLOBAL_BATCH_SIZE="${GLOBAL_BATCH_SIZE:-32}"   # MUSS durch NUM_GPUS teilbar → per_device=8

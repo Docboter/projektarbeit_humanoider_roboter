@@ -31,6 +31,18 @@
 # Diese vier werden hier BEWUSST NICHT als CLI-Flags durchgereicht: rl_finetune.py liest
 # sie selbst als argparse-Defaults. Damit wirken sie auch mit einem älteren Image — auf dem
 # Server ist g1_dex3_sim gemountet, dieses Skript hier dagegen fest im Image.
+#
+# LIVE-Variante mit Isaac-Sim-Viewport (opt-in, „Spur A", docs/simulation/live-ansicht.md):
+#   LIVESTREAM           (default 0)    2 = WebRTC im privaten Netz/VPN, 1 = öffentlich.
+#                                       Isaac Sim läuft dann NICHT headless, sondern streamt
+#                                       seinen Viewport; geöffnet wird er vom nativen
+#                                       „Isaac Sim WebRTC Streaming Client" auf dem PC.
+#   LIVESTREAM_PORT      (default 49100) Signaling, TCP    — mappen!
+#   LIVESTREAM_MEDIA_PORT(default 47998) Medien, UDP       — mappen!
+# Für einen Lauf über Tage bleibt Spur B (LIVE_VIEW) die robustere Wahl: zustandslos,
+# beliebig viele Zuschauer, übersteht Netzabbrüche. Beide lassen sich kombinieren.
+# LIVESTREAM wird — wie LIVE_VIEW — von rl_finetune.py selbst gelesen; hier wird nur die
+# Kit-Settings-Zeile daraus gebaut und als LIVESTREAM_KIT_ARGS exportiert.
 
 set -euo pipefail
 
@@ -135,6 +147,27 @@ if [[ "${LIVE_VIEW:-0}" != "0" ]]; then
     ok "Live-Ansicht an → http://<server-ip>:${LIVE_VIEW_PORT:-8900}/  (Port mappen nicht vergessen)"
 else
     warn "Live-Ansicht aus (LIVE_VIEW=1 setzen, um im Browser zuzusehen)."
+fi
+
+# ── LIVE-Variante: Isaac-Sim-Viewport per WebRTC („Spur A") ───────────────────
+# rl_finetune.py liest LIVESTREAM selbst (wie LIVE_VIEW*, damit ein Schalter ohne
+# Image-Rebuild wirkt). Hier entsteht nur die versionsabhängige Kit-Settings-Zeile —
+# und die auch nur, wenn von den Default-Ports abgewichen wird.
+if [[ -r /scripts/lib_livestream.sh ]]; then
+    # shellcheck source=lib_livestream.sh
+    source /scripts/lib_livestream.sh
+    livestream_init
+    if livestream_active; then
+        LS_KIT="$(livestream_kit_args)"
+        if [[ -n "$LS_KIT" ]]; then
+            export LIVESTREAM_KIT_ARGS="$LS_KIT"
+            log "Kit-Settings: $LS_KIT"
+        fi
+        livestream_banner
+    fi
+elif [[ "${LIVESTREAM:-0}" != "0" ]]; then
+    warn "LIVESTREAM=$LIVESTREAM, aber lib_livestream.sh fehlt im Image."
+    warn "  rl_finetune.py startet den Stream trotzdem mit Default-Ports (49100/47998)."
 fi
 
 mkdir -p "$RL_OUTPUT_DIR"

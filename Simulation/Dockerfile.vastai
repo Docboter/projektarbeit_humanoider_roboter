@@ -245,10 +245,15 @@ ENV PATH="/app/Groot-1.6/.venv/bin:${PATH}" \
     # Sim-Modus: leer/dex3 = DEX3-Closed-Loop (Default), baseline = stock G1 + Dex1-Greifer
     # (UNITREE_G1, un-finetuntes GR00T-N1.6-3B). Bei baseline ASSET_PATH auf g1_gripper.usd setzen.
     SIM_MODE="dex3" \
-    # WebRTC-Livestream (opt-in): 0=aus, 1=öffentlich, 2=privat/lokal.
+    # LIVE-Variante "Spur A": WebRTC-Viewport statt MP4-Aufzeichnung. 0=aus,
+    # 1=öffentlich, 2=privat/lokal. Geöffnet wird er vom nativen "Isaac Sim WebRTC
+    # Streaming Client" auf dem Arbeitsrechner — docs/simulation/live-ansicht.md.
     # LIVESTREAM_PORT auf vast.ai auf den EXTERN gemappten Port setzen (intern==extern).
     LIVESTREAM="0" \
     LIVESTREAM_PORT="49100" \
+    LIVESTREAM_MEDIA_PORT="47998" \
+    # 1 = trotz Live-Variante zusätzlich MP4s schreiben (Default: live STATT Video).
+    LIVE_KEEP_VIDEO="0" \
     # Live-Ansicht "Spur B" (MJPEG im Browser, live_view.py) — braucht weder NVENC
     # noch UDP und überlebt Netzabbrüche; empfohlen für den langen RL-Lauf.
     LIVE_VIEW="0" \
@@ -258,14 +263,16 @@ ENV PATH="/app/Groot-1.6/.venv/bin:${PATH}" \
     # cam_scene ist eine unvalidierte Übersichtskamera; Diagnose: dump_camera_poses.py.
     LIVE_VIEW_CAMS="cam_left_high,cam_left_wrist"
 
-# Livestream-Ports (nur Doku/Default; beim docker run separat mappen).
-# Spur A — WebRTC (auf vast.ai: -p 8211 -p 49100 -p 47998/udp).
+# Livestream-Ports (nur Doku/Default; beim docker run separat mappen —
+# server_rl_run.sh tut das beim Anlegen des Containers selbst).
+# Spur A — WebRTC-Viewport (nativer "Isaac Sim WebRTC Streaming Client"):
 #   NVENC ist in NVIDIA_DRIVER_CAPABILITIES=all enthalten.
-#   8211/tcp  = WebRTC Browser-Client + Signaling (in Isaac Sim 6.0 entfallen)
-#   49100/tcp = WebRTC Streaming (Signaling/Steuerung)
-#   47998/udp = WebRTC Medien-Stream (Video)
+#   49100/tcp = Signaling/Steuerung   — beide Ports intern==extern mappen, weil WebRTC
+#   47998/udp = Medien-Stream (Video)   sie in die SDP-Aushandlung einbettet.
+#   8211/tcp war der Browser-Client aus Isaac Sim <=5.x — in 6.0 ENTFALLEN, deshalb hier
+#   nicht mehr exponiert (er lieferte nur eine URL, die garantiert ins Leere lief).
 # Spur B — MJPEG-Frame-Stream (-p 8900:8900), reines HTTP, tunnelbar per ssh -L.
-EXPOSE 8211 49100 8900
+EXPOSE 49100 8900
 EXPOSE 47998/udp
 
 WORKDIR /workspace

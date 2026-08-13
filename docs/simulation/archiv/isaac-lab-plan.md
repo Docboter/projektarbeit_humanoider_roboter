@@ -1,5 +1,12 @@
 # Closed-Loop-Simulation für G1 + Dex3 in Isaac Lab — Implementierungsplan
 
+> ⚠️ **ARCHIVIERT — Planungsdokument, durch die Umsetzung überholt.**
+> Die konkreten Werte, Schnittstellen und Abnahmekriterien hier entsprechen nicht mehr dem
+> gebauten Stand. **Quelle der Wahrheit sind [umsetzungsnotizen.md §10/§11](../umsetzungsnotizen.md)**
+> (Kamera-Rekonstruktion, Open-Loop-Replay) und für den operativen Weg
+> [vastai-anleitung.md](../vastai-anleitung.md). Das Dokument bleibt als Herleitung des
+> Sim-Aufbaus erhalten.
+
 Ziel: Den feingetunten GR00T-N1.6-Checkpoint in einer **Closed-Loop-Simulation**
 (Isaac Lab / Isaac Sim) auf der Block-Stacking-Aufgabe evaluieren — d.h. die
 Policy steuert den simulierten G1+Dex3 in der Schleife, statt nur Aktionen offline

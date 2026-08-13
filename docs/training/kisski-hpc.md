@@ -60,6 +60,17 @@ apptainer pull $HOME/images/projekt-humanoider-roboter.sif \
 Das erzeugt `$HOME/images/projekt-humanoider-roboter.sif` (~10–15 GB). Diese Datei nur neu
 erstellen, wenn ein neues Image auf Docker Hub gepusht wurde.
 
+> ⚠️ **Pfad-Abweichung beachten:** [`kisski_submit.sh`](../../Training/kisski_submit.sh) sucht das
+> SIF standardmäßig **nicht** unter `$HOME/images/`, sondern unter
+> `~/.project/dir.project/images/projekt-humanoider-roboter.sif` (im Skript als absoluter Pfad
+> hinterlegt). Wer das Image wie oben nach `$HOME/images/` legt, muss den Pfad beim Submit
+> mitgeben:
+> ```bash
+> SIF_IMAGE=$HOME/images/projekt-humanoider-roboter.sif sbatch Training/kisski_submit.sh
+> ```
+> Sonst bricht der Job mit `FEHLER: SIF-Image nicht gefunden` ab. `wandb-offline-sync.md` nutzt
+> die `~/.project/dir.project/images/`-Konvention — die deckt sich mit dem Skript-Default.
+
 ---
 
 ## Schritt 2 — Daten auf VAST-Projekt-Storage übertragen (einmalig oder bei Update)
@@ -95,6 +106,28 @@ SKIP_DOWNLOAD=0 HF_TOKEN=hf_... WANDB_API_KEY=... sbatch Training/kisski_submit.
 
 Der Entrypoint lädt Modell und Datensatz dann selbst von HuggingFace (~25 GB, ca. 10–30 min).
 Bei allen weiteren Läufen ist `SKIP_DOWNLOAD=1` korrekt (Download wird automatisch übersprungen).
+
+---
+
+## Schritt 2b — Repos einmalig auf dem Login-Knoten klonen
+
+`kisski_submit.sh` bind-mountet zwei Klone in den Container und **bricht ab**, wenn sie fehlen
+(`FEHLER: …/Training/scripts nicht gefunden` bzw. `…/examples/G1_DEX3 nicht gefunden`). Die
+Compute-Nodes haben keinen Internet-Zugang, deshalb muss das auf dem Login-Knoten passieren:
+
+```bash
+# 1) Dieses Repo (liefert Training/scripts/ — Änderungen wirken ohne Image-Rebuild)
+git clone --branch training-luca-KISSKI --depth 1 \
+    https://github.com/Docboter/projektarbeit_humanoider_roboter.git \
+    /mnt/vast-kisski/projects/kisski-humrob/repo
+
+# 2) Der GR00T-Fork (liefert examples/G1_DEX3 + LeRobot-Konverter — im Image fehlen sie)
+git clone --branch luca/g1-dex3 --depth 1 \
+    https://github.com/lucam06/Isaac-GR00T.git \
+    /mnt/vast-kisski/projects/kisski-humrob/repo-groot
+```
+
+Pfade und Branch sind über `REPO_DIR`, `GITHUB_BRANCH` und `GROOT_FORK_DIR` überschreibbar.
 
 ---
 
@@ -274,11 +307,15 @@ Die wichtigsten Stellschrauben in [Training/kisski_submit.sh](../../Training/kis
 
 ```bash
 #SBATCH -p kisski          # Partition: kisski (A100 80GB) oder kisski-h100 (H100 94GB)
-#SBATCH -G A100:1          # Anzahl GPUs — bei kisski-h100 auf H100:1 ändern
-#SBATCH -c 16              # CPU-Kerne
-#SBATCH --mem=64G          # RAM
+#SBATCH -G A100:4          # Anzahl GPUs — bei kisski-h100 auf H100:4 ändern
+#SBATCH -c 96              # CPU-Kerne
+#SBATCH --mem=384G         # RAM
 #SBATCH -t 48:00:00        # Walltime (max. 48h)
 ```
+
+> Das sind die **aktuellen Multi-GPU-Werte** (4× A100). Für einen 1-GPU-Lauf lassen sich `-G`,
+> `-c` und `--mem` entsprechend reduzieren; Hintergrund und Messung in
+> [multi-gpu.md](multi-gpu.md) — mit 4 GPUs reichten 256 GB RAM nicht (OOM-Kill der Dataloader).
 
 Trainings-Parameter werden entweder dauerhaft im Script geändert oder pro Lauf als Inline-Prefix
 direkt vor `sbatch` übergeben (siehe [Schritt 3](#schritt-3--tokens-setzen-und-job-einreichen) —

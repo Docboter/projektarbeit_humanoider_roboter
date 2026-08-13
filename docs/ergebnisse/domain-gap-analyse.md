@@ -37,7 +37,15 @@ Kontrastverhältnis nicht ändern. Mit schwarzen Händen trifft der Wrist-Kontra
 verfehlt das vorab festgelegte Kriterium von < 0,35. Konsequenz nach der in
 [`rl-anleitung.md`](../weiterfuehrend/rl-anleitung.md) festgehaltenen Regel: kein weiterer
 Albedo-Versuch, sondern Option 3 (`TUNE_VISUAL=1`) — vorher aber Schritt 3 (BC-Erfolgsrate in der
-Sim), der die Zielgröße direkt misst statt über den Proxy. Zu beachten: die Kennzahl enthält auch
+Sim), der die Zielgröße direkt misst statt über den Proxy.
+
+> **Nachtrag: Schritt 3 ist gelaufen.** Lauf 30 (2026-08-12) misst die BC-Erfolgsrate in der Sim
+> mit **0/20**. Nach der vorregistrierten Regel ist `TUNE_VISUAL=1` damit bestätigt. Lauf 30 zeigt
+> zusätzlich, dass die Politik nur ~19 % der demonstrierten Fingerspannweite kommandiert — der
+> Befund zeigt also auf Wahrnehmung/Politik, nicht nur auf das Rendering. Details:
+> [`rl-anleitung.md`](../weiterfuehrend/rl-anleitung.md).
+
+Zu beachten: die Kennzahl enthält auch
 Szeneninhalt (Armpose, Würfel, **Tischabstand ~15 cm abweichend**), nicht nur Renderqualität — und
 die Wrist-Kamera ist dafür die empfindlichste.
 

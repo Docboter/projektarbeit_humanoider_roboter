@@ -44,7 +44,7 @@ Einmalig zu erledigen, bevor du die erste Instanz startest:
 Auf deinem Laptop im Repo-Root:
 
 ```powershell
-# NGC-Login (Basis-Image nvcr.io/nvidia/isaac-lab:2.3.2 ist ~25 GB)
+# NGC-Login (Basis-Image nvcr.io/nvidia/isaac-lab:3.0.0-beta2-post1 ist ~25 GB)
 docker login nvcr.io   # Username: $oauthtoken   Password: <NGC-API-Key>
 
 # Image bauen und nach Docker Hub pushen (~30-60 min, nur beim ersten Mal)
@@ -225,8 +225,10 @@ lucam03/projekt-humanoider-roboter-sim-vastai:latest
 > **Live-Stream (optional):** Wenn du den 3D-Viewport live ansehen willst (Abschnitt
 > „Optional — Live-Stream"), zusätzlich die WebRTC-Ports mappen:
 > ```
-> --ipc=host --shm-size=16g -p 22 -p 8211 -p 49100 -p 47998/udp
+> --ipc=host --shm-size=16g -p 22 -p 49100 -p 47998/udp
 > ```
+> Für den einfacheren MJPEG-Stream (`LIVE_VIEW=1`) stattdessen `-p 8900` mappen.
+> Port `8211` ist mit Isaac Sim 6.0 entfallen und wird nicht mehr gebraucht.
 
 **Environment Variables** (ein Eintrag pro Zeile):
 
@@ -240,6 +242,12 @@ lucam03/projekt-humanoider-roboter-sim-vastai:latest
 | `EXECUTION_HORIZON` | `8` | Nein (default 8) |
 | `TASK_DESCRIPTION` | `stack the blocks` | Nein |
 | `SHELL_ON_ERROR` | `1` | Empfohlen (für Debugging) |
+| `BLACK_HANDS` | `1` | Nein (default 1) — färbt die Hände schwarz (Domain-Gap-Fix) |
+| `LIVE_VIEW` | `1` | Nein (default 0) — MJPEG-Live-Ansicht im Browser, Port `LIVE_VIEW_PORT` (8900) |
+
+> Die vollständige Env-Var-Referenz des Sim-Containers steht in
+> [CLAUDE.md](../../CLAUDE.md) („Sim eval on vast.ai"); dort sind auch `LIVE_VIEW_EVERY_N`,
+> `LIVE_VIEW_CAMS` und die `LIVESTREAM*`-Variablen beschrieben.
 
 > **Flash-Attention:** Das Modell (Eagle-Block2A-2B-v2) erfordert `flash_attention_2`
 > zwingend; es ist im Image installiert. Es gibt **keine** Möglichkeit, es abzuschalten —
@@ -377,9 +385,34 @@ scp -P <port> root@<ip>:/data/logs/groot_server.log ./groot_server.log
 
 ## Optional — Live-Stream des 3D-Viewports (WebRTC)
 
+> ⚠️ **Dieser Abschnitt ist in Teilen veraltet und beschreibt einen auf Hardware ungetesteten
+> Weg.** Zwei Punkte vorweg:
+> 1. **Der Browser-Client auf Port 8211 existiert nicht mehr.** Er stammt aus Isaac Sim ≤ 5.x
+>    und ist mit der Migration auf Isaac Sim 6.0 (2026-08-07) entfallen; das Image exponiert
+>    den Port bewusst nicht mehr ([Dockerfile.vastai](../../Simulation/Dockerfile.vastai),
+>    `EXPOSE 49100 8900`). Alle 8211-Angaben unten sind gegenstandslos — es bleibt der native
+>    „Isaac Sim WebRTC Streaming Client" auf `LIVESTREAM_PORT` (49100).
+> 2. **Spur A (WebRTC) ist nicht auf Hardware verifiziert.** Der Abschnitt liest sich wie ein
+>    erprobter Workflow, ist aber Konzept
+>    → [../weiterfuehrend/livestream-plan.md](../weiterfuehrend/livestream-plan.md).
+>
+> **Funktionierende Alternative:** „Spur B" — der MJPEG-Frame-Stream `LIVE_VIEW=1` auf Port
+> 8900. Reines HTTP, beliebig viele Zuschauer, per `ssh -L` tunnelbar, kein NVENC nötig.
+>
+> **Update 2026-08-13:** Die Defekte D1–D4 sind behoben (gemeinsame
+> [`lib_livestream.sh`](../../Simulation/scripts/lib_livestream.sh), versionsabhängige
+> Kit-Settings, `PUBLIC_IP` nur noch bei `LIVESTREAM=1`), und `LIVESTREAM` wirkt jetzt auf
+> alle vier Läufe. Die **Bedienung steht in [live-ansicht.md](live-ansicht.md)** — dieser
+> Abschnitt hier behandelt nur noch den vast.ai-Sonderfall (zufälliges Port-Mapping).
+> Auf dem eigenen Server ist der Weg deutlich einfacher: `LIVESTREAM=2`, Ports frei wählbar.
+
 Standardmäßig läuft die Eval **headless** und produziert nur MP4s (Schritt 7). Mit
 `LIVESTREAM=1` streamt Isaac Sim stattdessen den **3D-Viewport live per WebRTC** — zum
-Zuschauen beim Greif-Verhalten in Echtzeit. Die MP4-Aufzeichnung läuft parallel weiter.
+Zuschauen beim Greif-Verhalten in Echtzeit.
+
+> **Seit 2026-08-13: live *statt* Video.** Bei aktivem Livestream wird `--video-dir` leer
+> übergeben, es entstehen also **keine MP4s** mehr (spart pro Step eine GPU→CPU-Kopie).
+> Wer beides braucht: `LIVE_KEEP_VIDEO=1`.
 
 > **GPU-Voraussetzung:** WebRTC braucht den **NVENC**-Hardware-Encoder. Alle für die Sim
 > ohnehin geeigneten GPUs (L40, RTX 3090/4090, A6000) haben NVENC — A100/H100 sind bereits
@@ -396,12 +429,11 @@ Ablauf:
 
 1. **Ports beim Launch mappen** (Docker Options, Schritt 4b):
    ```
-   --ipc=host --shm-size=16g -p 22 -p 8211 -p 49100 -p 47998/udp
+   --ipc=host --shm-size=16g -p 22 -p 49100 -p 47998/udp
    ```
 2. **Instanz starten**, dann im vast.ai-Dashboard unter **„IP & Port Info"** die externen
-   Ports ablesen, auf die `8211` / `49100` / `47998` gemappt wurden. Beispiel:
+   Ports ablesen, auf die `49100` / `47998` gemappt wurden. Beispiel:
    ```
-   8211  → 70.1.2.3:31021
    49100 → 70.1.2.3:31022
    47998 → 70.1.2.3:31023/udp
    ```
@@ -415,7 +447,7 @@ Ablauf:
    | `PUBLIC_IP` | *(leer lassen → auto via `ifconfig.me`)* oder `70.1.2.3` |
 
    > Env-Vars lassen sich auf vast.ai erst **vor** dem Launch setzen. Der Trick: Instanz mit
-   > `-p 8211 -p 49100 -p 47998/udp` und **`LIVESTREAM=0`** starten, externe Ports ablesen,
+   > `-p 49100 -p 47998/udp` und **`LIVESTREAM=0`** starten, externe Ports ablesen,
    > dann den Container neu starten und `LIVESTREAM`/`LIVESTREAM_PORT` setzen — oder gleich per
    > SSH den Sim mit den richtigen Werten manuell starten (`bash /scripts/entrypoint_sim.sh`).
 
@@ -470,12 +502,12 @@ bash /scripts/entrypoint_sim.sh
 
 Der Entrypoint gibt beim Start die Client-URL aus. Generell:
 
-**Browser (am einfachsten):**
-```
-http://<PUBLIC_IP>:<extern-gemappter-8211>/streaming/webrtc-client?server=<PUBLIC_IP>
-```
+~~**Browser (am einfachsten):**~~ ⚠️ **entfallen** — der eingebaute Browser-Client
+(`http://<IP>:8211/streaming/webrtc-client`) existierte nur bis Isaac Sim 5.x. Unter Isaac
+Sim 6.0 liefert diese URL garantiert nichts.
 
-**Native Isaac Sim WebRTC Streaming Client** (von NVIDIA, läuft ohne lokale GPU):
+**Native Isaac Sim WebRTC Streaming Client** (von NVIDIA, läuft ohne lokale GPU) — der
+verbleibende Weg für Spur A:
 Server eintragen als `<PUBLIC_IP>:<extern-gemappter-49100>`.
 
 > Nur **ein** Client gleichzeitig pro Instanz. Kein VPN/Tunnel-IP (ZeroTier etc.) nutzen —

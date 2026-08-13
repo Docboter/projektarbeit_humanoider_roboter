@@ -38,6 +38,8 @@
 #   HF_TOKEN=hf_... ./Simulation/server_rl_run.sh check        # LIVE-CHECK: Aufbau ohne Training (--check, 2 Envs)
 #   HF_TOKEN=hf_... ./Simulation/server_rl_run.sh rl           # echter RL-Lauf (Vordergrund, lange Laufzeit)
 #   ./Simulation/server_rl_run.sh gap                          # Domain-Gap real vs. sim messen (nach 'cams')
+#   ./Simulation/server_rl_run.sh livecheck                    # Phase 0 der LIVE-Variante: NVENC/Extension/Ports
+#   LIVESTREAM=2 HF_TOKEN=hf_... ./Simulation/server_rl_run.sh eval   # LIVE statt Videos (WebRTC-Viewport)
 #   ./Simulation/server_rl_run.sh shell|clean|help
 #
 # Überschreibbar via Env (Defaults für diesen Server):
@@ -48,7 +50,17 @@
 #   RL_NUM_ENVS, RL_ITERATIONS, RL_ROLLOUT_STEPS, RL_LR, RL_KL_COEF, RL_CLIP,
 #   RL_MINIBATCH_SIZE, RL_FPO_MC_SAMPLES, RL_EPOCHS_PER_ITER (Speicher-Stellschrauben),
 #   RL_SAVE_EVERY, WANDB_API_KEY, WANDB_MODE, RL_WANDB_VIDEO_EVERY, SHELL_ON_ERROR,
-#   LIVE_VIEW, LIVE_VIEW_PORT, LIVE_VIEW_EVERY_N, LIVE_VIEW_CAMS — durchgereicht.
+#   LIVE_VIEW, LIVE_VIEW_PORT, LIVE_VIEW_EVERY_N, LIVE_VIEW_CAMS — durchgereicht,
+#   LIVESTREAM, LIVESTREAM_PORT, LIVESTREAM_MEDIA_PORT, LIVE_KEEP_VIDEO (LIVE-Variante).
+#
+# ZWEI LIVE-WEGE, bewusst getrennt (docs/simulation/live-ansicht.md):
+#   LIVE_VIEW=1   „Spur B" — MJPEG-Bilder im Browser. Zustandslos, beliebig viele
+#                 Zuschauer, per ssh -L tunnelbar. Für den tagelangen RL-Lauf gedacht.
+#   LIVESTREAM=2  „Spur A" — der komplette Isaac-Sim-Viewport per WebRTC, geöffnet vom
+#                 nativen „Isaac Sim WebRTC Streaming Client" auf dem Arbeitsrechner:
+#                 freie Kamera, Szene drehen, Isaac-Sim-UI. Genau ein Zuschauer, braucht
+#                 UDP. Für eval/grasp/baseline — dort will man sich die Greifpose ansehen.
+#                 Ersetzt standardmäßig die MP4-Aufzeichnung (LIVE_KEEP_VIDEO=1 = beides).
 
 set -euo pipefail
 
@@ -88,6 +100,13 @@ fi
 # wirkt: sonst müsste man für ein späteres LIVE_VIEW=1 erst `clean` fahren.
 LIVE_VIEW_PORT="${LIVE_VIEW_PORT:-8900}"
 
+# LIVE-Variante (WebRTC-Viewport, Spur A). Gleiche Überlegung wie oben: beide Ports
+# werden beim Anlegen gemappt, damit ein späteres LIVESTREAM=2 kein `clean` verlangt.
+LIVESTREAM="${LIVESTREAM:-0}"
+LIVESTREAM_PORT="${LIVESTREAM_PORT:-49100}"
+LIVESTREAM_MEDIA_PORT="${LIVESTREAM_MEDIA_PORT:-47998}"
+LIVE_KEEP_VIDEO="${LIVE_KEEP_VIDEO:-0}"
+
 ISAAC_PY="/workspace/isaaclab/_isaac_sim/python.sh"
 SIM_DIR="/workspace/g1_dex3_sim"
 # GR00T-venv im Container: fuer reine Policy-Inferenz ohne Isaac Sim (Aktion 'span').
@@ -97,6 +116,12 @@ GROOT_ROOT="${GROOT_ROOT:-/app/Groot-1.6}"
 # Repo-Wurzel (Elternverzeichnis dieses Skripts) — für den Live-Mount des Sim-Codes.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="${RL_REPO_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+
+# Dieselbe Livestream-Logik wie in den Entrypoints — hier auf dem HOST gesourct, damit
+# `grasp` (das rl-fremde Skripte direkt aufruft) nicht seine eigene Kopie braucht.
+# shellcheck source=scripts/lib_livestream.sh
+source "$SCRIPT_DIR/scripts/lib_livestream.sh"
+livestream_init
 
 # ── Log-Spiegelung ────────────────────────────────────────────────────────────
 # Jede nicht-interaktive Aktion landet zusätzlich in einer Datei unter dem gemounteten
@@ -134,16 +159,62 @@ live_view_env() {
   return 0   # siehe Kommentar in build_rl_env: letzte Zeile darf kein `[[ … ]] &&` sein
 }
 
+# Adresse, unter der der Server vom Arbeitsrechner aus erreichbar ist. Der Container
+# selbst kennt sie nicht (er sähe nur seine 172.x-Bridge-Adresse), deshalb ermitteln wir
+# sie hier und reichen sie als LIVESTREAM_HOST_ADDR durch — nur für die Ausgabe.
+host_addr() { echo "${LIVESTREAM_HOST_ADDR:-$(hostname -I 2>/dev/null | awk '{print $1}')}"; }
+
+# -e-Flags für die LIVE-Variante (WebRTC-Viewport). Wirkt auf entrypoint_sim.sh,
+# entrypoint_rl.sh und rl_finetune.py gleichermaßen, weil alle drei dieselben Var-Namen
+# lesen.
+livestream_docker_env() {
+  LS_ENV=(
+    -e "LIVESTREAM=${LIVESTREAM:-0}"
+    -e "LIVESTREAM_PORT=$LIVESTREAM_PORT"
+    -e "LIVESTREAM_MEDIA_PORT=$LIVESTREAM_MEDIA_PORT"
+    -e "LIVE_KEEP_VIDEO=${LIVE_KEEP_VIDEO:-0}"
+    -e "LIVESTREAM_HOST_ADDR=$(host_addr)"
+  )
+  [[ -n "${LIVESTREAM_SETTINGS_STYLE:-}" ]] && LS_ENV+=( -e "LIVESTREAM_SETTINGS_STYLE=$LIVESTREAM_SETTINGS_STYLE" )
+  [[ -n "${LIVESTREAM_KIT_ARGS:-}" ]]       && LS_ENV+=( -e "LIVESTREAM_KIT_ARGS=$LIVESTREAM_KIT_ARGS" )
+  [[ -n "${LIVESTREAM_UPDATE_EVERY_N:-}" ]] && LS_ENV+=( -e "LIVESTREAM_UPDATE_EVERY_N=$LIVESTREAM_UPDATE_EVERY_N" )
+  return 0   # PFLICHT, s. build_rl_env
+}
+
+# /scripts liegt im Image GEBACKEN (nur $SIM_DIR ist gemountet). Jede Repo-Änderung an
+# einem Entrypoint — und an lib_livestream.sh, die er sourct — muss deshalb vor dem Lauf
+# hineinkopiert werden, sonst läuft still die alte Fassung aus dem Image.
+sync_scripts() {
+  local f
+  for f in lib_livestream.sh "$@"; do
+    docker cp "$REPO_DIR/Simulation/scripts/$f" "$CONTAINER:/scripts/$f"
+  done
+}
+
 # Sowohl -p als auch --gpus wirken NUR beim Anlegen des Containers. Ein langlebiger
 # Container aus einem früheren Lauf hat sie also nicht, egal was hier gesetzt ist —
 # und das äußert sich stumm: der Stream lauscht nur container-intern, bzw. das
 # Referenzmodell rückt mangels zweiter Karte auf die erste zurück.
 warn_if_container_stale() {
+  local ports; ports="$(docker inspect -f '{{json .NetworkSettings.Ports}}' "$CONTAINER" 2>/dev/null || echo '{}')"
   if [[ "${LIVE_VIEW:-0}" != "0" ]]; then
-    local ports; ports="$(docker inspect -f '{{json .NetworkSettings.Ports}}' "$CONTAINER" 2>/dev/null || echo '{}')"
     if [[ "$ports" != *"\"$LIVE_VIEW_PORT/tcp\":[{"* ]]; then
       warn "LIVE_VIEW=1, aber Container '$CONTAINER' hat Port $LIVE_VIEW_PORT NICHT veröffentlicht."
       warn "  Einmalig neu anlegen:  $0 clean   (Daten unter $HOST_DATA_DIR bleiben)"
+    fi
+  fi
+  # Dasselbe für die LIVE-Variante — und hier ist es besonders leicht zu übersehen: der
+  # Signaling-Port (TCP) kann durchgereicht sein, der Medien-Port (UDP) aber nicht. Dann
+  # verbindet sich der Client, und das Bild bleibt schwarz.
+  if livestream_active; then
+    if [[ "$ports" != *"\"$LIVESTREAM_PORT/tcp\":[{"* ]]; then
+      warn "LIVESTREAM=$LIVESTREAM, aber Port $LIVESTREAM_PORT/tcp ist am Container NICHT veröffentlicht."
+      warn "  Einmalig neu anlegen:  $0 clean   (Daten unter $HOST_DATA_DIR bleiben)"
+    fi
+    if [[ "$ports" != *"\"$LIVESTREAM_MEDIA_PORT/udp\":[{"* ]]; then
+      warn "Medien-Port $LIVESTREAM_MEDIA_PORT/udp ist am Container NICHT veröffentlicht —"
+      warn "  der Client verbindet sich dann zwar, das Bild bleibt aber schwarz."
+      warn "  Einmalig neu anlegen:  $0 clean"
     fi
   fi
   if [[ "$GPUS" == *,* || "$GPUS" == all ]] && [[ "${RL_REF_DEVICE:-auto}" != "same" ]]; then
@@ -184,11 +255,39 @@ ensure_container() {
     warn "Host-Port $LIVE_VIEW_PORT ist belegt — Live-Ansicht bleibt unveröffentlicht."
     warn "  Anderen Port wählen:  LIVE_VIEW_PORT=8901 $0 clean && … $0 rl"
   fi
-  docker run -d --name "$CONTAINER" --gpus "$GPUS" --ipc=host --shm-size="$SHM_SIZE" \
-    "${create_env[@]}" "${port_flag[@]}" \
+  # LIVE-Variante: Signaling (TCP) + Medien (UDP). Auch hier unabhängig davon mappen, ob
+  # LIVESTREAM gerade an ist — -p wirkt nur beim Anlegen. Intern==extern ist Pflicht, weil
+  # WebRTC den Port in die SDP-Aushandlung einbettet.
+  local ls_port_flag=()
+  if port_free "$LIVESTREAM_PORT"; then
+    ls_port_flag=( -p "$LIVESTREAM_PORT:$LIVESTREAM_PORT/tcp" -p "$LIVESTREAM_MEDIA_PORT:$LIVESTREAM_MEDIA_PORT/udp" )
+    log "  LIVE-Variante -> $LIVESTREAM_PORT/tcp + $LIVESTREAM_MEDIA_PORT/udp veröffentlicht (nutzbar mit LIVESTREAM=2)"
+  else
+    warn "Host-Port $LIVESTREAM_PORT ist belegt — WebRTC-Viewport bleibt unveröffentlicht."
+    warn "  Anderen Port wählen:  LIVESTREAM_PORT=49101 $0 clean && … LIVESTREAM=2 $0 eval"
+  fi
+  # Fehlschlag-Pfad: den UDP-Port kann `port_free` (reines /dev/tcp) nicht prüfen. Ist er
+  # belegt, bricht `docker run` mit "port is already allocated" ab — dann lieber ohne die
+  # Livestream-Ports weitermachen, als den ganzen Workflow zu blockieren.
+  if ! docker run -d --name "$CONTAINER" --gpus "$GPUS" --ipc=host --shm-size="$SHM_SIZE" \
+    "${create_env[@]}" "${port_flag[@]}" "${ls_port_flag[@]}" \
     -v "$HOST_DATA_DIR:/data" \
     -v "$REPO_DIR/Simulation/g1_dex3_sim:$SIM_DIR:ro" \
-    --entrypoint bash "$IMAGE" -lc "sleep infinity" >/dev/null
+    --entrypoint bash "$IMAGE" -lc "sleep infinity" >/dev/null 2>&1; then
+    if [[ ${#ls_port_flag[@]} -gt 0 ]]; then
+      warn "Container-Start mit den Livestream-Ports fehlgeschlagen (belegt?) — versuche es ohne."
+      warn "  Die LIVE-Variante ist dann erst nach '$0 clean' mit freien Ports nutzbar."
+      docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
+      docker run -d --name "$CONTAINER" --gpus "$GPUS" --ipc=host --shm-size="$SHM_SIZE" \
+        "${create_env[@]}" "${port_flag[@]}" \
+        -v "$HOST_DATA_DIR:/data" \
+        -v "$REPO_DIR/Simulation/g1_dex3_sim:$SIM_DIR:ro" \
+        --entrypoint bash "$IMAGE" -lc "sleep infinity" >/dev/null
+    else
+      err "Container '$CONTAINER' konnte nicht gestartet werden."
+      return 1
+    fi
+  fi
   ok "Container läuft."
 }
 
@@ -232,6 +331,8 @@ build_rl_env() {
   [[ -n "${RL_WANDB_VIDEO_EVERY:-}" ]] && RL_ENV+=( -e "RL_WANDB_VIDEO_EVERY=$RL_WANDB_VIDEO_EVERY" )
   live_view_env
   RL_ENV+=( "${LIVE_ENV[@]}" )
+  livestream_docker_env
+  RL_ENV+=( "${LS_ENV[@]}" )
   # PFLICHT: Ist die letzte Zeile ein nicht zutreffendes `[[ … ]] && …`, gibt die Funktion 1
   # zurück und `set -e` beendet das Skript STILL — genau vor dem RL-Start (beobachtet 2026-08-07,
   # als SHELL_ON_ERROR ungesetzt war). Nie durch eine weitere Bedingung ersetzen.
@@ -404,8 +505,12 @@ do_check() {
   local out
   # LIVE_VIEW mitgeben: rl_finetune.py legt die Live-Ansicht VOR dem --check-Return an,
   # der Check weist damit auch Pillow + Port-Bindung im Kit-Python nach.
+  # LIVESTREAM ebenso: mit LIVESTREAM=2 ist `check` der schnellste Nachweis, dass Isaac Sim
+  # im Livestream-Modus ueberhaupt hochkommt (Sekunden statt einer ganzen Eval) — der
+  # Viewport steht dann allerdings nur kurz, bis der Aufbau geprueft ist.
   live_view_env
-  out=$(docker exec -w "$SIM_DIR" "${LIVE_ENV[@]}" \
+  livestream_docker_env
+  out=$(docker exec -w "$SIM_DIR" "${LIVE_ENV[@]}" "${LS_ENV[@]}" \
         -e "RL_REF_DEVICE=${RL_REF_DEVICE:-auto}" "$CONTAINER" bash -lc "
     unset VIRTUAL_ENV
     '$ISAAC_PY' '$SIM_DIR/rl_finetune.py' \
@@ -426,13 +531,18 @@ do_rl() {
   ensure_black_hands   # muss VOR build_rl_env laufen: der Fallback ändert ASSET_PATH
   # Wie in do_eval: /scripts liegt im Image, nicht im Mount. Ohne diese Zeile liefe ein
   # Repo-Edit an entrypoint_rl.sh ins Leere und der Lauf nähme still die alte Fassung.
-  docker cp "$REPO_DIR/Simulation/scripts/entrypoint_rl.sh" "$CONTAINER:/scripts/entrypoint_rl.sh"
+  sync_scripts entrypoint_rl.sh
   build_rl_env
   log "Starte echten RL-Lauf (Vordergrund, laeuft je nach RL_ITERATIONS lange)."
   log "  Checkpoints -> $HOST_DATA_DIR/g1_dex3_rl/  (alle RL_SAVE_EVERY Iterationen)"
   if [[ "${LIVE_VIEW:-0}" != "0" ]]; then
-    local ip; ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
-    log "  Live-Ansicht -> http://${ip:-<server-ip>}:$LIVE_VIEW_PORT/"
+    log "  Live-Ansicht -> http://$(host_addr):$LIVE_VIEW_PORT/"
+  fi
+  if livestream_active; then
+    warn "LIVESTREAM=$LIVESTREAM im RL-Lauf: der WebRTC-Viewport haelt genau EINE Sitzung"
+    warn "  und ueberlebt keinen Netzabbruch — ueber Stunden/Tage ist LIVE_VIEW=1 (Spur B)"
+    warn "  die passendere Wahl. Beide zugleich sind moeglich."
+    livestream_banner "$(host_addr)"
   fi
   docker exec "${RL_ENV[@]}" "$CONTAINER" bash -lc "bash /scripts/entrypoint_rl.sh"
 }
@@ -467,7 +577,11 @@ do_eval() {
   # /scripts ist ins Image GEBACKEN (nur $SIM_DIR ist gemountet) — eine Aenderung an
   # entrypoint_sim.sh im Repo erreicht den Container sonst nie, und der Lauf liefe still
   # mit der alten Fassung. Gleiches Muster wie bei measure_domain_gap.py in do_gap.
-  docker cp "$REPO_DIR/Simulation/scripts/entrypoint_sim.sh" "$CONTAINER:/scripts/entrypoint_sim.sh"
+  sync_scripts entrypoint_sim.sh
+  if livestream_active; then
+    livestream_banner "$(host_addr)"
+  fi
+  livestream_docker_env
   # SKIP_DOWNLOAD=1: ensure_checkpoint hat den Checkpoint bereits sichergestellt; ein
   # zweiter HF-Zugriff im Entrypoint braeuchte nur wieder einen Token.
   # BLACK_HANDS wird mitgereicht, obwohl entrypoint_sim.sh dieselbe Logik selbst hat —
@@ -483,6 +597,7 @@ do_eval() {
     -e "TASK_DESCRIPTION=${TASK_DESCRIPTION:-stack the blocks}" \
     -e "DR_ENABLED=${DR_ENABLED:-1}" \
     -e "RL_GROUND_COLOR=${RL_GROUND_COLOR:-}" \
+    "${LS_ENV[@]}" \
     "$CONTAINER" bash -lc "bash /scripts/entrypoint_sim.sh" 2>&1 \
     `# grep -c statt -q: -q steigt beim ersten Treffer aus, das vorgeschaltete tee bekommt` \
     `# SIGPIPE, und unter 'set -o pipefail' (Z. 53) galt der Lauf dann als gescheitert —` \
@@ -492,7 +607,11 @@ do_eval() {
     | tee /dev/stderr | grep -c "\[eval\] fertig" >/dev/null \
     || { err "Sim-Eval ohne Erfolgsmarker beendet (Traceback oben)."; return 1; }
   ok "Ergebnisse: $HOST_DATA_DIR/sim_results/results.json"
-  ok "Videos:     $HOST_DATA_DIR/sim_videos/"
+  if livestream_active && [[ "${LIVE_KEEP_VIDEO:-0}" != "1" ]]; then
+    ok "Videos:     keine — LIVE-Variante lief (LIVE_KEEP_VIDEO=1 schreibt sie zusaetzlich)"
+  else
+    ok "Videos:     $HOST_DATA_DIR/sim_videos/"
+  fi
   docker exec "$CONTAINER" bash -lc \
     "python3 -c \"import json;d=json.load(open('/data/sim_results/results.json'));\
 print('Erfolgsrate: %d/%d = %.1f%%' % (d['num_success'], d['num_episodes'], 100*d['success_rate']))\"" \
@@ -558,19 +677,77 @@ do_grasp() {
   #                    prüft die Greif-Physik allein, ohne jede Platzierungs-Annahme.
   local grasp_flag="--grasp-test"
   [ "${GRASP_MODE:-test}" = "hold" ] && grasp_flag="--grasp-hold"
+  # App-Flags aus derselben Lib wie die Entrypoints: entweder --headless oder
+  # --livestream N [--kit_args …]. Der Aufruf hier geht direkt an das Python (kein
+  # Entrypoint), deshalb muessen die Flags in den Kommando-String — %q quotet sie so,
+  # dass die Kit-Settings-Zeile mit ihren Leerzeichen EIN Argument bleibt.
+  livestream_app_flags
+  local ls_flags="" f
+  for f in "${LS_APP_FLAGS[@]}"; do ls_flags+=" $(printf '%q' "$f")"; done
+  local vid; vid="$(livestream_video_dir /data/sim_videos_replay)"
   log "Greif-Physik-Test (Open-Loop-Replay, Dataset-Aktionen, Modus ${GRASP_MODE:-test})" \
       "→ $HOST_DATA_DIR/sim_results_replay/"
+  if livestream_active; then
+    livestream_banner "$(host_addr)"
+  fi
   docker exec -w "$SIM_DIR" \
     -e "DR_ENABLED=${DR_ENABLED:-0}" \
     -e "RL_GROUND_COLOR=${RL_GROUND_COLOR:-}" \
     "$CONTAINER" bash -lc "
     unset VIRTUAL_ENV
     '$ISAAC_PY' '$SIM_DIR/run_g1_dex3_replay.py' \
-        --headless --enable_cameras \
+        $ls_flags --enable_cameras \
         --asset-path '$ASSET_PATH' \
+        --video-dir '$vid' \
         $grasp_flag" 2>&1 | tee /dev/stderr | grep -c "\[replay\] fertig" >/dev/null \
-    && ok "Ergebnis: $HOST_DATA_DIR/sim_results_replay/results.json, Video unter sim_videos_replay/" \
+    && ok "Ergebnis: $HOST_DATA_DIR/sim_results_replay/results.json${vid:+, Video unter sim_videos_replay/}" \
     || { err "Greif-Test ohne Erfolgsmarker beendet (Traceback oben)."; return 1; }
+}
+
+# Phase 0 der LIVE-Variante (livestream-plan.md §6): die drei Dinge pruefen, die den
+# WebRTC-Viewport im Container scheitern lassen — bevor eine ganze Eval dafuer laeuft.
+#   1. NVENC: ohne Hardware-Encoder kein WebRTC. Die RTX PRO 6000 Blackwell hat vier
+#      Engines; A100/H100 haetten keine — dieselbe GPU-Regel wie fuers RT-Core-Rendering.
+#   2. Livestream-Extension im Isaac-Sim-Bundle vorhanden?
+#   3. Welche Kit-Settings-Pfade gelten (Isaac Sim 6.0 hat sie umbenannt, D2)? Kit
+#      ignoriert falsche Pfade STILL — deshalb hier die Version ablesen, statt zu raten.
+do_livecheck() {
+  ensure_container
+  log "Phase 0 der LIVE-Variante: NVENC, Livestream-Extension, Kit-Settings-Pfade."
+  docker exec "$CONTAINER" bash -lc '
+    echo "── Isaac-Sim-Version ──"
+    for f in "${ISAACLAB_PATH:-/workspace/isaaclab}/_isaac_sim/VERSION" /isaac-sim/VERSION; do
+      [ -r "$f" ] && { echo "  $f: $(head -n1 "$f")"; break; }
+    done
+    echo "── NVENC (Encoder-Sitzungen) ──"
+    nvidia-smi -q -d ENCODER 2>/dev/null | grep -iA3 "Encoder Stats" | head -12 \
+      || echo "  nvidia-smi liefert keine Encoder-Statistik"
+    echo "── Livestream-Extensions im Bundle ──"
+    find "${ISAACLAB_PATH:-/workspace/isaaclab}/_isaac_sim" -maxdepth 3 -type d \
+         -name "*livestream*" 2>/dev/null | sed "s|^|  |" | head -10 \
+      || echo "  keine gefunden"
+  ' || warn "Teile des Checks liefen ins Leere — Ausgabe oben bewerten."
+  echo ""
+  log "Host-Seite:"
+  printf "    %-24s %s\n" "Signaling (TCP):"  "$(host_addr):$LIVESTREAM_PORT"
+  printf "    %-24s %s\n" "Medien (UDP):"     "$(host_addr):$LIVESTREAM_MEDIA_PORT"
+  local ports; ports="$(docker inspect -f '{{json .NetworkSettings.Ports}}' "$CONTAINER" 2>/dev/null || echo '{}')"
+  if [[ "$ports" == *"\"$LIVESTREAM_PORT/tcp\":[{"* ]]; then
+    ok "Port $LIVESTREAM_PORT/tcp ist am Container veröffentlicht."
+  else
+    warn "Port $LIVESTREAM_PORT/tcp NICHT veröffentlicht — '$0 clean' und neu anlegen."
+  fi
+  if [[ "$ports" == *"\"$LIVESTREAM_MEDIA_PORT/udp\":[{"* ]]; then
+    ok "Port $LIVESTREAM_MEDIA_PORT/udp ist am Container veröffentlicht."
+  else
+    warn "Port $LIVESTREAM_MEDIA_PORT/udp NICHT veröffentlicht — '$0 clean' und neu anlegen."
+  fi
+  echo ""
+  log "Vom Arbeitsrechner aus prüfen (UDP ist der wahrscheinlichste Stolperstein):"
+  echo "    nc -vz  $(host_addr) $LIVESTREAM_PORT        # Signaling erreichbar?"
+  echo "    nc -vzu $(host_addr) $LIVESTREAM_MEDIA_PORT       # UDP durch die Firewall?"
+  echo ""
+  log "Danach:  LIVESTREAM=2 NUM_EPISODES=2 EPISODE_LENGTH_S=120 $0 eval"
 }
 
 # Fingerspanne der Policy auf ECHTEN Datensatz-Bildern (offene Schleife).
@@ -687,6 +864,8 @@ Aktionen:
               SPAN_DATASET (Default /data/unitreerobotics/G1_Dex3_BlockStacking_Dataset),
               SPAN_TRAJ_IDS (Default "0 1 2 3 4"), SPAN_AUTO_FETCH=0 schaltet das Holen ab.
   rl          Echter RL-Lauf (Vordergrund). Checkpoints unter $HOST_DATA_DIR/g1_dex3_rl/.
+  livecheck   Phase 0 der LIVE-Variante: NVENC, Livestream-Extension, Isaac-Sim-Version
+              und Port-Veroeffentlichung pruefen — vor dem ersten LIVESTREAM=2-Lauf.
   shell       Interaktive Shell im Container.
   clean       Container entfernen (Daten unter $HOST_DATA_DIR bleiben).
   help        Diese Hilfe.
@@ -706,7 +885,25 @@ Beispiele:
   HF_TOKEN=hf_... WANDB_API_KEY=... LIVE_VIEW=1 RL_WANDB_VIDEO_EVERY=10 \\
       RL_NUM_ENVS=4 ./Simulation/server_rl_run.sh rl
 
-Live-Ansicht (opt-in, docs/weiterfuehrend/livestream-plan.md Spur B):
+LIVE-Variante — Isaac Sim auf dem eigenen Rechner (opt-in, "Spur A"):
+  Statt hinterher MP4s zu holen, streamt Isaac Sim seinen 3D-Viewport per WebRTC. Auf dem
+  Arbeitsrechner oeffnet ihn die App "Isaac Sim WebRTC Streaming Client" — freie Kamera,
+  Szene drehen, Isaac-Sim-UI. Anleitung: docs/simulation/live-ansicht.md
+
+  LIVESTREAM=2           an, privates Netz/VPN (auf diesem Server der richtige Wert)
+  LIVESTREAM=1           an, oeffentliches Netz (vast.ai; setzt PUBLIC_IP, ungeschuetzt!)
+  LIVESTREAM_PORT        Signaling, TCP (Default 49100; intern==extern, wird gemappt)
+  LIVESTREAM_MEDIA_PORT  Medien, UDP  (Default 47998; MUSS durch die Firewall)
+  LIVE_KEEP_VIDEO=1      zusaetzlich MP4s schreiben (Default: live STATT Video)
+  -> gilt fuer:  eval, grasp, rl, check   (baseline ueber entrypoint_baseline.sh)
+  -> Client:     <server-ip>:49100 in der App eintragen, Connect
+  -> vorher:     $0 livecheck
+
+  Beispiele:
+    HF_TOKEN=hf_... LIVESTREAM=2 NUM_EPISODES=2 EPISODE_LENGTH_S=120 $0 eval
+    HF_TOKEN=hf_... LIVESTREAM=2 GRASP_MODE=hold $0 grasp
+
+Live-Ansicht im Browser (opt-in, docs/weiterfuehrend/livestream-plan.md Spur B):
   LIVE_VIEW=1            MJPEG-Stream des Rollouts im Browser
   LIVE_VIEW_PORT         Host- und Container-Port (Default 8900; wird beim Anlegen gemappt)
   LIVE_VIEW_EVERY_N      nur jedes n-te Frame senden (Default 1)
@@ -732,7 +929,7 @@ ACTION="${1:-help}"
 # 'shell' bleibt ungespiegelt (interaktives -it verträgt die Pipe nicht), 'help'/'clean'
 # haben nichts zu protokollieren.
 case "$ACTION" in
-  preflight|setup|check|cams|gap|eval|grasp|rl) start_logging "$ACTION" ;;
+  preflight|setup|check|cams|gap|eval|grasp|span|rl|livecheck) start_logging "$ACTION" ;;
 esac
 case "$ACTION" in
   preflight)  do_preflight ;;
@@ -742,7 +939,8 @@ case "$ACTION" in
   gap)        do_gap ;;
   eval)       do_eval ;;
   grasp)      do_grasp ;;
-span)       do_span ;;
+  span)       do_span ;;
+  livecheck)  do_livecheck ;;
   rl)         do_rl ;;
   shell)      do_shell ;;
   clean|down) do_clean ;;

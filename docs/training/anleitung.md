@@ -450,22 +450,32 @@ docker cp groot-train:/data/g1_dex3_finetune ./checkpoints
 
 ### Wie unterbreche ich das Training?
 
-`Ctrl+C` (lokal) oder `docker stop groot-train`. Auf vast.ai: **Stop** der Instanz. Checkpoints werden alle 1000 Steps gespeichert (`SAVE_STEPS=1000`), also geht maximal die letzte angefangene Periode verloren. **Wichtig:** der Container bleibt bestehen, Daten sind sicher.
+`Ctrl+C` (lokal) oder `docker stop groot-train`. Auf vast.ai: **Stop** der Instanz. Checkpoints werden alle 2000 Steps gespeichert (`SAVE_STEPS=2000`; im Vision-Lauf `TUNE_VISUAL=1` alle 1000), also geht maximal die letzte angefangene Periode verloren. **Wichtig:** der Container bleibt bestehen, Daten sind sicher.
 
 ### Wie setze ich das Training nach einem Abbruch fort?
 
 Mit dem Launcher: `./Training/setup_and_train_DockerHub-pull.sh --resume`. Manuell: `docker start -ai groot-train`. Der Entrypoint sieht, dass Daten vorhanden sind, und überspringt Download + Konvertierung.
 
-> **Wichtig — zwei verschiedene „Resume":**
+> **Wichtig — was beim Resume passiert:**
 >
-> - **Container-Resume (was hier passiert):** `docker start` bzw. `--resume` startet den
->   *Container* neu, sodass die heruntergeladenen Daten und bereits geschriebene Checkpoints
->   erhalten bleiben. Das **Training selbst beginnt jedoch wieder bei Step 0** — es wird kein
->   Checkpoint geladen.
-> - **Checkpoint-Resume (nicht verfügbar):** Das echte Fortsetzen ab Step N
->   (`launch_finetune.py --resume_from_checkpoint`) ist im Entrypoint **nicht exponiert**.
->   Wer ab einem Checkpoint weitertrainieren will, muss `run_finetuning.sh` von Hand mit dem
->   Flag aufrufen.
+> `docker start` bzw. `--resume` startet den *Container* neu, sodass Daten und geschriebene
+> Checkpoints erhalten bleiben. **Das Training setzt dabei automatisch am letzten Checkpoint
+> fort** — es beginnt *nicht* bei Step 0.
+>
+> Warum: [`experiment.py:288/290`](../../app/Groot-1.6/gr00t/experiment/experiment.py) ruft
+> `trainer.train(resume_from_checkpoint=True)` **bedingungslos** auf; der Trainer löst das über
+> `get_last_checkpoint(output_dir)` auf und stellt `TrainerState` (inkl. `global_step`) und
+> Optimizer wieder her ([`trainer.py:244`](../../app/Groot-1.6/gr00t/experiment/trainer.py)).
+> Das funktioniert, weil `OUTPUT_DIR`/`EXPERIMENT_NAME` **nicht** datumsgestempelt sind
+> (`/data/g1_dex3_finetune/blockstacking` + `g1_dex3_blockstacking_v1`) und über Neustarts hinweg
+> identisch bleiben.
+>
+> Zwei Konsequenzen:
+> - Findet der Trainer **keinen** Checkpoint im `output_dir`, loggt er eine Warnung und startet
+>   regulär bei Step 0.
+> - Das Verhalten ist **nicht abschaltbar** — es gibt keinen `--resume_from_checkpoint`-CLI-Flag
+>   in `launch_finetune.py`. Wer bewusst von vorn trainieren will, muss ein anderes
+>   `EXPERIMENT_NAME` bzw. `OUTPUT_DIR` setzen oder die vorhandenen `checkpoint-*` wegräumen.
 
 ### Was ist, wenn ich versehentlich `--rm` benutze?
 

@@ -31,20 +31,28 @@ ohne W&B zu trainieren. Siehe [training/env-vars.md](training/env-vars.md#L19).
 
 **Symptom:** Auf wandb.ai erscheinen keine Metriken, obwohl Training läuft.
 
-**Ursache:** Der Entrypoint setzt `WANDB_MODE=offline` — Metriken werden lokal gepuffert, nicht
-live hochgeladen (relevant v. a. auf KISSKI ohne Internet auf den Compute-Nodes).
+**Ursache:** Der Entrypoint setzt `WANDB_MODE=offline` als **Default** — Metriken werden lokal
+gepuffert, nicht live hochgeladen (relevant v. a. auf KISSKI ohne Internet auf den Compute-Nodes).
 
 **Lösung:** Nach dem Lauf manuell synchronisieren — Schritt für Schritt in
-[training/wandb-offline-sync.md](training/wandb-offline-sync.md).
+[training/wandb-offline-sync.md](training/wandb-offline-sync.md). Wo Internet verfügbar ist
+(vast.ai, eigener Server), lässt sich der Default per `WANDB_MODE=online` überschreiben
+([entrypoint.sh:175](../Training/scripts/entrypoint.sh#L175)).
 
 ### Training startet nach `docker start` wieder bei Step 0
 
-**Symptom:** Nach Container-Neustart beginnt das Training erneut bei Schritt 0.
+**Symptom:** Nach Container-Neustart beginnt das Training erneut bei Schritt 0 — obwohl
+Checkpoints vorhanden sein sollten.
 
-**Ursache:** `docker start` / `--resume` ist **Container-Resume** (Daten bleiben), **nicht**
-Checkpoint-Resume. Letzteres (`--resume_from_checkpoint`) ist im Entrypoint nicht exponiert.
+**Ursache:** Der Trainer setzt normalerweise **automatisch** am letzten Checkpoint fort
+(`trainer.train(resume_from_checkpoint=True)` in
+[`experiment.py:288`](../app/Groot-1.6/gr00t/experiment/experiment.py), aufgelöst über
+`get_last_checkpoint(output_dir)`). Startet er trotzdem bei 0, hat er im `output_dir` **keinen**
+`checkpoint-*`-Ordner gefunden. Typische Gründe: ein geändertes `EXPERIMENT_NAME`/`OUTPUT_DIR`,
+oder der erste Checkpoint war zum Abbruchzeitpunkt noch nicht geschrieben (`SAVE_STEPS=2000`).
 
-**Lösung:** Erklärung + manueller Weg in
+**Lösung:** Prüfen, ob `/data/g1_dex3_finetune/blockstacking/g1_dex3_blockstacking_v1/checkpoint-*`
+existiert, und ob `EXPERIMENT_NAME` unverändert ist. Details:
 [training/anleitung.md → Fortsetzen nach Abbruch](training/anleitung.md).
 
 ---
@@ -94,16 +102,24 @@ Hintergrund: [simulation/umsetzungsnotizen.md §1](simulation/umsetzungsnotizen.
 **Symptom:** Im Closed-Loop liegen die Hände auf dem Tisch, der Roboter macht nur kleine,
 ungerichtete Bewegungen — obwohl das Open-Loop-Replay sauber greift.
 
-**Ursache:** **Visueller Domain Gap.** Der eingefrorene Vision-Encoder produziert für synthetische
-Isaac-Sim-Bilder unbrauchbare Features (gemessen: mittlere Cosine-Distanz 0.260, `cam_left_wrist`
-kritisch bei 0.427). Training und Sim-Config sind korrekt — der Unterschied liegt allein in den
-Kamerabildern.
+**Ursache:** Ursprünglich allein dem **visuellen Domain Gap** zugeschrieben: Der eingefrorene
+Vision-Encoder produziert für synthetische Isaac-Sim-Bilder schlechtere Features. Aktueller
+Messstand nach Kamera-Neukalibrierung (2026-08-08): mittlere Cosine-Distanz **0,2229**,
+`cam_left_wrist` **0,3556** — die Juni-Erstmessung (0.260 / 0.427) ist überholt.
+
+> **Stand August 2026:** Der Domain Gap allein erklärt das Verhalten **nicht mehr**. Er liegt
+> nach der Kalibrierung unter der real↔real-Baseline (0,2726), die Erfolgsrate bleibt aber bei
+> 0/20. Die Greif-Diagnose der Läufe 29–31 zeigt: die Politik kommandiert nur ~19 % der
+> demonstrierten Fingerspannweite; eine fehlerhafte De-Normalisierung wurde als Ursache
+> ausgeschlossen. Der Hebel liegt damit (auch) in Wahrnehmung/Politik, nicht nur im Rendering
+> → [weiterfuehrend/rl-anleitung.md](weiterfuehrend/rl-anleitung.md).
 
 **Lösung:** Domain Gap angehen statt Sim-Pipeline weiter zu tunen — Vision-Encoder fine-tunen
-(`tune_visual=true`) oder Domain Randomization in der Sim. Diagnose-Werkzeuge:
-[simulation/umsetzungsnotizen.md §15](simulation/umsetzungsnotizen.md). Vollanalyse:
-[umgebungsanalyse.md](umgebungsanalyse.md) und
-[ergebnisse/lauf1-auswertung.md §8](ergebnisse/lauf1-auswertung.md).
+(`TUNE_VISUAL=1`) oder Domain Randomization in der Sim (`USE_AUGMENTATION=1`, Default an).
+Diagnose-Werkzeuge: [simulation/umsetzungsnotizen.md §14–15](simulation/umsetzungsnotizen.md).
+Aktuelle Messung: [ergebnisse/domain-gap-analyse.md](ergebnisse/domain-gap-analyse.md).
+Vollanalyse: [umgebungsanalyse.md](umgebungsanalyse.md) und
+[ergebnisse/lauf1-auswertung.md](ergebnisse/lauf1-auswertung.md).
 
 ### `flash-attn` / `--no-flash-attn`-Fehler auf älterer GPU
 

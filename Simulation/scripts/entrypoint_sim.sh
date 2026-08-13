@@ -27,13 +27,20 @@
 #   NO_FLASH_ATTN        — IGNORIERT (Eagle-Block2A-2B-v2 erzwingt flash_attention_2)
 #   SKIP_DOWNLOAD        — 1=Checkpoint-Download überspringen (default 0)
 #   SHELL_ON_ERROR       — 1=bei Fehler in Shell fallen    (default 0)
-#   LIVESTREAM           — 0=aus (default), 1=WebRTC öffentlich, 2=WebRTC privat/lokal
-#                          Bei !=0 wird der 3D-Viewport per WebRTC gestreamt (statt headless).
-#   LIVESTREAM_PORT      — WebRTC-Signaling-Port (default 49100).
+#   LIVESTREAM           — LIVE-Variante statt Videos: 0=aus (default),
+#                          1=WebRTC öffentlich, 2=WebRTC privat/lokal.
+#                          Bei !=0 streamt Isaac Sim seinen 3D-Viewport per WebRTC; auf
+#                          dem Arbeitsrechner öffnet ihn der native „Isaac Sim WebRTC
+#                          Streaming Client". Details + Client-Anleitung:
+#                          docs/simulation/live-ansicht.md
+#   LIVESTREAM_PORT      — WebRTC-Signaling-Port, TCP (default 49100).
 #                          ⚠️ vast.ai: auf den EXTERN gemappten Port setzen (intern==extern),
-#                          sonst stimmt der in der SDP eingebettete Port nicht (s. u.).
+#                          sonst stimmt der in der SDP eingebettete Port nicht.
+#   LIVESTREAM_MEDIA_PORT— WebRTC-Medien-Port, UDP (default 47998). Muss offen sein.
+#   LIVE_KEEP_VIDEO      — 1 = trotz Live-Variante zusätzlich MP4s schreiben (default 0:
+#                          live STATT Video — spart das Frame-Sammeln je Step)
 #   PUBLIC_IP            — Öffentliche Instanz-IP für den Remote-Endpunkt
-#                          (auto via ifconfig.me, wenn leer und LIVESTREAM!=0)
+#                          (auto via ifconfig.me, nur wenn LIVESTREAM=1)
 #
 # Auf vast.ai:
 #   Image:          lucam03/projekt-humanoider-roboter-sim-vastai:latest
@@ -105,16 +112,27 @@ CHECKPOINT_PATH="${CHECKPOINT_PATH:-$DATA_DIR/checkpoints}"
 HF_CHECKPOINT_REPO="${HF_CHECKPOINT_REPO:-}"
 NO_FLASH_ATTN="${NO_FLASH_ATTN:-0}"
 SKIP_DOWNLOAD="${SKIP_DOWNLOAD:-0}"
-LIVESTREAM="${LIVESTREAM:-0}"
-LIVESTREAM_PORT="${LIVESTREAM_PORT:-49100}"
 
-# WebRTC-Livestream: öffentliche IP für den Remote-Endpunkt ermitteln, wenn Stream aktiv
-# und nicht explizit gesetzt. ifconfig.me liefert die öffentliche Instanz-IP (vast.ai).
-if [[ "$LIVESTREAM" != "0" && -z "${PUBLIC_IP:-}" ]]; then
-    PUBLIC_IP="$(curl -s --max-time 10 ifconfig.me || true)"
+# LIVE-Variante (WebRTC-Viewport, „Spur A"). Die gesamte Logik — Kit-Settings je
+# Isaac-Sim-Version, PUBLIC_IP nur im Modus 1, Verbindungshinweis, Video-an/aus —
+# steckt in der gemeinsamen Lib, damit die Zwillinge sim/baseline/replay nicht
+# auseinanderlaufen. Fehlt sie (sehr altes Image), bleibt der Lauf headless.
+if [[ -r /scripts/lib_livestream.sh ]]; then
+    # shellcheck source=lib_livestream.sh
+    source /scripts/lib_livestream.sh
+    livestream_init
+else
+    warn "lib_livestream.sh fehlt im Image — LIVE-Variante nicht verfügbar (headless)."
+    LIVESTREAM=0
+    livestream_active()    { return 1; }
+    livestream_app_flags() { LS_APP_FLAGS=( --headless ); }
+    livestream_video_dir() { printf '%s' "$1"; }
+    livestream_banner()    { return 0; }
 fi
-export LIVESTREAM LIVESTREAM_PORT
-[[ -n "${PUBLIC_IP:-}" ]] && export PUBLIC_IP
+
+# Video-Verzeichnis: bei aktiver LIVE-Variante leer -> run_g1_dex3_sim_eval.py schaltet
+# Frame-Sammeln, MP4-Ausgabe und rgb_array-Render-Mode ab (`record = bool(args.video_dir)`).
+VIDEO_DIR="$(livestream_video_dir "$DATA_DIR/sim_videos")"
 
 mkdir -p "$DATA_DIR/sim_videos" "$DATA_DIR/sim_results" "$DATA_DIR/logs"
 
@@ -272,36 +290,15 @@ fi
 printf "    %-22s %s\n" "Task:"           "$TASK_DESCRIPTION"
 printf "    %-22s %s\n" "Checkpoint:"     "$CHECKPOINT_PATH"
 printf "    %-22s %s\n" "Asset:"          "$ASSET_PATH"
-printf "    %-22s %s\n" "Videos:"         "$DATA_DIR/sim_videos"
+printf "    %-22s %s\n" "Videos:"         "${VIDEO_DIR:-(aus — LIVE-Variante)}"
 
-# ── App-Flags: headless (default) ODER WebRTC-Livestream ───────────────────────
-# Livestream impliziert headless — KEIN zusätzliches --headless setzen, sonst greift der
-# Experience-File-Bug IsaacLab#381. Bei LIVESTREAM=0 bleibt das alte Verhalten exakt erhalten.
+# ── App-Flags: headless (default) ODER LIVE-Variante (WebRTC-Viewport) ─────────
+# livestream_app_flags liefert entweder ( --headless ) oder ( --livestream N [--kit_args …] ).
+# Bei LIVESTREAM=0 bleibt das alte Verhalten exakt erhalten.
 APP_FLAGS=( --enable_cameras )
-if [[ "$LIVESTREAM" != "0" ]]; then
-    APP_FLAGS+=( --livestream "$LIVESTREAM" )
-    # kit-Settings: Signaling-Port + öffentlicher Endpunkt (für NAT/Cloud-Erreichbarkeit).
-    # Auf vast.ai MUSS LIVESTREAM_PORT der extern gemappte Port sein (intern==extern), weil
-    # WebRTC den Port in die SDP-Verhandlung einbettet.
-    KIT_ARGS="--/app/livestream/port=${LIVESTREAM_PORT}"
-    if [[ -n "${PUBLIC_IP:-}" ]]; then
-        KIT_ARGS="${KIT_ARGS} --/app/livestream/publicEndpointAddress=${PUBLIC_IP}"
-    fi
-    APP_FLAGS+=( --kit_args "$KIT_ARGS" )
-
-    log "Live-Stream AKTIV (WebRTC, LIVESTREAM=$LIVESTREAM, Port $LIVESTREAM_PORT)"
-    if [[ -n "${PUBLIC_IP:-}" ]]; then
-        echo "    Verbinden via:"
-        echo "      Browser:  http://${PUBLIC_IP}:8211/streaming/webrtc-client?server=${PUBLIC_IP}"
-        echo "      Native:   Isaac Sim WebRTC Streaming Client → ${PUBLIC_IP}:${LIVESTREAM_PORT}"
-        warn "vast.ai: 8211/${LIVESTREAM_PORT} (TCP) + 47998/udp müssen gemappt sein."
-        warn "         Externen Port aus dem Dashboard ablesen und LIVESTREAM_PORT darauf setzen."
-    else
-        warn "PUBLIC_IP konnte nicht ermittelt werden — Client-URL manuell aus der Instanz-IP bilden."
-    fi
-else
-    APP_FLAGS+=( --headless )
-fi
+livestream_app_flags
+APP_FLAGS+=( "${LS_APP_FLAGS[@]}" )
+livestream_banner
 echo ""
 
 # ── Domain-Gap-Fix: schwarzhändiges Asset sicherstellen (BLACK_HANDS=0 deaktiviert) ──
@@ -334,7 +331,7 @@ ${ISAACLAB_PATH}/isaaclab.sh -p /workspace/g1_dex3_sim/run_g1_dex3_sim_eval.py \
     --num-episodes   "$NUM_EPISODES" \
     --execution-horizon "$EXECUTION_HORIZON" \
     --task-description  "$TASK_DESCRIPTION" \
-    --video-dir      "$DATA_DIR/sim_videos" \
+    --video-dir      "$VIDEO_DIR" \
     --results-file   "$DATA_DIR/sim_results/results.json" \
     --asset-path     "$ASSET_PATH" \
     --episode-length-s "$EPISODE_LENGTH_S" \
@@ -353,9 +350,18 @@ fi
 ok "Sim-Eval abgeschlossen."
 echo ""
 echo "  Ergebnisse: $RESULTS_FILE"
-echo "  Videos:     $DATA_DIR/sim_videos/"
+if [[ -n "$VIDEO_DIR" ]]; then
+    echo "  Videos:     $VIDEO_DIR/"
+else
+    echo "  Videos:     keine (LIVE-Variante lief; LIVE_KEEP_VIDEO=1 schreibt sie zusätzlich)"
+fi
 echo ""
 echo "  Daten sichern (vom Host):"
 echo "    docker cp <container_id>:/data/sim_results ./sim_results"
-echo "    docker cp <container_id>:/data/sim_videos  ./sim_videos"
+# Bewusst als if-Block, nicht als `[[ … ]] && echo`: das wäre der LETZTE Befehl des
+# Skripts, gäbe bei leerem VIDEO_DIR 1 zurück und der ERR-Trap meldete einen Fehlschlag
+# für einen erfolgreichen Lauf (dieselbe Falle wie in server_rl_run.sh/build_rl_env).
+if [[ -n "$VIDEO_DIR" ]]; then
+    echo "    docker cp <container_id>:/data/sim_videos  ./sim_videos"
+fi
 echo ""

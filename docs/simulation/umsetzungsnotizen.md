@@ -484,11 +484,14 @@ Für reproduzierbaren Stand: Image neu bauen + pushen.
 Diese Session hat die Greif-Physik der Sim systematisch kalibriert, ausgehend von
 `max_cube_lift = 1,0 cm` (kein Greifen). Endergebnis: **2,8 cm — Greifen validiert**.
 
-> ⚠️ **Einschränkung (2026-08-08):** Das Ergebnis „2,8 cm — Greifen validiert" wurde unter
-> Isaac Sim 4.x gemessen. Nach der Isaac-Sim-6.0-Migration hebt derselbe Replay-Testtyp
-> **keinen Würfel mehr an** (0,0 cm, trotz vollständigem Fingerschluss); ob Test-Platzierung
-> oder Kontakt-Physik die Ursache ist, ist noch offen. Details:
-> [../weiterfuehrend/rl-anleitung.md](../weiterfuehrend/rl-anleitung.md) (Läufe 25–28).
+> ⚠️ **Einschränkung (2026-08-08) — inzwischen aufgelöst:** Das Ergebnis „2,8 cm — Greifen
+> validiert" wurde unter Isaac Sim 4.x gemessen. Nach der Isaac-Sim-6.0-Migration hob derselbe
+> Replay-Testtyp zunächst **keinen Würfel mehr an** (0,0 cm, trotz vollständigem Fingerschluss).
+>
+> **Aufgelöst mit Lauf 29 (2026-08-12):** Ursache war der Referenzpunkt der Greif-Diagnostik —
+> gemessen wurde am distalen Gelenk statt an den Fingerspitzen. Mit korrigiertem Referenzpunkt
+> hebt die Hand einen Würfel **7,9 cm**; die Greif-Physik war nie defekt. Details:
+> [../weiterfuehrend/rl-anleitung.md](../weiterfuehrend/rl-anleitung.md) (Läufe 25–29).
 
 ### 14.1 Finger-Aktuatoren (`g1_dex3_cfg.py`)
 
@@ -613,6 +616,10 @@ Simulation/compare_domain_gap.sh ./sim_cam_frames ./domain_gap_compare.png
 
 Messergebnis des ersten Laufs (mittlere Cosine-Distanz 0.260, `cam_left_wrist` kritisch bei
 0.427) ist in [`umgebungsanalyse.md`](../umgebungsanalyse.md) festgehalten.
+
+> ⚠️ **Diese Erstmessung ist überholt.** Sie stammt von vor dem Isaac-Sim-6.0-Port und vor der
+> Kamerakalibrierung. Gültig ist die Neumessung vom 2026-08-08: Mittelwert **0,2229**,
+> `cam_left_wrist` **0,3556** → [`domain-gap-analyse.md`](../ergebnisse/domain-gap-analyse.md).
 
 ---
 

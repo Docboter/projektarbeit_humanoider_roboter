@@ -19,7 +19,9 @@
 #
 # Optionale Env-Vars (Defaults unten / im Dockerfile):
 #   NUM_EPISODES, EXECUTION_HORIZON, TASK_DESCRIPTION, ZMQ_PORT, SKIP_DOWNLOAD,
-#   SHELL_ON_ERROR, LIVESTREAM, LIVESTREAM_PORT, PUBLIC_IP  (wie entrypoint_sim.sh)
+#   SHELL_ON_ERROR, LIVESTREAM, LIVESTREAM_PORT, LIVESTREAM_MEDIA_PORT, LIVE_KEEP_VIDEO,
+#   PUBLIC_IP  (alle wie entrypoint_sim.sh; die LIVE-Variante steckt gemeinsam in
+#   /scripts/lib_livestream.sh — Anleitung: docs/simulation/live-ansicht.md)
 
 set -euo pipefail
 
@@ -64,16 +66,24 @@ ASSET_PATH="${ASSET_PATH:-/workspace/assets/g1_gripper.usd}"
 CHECKPOINT_PATH="${CHECKPOINT_PATH:-$DATA_DIR/checkpoints}"
 HF_CHECKPOINT_REPO="${HF_CHECKPOINT_REPO:-}"
 SKIP_DOWNLOAD="${SKIP_DOWNLOAD:-0}"
-LIVESTREAM="${LIVESTREAM:-0}"
-LIVESTREAM_PORT="${LIVESTREAM_PORT:-49100}"
 DIMS_FILE="${DIMS_FILE:-$DATA_DIR/g1_baseline_dims.json}"
 EMBODIMENT_TAG="UNITREE_G1"
 
-if [[ "$LIVESTREAM" != "0" && -z "${PUBLIC_IP:-}" ]]; then
-    PUBLIC_IP="$(curl -s --max-time 10 ifconfig.me || true)"
+# LIVE-Variante (WebRTC-Viewport) — identisch zu entrypoint_sim.sh, weil beide dieselbe
+# Lib nutzen statt je einer eigenen Kopie des Blocks.
+if [[ -r /scripts/lib_livestream.sh ]]; then
+    # shellcheck source=lib_livestream.sh
+    source /scripts/lib_livestream.sh
+    livestream_init
+else
+    warn "lib_livestream.sh fehlt im Image — LIVE-Variante nicht verfügbar (headless)."
+    LIVESTREAM=0
+    livestream_active()    { return 1; }
+    livestream_app_flags() { LS_APP_FLAGS=( --headless ); }
+    livestream_video_dir() { printf '%s' "$1"; }
+    livestream_banner()    { return 0; }
 fi
-export LIVESTREAM LIVESTREAM_PORT
-[[ -n "${PUBLIC_IP:-}" ]] && export PUBLIC_IP
+VIDEO_DIR="$(livestream_video_dir "$DATA_DIR/sim_videos")"
 
 mkdir -p "$DATA_DIR/sim_videos" "$DATA_DIR/sim_results" "$DATA_DIR/logs"
 
@@ -201,15 +211,9 @@ unset VIRTUAL_ENV
 export PYTHONUNBUFFERED=1
 
 APP_FLAGS=( --enable_cameras )
-if [[ "$LIVESTREAM" != "0" ]]; then
-    APP_FLAGS+=( --livestream "$LIVESTREAM" )
-    KIT_ARGS="--/app/livestream/port=${LIVESTREAM_PORT}"
-    [[ -n "${PUBLIC_IP:-}" ]] && KIT_ARGS="${KIT_ARGS} --/app/livestream/publicEndpointAddress=${PUBLIC_IP}"
-    APP_FLAGS+=( --kit_args "$KIT_ARGS" )
-    log "Live-Stream AKTIV (WebRTC, LIVESTREAM=$LIVESTREAM, Port $LIVESTREAM_PORT)"
-else
-    APP_FLAGS+=( --headless )
-fi
+livestream_app_flags
+APP_FLAGS+=( "${LS_APP_FLAGS[@]}" )
+livestream_banner
 echo ""
 
 ${ISAACLAB_PATH}/isaaclab.sh -p /workspace/g1_gripper_sim/run_g1_gripper_sim_eval.py \
@@ -219,7 +223,7 @@ ${ISAACLAB_PATH}/isaaclab.sh -p /workspace/g1_gripper_sim/run_g1_gripper_sim_eva
     --num-episodes   "$NUM_EPISODES" \
     --execution-horizon "$EXECUTION_HORIZON" \
     --task-description  "$TASK_DESCRIPTION" \
-    --video-dir      "$DATA_DIR/sim_videos" \
+    --video-dir      "$VIDEO_DIR" \
     --results-file   "$DATA_DIR/sim_results/results.json" \
     --asset-path     "$ASSET_PATH" \
     --ping-retries   20
@@ -234,5 +238,9 @@ fi
 ok "Baseline-Sim-Eval abgeschlossen."
 echo ""
 echo "  Ergebnisse: $RESULTS_FILE"
-echo "  Videos:     $DATA_DIR/sim_videos/"
+if [[ -n "$VIDEO_DIR" ]]; then
+    echo "  Videos:     $VIDEO_DIR/"
+else
+    echo "  Videos:     keine (LIVE-Variante lief; LIVE_KEEP_VIDEO=1 schreibt sie zusätzlich)"
+fi
 echo ""

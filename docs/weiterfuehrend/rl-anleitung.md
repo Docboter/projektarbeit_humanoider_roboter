@@ -6,7 +6,9 @@ oder ein eigener Server mit RT-Core-GPU, z. B. RTX PRO 6000 Blackwell). RL train
 **in genau der Sim**, in der sie auch evaluiert wird, und optimiert direkt auf **Aufgaben-Erfolg**
 statt nur Aktions-Nachahmung (Hintergrund: [reinforcement-learning-plan.md](reinforcement-learning-plan.md)).
 
-> ## ✅ Status: Pipeline läuft end-to-end — Diagnose abgeschlossen, RL vorerst nicht der nächste Schritt
+> ## ✅ Status: Pipeline läuft end-to-end — Diagnose abgeschlossen, nächster Schritt ist `TUNE_VISUAL`, nicht RL
+>
+> *(Stand dieses Kopfes: nach Lauf 32, 2026-08-13.)*
 >
 > **Seit 2026-08-08 auf echter RT-Core-Hardware durchgelaufen** (Pfad B: RTX PRO 6000 Blackwell,
 > Isaac Sim 6.0). Eine vollständige Iteration — Rollout → GAE → FPO-Loss → `backward`/`optim.step`
@@ -30,9 +32,20 @@ statt nur Aktions-Nachahmung (Hintergrund: [reinforcement-learning-plan.md](rein
 >   bei **0/20**, und die vorregistrierte Regel sagt dafür: einem Nullpunkt-Reward fehlt das
 >   Startsignal. Lauf 30 zeigt warum — die Politik kommandiert **0,39 rad Fingerspanne gegen
 >   2,09 rad in der Demonstration (19 %)**, greift also gar nicht. Damit ist die Regel geschlossen
->   und zeigt auf **Wahrnehmung/Politik** (`TUNE_VISUAL=1`), nicht auf RL. Vorher gehört der
->   billige Gegentest gemacht, ob eine gestauchte Aktions-Dekodierung dieselbe Signatur erzeugt
+>   und zeigt auf **Wahrnehmung/Politik** (`TUNE_VISUAL=1`), nicht auf RL.
+>   Der billige Gegentest — ob eine gestauchte Aktions-**De-Normalisierung** dieselbe Signatur
+>   erzeugt — ist inzwischen **gelaufen und widerlegt** (`check_action_norm.py` auf
+>   `checkpoint-175000`); die Stauchung kommt nicht aus der Dekodierung
 >   (Details: [Lauf 30 unten](#lauf-30-die-vorregistrierte-regel-ist-geschlossen--die-politik-greift-nicht)).
+> - **✅ Die teuerste Frage ist entschieden — Domain-Gap (a1), nicht „Griff nie gelernt" (a2).**
+>   Das `span`-Gate ([Lauf 32](#lauf-32-runs2026081301-das-span-gate-ist-entschieden--a1),
+>   2026-08-13) misst dieselbe Policy auf **echten Datensatz-Bildern**: Median-Verhältnis
+>   **1,00** über fünf Trajektorien (0,84–1,01) — auf realen Bildern kommandiert sie die volle
+>   Greifbewegung, im Sim-Rendering nur 19–20 %. Nach der vorregistrierten Regel (`≥ 70 %`) ist
+>   damit **`TUNE_VISUAL=1` der begründete nächste Lauf**, und (a2) ist ausgeschlossen.
+> - **Lauf 31** (`runs/20260812/03`) hat zusätzlich die **Meilenstein-Leiter** eingeführt und die
+>   erste messbare Würfel-Anhebung im Closed Loop geliefert (0,22–1,03 cm je Episode); der
+>   Greif-Befund steht damit bei n=7 (Median 0,43 rad = 20,5 % der Demonstration).
 > - **Lernkurve** — steigt `success` über viele Iterationen? (Hyperparameter noch ungetunt.)
 > - **Durchsatz** — Render-FPS bei produktivem `RL_NUM_ENVS` mit 4 Kameras (Plan-Gruppe 0).
 >
@@ -50,7 +63,7 @@ statt nur Aktions-Nachahmung (Hintergrund: [reinforcement-learning-plan.md](rein
 > `server_rl_run.sh preflight` (Pfad B unten) weist den Stand automatisch nach.
 >
 > **Hardware-Historie (2026-08-05/08):** Der Server, der schon für den
-> [RoboCasa-Referenz-Eval](robocasa-referenz-eval.md) genutzt wurde (2× RTX PRO 6000 Blackwell),
+> [RoboCasa-Referenz-Eval](../simulation/robocasa-referenz-eval.md) genutzt wurde (2× RTX PRO 6000 Blackwell),
 > **hat RT-Cores** — RL läuft dort, keine vast.ai-Miete nötig. Der erste `check`-Lauf ist dort
 > allerdings mit einem Segfault in Isaac Sims RTX-Renderer abgestürzt (bekannte Inkompatibilität
 > zwischen Blackwell und Treiber-Branch 610.x, kein Bug in unserem Code); der Server-Treiber ist
@@ -85,7 +98,7 @@ und steuert die Env direkt (Gradienten-fähig).
 Isaac-Lab+GR00T-Container wie vast.ai (`Dockerfile.vastai`), aber als langlebiger
 „Workbench"-Container auf einem generischen Docker-GPU-Server — analog zu
 [`server_robocasa_ref_run.sh`](../../Simulation/server_robocasa_ref_run.sh) (Pfad A2 im
-[RoboCasa-Referenz-Eval](robocasa-referenz-eval.md)). Spart die vast.ai-Miete, **wenn** ein Server mit
+[RoboCasa-Referenz-Eval](../simulation/robocasa-referenz-eval.md)). Spart die vast.ai-Miete, **wenn** ein Server mit
 RT-Core-GPU (z. B. die RTX PRO 6000 Blackwell aus dem RoboCasa-Lauf) bereits zur Verfügung steht.
 
 ```bash
@@ -253,10 +266,17 @@ Env, läuft **kein** Rollout):
 ```bash
 # SSH in die Instanz (vastai ssh <id>), dann:
 cd /workspace/g1_dex3_sim
-python rl_finetune.py --checkpoint /data/checkpoints/groot-g1dex3-checkpoint \
+# WICHTIG: nicht mit nacktem `python` starten — das trifft das GR00T-venv (3.10),
+# und `isaaclab` ist dort nicht importierbar. Der Trainer braucht das Isaac-Sim-Kit-Python:
+unset VIRTUAL_ENV
+"${ISAACLAB_PATH}/isaaclab.sh" -p rl_finetune.py \
+    --checkpoint /data/checkpoints/groot-g1dex3-checkpoint \
     --asset-path /data/checkpoints/groot-g1dex3-checkpoint/g1_dex3.usd \
     --num-envs 2 --check
 ```
+
+> Auf dem eigenen Server nimmt dir das `./Simulation/server_rl_run.sh check` ab — es setzt
+> `unset VIRTUAL_ENV` und ruft `/workspace/isaaclab/_isaac_sim/python.sh` selbst auf.
 
 `--check` instanziiert Env + Policy + Critic und beendet sich („Aufbau OK"). Schlägt das fehl,
 sind die Pfade/das Image das Problem — nicht der RL-Loop.
@@ -317,6 +337,14 @@ Distanzmaß, kein Erfolgsmaß. Ein flacher Reward-Verlauf sieht identisch aus, e
 dem Block nähert, die Blöcke außerhalb der Reichweite spawnen oder die Kamerabilder schwarz sind.
 Diese Fehlerklassen erkennt man **visuell in Minuten** statt nach Stunden Rechenzeit. Und
 nachrüsten geht nicht: ein bereits laufender Job wird nicht rückwirkend beobachtbar.
+
+> **Die andere Live-Variante:** Mit `LIVESTREAM=2` öffnet sich die Simulationsumgebung
+> **komplett** auf dem eigenen Rechner — Isaac Sim streamt seinen 3D-Viewport per WebRTC, die
+> Desktop-App *Isaac Sim WebRTC Streaming Client* zeigt ihn mit freier Kamera („Spur A", seit
+> 2026-08-13, Anleitung: [live-ansicht.md](../simulation/live-ansicht.md)). Für den **langen**
+> RL-Lauf bleibt `LIVE_VIEW=1` trotzdem die Empfehlung: der Viewport erlaubt genau einen
+> Zuschauer und übersteht keinen Netzabbruch. Beide zusammen gehen; zum Hinschauen bei
+> `eval`/`grasp` ist Spur A das bessere Werkzeug.
 
 Eigenschaften: beliebig viele Zuschauer, zustandslos (Tab schließen und morgen wieder öffnen ändert
 nichts am Lauf), reines HTTP (tunnelbar). Kostet **keinen zusätzlichen Render-Pass** — alle Kameras
@@ -481,7 +509,7 @@ belassen, falls der Server-Constraint sich mal ändert oder für einen anderen S
    610er-Treiber (`sudo apt install nvidia-driver-610-open` o. ä.), RL-Pfad auf Pfad A (vast.ai)
    umstellen.
 
-### Isaac-Sim-6.0-Migration (2026-08-07) — implementiert, Hardware-Test offen
+### Isaac-Sim-6.0-Migration (2026-08-07) — implementiert und seit 2026-08-08 auf Hardware bestätigt
 
 [`Dockerfile.vastai`](../../Simulation/Dockerfile.vastai) wurde von `isaac-lab:2.3.2` auf
 **`isaac-lab:3.0.0-beta2-post1`** (= Isaac Sim 6.0) portiert. Die Bundle-Angaben unten sind per
@@ -1734,8 +1762,13 @@ auszuschließen. Drei Kandidaten:
 | | Erklärung | Status |
 |---|---|---|
 | **(b)** | Die De-Normalisierung staucht den Ausgang | **widerlegt**, s. u. |
-| **(a1)** | Domain-Gap — die Policy kann greifen, die Sim-Bilder brechen sie | offen |
-| **(a2)** | Die Policy hat den Griff nie gelernt (Training/Daten) | offen |
+| **(a1)** | Domain-Gap — die Policy kann greifen, die Sim-Bilder brechen sie | **bestätigt** (Lauf 32) |
+| **(a2)** | Die Policy hat den Griff nie gelernt (Training/Daten) | **ausgeschlossen** (Lauf 32) |
+
+> **Das Gate ist inzwischen gefahren.** Die Messung unten wurde am 2026-08-13 durchgeführt und
+> ergab ein Median-Verhältnis von **1,00** — Ergebnis und Auswertung:
+> [Lauf 32](#lauf-32-runs2026081301-das-span-gate-ist-entschieden--a1). Der folgende Abschnitt
+> beschreibt weiterhin, *wie* die Messung läuft und *warum* die Schwellen vorab feststanden.
 
 **(b) ist erledigt, statisch, in Sekunden** — [`check_action_norm.py`](../../Simulation/scripts/check_action_norm.py)
 liest `statistics.json` + `processor_config.json` aus dem Checkpoint (reines JSON, kein torch,
@@ -1888,6 +1921,48 @@ Episode 3 um 2 mm. Der Boolean kippt dadurch fast zufällig, und `touched` ohne 
 Episode 2/3 ist eher ein Schwellenartefakt als der in Lauf 30 vermutete Handflächen-Kontakt.
 **Die Rohzahl (2,9–4,2 cm bei rund 10 cm Annäherung) ist hier aussagekräftiger als die Stufe** —
 die Schwelle taugt zum Verfolgen einer Veränderung, nicht zur Aussage über einen einzelnen Lauf.
+
+#### Lauf 32 (`runs/20260813/01`): das `span`-Gate ist entschieden — (a1)
+
+Die Diskriminator-Messung aus dem Gate-Abschnitt oben, gefahren am 2026-08-13 mit
+`server_rl_run.sh span` über fünf Trajektorien à 400 Schritte. Gemessen wird dieselbe Policy mit
+derselben Metrik wie im Closed Loop, aber auf **echten Datensatz-Bildern**:
+
+| Trajektorie | Spanne Vorhersage | Spanne Ground Truth | Verhältnis | MSE |
+|---|---|---|---|---|
+| 0 | 2,0944 rad | 2,0944 rad | 1,000 | 0,0020 |
+| 1 | 2,0699 rad | 2,0767 rad | 0,997 | 0,0016 |
+| 2 | 2,0944 rad | 2,0942 rad | 1,000 | 0,0019 |
+| 3 | 2,0944 rad | 2,0722 rad | 1,011 | 0,0045 |
+| 4 | 1,7221 rad | 2,0582 rad | 0,837 | 0,0017 |
+
+**Median-Verhältnis: 1,00 — also 100 %.**
+
+**Nach der oben vorregistrierten Regel (`≥ 70 %`) heißt das: Domain-Gap bestätigt, `TUNE_VISUAL`
+begründet.** Der Kontrast ist deutlich: Auf echten Bildern kommandiert dieselbe Policy die volle
+Greifbewegung (1,72–2,09 rad, viermal von fünf praktisch deckungsgleich mit der Demonstration);
+im Sim-Rendering sind es 0,39–0,49 rad (Lauf 31, n=7). Die Fähigkeit ist im Checkpoint vorhanden
+und wird von den Sim-Bildern zerstört.
+
+Damit ist die Kandidatenliste geschlossen:
+
+| | Erklärung | Status |
+|---|---|---|
+| **(b)** | Die De-Normalisierung staucht den Ausgang | widerlegt (Lauf 30, `check_action_norm.py`) |
+| **(a1)** | Domain-Gap — die Policy kann greifen, die Sim-Bilder brechen sie | **bestätigt (Lauf 32)** |
+| **(a2)** | Die Policy hat den Griff nie gelernt (Training/Daten) | **ausgeschlossen (Lauf 32)** |
+
+Die niedrigen MSE-Werte (0,0016–0,0045) stützen das zusätzlich: Es geht nicht nur die grobe
+Spannweite auf, die Trajektorie selbst wird nachvollzogen. Trajektorie 4 ist mit 0,837 der
+schwächste Wert und bleibt trotzdem klar über der 70-%-Schwelle.
+
+> **Einordnung der Belegkette.** `Simulation/runs/` ist gitignored — die Rohdatei
+> `runs/20260813/01/finger_span_openloop.json` ist nicht versioniert. Die Zahlen oben sind aus ihr
+> übernommen; wer sie nachprüfen will, fährt `span` erneut (`SPAN_TRAJ_IDS` setzt die Episoden).
+
+**Konsequenz für die Reihenfolge:** RL bleibt nicht der nächste Schritt. Der begründete nächste
+Lauf ist `TUNE_VISUAL=1` — die Regel dafür ist jetzt vollständig geschlossen, nicht mehr nur
+plausibel. Erst wenn die Politik in der Sim greift, hat ein Reward-Signal einen Startpunkt.
 
 #### Falscher Alarm „Sim-Eval ohne Erfolgsmarker beendet"
 

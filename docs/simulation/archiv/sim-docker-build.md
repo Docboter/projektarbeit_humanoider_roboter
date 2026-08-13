@@ -1,5 +1,14 @@
 # Zweiten Docker-Container für die Sim bauen — Isaac Lab + GR00T-Client
 
+> ⚠️ **ARCHIVIERT — teilweise überholt.** Zwei Einschränkungen:
+> - **Für vast.ai überholt:** Der hier beschriebene Zwei-Container-Plan wurde durch den
+>   **kombinierten** Container ersetzt → [`Dockerfile.vastai`](../../../Simulation/Dockerfile.vastai),
+>   Begründung in [umsetzungsnotizen.md §2](../umsetzungsnotizen.md). Für KISSKI bleibt die
+>   Zwei-Container-Trennung näherungsweise gültig ([`Simulation/Dockerfile`](../../../Simulation/Dockerfile)).
+> - **Tote Pfade:** Die Beispiele unten schreiben nach `/scratch/$USER/…`. Der SCRATCH-SCC-Speicher
+>   wurde **am 2026-03-31 abgeschaltet**; auf KISSKI ist der Pfad heute
+>   `/mnt/vast-kisski/projects/kisski-humrob/`.
+
 Begleitdokument zu [isaac-lab-plan.md](isaac-lab-plan.md).
 Beschreibt, wie der **zweite Container** (Isaac-Lab-Sim-Client) lokal auf dem Laptop
 gebaut, nach Docker Hub gepusht und auf KISSKI als SIF gezogen wird — analog zum

@@ -4,7 +4,7 @@
 > Motivation, Bausteine und Phasen-Plan. Der **FPO-RL-Pfad ist gebaut** (Algorithmus-Kern gegen
 > die GR00T-API verifiziert) und am **2026-08-08** erstmals **vollständig durchgelaufen** —
 > Rollout → GAE → FPO-Update → `backward`/`optim.step` → Checkpoint, auf RTX PRO 6000 Blackwell
-> unter Isaac Sim 6.0. Damit ist die Hardware-Frage aus [Gruppe 0](#gruppe-0--machbarkeit--entscheidungen-blockiert-alles-weitere)
+> unter Isaac Sim 6.0. Damit ist die Hardware-Frage aus [Gruppe 0](#gruppe-0--machbarkeit--entscheidungen-war-blocker-für-alles-weitere)
 > beantwortet: **eigener Server, keine vast.ai-Miete**. Was der Lauf **nicht** zeigt, ist ob RL die
 > Policy verbessert — das ist der nächste Schritt.
 >
@@ -24,6 +24,13 @@
 > Hardware validiert — er wartet auf eine BC-Policy, die überhaupt gelegentlich Erfolg hat.
 > Details: [rl-anleitung.md](rl-anleitung.md#lauf-30-die-vorregistrierte-regel-ist-geschlossen--die-politik-greift-nicht).
 >
+> **✅ Bestätigt durch das `span`-Gate (Lauf 32, 2026-08-13).** Dieselbe Policy auf **echten
+> Datensatz-Bildern** erreicht ein Median-Verhältnis von **1,00** (fünf Trajektorien, 0,84–1,01) —
+> sie kommandiert die volle Greifbewegung, sobald die Bilder echt sind. Nach der vorregistrierten
+> Regel (`≥ 70 %`) ist damit der **Domain-Gap die Ursache** und „Griff nie gelernt" ausgeschlossen.
+> `TUNE_VISUAL=1` ist der begründete nächste Lauf, RL kommt danach.
+> Details: [rl-anleitung.md](rl-anleitung.md#lauf-32-runs2026081301-das-span-gate-ist-entschieden--a1).
+>
 > **Bereits umgesetzt** (Stand 2026-06-12, Glue-Fixes 2026-08-07/08):
 > - **Gruppe 1 (Reward):** Shaped Reward im Env hinter `reward_mode="shaped"` —
 >   [`g1_dex3_blockstack_env.py`](../../Simulation/g1_dex3_sim/g1_dex3_blockstack_env.py) (`_shaped_reward`).
@@ -37,8 +44,9 @@
 >   [`Training/kisski_rl_submit.sh`](../../Training/kisski_rl_submit.sh) (RT-Core-Guard),
 >   `USE_RL`-Hinweis-Schalter im BC-Entrypoint, RL-Env-Vars in [env-vars.md](../training/env-vars.md).
 >
-> **Noch offen:** Lernkurve über viele Iterationen (Hyperparameter ungetunt), Render-Durchsatz bei
-> produktivem `num_envs`, BC-Baseline-Erfolgsrate als Vergleichsmaßstab.
+> **Noch offen:** Lernkurve über viele Iterationen (Hyperparameter ungetunt) und Render-Durchsatz
+> bei produktivem `num_envs`. Die **BC-Baseline ist inzwischen gemessen** (0/20, Lauf 30) und
+> taugt als Vergleichsmaßstab erst wieder, wenn sie über null liegt.
 >
 > **GPU-/Render-Pfad (Gruppe 0) — geklärt (2026-08-05 bis -08):** der Server vom
 > [RoboCasa-Referenz-Eval](../simulation/robocasa-referenz-eval.md) (2× RTX PRO 6000 Blackwell) hat
@@ -78,7 +86,7 @@ Die [Abschluss-Auswertung des ersten Laufs](../ergebnisse/lauf1-auswertung.md) h
 dabei selbst Zustände jenseits der Demonstrationen — es lernt also gerade die Korrekturen, die BC
 fehlen. In der aktuellen Forschung hebt RL-Fine-tuning von VLA-Policies Erfolgsraten typischerweise
 **massiv** an (z. B. π·RL: LIBERO 57,6 % → 97,6 %; ManiSkill-MultiTask 41,6 % → 85,7 %, siehe
-[Quellen](#7-quellen)).
+[Quellen](#8-quellen)).
 
 ---
 
@@ -114,10 +122,17 @@ ist ein Isaac-Lab-Env mit Roboter, Tisch, Würfeln und 5 Kameras. Es hat bereits
 `_get_rewards`, `_check_success`, `_get_dones` und `episode_success`.
 
 ### 3.2 Eine **Reward-Funktion**
-Das Herzstück von RL. Aktuell liefert das Env nur einen **binären Success-Reward** — und der Code
-sagt dazu wörtlich:
-> *„Einfache binary-Success-Reward für Ablations; **nicht für RL-Training**."*
-> ([`g1_dex3_blockstack_env.py:463`](../../Simulation/g1_dex3_sim/g1_dex3_blockstack_env.py))
+Das Herzstück von RL.
+
+> ✅ **Inzwischen gebaut.** Das Env kennt heute beide Modi:
+> `reward_mode = "binary"` (Default, für Eval/Ablation) und `reward_mode = "shaped"` mit dem
+> dichten RL-Reward in `_shaped_reward`
+> ([`g1_dex3_blockstack_env.py`](../../Simulation/g1_dex3_sim/g1_dex3_blockstack_env.py),
+> `reward_mode` bei Z. 438, Gewichte 440–445, `_shaped_reward` ab 1070). Der folgende Abschnitt
+> beschreibt die Ausgangslage vor dieser Umsetzung.
+
+Ausgangslage: Das Env lieferte nur einen **binären Success-Reward**, ausdrücklich für Ablationen
+und nicht fürs RL-Training gedacht.
 
 Ein binärer Endreward ist für RL extrem **spärlich** (sparse) — das Modell bekommt erst ganz am
 Ende Feedback und lernt kaum. **Nötig ist ein „shaped reward"**, z. B. (Vorschlag):
@@ -134,7 +149,7 @@ Das ist die zentrale technische Hürde. Klassisches PPO/GRPO braucht die **Log-W
 ([`gr00t_n1d6.py`](../../app/Groot-1.6/gr00t/model/gr00t_n1d6/gr00t_n1d6.py)) — er erzeugt Aktionen
 durch iteratives Entrauschen eines ODE, dessen Likelihood **nicht direkt berechenbar** ist.
 
-Die Forschung 2025 hat dafür mehrere Verfahren entwickelt (siehe [Quellen](#7-quellen)):
+Die Forschung 2025 hat dafür mehrere Verfahren entwickelt (siehe [Quellen](#8-quellen)):
 
 | Verfahren | Kerntrick | Anmerkung |
 |---|---|---|
@@ -143,18 +158,25 @@ Die Forschung 2025 hat dafür mehrere Verfahren entwickelt (siehe [Quellen](#7-q
 | **ReinFlow** | Injiziert lernbares Rauschen → diskrete Markov-Kette mit exakter Likelihood | Allgemein für Flow-Matching-Policies |
 | **Flow-GRPO** | ODE→SDE für stochastische Exploration, dann GRPO | GRPO-Variante |
 
-→ **Empfehlung für dieses Projekt: π·RL-Ansatz (Flow-SDE + PPO)**, weil er für genau diese
+→ **Damalige Empfehlung: π·RL-Ansatz (Flow-SDE + PPO)**, weil er für genau diese
 Modellklasse (flow-basierte VLA mit eingefrorenem VLM + trainierbarem Action-Expert) entworfen ist —
 das deckt sich 1:1 mit unserem Setup (`tune_llm=False`, `tune_visual=False`, nur Projector +
 Action-Head trainierbar, siehe [trainingsverfahren.md §2](../training/trainingsverfahren.md)).
 
+> ✅ **Entschieden und umgesetzt wurde stattdessen FPO** (Flow Policy Optimization,
+> arXiv 2510.09976) — siehe [`rl_finetune.py:26`](../../Simulation/g1_dex3_sim/rl_finetune.py).
+> FPO ersetzt das exakte Likelihood-Verhältnis durch den Flow-Matching-Verlust und braucht
+> deshalb keine SDE-Umformulierung. π·RL bleibt hier als dokumentierte Alternative stehen.
+
 ### 3.4 Rollout-Infrastruktur (Policy ↔ Env-Kommunikation)
 RL erzeugt Daten durch **eigenes Agieren** (Rollouts), nicht aus einem Datensatz. Policy-Inferenz
 und Sim müssen pro Schritt kommunizieren.
-→ **Teilweise vorhanden:** Der ZMQ-Policy-Client
-[`Simulation/g1_dex3_sim/client.py`](../../Simulation/g1_dex3_sim/client.py) verbindet die Sim
-bereits mit einem GR00T-Inferenz-Server. Für RL muss diese Schleife aber **Gradienten-fähig** und
-**hochparallel** werden (s. u.) — der reine Eval-Client reicht nicht.
+→ ✅ **Gebaut.** [`rl_finetune.py`](../../Simulation/g1_dex3_sim/rl_finetune.py) lädt die Policy
+**in-process** (kein ZMQ) und ist damit gradientenfähig; die batched Observations liefert
+`get_obs_batched` ([`g1_dex3_blockstack_env.py:1175`](../../Simulation/g1_dex3_sim/g1_dex3_blockstack_env.py)).
+Der ZMQ-Policy-Client [`client.py`](../../Simulation/g1_dex3_sim/client.py) bleibt der Pfad für die
+Closed-Loop-**Eval**. Ursprüngliche Einschätzung: „teilweise vorhanden — für RL muss die Schleife
+gradientenfähig und hochparallel werden".
 
 ### 3.5 Rechenleistung — und ein projektspezifischer GPU-Konflikt ⚠️
 RL ist **deutlich teurer** als BC: Pro Optimierungsschritt müssen **Sim + Rendering + Policy-
@@ -166,7 +188,8 @@ und CLAUDE.md): Bildbasiertes RL braucht **Kamera-Rendering**, und Isaac Sims Ra
 **RT-Cores** → L40 / RTX 4090 / A6000. **A100 und H100 haben keine RT-Cores.** Genau die KISSKI-
 GPUs, die fürs Training stark sind (A100/H100), können das **bildbasierte** RL-Rollout also **nicht
 effizient rendern**, und die GPUs mit RT-Cores (RTX 5000 etc. auf der `jupyter`-Partition) sind
-teils zu alt für Isaac Sim 4.x bzw. zu schwach fürs gleichzeitige Training.
+teils zu alt für Isaac Sim (Stack inzwischen 6.0 / `isaac-lab:3.0.0-beta2-post1`) bzw. zu schwach
+fürs gleichzeitige Training.
 
 → **Das ist die größte praktische Hürde** und muss vor jedem Umsetzungsversuch geklärt werden
 (Optionen in [§6](#6-realistische-einschätzung-für-dieses-projekt)).
@@ -207,6 +230,14 @@ Da viel Infrastruktur schon steht, ist der Delta-Aufwand überschaubarer als ein
 - Container-/SLURM-/W&B-Pipeline (KISSKI), USD-Asset, Modality-Definition
 
 **Neu zu bauen (das eigentliche RL-Delta):**
+
+> ✅ **Alle vier Punkte sind inzwischen umgesetzt** — `_shaped_reward`
+> ([Env:1070](../../Simulation/g1_dex3_sim/g1_dex3_blockstack_env.py)), `get_obs_batched`
+> ([Env:1175](../../Simulation/g1_dex3_sim/g1_dex3_blockstack_env.py)),
+> [`rl_finetune.py`](../../Simulation/g1_dex3_sim/rl_finetune.py) (FPO statt RLinf-VLA) und
+> [`kisski_rl_submit.sh`](../../Training/kisski_rl_submit.sh). Die Liste steht als historischer
+> Delta-Plan.
+
 1. **Shaped Reward** in `_get_rewards` (§3.2) — der mit Abstand wichtigste, aber gut umsetzbare
    Schritt; das Erfolgskriterium existiert schon.
 2. **Vektorisierter RL-Wrapper** des Envs (N parallele Instanzen statt 1 Eval-Env).
@@ -240,7 +271,9 @@ Teilprojekt als ein Konfig-Flag.
 die **GPU-/Rendering-Frage (§3.5)**: bildbasiertes RL braucht gleichzeitig RT-Core-Rendering **und**
 Trainings-FLOPs. Mögliche Auflösungen:
 - **Cloud (vast.ai):** L40 / A6000 (Ampere + RT-Cores, genug VRAM) — passt zur bestehenden
-  vast.ai-Sim-Pipeline; vermutlich der **realistischste Weg**.
+  vast.ai-Sim-Pipeline; galt hier als der **realistischste Weg**.
+  → ✅ **Überholt durch die Entscheidung in Gruppe 0:** gelaufen ist alles auf dem **eigenen
+  Server** (RTX PRO 6000 Blackwell); vast.ai ist der Fallback.
 - **KISSKI:** prüfen, ob eine Partition Ada/L40-GPUs hat; sonst eignet sich KISSKI eher für die
   **State-only-Variante** (§5) oder reines BC.
 - **Entkoppeln:** Render-Rollouts auf RT-GPU(s), Optimierung auf A100/H100 — maximaler
@@ -296,6 +329,13 @@ allem **(a) ein echter Reward**, **(b) echte Parallelität (`num_envs>1`)** und 
 > **DoD:** Hardware-Pfad, `num_envs`-Richtwert, Algorithmus und Pilot-Frage sind schriftlich
 > entschieden. Ab hier ist klar, *worauf* implementiert wird.
 
+> ⚠️ **Die Checklisten der Gruppen 1–4 sind abgearbeitet.** Sie stehen unabgehakt hier, weil sie
+> als Vorbereitungsliste geschrieben wurden — der Umsetzungsstand steht im Status-Kopf dieses
+> Dokuments und im Code (`reward_mode`/`_shaped_reward`, `get_obs_batched`, `rl_finetune.py`,
+> `kisski_rl_submit.sh`). Als offene Punkte verbleiben real nur der **Render-Durchsatz-Benchmark**
+> und die **State-only-Pilot-Frage**. Die Boxen unten bitte als historische Planung lesen, nicht
+> als Aufgabenliste.
+
 ### Gruppe 1 — Reward-Design *(der wichtigste Vorbereitungsschritt, rein offline machbar)*
 
 - [ ] **Shaped-Reward spezifizieren** (zunächst nur als Design-Tabelle in diesem Dokument, kein Code):
@@ -318,16 +358,16 @@ allem **(a) ein echter Reward**, **(b) echte Parallelität (`num_envs>1`)** und 
 
 ### Gruppe 2 — Env RL-tauglich machen *(Anpassung, kein Neubau)*
 
-- [ ] **Parallelität**: `num_envs` von hartkodiert **1** (`G1Dex3BlockstackSceneCfg(num_envs=1, …)`,
-  Z. 224/241) auf einen Parameter heben; prüfen, dass Reset/Spawn/Domain-Randomization pro Env sauber
+- [ ] **Parallelität**: `num_envs` von hartkodiert **1** (`G1Dex3BlockstackSceneCfg(num_envs=1, …)`)
+  auf einen Parameter heben; prüfen, dass Reset/Spawn/Domain-Randomization pro Env sauber
   vektorisiert sind.
-- [ ] **Observation-Pfad verallgemeinern**: `get_obs_for_policy` liefert aktuell nur **Env-Index 0**
-  (`val[0].cpu().numpy()`, Z. 537). Für RL einen **batched** Pfad ergänzen, der alle `num_envs`
-  zurückgibt (der Single-Env-Eval-Pfad bleibt unangetastet).
+- [ ] **Observation-Pfad verallgemeinern**: `get_obs_for_policy` liefert nur **Env-Index 0**
+  (`val[0].cpu().numpy()`). Für RL einen **batched** Pfad ergänzen, der alle `num_envs`
+  zurückgibt (der Single-Env-Eval-Pfad bleibt unangetastet). → umgesetzt als `get_obs_batched`.
 - [ ] **Domain-Randomization** als Stichpunkte planen (Licht, Texturen, Klotz-Startposen) — adressiert
   direkt den **Domain-Gap** und damit das Closed-Loop-Einfrieren.
 - [ ] **Aktions-Konvention dokumentieren** für den RL-Loop: `_pre_physics_step` erwartet **absolute**
-  28-dim Gelenk-Targets (Z. 446–469). Klären, an welcher Stelle der RL-Sampler die Flow-Aktion in
+  28-dim Gelenk-Targets. Klären, an welcher Stelle der RL-Sampler die Flow-Aktion in
   dieses Format bringt (im BC-Eval macht das der Server via `decode_action`).
 
 > **DoD:** Es ist klar (und in kleinen, getrennten Commits vorbereitet), wie das Env N Envs parallel

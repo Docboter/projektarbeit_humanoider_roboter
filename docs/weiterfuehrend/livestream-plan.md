@@ -1,8 +1,8 @@
 # Implementierungsplan — Live-Ansicht der Isaac-Lab-Sim
 
-**Status:** **Spur B für den RL-Lauf ist gebaut** ([`live_view.py`](../../Simulation/g1_dex3_sim/live_view.py),
-2026-08-08) · Spur A (WebRTC) unverändert offen und **nie auf Hardware getestet** ·
-**Erstellt:** 2026-06-02 · **Revision v2:** 2026-08-07 · **v3:** 2026-08-08
+**Status:** **Spur B gebaut** ([`live_view.py`](../../Simulation/g1_dex3_sim/live_view.py), 2026-08-08) ·
+**Spur A gebaut** (2026-08-13, D1–D4 + D6 behoben) — **beide noch nie auf Hardware gesehen** ·
+**Erstellt:** 2026-06-02 · **Revision v2:** 2026-08-07 · **v3:** 2026-08-08 · **v4:** 2026-08-13
 
 > ## Umsetzungsstand
 >
@@ -10,11 +10,14 @@
 > |---|---|
 > | **Spur B — Frame-Stream, RL-Pfad** | ✅ **umgesetzt.** `live_view.py` + Hook in der Rollout-Schleife von [`rl_finetune.py`](../../Simulation/g1_dex3_sim/rl_finetune.py), `LIVE_VIEW*`-Env-Vars, Port-Mapping in [`server_rl_run.sh`](../../Simulation/server_rl_run.sh). Modul isoliert getestet (Index, `meta.json`, `frame.jpg`, MJPEG-Strom, Kamera-Fallback, belegter Port). **Noch nicht auf der Server-GPU im echten Lauf gesehen.** |
 > | **Option C — W&B-Video** | ✅ **umgesetzt.** `RL_WANDB_VIDEO_EVERY=N`, mit Fallback auf einen Bild-Filmstreifen (kein `moviepy` im Kit-Python). |
-> | **Spur B — Sim-Eval + Baseline-Eval** | ⬜ offen. `live_view.py` ist lauf-agnostisch, es fehlt nur der Hook (§4.2). |
-> | **Spur A — WebRTC** | ⬜ offen, bewusst zurückgestellt (D1–D4, D6). Begründung: §1 — für einen tagelangen RL-Lauf ist der Viewport der falsche Mechanismus, und er trägt das gesamte Isaac-Sim-6.0-Risiko. |
+> | **Spur A — WebRTC-Viewport** | ✅ **umgesetzt (2026-08-13).** Gemeinsame [`lib_livestream.sh`](../../Simulation/scripts/lib_livestream.sh) statt drei Kopien; D1–D4 behoben; `LIVESTREAM` wirkt jetzt auf **alle vier Läufe** (Sim-Eval, Baseline, Replay/Greif-Test, RL); Ports werden beim Anlegen des Containers gemappt; neue Aktion `livecheck` (Phase 0). Live ersetzt standardmäßig die MP4-Aufzeichnung (`LIVE_KEEP_VIDEO=1` = beides). Bedienung: [live-ansicht.md](../simulation/live-ansicht.md). **Ungetestet auf Hardware** — erbt zusätzlich das Isaac-Sim-6.0-Risiko. |
+> | **D6 — Start­weg für die Sim-Eval** | ✅ **erledigt, aber anders als geplant.** Kein neues `server_sim_run.sh`: `server_rl_run.sh eval` gab es inzwischen ohnehin, es fehlten nur Port-Mapping und Durchreichen. Ein zweites Skript hätte den Workbench-Container dupliziert. |
+> | **Spur B — Sim-Eval + Baseline-Eval** | ⬜ offen. `live_view.py` ist lauf-agnostisch, es fehlt nur der Hook (§4.2) — für diese Läufe deckt jetzt Spur A den Bedarf ab. |
 >
 > Vorgehen bewusst so geschnitten: Beobachtbarkeit **vor** dem ersten großen RL-Lauf, weil sie
-> sich nicht nachrüsten lässt — und mit dem billigsten Teil, nicht dem attraktivsten.
+> sich nicht nachrüsten lässt — und mit dem billigsten Teil zuerst, nicht dem attraktivsten.
+> Spur A kam nach, als der Wunsch aufkam, die Simulationsumgebung *wirklich* offen vor sich zu
+> haben statt nur ihre Kamerabilder.
 
 > **Ziel:** Das Live-Äquivalent zu den heutigen MP4s aus `/data/sim_videos`. Statt nach dem
 > Lauf per `docker cp` Videos zu holen, soll der Roboter **während** des Laufs im Browser
@@ -79,14 +82,18 @@ strukturell richtig (opt-in, `--headless` korrekt weggelassen wegen
 [IsaacLab#381](https://github.com/isaac-sim/IsaacLab/issues/381)), hat aber sechs Punkte, die
 vor dem ersten Test korrigiert bzw. verifiziert werden müssen:
 
+**Stand 2026-08-13: D1–D4 und D6 sind behoben** (✅ je Zeile), zentral in
+[`lib_livestream.sh`](../../Simulation/scripts/lib_livestream.sh) statt in drei Kopien.
+D5 war schon vorher für Spur B erledigt und ist jetzt auch für Spur A geschlossen.
+
 | # | Defekt | Datei/Zeile | Fix |
 |---|---|---|---|
-| **D1** | **Browser-URL zeigt auf Port 8211** — in Isaac Sim 6.0 gibt es diesen Client nicht mehr. Der Nutzer bekommt eine URL, die garantiert ins Leere läuft. | [`entrypoint_sim.sh:286`](../../Simulation/scripts/entrypoint_sim.sh#L286) | Ausgabe auf **nativen WebRTC-Client** (`<IP>:49100`) umstellen; Web-Viewer (Port 8210) nur nennen, wenn er separat deployt wurde. |
-| **D2** | **Kit-Settings-Pfad veraltet.** Wir setzen `--/app/livestream/port` + `--/app/livestream/publicEndpointAddress`. Isaac Sim 6.0 dokumentiert `--/exts/omni.kit.livestream.app/primaryStream/{signalPort,streamPort,publicIp}`. | [`entrypoint_sim.sh:277-280`](../../Simulation/scripts/entrypoint_sim.sh#L277-L280) | Im Container die tatsächlich akzeptierten Settings prüfen (Phase 0) und den Pfad versionsabhängig setzen. Falsche Kit-Settings werden von Kit **still ignoriert** — das wird sonst zur stundenlangen Fehlersuche. |
-| **D3** | **Doppelte Port-Belegung.** Der Isaac-Lab-`AppLauncher` injiziert bei `livestream=1` selbst `--/app/livestream/port=49100`; unser `--kit_args` hängt einen zweiten, ggf. abweichenden Port an. Welcher gewinnt, hängt von der argv-Reihenfolge ab. | [`entrypoint_sim.sh:277`](../../Simulation/scripts/entrypoint_sim.sh#L277) | Auf dem Server `LIVESTREAM=2` (privat) nutzen — dort injiziert der AppLauncher **keinen** Port und der Konflikt entfällt. Abweichende Ports nur für den vast.ai-Sonderfall. |
-| **D4** | **`curl ifconfig.me` läuft auch bei `LIVESTREAM=2`** (privates Netz), wo `PUBLIC_IP` bedeutungslos ist — im Institutsnetz ggf. ein 10-s-Timeout beim Start. | [`entrypoint_sim.sh:109-110`](../../Simulation/scripts/entrypoint_sim.sh#L109-L110) | Nur bei `LIVESTREAM=1` ausführen. |
-| **D5** | ~~**RL kennt keinen Livestream.**~~ **Für Spur B erledigt (2026-08-08):** Publish-Hook in der Rollout-Schleife, `LIVE_VIEW*` als argparse-Defaults aus der Umgebung. `AppLauncher(headless=True, enable_cameras=True)` bleibt hartkodiert — für den Frame-Stream ist das genau richtig. | [`rl_finetune.py`](../../Simulation/g1_dex3_sim/rl_finetune.py) | Spur A (RL im WebRTC-Viewport) bliebe offen: dafür müsste `AppLauncher` zusätzlich `livestream=` bekommen — **niedrige Priorität**, siehe §1. |
-| **D6** | **Kein Server-Launcher für die Sim-Eval.** Es gibt [`server_rl_run.sh`](../../Simulation/server_rl_run.sh) und `server_robocasa_ref_run.sh`, aber **kein** `server_sim_run.sh` — die Eval hat auf `ikr-ki-server-01` also noch gar keinen Startweg, geschweige denn Port-Publishing. | — | Neues Skript `Simulation/server_sim_run.sh` nach dem Muster von `server_rl_run.sh` (Workbench-Container, `docker exec`), inkl. `-p`-Mappings. |
+| **D1** | ~~**Browser-URL zeigt auf Port 8211**~~ — in Isaac Sim 6.0 gibt es diesen Client nicht mehr; die URL lief garantiert ins Leere. | [`entrypoint_sim.sh`](../../Simulation/scripts/entrypoint_sim.sh) | ✅ `livestream_banner` nennt nur noch den **nativen Client** (`<IP>:49100`) und beide nötigen Ports. `EXPOSE 8211` ist aus [`Dockerfile.vastai`](../../Simulation/Dockerfile.vastai) entfernt. |
+| **D2** | ~~**Kit-Settings-Pfad veraltet**~~ (`--/app/livestream/...` gilt nur bis Isaac Sim 5.x; 6.0 nutzt `--/exts/omni.kit.livestream.app/primaryStream/{signalPort,streamPort,publicIp}`). | [`lib_livestream.sh`](../../Simulation/scripts/lib_livestream.sh) | ✅ `livestream_kit_args` liest die Isaac-Sim-`VERSION` und wählt danach; ohne erkennbare Version werden **beide** Pfade gesetzt (der falsche verpufft, weil Kit unbekannte Settings still ignoriert). Override: `LIVESTREAM_SETTINGS_STYLE`, `LIVESTREAM_KIT_ARGS`. |
+| **D3** | ~~**Doppelte Port-Belegung**~~ — der `AppLauncher` injiziert bei `livestream=1` selbst `--/app/livestream/port=49100`, unser `--kit_args` hängte einen zweiten an. | [`lib_livestream.sh`](../../Simulation/scripts/lib_livestream.sh) | ✅ Kit-Settings werden **nur noch erzeugt, wenn nötig** (abweichender Port oder `PUBLIC_IP`). Im Server-Fall (`LIVESTREAM=2`, Default-Ports) ist der String leer — es gibt nichts mehr zu kollidieren. |
+| **D4** | ~~**`curl ifconfig.me` lief auch bei `LIVESTREAM=2`**~~, wo `PUBLIC_IP` bedeutungslos ist — im Institutsnetz ein 10-s-Timeout beim Start. | [`lib_livestream.sh`](../../Simulation/scripts/lib_livestream.sh) | ✅ `livestream_init` ruft `curl` ausschließlich bei `LIVESTREAM=1` auf. |
+| **D5** | ~~**RL kennt keinen Livestream.**~~ **Spur B erledigt (2026-08-08)**, **Spur A erledigt (2026-08-13):** `AppLauncher` bekommt jetzt entweder `headless=True` **oder** `livestream=N` (nie beides — IsaacLab#381), Default 0 lässt den bisherigen Pfad unverändert. `LIVESTREAM` liest `rl_finetune.py` selbst als argparse-Default, damit der Schalter ohne Image-Rebuild wirkt. Zusätzlich `LIVESTREAM_UPDATE_EVERY_N` gegen einen einfrierenden Viewport. | [`rl_finetune.py`](../../Simulation/g1_dex3_sim/rl_finetune.py) | ✅ — für lange Läufe bleibt Spur B trotzdem die Empfehlung (§4.4). |
+| **D6** | ~~**Kein Server-Launcher für die Sim-Eval**~~ (Stand v3: kein `server_sim_run.sh`, also kein Startweg und kein Port-Publishing auf `ikr-ki-server-01`). | [`server_rl_run.sh`](../../Simulation/server_rl_run.sh) | ✅ **Ohne neues Skript gelöst:** `server_rl_run.sh eval` existierte inzwischen; ergänzt wurden nur `-p 49100/tcp` + `-p 47998/udp` beim Anlegen, das Durchreichen der `LIVESTREAM*`-Vars an `eval`/`grasp`/`rl`/`check` und die Aktion `livecheck`. Ein zweites Skript hätte den Workbench-Container samt Caches dupliziert. |
 
 ---
 
@@ -134,22 +141,32 @@ wahrscheinlichste Stolperstein im Institutsnetz und wird in Phase 0 zuerst gepr�
 
 ### 3.3 Code-Änderungen
 
-1. **[`entrypoint_sim.sh`](../../Simulation/scripts/entrypoint_sim.sh)** — D1–D4 beheben:
-   Kit-Settings versionsabhängig, `curl` nur bei Modus 1, Client-Hinweis auf den nativen
-   Client, Warn-Text „vast.ai" nur ausgeben, wenn tatsächlich vast.ai (z. B. via neuer Var
-   `PLATFORM=server|vastai`).
-2. **[`entrypoint_baseline.sh`](../../Simulation/scripts/entrypoint_baseline.sh)** — identische
-   Anpassung (die Blöcke sind fast wortgleich; ggf. in ein gemeinsames `lib_livestream.sh`
-   ausklammern, das beide Entrypoints sourcen — vermeidet, dass die Zwillinge auseinanderlaufen).
-3. **Neu: [`Simulation/server_sim_run.sh`](../../Simulation/server_sim_run.sh)** (D6) — Workbench-Container
-   nach dem Muster von `server_rl_run.sh`, mit `-p 49100:49100 -p 47998:47998/udp` und
-   Durchreichen von `LIVESTREAM`, `NUM_EPISODES`, `CHECKPOINT_PATH`, `ASSET_PATH`.
-4. **[`Dockerfile.vastai`](../../Simulation/Dockerfile.vastai)** — `EXPOSE 49100 8210` +
-   `EXPOSE 47998/udp` ergänzen (Dokumentationswert), `LIVESTREAM_PORT`-Default beibehalten.
-5. **Optional, niedrige Priorität — Echtzeit-Pacing:** Die Eval läuft so schnell wie möglich;
+**Umgesetzt am 2026-08-13** — die Punkte 1–4 sind erledigt, Punkt 5 bleibt offen:
+
+1. ✅ **Neu: [`lib_livestream.sh`](../../Simulation/scripts/lib_livestream.sh)** — die
+   Ausklammerung aus Punkt 2 wurde zum Ausgangspunkt: `livestream_init` (D4),
+   `livestream_kit_args` (D2/D3), `livestream_app_flags`, `livestream_video_dir`,
+   `livestream_banner` (D1). Gesourct von allen vier Entrypoints **und** von
+   `server_rl_run.sh` auf dem Host (für `grasp`, das ohne Entrypoint startet).
+2. ✅ **[`entrypoint_sim.sh`](../../Simulation/scripts/entrypoint_sim.sh),
+   [`entrypoint_baseline.sh`](../../Simulation/scripts/entrypoint_baseline.sh),
+   [`entrypoint_replay.sh`](../../Simulation/scripts/entrypoint_replay.sh),
+   [`entrypoint_rl.sh`](../../Simulation/scripts/entrypoint_rl.sh)** — je ein `source` + drei
+   Aufrufe statt eigener Blöcke. Fehlt die Lib (altes Image), fällt alles sauber auf headless
+   zurück. Die vast.ai-Warnung erscheint jetzt nur noch bei `LIVESTREAM=1` — das ersetzt die
+   geplante `PLATFORM`-Variable, ohne eine neue Var einzuführen.
+3. ✅ **D6 ohne `server_sim_run.sh`** — stattdessen `server_rl_run.sh` erweitert (Port-Mapping
+   beim Anlegen, `LIVESTREAM*` an `eval`/`grasp`/`rl`/`check`, Aktion `livecheck`,
+   `sync_scripts` kopiert die Lib mit in den Container).
+4. ✅ **[`Dockerfile.vastai`](../../Simulation/Dockerfile.vastai)** — `EXPOSE 49100 8900` +
+   `47998/udp`; `EXPOSE 8211` **entfernt** (existiert in Isaac Sim 6.0 nicht mehr, D1); neue
+   ENV-Defaults `LIVESTREAM_MEDIA_PORT`, `LIVE_KEEP_VIDEO`.
+5. ⬜ **Optional, niedrige Priorität — Echtzeit-Pacing:** Die Eval läuft so schnell wie möglich;
    zum Zuschauen kann ein `--realtime`-Flag pro Step auf `dt` drosseln
    ([`run_g1_dex3_sim_eval.py`](../../Simulation/g1_dex3_sim/run_g1_dex3_sim_eval.py), Rollout-Schleife).
-   Erst nach funktionierendem Stream angehen.
+   Bewusst zurückgestellt: mit 4 gerenderten Kameras plus Policy-Inferenz läuft die Eval eher
+   *langsamer* als Echtzeit — eine Drossel hätte dort nichts zu drosseln. Erst nach dem ersten
+   funktionierenden Stream neu bewerten.
 
 ### 3.4 vast.ai-Sonderfall
 
@@ -224,7 +241,7 @@ verschwindet aber genau dieses Gratis-Bild. Erst messen (Gruppe 0 im RL-Plan), d
 | `LIVE_VIEW` | `0` | `1` = Frame-Stream aktiv |
 | `LIVE_VIEW_PORT` | `8900` | HTTP-Port des Frame-Streams |
 | `LIVE_VIEW_EVERY_N` | `1` | nur jedes n-te Frame publizieren (RL-Drosselung) |
-| `LIVE_VIEW_CAMS` | `cam_scene` | kommagetrennt; mehrere Kameras nebeneinander auf der Seite |
+| `LIVE_VIEW_CAMS` | `cam_left_high,cam_left_wrist` | kommagetrennt; mehrere Kameras nebeneinander auf der Seite. Default = die kalibrierten **Policy**-Kameras (= Modell-Eingabe); `cam_scene` ist die unvalidierte Übersichtskamera |
 | `RL_WANDB_VIDEO_EVERY` | `0` | Option C (§5): alle N Iterationen einen Rollout ins W&B-Dashboard |
 
 Alle fünf sind umgesetzt und stehen in der zentralen Referenz
@@ -272,12 +289,12 @@ höchstens Komfort, nie den Lauf.
 
 | Phase | Inhalt | Aufwand | Abbruch-/Weiter-Kriterium |
 |---|---|---|---|
-| **0 — Machbarkeit** | Auf `ikr-ki-server-01`: UDP 47998 zwischen Arbeitsplatz und Server prüfen; im Container `omni.services.livestream.nvcf` + akzeptierte Kit-Settings-Pfade verifizieren (D2); NVENC im Container prüfen (`nvidia-smi -q -d ENCODER`) | ~1–2 h | ⬜ offen — betrifft nur noch Spur A |
+| **0 — Machbarkeit** | Auf `ikr-ki-server-01`: UDP 47998 zwischen Arbeitsplatz und Server prüfen; im Container Livestream-Extension + Kit-Settings-Pfade verifizieren (D2); NVENC prüfen (`nvidia-smi -q -d ENCODER`) | ~1–2 h | 🔧 **als Werkzeug gebaut, noch nicht ausgeführt:** `./Simulation/server_rl_run.sh livecheck` erledigt alle drei Prüfungen plus Port-Veröffentlichung; die `nc`-Kommandos für die Firewall gibt es aus |
 | **1 — Spur B bauen** ✅ | `live_view.py` (stdlib + Pillow, Latest-Frame-Slot, Encoder-Thread, MJPEG/`meta.json`/`frame.jpg`) — isoliert getestet inkl. Kamera-Fallback und belegtem Port | erledigt 2026-08-08 | ✅ |
 | **2 — Spur B auf RL** ✅ | Hook in der Rollout-Schleife von `rl_finetune.py` + Metriken je Iteration, `LIVE_VIEW*` als Env-Defaults, `-p 8900` in `server_rl_run.sh`, Option C (§5) | erledigt 2026-08-08 | ✅ — offen bleibt die Messung von `LIVE_VIEW_EVERY_N` im echten Lauf |
-| **2b — Spur B auf Sim-/Baseline-Eval** | Hook an derselben Stelle wie `frames.append(frame)` (§4.2); `live_view.py` ist lauf-agnostisch, es fehlt nur der Aufruf | ~1 h | ⬜ offen — nicht nötig für den RL-Lauf |
-| **3 — Spur A reparieren** | D1–D4 in beiden Entrypoints; `server_sim_run.sh` (D6) mit Port-Mappings | ~3–4 h | ⬜ offen |
-| **4 — Spur A testen** | `NUM_EPISODES=2`, `LIVESTREAM=2`, nativer WebRTC-Client → Viewport sichtbar und flüssig? | ~2 h | ⬜ offen. Bei Fehlschlag: Isaac-Sim-6.0-Web-Viewer (Port 8210, Docker Compose) als zweiter Versuch; sonst bleibt Spur B die Lösung |
+| **2b — Spur B auf Sim-/Baseline-Eval** | Hook an derselben Stelle wie `frames.append(frame)` (§4.2); `live_view.py` ist lauf-agnostisch, es fehlt nur der Aufruf | ~1 h | ⬜ offen — für diese Läufe deckt jetzt Spur A den Bedarf |
+| **3 — Spur A reparieren** ✅ | D1–D4 zentral in [`lib_livestream.sh`](../../Simulation/scripts/lib_livestream.sh) (statt doppelt in beiden Entrypoints); D6 über `server_rl_run.sh` statt eines neuen `server_sim_run.sh`; `LIVESTREAM` zusätzlich in Replay und RL; `livecheck`; Live **statt** MP4 (`LIVE_KEEP_VIDEO=1` = beides); Doku [live-ansicht.md](../simulation/live-ansicht.md) | erledigt 2026-08-13 | ✅ — trocken geprüft (Flag-/Video-Matrix, Kit-Settings je Version, `docker exec`-Kommandos gegen ein Fake-`docker`); **Hardware-Test offen** |
+| **4 — Spur A testen** | `livecheck`, dann `NUM_EPISODES=2 EPISODE_LENGTH_S=120 LIVESTREAM=2 … eval`, nativer WebRTC-Client → Viewport sichtbar und flüssig? | ~2 h | ⬜ **offen — der nächste Schritt.** Bei Fehlschlag: Isaac-Sim-6.0-Web-Viewer (Port 8210, Docker Compose) als zweiter Versuch; sonst bleibt Spur B die Lösung |
 | **5 — Doku** ✅ (RL-Teil) | [`rl-anleitung.md`](rl-anleitung.md) Schritt 6, [`env-vars.md`](../training/env-vars.md), [`CLAUDE.md`](../../CLAUDE.md). Offen: [`vastai-anleitung.md`](../simulation/vastai-anleitung.md) + [`umsetzungsnotizen.md`](../simulation/umsetzungsnotizen.md) (gehören zu Phase 2b/3) | erledigt 2026-08-08 | ✅ |
 
 **Reihenfolge-Begründung:** Spur B zuerst, obwohl der Viewport das attraktivere Ziel ist —
@@ -320,6 +337,27 @@ installiert, kommt als harte Abhängigkeit von `torchvision` und `diffusers` —
 Fallback statt einer Annahme), und dass echte `cam_scene`-Bilder wie erwartet aussehen. Beides
 klärt Punkt 3 unten auf der Server-GPU.
 
+### 7.0b Bereits abgehakt (2026-08-13, Spur A, trocken ohne GPU)
+
+Die Shell-Seite von Spur A hängt an nichts Isaac-spezifischem und ließ sich deshalb komplett
+auf dem Arbeitsrechner prüfen — teils gegen ein Fake-`docker`, das die Aufrufe protokolliert:
+
+| Geprüft | Ergebnis |
+|---|---|
+| `LIVESTREAM=0` erzeugt exakt die alte Kommandozeile (`--enable_cameras --headless --video-dir /data/sim_videos`) | ✅ bit-identisch |
+| `LIVESTREAM=2` → `--livestream 2`, **kein** `--headless`, `--video-dir ""` | ✅ |
+| `LIVESTREAM=2 LIVE_KEEP_VIDEO=1` → Video-Verzeichnis bleibt gesetzt | ✅ |
+| Kit-Settings: Default-Ports privat → **leer** (kein D3-Konflikt) | ✅ |
+| Kit-Settings je Version: 6.0.1 → `--/exts/…`, 5.1.0 → `--/app/…`, unbekannt → beide | ✅ (gegen eine simulierte `VERSION`-Datei) |
+| `LIVESTREAM_SETTINGS_STYLE` / `LIVESTREAM_KIT_ARGS` als Override | ✅ |
+| `PUBLIC_IP`-Ermittlung nur bei Modus 1 (D4) | ✅ |
+| `grasp`: gebaute `docker exec`-Zeile inkl. `%q`-Quoting der Kit-Settings | ✅ |
+| `eval`: `LIVESTREAM*` + `LIVESTREAM_HOST_ADDR` kommen als `-e` am Container an | ✅ |
+| `bash -n` auf allen fünf Shell-Dateien, `ruff check --select E,F,I` auf `rl_finetune.py` | ✅ |
+
+**Was das nicht zeigt:** ob Isaac Sim 6.0 den Stream tatsächlich aufbaut, ob NVENC im
+Container nutzbar ist und ob UDP 47998 durchs Institutsnetz kommt. Genau das ist §7.1 Punkt 4.
+
 ### 7.1 Auf Hardware zu prüfen
 
 1. **Regression (beide Spuren):** `LIVESTREAM=0` + `LIVE_VIEW=0` → exakt das alte Verhalten
@@ -328,8 +366,10 @@ klärt Punkt 3 unten auf der Server-GPU.
    Seite überlebt Reload, zweiter Browser-Tab funktioniert parallel.
 3. **Spur B, RL:** `--check`-Lauf mit `LIVE_VIEW=1`; danach im echten Lauf messen, ob
    `LIVE_VIEW_EVERY_N=1` die Iterationszeit spürbar erhöht (Vergleich gegen `LIVE_VIEW=0`).
-4. **Spur A, Viewport:** `NUM_EPISODES=2`, `LIVESTREAM=2` → nativer Client zeigt den Viewport
-   in Echtzeit; Kamera lässt sich frei bewegen.
+4. **Spur A, Viewport:** erst `./Simulation/server_rl_run.sh livecheck` (NVENC, Extension,
+   Ports), dann `NUM_EPISODES=2 EPISODE_LENGTH_S=120 LIVESTREAM=2 … eval` → nativer Client
+   zeigt den Viewport in Echtzeit; Kamera lässt sich frei bewegen. Bedienschritte:
+   [live-ansicht.md](../simulation/live-ansicht.md).
 5. **Parallelität:** MP4-Aufzeichnung **und** Live-Ansicht gleichzeitig, ohne dass das
    Kamera-Rendering einbricht (Schrittzeit vergleichen).
 6. **Frozen-Check (Spur A):** Aktualisiert der Stream pro Sim-Step oder friert er ein? Isaac Lab
@@ -342,12 +382,12 @@ klärt Punkt 3 unten auf der Server-GPU.
 
 | Risiko | Einschätzung / Gegenmaßnahme |
 |---|---|
-| **Isaac-Sim-6.0-Port insgesamt unverifiziert** | Der Basis-Image-Wechsel auf `isaac-lab:3.0.0-beta2-post1` ist noch nicht auf Hardware gelaufen (Beta; flash-attn gegen torch 2.10 gebaut, Isaac Sim 6.0 liefert 2.11). Der Livestream **erbt** dieses Risiko vollständig. → Livestream-Arbeit erst *nach* einem grünen `server_rl_run.sh check`. |
+| ~~**Isaac-Sim-6.0-Port insgesamt unverifiziert**~~ — **erledigt** | Der Basis-Image-Wechsel auf `isaac-lab:3.0.0-beta2-post1` ist **seit 2026-08-08 auf Hardware bestätigt** (Läufe 09–31 auf der Blackwell). Auch die Torch-Annahme war falsch: das Bundle liefert **torch 2.10.0+cu128**, nicht 2.11 — die Release Notes nannten 2.11 fälschlich, per `pip list` im Image widerlegt. Rest-Risiko: numpy 2.5 und der Beta-Status von Isaac Lab 3.0. |
 | **Kit ignoriert falsche Settings still** | Ein Tippfehler in `--/exts/…` führt nicht zu einem Fehler, sondern zu einem Stream, der auf dem Default-Port lauscht. → In Phase 0 die gesetzten Werte im Kit-Log gegenprüfen. |
 | **UDP 47998 im Institutsnetz blockiert** | Trifft nur Spur A. Spur B (reines HTTP) ist davon nicht betroffen — deshalb wird sie zuerst gebaut. |
 | **Nur ein WebRTC-Client gleichzeitig** | Akzeptabel für Eval-Debugging, nicht für RL → §1-Zuordnung. |
 | **Frame-Stream bremst die Sim** | Nur letztes Frame wird gehalten, JPEG-Encode im Hintergrund-Thread, `LIVE_VIEW_EVERY_N` als Ventil. In Phase 2 messen statt schätzen. |
-| **Zwei fast identische Entrypoint-Blöcke** (`sim` + `baseline`) | Laufen bei Änderungen auseinander → gemeinsames `lib_livestream.sh` (§3.3). |
+| ~~**Zwei fast identische Entrypoint-Blöcke**~~ — **erledigt** | Gelöst wie in §3.3 vorgesehen: [`lib_livestream.sh`](../../Simulation/scripts/lib_livestream.sh) wird von `entrypoint_sim.sh`, `entrypoint_baseline.sh` und `entrypoint_replay.sh` gesourct — die Blöcke können nicht mehr auseinanderlaufen. |
 | **Kein Auth vor dem Frame-Stream** | Der MJPEG-Port ist ungeschützt. Im VPN/Institutsnetz vertretbar; **nicht** auf einer öffentlichen vast.ai-IP exponieren (dort nur per SSH-Tunnel nutzen). |
 
 ---

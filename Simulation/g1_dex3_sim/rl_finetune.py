@@ -131,6 +131,21 @@ def parse_args() -> argparse.Namespace:
                    help="Kommagetrennte Kameras. Env: LIVE_VIEW_CAMS. Moeglich: "
                         "cam_left_high, cam_right_high, cam_left_wrist, cam_right_wrist, "
                         "cam_scene (unvalidiert).")
+    # ── LIVE-Variante: WebRTC-Viewport (Spur A des Livestream-Plans) ─────────
+    # Anders als die Live-Ansicht oben (MJPEG-Bilder im Browser) streamt das hier den
+    # kompletten Isaac-Sim-Viewport: freie Kamera, Szene drehen, Isaac-Sim-UI. Geoeffnet
+    # wird er vom nativen "Isaac Sim WebRTC Streaming Client" auf dem Arbeitsrechner.
+    # Fuer einen tagelangen RL-Lauf ist Spur B der robustere Weg (zustandslos, beliebig
+    # viele Zuschauer) — deshalb bleibt das hier opt-in und Default 0.
+    p.add_argument("--livestream", type=int, default=_env_int("LIVESTREAM", 0),
+                   help="0 = headless (Default), 1 = WebRTC oeffentlich, 2 = WebRTC "
+                        "privat/lokal. Env: LIVESTREAM. Anleitung: "
+                        "docs/simulation/live-ansicht.md")
+    p.add_argument("--livestream-update-every-n", type=int,
+                   default=_env_int("LIVESTREAM_UPDATE_EVERY_N", 1),
+                   help="Nur mit --livestream: alle n Rollout-Steps simulation_app.update() "
+                        "aufrufen, damit der Viewport nachzieht. 0 = nie (falls Isaac Lab "
+                        "den Render-Loop selbst treibt). Env: LIVESTREAM_UPDATE_EVERY_N.")
     p.add_argument("--check", action="store_true",
                    help="Nur Imports/Aufbau pruefen, kein Training (CI/Smoke-Test).")
     return p.parse_args()
@@ -243,8 +258,27 @@ def main() -> None:
     AppLauncher = _import_stack()
     import torch
 
-    # ── Isaac Sim hochfahren (headless) ───────────────────────────────────────
-    app_launcher = AppLauncher(headless=True, enable_cameras=True)
+    # ── Isaac Sim hochfahren (headless ODER LIVE-Variante) ────────────────────
+    # headless UND livestream gleichzeitig zu setzen ist ein Fehler: Isaac Lab waehlt dann
+    # das falsche Experience-File (IsaacLab#381) und der Stream bliebe schwarz. Jeder
+    # Livestream-Modus impliziert Headless ohnehin — deshalb entweder/oder.
+    if args.livestream:
+        launcher_kwargs = {"livestream": args.livestream, "enable_cameras": True}
+        # Kit-Settings (Ports/oeffentliche IP) baut die Shell-Seite in
+        # Simulation/scripts/lib_livestream.sh und reicht sie als Env-Var durch — im
+        # Server-Fall mit Default-Ports ist sie leer und wird gar nicht gebraucht.
+        kit_args = os.environ.get("LIVESTREAM_KIT_ARGS", "").strip()
+        if kit_args:
+            launcher_kwargs["kit_args"] = kit_args
+        print(
+            f"[rl] LIVE-Variante aktiv (LIVESTREAM={args.livestream}): Isaac-Sim-Viewport "
+            f"per WebRTC. Auf dem Arbeitsrechner mit dem 'Isaac Sim WebRTC Streaming "
+            f"Client' auf Port {os.environ.get('LIVESTREAM_PORT', '49100')} verbinden.",
+            flush=True,
+        )
+    else:
+        launcher_kwargs = {"headless": True, "enable_cameras": True}
+    app_launcher = AppLauncher(**launcher_kwargs)
     simulation_app = app_launcher.app
 
     # Erst NACH AppLauncher importierbar:
@@ -319,6 +353,11 @@ def main() -> None:
         wandb.init(project=args.wandb_project, config=vars(args))
 
     # ── Trainings-Schleife ────────────────────────────────────────────────────
+    # Bei aktiver LIVE-Variante den Viewport nachziehen: der Rollout ruft nur env.step(),
+    # und ob Isaac Lab dabei von sich aus den Render-Loop treibt, haengt an der Isaac-Sim-
+    # Version. Ein simulation_app.update() je n Steps macht das unabhaengig davon sichtbar.
+    # 0 (bzw. livestream=0) schaltet den Aufruf komplett ab — dann kostet er auch nichts.
+    ls_update_every = args.livestream_update_every_n if args.livestream else 0
     obs_dict, _ = env.reset()
     for it in range(args.iterations):
         # Speicher fuer den Rollout
@@ -332,6 +371,8 @@ def main() -> None:
         for _step in range(args.rollout_steps):
             obs = env.get_obs_batched()                  # batched GPU-Tensoren
             live.publish_obs(obs, iteration=it, step=_step)
+            if ls_update_every and _step % ls_update_every == 0:
+                simulation_app.update()
             if rec is not None:
                 fr = obs.get(f"video.{view_cams[0]}")
                 if fr is not None:
