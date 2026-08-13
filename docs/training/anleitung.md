@@ -306,7 +306,10 @@ USE_AUGMENTATION=0 sbatch --export=ALL Training/kisski_submit.sh   # Bild-Augmen
 ```
 
 - `TRAIN_TEST_SPLIT=1` schaltet den [80/20-Split](train-test-split.md) scharf (Test-Episoden werden
-  nicht mittrainiert; für die Open-Loop-Eval auf ungesehenen Episoden).
+  nicht mittrainiert). **Ohne diesen Schalter gibt es hinterher nichts zu validieren** — die
+  Checkpoint-Auswahl bleibt dann blind beim letzten Step, so wie in Lauf 1 und Lauf 2. Nach dem
+  Lauf: `RUN_DIR=… sbatch Training/kisski_open_loop_eval.sh` wählt den Checkpoint mit der besten
+  MSE auf den zurückgehaltenen Episoden.
 - `USE_AUGMENTATION` steuert Color-Jitter/Domain-Randomization gegen den Sim-Real-Gap (Default an;
   Stärken über `CJ_BRIGHTNESS/CONTRAST/SATURATION/HUE`).
 - **RL** (`USE_RL`) läuft **nicht** im BC-Image — es braucht den Isaac-Sim+GR00T-Container auf einer

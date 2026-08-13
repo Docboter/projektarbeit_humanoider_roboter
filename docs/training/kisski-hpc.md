@@ -233,12 +233,26 @@ TRAIN_TEST_SPLIT=1 sbatch --export=ALL Training/kisski_submit.sh
 USE_AUGMENTATION=0 sbatch --export=ALL Training/kisski_submit.sh
 ```
 
-- **`TRAIN_TEST_SPLIT=1`** — `run_finetuning.sh` patcht vor dem Start `meta/info.json` auf
-  `train: 0:N` / `test: N:total` (Ratio via `TRAIN_SPLIT_RATIO`, Default 0.8). Die Test-Episoden
-  stehen danach für die Open-Loop-Eval auf **ungesehenen** Episoden bereit. Siehe
+- **`TRAIN_TEST_SPLIT=1`** — [`lib_split.sh`](../../Training/scripts/lib_split.sh) patcht vor dem
+  Start `meta/info.json` auf `train: 0:N` / `test: N:total` (Ratio via `TRAIN_SPLIT_RATIO`,
+  Default 0.8) und legt ein `split.json`-Protokoll im `OUTPUT_DIR` ab. Die Test-Episoden stehen
+  danach für die Checkpoint-Auswahl auf **ungesehenen** Episoden bereit. Siehe
   [Train-Test-Split](train-test-split.md).
 - **`USE_AUGMENTATION`** (Default `1`) — Color-Jitter/Domain-Randomization gegen den
   Sim-zu-Real-Domain-Gap; Stärken über `CJ_BRIGHTNESS/CONTRAST/SATURATION/HUE`. `0` = explizit aus.
+
+> ⚠️ **Bis 2026-08-13 wurden beide Schalter NICHT durchgereicht.** `kisski_submit.sh` baute die
+> `--env`-Liste für Apptainer von Hand, und `TRAIN_TEST_SPLIT`/`USE_AUGMENTATION` fehlten darin.
+> Apptainer erbt die Job-Umgebung nicht automatisch — ein `TRAIN_TEST_SPLIT=1 sbatch …` verpuffte
+> also folgenlos, ohne Fehlermeldung. Wer ältere Läufe auswertet: sie sind **ohne** Split gelaufen,
+> unabhängig davon, was beim Absenden gesetzt war. Der Job-Kopf zeigt die Werte jetzt an und warnt,
+> wenn kein Split aktiv ist.
+
+Nach dem Lauf steht die Checkpoint-Auswahl an — nicht blind den letzten Step nehmen:
+
+```bash
+RUN_DIR=/data/g1_dex3_finetune/blockstacking_vision sbatch Training/kisski_open_loop_eval.sh
+```
 
 > **`USE_RL` gehört NICHT hierher** — RL läuft auf KISSKI grundsätzlich nicht (kein RT-Core-Rendering,
 > siehe [den Hinweis-Kasten oben](#verfügbare-gpu-partitionen)). Für RL den vast.ai-Pfad nutzen.

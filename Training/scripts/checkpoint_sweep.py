@@ -404,7 +404,21 @@ def main() -> int:
     print(f"Bester Checkpoint : {best_line}", flush=True)
     print(f"                    {best_path}", flush=True)
 
-    if best["step"] != last["step"]:
+    if len(results) == 1:
+        # Mit einem einzigen Checkpoint ist "bester == letzter" trivial wahr und sagt
+        # über die Auswahl gar nichts — das darf nicht wie ein Ergebnis aussehen.
+        print("", flush=True)
+        print(
+            "Nur EIN Checkpoint ausgewertet — das ist ein Funktionstest, keine Auswahl. "
+            "Für eine Aussage",
+            flush=True,
+        )
+        print(
+            "über den besten Checkpoint braucht es mindestens zwei (--checkpoints / "
+            "EVAL_CHECKPOINTS).",
+            flush=True,
+        )
+    elif best["step"] != last["step"]:
         delta = (last["mean_mse"] - best["mean_mse"]) / best["mean_mse"] * 100.0
         print("", flush=True)
         print(

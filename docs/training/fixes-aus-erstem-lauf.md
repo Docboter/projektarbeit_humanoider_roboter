@@ -101,5 +101,10 @@ Verdrahtet in: [entrypoint_sim.sh](../../Simulation/scripts/entrypoint_sim.sh),
 
 - **Finger-Action-Qualität** (DEX3-Dims verrauscht, auch in-distribution) — Normalisierung
   der `*_dex3`-`ABSOLUTE`-Dims / mehr Greif-Demos. Siehe Auswertung §5–6.
-- **Fehlende Eval-Metrik für den nächsten Trainingslauf** (`enable_open_loop_eval=true`,
-  `eval_strategy="steps"`) + größere Batch-Size. Siehe Auswertung §6.4.
+- **Fehlende Eval-Metrik für den nächsten Trainingslauf** + größere Batch-Size.
+  Siehe Auswertung §6.4.
+  > **Korrektur 2026-08-13:** Hier standen `enable_open_loop_eval=true` und
+  > `eval_strategy="steps"`. Beide sind im Fork wirkungslos bzw. führen zum Absturz —
+  > In-Training-Eval existiert dort nicht. Umgesetzt ist stattdessen die Auswertung **nach**
+  > dem Lauf: [`checkpoint_sweep.py`](../../Training/scripts/checkpoint_sweep.py). Begründung
+  > und Code-Fundstellen: [train-test-split.md](train-test-split.md) (Hinweis 1).

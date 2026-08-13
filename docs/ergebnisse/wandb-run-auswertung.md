@@ -91,9 +91,13 @@ das Flow-Matching-Ziel an. Das ist **kein** Generalisierungssignal (s. Abschnitt
 
 **Wie man es tatsächlich beantwortet:**
 
-1. **Open-Loop-Eval einschalten** (`enable_open_loop_eval=true`, ggf.
-   `eval_strategy="steps"`; `eval_set_split_ratio=0.1` ist schon gesetzt) → Val-MSE
-   über die Zeit. Sauberer Weg ab dem nächsten Lauf.
+1. **Open-Loop-Eval über die Checkpoints laufen lassen** → Val-MSE über die Zeit.
+   Sauberer Weg ab dem nächsten Lauf.
+   > **Korrektur 2026-08-13:** Hier standen `enable_open_loop_eval=true` und
+   > `eval_strategy="steps"` — beide im Fork wirkungslos bzw. absturzauslösend.
+   > Der funktionierende Weg ist `TRAIN_TEST_SPLIT=1` beim Training und danach
+   > [`checkpoint_sweep.py`](../../Training/scripts/checkpoint_sweep.py).
+   > Details: [train-test-split.md](../training/train-test-split.md) (Hinweis 1).
 2. **Pragmatisch ohne Neustart:** einen Zwischen-Checkpoint (z. B. Step 5.000 vs.
    einen späteren) in der **Sim-Eval** auf ungesehenen Episoden vergleichen
    (siehe [train-test-split.md](../training/train-test-split.md)). Erfolgsrate steigt weiter →
@@ -142,9 +146,14 @@ Infrastruktur vorhanden, aber inaktiv:
 - `enable_open_loop_eval = false` (GR00T-Open-Loop-Eval *vorhanden*, aber aus)
 
 Folge: kein Val-Signal → kein principled Checkpoint-Auswahlkriterium (am Ende blind
-Step 175000). Empfehlung: `enable_open_loop_eval=true` (+ ggf. `eval_strategy="steps"`),
-um Val-MSE über die Zeit zu sehen und Overfitting/besten Checkpoint zu erkennen.
+Step 175000). Empfehlung: `TRAIN_TEST_SPLIT=1` beim Training, danach
+[`checkpoint_sweep.py`](../../Training/scripts/checkpoint_sweep.py) über alle Checkpoints —
+das liefert die Val-MSE-Kurve und den besten Checkpoint.
 Siehe [train-test-split.md](../training/train-test-split.md).
+
+> **Korrektur 2026-08-13:** Hier stand `enable_open_loop_eval=true` (+ `eval_strategy="steps"`).
+> Beides ist im Fork wirkungslos — In-Training-Eval existiert dort nicht (Hinweis 1 in
+> train-test-split.md). Die Validierung muss nach dem Lauf stattfinden.
 
 ---
 

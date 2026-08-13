@@ -16,7 +16,7 @@ Operative Anleitungen zum Trainieren. Die Auswertung der Läufe steht unter [Erg
 | [training/kisski-hpc.md](training/kisski-hpc.md) | **HPC-Training auf KISSKI** — SIF-Konvertierung, VAST-Storage, SLURM-Job, Monitoring, Checkpoint-Export, KISSKI-Troubleshooting |
 | [training/multi-gpu.md](training/multi-gpu.md) | **Multi-GPU-Training** — DeepSpeed/DDP, Batch-Size-Skalierung, KISSKI-Defaults (4× A100) |
 | [training/env-vars.md](training/env-vars.md) | **Konfigurationsreferenz** — alle Env-Vars + VRAM-Richtwerte (Single Source of Truth) |
-| [training/train-test-split.md](training/train-test-split.md) | 80/20-Datensatz-Split — Implementierung und Nutzung |
+| [training/train-test-split.md](training/train-test-split.md) | 80/20-Datensatz-Split **und Checkpoint-Auswahl** — Implementierung, Nutzung, und warum die Validierung erst nach dem Lauf läuft (`checkpoint_sweep.py`) |
 | [training/wandb-offline-sync.md](training/wandb-offline-sync.md) | W&B-Offline-Sync auf KISSKI |
 | [training/fixes-aus-erstem-lauf.md](training/fixes-aus-erstem-lauf.md) | **Fixes aus dem 1. Lauf** — Domain-Gap-Maßnahmen (Würfelfarbe, Stapel-Band, schwarze Hände, `BLACK_HANDS`-Auto-Recolor) + Werkzeuge & offene Punkte |
 

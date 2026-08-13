@@ -150,7 +150,7 @@ Texturen, Beleuchtung, Hintergründe randomisieren, sodass Sim-Bilder realen Bil
 
 **Eval-Set aufbauen:** ✅ **umgesetzt** als `TRAIN_TEST_SPLIT=1` (Ratio über `TRAIN_SPLIT_RATIO`,
 Default 0.8) → [training/train-test-split.md](training/train-test-split.md).
-~20 % der Episoden zurückhalten, `eval_strategy = "steps"` mit `eval_steps = 5000` — damit Checkpoint-Selektion beim nächsten Lauf nicht mehr blind ist.
+~20 % der Episoden zurückhalten und nach dem Lauf [`checkpoint_sweep.py`](../Training/scripts/checkpoint_sweep.py) über alle Checkpoints fahren — damit Checkpoint-Selektion beim nächsten Lauf nicht mehr blind ist. *(Korrektur 2026-08-13: hier stand `eval_strategy = "steps"` mit `eval_steps = 5000`. In-Training-Eval existiert im Fork nicht — `factory.py:26` bricht mit `assert eval_strategy == "no"` ab. Begründung: [training/train-test-split.md](training/train-test-split.md) Hinweis 1.)*
 
 ### Längerfristig — ⚠️ teilweise überholt
 

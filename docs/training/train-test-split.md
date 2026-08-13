@@ -14,8 +14,10 @@ TRAIN_TEST_SPLIT=1 ...        # 80/20-Split scharf schalten
 TRAIN_SPLIT_RATIO=0.8         # optional: Trainingsanteil (Default 0.8)
 ```
 
-`run_finetuning.sh` patcht dann **vor dem Trainingsstart** automatisch den
-`splits`-Eintrag in `meta/info.json` (kein manuelles Editieren mehr nötig):
+[`lib_split.sh`](../../Training/scripts/lib_split.sh) patcht dann **vor dem Trainingsstart**
+automatisch den `splits`-Eintrag in `meta/info.json` (kein manuelles Editieren mehr nötig).
+Die Logik teilen sich seit 2026-08-13 **beide** Trainings-Skripte — auch der Vision-Lauf
+(`TUNE_VISUAL=1`), der den Schalter vorher gar nicht kannte:
 
 ```json
 // TRAIN_TEST_SPLIT=1 (bei 301 Episoden, Ratio 0.8):
@@ -31,14 +33,23 @@ stehen als `test` für die Open-Loop-Eval auf **ungesehenen** Episoden bereit.
 - Der Patch greift, **bevor** der Datensatz beim Job-Start gesharded wird — eine spätere
   Änderung an `info.json` wirkt nicht mehr auf einen laufenden Job.
 
-> **Hinweis 1:** Auch mit aktivem Split gibt es **keine** Validierung *während* des
-> Trainings (kein `eval`/`val`-Flag in `run_finetuning.sh`). Der `test`-Split dient
-> ausschließlich der Evaluation **nach** dem Fine-tuning.
+> **Hinweis 1: Validierung während des Trainings ist im Fork strukturell nicht möglich.**
+> Das ist kein fehlendes Flag, sondern eine Sperre im Code (geprüft 2026-08-13):
+> `training_config.py:100–109` deklariert `enable_open_loop_eval` und drei
+> `open_loop_eval_*`-Felder, die **nirgends gelesen** werden; `data/dataset/factory.py:26`
+> bricht mit `assert eval_strategy == "no"` ab; derselbe Factory gibt dem Loader fest
+> `split="train"` und liefert `eval_dataset=None`. Ein `eval_strategy="steps"` würde also
+> **abstürzen**, nicht evaluieren. Der `test`-Split dient deshalb ausschließlich der
+> Evaluation **nach** dem Fine-tuning.
 >
-> **Hinweis 2:** Wer den Split konsequent nutzt, muss zusätzlich
-> [`Training/kisski_open_loop_eval.sh`](../../Training/kisski_open_loop_eval.sh) so anpassen,
-> dass die Trajektorien-IDs aus dem **`test`-Bereich (240–300)** stammen — sonst läuft die
-> Open-Loop-Eval weiter auf Trainingsdaten (siehe [Methodik](#welche-validierung-wofür-methodik)).
+> **Hinweis 2: Die Auswertung auf dem `test`-Split ist umgesetzt** —
+> [`checkpoint_sweep.py`](../../Training/scripts/checkpoint_sweep.py), auf KISSKI über
+> [`kisski_open_loop_eval.sh`](../../Training/kisski_open_loop_eval.sh). Früher stand hier die
+> Auflage, die Trajektorien-IDs von Hand in den `test`-Bereich zu legen. **Das wäre falsch
+> gewesen:** `_apply_split_filter` filtert die Episodenliste, und `loader[idx]` indiziert in
+> die **gefilterte** Liste. Position 0 ist bei aktivem Split die Episode 240 — eine
+> „traj_id 240" wäre also die Episode 480 gewesen, die es nicht gibt. Der Sweep übergibt
+> Positionen im Split und protokolliert den absoluten `episode_index` dazu.
 
 ---
 
@@ -95,11 +106,13 @@ Train-Loss (Konvergenz)
 - Den Split **behalten**, aber als *sekundäres, billiges* Signal nutzen (Action-MSE
   zum Checkpoint-Vergleich, bevor die teure Sim-Eval nur auf die besten 2–3
   Checkpoints angewandt wird).
-- **Achtung:** Wer den Split nutzt, muss ihn *konsequent* nutzen — neben der
-  `info.json` (siehe Status-Hinweis oben) auch `Training/kisski_open_loop_eval.sh`
-  so anpassen, dass die Trajektorien-IDs aus dem **`test`-Bereich (241–300)**
-  stammen. Aktuell zieht das Skript IDs über alle 301 Episoden → die Open-Loop-Eval
-  läuft sonst weiter auf Trainingsdaten.
+- **Erledigt seit 2026-08-13:** Der Checkpoint-Vergleich läuft über
+  [`checkpoint_sweep.py`](../../Training/scripts/checkpoint_sweep.py) und misst standardmäßig
+  auf `split="test"`. Vorher wertete `kisski_open_loop_eval.sh` einen **fest verdrahteten**
+  `checkpoint-3000` auf Trajektorien-IDs über alle 301 Episoden aus — also Trainingsdaten.
+  Die Ursache lag tiefer als der Aufruf: `gr00t/eval/open_loop_eval.py` reicht **kein**
+  `split` an den `LeRobotEpisodeLoader` durch, dessen Default `split="train"` ist. Wer jenes
+  Skript direkt benutzt, misst nach einem Split-Lauf weiterhin Trainings-MSE.
 - **Vertretbare Alternative:** auf allen 301 Episoden trainieren (maximale Daten)
   und **ausschließlich in der Sim** validieren — methodisch sauber, solange die
   Sim-Startbedingungen nicht 1:1 aus den Demos stammen.

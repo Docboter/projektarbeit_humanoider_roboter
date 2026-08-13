@@ -149,7 +149,7 @@ Die zwei Overhead-Kameras (`cam_left_high`: 0.148, `cam_right_high`: 0.214) lieg
 
 Änderungen für den nächsten Trainingslauf:
 - Modality-Config auf `g1_dex3_2cam_config` umstellen (existiert bereits in [`g1_dex3_config.py`](../../app/Groot-1.6/examples/G1_DEX3/g1_dex3_config.py))
-- `eval_strategy = "steps"`, `eval_steps = 5000` setzen (behebt den Blind-Checkpoint-Fehler)
+- `TRAIN_TEST_SPLIT=1` setzen und nach dem Lauf [`checkpoint_sweep.py`](../../Training/scripts/checkpoint_sweep.py) fahren (behebt den Blind-Checkpoint-Fehler). *Korrektur 2026-08-13: hier stand `eval_strategy = "steps"`, was im Fork in eine `assert`-Sperre läuft — siehe [train-test-split.md](../training/train-test-split.md) Hinweis 1.*
 - Sim-Eval analog auf 2 Kameras umstellen
 
 **Risiko:** Ohne Wrist-Information sieht die Policy nicht, was die Hand gerade macht — feine Fingersteuerung wird schwieriger. Der Robot kann Blöcke lokalisieren, aber keine propriozeptive Greif-Korrektur aus Kamerabildern ableiten.

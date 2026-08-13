@@ -14,7 +14,7 @@ KISSKI HPC-Cluster.
 | [kisski-hpc.md](kisski-hpc.md) | **HPC-Training auf KISSKI.** SIF-Konvertierung, VAST-Storage, SLURM-Job, Monitoring, Checkpoint-Export, KISSKI-Troubleshooting (die ausführliche Form von Weg D). |
 | [env-vars.md](env-vars.md) | **Konfigurationsreferenz.** Alle Env-Vars + VRAM-Richtwerte — die Single Source of Truth, auf die `anleitung.md` und `kisski-hpc.md` verweisen. |
 | [multi-gpu.md](multi-gpu.md) | **Multi-GPU (bis 4× A100) — umgesetzt.** Warum sich Multi-GPU lohnt, was geändert wurde (torchrun-Launcher + SLURM-Ressourcen), KISSKI-Defaults (4× A100, `GLOBAL_BATCH_SIZE=32`) und Verifikationsschritte. |
-| [train-test-split.md](train-test-split.md) | 80/20-Datensatz-Split — Implementierung und Nutzung für die Evaluation auf ungesehenen Episoden. |
+| [train-test-split.md](train-test-split.md) | 80/20-Datensatz-Split **und Checkpoint-Auswahl** — Implementierung, Nutzung und warum die Validierung erst *nach* dem Lauf stattfinden kann (der Fork hat keine In-Training-Eval: `enable_open_loop_eval` ist tot, `factory.py` sperrt `eval_strategy != "no"`). Werkzeug: [`checkpoint_sweep.py`](../../Training/scripts/checkpoint_sweep.py). |
 | [wandb-offline-sync.md](wandb-offline-sync.md) | W&B-Offline-Sync auf KISSKI (Compute-Knoten ohne Internet). |
 | [fixes-aus-erstem-lauf.md](fixes-aus-erstem-lauf.md) | **Fixes aus dem ersten Lauf** — konkrete Maßnahmen aus der Auswertung (Domain-Gap: Würfelfarbe, Stapel-Band, schwarze Hände, `BLACK_HANDS`-Auto-Recolor), neue Werkzeuge, Anwenden/Verifizieren, offene Punkte. |
 

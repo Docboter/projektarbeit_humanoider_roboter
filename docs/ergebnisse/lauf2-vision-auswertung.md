@@ -146,6 +146,21 @@ Domain-Randomization variierte Bilder** sieht — was hier nicht der Fall war. O
 sim-ähnliche Trainingsbilder ist `TUNE_VISUAL` gegen den Domain-Gap wirkungslos und
 riskiert den beobachteten Kollaps.
 
+> **Nachtrag 2026-08-13 — die Bedingung aus §6.2 ist inzwischen erfüllt.** Diese Empfehlung
+> gilt für *reine* Realdaten. Lauf 2 lief am **04./05.06.**; die Augmentierung
+> (`USE_AUGMENTATION`, Color-Jitter) kam erst am **12.06.** dazu (`c3a1cd6`) — Lauf 2 hatte
+> also gar keinen Jitter. Ein neuer `TUNE_VISUAL`-Lauf mit `USE_AUGMENTATION=1` ist deshalb
+> **keine Wiederholung**, sondern der erste, der die hier geforderte Voraussetzung erfüllt.
+> Zwei Vorbehalte bleiben: Color-Jitter variiert Farbe, **nicht** Geometrie, Textur oder
+> Rendering-Stil — und der Ausreißer der
+> [Domain-Gap-Messung](domain-gap-analyse.md) ist `cam_left_wrist` (0,36), eine
+> Nahbereichskamera. Der Lauf ist ein begründeter billiger Test, keine Erfolgsgarantie; das
+> Gate dafür steht in [next-steps.md](../../next-steps.md).
+>
+> Bis 2026-08-13 kannte `run_finetuning_vision.sh` den Schalter ohnehin nicht — der
+> Color-Jitter war dort **fest verdrahtet**, `USE_AUGMENTATION` wirkungslos. Beides ist
+> jetzt behoben.
+
 ### 6.2 Wenn der Vision-Pfad weiterverfolgt wird
 - **Sim-/DR-Bilder ins Training mischen** (Domain-Randomization oder co-Training auf
   gerenderten Bildern), damit das Auftauen des Encoders den Gap überhaupt schließen kann.
@@ -153,10 +168,24 @@ riskiert den beobachteten Kollaps.
   VLA-Trainings nutzen 500–2000.
 
 ### 6.3 Eval endlich einschalten (gilt für beide Läufe)
-`enable_open_loop_eval = true` (+ ggf. `eval_strategy = "steps"`;
-`eval_set_split_ratio = 0.1` ist gesetzt) → Val-MSE über die Zeit, fundierte
-Checkpoint-Auswahl statt „letzter Step". Ohne das ist auch dieser Lauf am Ende blind auf
+Val-MSE über die Zeit statt „letzter Step" — ohne das ist auch dieser Lauf am Ende blind auf
 Step 44.000 ausgewählt worden.
+
+> **Korrektur 2026-08-13 — der hier ursprünglich genannte Weg funktioniert nicht.**
+> Empfohlen war `enable_open_loop_eval = true` (+ `eval_strategy = "steps"`,
+> `eval_set_split_ratio = 0.1`). Alle drei sind im Fork wirkungslos oder schädlich:
+> `training_config.py:100–109` deklariert `enable_open_loop_eval` und die drei
+> `open_loop_eval_*`-Felder, die **nirgends gelesen** werden; `eval_set_split_ratio` ebenso;
+> und `data/dataset/factory.py:26` bricht mit `assert eval_strategy == "no"` ab, gibt dem
+> Loader fest `split="train"` und liefert `eval_dataset=None`. Ein `eval_strategy="steps"`
+> **stürzt ab**, statt zu evaluieren. In-Training-Validierung ist in diesem Fork
+> strukturell nicht vorhanden, nicht bloß abgeschaltet.
+>
+> **Umgesetzt wurde stattdessen die Auswertung nach dem Lauf:**
+> [`checkpoint_sweep.py`](../../Training/scripts/checkpoint_sweep.py) lädt jeden Checkpoint
+> und misst MSE/MAE auf den zurückgehaltenen Episoden (`TRAIN_TEST_SPLIT=1` vorausgesetzt).
+> Bedienung: [train-test-split.md](../training/train-test-split.md),
+> [env-vars.md](../training/env-vars.md).
 
 ### 6.4 Diagnose nachschärfen (optional, billig)
 **Open-Loop-Eval des Vision-Checkpoints** auf echten Dataset-Bildern ausführen. Sind die

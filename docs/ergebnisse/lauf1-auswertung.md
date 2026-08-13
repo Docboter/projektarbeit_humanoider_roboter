@@ -161,9 +161,13 @@ Normalisierungs-Statistik der `*_dex3`-`ABSOLUTE`-Dims prüfen; ggf. mehr/sauber
 Greif-Demos oder Gewichtung der Finger-Dims.
 
 ### 6.4 Für den nächsten Lauf
-- **Eval einschalten:** `enable_open_loop_eval = true` (+ ggf. `eval_strategy = "steps"`;
-  `eval_set_split_ratio = 0.1` ist gesetzt) → Val-MSE über die Zeit, fundierte
-  Checkpoint-Auswahl statt „letzter".
+- **Eval einschalten:** Val-MSE über die Zeit, fundierte Checkpoint-Auswahl statt „letzter".
+  > **Korrektur 2026-08-13:** Hier standen `enable_open_loop_eval = true`,
+  > `eval_strategy = "steps"` und `eval_set_split_ratio = 0.1`. Alle drei sind im Fork
+  > wirkungslos — die ersten beiden werden nirgends gelesen, `eval_strategy = "steps"` läuft
+  > sogar in eine `assert`-Sperre. Umgesetzt ist die Auswertung **nach** dem Lauf:
+  > [`checkpoint_sweep.py`](../../Training/scripts/checkpoint_sweep.py), Begründung in
+  > [train-test-split.md](../training/train-test-split.md) (Hinweis 1).
 - **Batch-Size hochziehen** auf der A100 (siehe [`multi-gpu.md`](../training/multi-gpu.md)) — bei
   4× A100 / `global_batch_size = 32` reichen ~40–50k Steps für denselben Konvergenzstand
   (Loss plateaut ohnehin ab ~100k bei bs=8).
