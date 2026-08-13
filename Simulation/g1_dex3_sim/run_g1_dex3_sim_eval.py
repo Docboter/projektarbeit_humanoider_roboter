@@ -206,8 +206,17 @@ def run_episode(
 
     max_steps = int(env.cfg.episode_length_s * env.cfg.policy_hz)
 
+    # Zeitbudget je Anteil. Ohne diese Aufteilung ist "die Sim ist langsam" nicht
+    # handhabbar: die beiden Anteile führen zu GEGENSÄTZLICHEN Maßnahmen —
+    #   Inferenz dominiert  -> EXECUTION_HORIZON hoch (weniger Aufrufe je Sim-Sekunde),
+    #                          bzw. Policy-Server auf eine eigene GPU;
+    #   Rendering dominiert -> weniger/kleinere Kameras, Livestream aus.
+    # Die Messung kostet nur perf_counter-Aufrufe und läuft deshalb immer mit.
+    t_obs = t_infer = t_env = 0.0
+
     while step < max_steps:
         # Observation fürs Modell aufbauen
+        _t0 = time.perf_counter()
         obs_np = env.get_obs_for_policy()
         policy_obs = build_obs(
             cam_left_high=obs_np["video.cam_left_high"],
@@ -217,6 +226,7 @@ def run_episode(
             joint_pos=obs_np["state.joint_pos"],
             task_description=task_description,
         )
+        t_obs += time.perf_counter() - _t0
 
         # Debug (einmalig, Episode 1 / Step 0): erste Obs ALLER 4 Kameras dumpen, um die
         # Kamera-Posen gegen Simulation/camera_reference/ zu verifizieren (v. a. Wrist-Cams).
@@ -232,11 +242,13 @@ def run_episode(
             print("[Debug] Erste Obs aller 4 Kameras gespeichert: _debug_obs_*.png", flush=True)
 
         # Action-Chunk vom GR00T-Server holen (16, 28)
+        _t0 = time.perf_counter()
         try:
             chunk = client.get_action(policy_obs)  # np.ndarray (16, 28)
         except Exception as e:
             print(f"[Episode] Fehler bei get_action (Step {step}): {e}")
             break
+        t_infer += time.perf_counter() - _t0
 
         # Chunk schrittweise ausführen
         for t in range(min(execution_horizon, len(chunk))):
@@ -261,7 +273,9 @@ def run_episode(
             np.minimum(hand_cmd_min, hand_cmd, out=hand_cmd_min)
             np.maximum(hand_cmd_max, hand_cmd, out=hand_cmd_max)
 
+            _t0 = time.perf_counter()
             obs_step, _, terminated, time_out, info = env.step(action_t)
+            t_env += time.perf_counter() - _t0
 
             # Video-Frame nach dem Step erfassen — aus der Szenen-Übersichtskamera (ganze Szene
             # von schräg oben), NICHT der Policy-Kamera. Fallback auf cam_left_high, falls cam_scene
@@ -276,8 +290,16 @@ def run_episode(
             # Fortschritt sichtbar machen — run_episode printet sonst bis Episodenende nichts,
             # was bei langsamem 4-Kamera-Rendering wie ein Hang aussieht. flush=True für Live-Output.
             if step % 25 == 0:
+                _el = time.perf_counter() - t_start
+                # Echtzeit-Faktor: Sim-Sekunden (step / policy_hz) gegen Wanduhr. 1.0 = Echtzeit,
+                # 10 = zehnmal langsamer. Dazu die Aufteilung, WOHIN die Zeit geht.
+                _sim_s = step / env.cfg.policy_hz
+                _rt = _el / max(_sim_s, 1e-6)
                 print(
-                    f"    … Step {step}/{max_steps} ({time.perf_counter() - t_start:.0f}s)",
+                    f"    … Step {step}/{max_steps} ({_el:.0f}s, "
+                    f"{step / max(_el, 1e-6):.1f} Steps/s, {_rt:.1f}x Echtzeit) | "
+                    f"Obs {t_obs / _el:.0%} · Inferenz {t_infer / _el:.0%} · "
+                    f"Sim+Render {t_env / _el:.0%}",
                     flush=True,
                 )
 
@@ -315,6 +337,14 @@ def run_episode(
         "success": success,
         "num_steps": step,
         "duration_s": round(duration, 2),
+        # Durchsatz + Zeitaufteilung, damit ein "die Sim war zäh" später belegbar ist
+        # statt erinnert. steps_per_s gegen policy_hz (30) gelesen = Echtzeit-Faktor.
+        "steps_per_s": round(step / duration, 2) if duration > 0 else 0.0,
+        "time_share": {
+            "obs": round(t_obs / duration, 3) if duration > 0 else 0.0,
+            "inference": round(t_infer / duration, 3) if duration > 0 else 0.0,
+            "sim_render": round(t_env / duration, 3) if duration > 0 else 0.0,
+        },
         "success_step": success_step,
         "reach_frame": reach_frame,
         # Abstand zum Zeitpunkt 0 als Bezugsgröße: erst die Differenz zu min_reach_m zeigt,
