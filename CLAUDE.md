@@ -166,6 +166,9 @@ The entrypoint reads everything from env vars. Defaults are set as `ENV` in the 
 **Formatter:** `ruff format` — **Linter:** `ruff check` (rules E, F, I) — **Line length:** 100
 Config: [`app/Groot-1.6/pyproject.toml`](app/Groot-1.6/pyproject.toml) under `[tool.ruff]`
 
+**Commit messages: English.** Subject and body. This holds regardless of the language of the
+code comments or docs the commit touches — those stay German where they already are.
+
 ## Architecture
 
 ```

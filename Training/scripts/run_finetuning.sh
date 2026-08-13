@@ -72,6 +72,8 @@ warn() { printf '\033[1;33m ! \033[0m%s\n' "$*"; }
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib_split.sh
 source "$SCRIPT_DIR/lib_split.sh"
+# shellcheck source=lib_resume_guard.sh
+source "$SCRIPT_DIR/lib_resume_guard.sh"
 
 # ── 1. Laufumgebung verifizieren ──────────────────────────────────────────────
 if [[ ! -f /.dockerenv ]] && [[ -z "${APPTAINER_NAME:-}" ]] && [[ -z "${SINGULARITY_NAME:-}" ]]; then
@@ -98,6 +100,9 @@ if [[ ! -f "$DATASET_PATH/meta/modality.json" ]]; then
 fi
 
 mkdir -p "$OUTPUT_DIR"
+
+# ── 3a. Gegen stilles Fortsetzen eines alten Laufs absichern ──────────────────
+resume_guard "$OUTPUT_DIR" "$EXPERIMENT_NAME" "$MAX_STEPS" || exit 1
 
 # ── 3b. Train-Test-Split scharf schalten (optional) ───────────────────────────
 # Details und Begründung in lib_split.sh. Default (TRAIN_TEST_SPLIT=0) lässt den

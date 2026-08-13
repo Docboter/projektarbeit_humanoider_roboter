@@ -114,6 +114,15 @@ SAVE_TOTAL_LIMIT="${SAVE_TOTAL_LIMIT:-40}"
 # keine zurückgehaltenen Episoden und die Checkpoint-Auswahl bliebe blind.
 TRAIN_TEST_SPLIT="${TRAIN_TEST_SPLIT:-0}"
 TRAIN_SPLIT_RATIO="${TRAIN_SPLIT_RATIO:-0.8}"
+
+# Namespace des Laufs. Leer = Default des jeweiligen Trainings-Skripts.
+# WICHTIG: Der Fork ruft trainer.train(resume_from_checkpoint=True) fest verdrahtet auf —
+# ein Lauf in ein bereits belegtes OUTPUT_DIR/EXPERIMENT_NAME SETZT FORT statt neu zu
+# trainieren. Für einen neuen Lauf also einen neuen Namen vergeben. RESUME=1 erlaubt das
+# Fortsetzen bewusst (z. B. nach Walltime-Abbruch).
+OUTPUT_DIR="${OUTPUT_DIR:-}"
+EXPERIMENT_NAME="${EXPERIMENT_NAME:-}"
+RESUME="${RESUME:-0}"
 USE_AUGMENTATION="${USE_AUGMENTATION:-1}"
 CJ_BRIGHTNESS="${CJ_BRIGHTNESS:-0.3}"
 CJ_CONTRAST="${CJ_CONTRAST:-0.4}"
@@ -189,6 +198,9 @@ echo "    WANDB_PROJECT:     $WANDB_PROJECT"
 echo "    TUNE_VISUAL:       $TUNE_VISUAL"
 echo "    TRAIN_TEST_SPLIT:  $TRAIN_TEST_SPLIT  (Ratio=$TRAIN_SPLIT_RATIO)"
 echo "    USE_AUGMENTATION:  $USE_AUGMENTATION"
+echo "    OUTPUT_DIR:        ${OUTPUT_DIR:-<Default des Trainings-Skripts>}"
+echo "    EXPERIMENT_NAME:   ${EXPERIMENT_NAME:-<Default des Trainings-Skripts>}"
+echo "    RESUME:            $RESUME"
 if [[ "$TRAIN_TEST_SPLIT" != "1" ]]; then
     echo "    ! Ohne Split gibt es hinterher nichts zu validieren — die Checkpoint-Auswahl"
     echo "      bleibt blind (so lief es in Lauf 1 und Lauf 2)."
@@ -255,7 +267,11 @@ APPTAINER_ARGS=(
     --env "CJ_HUE=$CJ_HUE"
     --env "RANDOM_ROTATION_ANGLE=$RANDOM_ROTATION_ANGLE"
     --env "STATE_DROPOUT_PROB=$STATE_DROPOUT_PROB"
+    --env "RESUME=$RESUME"
 )
+# Nur setzen, wenn angegeben — sonst greifen die Defaults der Trainings-Skripte.
+[[ -n "$OUTPUT_DIR"      ]] && APPTAINER_ARGS+=(--env "OUTPUT_DIR=$OUTPUT_DIR")
+[[ -n "$EXPERIMENT_NAME" ]] && APPTAINER_ARGS+=(--env "EXPERIMENT_NAME=$EXPERIMENT_NAME")
 
 # Repo-Skripte in den Container mounten, damit GitHub-Änderungen sofort wirken
 # (überschreibt die ins SIF-Image gebackenen Versionen ohne Image-Rebuild).

@@ -135,6 +135,36 @@ gedeckelt.
 `enable_open_loop_eval = false` → kein Val-Signal, keine fundierte Checkpoint-Auswahl,
 Overfitting prinzipiell unsichtbar (Details in [`wandb-run-auswertung.md`](wandb-run-auswertung.md), Abschnitt 3).
 
+### Nachgemessen 2026-08-13: Step 1000 gegen Step 175000
+
+Mit [`checkpoint_sweep.py`](../../Training/scripts/checkpoint_sweep.py) nachträglich erhoben
+(Job 15271599, 3 Episoden × 300 Steps, Action-Horizon 16):
+
+| Checkpoint | Action-MSE | Action-MAE |
+|---|---|---|
+| 1000 | 0,0703 | 0,1652 |
+| 175000 | **0,0018** | **0,0203** |
+
+**Faktor 39.** Der Lauf hat zwischen früh und spät massiv gelernt — die 174.000 Schritte
+waren nicht umsonst. Nebenbefund: bei Step 1000 lag Episode 0 mit 0,104 beim Doppelten der
+übrigen (0,050–0,057), bei Step 175000 ist die Spreizung verschwunden (0,0011–0,0025). Der
+Ausreißer war eine Eigenschaft des untrainierten Modells, **nicht** der Episode — die
+Replay-Diagnostik auf Episode 0 (`replay_episode0.npz`) ist davon unbelastet.
+
+> ⚠️ **Gemessen auf Trainingsdaten.** Lauf 1 lief ohne Split, es gab keine ungesehenen
+> Episoden. Bei 301 Episoden und 175k Schritten (Batch 8) hat das Modell den Datensatz
+> vielfach gesehen; eine MSE nahe null ist dort das erwartete Bild und **belegt keine
+> Generalisierung** — Memorierung ist damit nicht auszuschließen. Auch bleibt offen, ob
+> Step 50000 genauso gut gewesen wäre; gemessen sind zwei Punkte, keine Kurve.
+
+**Was die Zahl trotzdem trägt:** Auf **echten** Bildern sagt die Policy die
+Demonstrations-Aktionen mit MSE 0,0018 fast exakt vorher — in der **Sim** kommandiert
+dieselbe Policy 19 % der Fingerspanne und erreicht 0/20. Das ist die schärfste
+Formulierung des Domain-Gaps, die das Projekt hat, unabhängig gemessen und deckungsgleich
+mit dem `span`-Gate aus Lauf 32 (Verhältnis 1,00 auf Realbildern, siehe
+[rl-anleitung.md](../weiterfuehrend/rl-anleitung.md)). „Griff nie gelernt" ist damit ein
+zweites Mal ausgeschlossen, und die Trainingspipeline ist entlastet.
+
 ---
 
 ## 6. Handlungsempfehlungen

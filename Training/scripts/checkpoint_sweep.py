@@ -134,6 +134,7 @@ def find_checkpoints(run_dir: Path) -> list[tuple[int, Path]]:
     liegen oder unter <experiment>/checkpoints/<datum>/.
     """
     found: dict[int, Path] = {}
+    collisions: dict[int, list[Path]] = {}
     for path in run_dir.rglob("checkpoint-*"):
         if not path.is_dir():
             continue
@@ -141,10 +142,35 @@ def find_checkpoints(run_dir: Path) -> list[tuple[int, Path]]:
         if not match:
             continue
         step = int(match.group(1))
+        if step in found:
+            collisions.setdefault(step, [found[step]]).append(path)
         # Bei Duplikaten (mehrere Läufe im selben Baum) gewinnt der zuletzt geänderte.
         if step in found and found[step].stat().st_mtime >= path.stat().st_mtime:
             continue
         found[step] = path
+
+    # Zwei Läufe im selben OUTPUT_DIR (…/exp_v1 und …/exp_v2) haben dieselben
+    # Step-Nummern. Stillschweigend einen davon zu nehmen, würde zwei verschiedene
+    # Trainings zu einer Kurve verrühren.
+    if collisions:
+        print(
+            f"!! WARNUNG: {len(collisions)} Step-Nummer(n) kommen mehrfach vor — "
+            "vermutlich mehrere Läufe",
+            flush=True,
+        )
+        print("   unter demselben --run-dir. Verwendet wird jeweils der neueste:", flush=True)
+        for step in sorted(collisions):
+            print(f"   checkpoint-{step}:", flush=True)
+            for path in collisions[step]:
+                marker = "  ← verwendet" if path == found[step] else ""
+                print(f"     {path}{marker}", flush=True)
+        print(
+            "   Für eine saubere Kurve --run-dir auf das Experiment-Verzeichnis "
+            "eines EINZELNEN Laufs zeigen.",
+            flush=True,
+        )
+        print("", flush=True)
+
     return sorted(found.items())
 
 
@@ -221,6 +247,23 @@ def main() -> int:
             "   kein Overfitting. Trainingslauf mit TRAIN_TEST_SPLIT=1 wiederholen.",
             flush=True,
         )
+    elif args.split != "test" and "test" in splits:
+        # Der gefährlichere Fall: ein test-Split EXISTIERT, wird aber nicht benutzt. Das
+        # läuft sonst sauber durch und liefert eine Zahl, die wie eine Validierung aussieht,
+        # aber Trainings-MSE ist. Passiert leicht, wenn EVAL_SPLIT aus einem früheren
+        # Aufruf noch in der Shell steht und per --export=ALL mitwandert.
+        print(
+            f"!! WARNUNG: Es wird auf Split '{args.split}' gemessen, obwohl ein "
+            f"test-Split existiert ({splits['test']}).",
+            flush=True,
+        )
+        print(
+            "   Das ergibt TRAININGS-MSE, keine Validierung. Wenn das nicht beabsichtigt ist:",
+            flush=True,
+        )
+        print("   EVAL_SPLIT leeren bzw. --split test setzen.", flush=True)
+        print("", flush=True)
+
     record = read_split_record(run_dir)
     if record and args.split in splits:
         recorded = record.get("splits", {}).get(args.split)

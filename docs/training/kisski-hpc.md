@@ -248,6 +248,13 @@ USE_AUGMENTATION=0 sbatch --export=ALL Training/kisski_submit.sh
 > unabhängig davon, was beim Absenden gesetzt war. Der Job-Kopf zeigt die Werte jetzt an und warnt,
 > wenn kein Split aktiv ist.
 
+> ⚠️ **Jeder neue Lauf braucht einen neuen `EXPERIMENT_NAME`.** Der Fork ruft
+> `trainer.train(resume_from_checkpoint=True)` fest verdrahtet auf — ein Lauf in einen bereits
+> belegten Namespace **setzt fort statt neu zu trainieren** und ist bei erreichtem `MAX_STEPS`
+> sofort „fertig", mit den alten Gewichten und ohne Fehlermeldung (Job 15271760, 2026-08-13).
+> Seit dem bricht [`lib_resume_guard.sh`](../../Training/scripts/lib_resume_guard.sh) vorher ab;
+> bewusstes Fortsetzen nach Walltime-Abbruch geht mit `RESUME=1`.
+
 Nach dem Lauf steht die Checkpoint-Auswahl an — nicht blind den letzten Step nehmen:
 
 ```bash

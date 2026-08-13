@@ -49,6 +49,29 @@ Diese Schalter aktivieren einzelne Verfahren beim Trainingsstart — alle unabh�
 | `STATE_DROPOUT_PROB` | `0.0` | Dropout-Wahrscheinlichkeit auf den State-Inputs (Regularisierung); `0.0` = aus. |
 | `USE_RL` | `0` | `1` = RL-Fine-tuning (FPO) gewünscht. Läuft **nicht** im BC-Trainingsimage (kein Isaac Sim): der BC-Entrypoint bricht mit einem Hinweis auf den RL-Pfad ab. RL braucht den kombinierten Isaac-Sim + GR00T-Container ([`Simulation/scripts/entrypoint_rl.sh`](../../Simulation/scripts/entrypoint_rl.sh) bzw. [`Training/kisski_rl_submit.sh`](../../Training/kisski_rl_submit.sh)) auf einer **RT-Core-GPU**. Details: [reinforcement-learning-plan.md](../weiterfuehrend/reinforcement-learning-plan.md). |
 
+### Namespace des Laufs — ⚠️ der Fork setzt ungefragt fort
+
+> **Der GR00T-Fork ruft `trainer.train(resume_from_checkpoint=True)` fest verdrahtet auf**
+> ([`experiment.py:288`](../../app/Groot-1.6/gr00t/experiment/experiment.py)). Es gibt keinen
+> Schalter dagegen. Der HuggingFace-Trainer sucht den letzten Checkpoint in
+> `OUTPUT_DIR/EXPERIMENT_NAME` und stellt dessen `global_step` wieder her.
+>
+> **Ein neuer Lauf in ein belegtes Verzeichnis trainiert also nicht neu, sondern setzt fort.**
+> Liegt der vorhandene Checkpoint schon bei `MAX_STEPS`, ist die Schleife sofort zu Ende: der
+> Job meldet „Training completed", legt einen Checkpoint mit den **alten** Gewichten ab und
+> sieht erfolgreich aus. Genau so ist Job 15271760 am 2026-08-13 gelaufen — 44001 „Schritte" in
+> 255 s, kein einziger Loss-Wert protokolliert, `checkpoint-44001` mit den Gewichten von Lauf 2.
+>
+> [`lib_resume_guard.sh`](../../Training/scripts/lib_resume_guard.sh) bricht seitdem vorher ab.
+
+| Variable | Default | Beschreibung |
+|---|---|---|
+| `OUTPUT_DIR` | `/data/g1_dex3_finetune/blockstacking` (Vision-Lauf: `…_vision`) | Wurzel des Lauf-Namespace. |
+| `EXPERIMENT_NAME` | `g1_dex3_blockstacking_v1` (Vision: `…_vision_v1`) | Unterverzeichnis **und** W&B-Run-Name. Für jeden neuen Lauf hochzählen. |
+| `RESUME` | `0` | `1` = Fortsetzen ist gewollt (z. B. nach Walltime-Abbruch). `0` = Abbruch, wenn schon Checkpoints da sind. |
+
+Auf KISSKI werden alle drei seit 2026-08-13 von `kisski_submit.sh` durchgereicht.
+
 ### Checkpoint-Auswahl nach dem Lauf ([`checkpoint_sweep.py`](../../Training/scripts/checkpoint_sweep.py))
 
 > **Warum ein eigenes Werkzeug:** Der GR00T-Fork hat **keine** Eval während des Trainings.
