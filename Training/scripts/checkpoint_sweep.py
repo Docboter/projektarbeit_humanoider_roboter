@@ -253,6 +253,23 @@ def main() -> int:
     print(f"  Plots        : {plot_dir}", flush=True)
     print("", flush=True)
 
+    # Jeder Checkpoint bedeutet, ein 3-Mrd.-Parameter-Modell frisch zu laden. Bei einem
+    # Lauf mit SAVE_TOTAL_LIMIT=40 kommen schnell 38 Checkpoints zusammen — das sprengt
+    # die Walltime, ohne dass es jemand vorher merkt.
+    if len(checkpoints) > 12:
+        print(
+            f"!! ACHTUNG: {len(checkpoints)} Checkpoints × ~{args.num_trajectories} Episoden. "
+            "Jeder Checkpoint wird",
+            flush=True,
+        )
+        print(
+            "   einzeln geladen (~1–2 min allein dafür). Für einen schnellen Durchlauf "
+            "einschränken, z. B.",
+            flush=True,
+        )
+        print("   --checkpoints 1000,50000,100000,175000   oder   EVAL_CHECKPOINTS=…", flush=True)
+        print("", flush=True)
+
     if args.dry_run:
         print("Dry-Run — nichts geladen, nichts gerechnet.", flush=True)
         return 0
@@ -268,7 +285,19 @@ def main() -> int:
     from gr00t.policy.gr00t_policy import Gr00tPolicy
 
     device = args.device or ("cuda" if torch.cuda.is_available() else "cpu")
-    embodiment_tag = EmbodimentTag(args.embodiment_tag)
+    # Membername ("NEW_EMBODIMENT") und Wert ("new_embodiment") beide akzeptieren:
+    # die Trainings-Skripte übergeben den Membername, EmbodimentTag(...) löst aber
+    # über den Wert auf.
+    try:
+        embodiment_tag = EmbodimentTag[args.embodiment_tag]
+    except KeyError:
+        try:
+            embodiment_tag = EmbodimentTag(args.embodiment_tag)
+        except ValueError:
+            valid = ", ".join(t.name for t in EmbodimentTag)
+            sys.exit(
+                f"FEHLER: Unbekannter Embodiment-Tag '{args.embodiment_tag}'. Gültig: {valid}"
+            )
     plot_dir.mkdir(parents=True, exist_ok=True)
 
     results: list[dict] = []
