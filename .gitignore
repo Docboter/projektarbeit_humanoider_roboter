@@ -62,6 +62,9 @@
 # --- Training-Logs ---
 /data/logs/
 
+# --- SLURM-Logs ---
+/logs/
+
 # --- HuggingFace Download-Cache ---
 **/.cache/huggingface/
 **/.cache/
