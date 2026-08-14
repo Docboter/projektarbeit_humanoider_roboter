@@ -1,0 +1,8 @@
+.git
+.agents
+.codex
+**/__pycache__
+**/*.pyc
+repos/Isaac-GR00T/checkpoints
+repos/unitree_sim_isaaclab/assets
+repos/unitree_sim_isaaclab/data

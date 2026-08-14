@@ -9,6 +9,9 @@ required_paths=(
   "repos/Isaac-GR00T"
   "repos/unitree_sim_isaaclab"
   "docker/docker-compose.groot-unitree.yml"
+  "docker/docker-compose.simulation.yml"
+  "docker/simulation/Dockerfile"
+  "docker/simulation/start_simulation.sh"
   "docker/.env.groot-unitree.example"
   "scripts/verify_layout.sh"
 )
@@ -30,6 +33,8 @@ echo
 echo "== Shell syntax =="
 bash -n scripts/verify_layout.sh
 bash -n scripts/run_module_checks.sh
+bash -n scripts/fetch_unitree_assets.sh
+bash -n docker/simulation/start_simulation.sh
 echo "ok: shell scripts parse"
 
 echo
@@ -37,6 +42,7 @@ echo "== Python syntax: Unitree integration =="
 python3 -m py_compile \
   repos/unitree_sim_isaaclab/sim_main.py \
   repos/unitree_sim_isaaclab/action_provider/action_provider_groot.py \
+  repos/unitree_sim_isaaclab/action_provider/action_provider_idle.py \
   repos/unitree_sim_isaaclab/action_provider/groot_onnx.py \
   repos/unitree_sim_isaaclab/action_provider/create_action_provider.py \
   repos/unitree_sim_isaaclab/groot_prompt_terminal.py \
@@ -56,6 +62,11 @@ if command -v docker >/dev/null 2>&1; then
     -f docker/docker-compose.groot-unitree.yml \
     config >/dev/null
   echo "ok: docker compose config renders"
+  docker compose \
+    --env-file docker/.env.simulation.example \
+    -f docker/docker-compose.simulation.yml \
+    config >/dev/null
+  echo "ok: simulation compose config renders"
 else
   echo "skip: docker command not found"
 fi
