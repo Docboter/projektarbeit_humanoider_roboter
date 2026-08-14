@@ -251,9 +251,9 @@ in kalibrierter Auflösung auf.
 **Die beiden Vorfragen sind beantwortet** (Herleitung in
 [§4 der Anleitung](docs/training/co-training.md#4-die-beiden-entscheidungen--und-wie-sie-begründet-sind)):
 
-1. **Wie viele Episoden? → 60 für den ersten Lauf** (~2 h Wanduhr, ~56 000 Frames). Kein
-   Optimum, sondern das, was an einem Abend entsteht — und weil der Renderer fortsetzbar ist,
-   keine Einbahnstraße: Aufstocken auf 120 rendert nur die neuen.
+1. **Wie viele Episoden? → 60 für den ersten Lauf** (~3 h Wanduhr für beide Stufen, ~56 000
+   Frames). Kein Optimum, sondern das, was an einem Abend entsteht — und weil der Renderer
+   fortsetzbar ist, keine Einbahnstraße: Aufstocken auf 120 rendert nur die neuen.
 2. **Welches Verhältnis? → 0,25 gerendert.** Zwei unabhängige Argumente treffen sich dort.
    (a) `mix_ratio` ist eine Sampling-Wahrscheinlichkeit, kein Längenverhältnis: bei 56 k
    gerenderten gegen 224 k echten Frames sieht das Modell jedes gerenderte Bild sonst 4× so

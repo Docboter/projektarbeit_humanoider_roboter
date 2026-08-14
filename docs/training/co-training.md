@@ -64,33 +64,69 @@ Deshalb:
 2. **`render`** — dieselben Episoden mit den Würfeln an genau diesen Punkten (x/y aus dem
    Greifpunkt, z = Tischauflage) und in kalibrierter Auflösung 640 × 480. → der Datensatz
 
-Der Scan ist billig, weil 94 % der Wanduhr im Rendering stecken
-([live-ansicht.md](../simulation/live-ansicht.md)).
+> **Korrektur nach dem ersten Rauchtest (2026-08-14):** Der Scan ist billiger als das
+> Rendern, aber **nicht** vernachlässigbar. Gemessen: ~12 Steps/s bei 64×64 gegen ~8,6
+> Steps/s im Eval bei voller Auflösung. Die Physik (7 Sub-Steps à 5 ms je Policy-Step)
+> dominiert, nicht das Rendering. Die 94-%-Zahl aus
+> [live-ansicht.md](../simulation/live-ansicht.md) meint „Sim **und** Render" zusammen und
+> sagt über die Aufteilung darin nichts — ich hatte sie hier zunächst falsch gelesen.
+> Realistisch sind **~3 min je Episode für beide Stufen**.
 
 ---
 
 ## 3. Ablauf
 
-### 3.1 Rauchtest zuerst (≈ 5 min)
+### 3.1 Rauchtest zuerst (≈ 2 min) — prüft die Klempnerei, nicht die Inhalte
 
-Zwei Episoden à 60 Frames. Prüft die ganze Kette — Isaac-Start, Greifpunkt-Suche,
-MP4-Schreiber, Parquet, `meta/` — ohne Stunden zu investieren.
+Zwei Episoden à 60 Frames. Prüft Isaac-Start, Würfelsetzen, MP4-Schreiber, Parquet und
+`meta/` — ohne Stunden zu investieren.
 
 ```bash
 HF_TOKEN=hf_... RENDER_EPISODES=2 RENDER_MAX_FRAMES=60 \
     ./Simulation/server_rl_run.sh render
 ```
 
-Danach nachsehen, **bevor** der lange Lauf startet:
+Erwartete Ausgabe am Ende beider Stufen: `[scan] fertig.` / `[render] fertig.` und
+`meta/ geschrieben: 2 Episoden, 120 Frames`.
+
+> **Was dieser Test NICHT zeigt: ob die Greifpunkte stimmen.** 60 Frames sind 2 Sekunden
+> einer 30-sekündigen Episode — dort hat noch keine Hand gegriffen. Meldungen wie
+> „kein Greifpunkt — Hand schließt nicht (0.1 cm)" sind hier normal und **kein** Befund.
+>
+> Die 60-Frame-Stummel bleiben liegen; der Fortsetz-Mechanismus vergleicht seit
+> 2026-08-14 aber die gespeicherte Länge mit der Quell-Länge und rendert sie beim
+> echten Lauf von selbst neu („vorhandene Fassung hat 60 statt 934 Frames … wird neu
+> gerendert"). Wer sauber anfangen will: `rm -rf <data>/cotrain/g1_dex3_rendered`.
+
+### 3.1b Dann der Scan über den ganzen Satz — das ist die inhaltliche Prüfung
+
+Der Scan rendert nichts Brauchbares und ist der billigere Teil, liefert aber die
+entscheidende Zahl: bei wie vielen Episoden wird überhaupt ein Greifpunkt gefunden?
 
 ```bash
-# Wurden Greifpunkte gefunden? (ok: true, plausible x/y um 0.35 / ±0.18)
-cat <data>/cotrain/g1_dex3_rendered/scan.json
-# Sieht das Bild aus wie die Eval-Bilder?
-ffmpeg -i <data>/cotrain/g1_dex3_rendered/videos/chunk-000/observation.images.cam_left_high/episode_000000.mp4 -frames:v 1 /tmp/probe.png
+HF_TOKEN=hf_... RENDER_EPISODES=60 RENDER_STAGE=scan \
+    ./Simulation/server_rl_run.sh render
 ```
 
-### 3.2 Der lange Lauf (≈ 2 h für 60 Episoden)
+Danach `scan.json` durchsehen, **bevor** die Renderstunden laufen:
+
+```bash
+python3 - <<'EOF'
+import json
+s = json.load(open('<data>/cotrain/g1_dex3_rendered/scan.json'))['episodes']
+ok = [e for e, v in s.items() if any(h.get('ok') for h in v['hands'])]
+print(f"{len(ok)}/{len(s)} Episoden mit Greifpunkt")
+print("Tracking max:", max(v['arm_tracking_error_rad'] for v in s.values()))
+for e, v in list(s.items())[:5]:
+    print(e, [h.get('xy') for h in v['hands'] if h.get('ok')])
+EOF
+```
+
+Plausibel sind x um 0,30–0,40 und y um ±0,15–0,20. Liegt die Trefferquote deutlich unter
+etwa der Hälfte, erst die Erkennung nachschärfen (`--min-close`-Logik in
+`find_grasp_points`), statt Material mit zufällig liegenden Würfeln zu erzeugen.
+
+### 3.2 Der lange Lauf (≈ 3 h für 60 Episoden, Scan inklusive)
 
 ```bash
 HF_TOKEN=hf_... RENDER_EPISODES=60 ./Simulation/server_rl_run.sh render
@@ -160,9 +196,9 @@ Vergleich gescheitert.
 
 | | |
 |---|---|
-| Renderdauer | ~2 min/Episode (hochgerechnet aus 8,6 Steps/s, mittlere Episode 934 Frames) |
-| 60 Episoden | ≈ 2 h Wanduhr, ≈ 56 000 Frames |
-| Alle 240 Trainings-Episoden | ≈ 8 h, ≈ 224 000 Frames |
+| Dauer je Episode | ~3 min für **beide** Stufen (Scan ~12 Steps/s, Render ~9 Steps/s, mittlere Episode 934 Frames) |
+| 60 Episoden | ≈ 3 h Wanduhr, ≈ 56 000 Frames |
+| Alle 240 Trainings-Episoden | ≈ 12 h, ≈ 224 000 Frames |
 
 60 ist kein Optimum, sondern der Punkt, an dem sich der erste Lauf **innerhalb eines
 Abends** erzeugen lässt. Weil der Renderer fortsetzbar ist, ist die Zahl keine

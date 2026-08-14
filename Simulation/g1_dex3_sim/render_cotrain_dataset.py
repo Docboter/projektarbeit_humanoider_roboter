@@ -30,8 +30,12 @@ daraus, den Würfel zu IGNORIEREN — das Gegenteil des Ziels. Deshalb:
                         genau diesen Punkten und in kalibrierter Auflösung (640×480).
                         Ergebnis: der Datensatz.
 
-Zwei Isaac-Starts statt einem — der Scan kostet dabei nur einen Bruchteil, weil 94 % der
-Wanduhr im Rendering stecken (gemessen 2026-08-13, s. docs/simulation/live-ansicht.md).
+Zwei Isaac-Starts statt einem. Der Scan ist billiger als das Rendern, aber NICHT
+vernachlässigbar: im Rauchtest 2026-08-14 lief er mit ~12 Steps/s (Kameras 64×64) gegen
+~8,6 Steps/s im Eval bei voller Auflösung. Die Physik (7 Sub-Steps à 5 ms je Policy-Step)
+dominiert also, nicht das Rendering — die bekannte 94-%-Zahl aus live-ansicht.md meint
+"Sim UND Render" zusammen und sagt über die Aufteilung darin nichts. Rechne mit rund
+3 Minuten je Episode für beide Stufen zusammen.
 
 ────────────────────────────────────────────────────────────────────────────────
 Verwendung (im Sim-Container; der Wrapper `server_rl_run.sh render` macht beides)
@@ -557,6 +561,20 @@ def finalize_meta(out: Path, src_info: dict, tasks: dict[int, str], manifest: di
 # Stufen
 # ---------------------------------------------------------------------------
 
+def expected_length(src_lengths: dict[int, int], ep_idx: int) -> int:
+    """Wie viele Frames diese Episode im Ergebnis haben MUSS (0 = unbekannt).
+
+    Der Grund ist der Rauchtest: er läuft mit ``--max-frames-per-episode 60``, schreibt
+    also 2-Sekunden-Stummel. Ohne diesen Vergleich hielte der Fortsetz-Mechanismus sie
+    danach für fertig und der echte Lauf würde sie überspringen — der Trainingsdatensatz
+    enthielte stumm zwei abgeschnittene Episoden.
+    """
+    n = int(src_lengths.get(ep_idx, 0))
+    if args.max_frames_per_episode > 0:
+        return min(n, args.max_frames_per_episode) if n else args.max_frames_per_episode
+    return n
+
+
 def run_scan(env_builder, src_root: Path, src_info: dict, episodes: list[int],
              out: Path) -> None:
     out.mkdir(parents=True, exist_ok=True)
@@ -565,11 +583,19 @@ def run_scan(env_builder, src_root: Path, src_info: dict, episodes: list[int],
     if scan_path.exists() and not args.overwrite:
         scan = json.loads(scan_path.read_text())
 
+    src_lengths = read_source_lengths(src_root)
     env = None
     for k, ep_idx in enumerate(episodes, 1):
-        if str(ep_idx) in scan["episodes"] and not args.overwrite:
-            print(f"[scan] ({k}/{len(episodes)}) Episode {ep_idx}: schon gescannt.", flush=True)
-            continue
+        old = scan["episodes"].get(str(ep_idx))
+        want = expected_length(src_lengths, ep_idx)
+        if old and not args.overwrite:
+            if want and int(old.get("length", 0)) != want:
+                print(f"[scan] ({k}/{len(episodes)}) Episode {ep_idx}: alter Eintrag über "
+                      f"{old.get('length')} statt {want} Frames — wird neu gescannt.", flush=True)
+            else:
+                print(f"[scan] ({k}/{len(episodes)}) Episode {ep_idx}: schon gescannt.",
+                      flush=True)
+                continue
         actions, state, task_index = load_episode(src_root, src_info, ep_idx)
         if args.max_frames_per_episode > 0:
             actions, state = actions[:args.max_frames_per_episode], \
@@ -638,6 +664,7 @@ def run_render(env_builder, src_root: Path, src_info: dict, episodes: list[int],
 
     fps = float(src_info.get("fps", 30.0))
     tasks = read_source_tasks(src_root)
+    src_lengths = read_source_lengths(src_root)
     rng = np.random.default_rng(0)
     env = None
     index_offset = sum(int(r.get("length", 0)) for r in manifest["episodes"].values()
@@ -648,8 +675,14 @@ def run_render(env_builder, src_root: Path, src_info: dict, episodes: list[int],
         parquet, videos = episode_paths(out, ep_idx)
         done = parquet.exists() and all(v.exists() for v in videos.values())
         if done and not args.overwrite:
-            print(f"{head}: liegt schon vor — übersprungen.", flush=True)
-            continue
+            want = expected_length(src_lengths, ep_idx)
+            have = int(manifest["episodes"].get(str(ep_idx), {}).get("length", 0))
+            if want and have and have != want:
+                print(f"{head}: vorhandene Fassung hat {have} statt {want} Frames "
+                      f"(Rauchtest?) — wird neu gerendert.", flush=True)
+            else:
+                print(f"{head}: liegt schon vor — übersprungen.", flush=True)
+                continue
 
         info = scan["episodes"].get(str(ep_idx), {})
         if not info and not args.no_place_cubes:
