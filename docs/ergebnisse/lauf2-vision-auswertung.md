@@ -197,6 +197,19 @@ erschlossen.
 
 ## 7. Offene Punkte / nachzutragen
 
+> **Nachtrag 2026-08-14 — Lauf 3 liegt vor.** Die in §6.2 geforderte Voraussetzung
+> (Encoder-Tuning **mit** Augmentierung) wurde am 13./14.08. eingelöst:
+> [`lauf3-vision-split-auswertung.md`](lauf3-vision-split-auswertung.md) (`tp1nc699`,
+> `TUNE_VISUAL=1` + `USE_AUGMENTATION=1` + `TRAIN_TEST_SPLIT=1`). Damit ist auch die hier
+> unter §6.3 geforderte Validierung erstmals vorhanden — allerdings **nach** dem Lauf per
+> [`checkpoint_sweep.py`](../../Training/scripts/checkpoint_sweep.py), nicht in-training.
+> Ergebnis: bester Checkpoint bei Step 30.000, der letzte ist 25 % schlechter. Das erklärt
+> rückwirkend auch einen Teil des Lauf-2-Befunds: der hier evaluierte finale Checkpoint war
+> mit hoher Wahrscheinlichkeit **nicht der beste des Laufs** — der Politik-Kollaps ist damit
+> nicht widerlegt, aber die Zuschreibung „liegt allein an `tune_visual`" wird schwächer.
+> Ein Sweep über die Lauf-2-Checkpoints fehlt (Lauf 2 lief ohne Split, ergäbe also nur
+> Trainings-MSE).
+
 - Quantitative **Open-Loop-MSE/MAE** des Vision-Checkpoints (pro Trajektorie + Mittel),
   Vergleich gegen Lauf 1.
 - **Erneute Domain-Gap-Messung** mit dem getunten Encoder (SigLIP-Cosine-Distanz) — ist

@@ -34,10 +34,17 @@
 #   MAX_STEPS, SAVE_STEPS, SAVE_TOTAL_LIMIT, GLOBAL_BATCH_SIZE, NUM_GPUS,
 #   WANDB_PROJECT, DATA_DIR, SKIP_GIT_PULL, SKIP_DOWNLOAD, SKIP_CONVERT, SKIP_TRAIN,
 #   TUNE_VISUAL  (=1 → Vision-Encoder mittrainieren)
+#   USE_COTRAIN  (=1 → Co-Training echt + gerendert; COTRAIN_HF_REPO / COTRAIN_MIX_RATIO)
 #
 # Vision-Encoder-Training auf KISSKI einreichen:
 #   TUNE_VISUAL=1 sbatch --export=ALL kisski_submit.sh
 #   (oder im Skript oben TUNE_VISUAL-Default auf 1 setzen)
+#
+# Co-Training auf echten UND gerenderten Bildern (Schritt 4, docs/training/co-training.md):
+#   USE_COTRAIN=1 COTRAIN_HF_REPO=<user>/<repo> COTRAIN_MIX_RATIO=0.25 \
+#       sbatch --export=ALL kisski_submit.sh
+#   Der gerenderte Datensatz entsteht vorher auf dem Sim-Server:
+#       ./Simulation/server_rl_run.sh render
 
 #SBATCH --job-name=groot-finetune
 #SBATCH -p kisski
@@ -86,13 +93,22 @@ DATALOADER_WORKERS="${DATALOADER_WORKERS:-4}"
 # Steht hier oben, weil LR + Warmup davon abhängen.
 TUNE_VISUAL="${TUNE_VISUAL:-0}"
 
+# USE_COTRAIN=1 → Co-Training auf echten UND gerenderten Bildern (Schritt 4; Entrypoint
+# startet run_finetuning_cotrain.sh, Namespace /data/g1_dex3_finetune/blockstacking_cotrain).
+# Setzt --tune_visual selbst, also dieselbe LR-Behandlung wie ein Vision-Lauf.
+# Anleitung: docs/training/co-training.md
+USE_COTRAIN="${USE_COTRAIN:-0}"
+COTRAIN_DATASET_PATH="${COTRAIN_DATASET_PATH:-/data/cotrain/g1_dex3_rendered}"
+COTRAIN_HF_REPO="${COTRAIN_HF_REPO:-}"
+COTRAIN_MIX_RATIO="${COTRAIN_MIX_RATIO:-0.25}"
+
 # Lernrate + Warmup hängen davon ab, ob der Vision-Encoder mittrainiert wird:
 #  • Standardlauf (nur Projector + Diffusion): LR sqrt-skaliert für den 4× größeren
 #    effektiven Batch (1e-4 × √4 = 2e-4), Warmup 0.05 — wie bisher, unverändert.
 #  • Vision-Lauf: der große vortrainierte Eagle-ViT teilt sich dieselbe globale LR;
 #    2e-4 würde die Visual-Features destabilisieren → konservativ 1e-4 + längeres
 #    Warmup 0.1. Beide Werte jederzeit per Env-Var überschreibbar.
-if [[ "$TUNE_VISUAL" == "1" ]]; then
+if [[ "$TUNE_VISUAL" == "1" || "$USE_COTRAIN" == "1" ]]; then
     LEARNING_RATE="${LEARNING_RATE:-1e-4}"
     WARMUP_RATIO="${WARMUP_RATIO:-0.1}"
 else
@@ -196,6 +212,7 @@ echo "    LEARNING_RATE:     $LEARNING_RATE"
 echo "    WARMUP_RATIO:      $WARMUP_RATIO"
 echo "    WANDB_PROJECT:     $WANDB_PROJECT"
 echo "    TUNE_VISUAL:       $TUNE_VISUAL"
+echo "    USE_COTRAIN:       $USE_COTRAIN$([[ "$USE_COTRAIN" == "1" ]] && echo "  (Mischung ${COTRAIN_MIX_RATIO} gerendert)")"
 echo "    TRAIN_TEST_SPLIT:  $TRAIN_TEST_SPLIT  (Ratio=$TRAIN_SPLIT_RATIO)"
 echo "    USE_AUGMENTATION:  $USE_AUGMENTATION"
 echo "    OUTPUT_DIR:        ${OUTPUT_DIR:-<Default des Trainings-Skripts>}"
@@ -258,6 +275,10 @@ APPTAINER_ARGS=(
     --env "SKIP_CONVERT=$SKIP_CONVERT"
     --env "SKIP_TRAIN=$SKIP_TRAIN"
     --env "TUNE_VISUAL=$TUNE_VISUAL"
+    --env "USE_COTRAIN=$USE_COTRAIN"
+    --env "COTRAIN_DATASET_PATH=$COTRAIN_DATASET_PATH"
+    --env "COTRAIN_HF_REPO=$COTRAIN_HF_REPO"
+    --env "COTRAIN_MIX_RATIO=$COTRAIN_MIX_RATIO"
     --env "TRAIN_TEST_SPLIT=$TRAIN_TEST_SPLIT"
     --env "TRAIN_SPLIT_RATIO=$TRAIN_SPLIT_RATIO"
     --env "USE_AUGMENTATION=$USE_AUGMENTATION"

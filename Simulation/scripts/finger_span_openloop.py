@@ -60,6 +60,7 @@ Direkt im Container:
 import argparse
 import json
 import logging
+import os
 import sys
 from copy import deepcopy
 
@@ -231,8 +232,21 @@ def main() -> int:
     print("=" * 60)
 
     if args.json_out:
+        # Der Checkpoint gehört IN die Datei, nicht nur ins Stdout: liegen mehrere unter
+        # /data/checkpoints und wurde CHECKPOINT_PATH beim Aufruf vergessen, ist einer
+        # gespeicherten Messung sonst nicht mehr anzusehen, welches Modell sie beschreibt.
+        # run_id/global_step aus dem Checkpoint selbst, weil ein Pfad umbenannt sein kann.
+        ckpt = {"path": args.model_path}
+        for key, fname in (("run_id", "wandb_config.json"), ("global_step", "trainer_state.json")):
+            try:
+                with open(os.path.join(args.model_path, fname)) as fh:
+                    ckpt[key] = json.load(fh).get(key)
+            except Exception as e:
+                ckpt[f"{key}_error"] = str(e)
         with open(args.json_out, "w") as fh:
-            json.dump({"episodes": rows, "median_ratio": median}, fh, indent=2)
+            json.dump(
+                {"checkpoint": ckpt, "episodes": rows, "median_ratio": median}, fh, indent=2
+            )
         print(f"\nGespeichert: {args.json_out}")
     return 0
 

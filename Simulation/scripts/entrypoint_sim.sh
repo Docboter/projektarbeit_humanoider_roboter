@@ -335,6 +335,9 @@ ${ISAACLAB_PATH}/isaaclab.sh -p /workspace/g1_dex3_sim/run_g1_dex3_sim_eval.py \
     --results-file   "$DATA_DIR/sim_results/results.json" \
     --asset-path     "$ASSET_PATH" \
     --episode-length-s "$EPISODE_LENGTH_S" \
+    `# Nur zur Protokollierung in results.json — geladen hat den Checkpoint der` \
+    `# Policy-Server oben (Z. 235) aus derselben Variablen.` \
+    --checkpoint-path "$CHECKPOINT_PATH" \
     --ping-retries   20
 
 # isaaclab.sh schluckt den Exit-Code des Python-Prozesses (ein Crash im Sim-Client liefert

@@ -160,6 +160,7 @@ The entrypoint reads everything from env vars. Defaults are set as `ENV` in the 
 | `TRAIN_TEST_SPLIT` | `0` | `1` = activate 80/20 split (`run_finetuning.sh` patches `meta/info.json`; test episodes held out). `TRAIN_SPLIT_RATIO` (0.8) sets the ratio |
 | `USE_AUGMENTATION` | `1` | Image augmentation / domain randomization (color jitter; `CJ_*`, `RANDOM_ROTATION_ANGLE`, `STATE_DROPOUT_PROB`). `0` = explicitly off |
 | `USE_RL` | `0` | `1` = RL fine-tuning (FPO). Not in the BC image (no Isaac Sim) — BC entrypoint errors with a pointer to the sim-image RL path (`entrypoint_rl.sh` / `kisski_rl_submit.sh`, RT-core GPU). See [docs/training/env-vars.md](docs/training/env-vars.md) + [RL plan](docs/weiterfuehrend/reinforcement-learning-plan.md) |
+| `USE_COTRAIN` | `0` | `1` = co-training on real **and** rendered images (step 4); routes to `run_finetuning_cotrain.sh` (namespace `blockstacking_cotrain`, sets `--tune_visual` itself, takes precedence over `TUNE_VISUAL`). Needs a rendered dataset from `server_rl_run.sh render` via `COTRAIN_DATASET_PATH` / `COTRAIN_HF_REPO`; `COTRAIN_MIX_RATIO` is the share of rendered samples (0.25 recommended, see [co-training.md](docs/training/co-training.md)) |
 
 ## Code style
 
@@ -177,12 +178,17 @@ repo root
 ├── docs/                               # ALL prose docs live here
 │   ├── README.md                       # Doc navigation hub + project structure
 │   ├── training/                       # operative guides: anleitung.md, kisski-hpc.md, env-vars.md,
-│   │                                   #   multi-gpu.md, train-test-split.md, wandb-offline-sync.md, fixes-aus-erstem-lauf.md
+│   │                                   #   multi-gpu.md, train-test-split.md, wandb-offline-sync.md,
+│   │                                   #   fixes-aus-erstem-lauf.md, co-training.md (step 4: real +
+│   │                                   #   rendered images; tools built 2026-08-14, run still pending)
 │   ├── simulation/                     # operative guides: vastai-anleitung.md, umsetzungsnotizen.md (READ FIRST)
 │   │   └── archiv/                     # superseded planning docs (isaac-lab-plan, sim-docker-build,
 │   │                                   #   kisski-desktop, gpu-kompatibilitaet)
-│   ├── ergebnisse/                     # evaluations: lauf1-auswertung.md, wandb-run-auswertung.md,
-│   │                                   #   domain-gap-analyse.md, sim-bewertung.md, baseline-unitree-g1.md
+│   ├── ergebnisse/                     # evaluations: lauf1-auswertung.md, lauf2-vision-auswertung.md,
+│   │                                   #   lauf3-vision-split-auswertung.md (first real validation:
+│   │                                   #   checkpoint sweep U-curve, best ckpt 30000, last one 25% worse),
+│   │                                   #   wandb-run-auswertung.md, domain-gap-analyse.md,
+│   │                                   #   sim-bewertung.md, baseline-unitree-g1.md
 │   ├── weiterfuehrend/                 # reinforcement-learning-plan.md (+ rl-anleitung.md operative guide;
 │   │                                   #   RL runs end-to-end; runs 25–28 grasp blocker fell in run 29 —
 │   │                                   #   cube lifts 7.9 cm), lokomotion-recherche.md
@@ -207,7 +213,12 @@ repo root
 │       ├── run_finetuning.sh           # Training launcher (called by entrypoint; torchrun for NUM_GPUS>1)
 │       ├── run_finetuning.ps1          # Windows variant of the training launcher
 │       ├── run_finetuning_vision.sh    # Vision-encoder variant (TUNE_VISUAL=1, blockstacking_vision namespace)
-│       ├── lib_split.sh                # Shared train/test-split logic, sourced by both training launchers;
+│       ├── run_finetuning_cotrain.sh   # ★ Step 4: co-training on real + RENDERED images (USE_COTRAIN=1,
+│       │                               #   blockstacking_cotrain namespace, split on by default)
+│       ├── launch_cotrain.py           # Two-dataset training entry point (mix_ratio). Copy of the fork's
+│       │                               #   launch_finetune.py with ONE change — the datasets list — so no
+│       │                               #   submodule change / image rebuild is needed. Re-check on GR00T bumps
+│       ├── lib_split.sh                # Shared train/test-split logic, sourced by all training launchers;
 │       │                               #   writes a split.json record next to the checkpoints
 │       └── checkpoint_sweep.py         # ★ Checkpoint SELECTION: open-loop MSE/MAE of every checkpoint on the
 │                                       #   HELD-OUT episodes. The fork has no in-training eval
@@ -218,8 +229,9 @@ repo root
 │   ├── Dockerfile.vastai               # vast.ai: combined Isaac Sim + GR00T in one container
 │   ├── kisski_sim_submit.sh            # SLURM job for sim eval (jupyter partition, RTX 5000)
 │   ├── server_rl_run.sh                # ★ Own-server workflow (Docker): preflight/setup/check/cams/
-│   │                                   #   gap/eval/grasp/span/livecheck/rl/shell/clean subcommands
-│   │                                   #   (see rl-anleitung.md; livecheck = phase 0 of the LIVE variant)
+│   │                                   #   gap/eval/grasp/span/render/livecheck/rl/shell/clean subcommands
+│   │                                   #   (see rl-anleitung.md; livecheck = phase 0 of the LIVE variant;
+│   │                                   #   render = builds the co-training dataset, see co-training.md)
 │   ├── server_robocasa_ref_run.sh      # Own-server RoboCasa GR-1 reference eval (pipeline validation)
 │   ├── update_sim_image.ps1            # Build/push tool (-VastAI flag for Dockerfile.vastai)
 │   ├── update_sim_image.sh             # Linux/bash port of update_sim_image.ps1
@@ -227,6 +239,11 @@ repo root
 │   ├── g1_dex3_sim/                    # COPIED into image at /workspace/g1_dex3_sim/
 │   │   ├── run_g1_dex3_sim_eval.py     # Main eval loop (model-based, ZMQ client to GR00T server)
 │   │   ├── run_g1_dex3_replay.py       # Open-loop dataset-replay DIAGNOSTIC (no server/model)
+│   │   ├── render_cotrain_dataset.py   # ★ Step 4: replays REAL dataset actions and records the 4 policy
+│   │   │                               #   cameras → LeRobot v2.1 dataset of (sim image, real action) pairs.
+│   │   │                               #   Two stages: `scan` finds each episode's grasp point (cheap,
+│   │   │                               #   cameras at 1/10), `render` puts the cubes there and writes at the
+│   │   │                               #   calibrated 640×480. Resumable; never renders held-out episodes
 │   │   ├── replay_episode0.npz         # Bundled ground-truth actions (dataset ep. 0) for replay
 │   │   ├── g1_dex3_blockstack_env.py   # Isaac Lab env (robot, table, cubes, 4 policy + 1 scene cam; reward_mode binary|shaped, get_obs_batched)
 │   │   ├── rl_finetune.py              # FPO RL trainer (action-head only; shaped reward; one full iteration verified on hardware)

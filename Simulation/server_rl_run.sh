@@ -869,6 +869,68 @@ do_gap() {
     || { err "Domain-Gap-Messung ohne Erfolgsmarker beendet (Traceback oben)."; return 1; }
 }
 
+# Gerenderten Co-Training-Datensatz erzeugen (Schritt 4 aus next-steps.md).
+#
+# Zwei Stufen in einem Aufruf: 'scan' findet je Episode den Punkt, an dem sich die Finger
+# schliessen (billig, Kameras auf 1/10), 'render' legt die Wuerfel dorthin und schreibt den
+# Datensatz in kalibrierter Aufloesung. Ohne den Scan laegen die Wuerfel zufaellig, und die
+# Bild-Aktions-Paare waeren visuell entkoppelt — das Gegenteil dessen, was der Encoder lernen soll.
+#
+# Laufzeit: Rendern kostet rund 2-3 min je Episode (8,6 Steps/s gemessen, Episode = 1173
+# Steps). 60 Episoden sind also ~3 h. Der Lauf ist fortsetzbar: fertige Episoden werden
+# uebersprungen, ein Abbruch kostet hoechstens die angefangene Episode.
+do_render() {
+  ensure_checkpoint
+  ensure_black_hands
+  local ds="${SPAN_DATASET:-/data/unitreerobotics/G1_Dex3_BlockStacking_Dataset}"
+  ensure_dataset "$ds" || return 1
+
+  local out="${RENDER_OUT:-/data/cotrain/g1_dex3_rendered}"
+  local eps="${RENDER_EPISODES:-60}"
+  local stage="${RENDER_STAGE:-both}"
+  local extra=""
+  [[ "${RENDER_MAX_FRAMES:-0}" != "0" ]] && extra+=" --max-frames-per-episode ${RENDER_MAX_FRAMES}"
+  [[ "${RENDER_OVERWRITE:-0}" == "1" ]] && extra+=" --overwrite"
+  [[ -n "${RENDER_EPISODE_IDS:-}" ]] && extra+=" --episode-ids ${RENDER_EPISODE_IDS}"
+
+  # Kein docker cp noetig — und auch nicht moeglich: $SIM_DIR ist das Repo-Verzeichnis
+  # Simulation/g1_dex3_sim, READ-ONLY hineingemountet (s. ensure_container). Ein 'git pull'
+  # auf dem Server genuegt also. Genau deshalb wird hier geprueft statt kopiert.
+  if ! docker exec "$CONTAINER" test -f "$SIM_DIR/render_cotrain_dataset.py"; then
+    err "render_cotrain_dataset.py fehlt unter $SIM_DIR im Container."
+    err "  $SIM_DIR ist read-only aus dem Repo gemountet — auf dem Server:  git pull"
+    return 1
+  fi
+
+  local st
+  for st in scan render; do
+    [[ "$stage" == "both" || "$stage" == "$st" ]] || continue
+    log "Stufe '$st' — Datensatz $ds, Ziel $out, $eps Episoden."
+    [[ "$st" == "render" ]] && log "  Das dauert. Bei Verbindungsabbruch: Lauf in tmux/screen legen."
+    docker exec -w "$SIM_DIR" \
+      -e "DR_ENABLED=${DR_ENABLED:-1}" \
+      -e "RL_GROUND_COLOR=${RL_GROUND_COLOR:-}" \
+      -e "RL_AA_MODE=${RL_AA_MODE:-}" \
+      "$CONTAINER" bash -lc "
+      unset VIRTUAL_ENV
+      '$ISAAC_PY' '$SIM_DIR/render_cotrain_dataset.py' \
+          --headless --enable_cameras \
+          --stage '$st' \
+          --dataset-path '$ds' \
+          --out-path '$out' \
+          --num-episodes '$eps' \
+          --asset-path '$ASSET_PATH' \
+          $extra" 2>&1 | tee /dev/stderr | grep -c "\[$st\] fertig" >/dev/null \
+      || { err "Stufe '$st' ohne Erfolgsmarker beendet (Traceback oben)."; return 1; }
+    ok "Stufe '$st' fertig."
+  done
+
+  ok "Gerenderter Datensatz: $HOST_DATA_DIR/${out#/data/}"
+  echo "  Weiter (auf der Trainings-Seite):"
+  echo "    huggingface-cli upload <user>/<repo> $HOST_DATA_DIR/${out#/data/} --repo-type dataset"
+  echo "    USE_COTRAIN=1 COTRAIN_HF_REPO=<user>/<repo> …  (docs/training/co-training.md)"
+}
+
 do_shell()  { ensure_container; docker exec -it "$CONTAINER" bash -l; }
 do_clean()  { log "Entferne Container '$CONTAINER' (Daten in $HOST_DATA_DIR bleiben)."; \
               docker rm -f "$CONTAINER" 2>/dev/null || warn "Container existierte nicht."; ok "Weg."; }
@@ -902,6 +964,14 @@ Aktionen:
               (Download + v3->v2-Konvertierung + modality.json, ~18 GB, einmalig).
               SPAN_DATASET (Default /data/unitreerobotics/G1_Dex3_BlockStacking_Dataset),
               SPAN_TRAJ_IDS (Default "0 1 2 3 4"), SPAN_AUTO_FETCH=0 schaltet das Holen ab.
+  render      Gerenderten Co-Training-Datensatz erzeugen (Schritt 4): echte Dataset-Aktionen
+              in der Sim abspielen und dabei die vier Policy-Kameras aufzeichnen. Ergebnis
+              ist ein LeRobot-v2.1-Datensatz, den run_finetuning_cotrain.sh dazumischt.
+              Zwei Stufen (scan -> render), fortsetzbar, ~2-3 min je Episode.
+              RENDER_EPISODES (60), RENDER_OUT (/data/cotrain/g1_dex3_rendered),
+              RENDER_STAGE (both|scan|render), RENDER_MAX_FRAMES (0 = ganze Episode),
+              RENDER_EPISODE_IDS ("0 4 8"), RENDER_OVERWRITE=1, DR_ENABLED (1).
+              Zurueckgehaltene Test-Episoden werden nie gerendert.
   rl          Echter RL-Lauf (Vordergrund). Checkpoints unter $HOST_DATA_DIR/g1_dex3_rl/.
   latency     Reine Policy-Latenz (ms je Action-Chunk), in-process ohne Sim und ohne ZMQ.
               Die einzige hier messbare Zahl, die auch auf echter Hardware gilt — dort
@@ -923,6 +993,9 @@ Beispiele:
   HF_TOKEN=hf_... GRASP_MODE=hold ./Simulation/server_rl_run.sh grasp
   # Gate vor TUNE_VISUAL — greift die Policy auf ECHTEN Bildern?
   HF_TOKEN=hf_... ./Simulation/server_rl_run.sh span
+  # Schritt 4 — erst der Rauchtest (2 Episoden a 60 Frames), dann der lange Lauf:
+  HF_TOKEN=hf_... RENDER_EPISODES=2 RENDER_MAX_FRAMES=60 ./Simulation/server_rl_run.sh render
+  HF_TOKEN=hf_... RENDER_EPISODES=60 ./Simulation/server_rl_run.sh render
   HF_TOKEN=hf_... WANDB_API_KEY=... RL_NUM_ENVS=4 ./Simulation/server_rl_run.sh rl
   # mit Live-Ansicht im Browser + W&B-Video alle 10 Iterationen:
   HF_TOKEN=hf_... WANDB_API_KEY=... LIVE_VIEW=1 RL_WANDB_VIDEO_EVERY=10 \\
@@ -982,7 +1055,7 @@ ACTION="${1:-help}"
 # 'shell' bleibt ungespiegelt (interaktives -it verträgt die Pipe nicht), 'help'/'clean'
 # haben nichts zu protokollieren.
 case "$ACTION" in
-  preflight|setup|check|cams|gap|eval|grasp|span|rl|livecheck|latency) start_logging "$ACTION" ;;
+  preflight|setup|check|cams|gap|eval|grasp|span|rl|livecheck|latency|render) start_logging "$ACTION" ;;
 esac
 case "$ACTION" in
   preflight)  do_preflight ;;
@@ -993,6 +1066,7 @@ case "$ACTION" in
   eval)       do_eval ;;
   grasp)      do_grasp ;;
   span)       do_span ;;
+  render)     do_render ;;
   latency)    do_latency ;;
   livecheck)  do_livecheck ;;
   rl)         do_rl ;;

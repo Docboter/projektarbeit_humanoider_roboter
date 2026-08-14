@@ -41,11 +41,21 @@ statt nur Aktions-Nachahmung (Hintergrund: [reinforcement-learning-plan.md](rein
 >   Das `span`-Gate ([Lauf 32](#lauf-32-runs2026081301-das-span-gate-ist-entschieden--a1),
 >   2026-08-13) misst dieselbe Policy auf **echten Datensatz-Bildern**: Median-Verhältnis
 >   **1,00** über fünf Trajektorien (0,84–1,01) — auf realen Bildern kommandiert sie die volle
->   Greifbewegung, im Sim-Rendering nur 19–20 %. Nach der vorregistrierten Regel (`≥ 70 %`) ist
+>   Greifbewegung, im Sim-Rendering nur 19–20 %. Nach der vorregistrierten Regel (`≥ 70 %`) war
 >   damit **`TUNE_VISUAL=1` der begründete nächste Lauf**, und (a2) ist ausgeschlossen.
+> - **🟡 `TUNE_VISUAL` ist gelaufen und hat das Gate bewegt — aber nicht geschlossen
+>   ([Lauf 34](#läufe-3334-runs2026081403-runs2026081404-der-tune_visual-checkpoint-im-closed-loop),
+>   2026-08-14).** Der Vision-Checkpoint (`vision_v2`, **checkpoint-30000**) kommandiert im Closed
+>   Loop **0,577 rad Median = 27,6 %** statt der 20,5 % des alten — bei identischen 40 s über zehn
+>   Episoden, mit **vollständiger Trennung** gegen Lauf 31 (p = 3,3 · 10⁻⁴) und drei Episoden bei
+>   60–80 % der Demonstration, einem Verhalten, das der alte Checkpoint nie zeigte. `lifted` bleibt
+>   dennoch **0/10** (beste Anhebung 1,68 cm gegen die 2-cm-Schwelle), und 27,6 % stehen weiter
+>   gegen 100 % auf echten Bildern. **Nächster Schritt ist damit Co-Training auf gerenderten
+>   Bildern, nicht RL und nicht ein weiterer Lauf derselben Art.**
 > - **Lauf 31** (`runs/20260812/03`) hat zusätzlich die **Meilenstein-Leiter** eingeführt und die
 >   erste messbare Würfel-Anhebung im Closed Loop geliefert (0,22–1,03 cm je Episode); der
->   Greif-Befund steht damit bei n=7 (Median 0,43 rad = 20,5 % der Demonstration).
+>   Greif-Befund des alten Checkpoints steht damit bei n=7 (Median 0,43 rad = 20,5 % der
+>   Demonstration).
 > - **Lernkurve** — steigt `success` über viele Iterationen? (Hyperparameter noch ungetunt.)
 > - **Durchsatz** — Render-FPS bei produktivem `RL_NUM_ENVS` mit 4 Kameras (Plan-Gruppe 0).
 >
@@ -1963,6 +1973,122 @@ schwächste Wert und bleibt trotzdem klar über der 70-%-Schwelle.
 **Konsequenz für die Reihenfolge:** RL bleibt nicht der nächste Schritt. Der begründete nächste
 Lauf ist `TUNE_VISUAL=1` — die Regel dafür ist jetzt vollständig geschlossen, nicht mehr nur
 plausibel. Erst wenn die Politik in der Sim greift, hat ein Reward-Signal einen Startpunkt.
+
+#### Läufe 33/34 (`runs/20260814/03`, `runs/20260814/04`): der TUNE_VISUAL-Checkpoint im Closed Loop
+
+Die Antwort auf Lauf 32. Gemessen wird der Checkpoint, den `TUNE_VISUAL=1` produziert hat:
+`g1_dex3_blockstacking_vision_v2`, **checkpoint-30000** — der beste aus dem Checkpoint-Sweep, nicht
+der letzte (der ist 25 % schlechter, s. [lauf3-vision-split-auswertung.md](../ergebnisse/lauf3-vision-split-auswertung.md)).
+Zwei Läufe am 2026-08-14, beide mit schwarzhändigem Asset, DR an, Exec-Horizon 8:
+
+| Lauf | Konfiguration | Rolle |
+|---|---|---|
+| 33 | 5 Episoden à **60 s**, dazu `span` über 5 Trajektorien | erste Sichtung |
+| 34 | **10 Episoden à 40 s** | die mit Lauf 31 vergleichbare Messung |
+
+Lauf 33 ist als Vergleich unbrauchbar, und das ist eine Lehre für sich: 60 s gegen die 40 s aus
+Lauf 31, und die Fingerspanne ist ein **Maximum über die Episode** — ein längeres Fenster hebt sie
+allein dadurch. Lauf 34 wiederholt im identischen Zeitfenster und ist die Zahl, die zählt.
+
+##### Lauf 34, Episode für Episode
+
+| Ep | Fingerspanne | % Demo | Kuppe→Würfel | Verschiebung | Anhebung | Stufen |
+|---|---|---|---|---|---|---|
+| 0 | 0,589 rad | 28 % | 3,1 cm | 7,9 cm | 1,00 cm | `reached`, `touched` |
+| 1 | **1,442 rad** | **69 %** | 2,3 cm | 9,4 cm | **1,68 cm** | + `grasp_attempted` |
+| 2 | 0,530 rad | 25 % | 4,1 cm | 4,2 cm | 1,00 cm | `touched` |
+| 3 | 0,504 rad | 24 % | 2,5 cm | 3,5 cm | 0,81 cm | `reached`, `touched` |
+| 4 | 0,552 rad | 26 % | 3,2 cm | 6,3 cm | 0,87 cm | `reached`, `touched` |
+| 5 | 0,735 rad | 35 % | 3,2 cm | 3,8 cm | 0,93 cm | + `grasp_attempted` |
+| 6 | **1,260 rad** | **60 %** | 3,3 cm | 6,2 cm | 1,17 cm | + `grasp_attempted` |
+| 7 | 0,543 rad | 26 % | 2,8 cm | 6,3 cm | 1,24 cm | `reached`, `touched` |
+| 8 | 0,565 rad | 27 % | 3,1 cm | 4,1 cm | 1,02 cm | `reached`, `touched` |
+| 9 | **1,673 rad** | **80 %** | 2,5 cm | 2,8 cm | 1,33 cm | + `grasp_attempted` |
+
+Leiter: `reached` 9/10 · `grasp_attempted` **4/10** · `touched` 10/10 · `lifted` **0/10** ·
+`stacked` 0/10.
+
+##### Der Vergleich mit Lauf 31 (gleiches Zeitfenster, alter Checkpoint)
+
+| | Lauf 31 (alt, 40 s, n=5) | **Lauf 34 (vision_v2@30000, 40 s, n=10)** |
+|---|---|---|
+| Fingerspanne Median | 0,43 rad = **20,5 %** | **0,577 rad = 27,6 %** |
+| Bereich | 0,39–0,49 rad | **0,50–1,67 rad** |
+| Episoden ≥ 60 % der Demo | 0/5 | **3/10** |
+| `grasp_attempted` | 0/5 | 4/10 |
+| `touched` | 3/5 | 10/10 |
+| Anhebung max | 1,03 cm | 1,68 cm |
+| Kuppe→Würfel | 2,9–4,2 cm | 2,3–4,1 cm |
+| `lifted` / `stacked` | 0/5 | **0/10** |
+
+**Die Trennung ist vollständig:** jede der zehn neuen Episoden liegt über jeder der fünf alten
+(U = 50 von 50). Exakter einseitiger Rangtest über alle 3003 Aufteilungen: **p = 3,3 · 10⁻⁴**. Bei
+diesen Stichprobengrößen ist das der bestmögliche Wert — mehr Trennschärfe gibt die Stichprobe
+nicht her.
+
+Wichtiger als der Median ist die **Form** der Änderung. Der alte Checkpoint lag über sieben
+Episoden eng zwischen 0,35 und 0,49 rad — oben zu Recht als „stabiles, reproduzierbares Defizit"
+beschrieben. Lauf 34 hat sechs Episoden bei 0,50–0,59, und drei brechen aus: 1,26 · 1,44 · 1,67 rad,
+also 60–80 % der Demonstration. Es ist kein gleichmäßiges Anheben des Niveaus, sondern **ein neuer
+Modus, den der alte Checkpoint nie gezeigt hat.**
+
+Und dieser Modus wirkt mechanisch:
+
+| Rangkorrelation (Spearman, n=10) | Wert | Lesart |
+|---|---|---|
+| Fingerspanne ~ **Anhebung** | **+0,62** | wo die Politik greift, hebt sich der Würfel am meisten |
+| Fingerspanne ~ Verschiebung | +0,05 | das Wegschieben hängt **nicht** am Griff — das ist Anstoßen |
+| Fingerspanne ~ Annäherung | −0,31 | schwach; näher dran heißt eher mehr Griff |
+
+Dass die Anhebung mit der Spanne läuft, die Verschiebung aber nicht, ist genau die Signatur, die
+ein wirksamer Greifbefehl haben müsste: mehr Hub ohne mehr Herumschieben. Wäre beides korreliert,
+wäre die Anhebung bloß ein Nebenprodukt von mehr Kontakt überhaupt.
+
+##### Was sich nicht bewegt hat
+
+- **Die Annäherung.** 2,3–4,1 cm gegen 2,9–4,2 cm — unverändert. Dass `reached` von 3/5 auf 9/10
+  springt, ist wieder das oben beschriebene Schwellenartefakt: Episode 2 verfehlt die 4-cm-Grenze
+  um 1 mm. Die Rohzahl zählt, nicht die Stufe.
+- **`lifted` bleibt 0/10.** Beste Anhebung 1,68 cm gegen die 2-cm-Schwelle. Näher als je zuvor,
+  aber darüber ist es nicht.
+- **Die Lücke zum Realbild bleibt groß.** 27,6 % in der Sim gegen 100 % auf echten Bildern —
+  Faktor 3,6. Das `span`-Gate aus Lauf 33 (derselbe neue Checkpoint, fünf Trajektorien) liefert
+  erneut Median 1,00: die Realbild-Fähigkeit hat das Vision-Training unbeschadet überstanden.
+  Die MSE liegt dabei mit 0,0025–0,0062 **über** den 0,0016–0,0045 aus Lauf 32 — nicht
+  überinterpretieren, Lauf 1 hat diese fünf Episoden 175 k Schritte lang gesehen, das ist
+  Memorisierung und kein fairer Vergleich.
+
+##### Zuordnung: es war der Checkpoint
+
+Zwischen Lauf 31 (2026-08-12) und Lauf 34 hat sich auf der Sim-Seite nichts geändert, was die
+Aktionen berührt. `83d6ded` fasst nur `policy_latency.py` an (Diagnose-Bench, nicht im Eval-Pfad),
+`7a05c9d` führt `SCENE_CAM` und `CAM_RES_SCALE` ein — **beide standardmäßig aus** und in beiden
+Läufen nicht gesetzt. `557fb3b` ist reine Zeitmessung. Einzige geänderte Variable ist der
+Checkpoint.
+
+##### Konsequenz
+
+Die vorregistrierte Frage lautete: *„Bewegt sie sich nicht deutlich über 19 %, ist der Vision-Pfad
+ausgereizt."* Sie hat sich bewegt — signifikant und mit einem qualitativ neuen Verhalten.
+**Der Vision-Pfad ist also nicht ausgereizt, schließt den Gap aber auch nicht.** Rund 48
+GPU-Stunden haben ungefähr ein Drittel des Weges gebracht; die restlichen zwei Drittel kommen
+nicht durch mehr vom Gleichen.
+
+Damit wird **Co-Training auf gerenderten Bildern** (Schritt 4 in [next-steps.md](../../next-steps.md))
+zur begründeten Eskalation: der Encoder muss domäneninvariant werden, nicht nur besser auf
+Realbildern. Die +0,62-Korrelation ist das Argument, dass sich das auszahlt — steigt die Spanne
+weiter, folgt die Anhebung mit, und bis zur 2-cm-Schwelle fehlen noch 0,3 cm.
+
+RL bleibt hinten an: die BC-Baseline steht weiterhin bei 0 Erfolg, das Reward-Signal hätte
+weiterhin keinen Startpunkt.
+
+> **Einordnung der Belegkette.** `Simulation/runs/` ist gitignored — `runs/20260814/03` und `04`
+> (jeweils `results.json` plus Log) sind nicht versioniert. Die Zahlen oben stammen aus ihnen.
+> Nachfahren lässt sich das mit
+> `NUM_EPISODES=10 EPISODE_LENGTH_S=40 CHECKPOINT_PATH=/data/checkpoints/groot-g1dex3-vision-v2-30000 ./Simulation/server_rl_run.sh eval`.
+> Seit dem 2026-08-14 schreibt die Eval den ausgewerteten Checkpoint als Feld `checkpoint`
+> (Pfad, `run_id`, `global_step`, Gewichtsgrößen) in `results.json` — bei diesen beiden Läufen
+> fehlt es noch, ihre Identität ist über die Logzeile `Checkpoint: …` belegt.
 
 #### Falscher Alarm „Sim-Eval ohne Erfolgsmarker beendet"
 

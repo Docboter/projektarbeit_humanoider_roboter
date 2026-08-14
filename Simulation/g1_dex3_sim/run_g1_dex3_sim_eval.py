@@ -68,6 +68,12 @@ parser.add_argument(
     help="Wie oft auf den Server gewartet wird (je 5 s)"
 )
 parser.add_argument(
+    "--checkpoint-path", type=str, default=os.environ.get("CHECKPOINT_PATH", ""),
+    help="Checkpoint-Verzeichnis, das der Policy-Server geladen hat. Wird NICHT geladen, "
+         "sondern nur für die Ergebnis-Datei ausgelesen (s. checkpoint_fingerprint). "
+         "Leer = die Herkunft des Laufs bleibt unbelegt."
+)
+parser.add_argument(
     "--asset-path", type=str, default="",
     help="Pfad zum G1+Dex3 USD-Asset (überschreibt den Default in g1_dex3_cfg.py; "
          "leer = cfg-Default verwenden)"
@@ -115,6 +121,49 @@ def save_episode_video(frames: list[np.ndarray], episode: int, video_dir: str) -
         print(f"[Video] Gespeichert: {path}")
     except Exception as e:
         print(f"[Video] Fehler beim Speichern: {e}")
+
+
+# ---------------------------------------------------------------------------
+# Checkpoint-Herkunft
+# ---------------------------------------------------------------------------
+
+def checkpoint_fingerprint(path: str) -> dict:
+    """Belegt, WELCHER Checkpoint diesen Lauf erzeugt hat.
+
+    Der Pfad allein genügt dafür nicht: liegen mehrere Checkpoints unter
+    /data/checkpoints und wurde CHECKPOINT_PATH beim Start vergessen, greift der
+    Default — der Lauf misst dann still ein anderes Modell als gemeint (genau das
+    verhindert `ensure_checkpoint` gerade NICHT, es überspringt bei existierendem
+    Verzeichnis nur den Download). Deshalb wandern zusätzlich `run_id` aus
+    wandb_config.json, `global_step` aus trainer_state.json und die Gewichtsgrößen
+    mit: drei Merkmale, die zwei Trainingsläufe zuverlässig auseinanderhalten.
+
+    Fehlschläge sind hier nie fatal — eine fehlende Datei darf keine 20 Episoden
+    kosten, sie kostet nur den jeweiligen Eintrag.
+    """
+    info: dict = {"path": path}
+    if not path:
+        info["note"] = "nicht übergeben (--checkpoint-path / CHECKPOINT_PATH leer)"
+        return info
+    p = Path(path)
+    if not p.is_dir():
+        info["note"] = "Verzeichnis nicht lesbar"
+        return info
+    try:
+        info["run_id"] = json.loads((p / "wandb_config.json").read_text()).get("run_id")
+    except Exception as e:
+        info["run_id_error"] = str(e)
+    try:
+        info["global_step"] = json.loads(
+            (p / "trainer_state.json").read_text()
+        ).get("global_step")
+    except Exception as e:
+        info["global_step_error"] = str(e)
+    try:
+        info["weight_bytes"] = {f.name: f.stat().st_size for f in sorted(p.glob("*.safetensors"))}
+    except Exception as e:
+        info["weight_bytes_error"] = str(e)
+    return info
 
 
 # ---------------------------------------------------------------------------
@@ -415,6 +464,14 @@ def main():
     print("=" * 60)
     print("GR00T N1.6 — G1+Dex3 Closed-Loop Sim Eval")
     print("=" * 60)
+    # Zuerst, nicht zuletzt: bei einem Abbruch mitten im Lauf steht die Herkunft dann
+    # trotzdem im Log, auch wenn es nie zur Ergebnis-Datei kommt.
+    ckpt = checkpoint_fingerprint(args.checkpoint_path)
+    print(f"  Checkpoint:       {ckpt.get('path') or '(unbekannt)'}")
+    print(
+        f"                    run_id={ckpt.get('run_id', '?')}  "
+        f"global_step={ckpt.get('global_step', '?')}"
+    )
     print(f"  Server:           {args.server}")
     print(f"  Episoden:         {args.num_episodes}")
     print(f"  Exec-Horizon:     {args.execution_horizon}")
@@ -551,6 +608,9 @@ def main():
         "num_episodes": len(results),
         "num_success": n_success,
         "success_rate": success_rate,
+        # Ohne dieses Feld ist ein Ergebnis nicht zuordenbar: die Datei liegt immer unter
+        # demselben Pfad und wird von jedem Lauf überschrieben.
+        "checkpoint": ckpt,
         "server": args.server,
         "task_description": args.task_description,
         "execution_horizon": args.execution_horizon,

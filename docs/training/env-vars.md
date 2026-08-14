@@ -48,6 +48,24 @@ Diese Schalter aktivieren einzelne Verfahren beim Trainingsstart — alle unabh�
 | `RANDOM_ROTATION_ANGLE` | *(leer)* | Max. Rotationswinkel (Grad) für Bild-Rotations-Augmentierung; leer = aus. |
 | `STATE_DROPOUT_PROB` | `0.0` | Dropout-Wahrscheinlichkeit auf den State-Inputs (Regularisierung); `0.0` = aus. |
 | `USE_RL` | `0` | `1` = RL-Fine-tuning (FPO) gewünscht. Läuft **nicht** im BC-Trainingsimage (kein Isaac Sim): der BC-Entrypoint bricht mit einem Hinweis auf den RL-Pfad ab. RL braucht den kombinierten Isaac-Sim + GR00T-Container ([`Simulation/scripts/entrypoint_rl.sh`](../../Simulation/scripts/entrypoint_rl.sh) bzw. [`Training/kisski_rl_submit.sh`](../../Training/kisski_rl_submit.sh)) auf einer **RT-Core-GPU**. Details: [reinforcement-learning-plan.md](../weiterfuehrend/reinforcement-learning-plan.md). |
+| `USE_COTRAIN` | `0` | `1` = **Co-Training auf echten UND gerenderten Bildern** (Schritt 4). Entrypoint startet [`run_finetuning_cotrain.sh`](../../Training/scripts/run_finetuning_cotrain.sh) mit eigenem Namespace `blockstacking_cotrain`; setzt `--tune_visual` selbst und hat Vorrang vor `TUNE_VISUAL`. Braucht einen gerenderten Datensatz (siehe unten). Anleitung: [co-training.md](co-training.md). |
+
+### Co-Training: gerenderten Datensatz dazumischen (`USE_COTRAIN=1`)
+
+Der gerenderte Datensatz entsteht auf dem **Sim-Server** (RT-Core-GPU) mit
+`./Simulation/server_rl_run.sh render` und wird zum Trainings-Rechner transportiert
+(~1–2 GB für 60 Episoden). Vollständige Herleitung der Werte:
+[co-training.md §4](co-training.md#4-die-beiden-entscheidungen--und-wie-sie-begründet-sind).
+
+| Variable | Default | Beschreibung |
+|---|---|---|
+| `COTRAIN_DATASET_PATH` | `/data/cotrain/g1_dex3_rendered` | Gerenderter Datensatz im Container (LeRobot v2.1, wie der echte). |
+| `COTRAIN_HF_REPO` | *(leer)* | HF-**Dataset**-Repo; wird geladen, wenn `COTRAIN_DATASET_PATH` leer ist. |
+| `COTRAIN_MIX_RATIO` | `0.5` | Anteil gerenderter Stichproben (Sampling-Wahrscheinlichkeit, **kein** Längenverhältnis). **Für den ersten Lauf 0.25 setzen:** bei 60 gerenderten gegen 240 echte Episoden sähe das Modell sonst jedes Sim-Bild 4× so oft wie jedes echte, und die Hälfte aller Updates entfiele auf ein Viertel des Bewegungsrepertoires. |
+| `TRAIN_TEST_SPLIT` | `1` **hier** | Im Co-Training-Skript standardmäßig an — ohne zurückgehaltene Episoden fehlt die Leitplanke, an der ein Rückschritt auf der Realdomäne sichtbar würde. |
+
+Die Renderer-seitigen Variablen (`RENDER_EPISODES`, `RENDER_STAGE`, `RENDER_MAX_FRAMES`, …)
+stehen in [co-training.md §7](co-training.md#7-env-vars) und in `./Simulation/server_rl_run.sh help`.
 
 ### Namespace des Laufs — ⚠️ der Fork setzt ungefragt fort
 

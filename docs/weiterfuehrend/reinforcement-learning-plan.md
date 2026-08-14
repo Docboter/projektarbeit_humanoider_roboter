@@ -28,8 +28,17 @@
 > Datensatz-Bildern** erreicht ein Median-Verhältnis von **1,00** (fünf Trajektorien, 0,84–1,01) —
 > sie kommandiert die volle Greifbewegung, sobald die Bilder echt sind. Nach der vorregistrierten
 > Regel (`≥ 70 %`) ist damit der **Domain-Gap die Ursache** und „Griff nie gelernt" ausgeschlossen.
-> `TUNE_VISUAL=1` ist der begründete nächste Lauf, RL kommt danach.
+> `TUNE_VISUAL=1` war damit der begründete nächste Lauf, RL kommt danach.
 > Details: [rl-anleitung.md](rl-anleitung.md#lauf-32-runs2026081301-das-span-gate-ist-entschieden--a1).
+>
+> **🟡 `TUNE_VISUAL` ist gefahren — das Gate hat sich bewegt, RL bleibt trotzdem hinten
+> (Lauf 34, 2026-08-14).** Der Vision-Checkpoint (`vision_v2`, checkpoint-30000) kommandiert im
+> Closed Loop **27,6 % statt 20,5 %** Fingerspanne — zehn Episoden à 40 s, vollständige Trennung
+> gegen die Vergleichsmessung (p = 3,3 · 10⁻⁴), drei Episoden bei 60–80 % der Demonstration. Die
+> Maßnahme wirkt also nachweislich, schließt den Gap aber nicht: **`lifted` bleibt 0/10** und die
+> BC-Erfolgsrate damit 0. Für RL ändert das nichts an der Reihenfolge — das Startsignal fehlt
+> weiterhin. Nächster Schritt ist Co-Training auf gerenderten Bildern.
+> Details: [rl-anleitung.md](rl-anleitung.md#läufe-3334-runs2026081403-runs2026081404-der-tune_visual-checkpoint-im-closed-loop).
 >
 > **Bereits umgesetzt** (Stand 2026-06-12, Glue-Fixes 2026-08-07/08):
 > - **Gruppe 1 (Reward):** Shaped Reward im Env hinter `reward_mode="shaped"` —

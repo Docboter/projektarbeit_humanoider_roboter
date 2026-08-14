@@ -92,6 +92,12 @@ def main():
             "*optim_states*",         # DeepSpeed ZeRO (mp_rank_XX_optim_states.pt)
             "zero_to_fp32.py",        # DeepSpeed ZeRO Konvertierungsscript
             "bf16_zero_pp_rank_*",    # DeepSpeed ZeRO Stage 3 Shards
+            "global_step*",           # DeepSpeed-Schrittordner KOMPLETT: darin liegt neben
+                                      #   den *optim_states* auch mp_rank_00_model_states.pt
+                                      #   (8,6 GB) — dieselben Gewichte wie die safetensors,
+                                      #   nur im DeepSpeed-Format. Ohne dieses Muster wandern
+                                      #   sie unbemerkt mit hoch.
+            "latest",                 # zeigt auf global_step*, ohne den Ordner wertlos
             "rng_state*.pth",
             "scheduler.pt",
             "training_args.bin",

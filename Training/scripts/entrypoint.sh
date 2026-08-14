@@ -29,6 +29,10 @@
 #   USE_RL                (default 0)      — RL-Fine-tuning (FPO). Läuft NICHT im BC-Image: braucht
 #                                            den Isaac-Sim+GR00T-Container auf einer RT-Core-GPU
 #                                            (Simulation/scripts/entrypoint_rl.sh). Hier nur Hinweis.
+#   USE_COTRAIN           (default 0)      — auf 1 setzen für Co-Training auf echten UND
+#                                            gerenderten Bildern (run_finetuning_cotrain.sh).
+#                                            Braucht COTRAIN_DATASET_PATH bzw. COTRAIN_HF_REPO;
+#                                            Anleitung: docs/training/co-training.md
 #
 # Bei Aufruf mit Argumenten wird das Skript nicht aktiv — stattdessen wird das
 # Argument direkt ausgeführt (nützlich für `docker run … bash`).
@@ -81,6 +85,7 @@ SKIP_CONVERT="${SKIP_CONVERT:-0}"
 SKIP_TRAIN="${SKIP_TRAIN:-0}"
 TUNE_VISUAL="${TUNE_VISUAL:-0}"
 USE_RL="${USE_RL:-0}"
+USE_COTRAIN="${USE_COTRAIN:-0}"
 # An run_finetuning.sh durchgereichte BC-Schalter (Defaults dort gesetzt):
 TRAIN_TEST_SPLIT="${TRAIN_TEST_SPLIT:-0}"
 USE_AUGMENTATION="${USE_AUGMENTATION:-1}"
@@ -201,6 +206,7 @@ printf "    %-20s %s\n" "TUNE_VISUAL"       "$TUNE_VISUAL"
 printf "    %-20s %s\n" "TRAIN_TEST_SPLIT"  "$TRAIN_TEST_SPLIT"
 printf "    %-20s %s\n" "USE_AUGMENTATION"  "$USE_AUGMENTATION"
 printf "    %-20s %s\n" "USE_RL"            "$USE_RL"
+printf "    %-20s %s\n" "USE_COTRAIN"       "$USE_COTRAIN"
 echo ""
 
 # USE_RL=1 → RL-Fine-tuning gewünscht, läuft aber NICHT in diesem BC-Image (kein Isaac Sim).
@@ -213,6 +219,14 @@ if [[ "$USE_RL" == "1" ]]; then
     err "  • KISSKI:        sbatch Training/kisski_rl_submit.sh"
     err "Details: docs/weiterfuehrend/reinforcement-learning-plan.md"
     exit 1
+fi
+
+# USE_COTRAIN=1 → Co-Training auf echten UND gerenderten Bildern (Schritt 4). Setzt
+# --tune_visual selbst, deshalb VOR der TUNE_VISUAL-Weiche: ein gesetztes TUNE_VISUAL
+# ist hier redundant, kein Widerspruch.
+if [[ "$USE_COTRAIN" == "1" ]]; then
+    log "USE_COTRAIN=1 — starte Co-Training echt+gerendert (run_finetuning_cotrain.sh)."
+    exec bash /scripts/run_finetuning_cotrain.sh
 fi
 
 # TUNE_VISUAL=1 → Vision-Encoder mittrainieren (separates Skript, separater Output-Namespace).

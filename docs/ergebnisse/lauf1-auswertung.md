@@ -156,6 +156,15 @@ Replay-Diagnostik auf Episode 0 (`replay_episode0.npz`) ist davon unbelastet.
 > vielfach gesehen; eine MSE nahe null ist dort das erwartete Bild und **belegt keine
 > Generalisierung** — Memorierung ist damit nicht auszuschließen. Auch bleibt offen, ob
 > Step 50000 genauso gut gewesen wäre; gemessen sind zwei Punkte, keine Kurve.
+>
+> **Nachtrag 2026-08-14 — die Kurve gibt es inzwischen, für Lauf 3.** Der erste Lauf mit
+> Split ([`lauf3-vision-split-auswertung.md`](lauf3-vision-split-auswertung.md)) zeigt auf
+> zurückgehaltenen Episoden eine **U-Kurve**: Minimum bei Step 30.000, danach steigt die
+> Validierungs-MSE wieder um 25 %, während der Trainingsloss weiter fällt. Übertragen auf
+> Lauf 1 heißt das: die Wahl von Step 175.000 war nicht nur unbelegt, sondern nach heutigem
+> Kenntnisstand **wahrscheinlich falsch** — ein früherer Checkpoint dürfte besser
+> generalisiert haben. Nachmessen ließe sich das nur mit einem Sweep über die Lauf-1-Checkpoints,
+> und auch dann nur auf Trainingsdaten, weil Lauf 1 keine zurückgehaltenen Episoden hat.
 
 **Was die Zahl trotzdem trägt:** Auf **echten** Bildern sagt die Policy die
 Demonstrations-Aktionen mit MSE 0,0018 fast exakt vorher — in der **Sim** kommandiert

@@ -123,10 +123,17 @@ Train-Loss (Konvergenz)
 
 | Split | Episoden | Anteil | Episoden-Indices |
 |-------|----------|--------|-----------------|
-| `train` | 241 | 80 % | 0 – 240 |
-| `test` | 60 | 20 % | 241 – 300 |
+| `train` | 240 | 80 % | 0 – 239 |
+| `test` | 61 | 20 % | 240 – 300 |
 
-Die ersten 241 Episoden werden zum Training verwendet. Die letzten 60 Episoden werden während des Trainings **nie geladen** und stehen danach für die Evaluation zur Verfügung.
+Die ersten 240 Episoden werden zum Training verwendet. Die letzten 61 Episoden werden während des Trainings **nie geladen** und stehen danach für die Evaluation zur Verfügung.
+
+> **Korrektur 2026-08-14.** Hier stand vorher `train` = 241 Episoden (0–240) und `test` = 60
+> (241–300). Das ist um eins verschoben: `split_apply()` rechnet
+> `n_train = int(301 × 0.8) = int(240,8) = **240**`. Bestätigt durch den ersten realen
+> Split-Lauf — der Sweep von Lauf 3 protokolliert `split_range: "240:301"` und löst
+> Split-Position 0 auf `episode_index 240` auf
+> ([`lauf3-vision-split-auswertung.md`](../ergebnisse/lauf3-vision-split-auswertung.md)).
 
 ---
 
@@ -142,8 +149,8 @@ Der `splits`-Eintrag wurde angepasst:
 
 // nachher
 "splits": {
-  "train": "0:241",
-  "test":  "241:301"
+  "train": "0:240",
+  "test":  "240:301"
 }
 ```
 
@@ -202,7 +209,7 @@ dataset = ShardedSingleStepDataset(
 
 ## Test-Split nach dem Training verwenden
 
-Um das Modell nach dem Fine-tuning auf den 60 Testepisoden auszuwerten, kann der `LeRobotEpisodeLoader` oder `ShardedSingleStepDataset` direkt mit `split="test"` instanziiert werden:
+Um das Modell nach dem Fine-tuning auf den 61 Testepisoden auszuwerten, kann der `LeRobotEpisodeLoader` oder `ShardedSingleStepDataset` direkt mit `split="test"` instanziiert werden:
 
 ```python
 from gr00t.data.dataset.lerobot_episode_loader import LeRobotEpisodeLoader
@@ -210,11 +217,11 @@ from gr00t.data.dataset.lerobot_episode_loader import LeRobotEpisodeLoader
 loader = LeRobotEpisodeLoader(
     dataset_path="/data/unitreerobotics/G1_Dex3_BlockStacking_Dataset",
     modality_configs=modality_configs,
-    split="test",   # lädt nur Episoden 241–300
+    split="test",   # lädt nur Episoden 240–300
 )
 
 # Einzelne Episode laden (Index bezieht sich auf die gefilterte Liste)
-episode_df = loader[0]   # entspricht episode_index 241 im Datensatz
+episode_df = loader[0]   # entspricht episode_index 240 im Datensatz
 ```
 
 Oder für ein vollständiges Evaluation-Dataset:
