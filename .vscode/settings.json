@@ -19,11 +19,9 @@
       "command": "latexmk",
       // %DOC_EXT% = main.tex (mit Endung), %DOC% = main (ohne)
       // -cd wechselt in das Verzeichnis der .tex-Datei, damit .latexmkrc gefunden wird
-      "args": ["-cd", "%DOC_EXT%"],
-      "env": {
-        // Python 3.12 vor dem Windows-Store-Stub platzieren (für minted/latexminted)
-        "PATH": "C:\\Users\\mueck\\AppData\\Local\\Programs\\Python\\Python312;C:\\Users\\mueck\\AppData\\Local\\Programs\\Python\\Python312\\Scripts;%PATH%"
-      }
+      // Kein env-Block nötig: unter Linux liefert die Distribution python3 +
+      // pygments systemweit, minted/latexminted findet sie über den PATH.
+      "args": ["-cd", "%DOC_EXT%"]
     }
   ],
 
