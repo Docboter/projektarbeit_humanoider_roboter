@@ -1,6 +1,8 @@
 # Co-Training auf echten und gerenderten Bildern (Schritt 4)
 
-**Stand:** 2026-08-14 · Werkzeuge gebaut, **noch nicht gefahren** · Vorgeschichte:
+**Stand:** 2026-08-17 · erster voller Renderlauf gefahren (60 Episoden), **Befund: Frames ab
+dem Griff sind falsch beschriftet** → `RENDER_STOP_AT_GRASP` (§ 3.2a), Trainingslauf steht
+noch aus · Vorgeschichte:
 [Lauf 34](../weiterfuehrend/rl-anleitung.md#läufe-3334-runs2026081403-runs2026081404-der-tune_visual-checkpoint-im-closed-loop),
 [next-steps.md Schritt 4](../../next-steps.md)
 
@@ -122,11 +124,18 @@ for e, v in list(s.items())[:5]:
 EOF
 ```
 
-Plausibel sind x um 0,30–0,40 und y um ±0,15–0,20. Liegt die Trefferquote deutlich unter
+Plausibel sind x um 0,30–0,50 und y um ±0,20. Liegt die Trefferquote deutlich unter
 etwa der Hälfte, erst die Erkennung nachschärfen (`--min-close`-Logik in
 `find_grasp_points`), statt Material mit zufällig liegenden Würfeln zu erzeugen.
 
-### 3.2 Der lange Lauf (≈ 3 h für 60 Episoden, Scan inklusive)
+> **`ok` in `scan.json` ist ein Greifpunkt-Detektor, kein Erfolgsdetektor.** Es heißt „die
+> Hand hat sich um ≥ 2 cm geschlossen, und hier waren die Kuppen dabei" — nichts darüber, ob
+> gestapelt wurde. Der Erfolg der Aufnahme ist eine Eigenschaft des **realen** Datensatzes
+> und im Replay nicht messbar. Wer `ok: true` als „gute Demo" liest, kommt zwangsläufig zu
+> dem Schluss, der QA-Scan lüge. Die Zahl, die den gerenderten Satz beurteilt, steht in
+> `render_manifest.json` → `consistency` (§ 3.2b).
+
+### 3.2 Der lange Lauf
 
 ```bash
 HF_TOKEN=hf_... RENDER_EPISODES=60 ./Simulation/server_rl_run.sh render
@@ -136,6 +145,70 @@ HF_TOKEN=hf_... RENDER_EPISODES=60 ./Simulation/server_rl_run.sh render
 angefangene. Mehr Episoden nachschieben geht jederzeit mit einem höheren
 `RENDER_EPISODES` — der Lauf rendert dann nur die neu hinzugekommenen. In `tmux`/`screen`
 legen, sonst beendet ein Verbindungsabbruch den Lauf.
+
+### 3.2a Nur bis zum Griff rendern — `RENDER_STOP_AT_GRASP` (Default an, seit 2026-08-17)
+
+**Der Befund aus dem ersten vollen Lauf (60 Episoden, 61 203 Frames).** Sichtprüfung der
+Endframes zeigte: die Würfel liegen am Episodenende unverändert verstreut, kein Stapel. Das
+ist kein Datenfehler, sondern die Vorhersage des Aufbaus — aus zwei Gründen:
+
+| Grenze | Beleg |
+|---|---|
+| `find_grasp_points` liefert per `np.argmin` **genau einen** Greifpunkt je Hand. „Stack three block" braucht zwei bis vier Pick-and-Place-Zyklen. Für jeden Griff außer einem pro Hand liegt also kein Würfel — genau der Failure-Mode, den die zwei Stufen vermeiden sollten. Würfel 2 wird ohnehin zufällig „daneben" gelegt. | [`render_cotrain_dataset.py`](../../Simulation/g1_dex3_sim/render_cotrain_dataset.py) `find_grasp_points`, `place_cubes` |
+| Der Würfel wird **einmal** gesetzt, danach entscheidet die Kontaktphysik — und die greift im Replay meist nicht: bei **101 von 116 Griffen** liegt die engste erreichte Kuppenöffnung über **6 cm**, bei 5 cm Würfelkante. Die Hand schließt sich *neben* dem Würfel. | `scan.json` des Laufs 2026-08-17, `spread_min_cm` |
+
+Damit sind Frames **vor** dem Griff brauchbar (der Würfel liegt dort, wo der Arm hinfährt)
+und Frames **ab** dem Griff **falsch beschriftet** (Bild: Würfel auf dem Tisch, Aktion:
+Würfel transportieren). Falsch beschriftete Paare sind schlimmer als fehlende.
+
+`RENDER_STOP_AT_GRASP=1` (Default) schneidet jede Episode am **frühesten** `close_step`
+beider Hände ab — nicht am spätesten: sobald eine Hand zugreift, ist ihr Würfel der Physik
+überlassen, und er ist auch in der Kamera der anderen Hand sichtbar.
+
+`RENDER_GRASP_WINDOW=N` rendert nur die letzten N Frames davor. Das schneidet den
+Leerlauf-Kopf langer Aufnahmen weg und vereinheitlicht das Gewicht der Episoden — ohne das
+stellt Episode 170 mit ihren 3433 Vorlauf-Frames allein 14 % des Satzes.
+
+| `RENDER_GRASP_WINDOW` | Episoden | Frames | Renderzeit (8,6 Steps/s) |
+|---|---|---|---|
+| `0` (ab Frame 0) | 58 | 24 352 | ~50 min |
+| `600` ★ empfohlen | 58 | 19 579 | ~40 min |
+| `300` | 58 | 12 871 | ~28 min |
+
+Zwei Episoden fallen durch `RENDER_MIN_WINDOW=60` heraus (126 und 150, Griff bei Frame 56
+bzw. 25) — dort startet die Hand geschlossen, das Minimum der Öffnungsspur ist kein
+Greifmoment.
+
+**Das ist die Zwischenlösung, nicht das Ziel.** Richtig wird es mit Greif-*Intervallen*
+statt -Punkten plus kinematischem Attach: die Würfelpose zwischen `close` und `release`
+jeden Step auf den Kuppen-Schwerpunkt schreiben, bei `release` fallen lassen. Dann sind
+auch Transport- und Stapelphasen verwendbar und der Satz wächst von 40 % auf ~100 % der
+Frames. Noch nicht gebaut.
+
+### 3.2b Die QA-Zahl: Bild-Aktions-Konsistenz, nicht Aufgabenerfolg
+
+`render_manifest.json` enthält seit 2026-08-17 je Episode ein `consistency`-Feld, und der
+Lauf fasst es am Ende zusammen. Gemessen wird je Hand der Abstand
+**Kuppen-Schwerpunkt ↔ nächster Würfelmittelpunkt im Moment des engsten Griffs**, dazu je
+Würfel Bewegung und Anhebung.
+
+Das ist die richtige Frage: der Würfel wurde per Konstruktion unter den Greifpunkt gelegt,
+dort gehört ein kleiner Wert hin. Ein großer Wert heißt, die Hand schließt sich neben dem
+Würfel — ab diesem Frame beschreibt die Aktion einen Transport, den das Bild nicht zeigt.
+
+```bash
+python3 - <<'EOF'
+import json, statistics as st
+m = json.load(open('<data>/cotrain/g1_dex3_grasp/render_manifest.json'))['episodes']
+d = [h['dist_cm'] for r in m.values() if r.get('consistency')
+     for h in r['consistency']['hands'] if h]
+print(f"{len(d)} Griffe, Median {st.median(d):.1f} cm, <=4 cm: {sum(x<=4 for x in d)}")
+EOF
+```
+
+Erwartung bei korrekter Platzierung: Median deutlich unter 4 cm (Würfel-Halbdiagonale
+4,3 cm). Liegt er darüber, stimmt die Greifpunkt-Rekonstruktion nicht und Rendern hilft
+nicht — dann erst `find_grasp_points` reparieren.
 
 ### 3.3 Zum Trainings-Rechner bringen
 

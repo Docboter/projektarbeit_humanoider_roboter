@@ -1001,6 +1001,15 @@ do_render() {
   [[ "${RENDER_MAX_FRAMES:-0}" != "0" ]] && extra+=" --max-frames-per-episode ${RENDER_MAX_FRAMES}"
   [[ "${RENDER_OVERWRITE:-0}" == "1" ]] && extra+=" --overwrite"
   [[ -n "${RENDER_EPISODE_IDS:-}" ]] && extra+=" --episode-ids ${RENDER_EPISODE_IDS}"
+  # Nur bis zum Griff rendern. Ab dem Griff entscheidet die Kontaktphysik ueber die
+  # Wuerfellage, und die greift im Replay meist nicht — das Bild zeigt dann etwas anderes,
+  # als die Aktion beschreibt. Default AN, weil die Alternative falsch beschriftete Paare
+  # sind; RENDER_STOP_AT_GRASP=0 stellt das alte Verhalten wieder her.
+  if [[ "${RENDER_STOP_AT_GRASP:-1}" == "1" ]]; then
+    extra+=" --stop-at-grasp"
+    [[ "${RENDER_GRASP_WINDOW:-0}" != "0" ]] && extra+=" --grasp-window ${RENDER_GRASP_WINDOW}"
+    [[ -n "${RENDER_MIN_WINDOW:-}" ]] && extra+=" --min-window ${RENDER_MIN_WINDOW}"
+  fi
 
   # Kein docker cp noetig — und auch nicht moeglich: $SIM_DIR ist das Repo-Verzeichnis
   # Simulation/g1_dex3_sim, READ-ONLY hineingemountet (s. ensure_container). Ein 'git pull'
@@ -1293,6 +1302,13 @@ Aktionen:
               RENDER_STAGE (both|scan|render), RENDER_MAX_FRAMES (0 = ganze Episode),
               RENDER_EPISODE_IDS ("0 4 8"), RENDER_OVERWRITE=1, DR_ENABLED (1).
               Zurueckgehaltene Test-Episoden werden nie gerendert.
+              RENDER_STOP_AT_GRASP (1) schneidet jede Episode am ersten Zugreifen ab —
+              ab dort entscheidet die Kontaktphysik ueber die Wuerfellage und das Bild
+              zeigt etwas anderes, als die Aktion beschreibt. RENDER_GRASP_WINDOW (0 =
+              ab Frame 0) rendert nur die letzten N Frames davor, RENDER_MIN_WINDOW (60)
+              ueberspringt zu kurze Fenster. Das Manifest bekommt je Episode ein
+              consistency-Feld (Abstand Kuppen<->Wuerfel beim Griff) und der Lauf am Ende
+              eine Zusammenfassung daraus — das ist die QA-Zahl, nicht scan.json:ok.
   rl          Echter RL-Lauf (Vordergrund). Checkpoints unter $HOST_DATA_DIR/g1_dex3_rl/.
   latency     Reine Policy-Latenz (ms je Action-Chunk), in-process ohne Sim und ohne ZMQ.
               Die einzige hier messbare Zahl, die auch auf echter Hardware gilt — dort

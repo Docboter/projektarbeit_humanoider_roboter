@@ -30,6 +30,25 @@ daraus, den Würfel zu IGNORIEREN — das Gegenteil des Ziels. Deshalb:
                         genau diesen Punkten und in kalibrierter Auflösung (640×480).
                         Ergebnis: der Datensatz.
 
+────────────────────────────────────────────────────────────────────────────────
+WAS DER GRIFF KAPUTT MACHT — und warum --stop-at-grasp existiert  (2026-08-17)
+────────────────────────────────────────────────────────────────────────────────
+Der Scan liefert je Hand GENAU EINEN Greifpunkt (``np.argmin`` über die Öffnungsspur).
+Die Aufgabe heißt "stack three block" und braucht zwei bis vier Pick-and-Place-Zyklen.
+Für jeden Griff außer einem pro Hand liegt also kein Würfel — genau der Failure-Mode, den
+der Zwei-Stufen-Aufbau vermeiden sollte. Dazu kommt: der Würfel wird EINMAL gesetzt, danach
+entscheidet die Kontaktphysik. Und die greift im Replay meist nicht — im Lauf vom 2026-08-17
+lag die engste erreichte Kuppenöffnung bei 101 von 116 Griffen über 6 cm, bei 5 cm Würfel-
+kante. Die Hand schließt sich neben dem Würfel, nicht darum.
+
+Folge für die Beschriftung: Frames VOR dem Griff sind brauchbar (der Würfel liegt dort, wo
+der Arm hinfährt), Frames AB dem Griff sind FALSCH beschriftet (Bild: Würfel liegt auf dem
+Tisch, Aktion: Würfel transportieren). ``--stop-at-grasp`` schneidet genau dort.
+
+Das ist die Zwischenlösung, nicht das Ziel. Richtig wird es mit Greif-INTERVALLEN statt
+-Punkten und kinematischem Attach (Würfelpose zwischen close und release auf den Kuppen-
+Schwerpunkt schreiben); dann sind auch Transport- und Stapelphasen verwendbar.
+
 Zwei Isaac-Starts statt einem. Der Scan ist billiger als das Rendern, aber NICHT
 vernachlässigbar: im Rauchtest 2026-08-14 lief er mit ~12 Steps/s (Kameras 64×64) gegen
 ~8,6 Steps/s im Eval bei voller Auflösung. Die Physik (7 Sub-Steps à 5 ms je Policy-Step)
@@ -82,6 +101,21 @@ parser.add_argument("--train-ratio", type=float, default=0.8,
                          "gerendert — sonst wäre die Validierungs-MSE kontaminiert.")
 parser.add_argument("--max-frames-per-episode", type=int, default=0,
                     help="0 = ganze Episode. >0 kürzt (Rauchtest).")
+parser.add_argument("--stop-at-grasp", action="store_true",
+                    help="Nur bis zum ersten Zugreifen rendern (Fensterende = kleinstes "
+                         "close_step aus scan.json). Bis dorthin liegt der Würfel dort, wo "
+                         "der Arm hinfährt; danach entscheidet die Kontaktphysik über seine "
+                         "Lage und das Bild zeigt etwas anderes, als die Aktion beschreibt. "
+                         "Solche Paare sind FALSCH beschriftet, nicht bloß unscharf.")
+parser.add_argument("--grasp-window", type=int, default=0,
+                    help="Mit --stop-at-grasp: nur die letzten N Frames vor dem Griff "
+                         "rendern (0 = ab Frame 0). Schneidet den Leerlauf-Kopf langer "
+                         "Aufnahmen weg und vereinheitlicht das Gewicht der Episoden — "
+                         "sonst stellt eine 6791-Frame-Episode ein Sechstel des Satzes.")
+parser.add_argument("--min-window", type=int, default=60,
+                    help="Mit --stop-at-grasp: Episoden mit kürzerem Fenster überspringen. "
+                         "Ein Griff in den ersten Frames ist keine Greifbewegung, sondern "
+                         "eine Hand, die schon geschlossen startet.")
 parser.add_argument("--asset-path", type=str, default="",
                     help="G1+Dex3 USD-Asset (leer = cfg-Default)")
 parser.add_argument("--tracking-error-max", type=float, default=0.15,
@@ -100,6 +134,14 @@ parser.add_argument("--overwrite", action="store_true",
 
 AppLauncher.add_app_launcher_args(parser)
 args = parser.parse_args()
+
+if args.stop_at_grasp and args.no_place_cubes:
+    raise SystemExit(
+        "--stop-at-grasp braucht die Greifpunkte aus scan.json, --no-place-cubes wirft sie "
+        "gerade weg. Beides zusammen ergäbe ein Fenster ohne Inhalt."
+    )
+if args.grasp_window > 0 and not args.stop_at_grasp:
+    raise SystemExit("--grasp-window wirkt nur mit --stop-at-grasp (das Fensterende fehlt sonst).")
 
 # Der Scan braucht keine Bildqualität, nur Physik: Kameras klein, Übersichtskamera weg.
 # Beides liest G1Dex3BlockstackEnvCfg.__post_init__ aus der Umgebung, deshalb VOR dem
@@ -271,17 +313,27 @@ def hand_spreads_and_centroids(env) -> tuple[np.ndarray, np.ndarray] | None:
     return spreads, centroids
 
 
-def play_episode(env, actions: np.ndarray, collect_images: bool, writers=None):
+def block_positions(env) -> np.ndarray:
+    """Würfelmittelpunkte in Env-Koordinaten, (num_blocks, 3)."""
+    pos = torch.stack([b.data.root_pos_w[0] for b in env.blocks], dim=0)
+    return (pos - env.scene.env_origins[0]).cpu().numpy()
+
+
+def play_episode(env, actions: np.ndarray, collect_images: bool, writers=None,
+                 track_blocks: bool = False):
     """Eine Episode abspielen.
 
     Rückgabe: erreichte States, mittlerer Arm-Tracking-Fehler, Fingeröffnung je Step,
-    Kuppen-Schwerpunkt je Step und die tatsächliche Bildgröße (H, W) — Letztere gemessen
-    statt angenommen, damit info.json nicht behauptet, was der Renderer nicht geliefert hat.
+    Kuppen-Schwerpunkt je Step, Würfelposen je Step (nur mit ``track_blocks``, sonst None)
+    und die tatsächliche Bildgröße (H, W) — Letztere gemessen statt angenommen, damit
+    info.json nicht behauptet, was der Renderer nicht geliefert hat.
     """
     n = actions.shape[0]
     achieved = np.zeros((n, 28), dtype=np.float32)
     spread_trace = np.full((n, 2), np.nan, dtype=np.float32)
     centroid_trace = np.full((n, 2, 3), np.nan, dtype=np.float32)
+    block_trace = (np.full((n, len(env.blocks), 3), np.nan, dtype=np.float32)
+                   if track_blocks else None)
     arm_err = np.zeros(n, dtype=np.float32)
     frame_hw: tuple[int, int] | None = None
 
@@ -296,6 +348,8 @@ def play_episode(env, actions: np.ndarray, collect_images: bool, writers=None):
         hands = hand_spreads_and_centroids(env)
         if hands is not None:
             spread_trace[i], centroid_trace[i] = hands
+        if block_trace is not None:
+            block_trace[i] = block_positions(env)
 
         if collect_images:
             for cam in CAMS:
@@ -307,7 +361,7 @@ def play_episode(env, actions: np.ndarray, collect_images: bool, writers=None):
         if i % 200 == 0:
             print(f"      … Frame {i}/{n}", flush=True)
 
-    return achieved, float(arm_err.mean()), spread_trace, centroid_trace, frame_hw
+    return achieved, float(arm_err.mean()), spread_trace, centroid_trace, block_trace, frame_hw
 
 
 def find_grasp_points(spread_trace: np.ndarray, centroid_trace: np.ndarray,
@@ -342,6 +396,87 @@ def find_grasp_points(spread_trace: np.ndarray, centroid_trace: np.ndarray,
             entry["ok"] = True
         out.append(entry)
     return out
+
+
+def consistency_report(spread: np.ndarray, centroid: np.ndarray,
+                       blocks: np.ndarray | None) -> dict | None:
+    """Bild-Aktions-Konsistenz als Zahl, statt Endframes anzusehen.
+
+    Die Frage ist NICHT, ob die Episode die Aufgabe löst — die Aktionen stammen aus einer
+    echten Aufnahme, ihr Erfolg ist Eigenschaft des realen Datensatzes und hier nicht
+    messbar. Die Frage ist, ob das gerenderte BILD zeigt, was die Aktion tut. Deshalb je
+    Hand: liegt im Moment des engsten Griffs ein Würfel zwischen den Fingerkuppen? Und je
+    Würfel: bewegt er sich überhaupt, hebt er ab?
+
+    ``dist_cm`` ist das Kernmaß. Der Würfel wurde per Konstruktion unter den Greifpunkt
+    gelegt, also gehört dort ein kleiner Wert hin. Ein großer Wert heißt: die Hand schließt
+    sich neben dem Würfel, und ab diesem Frame beschreibt die Aktion einen Transport, den
+    das Bild nicht zeigt.
+    """
+    if blocks is None or spread.shape[0] == 0:
+        return None
+    hands: list[dict | None] = []
+    for h in range(2):
+        s = spread[:, h]
+        valid = np.isfinite(s)
+        if valid.sum() < 10:
+            hands.append(None)
+            continue
+        idx_valid = np.flatnonzero(valid)
+        i_min = int(idx_valid[int(np.argmin(s[valid]))])
+        c, b = centroid[i_min, h], blocks[i_min]
+        if not np.all(np.isfinite(c)) or not np.all(np.isfinite(b)):
+            hands.append(None)
+            continue
+        d3 = np.linalg.norm(b - c, axis=-1)
+        j = int(np.argmin(d3))
+        hands.append({
+            "close_step": i_min,
+            "spread_cm": round(float(s[i_min]) * 100, 2),
+            "cube": j,
+            "dist_cm": round(float(d3[j]) * 100, 2),
+            "dist_xy_cm": round(float(np.linalg.norm(b[j][:2] - c[:2])) * 100, 2),
+        })
+
+    cubes = []
+    for j in range(blocks.shape[1]):
+        t = blocks[:, j]
+        ok = np.all(np.isfinite(t), axis=-1)
+        if ok.sum() < 2:
+            cubes.append(None)
+            continue
+        t = t[ok]
+        cubes.append({
+            "moved_cm": round(float(np.linalg.norm(t[-1, :2] - t[0, :2])) * 100, 2),
+            "lift_cm": round(float(t[:, 2].max() - t[0, 2]) * 100, 2),
+        })
+    return {"hands": hands, "cubes": cubes}
+
+
+def summarize_consistency(manifest: dict) -> None:
+    """Konsistenz über alle fertigen Episoden — die Zahl, die den Datensatz beurteilt.
+
+    Bewusst am Ende des Laufs und aus dem Manifest: derselbe Überblick entsteht so auch
+    nach einem fortgesetzten Lauf, ohne die Episoden erneut abzuspielen.
+    """
+    recs = [r for r in manifest.get("episodes", {}).values()
+            if r.get("status") == "ok" and r.get("consistency")]
+    if not recs:
+        return
+    dists = [h["dist_cm"] for r in recs for h in r["consistency"]["hands"] if h]
+    lifts = [c["lift_cm"] for r in recs for c in r["consistency"]["cubes"] if c]
+    moved = [c["moved_cm"] for r in recs for c in r["consistency"]["cubes"] if c]
+    if not dists:
+        return
+    near = sum(1 for d in dists if d <= 4.0)
+    print(f"\n[render] Konsistenz über {len(recs)} Episoden:")
+    print(f"  Abstand Kuppen↔Würfel beim Griff: Median {float(np.median(dists)):.1f} cm, "
+          f"p90 {float(np.percentile(dists, 90)):.1f} cm, "
+          f"≤ 4 cm bei {near}/{len(dists)} Händen")
+    print(f"  Würfel bewegt   > 2 cm: {sum(1 for m in moved if m > 2.0)}/{len(moved)}")
+    print(f"  Würfel angehoben> 1 cm: {sum(1 for m in lifts if m > 1.0)}/{len(lifts)}")
+    print("  Das misst NICHT Aufgabenerfolg, sondern ob das Bild zur Aktion passt.",
+          flush=True)
 
 
 def stash_cubes(env) -> None:
@@ -561,17 +696,49 @@ def finalize_meta(out: Path, src_info: dict, tasks: dict[int, str], manifest: di
 # Stufen
 # ---------------------------------------------------------------------------
 
-def expected_length(src_lengths: dict[int, int], ep_idx: int) -> int:
+def episode_window(info: dict, n_src: int) -> tuple[int, int, str]:
+    """Welcher Frame-Bereich gerendert wird — und warum. Rückgabe ``(start, stop, Grund)``.
+
+    Ohne ``--stop-at-grasp`` die ganze Episode. Mit dem Flag endet das Fenster am
+    **frühesten** Griff beider Hände, nicht am spätesten: sobald eine Hand zugreift, ist
+    ihr Würfel der Physik überlassen — und er ist auch in der Kamera der anderen Hand zu
+    sehen. Das späteste close_step zu nehmen hieße, für die eine Hand konsistente Frames mit
+    für die andere schon falschen zu erkaufen.
+
+    ``start == stop`` heißt „diese Episode liefert kein brauchbares Fenster".
+    """
+    if not args.stop_at_grasp:
+        return 0, n_src, "ganze Episode"
+    closes = [int(h["close_step"]) for h in info.get("hands", [])
+              if h.get("ok") and h.get("close_step") is not None]
+    if not closes:
+        return 0, 0, "kein Greifpunkt im Scan"
+    stop = min(min(closes), n_src)
+    start = max(0, stop - args.grasp_window) if args.grasp_window > 0 else 0
+    if stop - start < args.min_window:
+        return start, start, f"Fenster {stop - start} < {args.min_window} Frames"
+    return start, stop, f"Frames {start}–{stop}, Griff bei {stop}"
+
+
+def expected_length(src_lengths: dict[int, int], ep_idx: int, info: dict | None = None) -> int:
     """Wie viele Frames diese Episode im Ergebnis haben MUSS (0 = unbekannt).
 
     Der Grund ist der Rauchtest: er läuft mit ``--max-frames-per-episode 60``, schreibt
     also 2-Sekunden-Stummel. Ohne diesen Vergleich hielte der Fortsetz-Mechanismus sie
     danach für fertig und der echte Lauf würde sie überspringen — der Trainingsdatensatz
     enthielte stumm zwei abgeschnittene Episoden.
+
+    ``info`` ist der Scan-Eintrag und darf nur im render-Stage mitkommen: mit
+    ``--stop-at-grasp`` ist die Soll-Länge das Fenster, nicht die Quell-Länge. Ohne diese
+    Unterscheidung würde jeder fortgesetzte Lauf alles neu rendern, weil gekürzte Episoden
+    per Definition kürzer sind als die Quelle.
     """
     n = int(src_lengths.get(ep_idx, 0))
     if args.max_frames_per_episode > 0:
-        return min(n, args.max_frames_per_episode) if n else args.max_frames_per_episode
+        n = min(n, args.max_frames_per_episode) if n else args.max_frames_per_episode
+    if args.stop_at_grasp and info is not None and n:
+        start, stop, _ = episode_window(info, n)
+        return stop - start
     return n
 
 
@@ -612,7 +779,7 @@ def run_scan(env_builder, src_root: Path, src_info: dict, episodes: list[int],
 
         print(f"[scan] ({k}/{len(episodes)}) Episode {ep_idx}: {actions.shape[0]} Frames",
               flush=True)
-        _, arm_err, spread, centroid, _ = play_episode(env, actions, collect_images=False)
+        _, arm_err, spread, centroid, _, _ = play_episode(env, actions, collect_images=False)
         grasp = find_grasp_points(spread, centroid)
         scan["episodes"][str(ep_idx)] = {
             "length": int(actions.shape[0]),
@@ -672,19 +839,19 @@ def run_render(env_builder, src_root: Path, src_info: dict, episodes: list[int],
 
     for k, ep_idx in enumerate(episodes, 1):
         head = f"[render] ({k}/{len(episodes)}) Episode {ep_idx}"
+        info = scan["episodes"].get(str(ep_idx), {})
         parquet, videos = episode_paths(out, ep_idx)
         done = parquet.exists() and all(v.exists() for v in videos.values())
         if done and not args.overwrite:
-            want = expected_length(src_lengths, ep_idx)
+            want = expected_length(src_lengths, ep_idx, info)
             have = int(manifest["episodes"].get(str(ep_idx), {}).get("length", 0))
             if want and have and have != want:
                 print(f"{head}: vorhandene Fassung hat {have} statt {want} Frames "
-                      f"(Rauchtest?) — wird neu gerendert.", flush=True)
+                      f"(Rauchtest? anderes Fenster?) — wird neu gerendert.", flush=True)
             else:
                 print(f"{head}: liegt schon vor — übersprungen.", flush=True)
                 continue
 
-        info = scan["episodes"].get(str(ep_idx), {})
         if not info and not args.no_place_cubes:
             # Kein Scan-Eintrag: die Wuerfel landen zufaellig, das Bild-Aktions-Paar ist
             # visuell entkoppelt. Laut, nicht still — meist steht ein anderes
@@ -704,6 +871,18 @@ def run_render(env_builder, src_root: Path, src_info: dict, episodes: list[int],
             actions, state = actions[:args.max_frames_per_episode], \
                 state[:args.max_frames_per_episode]
 
+        start, stop, why = episode_window(info, actions.shape[0])
+        if stop - start <= 0:
+            print(f"{head}: ÜBERSPRUNGEN — {why}.", flush=True)
+            manifest["episodes"][str(ep_idx)] = {"status": "skipped_window", "reason": why}
+            manifest_path.write_text(json.dumps(manifest, indent=2))
+            continue
+        if args.stop_at_grasp:
+            # Der Startzustand wird gleich per set_robot_to_state hart gesetzt, ein Fenster
+            # mitten in der Episode ist also kein Sonderfall — genau dafür existiert die
+            # Funktion schon.
+            actions, state = actions[start:stop], state[start:stop]
+
         if env is None:
             env = env_builder()
         env.reset()
@@ -715,11 +894,12 @@ def run_render(env_builder, src_root: Path, src_info: dict, episodes: list[int],
             env.step(torch.tensor(state[0], dtype=torch.float32,
                                   device=env.device).unsqueeze(0))
 
-        print(f"{head}: {actions.shape[0]} Frames, Würfel {cubes}", flush=True)
+        print(f"{head}: {actions.shape[0]} Frames ({why}), Würfel {cubes}", flush=True)
         writers = open_writers(videos, fps)
         try:
-            achieved, arm_err, _, _, frame_hw = play_episode(env, actions, collect_images=True,
-                                                             writers=writers)
+            achieved, arm_err, spread, centroid, block_trace, frame_hw = play_episode(
+                env, actions, collect_images=True, writers=writers,
+                track_blocks=not args.no_place_cubes)
         finally:
             for w in writers.values():
                 w.close()
@@ -738,21 +918,30 @@ def run_render(env_builder, src_root: Path, src_info: dict, episodes: list[int],
             manifest_path.write_text(json.dumps(manifest, indent=2))
             continue
 
+        cons = consistency_report(spread, centroid, block_trace)
         write_parquet(parquet, ep_idx, achieved, actions, state, task_index, fps, index_offset)
         index_offset += achieved.shape[0]
         manifest["episodes"][str(ep_idx)] = {
             "status": "ok",
             "length": int(achieved.shape[0]),
+            "source_window": [start, stop],
             "task": tasks.get(task_index, "stack the blocks"),
             "task_index": task_index,
             "arm_tracking_error_rad": round(arm_err, 4),
             "cubes_xyz": cubes,
             "grasp_points": info.get("hands"),
+            "consistency": cons,
         }
         manifest_path.write_text(json.dumps(manifest, indent=2))
-        print(f"{head}: geschrieben (Tracking {arm_err:.3f} rad).", flush=True)
+        note = ""
+        if cons:
+            d = [h["dist_cm"] for h in cons["hands"] if h]
+            if d:
+                note = f", Kuppen↔Würfel beim Griff {min(d):.1f} cm"
+        print(f"{head}: geschrieben (Tracking {arm_err:.3f} rad{note}).", flush=True)
 
     finalize_meta(out, src_info, tasks, manifest, fps)
+    summarize_consistency(manifest)
     print("[render] fertig.", flush=True)
 
 
@@ -785,6 +974,14 @@ def main():
     print(f"  Längste Ep.: {max_len} Frames → episode_length_s entsprechend gesetzt")
     cube_mode = "zufällig (ABLATION)" if args.no_place_cubes else "an den Greifpunkten"
     print(f"  Würfel:      {cube_mode}")
+    if args.stop_at_grasp:
+        win = f"letzte {args.grasp_window} Frames vor dem Griff" if args.grasp_window \
+            else "Frame 0 bis zum Griff"
+        print(f"  Fenster:     {win}, mind. {args.min_window} Frames "
+              f"(ab dem Griff wäre das Bild-Aktions-Paar falsch beschriftet)")
+    else:
+        print("  Fenster:     ganze Episode — Frames AB dem Griff sind falsch beschriftet, "
+              "solange kein Attach existiert (--stop-at-grasp)")
     print()
 
     def env_builder():
