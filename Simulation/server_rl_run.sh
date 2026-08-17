@@ -988,6 +988,74 @@ do_gap() {
 # Laufzeit: Rendern kostet rund 2-3 min je Episode (8,6 Steps/s gemessen, Episode = 1173
 # Steps). 60 Episoden sind also ~3 h. Der Lauf ist fortsetzbar: fertige Episoden werden
 # uebersprungen, ein Abbruch kostet hoechstens die angefangene Episode.
+# Wuerfellage aus dem REALBILD lesen (Farbblob -> Strahl auf die Wuerfelebene).
+#
+# Warum das noetig ist: der Greifpunkt aus scan.json ist das Minimum der Fingeroeffnung ueber
+# die GANZE Episode. Beim Pick-and-Place bleibt die Hand vom Zugreifen bis zum Ablegen
+# geschlossen, das Minimum liegt also irgendwo auf dem Transportweg — 48 von 116 Griffen des
+# Laufs vom 2026-08-17 jenseits von 60 % der Episode. Der Wuerfel landete fern vom echten
+# Pick, und der Arm griff ins Leere, in x, y UND z.
+#
+# Braucht keine GPU und kein Isaac: numpy + imageio + Pillow. Minuten statt Stunden.
+do_layout() {
+  ensure_container
+  local ds="${SPAN_DATASET:-/data/unitreerobotics/G1_Dex3_BlockStacking_Dataset}"
+  ensure_dataset "$ds" || return 1
+  local out="${LAYOUT_OUT:-/data/cotrain/layout.json}"
+  local eps="${RENDER_EPISODES:-60}"
+  local dbg="${LAYOUT_DEBUG_DIR:-/data/cotrain/layout_debug}"
+  local extra=""
+  [[ -n "${LAYOUT_BIAS:-}" ]] && extra+=" --bias ${LAYOUT_BIAS}"
+  [[ "${LAYOUT_OVERWRITE:-0}" == "1" ]] && extra+=" --overwrite"
+
+  if ! docker exec "$CONTAINER" test -f "$SIM_DIR/extract_block_layout.py"; then
+    err "extract_block_layout.py fehlt unter $SIM_DIR — auf dem Server:  git pull"
+    return 1
+  fi
+
+  log "Wuerfellage aus den Realbildern lesen: $eps Episoden, Ziel $out"
+  log "  Markierte Kontrollbilder: $HOST_DATA_DIR/${dbg#/data/}"
+  docker exec -w "$SIM_DIR" "$CONTAINER" bash -lc "
+    unset VIRTUAL_ENV
+    '$ISAAC_PY' '$SIM_DIR/extract_block_layout.py' extract \
+        --dataset-path '$ds' \
+        --out '$out' \
+        --num-episodes '$eps' \
+        --debug-dir '$dbg' \
+        $extra" 2>&1 | tee /dev/stderr | grep -c "\[layout\] fertig" >/dev/null \
+    || { err "Layout-Extraktion ohne Erfolgsmarker beendet (Traceback oben)."; return 1; }
+  ok "Layout: $HOST_DATA_DIR/${out#/data/}"
+  echo "  Kontrollbilder ansehen (Kreuz = gefundener Wuerfel):"
+  echo "    ls $HOST_DATA_DIR/${dbg#/data/}"
+  echo "  Danach rendern:  RENDER_LAYOUT=$out ./Simulation/server_rl_run.sh render"
+}
+
+# Das Kameramodell gegen den RENDERER pruefen, nicht gegen den eigenen Verstand.
+#
+# In Lauf 13 (2026-08-08) lagen konfigurierte USD-Pose und cam.data 95,6° auseinander und
+# drei Sim-Laeufe waren umsonst. Dieselbe Falle steht hier: eine Rueckprojektion ist nur so
+# gut wie die Annahme, dass Isaac mit der konfigurierten Pose auch rendert. Deshalb wird ein
+# GERENDERTES Bild mit BEKANNTEN Wuerfelpositionen durch denselben Detektor geschickt; das
+# Residuum ist der Fehler von Kameramodell und Blob-Schwerpunkt zusammen.
+do_layoutcheck() {
+  ensure_container
+  local frame="${LAYOUTCHECK_FRAME:?LAYOUTCHECK_FRAME=<PNG oder MP4 im Container> setzen}"
+  local expect="${LAYOUTCHECK_EXPECT:?LAYOUTCHECK_EXPECT='[[x,y,z],[x,y,z],[x,y,z]]' setzen (render_manifest.json -> cubes_xyz)}"
+  local cam="${LAYOUTCHECK_CAM:-cam_left_high}"
+  local dbg="${LAYOUT_DEBUG_DIR:-/data/cotrain/layout_debug}"
+
+  log "Kameramodell gegen gerendertes Bild pruefen: $frame ($cam)"
+  docker exec -w "$SIM_DIR" "$CONTAINER" bash -lc "
+    unset VIRTUAL_ENV
+    '$ISAAC_PY' '$SIM_DIR/extract_block_layout.py' detect '$frame' \
+        --camera '$cam' --expect '$expect' --debug-dir '$dbg'" || return 1
+  echo
+  echo "  Lesart: MITTEL = Bias des Schaetzers (der Blob-Schwerpunkt ist der Schwerpunkt der"
+  echo "  sichtbaren Flaechen, nicht die Projektion des Wuerfelmittelpunkts) — per"
+  echo "  LAYOUT_BIAS=\"dx dy\" (Meter) in 'layout' herausrechnen. STREUUNG = der Rest, der"
+  echo "  bleibt; erst die entscheidet, ob das Layout brauchbar ist."
+}
+
 do_render() {
   ensure_checkpoint
   ensure_black_hands
@@ -1005,6 +1073,22 @@ do_render() {
   # Wuerfellage, und die greift im Replay meist nicht — das Bild zeigt dann etwas anderes,
   # als die Aktion beschreibt. Default AN, weil die Alternative falsch beschriftete Paare
   # sind; RENDER_STOP_AT_GRASP=0 stellt das alte Verhalten wieder her.
+  # Wuerfellage aus dem Realbild. Default ist Pflicht, nicht Angebot: ohne Layout landen die
+  # Wuerfel am Greifpunkt aus scan.json, und der liegt bei knapp der Haelfte der Griffe auf
+  # dem Transportweg statt am Pick. RENDER_LAYOUT=none erzwingt den alten Weg.
+  local layout="${RENDER_LAYOUT:-/data/cotrain/layout.json}"
+  if [[ "$layout" == "none" ]]; then
+    warn "RENDER_LAYOUT=none — Wuerfel kommen vom Greifpunkt aus scan.json."
+    warn "  Das ist der Modus, in dem der Arm ins Leere greift. Nur fuer Vergleichslaeufe."
+  elif docker exec "$CONTAINER" test -f "$layout"; then
+    extra+=" --layout ${layout}"
+  else
+    err "Layout fehlt: $layout"
+    err "  Erst:  RENDER_EPISODES=${eps} ./Simulation/server_rl_run.sh layout"
+    err "  Bewusst ohne Layout rendern:  RENDER_LAYOUT=none"
+    return 1
+  fi
+
   if [[ "${RENDER_STOP_AT_GRASP:-1}" == "1" ]]; then
     extra+=" --stop-at-grasp"
     [[ "${RENDER_GRASP_WINDOW:-0}" != "0" ]] && extra+=" --grasp-window ${RENDER_GRASP_WINDOW}"
@@ -1294,6 +1378,19 @@ Aktionen:
               (Download + v3->v2-Konvertierung + modality.json, ~18 GB, einmalig).
               SPAN_DATASET (Default /data/unitreerobotics/G1_Dex3_BlockStacking_Dataset),
               SPAN_TRAJ_IDS (Default "0 1 2 3 4"), SPAN_AUTO_FETCH=0 schaltet das Holen ab.
+  layout      Wuerfellage aus den REALBILDERN lesen -> layout.json. Farbblob (rot/gruen/gelb)
+              im ersten Frame, Strahl durch den Schwerpunkt auf die Wuerfelebene. Braucht
+              keine GPU, Minuten statt Stunden. Das ist die richtige Quelle fuer 'render':
+              der Greifpunkt aus scan.json ist das Minimum der Fingeroeffnung ueber die ganze
+              Episode und liegt bei knapp der Haelfte der Griffe auf dem Transportweg statt
+              am Pick — dort greift der Arm dann ins Leere.
+              LAYOUT_OUT (/data/cotrain/layout.json), RENDER_EPISODES (60),
+              LAYOUT_DEBUG_DIR, LAYOUT_BIAS ("dx dy" in Metern), LAYOUT_OVERWRITE=1.
+  layoutcheck Kameramodell gegen ein GERENDERTES Bild pruefen, bevor 'layout' geglaubt wird.
+              In Lauf 13 lagen konfigurierte Pose und cam.data 95,6° auseinander und drei
+              Laeufe waren umsonst. LAYOUTCHECK_FRAME (Bild im Container),
+              LAYOUTCHECK_EXPECT (bekannte Wuerfelpositionen als JSON, aus
+              render_manifest.json -> cubes_xyz), LAYOUTCHECK_CAM (cam_left_high).
   render      Gerenderten Co-Training-Datensatz erzeugen (Schritt 4): echte Dataset-Aktionen
               in der Sim abspielen und dabei die vier Policy-Kameras aufzeichnen. Ergebnis
               ist ein LeRobot-v2.1-Datensatz, den run_finetuning_cotrain.sh dazumischt.
@@ -1302,6 +1399,8 @@ Aktionen:
               RENDER_STAGE (both|scan|render), RENDER_MAX_FRAMES (0 = ganze Episode),
               RENDER_EPISODE_IDS ("0 4 8"), RENDER_OVERWRITE=1, DR_ENABLED (1).
               Zurueckgehaltene Test-Episoden werden nie gerendert.
+              RENDER_LAYOUT (/data/cotrain/layout.json) ist PFLICHT — 'layout' zuerst
+              fahren. RENDER_LAYOUT=none erzwingt den alten Greifpunkt-Weg (Vergleichslauf).
               RENDER_STOP_AT_GRASP (1) schneidet jede Episode am ersten Zugreifen ab —
               ab dort entscheidet die Kontaktphysik ueber die Wuerfellage und das Bild
               zeigt etwas anderes, als die Aktion beschreibt. RENDER_GRASP_WINDOW (0 =
@@ -1402,7 +1501,7 @@ ACTION="${1:-help}"
 # 'shell' bleibt ungespiegelt (interaktives -it verträgt die Pipe nicht), 'help'/'clean'
 # haben nichts zu protokollieren.
 case "$ACTION" in
-  preflight|setup|check|cams|gap|eval|grasp|span|rl|livecheck|latency|render|view|webview) start_logging "$ACTION" ;;
+  preflight|setup|check|cams|gap|eval|grasp|span|rl|livecheck|latency|render|view|webview|layout|layoutcheck) start_logging "$ACTION" ;;
 esac
 case "$ACTION" in
   preflight)  do_preflight ;;
@@ -1415,6 +1514,8 @@ case "$ACTION" in
   eval)       do_eval ;;
   grasp)      do_grasp ;;
   span)       do_span ;;
+  layout)     do_layout ;;
+  layoutcheck) do_layoutcheck ;;
   render)     do_render ;;
   latency)    do_latency ;;
   livecheck)  do_livecheck ;;

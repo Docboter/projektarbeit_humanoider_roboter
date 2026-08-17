@@ -78,6 +78,56 @@ Deshalb:
 
 ## 3. Ablauf
 
+### 3.0 Zuerst die Würfellage aus den Realbildern — `layout` (seit 2026-08-17)
+
+**Das ist der wichtigste Schritt, und er war zuerst nicht da.** Ohne ihn platziert der
+Renderer die Würfel am Greifpunkt aus `scan.json`, und der ist falsch — siehe § 3.2a.
+
+```bash
+HF_TOKEN=hf_... RENDER_EPISODES=60 ./Simulation/server_rl_run.sh layout
+```
+
+[`extract_block_layout.py`](../../Simulation/g1_dex3_sim/extract_block_layout.py) liest den
+ersten Frame jeder Episode, segmentiert die drei gesättigten Würfel (rot = `block_0`,
+grün = `block_1`, gelb = `block_2`) gegen den weißen Tisch und schneidet den Strahl durch
+jeden Blob-Schwerpunkt mit der Würfelebene z = 0,915. Ergebnis: `layout.json` mit x/y
+**aller drei** Würfel je Episode — aus dem Bild gelesen, nicht aus der Fingerbewegung
+rekonstruiert. Kein Isaac, keine GPU, Minuten statt Stunden.
+
+**Vorher das Kameramodell gegen den Renderer prüfen.** Eine Rückprojektion ist nur so gut
+wie die Annahme, dass Isaac mit der konfigurierten Pose auch rendert — in Lauf 13
+(2026-08-08) lagen USD-Stage und `cam.data` 95,6° auseinander und drei Sim-Läufe waren
+umsonst. Deshalb:
+
+```bash
+# cubes_xyz einer schon gerenderten Episode aus render_manifest.json holen, Frame 0 daneben
+LAYOUTCHECK_FRAME=/data/cotrain/g1_dex3_rendered/videos/chunk-000/observation.images.cam_left_high/episode_000000.mp4 \
+LAYOUTCHECK_EXPECT='[[…],[…],[…]]' ./Simulation/server_rl_run.sh layoutcheck
+```
+
+Lesart: **Mittel** = Bias des Schätzers (der Blob-Schwerpunkt ist der Schwerpunkt der
+sichtbaren Flächen, nicht die Projektion des Würfelmittelpunkts) → per `LAYOUT_BIAS="dx dy"`
+in Metern herausrechnen. **Streuung** = der Rest, und erst die entscheidet, ob das Layout
+brauchbar ist. Über ~2 cm Streuung ist es das nicht.
+
+Lokal vorab geprüft (2026-08-17, gegen [`camera_reference/`](../../Simulation/camera_reference/)):
+
+| Probe | Ergebnis |
+|---|---|
+| Rückprojektion ↔ Projektion | exakter Roundtrip auf der Würfelebene |
+| Bildaufteilung | Tisch hinten 1 %, vorn 97 % der Bildhöhe (dokumentiert: 5 % / 99 %) |
+| Skala am bekannten 5-cm-Würfel | **5,2 cm quer** im Mittel über 6 Messungen |
+| Detektion | 3/3 Würfel in beiden High-Kameras, Kreuze auf den Würfeln |
+| Beide Kameras einig bis | 1,3–2,3 cm |
+
+Die Skalenprobe ist die belastbare: eine bekannte Länge geht durch das Modell und kommt
+richtig heraus. Was sie **nicht** ausschließt, ist ein globaler Versatz — den findet nur
+`layoutcheck` gegen ein gerendertes Bild.
+
+> **Nebenbefund:** das schwarze Stapelband ist in der Sim 12 cm breit bei (0,35 / 0,00)
+> konfiguriert; aus den Realbildern zurückgerechnet sind es **7,2 cm bei (0,31 / +0,06)**.
+> Die Sim-Werte sind im Code als Näherung markiert — hier steht jetzt eine Messung dagegen.
+
 ### 3.1 Rauchtest zuerst (≈ 2 min) — prüft die Klempnerei, nicht die Inhalte
 
 Zwei Episoden à 60 Frames. Prüft Isaac-Start, Würfelsetzen, MP4-Schreiber, Parquet und
@@ -154,7 +204,8 @@ ist kein Datenfehler, sondern die Vorhersage des Aufbaus — aus zwei Gründen:
 
 | Grenze | Beleg |
 |---|---|
-| `find_grasp_points` liefert per `np.argmin` **genau einen** Greifpunkt je Hand. „Stack three block" braucht zwei bis vier Pick-and-Place-Zyklen. Für jeden Griff außer einem pro Hand liegt also kein Würfel — genau der Failure-Mode, den die zwei Stufen vermeiden sollten. Würfel 2 wird ohnehin zufällig „daneben" gelegt. | [`render_cotrain_dataset.py`](../../Simulation/g1_dex3_sim/render_cotrain_dataset.py) `find_grasp_points`, `place_cubes` |
+| **Der Greifpunkt ist nicht der Pick.** `np.argmin` sucht das Minimum der Fingeröffnung über die **ganze** Episode. Beim Pick-and-Place bleibt die Hand vom Zugreifen bis zum Ablegen geschlossen — ein breites Tal, kein Ausschlag; wo darin das Minimum liegt, entscheidet minimales Nachdrücken. **48 von 116 Griffen liegen jenseits von 60 % der Episode, 21 jenseits von 80 %.** Der Würfel landete damit auf dem Transportweg, und der Arm griff beim echten Pick ins Leere — in x, y **und** z, weil `place_cubes` nur x/y nimmt und z auf die Tischauflage setzt. **Behoben durch § 3.0** (Lage aus dem Realbild). | `scan.json` des Laufs 2026-08-17, `close_step / length` |
+| `find_grasp_points` liefert per `np.argmin` **genau einen** Greifpunkt je Hand. „Stack three block" braucht zwei bis vier Pick-and-Place-Zyklen. Für jeden Griff außer einem pro Hand liegt also kein Würfel. Würfel 2 wurde ohnehin zufällig „daneben" gelegt. | [`render_cotrain_dataset.py`](../../Simulation/g1_dex3_sim/render_cotrain_dataset.py) `find_grasp_points`, `place_cubes` |
 | Der Würfel wird **einmal** gesetzt, danach entscheidet die Kontaktphysik — und die greift im Replay meist nicht: bei **101 von 116 Griffen** liegt die engste erreichte Kuppenöffnung über **6 cm**, bei 5 cm Würfelkante. Die Hand schließt sich *neben* dem Würfel. | `scan.json` des Laufs 2026-08-17, `spread_min_cm` |
 
 Damit sind Frames **vor** dem Griff brauchbar (der Würfel liegt dort, wo der Arm hinfährt)

@@ -265,8 +265,19 @@ repo root
 │   │   │                               #   Robot holds its home pose while the viewport streams. The
 │   │   │                               #   cheapest way to a first picture and to test the LIVE variant
 │   │   │                               #   (`server_rl_run.sh view`). Measures nothing by design
+│   │   ├── extract_block_layout.py     # ★ Cube layout from the REAL image: colour blob (red/green/
+│   │   │                               #   yellow) → ray onto the cube plane → layout.json. The right
+│   │   │                               #   source for `render`; the scan.json grasp point is the argmin
+│   │   │                               #   of finger opening over the WHOLE episode and lands on the
+│   │   │                               #   transport path for ~half the grasps (48/116 past 60 % of the
+│   │   │                               #   episode), so the arm grabbed empty air. `server_rl_run.sh
+│   │   │                               #   layout`; verify the camera model first with `layoutcheck`
 │   │   ├── dump_camera_poses.py        # Diagnostic: configured vs. actually rendered camera pose + one PNG per cam
-│   │   ├── g1_dex3_cfg.py              # Articulation + camera config (look_at_world_quat helper)
+│   │   ├── camera_geometry.py          # Camera poses, intrinsics and the pinhole model (project /
+│   │   │                               #   backproject_to_plane). Isaac-free on purpose — only that way
+│   │   │                               #   can the model be checked OUTSIDE the container. g1_dex3_cfg
+│   │   │                               #   re-exports the names, so the env is unaffected
+│   │   ├── g1_dex3_cfg.py              # Articulation config; camera part re-exported from camera_geometry
 │   │   ├── client.py                   # ZMQ policy client + build_obs (state split into modality keys)
 │   │   ├── convert_urdf_to_usd.py      # One-time URDF→USD conversion
 │   │   └── ...

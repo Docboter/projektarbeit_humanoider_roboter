@@ -101,6 +101,12 @@ parser.add_argument("--train-ratio", type=float, default=0.8,
                          "gerendert — sonst wäre die Validierungs-MSE kontaminiert.")
 parser.add_argument("--max-frames-per-episode", type=int, default=0,
                     help="0 = ganze Episode. >0 kürzt (Rauchtest).")
+parser.add_argument("--layout", type=str, default="",
+                    help="layout.json aus extract_block_layout.py — Würfelpositionen, die "
+                         "aus dem REALBILD gelesen wurden (Farbblob → Strahl auf die "
+                         "Würfelebene). Das ist die richtige Quelle; der Greifpunkt aus "
+                         "scan.json ist nur der Notnagel und liegt bei knapp der Hälfte der "
+                         "Griffe auf dem Transportweg statt am Pick.")
 parser.add_argument("--stop-at-grasp", action="store_true",
                     help="Nur bis zum ersten Zugreifen rendern (Fensterende = kleinstes "
                          "close_step aus scan.json). Bis dorthin liegt der Würfel dort, wo "
@@ -494,25 +500,41 @@ def stash_cubes(env) -> None:
         block.write_root_velocity_to_sim(torch.zeros((1, 6), device=env.device))
 
 
-def place_cubes(env, grasp: list[dict], rng: np.random.Generator) -> list[list[float]]:
-    """Würfel 0/1 unter die Greifpunkte der linken/rechten Hand legen, Würfel 2 daneben.
+def place_cubes(env, grasp: list[dict], rng: np.random.Generator,
+                layout: list | None = None) -> tuple[list[list[float]], list[str]]:
+    """Würfel auslegen — nach Vorrang: Bild-Layout, dann Greifpunkt, dann zufällig.
 
-    Nur x/y kommen aus dem Greifpunkt — die Höhe ist die Tischauflage. Ein Würfel schwebt
-    nicht dort, wo die Kuppen sich treffen; er liegt darunter und wird von dort gegriffen.
+    **Das Bild-Layout ist die einzige Quelle, die wirklich weiß, wo die Würfel lagen**
+    (``extract_block_layout.py``: Farbblob im Realbild → Strahl auf die Würfelebene). Der
+    Greifpunkt aus ``scan.json`` ist nur ein Notnagel und ein schlechter: er ist das Minimum
+    der Fingeröffnung über die ganze Episode, und weil die Hand beim Pick-and-Place vom
+    Zugreifen bis zum Ablegen geschlossen bleibt, liegt dieses Minimum irgendwo auf dem
+    Transportweg — 48 von 116 Griffen des Laufs vom 2026-08-17 jenseits von 60 % der
+    Episode. Der Würfel landete dann fern vom echten Pick, und der Arm griff ins Leere.
+
+    Nur x/y kommen aus der Quelle, die Höhe ist immer die Tischauflage.
     """
     z = float(env.cfg.block_z_surface)
     origin = env.scene.env_origins[0].cpu().numpy()
     placed: list[np.ndarray] = []
     record: list[list[float]] = []
+    source: list[str] = []
 
     for i, block in enumerate(env.blocks):
-        pos = None
-        if i < len(grasp) and grasp[i].get("ok"):
+        pos, src = None, "random"
+        if layout and i < len(layout) and layout[i]:
+            x, y = float(layout[i][0]), float(layout[i][1])
+            if 0.15 <= x <= 0.70 and -0.35 <= y <= 0.35:
+                pos, src = np.array([x, y, z], dtype=np.float32), "layout"
+            else:
+                print(f"      Würfel {i}: Layout-Punkt ({x:.2f}, {y:.2f}) außerhalb des "
+                      f"Tischs — verworfen.", flush=True)
+        if pos is None and i < len(grasp) and grasp[i].get("ok"):
             x, y = grasp[i]["xy"]
             # Plausibilitätsfenster um den Tisch: alles weiter draußen ist ein Ausreißer
             # der Kuppen-Rekonstruktion, kein Greifpunkt.
             if 0.20 <= x <= 0.60 and -0.40 <= y <= 0.40:
-                pos = np.array([x, y, z], dtype=np.float32)
+                pos, src = np.array([x, y, z], dtype=np.float32), "grasp"
             else:
                 grasp[i]["ok"] = False
                 grasp[i]["reason"] = f"Greifpunkt außerhalb des Tischs ({x:.2f}, {y:.2f})"
@@ -533,13 +555,14 @@ def place_cubes(env, grasp: list[dict], rng: np.random.Generator) -> list[list[f
 
         placed.append(pos)
         record.append([round(float(v), 4) for v in pos])
+        source.append(src)
         world = torch.tensor([[float(pos[0] + origin[0]), float(pos[1] + origin[1]),
                                float(pos[2]), 1.0, 0.0, 0.0, 0.0]],
                              device=env.device, dtype=torch.float32)
         block.write_root_pose_to_sim(world)
         block.write_root_velocity_to_sim(torch.zeros((1, 6), device=env.device))
 
-    return record
+    return record, source
 
 
 # ---------------------------------------------------------------------------
@@ -815,12 +838,32 @@ def run_render(env_builder, src_root: Path, src_info: dict, episodes: list[int],
     scan = {"episodes": {}}
     if scan_path.exists():
         scan = json.loads(scan_path.read_text())
-    elif not args.no_place_cubes:
+    elif args.stop_at_grasp:
         raise SystemExit(
-            f"{scan_path} fehlt — erst `--stage scan` fahren. Ohne Greifpunkte lägen die "
-            "Würfel zufällig, und die Bild-Aktions-Paare wären visuell entkoppelt "
-            "(--no-place-cubes erzwingt genau das, als Ablation)."
+            f"{scan_path} fehlt, --stop-at-grasp braucht daraus aber das close_step, um das "
+            "Fenster zu schneiden. Erst `--stage scan` fahren."
         )
+    elif not args.no_place_cubes and not args.layout:
+        raise SystemExit(
+            f"{scan_path} fehlt und kein --layout — dann lägen die Würfel zufällig und die "
+            "Bild-Aktions-Paare wären visuell entkoppelt. Empfohlen ist --layout "
+            "(extract_block_layout.py); --no-place-cubes erzwingt die Entkopplung als Ablation."
+        )
+
+    # Bild-Layout: die einzige Quelle, die weiß, wo die Würfel wirklich lagen. Fehlt es,
+    # fällt place_cubes auf den Greifpunkt zurück — laut, weil das der Modus ist, in dem der
+    # Arm ins Leere greift.
+    layout: dict = {}
+    if args.layout:
+        lp = Path(args.layout)
+        if not lp.exists():
+            raise SystemExit(f"--layout {lp} existiert nicht. Erst extract_block_layout.py fahren.")
+        layout = json.loads(lp.read_text()).get("episodes", {})
+        print(f"[render] Layout aus {lp}: {len(layout)} Episoden.", flush=True)
+    else:
+        print("[render] WARNUNG: kein --layout. Die Würfel landen am Greifpunkt aus "
+              "scan.json, und der liegt bei knapp der Hälfte der Griffe auf dem "
+              "Transportweg statt am Pick.", flush=True)
 
     manifest_path = out / "render_manifest.json"
     manifest = {"episodes": {}, "frame_width": 640, "frame_height": 480,
@@ -852,12 +895,12 @@ def run_render(env_builder, src_root: Path, src_info: dict, episodes: list[int],
                 print(f"{head}: liegt schon vor — übersprungen.", flush=True)
                 continue
 
-        if not info and not args.no_place_cubes:
-            # Kein Scan-Eintrag: die Wuerfel landen zufaellig, das Bild-Aktions-Paar ist
-            # visuell entkoppelt. Laut, nicht still — meist steht ein anderes
-            # RENDER_EPISODES dahinter als beim Scan.
-            print(f"{head}: WARNUNG — kein Scan-Eintrag, Würfel liegen zufällig. "
-                  f"Scan mit denselben Episoden nachholen.", flush=True)
+        if not info and not args.no_place_cubes and str(ep_idx) not in layout:
+            # Weder Scan-Eintrag noch Layout: die Wuerfel landen zufaellig, das
+            # Bild-Aktions-Paar ist visuell entkoppelt. Laut, nicht still — meist steht ein
+            # anderes RENDER_EPISODES dahinter als beim Scan bzw. beim Layout.
+            print(f"{head}: WARNUNG — weder Scan-Eintrag noch Layout, Würfel liegen "
+                  f"zufällig. Mit denselben Episoden nachholen.", flush=True)
         err = info.get("arm_tracking_error_rad")
         if err is not None and err > args.tracking_error_max:
             print(f"{head}: VERWORFEN — Arm-Tracking {err:.3f} rad > "
@@ -886,15 +929,17 @@ def run_render(env_builder, src_root: Path, src_info: dict, episodes: list[int],
         if env is None:
             env = env_builder()
         env.reset()
-        cubes = None
+        cubes, cube_src = None, None
         if not args.no_place_cubes:
-            cubes = place_cubes(env, info.get("hands", []), rng)
+            cubes, cube_src = place_cubes(env, info.get("hands", []), rng,
+                                          layout=layout.get(str(ep_idx), {}).get("cubes"))
         set_robot_to_state(env, state[0])
         for _ in range(args.settle_steps):
             env.step(torch.tensor(state[0], dtype=torch.float32,
                                   device=env.device).unsqueeze(0))
 
-        print(f"{head}: {actions.shape[0]} Frames ({why}), Würfel {cubes}", flush=True)
+        print(f"{head}: {actions.shape[0]} Frames ({why}), Würfel {cubes} "
+              f"aus {cube_src}", flush=True)
         writers = open_writers(videos, fps)
         try:
             achieved, arm_err, spread, centroid, block_trace, frame_hw = play_episode(
@@ -929,6 +974,7 @@ def run_render(env_builder, src_root: Path, src_info: dict, episodes: list[int],
             "task_index": task_index,
             "arm_tracking_error_rad": round(arm_err, 4),
             "cubes_xyz": cubes,
+            "cube_source": cube_src,
             "grasp_points": info.get("hands"),
             "consistency": cons,
         }
