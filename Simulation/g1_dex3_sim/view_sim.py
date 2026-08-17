@@ -72,11 +72,16 @@ parser.add_argument("--asset-path", type=str, default="",
 parser.add_argument("--num-envs", type=int, default=_env_int("VIEW_NUM_ENVS", 1),
                     help="Parallele Envs. 1 zeigt eine aufgeraeumte Szene, >1 das Klon-"
                          "Gitter. Env: VIEW_NUM_ENVS.")
-# Nicht 0 als Default: bricht die SSH-Sitzung weg, laeuft ein unbegrenzter Lauf sonst
-# unbemerkt weiter und blockiert die GPU. Eine Stunde reicht zum Ansehen; 0 = unbegrenzt.
-parser.add_argument("--duration-s", type=float, default=_env_float("VIEW_DURATION_S", 3600.0),
-                    help="Laufzeit in Sekunden, danach sauberes Ende. 0 = unbegrenzt "
-                         "(bis Strg-C). Env: VIEW_DURATION_S.")
+# Immer endlich: bricht die SSH-Sitzung weg, liefe ein unbegrenzter Lauf sonst unbemerkt
+# weiter und blockierte die GPU. Ein "0 = bis Strg-C" gibt es bewusst NICHT mehr — der Lauf
+# haengt an einem `docker exec` ohne TTY, Strg-C toetet nur den lokalen Client und erreicht
+# den Prozess im Container nie. Wer laenger zusehen will, setzt eine groessere Zahl.
+DEFAULT_DURATION_S = 3600.0
+parser.add_argument("--duration-s", type=float,
+                    default=_env_float("VIEW_DURATION_S", DEFAULT_DURATION_S),
+                    help="Laufzeit in Sekunden (> 0), danach sauberes Ende. Laenger "
+                         "zusehen: groesseren Wert setzen, z. B. 14400 (4 h). "
+                         "Env: VIEW_DURATION_S.")
 parser.add_argument("--episode-length-s", type=float, default=_env_float("EPISODE_LENGTH_S", 0.0),
                     help="Sekunden bis zum Auto-Reset (Wuerfel werden dabei neu gewuerfelt). "
                          "0 = cfg-Default (300 s). Env: EPISODE_LENGTH_S.")
@@ -127,7 +132,18 @@ def main() -> None:
     if args.episode_length_s > 0:
         cfg.episode_length_s = args.episode_length_s
 
-    laufzeit = "unbegrenzt (bis Strg-C)" if args.duration_s <= 0 else f"{args.duration_s:.0f} s"
+    # 0/negativ hiess frueher "unbegrenzt, bis Strg-C". Das war unbrauchbar: der Lauf
+    # startet per `docker exec` ohne TTY, Strg-C beendet nur den Client auf dem Host. Im
+    # Container liefe die Sim weiter, der Erfolgsmarker unten kaeme nie, und
+    # server_rl_run.sh meldete den Lauf faelschlich als gescheitert.
+    duration_s = args.duration_s
+    if duration_s <= 0:
+        print(f"[view] --duration-s {duration_s:g} gibt es nicht mehr (Strg-C erreicht den "
+              f"Container nicht) — nutze {DEFAULT_DURATION_S:.0f} s. Laenger zusehen: "
+              f"VIEW_DURATION_S=14400.", flush=True)
+        duration_s = DEFAULT_DURATION_S
+
+    laufzeit = f"{duration_s:.0f} s"
     spur_a = f"an, Modus {ls_mode}" if ls_active else "aus"
     spur_b = f"an, Port {args.live_view_port}" if args.live_view else "aus"
 
@@ -181,8 +197,8 @@ def main() -> None:
     try:
         while simulation_app.is_running():
             elapsed = time.perf_counter() - t0
-            if args.duration_s > 0 and elapsed >= args.duration_s:
-                print(f"[view] Laufzeit {args.duration_s:.0f} s erreicht — beende.", flush=True)
+            if elapsed >= duration_s:
+                print(f"[view] Laufzeit {duration_s:.0f} s erreicht — beende.", flush=True)
                 break
 
             obs, _, terminated, time_out, _ = env.step(hold)

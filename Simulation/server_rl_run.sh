@@ -1095,8 +1095,20 @@ do_view() {
   live_view_env
   livestream_docker_env
 
+  # Die Laufzeit ist immer endlich. Ein "0 = bis Strg-C" gab es hier frueher und war ein
+  # Fehler: der Lauf haengt an einem `docker exec` OHNE TTY, Strg-C beendet nur diesen
+  # Client auf dem Host. Im Container liefe die Sim weiter (GPU belegt), der Erfolgsmarker
+  # '[view] fertig' unten kaeme nie, und der Lauf gaelte faelschlich als gescheitert.
+  # Alte Aufrufe mit 0 nicht abwuergen, sondern auf den Default zurueckdrehen.
+  local view_dur="${VIEW_DURATION_S:-3600}"
+  if ! awk -v d="$view_dur" 'BEGIN{exit !(d+0 > 0)}'; then
+    warn "VIEW_DURATION_S='$view_dur' ist kein Dauerlauf-Schalter (mehr) — Strg-C erreicht den"
+    warn "  Prozess im Container nicht. Nutze 3600 s. Laenger zusehen: VIEW_DURATION_S=14400."
+    view_dur=3600
+  fi
+
   log "Szene ansehen — kein Modell, kein Checkpoint. Asset: $ASSET_PATH"
-  log "  Envs ${VIEW_NUM_ENVS:-1}, Laufzeit ${VIEW_DURATION_S:-3600}s (0 = bis Strg-C)," \
+  log "  Envs ${VIEW_NUM_ENVS:-1}, Laufzeit ${view_dur}s," \
       "SCENE_CAM=$scene_cam, CAM_RES_SCALE=$cam_scale, DR=$dr"
   if livestream_active; then
     livestream_banner "$(host_addr)"
@@ -1119,7 +1131,7 @@ do_view() {
         $ls_flags --enable_cameras \
         --asset-path '$ASSET_PATH' \
         --num-envs ${VIEW_NUM_ENVS:-1} \
-        --duration-s ${VIEW_DURATION_S:-3600}" 2>&1 \
+        --duration-s ${view_dur}" 2>&1 \
     `# grep -c statt -q — s. do_eval: -q steigt frueh aus, das tee bekommt SIGPIPE und` \
     `# der Lauf gaelte unter 'set -o pipefail' faelschlich als gescheitert.` \
     | tee /dev/stderr | grep -c "\[view\] fertig" >/dev/null \
@@ -1212,7 +1224,7 @@ do_webview() {
   echo "      http://$addr:$port/"
   echo ""
   log "Damit ein Bild kommt, muss PARALLEL ein Lauf mit LIVESTREAM=2 laufen, z. B.:"
-  echo "      LIVESTREAM=2 VIEW_DURATION_S=0 $0 view"
+  echo "      LIVESTREAM=2 VIEW_DURATION_S=14400 $0 view    # 4 h statt der 1 h Default"
   echo ""
   log "Erreichbar sein müssen vom Browser-Rechner aus:"
   echo "      $port/tcp    (diese Seite)"
@@ -1250,7 +1262,7 @@ Aktionen:
               Ohne LIVESTREAM/LIVE_VIEW wird automatisch LIVESTREAM=2 gesetzt.
               Das USD holt er sich selbst: erst im Container suchen, sonst data/g1_dex3.usd
               + data/configuration/ aus dem Repo hineinkopieren (~40 MB, einmalig).
-              VIEW_NUM_ENVS (1), VIEW_DURATION_S (3600, 0 = bis Strg-C),
+              VIEW_NUM_ENVS (1), VIEW_DURATION_S (3600, immer > 0 — laenger zusehen: 14400),
               VIEW_HOST_ASSET_DIR (<repo>/data), VIEW_ASSET_DIR (/data/assets),
               EPISODE_LENGTH_S (0 = 300 s bis zum Auto-Reset mit neuen Wuerfelpositionen).
               Eigene Defaults (misst nichts, darf also sparen): SCENE_CAM=0,

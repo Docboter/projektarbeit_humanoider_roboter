@@ -120,7 +120,7 @@ sinnlos, es gäbe ja nichts zu sehen. Beide Wege gehen auch hier einzeln oder zu
 LIVESTREAM=0 LIVE_VIEW=1 ./Simulation/server_rl_run.sh view    # nur Spur B (Browser)
 LIVESTREAM=2 LIVE_VIEW=1 ./Simulation/server_rl_run.sh view    # beides
 VIEW_NUM_ENVS=4 ./Simulation/server_rl_run.sh view             # das Klon-Gitter ansehen
-VIEW_DURATION_S=0 ./Simulation/server_rl_run.sh view           # bis Strg-C statt 1 h
+VIEW_DURATION_S=14400 ./Simulation/server_rl_run.sh view       # 4 h statt 1 h
 ```
 
 **Woher das USD kommt.** `view` sucht der Reihe nach im Container (Checkpoint-Verzeichnis,
@@ -145,6 +145,15 @@ Alle drei sind überschreibbar (`SCENE_CAM=1 ./Simulation/server_rl_run.sh view`
 Nach `VIEW_DURATION_S` Sekunden (Default 3600) endet der Lauf von selbst — damit ein
 abgerissenes SSH-Fenster keine GPU dauerhaft blockiert. Alle 300 s (`EPISODE_LENGTH_S`)
 setzt die Env zurück und würfelt die Würfelpositionen neu.
+
+**Die Laufzeit ist immer endlich — einen Dauerlauf gibt es nicht.** Wer länger zusehen
+will, setzt eine größere Zahl (`VIEW_DURATION_S=14400` für 4 h). `VIEW_DURATION_S=0`
+stand hier früher für „bis Strg-C" und war unbrauchbar: der Lauf hängt an einem
+`docker exec` **ohne TTY**, Strg-C beendet nur den Client auf dem Host. Im Container liefe
+die Sim weiter und hielte die GPU, während der Wrapper den Lauf mangels Erfolgsmarker
+`[view] fertig` als gescheitert meldet. `0` wird deshalb mit einer Warnung auf 3600 s
+zurückgedreht. Vorzeitig beenden geht sauber über
+`docker exec groot-rl pkill -f view_sim.py`.
 
 > Wie die restliche LIVE-Variante ist auch `view` **auf Hardware noch nicht gelaufen**.
 > Es ist aber der Lauf mit den wenigsten beweglichen Teilen — scheitert er, liegt es an
@@ -201,8 +210,8 @@ Wer die native App nicht installieren will oder darf, bekommt denselben Viewport
 Maus- und Tastatursteuerung im Browser:
 
 ```bash
-# Terminal 1 — der Stream (wie gehabt)
-LIVESTREAM=2 VIEW_DURATION_S=0 ./Simulation/server_rl_run.sh view
+# Terminal 1 — der Stream (wie gehabt; 14400 s = 4 h statt der 1 h Default)
+LIVESTREAM=2 VIEW_DURATION_S=14400 ./Simulation/server_rl_run.sh view
 
 # Terminal 2 — die Seite dazu (einmalig Build, danach Sekunden)
 ./Simulation/server_rl_run.sh webview
@@ -490,7 +499,7 @@ Nur für `view` (Schritt 3, Szene ohne Gewichte):
 | Variable | Default | Zweck |
 |---|---|---|
 | `VIEW_NUM_ENVS` | `1` | Parallele Envs. `>1` zeigt das Klon-Gitter |
-| `VIEW_DURATION_S` | `3600` | Laufzeit, danach sauberes Ende. `0` = bis Strg-C |
+| `VIEW_DURATION_S` | `3600` | Laufzeit, danach sauberes Ende. Muss `> 0` sein — kein Dauerlauf (`0` wird auf 3600 zurückgedreht) |
 | `VIEW_HOST_ASSET_DIR` | `<repo>/data` | Wo `g1_dex3.usd` + `configuration/` auf dem Host liegen |
 | `VIEW_ASSET_DIR` | `/data/assets` | Ziel im Container (im Bind-Mount, überlebt `clean`) |
 | `EPISODE_LENGTH_S` | `0` | `0` = cfg-Default 300 s bis zum Auto-Reset (Würfel neu gewürfelt) |
