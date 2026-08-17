@@ -286,7 +286,7 @@ Erfolg hat**. Einem Nullpunkt-Reward fehlt das Startsignal. Nicht vorziehen.
 
 | Punkt | Aufwand | Status |
 |---|---|---|
-| Hardware-Test der Live-Ansicht: `./Simulation/server_rl_run.sh livecheck`, dann `… view` (Szene ohne Gewichte, braucht kein `HF_TOKEN`) | ~15 min | Gebaut 2026-08-13, `view` 2026-08-17, **nie auf Hardware gelaufen** |
+| Hardware-Test der Live-Ansicht: `./Simulation/server_rl_run.sh livecheck`, dann `… view` (Szene ohne Gewichte, braucht kein `HF_TOKEN`). Als Client wahlweise die native App oder `… webview` im Browser — letzteres ohne Installation | ~15 min | Gebaut 2026-08-13, `view`/`webview` 2026-08-17. Der Web-Viewer ist lokal end-to-end geprüft; der **WebRTC-Handshake lief nie auf Hardware**. Bleibt das Bild trotz offenem UDP schwarz: `RL_NETWORK_MODE=host` |
 | `SCENE_CAM=0` / `RL_AA_MODE=Off` Wirkung auf Steps/s | ~15 min | Ungemessen (~15 % erwartet) |
 | Doku-Abschnitt zur Latenz-Zerlegung in [live-ansicht.md](docs/simulation/live-ansicht.md) | — | **uncommitted** |
 

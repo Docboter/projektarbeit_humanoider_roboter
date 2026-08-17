@@ -63,7 +63,7 @@ Diese Sammlung speist das gleichnamige Kapitel der Projektarbeit.
 | [weiterfuehrend/reinforcement-learning-plan.md](weiterfuehrend/reinforcement-learning-plan.md) | **RL-Plan + Implementierung** — Algorithmen-Vergleich, Infrastruktur, Status der gebauten Bausteine; Pipeline läuft seit 2026-08-08 end-to-end, der Greif-Physik-Blocker der Läufe 25–28 ist mit **Lauf 29** gefallen (Würfel hebt 7,9 cm). **Lauf 30** schließt die Diagnose: die Politik kommandiert nur 19 % der demonstrierten Greifbewegung. **Lauf 32** (`span`-Gate) entscheidet die Ursache: auf echten Bildern erreicht dieselbe Policy 100 % → **Domain-Gap bestätigt**. **Lauf 34** misst den daraufhin trainierten Vision-Checkpoint im Closed Loop: 27,6 % statt 20,5 % (p = 3,3 · 10⁻⁴) — die Maßnahme wirkt, `lifted` bleibt aber 0/10 → nächster Schritt ist **Co-Training auf gerenderten Bildern**, **RL kommt danach** |
 | [weiterfuehrend/rl-anleitung.md](weiterfuehrend/rl-anleitung.md) | **RL-Bedienungsanleitung (operativ)** — Image bauen → BC-Checkpoint → RT-Core-GPU (eigener Docker-Server via `server_rl_run.sh` oder vast.ai) → RL starten → überwachen → Checkpoints sichern; Smoke-Test + Aufarbeitung der LIVE-CHECK-Punkte |
 | [weiterfuehrend/lokomotion-recherche.md](weiterfuehrend/lokomotion-recherche.md) | **Lokomotions-Recherche** — Warum der Roboter fixiert ist, GR00T-N1.6-Whole-Body-Control (entkoppelt: RL-Beine + IK/VLA-Arme), Unitree-G1-Lokomotions-Stacks, Integrationspfade + Quellen |
-| [weiterfuehrend/livestream-plan.md](weiterfuehrend/livestream-plan.md) | **Livestream-Plan** — zwei Spuren: **Spur B** (MJPEG-Frame-Stream im Browser, `LIVE_VIEW=1`) ist für den RL-Lauf **gebaut**; **Spur A** (WebRTC-Echtzeit-Viewport für die Sim-Eval) bleibt offen und ungetestet |
+| [weiterfuehrend/livestream-plan.md](weiterfuehrend/livestream-plan.md) | **Livestream-Plan** — **Spur B** (MJPEG-Frame-Stream im Browser, `LIVE_VIEW=1`) ist für den RL-Lauf gebaut; **Spur A** (WebRTC-Echtzeit-Viewport) ist gebaut, aber auf Hardware ungetestet — inzwischen mit zwei Clients: nativer App und **Browser** (`webview`, Port 8210). Bedienung: [simulation/live-ansicht.md](simulation/live-ansicht.md) |
 
 ## Querschnitt (Training + Simulation)
 
@@ -108,10 +108,13 @@ Diese Sammlung speist das gleichnamige Kapitel der Projektarbeit.
 ├── Simulation/                # Sim-Client-Code, Dockerfiles, Build-Tools
 │   ├── Dockerfile             # KISSKI: schlanker Isaac-Lab-Sim-Client
 │   ├── Dockerfile.vastai      # vast.ai: kombiniert Isaac Sim + GR00T
+│   ├── Dockerfile.webviewer   # Browser-Client für den WebRTC-Viewport (Port 8210).
+│   │                          #   Enthält KEINEN Simulator — serviert nur die Seite
 │   ├── server_rl_run.sh       # ★ Eigener-Server-Workflow (Docker): preflight/setup/view/check/
-│   │                          #   cams/gap/eval/grasp/span/render/rl/livecheck/shell/clean
+│   │                          #   cams/gap/eval/grasp/span/render/rl/livecheck/webview/shell/clean
 │   │                          #   (render = Co-Training-Datensatz, s. training/co-training.md;
-│   │                          #    view = Szene ohne Gewichte, s. simulation/live-ansicht.md)
+│   │                          #    view = Szene ohne Gewichte; webview = Viewport im Browser —
+│   │                          #    beides in simulation/live-ansicht.md)
 │   ├── server_robocasa_ref_run.sh  # RoboCasa-GR-1-Referenz-Eval (Pipeline-Validierung)
 │   ├── update_sim_image.ps1   # Build/Push-Tool (-VastAI-Flag)
 │   ├── g1_dex3_sim/           # Sim-Code (Env, Cams, Client, Eval, Replay)

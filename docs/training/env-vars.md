@@ -181,10 +181,20 @@ Bei `LIVESTREAM=0` (Default) ist das Verhalten identisch zu vorher; bei `≠0` w
 | `LIVESTREAM_SETTINGS_STYLE` | `auto` | `auto\|new\|old\|both` — welche Kit-Settings-Pfade gesetzt werden. `auto` liest die Isaac-Sim-`VERSION` (6.0 benannte sie um) |
 | `LIVESTREAM_KIT_ARGS` | — | Manueller Override der kompletten Kit-Settings-Zeile |
 | `PUBLIC_IP` | — | Nur bei `LIVESTREAM=1`; sonst wird sie gar nicht erst ermittelt |
+| `LIVESTREAM_HOST_ADDR` | auto | Server-Adresse für den Verbindungshinweis **und** für den `webview`-Build. Auto = erstes Feld von `hostname -I`; das kann die docker0-Bridge sein |
+| `RL_NETWORK_MODE` | `bridge` | `host` legt den Sim-Container mit `--network=host` an. NVIDIA nennt das für WebRTC erforderlich; wir fahren Bridge mit 1:1-Mapping. Erster Verdacht, wenn der Viewport trotz offenem UDP schwarz bleibt. Verlangt `clean` |
 
-> **Reifegrad:** Der Code ist vollständig und trocken geprüft, lief aber **noch nie auf
-> Hardware**. Vor dem ersten Versuch `./Simulation/server_rl_run.sh livecheck` (prüft NVENC,
-> Livestream-Extension, Isaac-Sim-Version, Port-Veröffentlichung).
+**Im Browser statt in der App** (seit 2026-08-17): `./Simulation/server_rl_run.sh webview`
+startet NVIDIAs Web-Viewer als eigenen Container und zeigt denselben Viewport samt Maus- und
+Tastatursteuerung unter `http://<server-ip>:8210/` (Chromium/Chrome/Edge). Er braucht
+parallel einen Lauf mit `LIVESTREAM=2` und spart die App-Installation, **nicht** den
+UDP-Port. Schalter: `WEBVIEW_PORT` (8210), `WEBVIEW_IMAGE`/`WEBVIEW_CONTAINER`.
+
+> **Reifegrad:** Der Isaac-Sim-seitige Code ist vollständig und trocken geprüft, lief aber
+> **noch nie auf Hardware**. Vor dem ersten Versuch `./Simulation/server_rl_run.sh livecheck`
+> (prüft NVENC, Livestream-Extension, Isaac-Sim-Version, Port-Veröffentlichung).
+> Der Web-Viewer aus `webview` ist dagegen lokal **end-to-end verifiziert** (Build, Seite,
+> eingebackene Adresse im JS-Bundle) — offen ist dort nur der Handshake mit Isaac Sim.
 
 
 
