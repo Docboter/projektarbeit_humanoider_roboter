@@ -1167,10 +1167,13 @@ do_webview() {
   fi
 
   if ! docker image inspect "$image" >/dev/null 2>&1; then
-    log "Baue Web-Viewer-Image $image (einmalig, einige Minuten)."
+    log "Baue Web-Viewer-Image $image (einmalig, ~30 s bei freiem Netz)."
     log "  Eingebacken wird: $addr:$LIVESTREAM_PORT/tcp + $LIVESTREAM_MEDIA_PORT/udp"
-    warn "Der Build lädt Node-Pakete aus dem npm-Registry (@nvidia/create-ov-web-rtc-app)."
-    warn "  Ohne Netzzugang zum Registry schlägt er fehl — das ist dann kein Fehler an dieser Stelle."
+    warn "Der Build braucht Netzzugang zu ZWEI Registries:"
+    warn "  - registry.npmjs.org                (React, Vite & Co.)"
+    warn "  - edge.urm.nvidia.com/artifactory   (der @nvidia-Scope; anonym, ohne Token)"
+    warn "  Ein 404 auf '@nvidia/…' heißt: die zweite ist nicht erreichbar oder gefiltert —"
+    warn "  nicht, dass Paketname oder Version falsch wären."
     docker build -f "$REPO_DIR/Simulation/Dockerfile.webviewer" \
       --build-arg "ISAACSIM_HOST=$addr" \
       --build-arg "ISAACSIM_SIGNAL_PORT=$LIVESTREAM_PORT" \

@@ -211,6 +211,18 @@ LIVESTREAM=2 VIEW_DURATION_S=0 ./Simulation/server_rl_run.sh view
 Dann `http://<server-ip>:8210/` in **Chromium, Chrome oder Edge** öffnen. Firefox wird von
 NVIDIAs Streaming-Bibliothek nicht unterstützt.
 
+Der Build dauert einmalig rund 30 Sekunden und braucht Zugang zu **zwei** Registries:
+
+| Registry | wofür |
+|---|---|
+| `registry.npmjs.org` | Vite und die übrigen JS-Abhängigkeiten |
+| `edge.urm.nvidia.com/artifactory/…/omniverse-client-npm` | der `@nvidia`-Scope — **anonym lesbar, kein Token** |
+
+Die zweite ist der wahrscheinlichste Stolperstein im Institutsnetz. Ein
+`npm error 404 '@nvidia/create-ov-web-rtc-app@1.14.2' is not in this registry` bedeutet
+genau das: der Scope liegt nicht auf npmjs.org, und die NVIDIA-Adresse ist nicht erreichbar
+oder gefiltert. Paketname und Version sind dann trotzdem richtig.
+
 **Was das ist.** Isaac Sim 6.0 hat keinen eingebauten Browser-Client mehr — der alte auf
 Port 8211 entfiel mit 5.x (Defekt D1). NVIDIA liefert stattdessen einen separaten
 Web-Viewer, eine kleine React/Vite-App. [`Dockerfile.webviewer`](../../Simulation/Dockerfile.webviewer)
@@ -241,16 +253,32 @@ NVIDIAs Original tut das nicht und lieferte im Fehlerfall eine App, die still au
 `127.0.0.1` zeigt. Der Generator ist deshalb auf `@nvidia/create-ov-web-rtc-app@1.14.2`
 gepinnt.
 
+Genau diese Prüfung hat sich sofort bezahlt gemacht: `--name` legt ein **Unterverzeichnis**
+an, die App landet also in `/app/web-viewer` und nicht in `/app`. NVIDIAs eigenes Dockerfile
+arbeitet an der Stelle mit `WORKDIR /app` — dort gibt es die Datei gar nicht. Unser Build
+setzt `WORKDIR /app/web-viewer`. Zwei weitere Abweichungen kamen beim Testen dazu: kein
+`apt-get` (der Generator braucht weder git noch curl, und der apt-Schritt war die einzige
+Stelle, die an einem gefilterten Netz scheiterte) und ein Healthcheck über Node statt curl.
+
 ```bash
 ./Simulation/server_rl_run.sh webview stop      # beenden (Image bleibt)
 ./Simulation/server_rl_run.sh clean             # entfernt ihn mit
 WEBVIEW_PORT=8211 ./Simulation/server_rl_run.sh webview   # anderer Port
 ```
 
-> **Reifegrad:** gebaut 2026-08-17, **nicht auf Hardware getestet** — wie die ganze
-> LIVE-Variante. Zusätzlich unverifiziert: dass der Build im Institutsnetz an das
-> npm-Registry kommt, und dass die Bibliothek (4.4.2) mit unserem Kit aus dem
-> *isaac-lab*-Image spricht statt aus dem *isaac-sim*-Image, gegen das NVIDIA sie testet.
+> **Reifegrad (2026-08-17).** Geprüft ist mehr als beim Rest der LIVE-Variante — der Build
+> braucht keine GPU und lief lokal komplett durch:
+>
+> | | |
+> |---|---|
+> | Image baut durch (alle 7 Stufen) | ✓ ~30 s |
+> | Patch-Verifikation meldet Erfolg | ✓ |
+> | Seite liefert HTTP 200, Healthcheck `healthy` | ✓ |
+> | IP/Ports **nachweislich im ausgelieferten JS-Bundle** (`signalingServer:"…"`, `mediaPort:47998`) | ✓ |
+> | WebRTC-Handshake mit Isaac Sim | ✗ **offen** — braucht GPU + laufenden Sim |
+> | Bibliothek gegen unser Kit aus dem *isaac-lab*-Image (NVIDIA testet gegen *isaac-sim*) | ✗ offen |
+>
+> Der letzte Schritt ist derselbe, der auch für den nativen Client noch aussteht.
 
 ### Falls der Viewport schwarz bleibt, obwohl UDP offen ist
 

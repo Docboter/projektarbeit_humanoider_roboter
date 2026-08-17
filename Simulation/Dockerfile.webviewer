@@ -27,6 +27,10 @@ FROM node:22-slim
 # kein Quellcode neben diesem Dockerfile. Version gepinnt: der sed-Patch weiter unten zielt
 # auf eine generierte Datei, und eine andere Generator-Version darf die nicht unbemerkt
 # umbenennen.
+# 1.14.2 = NVIDIAs eigener Pin und dort der dist-tag `release-1.x`. Es gibt auch eine 2.x
+# (2.1.5 ist `latest`); die erzeugt aber moeglicherweise eine andere Projektstruktur, gegen
+# die der sed-Patch nicht mehr passt. Erst wechseln, wenn der Patch dagegen geprueft ist —
+# die Verifikation weiter unten wuerde einen Fehlgriff immerhin laut melden.
 ARG CREATE_APP_VERSION=1.14.2
 
 # Diese drei Werte werden ins JS-BUNDLE eingebacken — sie sind Build-Zeit, nicht Laufzeit.
@@ -39,16 +43,39 @@ ARG ISAACSIM_SIGNAL_PORT=49100
 ARG ISAACSIM_STREAM_PORT=47998
 ARG WEB_VIEWER_PORT=8210
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends git ca-certificates curl \
-    && rm -rf /var/lib/apt/lists/*
+# Kein apt-get: NVIDIAs Original installiert hier git + ca-certificates + curl. Nachgemessen
+# am 2026-08-17 braucht der Generator nichts davon — node:22-slim bringt HTTPS mit, und der
+# Healthcheck unten kommt mit Node aus. Das spart nicht nur eine Minute Buildzeit, es
+# entfernt auch eine ganze Fehlerklasse: der apt-Schritt scheiterte im Test an
+# deb.debian.org, was in einem gefilterten Netz (Institut!) genauso passieren kann.
+
+# ── Der @nvidia-Scope liegt NICHT auf npmjs.org ──────────────────────────────────────────
+# Ohne diese Zeile bricht der npx-Aufruf unten mit
+#     npm error 404 '@nvidia/create-ov-web-rtc-app@1.14.2' is not in this registry.
+# ab — was wie ein Tippfehler im Paketnamen oder eine falsche Version aussieht, aber keins
+# von beidem ist: der ganze Scope wird von NVIDIAs Artifactory bedient, nicht von npm.
+# Nachgewiesen am 2026-08-17: registry.npmjs.org liefert fuer beide @nvidia-Pakete 404,
+# die Artifactory-URL liefert 200 — und zwar ANONYM, ohne Token. Die Adresse stammt aus
+# NVIDIAs eigenem oeffentlichen Sample (.npmrc in NVIDIA-Omniverse/web-viewer-sample).
+# Sie gilt auch fuer das spaetere `npm install`: die generierte App haengt an
+# @nvidia/omniverse-webrtc-streaming-library aus derselben Quelle.
+ARG NVIDIA_NPM_REGISTRY=https://edge.urm.nvidia.com/artifactory/api/npm/omniverse-client-npm/
+RUN npm config set @nvidia:registry "${NVIDIA_NPM_REGISTRY}" \
+    && echo "@nvidia-Scope -> ${NVIDIA_NPM_REGISTRY}"
 
 RUN npx --yes "@nvidia/create-ov-web-rtc-app@${CREATE_APP_VERSION}" \
         --name web-viewer --sample local-sample --outputDir /app
 
-WORKDIR /app
+# ACHTUNG, hier liegt eine Falle: --name legt ein UNTERVERZEICHNIS an. Die App landet also
+# in /app/web-viewer, NICHT in /app — NVIDIAs eigenes Dockerfile arbeitet an dieser Stelle
+# mit `WORKDIR /app`, und der sed-Patch unten liefe damit ins Leere (nachgemessen 2026-08-17:
+# /app/src/main.ts existiert nicht, /app/web-viewer/src/main.ts schon).
+WORKDIR /app/web-viewer
 
 # Verbindungsziel in die generierte src/main.ts patchen (Zeilen aus NVIDIAs Dockerfile).
+# Das Ziel ist das DirectConfig-Objekt; der Generator schreibt dort nur signalingServer
+# (127.0.0.1), die uebrigen vier Schluessel fuegt der zweite sed danach ein. Geprueft: sie
+# sind vorher nicht vorhanden, es entstehen also keine doppelten Schluessel.
 RUN sed -i "s/signalingServer: [^,]*/signalingServer: '${ISAACSIM_HOST}'/" src/main.ts \
     && sed -i "/signalingServer:/a\\    signalingPort: ${ISAACSIM_SIGNAL_PORT},\n    mediaServer: '${ISAACSIM_HOST}',\n    mediaPort: ${ISAACSIM_STREAM_PORT},\n    forceWSS: false," src/main.ts
 
@@ -78,8 +105,10 @@ RUN npm install && npm run build
 ENV WEB_VIEWER_PORT=${WEB_VIEWER_PORT}
 EXPOSE ${WEB_VIEWER_PORT}
 
+# Healthcheck mit Node statt curl — Node 22 hat globales fetch(), damit entfaellt das
+# apt-Paket (s. oben).
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-    CMD curl -fsS "http://localhost:${WEB_VIEWER_PORT}/" >/dev/null || exit 1
+    CMD node -e "fetch('http://localhost:'+(process.env.WEB_VIEWER_PORT||8210)+'/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
 # --host: sonst lauscht vite preview nur auf localhost und der Port-Mapping-Weg nach draussen
 # waere tot.
