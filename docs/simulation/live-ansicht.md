@@ -17,19 +17,26 @@ Umgesetzt am 2026-08-13.
 
 ---
 
-## Zwei Live-Wege — welcher wofür
+## Drei Live-Wege — welcher wofür
 
-| | **Spur A — Isaac-Sim-Viewport** (dieses Dokument) | **Spur B — Bild-Stream im Browser** ([`live_view.py`](../../Simulation/g1_dex3_sim/live_view.py)) |
-|---|---|---|
-| Schalter | `LIVESTREAM=2` | `LIVE_VIEW=1` |
-| Was man sieht | kompletter Isaac-Sim-Viewport, freie Kamera, Isaac-Sim-UI | die gerenderten Kamerabilder (= Modell-Eingabe) + Live-Metriken |
-| Client | Desktop-App *Isaac Sim WebRTC Streaming Client* | jeder Browser, URL öffnen |
-| Zuschauer | genau **einer** | beliebig viele |
-| Netzabbruch | Sitzung weg, neu verbinden | egal — Tab neu laden |
-| Über `ssh -L` | ✗ (UDP-Medien) | ✓ (reines HTTP) |
-| Passt zu | `view`, `eval`, `grasp`, `baseline` — zuschauen, Greifposen debuggen | `rl` — Lauf über Stunden/Tage nebenbei offen |
+Spur A gibt es in **zwei Ausführungen**: als native App und — seit 2026-08-17 — im Browser.
+Beide zeigen denselben WebRTC-Stream aus demselben Lauf; sie unterscheiden sich nur im
+Client. Spur B ist etwas ganz anderes: kein WebRTC, sondern Einzelbilder über HTTP.
 
-Der schnellste Einstieg in beide ist [`view`](#schritt-3--erster-blick-ohne-jede-gewichte-view):
+| | **A1 — Viewport, native App** | **A2 — Viewport im Browser** | **B — Bild-Stream im Browser** |
+|---|---|---|---|
+| Schalter | `LIVESTREAM=2` | `LIVESTREAM=2` + `webview` | `LIVE_VIEW=1` |
+| Was man sieht | kompletter Isaac-Sim-Viewport, freie Kamera, Isaac-Sim-UI | dasselbe | die gerenderten Kamerabilder (= Modell-Eingabe) + Live-Metriken |
+| **Steuern** | ✓ Maus + Tastatur | ✓ Maus + Tastatur | ✗ nur zuschauen |
+| Client | Desktop-App *Isaac Sim WebRTC Streaming Client* | Chromium/Chrome/Edge, URL öffnen | jeder Browser, URL öffnen |
+| Installation nötig | ja | **nein** | nein |
+| Zuschauer | genau **einer** | genau **einer** | beliebig viele |
+| Netzabbruch | Sitzung weg, neu verbinden | Sitzung weg, Tab neu laden | egal — Tab neu laden |
+| Braucht UDP 47998 | ✓ | ✓ (spart die App, **nicht** den Port) | ✗ |
+| Über `ssh -L` | ✗ | ✗ | ✓ (reines HTTP) |
+| Passt zu | `view`, `eval`, `grasp`, `baseline` | dito, wenn man nichts installieren will/darf | `rl` — Lauf über Stunden/Tage nebenbei offen |
+
+Der schnellste Einstieg in alle drei ist [`view`](#schritt-3--erster-blick-ohne-jede-gewichte-view):
 die Szene ohne Modell, ohne Checkpoint, ohne `HF_TOKEN`.
 
 Beide lassen sich **gleichzeitig** einschalten. Für den langen RL-Lauf bleibt Spur B die
@@ -185,6 +192,85 @@ LIVE_KEEP_VIDEO=1 LIVESTREAM=2 ./Simulation/server_rl_run.sh eval
 
 Zwei Dinge bleiben davon **unberührt**, weil sie nicht am `--video-dir` hängen:
 `RL_WANDB_VIDEO_EVERY` (RL-Rollout ins W&B-Dashboard) und `LIVE_VIEW=1` (Spur B).
+
+---
+
+## Variante A2 — derselbe Viewport, aber im Browser (`webview`)
+
+Wer die native App nicht installieren will oder darf, bekommt denselben Viewport samt
+Maus- und Tastatursteuerung im Browser:
+
+```bash
+# Terminal 1 — der Stream (wie gehabt)
+LIVESTREAM=2 VIEW_DURATION_S=0 ./Simulation/server_rl_run.sh view
+
+# Terminal 2 — die Seite dazu (einmalig Build, danach Sekunden)
+./Simulation/server_rl_run.sh webview
+```
+
+Dann `http://<server-ip>:8210/` in **Chromium, Chrome oder Edge** öffnen. Firefox wird von
+NVIDIAs Streaming-Bibliothek nicht unterstützt.
+
+**Was das ist.** Isaac Sim 6.0 hat keinen eingebauten Browser-Client mehr — der alte auf
+Port 8211 entfiel mit 5.x (Defekt D1). NVIDIA liefert stattdessen einen separaten
+Web-Viewer, eine kleine React/Vite-App. [`Dockerfile.webviewer`](../../Simulation/Dockerfile.webviewer)
+baut sie; `webview` startet sie als **eigenen kleinen Container** neben `groot-rl`.
+
+**Wichtig für das mentale Modell:** dieser Container enthält *keinen Simulator*. Er
+serviert nur eine Webseite. Der Browser verbindet sich anschließend **direkt** auf
+`49100/tcp` + `47998/udp` des Sim-Containers. Der Web-Viewer ist ein zweiter *Client* für
+denselben Stream, kein zweiter Server.
+
+Daraus folgen die beiden Dinge, die man am ehesten falsch erwartet:
+
+1. **`webview` allein zeigt nichts.** Ohne parallel laufenden `LIVESTREAM=2`-Lauf ist die
+   Seite da, aber leer.
+2. **Die Firewall-Anforderung bleibt identisch.** Der Browser spart die App-Installation,
+   nicht den UDP-Port. Ist 47998/udp zu, bleibt das Bild hier genauso schwarz. Wer *das*
+   Problem lösen will, braucht Spur B (`LIVE_VIEW=1`, reines HTTP, `ssh -L`-tunnelbar).
+
+**Die IP steckt im JS-Bundle.** NVIDIAs Build backt `ISAACSIM_HOST` und die beiden Ports
+fest in die App ein — sie sind Build-Zeit, nicht Laufzeit. `webview` schreibt sie deshalb in
+den Image-Tag (`groot-webview:<ip>-49100-47998`): ändert sich die Server-IP, entsteht
+automatisch ein anderer Tag, es wird neu gebaut und ein Container aus dem alten Tag wird
+ersetzt. Ohne das zeigte eine alte Seite stumm ins Leere.
+
+Der Build patcht die generierte `src/main.ts` per `sed` — ein fragiler Griff in generierten
+Code. Unser Dockerfile **prüft danach, ob der Patch gegriffen hat**, und bricht sonst ab;
+NVIDIAs Original tut das nicht und lieferte im Fehlerfall eine App, die still auf
+`127.0.0.1` zeigt. Der Generator ist deshalb auf `@nvidia/create-ov-web-rtc-app@1.14.2`
+gepinnt.
+
+```bash
+./Simulation/server_rl_run.sh webview stop      # beenden (Image bleibt)
+./Simulation/server_rl_run.sh clean             # entfernt ihn mit
+WEBVIEW_PORT=8211 ./Simulation/server_rl_run.sh webview   # anderer Port
+```
+
+> **Reifegrad:** gebaut 2026-08-17, **nicht auf Hardware getestet** — wie die ganze
+> LIVE-Variante. Zusätzlich unverifiziert: dass der Build im Institutsnetz an das
+> npm-Registry kommt, und dass die Bibliothek (4.4.2) mit unserem Kit aus dem
+> *isaac-lab*-Image spricht statt aus dem *isaac-sim*-Image, gegen das NVIDIA sie testet.
+
+### Falls der Viewport schwarz bleibt, obwohl UDP offen ist
+
+NVIDIAs Docker-Anleitung sagt zu Isaac Sim 6.0 ausdrücklich: **„`--network=host` is required
+for WebRTC livestreaming"** — das Streaming-SDK brauche direkten Zugriff auf die
+Netzwerk-Interfaces, um seine UDP-Sockets korrekt zu binden. Wir fahren seit jeher Bridge
+mit 1:1-Port-Mapping, was theoretisch reichen sollte (intern == extern, damit die
+SDP-Aushandlung stimmt) — verifiziert ist es für WebRTC bei uns aber nicht.
+
+Bleibt das Bild schwarz, obwohl `nc -vzu` durchkommt, ist das der erste Verdacht:
+
+```bash
+RL_NETWORK_MODE=host ./Simulation/server_rl_run.sh clean
+RL_NETWORK_MODE=host LIVESTREAM=2 ./Simulation/server_rl_run.sh view
+```
+
+`--network` wirkt nur beim **Anlegen** des Containers, daher das `clean` (Daten bleiben).
+Im Host-Modus entfallen die Port-Mappings — alles lauscht direkt auf den Host-Ports.
+Default bleibt bewusst `bridge`: ein stiller Wechsel des Netzwerkmodells wäre später nicht
+mehr aus den Messergebnissen herauszurechnen.
 
 ---
 
@@ -360,6 +446,16 @@ Zwei Details, die sonst Stunden kosten:
 | `LIVESTREAM_SETTINGS_STYLE` | `auto` | `auto\|new\|old\|both` — welche Kit-Settings-Pfade gesetzt werden |
 | `LIVESTREAM_KIT_ARGS` | — | Manueller Override der kompletten Kit-Settings-Zeile |
 | `PUBLIC_IP` | — | Nur `LIVESTREAM=1`; wird sonst gar nicht erst ermittelt |
+| `LIVESTREAM_HOST_ADDR` | auto | Server-Adresse für Hinweistext **und** für den `webview`-Build. Auto = erste Zeile von `hostname -I` |
+| `RL_NETWORK_MODE` | `bridge` | `host` = Container mit `--network=host` anlegen. Erster Verdacht, wenn der Viewport trotz offenem UDP schwarz bleibt. Verlangt `clean` |
+
+Nur für `webview` (Variante A2, Viewport im Browser):
+
+| Variable | Default | Zweck |
+|---|---|---|
+| `WEBVIEW_PORT` | `8210` | Host-Port der Viewer-Seite |
+| `WEBVIEW_IMAGE` | `groot-webview` | Image-Name; der Tag wird aus IP + Ports gebildet |
+| `WEBVIEW_CONTAINER` | `groot-webview` | Container-Name |
 
 Nur für `view` (Schritt 3, Szene ohne Gewichte):
 

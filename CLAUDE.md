@@ -227,13 +227,24 @@ repo root
 ├── Simulation/                         # Closed-loop sim eval
 │   ├── Dockerfile                      # KISSKI-only: slim Isaac Lab sim-client (no GR00T)
 │   ├── Dockerfile.vastai               # vast.ai: combined Isaac Sim + GR00T in one container
+│   ├── Dockerfile.webviewer            # ★ Browser client for the WebRTC viewport (variant A2).
+│   │                                   #   Contains NO simulator — serves a page; the browser then
+│   │                                   #   connects straight to 49100/tcp + 47998/udp of groot-rl.
+│   │                                   #   Rebuild of NVIDIA's tools/docker/web-viewer, plus a check
+│   │                                   #   that the sed patch took (theirs fails silently to 127.0.0.1).
+│   │                                   #   Started via `server_rl_run.sh webview`
 │   ├── kisski_sim_submit.sh            # SLURM job for sim eval (jupyter partition, RTX 5000)
 │   ├── server_rl_run.sh                # ★ Own-server workflow (Docker): preflight/setup/view/check/
 │   │                                   #   cams/gap/eval/grasp/span/render/livecheck/rl/shell/clean
+│   │                                   #   plus view + webview
 │   │                                   #   (see rl-anleitung.md; livecheck = phase 0 of the LIVE variant;
 │   │                                   #   render = builds the co-training dataset, see co-training.md;
 │   │                                   #   view = the ONLY run needing no weights at all — no HF_TOKEN,
-│   │                                   #   no checkpoint; resolves the USD locally, see live-ansicht.md)
+│   │                                   #   no checkpoint; resolves the USD locally, see live-ansicht.md;
+│   │                                   #   webview = browser client for the viewport, mouse+keyboard;
+│   │                                   #   needs a LIVESTREAM=2 run in parallel. RL_NETWORK_MODE=host
+│   │                                   #   switches the sim container to host networking — NVIDIA says
+│   │                                   #   WebRTC requires it; first suspect if the viewport stays black)
 │   ├── server_robocasa_ref_run.sh      # Own-server RoboCasa GR-1 reference eval (pipeline validation)
 │   ├── update_sim_image.ps1            # Build/push tool (-VastAI flag for Dockerfile.vastai)
 │   ├── update_sim_image.sh             # Linux/bash port of update_sim_image.ps1

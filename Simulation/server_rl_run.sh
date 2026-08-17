@@ -197,6 +197,18 @@ sync_scripts() {
 # und das äußert sich stumm: der Stream lauscht nur container-intern, bzw. das
 # Referenzmodell rückt mangels zweiter Karte auf die erste zurück.
 warn_if_container_stale() {
+  # Im Host-Netzwerkmodus gibt es keine Port-Mappings, die fehlen könnten — die Prüfungen
+  # unten würden dann durchweg falschen Alarm schlagen.
+  local netmode; netmode="$(docker inspect -f '{{.HostConfig.NetworkMode}}' "$CONTAINER" 2>/dev/null || echo '')"
+  if [[ "$netmode" == "host" ]]; then
+    [[ "${RL_NETWORK_MODE:-bridge}" == "host" ]] \
+      || log "Container läuft im host-Netzwerkmodus (Ports liegen direkt auf dem Host)."
+    return 0
+  fi
+  if [[ "${RL_NETWORK_MODE:-bridge}" == "host" && -n "$netmode" ]]; then
+    warn "RL_NETWORK_MODE=host, aber '$CONTAINER' läuft im Modus '$netmode' —"
+    warn "  --network wirkt nur beim ANLEGEN. Umstellen:  $0 clean   (Daten bleiben)"
+  fi
   local ports; ports="$(docker inspect -f '{{json .NetworkSettings.Ports}}' "$CONTAINER" 2>/dev/null || echo '{}')"
   if [[ "${LIVE_VIEW:-0}" != "0" ]]; then
     if [[ "$ports" != *"\"$LIVE_VIEW_PORT/tcp\":[{"* ]]; then
@@ -248,6 +260,34 @@ ensure_container() {
   # server_robocasa_ref_run.sh): LIVE-CHECK-Iterationen an rl_finetune.py & Co. brauchen dann
   # nur `git pull` auf dem Server — kein Image-Rebuild, kein `clean`.
   log "  Sim-Code-Mount -> $REPO_DIR/Simulation/g1_dex3_sim"
+  # ── Netzwerkmodus (RL_NETWORK_MODE) ────────────────────────────────────────
+  # NVIDIAs Docker-Anleitung zu Isaac Sim 6.0 sagt ausdrücklich: „--network=host is required
+  # for WebRTC livestreaming" — das Streaming-SDK brauche direkten Zugriff auf die
+  # Netzwerk-Interfaces, um seine UDP-Sockets korrekt zu binden. Wir fahren hier seit jeher
+  # Bridge + 1:1-Port-Mapping, was theoretisch reichen sollte (intern == extern, damit die
+  # SDP-Aushandlung stimmt) und für Spur B (reines HTTP) auch nachweislich reicht.
+  # Verifiziert ist der WebRTC-Fall bei uns aber NICHT. Bleibt der Viewport schwarz, obwohl
+  # 47998/udp offen ist, ist das hier der erste Verdacht:
+  #     RL_NETWORK_MODE=host $0 clean   &&   … LIVESTREAM=2 $0 view
+  # Default bleibt bridge — ein stiller Wechsel des Netzwerkmodells wäre die Sorte Änderung,
+  # die man später nicht mehr aus den Ergebnissen herausrechnen kann.
+  local net_flag=()
+  if [[ "${RL_NETWORK_MODE:-bridge}" == "host" ]]; then
+    net_flag=( --network=host )
+    log "  Netzwerk      -> host (RL_NETWORK_MODE=host). Port-Mappings entfallen dabei —"
+    log "                   im Host-Modus lauschen alle Dienste direkt auf den Host-Ports."
+    if ! docker run -d --name "$CONTAINER" --gpus "$GPUS" --ipc=host --shm-size="$SHM_SIZE" \
+      "${create_env[@]}" "${net_flag[@]}" \
+      -v "$HOST_DATA_DIR:/data" \
+      -v "$REPO_DIR/Simulation/g1_dex3_sim:$SIM_DIR:ro" \
+      --entrypoint bash "$IMAGE" -lc "sleep infinity" >/dev/null; then
+      err "Container '$CONTAINER' konnte im Host-Netzwerkmodus nicht gestartet werden."
+      return 1
+    fi
+    ok "Container läuft (Netzwerk: host)."
+    return 0
+  fi
+
   local port_flag=()
   if port_free "$LIVE_VIEW_PORT"; then
     port_flag=( -p "$LIVE_VIEW_PORT:$LIVE_VIEW_PORT" )
@@ -1087,9 +1127,107 @@ do_view() {
   ok "Ansicht beendet."
 }
 
+# Browser-Client für den WebRTC-Viewport ("Spur A im Browser") — Maus/Tastatur inklusive.
+#
+# Isaac Sim 6.0 hat keinen eingebauten Browser-Client mehr (der alte auf 8211 entfiel mit
+# 5.x, Defekt D1). NVIDIA liefert stattdessen einen separaten Web-Viewer; hier läuft er als
+# EIGENER, kleiner Container neben groot-rl. Er enthält keinen Simulator — nur eine
+# Webseite. Der Stream kommt weiter aus groot-rl (LIVESTREAM=2), und der Browser verbindet
+# sich DIREKT auf dessen 49100/tcp + 47998/udp.
+#
+# Daraus folgen zwei Dinge, die man leicht falsch erwartet:
+#   1. `webview` allein zeigt nichts. Es braucht parallel einen Lauf mit LIVESTREAM=2
+#      (z. B. `view`) — sonst ist die Seite da, aber ohne Bild.
+#   2. Die Firewall-Anforderung bleibt IDENTISCH. Der Browser spart die App-Installation,
+#      nicht den UDP-Port. Ist 47998/udp zu, bleibt das Bild hier genauso schwarz.
+do_webview() {
+  local port="${WEBVIEW_PORT:-8210}"
+  local wv_container="${WEBVIEW_CONTAINER:-groot-webview}"
+
+  # Vor allem anderen: 'stop' braucht weder Adresse noch Image.
+  if [[ "${1:-}" == "stop" ]]; then
+    docker rm -f "$wv_container" >/dev/null 2>&1 && ok "Web-Viewer gestoppt." \
+      || warn "Kein laufender Web-Viewer."
+    return 0
+  fi
+
+  # Leerzeichen abschneiden: ein LIVESTREAM_HOST_ADDR=" " käme sonst durch die -z-Prüfung
+  # und erzeugte einen ungültigen Image-Tag ("groot-webview: -49100-47998").
+  local addr; addr="$(host_addr | tr -d '[:space:]')"
+  # Die Verbindungsdaten stecken im JS-BUNDLE (Build-Zeit, nicht Laufzeit). Sie deshalb in
+  # den Tag schreiben: ändert sich die Server-IP oder ein Port, entsteht automatisch ein
+  # anderer Tag und es wird neu gebaut. Ohne das zeigte ein altes Image stumm ins Leere.
+  local tag="${addr}-${LIVESTREAM_PORT}-${LIVESTREAM_MEDIA_PORT}"
+  local image="${WEBVIEW_IMAGE:-groot-webview}:$tag"
+
+  if [[ -z "$addr" || "$addr" == "<server-ip>" ]]; then
+    err "Server-Adresse nicht ermittelbar — sie wird ins JS-Bundle eingebacken, raten geht nicht."
+    err "  Explizit setzen:  LIVESTREAM_HOST_ADDR=<lan-ip> $0 webview"
+    return 1
+  fi
+
+  if ! docker image inspect "$image" >/dev/null 2>&1; then
+    log "Baue Web-Viewer-Image $image (einmalig, einige Minuten)."
+    log "  Eingebacken wird: $addr:$LIVESTREAM_PORT/tcp + $LIVESTREAM_MEDIA_PORT/udp"
+    warn "Der Build lädt Node-Pakete aus dem npm-Registry (@nvidia/create-ov-web-rtc-app)."
+    warn "  Ohne Netzzugang zum Registry schlägt er fehl — das ist dann kein Fehler an dieser Stelle."
+    docker build -f "$REPO_DIR/Simulation/Dockerfile.webviewer" \
+      --build-arg "ISAACSIM_HOST=$addr" \
+      --build-arg "ISAACSIM_SIGNAL_PORT=$LIVESTREAM_PORT" \
+      --build-arg "ISAACSIM_STREAM_PORT=$LIVESTREAM_MEDIA_PORT" \
+      --build-arg "WEB_VIEWER_PORT=$port" \
+      -t "$image" "$REPO_DIR/Simulation" \
+      || { err "Build des Web-Viewers fehlgeschlagen (Ausgabe oben)."; return 1; }
+    ok "Image gebaut: $image"
+  else
+    ok "Web-Viewer-Image vorhanden: $image"
+  fi
+
+  # Einen Container aus einem ALTEN Tag ersetzen — sonst liefe die Seite mit einer
+  # veralteten, einbetonierten Adresse weiter.
+  local running_img
+  running_img="$(docker inspect -f '{{.Config.Image}}' "$wv_container" 2>/dev/null || echo '')"
+  if [[ -n "$running_img" && "$running_img" != "$image" ]]; then
+    log "Vorhandener Web-Viewer zeigt auf '$running_img' — ersetze ihn durch $image."
+    docker rm -f "$wv_container" >/dev/null 2>&1 || true
+    running_img=""
+  fi
+  if [[ -z "$running_img" ]]; then
+    if ! port_free "$port"; then
+      err "Host-Port $port ist belegt. Anderen wählen:  WEBVIEW_PORT=8211 $0 webview"
+      return 1
+    fi
+    docker run -d --name "$wv_container" -p "$port:$port" "$image" >/dev/null \
+      || { err "Web-Viewer-Container konnte nicht gestartet werden."; return 1; }
+  elif [[ "$(docker inspect -f '{{.State.Running}}' "$wv_container" 2>/dev/null)" != "true" ]]; then
+    docker start "$wv_container" >/dev/null
+  fi
+
+  ok "Web-Viewer läuft."
+  echo ""
+  log "Im Browser öffnen (Chromium/Chrome/Edge — Firefox ist nicht unterstützt):"
+  echo "      http://$addr:$port/"
+  echo ""
+  log "Damit ein Bild kommt, muss PARALLEL ein Lauf mit LIVESTREAM=2 laufen, z. B.:"
+  echo "      LIVESTREAM=2 VIEW_DURATION_S=0 $0 view"
+  echo ""
+  log "Erreichbar sein müssen vom Browser-Rechner aus:"
+  echo "      $port/tcp    (diese Seite)"
+  echo "      $LIVESTREAM_PORT/tcp   (Signaling)"
+  echo "      $LIVESTREAM_MEDIA_PORT/udp   (Video — der Browser spart die App, NICHT diesen Port)"
+  warn "Ohne Authentifizierung und ohne Verschlüsselung — nur im privaten Netz/VPN betreiben."
+  echo ""
+  log "Stoppen:  $0 webview stop"
+}
+
 do_shell()  { ensure_container; docker exec -it "$CONTAINER" bash -l; }
 do_clean()  { log "Entferne Container '$CONTAINER' (Daten in $HOST_DATA_DIR bleiben)."; \
-              docker rm -f "$CONTAINER" 2>/dev/null || warn "Container existierte nicht."; ok "Weg."; }
+              docker rm -f "$CONTAINER" 2>/dev/null || warn "Container existierte nicht."; \
+              # Der Web-Viewer ist ein eigener Container — sonst überlebt er 'clean' und
+              # zeigt danach auf einen Sim-Container, den es nicht mehr gibt.
+              docker rm -f "${WEBVIEW_CONTAINER:-groot-webview}" >/dev/null 2>&1 \
+                && log "Web-Viewer-Container ebenfalls entfernt (Image bleibt)."; \
+              ok "Weg."; }
 
 usage() {
   cat <<EOF
@@ -1145,6 +1283,14 @@ Aktionen:
               Die einzige hier messbare Zahl, die auch auf echter Hardware gilt — dort
               faellt das Rendering weg, das in der Eval 94 % der Zeit frisst.
               LATENCY_ITERS (50), EXECUTION_HORIZON (8, nur als Budget-Bezug).
+  webview     Browser-Client fuer den WebRTC-Viewport starten — mit Maus/Tastatur, also
+              echtes Steuern der Kamera, ohne die native App zu installieren. Laeuft als
+              EIGENER kleiner Container (kein Simulator drin) und serviert nur eine Seite;
+              der Browser verbindet sich direkt auf 49100/tcp + 47998/udp von groot-rl.
+              Zeigt allein nichts — es braucht PARALLEL einen Lauf mit LIVESTREAM=2.
+              Nur Chromium/Chrome/Edge. Spart die App-Installation, NICHT den UDP-Port.
+              WEBVIEW_PORT (8210), WEBVIEW_IMAGE/-CONTAINER (groot-webview).
+              '$0 webview stop' beendet ihn; 'clean' entfernt ihn mit.
   livecheck   Phase 0 der LIVE-Variante: NVENC, Livestream-Extension, Isaac-Sim-Version
               und Port-Veroeffentlichung pruefen — vor dem ersten LIVESTREAM=2-Lauf.
   shell       Interaktive Shell im Container.
@@ -1225,13 +1371,14 @@ ACTION="${1:-help}"
 # 'shell' bleibt ungespiegelt (interaktives -it verträgt die Pipe nicht), 'help'/'clean'
 # haben nichts zu protokollieren.
 case "$ACTION" in
-  preflight|setup|check|cams|gap|eval|grasp|span|rl|livecheck|latency|render|view) start_logging "$ACTION" ;;
+  preflight|setup|check|cams|gap|eval|grasp|span|rl|livecheck|latency|render|view|webview) start_logging "$ACTION" ;;
 esac
 case "$ACTION" in
   preflight)  do_preflight ;;
   setup)      do_setup ;;
   check)      do_check ;;
   view)       do_view ;;
+  webview)    do_webview "${2:-}" ;;
   cams)       do_cams ;;
   gap)        do_gap ;;
   eval)       do_eval ;;

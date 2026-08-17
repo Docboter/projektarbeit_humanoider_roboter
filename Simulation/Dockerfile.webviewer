@@ -1,0 +1,86 @@
+# Dockerfile.webviewer — Browser-Client für den Isaac-Sim-WebRTC-Stream ("Spur A im Browser").
+#
+# WAS DAS IST: Isaac Sim 6.0 hat keinen eingebauten Browser-Client mehr (der alte auf Port
+# 8211 ist mit 5.x entfallen, s. Defekt D1 im Livestream-Plan). NVIDIA liefert stattdessen
+# einen separaten Web-Viewer — eine kleine React/Vite-App, die im Browser läuft und sich per
+# WebRTC mit Isaac Sim verbindet. Sie leitet Maus und Tastatur weiter: freie Kamera und
+# Isaac-Sim-UI wie im nativen Client, nur ohne Installation auf dem Arbeitsrechner.
+#
+# WICHTIG — DIESES IMAGE ENTHÄLT KEINEN SIMULATOR. Es serviert nur eine Webseite. Der Stream
+# kommt weiterhin aus dem groot-rl-Container (LIVESTREAM=2); der Browser verbindet sich
+# DIREKT auf dessen Ports 49100/tcp + 47998/udp. Der Web-Viewer ist also ein zweiter Client
+# für denselben Stream, kein zweiter Server — und er ersetzt insbesondere NICHT die
+# Firewall-Freigabe für UDP 47998.
+#
+# Gebaut und gestartet wird er von:  ./Simulation/server_rl_run.sh webview
+#
+# HERKUNFT: nachgebaut nach tools/docker/web-viewer/Dockerfile aus isaac-sim/IsaacSim.
+# Zwei bewusste Abweichungen vom Original:
+#   1. Basis ist node:22-slim (Docker Hub) statt nvcr.io/nvidia/base/ubuntu. Für einen
+#      reinen JS-Build braucht es keinen NGC-Login und keine Node-Installation von Hand.
+#   2. Nach dem sed-Patch wird GEPRÜFT, ob er gegriffen hat (s. unten). Das Original prüft
+#      es nicht — und genau dort liegt der gefährlichste stille Fehler dieses Images.
+
+FROM node:22-slim
+
+# Die App wird beim Bauen GENERIERT, nicht aus einem Repo kopiert — deshalb liegt hier auch
+# kein Quellcode neben diesem Dockerfile. Version gepinnt: der sed-Patch weiter unten zielt
+# auf eine generierte Datei, und eine andere Generator-Version darf die nicht unbemerkt
+# umbenennen.
+ARG CREATE_APP_VERSION=1.14.2
+
+# Diese drei Werte werden ins JS-BUNDLE eingebacken — sie sind Build-Zeit, nicht Laufzeit.
+# ISAACSIM_HOST muss die Adresse sein, unter der der BROWSER den Sim-Server erreicht (LAN-IP
+# des Servers), nicht 127.0.0.1: der Browser läuft auf einem anderen Rechner.
+# Ändert sich einer der Werte, muss neu gebaut werden — server_rl_run.sh erzwingt das, indem
+# es sie in den Image-Tag schreibt.
+ARG ISAACSIM_HOST=127.0.0.1
+ARG ISAACSIM_SIGNAL_PORT=49100
+ARG ISAACSIM_STREAM_PORT=47998
+ARG WEB_VIEWER_PORT=8210
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git ca-certificates curl \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN npx --yes "@nvidia/create-ov-web-rtc-app@${CREATE_APP_VERSION}" \
+        --name web-viewer --sample local-sample --outputDir /app
+
+WORKDIR /app
+
+# Verbindungsziel in die generierte src/main.ts patchen (Zeilen aus NVIDIAs Dockerfile).
+RUN sed -i "s/signalingServer: [^,]*/signalingServer: '${ISAACSIM_HOST}'/" src/main.ts \
+    && sed -i "/signalingServer:/a\\    signalingPort: ${ISAACSIM_SIGNAL_PORT},\n    mediaServer: '${ISAACSIM_HOST}',\n    mediaPort: ${ISAACSIM_STREAM_PORT},\n    forceWSS: false," src/main.ts
+
+# ── Die Prüfung, die im Original fehlt ───────────────────────────────────────────────────
+# Der Patch oben ist ein sed gegen GENERIERTEN Code. Greift er nicht (weil eine neuere
+# Generator-Version die Schlüssel umbenannt hat), läuft der Build trotzdem durch und liefert
+# eine App, die stumm auf 127.0.0.1 zeigt — im Browser sichtbar erst als "verbindet nicht",
+# ohne jeden Hinweis auf die Ursache. Deshalb hier hart abbrechen, solange es billig ist.
+RUN set -e; \
+    fail=0; \
+    grep -q "signalingServer: '${ISAACSIM_HOST}'"     src/main.ts || { echo "  fehlt: signalingServer"; fail=1; }; \
+    grep -q "signalingPort: ${ISAACSIM_SIGNAL_PORT}"  src/main.ts || { echo "  fehlt: signalingPort";   fail=1; }; \
+    grep -q "mediaServer: '${ISAACSIM_HOST}'"         src/main.ts || { echo "  fehlt: mediaServer";     fail=1; }; \
+    grep -q "mediaPort: ${ISAACSIM_STREAM_PORT}"      src/main.ts || { echo "  fehlt: mediaPort";       fail=1; }; \
+    if [ "$fail" -ne 0 ]; then \
+        echo "!! Der sed-Patch hat src/main.ts NICHT wie erwartet veraendert."; \
+        echo "!! Ursache ist fast sicher eine andere @nvidia/create-ov-web-rtc-app-Version"; \
+        echo "!! (gepinnt: ${CREATE_APP_VERSION}). Ohne Patch zeigt der Viewer auf 127.0.0.1"; \
+        echo "!! und verbindet sich nie — deshalb bricht der Build hier ab statt still."; \
+        echo "--- src/main.ts (Auszug) ---"; head -40 src/main.ts; \
+        exit 1; \
+    fi; \
+    echo "OK: Verbindungsziel eingebacken -> ${ISAACSIM_HOST}:${ISAACSIM_SIGNAL_PORT}/tcp + ${ISAACSIM_STREAM_PORT}/udp"
+
+RUN npm install && npm run build
+
+ENV WEB_VIEWER_PORT=${WEB_VIEWER_PORT}
+EXPOSE ${WEB_VIEWER_PORT}
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD curl -fsS "http://localhost:${WEB_VIEWER_PORT}/" >/dev/null || exit 1
+
+# --host: sonst lauscht vite preview nur auf localhost und der Port-Mapping-Weg nach draussen
+# waere tot.
+CMD ["sh", "-c", "npx vite preview --host --port ${WEB_VIEWER_PORT}"]
