@@ -108,9 +108,10 @@ Diese Sammlung speist das gleichnamige Kapitel der Projektarbeit.
 ├── Simulation/                # Sim-Client-Code, Dockerfiles, Build-Tools
 │   ├── Dockerfile             # KISSKI: schlanker Isaac-Lab-Sim-Client
 │   ├── Dockerfile.vastai      # vast.ai: kombiniert Isaac Sim + GR00T
-│   ├── server_rl_run.sh       # ★ Eigener-Server-Workflow (Docker): preflight/setup/check/
+│   ├── server_rl_run.sh       # ★ Eigener-Server-Workflow (Docker): preflight/setup/view/check/
 │   │                          #   cams/gap/eval/grasp/span/render/rl/livecheck/shell/clean
-│   │                          #   (render = Co-Training-Datensatz, s. training/co-training.md)
+│   │                          #   (render = Co-Training-Datensatz, s. training/co-training.md;
+│   │                          #    view = Szene ohne Gewichte, s. simulation/live-ansicht.md)
 │   ├── server_robocasa_ref_run.sh  # RoboCasa-GR-1-Referenz-Eval (Pipeline-Validierung)
 │   ├── update_sim_image.ps1   # Build/Push-Tool (-VastAI-Flag)
 │   ├── g1_dex3_sim/           # Sim-Code (Env, Cams, Client, Eval, Replay)

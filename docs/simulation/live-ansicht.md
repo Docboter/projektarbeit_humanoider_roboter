@@ -27,7 +27,10 @@ Umgesetzt am 2026-08-13.
 | Zuschauer | genau **einer** | beliebig viele |
 | Netzabbruch | Sitzung weg, neu verbinden | egal — Tab neu laden |
 | Über `ssh -L` | ✗ (UDP-Medien) | ✓ (reines HTTP) |
-| Passt zu | `eval`, `grasp`, `baseline` — zuschauen, Greifposen debuggen | `rl` — Lauf über Stunden/Tage nebenbei offen |
+| Passt zu | `view`, `eval`, `grasp`, `baseline` — zuschauen, Greifposen debuggen | `rl` — Lauf über Stunden/Tage nebenbei offen |
+
+Der schnellste Einstieg in beide ist [`view`](#schritt-3--erster-blick-ohne-jede-gewichte-view):
+die Szene ohne Modell, ohne Checkpoint, ohne `HF_TOKEN`.
 
 Beide lassen sich **gleichzeitig** einschalten. Für den langen RL-Lauf bleibt Spur B die
 robustere Wahl; Spur A ist der Weg, wenn man sich die Szene wirklich *ansehen* will.
@@ -87,7 +90,62 @@ nc -vzu <server-ip> 47998      # Medien (UDP) — der kritische
 
 ---
 
-## Schritt 3 — Lauf mit Live-Variante starten
+## Schritt 3 — Erster Blick ohne jede Gewichte (`view`)
+
+Bevor ein Lauf mit Modell für den Stream herhalten muss, gibt es den Weg ganz ohne:
+
+```bash
+./Simulation/server_rl_run.sh view
+```
+
+Kein `HF_TOKEN`, kein Checkpoint, kein GR00T-Server. Aufgebaut wird nur die Isaac-Lab-Env
+— Roboter, Tisch, Würfel, Licht, Kameras —, und der Roboter hält still seine Home-Pose.
+„Leer" heißt hier **leer an Policy, nicht an Szene**.
+
+Das ist der billigste Weg zum ersten Bild und beantwortet auf einmal drei Fragen, die man
+sonst erst nach einem 10-GB-Download stellt: Kommt Isaac Sim im Livestream-Modus hoch?
+Rendert diese GPU überhaupt (RT-Cores)? Sieht die Szene so aus, wie sie soll?
+
+Ohne `LIVESTREAM` oder `LIVE_VIEW` setzt `view` selbst `LIVESTREAM=2` — headless wäre
+sinnlos, es gäbe ja nichts zu sehen. Beide Wege gehen auch hier einzeln oder zusammen:
+
+```bash
+LIVESTREAM=0 LIVE_VIEW=1 ./Simulation/server_rl_run.sh view    # nur Spur B (Browser)
+LIVESTREAM=2 LIVE_VIEW=1 ./Simulation/server_rl_run.sh view    # beides
+VIEW_NUM_ENVS=4 ./Simulation/server_rl_run.sh view             # das Klon-Gitter ansehen
+VIEW_DURATION_S=0 ./Simulation/server_rl_run.sh view           # bis Strg-C statt 1 h
+```
+
+**Woher das USD kommt.** `view` sucht der Reihe nach im Container (Checkpoint-Verzeichnis,
+`/workspace/assets`, `/data/assets`) und kopiert erst als letzten Schritt vom Host hinein:
+`data/g1_dex3.usd` plus `data/configuration/` aus dem Repo, zusammen ~40 MB. Beide gehören
+zusammen — der Wrapper referenziert `configuration/` relativ zu sich selbst. Das Ziel
+`/data/assets` liegt im Bind-Mount und überlebt damit ein `clean`. Andere Quelle:
+`VIEW_HOST_ASSET_DIR=/pfad/zu/usd`.
+
+**Eigene Defaults.** `view` misst nichts — keine Erfolgsrate, keine `results.json`, kein
+Vergleich mit anderen Läufen. Deshalb sind hier Sparhebel erlaubt, die in einem Messlauf
+die Zahlen unvergleichbar machen würden:
+
+| | `view`-Default | sonst | warum hier erlaubt |
+|---|---|---|---|
+| `SCENE_CAM` | `0` | `1` | `cam_scene` geht nur ins MP4, das hier gar nicht entsteht |
+| `CAM_RES_SCALE` | `0.5` | `1` | es gibt keine Modell-Eingabe, die kalibriert bleiben müsste |
+| `DR_ENABLED` | `0` | `1` | stabile Beleuchtung ist zum Ansehen nützlicher als eine je Episode gewürfelte |
+
+Alle drei sind überschreibbar (`SCENE_CAM=1 ./Simulation/server_rl_run.sh view`).
+
+Nach `VIEW_DURATION_S` Sekunden (Default 3600) endet der Lauf von selbst — damit ein
+abgerissenes SSH-Fenster keine GPU dauerhaft blockiert. Alle 300 s (`EPISODE_LENGTH_S`)
+setzt die Env zurück und würfelt die Würfelpositionen neu.
+
+> Wie die restliche LIVE-Variante ist auch `view` **auf Hardware noch nicht gelaufen**.
+> Es ist aber der Lauf mit den wenigsten beweglichen Teilen — scheitert er, liegt es an
+> Isaac Sim, der GPU oder den Ports, nicht am Modell.
+
+---
+
+## Schritt 4 — Lauf mit Live-Variante starten
 
 `LIVESTREAM=2` (privates Netz/VPN) ist auf dem eigenen Server der richtige Wert. Er wirkt
 auf **alle vier Läufe**:
@@ -298,10 +356,23 @@ Zwei Details, die sonst Stunden kosten:
 | `LIVESTREAM_PORT` | `49100` | Signaling, TCP. Intern == extern mappen |
 | `LIVESTREAM_MEDIA_PORT` | `47998` | Medien, UDP. Muss durch die Firewall |
 | `LIVE_KEEP_VIDEO` | `0` | `1` = zusätzlich MP4s schreiben |
-| `LIVESTREAM_UPDATE_EVERY_N` | `1` | Nur RL: alle n Rollout-Steps `simulation_app.update()`; `0` = nie |
+| `LIVESTREAM_UPDATE_EVERY_N` | `1` | Nur `rl` und `view`: alle n Steps `simulation_app.update()`; `0` = nie |
 | `LIVESTREAM_SETTINGS_STYLE` | `auto` | `auto\|new\|old\|both` — welche Kit-Settings-Pfade gesetzt werden |
 | `LIVESTREAM_KIT_ARGS` | — | Manueller Override der kompletten Kit-Settings-Zeile |
 | `PUBLIC_IP` | — | Nur `LIVESTREAM=1`; wird sonst gar nicht erst ermittelt |
+
+Nur für `view` (Schritt 3, Szene ohne Gewichte):
+
+| Variable | Default | Zweck |
+|---|---|---|
+| `VIEW_NUM_ENVS` | `1` | Parallele Envs. `>1` zeigt das Klon-Gitter |
+| `VIEW_DURATION_S` | `3600` | Laufzeit, danach sauberes Ende. `0` = bis Strg-C |
+| `VIEW_HOST_ASSET_DIR` | `<repo>/data` | Wo `g1_dex3.usd` + `configuration/` auf dem Host liegen |
+| `VIEW_ASSET_DIR` | `/data/assets` | Ziel im Container (im Bind-Mount, überlebt `clean`) |
+| `EPISODE_LENGTH_S` | `0` | `0` = cfg-Default 300 s bis zum Auto-Reset (Würfel neu gewürfelt) |
+| `SCENE_CAM` | `0` | Abweichender Default — sonst `1`. `cam_scene` geht nur ins MP4 |
+| `CAM_RES_SCALE` | `0.5` | Abweichender Default — sonst `1`. Hier folgenlos: es wird nichts gemessen |
+| `DR_ENABLED` | `0` | Abweichender Default — sonst `1`. Stabile Beleuchtung zum Ansehen |
 
 Siehe auch: [env-vars.md](../training/env-vars.md) · [livestream-plan.md](../weiterfuehrend/livestream-plan.md) ·
 [rl-anleitung.md](../weiterfuehrend/rl-anleitung.md)

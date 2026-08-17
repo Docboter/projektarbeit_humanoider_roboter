@@ -34,6 +34,7 @@
 #
 # NUTZUNG:
 #   ./Simulation/server_rl_run.sh preflight                    # Image-Frische + GPU prüfen (kein HF_TOKEN nötig)
+#   ./Simulation/server_rl_run.sh view                         # nur die Szene ansehen — OHNE Modell/Checkpoint/HF_TOKEN
 #   HF_TOKEN=hf_... ./Simulation/server_rl_run.sh setup        # Checkpoint+USD von HF laden (einmalig)
 #   HF_TOKEN=hf_... ./Simulation/server_rl_run.sh check        # LIVE-CHECK: Aufbau ohne Training (--check, 2 Envs)
 #   HF_TOKEN=hf_... ./Simulation/server_rl_run.sh rl           # echter RL-Lauf (Vordergrund, lange Laufzeit)
@@ -456,6 +457,74 @@ ensure_black_hands() {
     warn "Recolor fehlgeschlagen — Fallback auf $orig (weiße Hände)."
     ASSET_PATH="$orig"
   fi
+}
+
+# Stellt ein USD-Asset im Container sicher — OHNE HuggingFace, ohne Checkpoint, ohne Token.
+#
+# Der Unterschied zu ensure_checkpoint(): dort kommen ~10 GB Modellgewichte herunter, weil
+# jede messende Aktion eine Policy braucht. 'view' braucht keine — nur die Geometrie. Und
+# die liegt bereits im Repo (data/g1_dex3.usd + data/configuration/, zusammen ~40 MB,
+# erzeugt von convert_urdf_to_usd.py). Deshalb wird der Reihe nach im Container gesucht und
+# erst als letzter Schritt vom Host hineinkopiert.
+#
+# Der Wrapper referenziert configuration/ RELATIV zu sich selbst — Datei und Verzeichnis
+# muessen also zusammen an denselben Ort. Ziel ist /data/assets: liegt im Bind-Mount und
+# ueberlebt damit ein 'clean'.
+#
+# Setzt ASSET_PATH auf den gefundenen bzw. kopierten Pfad.
+ensure_asset_local() {
+  ensure_container
+  local dst="${VIEW_ASSET_DIR:-/data/assets}"
+
+  # Reihenfolge: ein bereits gesetztes ASSET_PATH gewinnt, danach alles, was frühere Läufe
+  # oder das Image hinterlassen haben. BLACK_HANDS entscheidet, welche Variante bevorzugt wird.
+  local names=( g1_dex3_blackhands.usd g1_dex3.usd )
+  [[ "$BLACK_HANDS" == "1" ]] || names=( g1_dex3.usd g1_dex3_blackhands.usd )
+
+  local cands=( "$ASSET_PATH" ) dir nm c
+  for dir in "$CHECKPOINT_PATH" /workspace/assets "$dst"; do
+    for nm in "${names[@]}"; do cands+=( "$dir/$nm" ); done
+  done
+  for c in "${cands[@]}"; do
+    [[ -n "$c" ]] || continue
+    if docker exec "$CONTAINER" test -f "$c"; then
+      ASSET_PATH="$c"
+      ok "USD-Asset im Container gefunden: $ASSET_PATH"
+      return 0
+    fi
+  done
+
+  # Nichts im Container — vom Host kopieren.
+  local host_dir="${VIEW_HOST_ASSET_DIR:-$REPO_DIR/data}"
+  local want=""
+  for nm in "${names[@]}"; do
+    [[ -f "$host_dir/$nm" ]] && { want="$nm"; break; }
+  done
+  if [[ -z "$want" || ! -d "$host_dir/configuration" ]]; then
+    err "Kein USD-Asset gefunden — weder im Container noch unter $host_dir."
+    err "  Erwartet: $host_dir/g1_dex3.usd  UND  $host_dir/configuration/  (gehoeren zusammen,"
+    err "  der Wrapper referenziert configuration/ relativ zu sich selbst)."
+    err "  Drei Wege:"
+    err "    1. Anderen Ort angeben:  VIEW_HOST_ASSET_DIR=/pfad/zu/usd $0 $ACTION"
+    err "    2. Aus dem URDF erzeugen (braucht Isaac Sim, laeuft IM Container —"
+    err "       docs/simulation/vastai-anleitung.md Schritt 3):"
+    err "         $0 shell"
+    err "         unset VIRTUAL_ENV && '\$ISAACLAB_PATH/isaaclab.sh' -p \\"
+    err "             $SIM_DIR/convert_urdf_to_usd.py --headless \\"
+    err "             --urdf /data/assets/unitree_ros/robots/g1_description/g1_29dof_with_hand_rev_1_0.urdf \\"
+    err "             --output ${dst}/g1_dex3.usd"
+    err "    3. Checkpoint samt USD von HF holen (braucht HF_TOKEN, ~10 GB):  $0 setup"
+    return 1
+  fi
+
+  log "Kopiere USD-Asset vom Host in den Container: $host_dir/$want (+ configuration/, ~40 MB)."
+  docker exec "$CONTAINER" mkdir -p "$dst/configuration"
+  docker cp "$host_dir/$want" "$CONTAINER:$dst/$want" \
+    || { err "Kopieren von $want fehlgeschlagen."; return 1; }
+  docker cp "$host_dir/configuration/." "$CONTAINER:$dst/configuration/" \
+    || { err "Kopieren von configuration/ fehlgeschlagen."; return 1; }
+  ASSET_PATH="$dst/$want"
+  ok "USD-Asset bereit: $ASSET_PATH  (bleibt in $HOST_DATA_DIR/${dst#/data/}, überlebt 'clean')"
 }
 
 # ── Aktionen ──────────────────────────────────────────────────────────────────
@@ -931,6 +1000,93 @@ do_render() {
   echo "    USE_COTRAIN=1 COTRAIN_HF_REPO=<user>/<repo> …  (docs/training/co-training.md)"
 }
 
+# Die Szene ansehen — ohne Modell, ohne Checkpoint, ohne HF_TOKEN.
+#
+# Der einzige Lauf hier, der KEINE Gewichte braucht: es wird nur die Isaac-Lab-Env
+# aufgebaut (Roboter, Tisch, Wuerfel, Licht, Kameras) und der Roboter haelt seine
+# Home-Pose. Damit ist die LIVE-Variante ausprobierbar, bevor ein echter Lauf davon
+# abhaengt — jeder andere Weg dorthin (check/eval/grasp) verlangt erst den ~10-GB-
+# Checkpoint. Zugleich der billigste Nachweis, dass Isaac Sim und RT-Core-Rendering
+# auf dieser GPU ueberhaupt laufen.
+#
+# Gemessen wird nichts. Genau deshalb sind hier Render-Sparhebel erlaubt, die in einem
+# Messlauf die Zahlen unvergleichbar machen wuerden (s. CAM_RES_SCALE unten).
+do_view() {
+  # Den Live-Weg VOR ensure_container waehlen, damit warn_if_container_stale die
+  # Port-Veroeffentlichung schon gegen den tatsaechlichen Modus prueft.
+  if [[ "${LIVESTREAM:-0}" == "0" && "${LIVE_VIEW:-0}" == "0" ]]; then
+    LIVESTREAM=2
+    livestream_init
+    log "Weder LIVESTREAM noch LIVE_VIEW gesetzt → LIVESTREAM=2 (WebRTC-Viewport)."
+    log "  Nur Bilder im Browser stattdessen:  LIVESTREAM=0 LIVE_VIEW=1 $0 view"
+  fi
+
+  ensure_asset_local || return 1
+
+  # $SIM_DIR ist read-only aus dem Repo gemountet (s. ensure_container) — ein docker cp
+  # ist weder noetig noch moeglich. Gleiche Pruefung wie in do_render.
+  if ! docker exec "$CONTAINER" test -f "$SIM_DIR/view_sim.py"; then
+    err "view_sim.py fehlt unter $SIM_DIR im Container."
+    err "  Normalfall — der Mount ist da, das Repo ist alt:  auf dem Server 'git pull'."
+    err "  Sonderfall — der Container stammt von VOR dem 2026-08-13 und hat den Mount gar"
+    err "  nicht (damals kam '-v …/g1_dex3_sim:$SIM_DIR:ro' dazu, und -v wirkt nur beim"
+    err "  ANLEGEN). Dann hilft nur:  $0 clean   (Daten unter $HOST_DATA_DIR bleiben)."
+    err "  Ein Image-Rebuild ist in beiden Faellen NICHT noetig."
+    return 1
+  fi
+
+  # SCENE_CAM=0: cam_scene geht sonst nur ins MP4, das hier gar nicht geschrieben wird —
+  # eine von fuenf Kameras je Step gratis gespart. Ausnahme: wer sie ausdruecklich im
+  # Browser sehen will, bekommt sie.
+  local scene_cam="${SCENE_CAM:-0}"
+  [[ "${LIVE_VIEW_CAMS:-}" == *cam_scene* ]] && scene_cam="${SCENE_CAM:-1}"
+  # CAM_RES_SCALE=0.5: in jedem anderen Lauf verboten (die 640x480 sind gegen die
+  # Dataset-Referenzframes kalibriert), hier folgenlos — es gibt keine Modell-Eingabe.
+  # 94 % der Wanduhr stecken im Rendern (gemessen 2026-08-13), halbe Kantenlaenge ist ein
+  # Viertel der Pixel: der Viewport wird spuerbar fluessiger.
+  local cam_scale="${CAM_RES_SCALE:-0.5}"
+  # DR aus: fuers blosse Ansehen ist eine stabile Beleuchtung nuetzlicher als eine, die
+  # je Episode neu aus [1000, 3800] gewuerfelt wird.
+  local dr="${DR_ENABLED:-0}"
+
+  livestream_app_flags
+  local ls_flags="" f
+  for f in "${LS_APP_FLAGS[@]}"; do ls_flags+=" $(printf '%q' "$f")"; done
+  live_view_env
+  livestream_docker_env
+
+  log "Szene ansehen — kein Modell, kein Checkpoint. Asset: $ASSET_PATH"
+  log "  Envs ${VIEW_NUM_ENVS:-1}, Laufzeit ${VIEW_DURATION_S:-3600}s (0 = bis Strg-C)," \
+      "SCENE_CAM=$scene_cam, CAM_RES_SCALE=$cam_scale, DR=$dr"
+  if livestream_active; then
+    livestream_banner "$(host_addr)"
+  fi
+  if [[ "${LIVE_VIEW:-0}" != "0" ]]; then
+    log "  Live-Ansicht → http://$(host_addr):$LIVE_VIEW_PORT/"
+  fi
+
+  docker exec -w "$SIM_DIR" \
+    "${LIVE_ENV[@]}" "${LS_ENV[@]}" \
+    -e "DR_ENABLED=$dr" \
+    -e "SCENE_CAM=$scene_cam" \
+    -e "CAM_RES_SCALE=$cam_scale" \
+    -e "RL_GROUND_COLOR=${RL_GROUND_COLOR:-}" \
+    -e "RL_AA_MODE=${RL_AA_MODE:-}" \
+    -e "RL_DOME_INTENSITY=${RL_DOME_INTENSITY:-2000}" \
+    "$CONTAINER" bash -lc "
+    unset VIRTUAL_ENV
+    '$ISAAC_PY' '$SIM_DIR/view_sim.py' \
+        $ls_flags --enable_cameras \
+        --asset-path '$ASSET_PATH' \
+        --num-envs ${VIEW_NUM_ENVS:-1} \
+        --duration-s ${VIEW_DURATION_S:-3600}" 2>&1 \
+    `# grep -c statt -q — s. do_eval: -q steigt frueh aus, das tee bekommt SIGPIPE und` \
+    `# der Lauf gaelte unter 'set -o pipefail' faelschlich als gescheitert.` \
+    | tee /dev/stderr | grep -c "\[view\] fertig" >/dev/null \
+    || { err "Ansicht ohne Erfolgsmarker beendet (Traceback oben)."; return 1; }
+  ok "Ansicht beendet."
+}
+
 do_shell()  { ensure_container; docker exec -it "$CONTAINER" bash -l; }
 do_clean()  { log "Entferne Container '$CONTAINER' (Daten in $HOST_DATA_DIR bleiben)."; \
               docker rm -f "$CONTAINER" 2>/dev/null || warn "Container existierte nicht."; ok "Weg."; }
@@ -946,6 +1102,18 @@ server_rl_run.sh — RL-Fine-tuning (FPO), Docker-Server statt vast.ai
 Aktionen:
   preflight   Image-Frische (gr00t+flash-attn im Isaac-Sim-Python) + GPU/RT-Cores testen. Kein HF_TOKEN nötig.
   setup       BC-Checkpoint + USD-Asset von HF laden (einmalig, ~10 GB).
+  view        Szene ansehen — OHNE Modell, OHNE Checkpoint, OHNE HF_TOKEN. Baut nur die
+              Isaac-Lab-Env auf (Roboter, Tisch, Wuerfel, Kameras); der Roboter haelt seine
+              Home-Pose. Der einzige Lauf, der ganz ohne Gewichte auskommt — damit ist die
+              LIVE-Variante testbar, bevor ein echter Lauf davon abhaengt.
+              Ohne LIVESTREAM/LIVE_VIEW wird automatisch LIVESTREAM=2 gesetzt.
+              Das USD holt er sich selbst: erst im Container suchen, sonst data/g1_dex3.usd
+              + data/configuration/ aus dem Repo hineinkopieren (~40 MB, einmalig).
+              VIEW_NUM_ENVS (1), VIEW_DURATION_S (3600, 0 = bis Strg-C),
+              VIEW_HOST_ASSET_DIR (<repo>/data), VIEW_ASSET_DIR (/data/assets),
+              EPISODE_LENGTH_S (0 = 300 s bis zum Auto-Reset mit neuen Wuerfelpositionen).
+              Eigene Defaults (misst nichts, darf also sparen): SCENE_CAM=0,
+              CAM_RES_SCALE=0.5, DR_ENABLED=0 — alle drei ueberschreibbar.
   check       LIVE-CHECK: Env/Policy/Critic aufbauen, 2 Envs, KEIN Training (--check).
   cams        Kamera-Diagnose: konfigurierte vs. gerenderte Pose + ein PNG je Kamera.
   gap         Domain-Gap real vs. sim je Policy-Kamera (SigLIP-ViT). Setzt 'cams' voraus.
@@ -1021,11 +1189,13 @@ LIVE-Variante — Isaac Sim auf dem eigenen Rechner (opt-in, "Spur A"):
   LIVESTREAM_PORT        Signaling, TCP (Default 49100; intern==extern, wird gemappt)
   LIVESTREAM_MEDIA_PORT  Medien, UDP  (Default 47998; MUSS durch die Firewall)
   LIVE_KEEP_VIDEO=1      zusaetzlich MP4s schreiben (Default: live STATT Video)
-  -> gilt fuer:  eval, grasp, rl, check   (baseline ueber entrypoint_baseline.sh)
+  -> gilt fuer:  view, eval, grasp, rl, check   (baseline ueber entrypoint_baseline.sh)
   -> Client:     <server-ip>:49100 in der App eintragen, Connect
   -> vorher:     $0 livecheck
 
   Beispiele:
+    # ohne jede Gewichte — der schnellste Weg zum ersten Bild:
+    $0 view
     HF_TOKEN=hf_... LIVESTREAM=2 NUM_EPISODES=2 EPISODE_LENGTH_S=120 $0 eval
     HF_TOKEN=hf_... LIVESTREAM=2 GRASP_MODE=hold $0 grasp
 
@@ -1055,12 +1225,13 @@ ACTION="${1:-help}"
 # 'shell' bleibt ungespiegelt (interaktives -it verträgt die Pipe nicht), 'help'/'clean'
 # haben nichts zu protokollieren.
 case "$ACTION" in
-  preflight|setup|check|cams|gap|eval|grasp|span|rl|livecheck|latency|render) start_logging "$ACTION" ;;
+  preflight|setup|check|cams|gap|eval|grasp|span|rl|livecheck|latency|render|view) start_logging "$ACTION" ;;
 esac
 case "$ACTION" in
   preflight)  do_preflight ;;
   setup)      do_setup ;;
   check)      do_check ;;
+  view)       do_view ;;
   cams)       do_cams ;;
   gap)        do_gap ;;
   eval)       do_eval ;;

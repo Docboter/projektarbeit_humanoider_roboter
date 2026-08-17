@@ -228,10 +228,12 @@ repo root
 │   ├── Dockerfile                      # KISSKI-only: slim Isaac Lab sim-client (no GR00T)
 │   ├── Dockerfile.vastai               # vast.ai: combined Isaac Sim + GR00T in one container
 │   ├── kisski_sim_submit.sh            # SLURM job for sim eval (jupyter partition, RTX 5000)
-│   ├── server_rl_run.sh                # ★ Own-server workflow (Docker): preflight/setup/check/cams/
-│   │                                   #   gap/eval/grasp/span/render/livecheck/rl/shell/clean subcommands
+│   ├── server_rl_run.sh                # ★ Own-server workflow (Docker): preflight/setup/view/check/
+│   │                                   #   cams/gap/eval/grasp/span/render/livecheck/rl/shell/clean
 │   │                                   #   (see rl-anleitung.md; livecheck = phase 0 of the LIVE variant;
-│   │                                   #   render = builds the co-training dataset, see co-training.md)
+│   │                                   #   render = builds the co-training dataset, see co-training.md;
+│   │                                   #   view = the ONLY run needing no weights at all — no HF_TOKEN,
+│   │                                   #   no checkpoint; resolves the USD locally, see live-ansicht.md)
 │   ├── server_robocasa_ref_run.sh      # Own-server RoboCasa GR-1 reference eval (pipeline validation)
 │   ├── update_sim_image.ps1            # Build/push tool (-VastAI flag for Dockerfile.vastai)
 │   ├── update_sim_image.sh             # Linux/bash port of update_sim_image.ps1
@@ -248,6 +250,10 @@ repo root
 │   │   ├── g1_dex3_blockstack_env.py   # Isaac Lab env (robot, table, cubes, 4 policy + 1 scene cam; reward_mode binary|shaped, get_obs_batched)
 │   │   ├── rl_finetune.py              # FPO RL trainer (action-head only; shaped reward; one full iteration verified on hardware)
 │   │   ├── live_view.py                # MJPEG live view (stdlib + Pillow; LIVE_VIEW=1) — hooked into the RL rollout
+│   │   ├── view_sim.py                 # ★ Scene WITHOUT a policy: no checkpoint, no GR00T, no HF_TOKEN.
+│   │   │                               #   Robot holds its home pose while the viewport streams. The
+│   │   │                               #   cheapest way to a first picture and to test the LIVE variant
+│   │   │                               #   (`server_rl_run.sh view`). Measures nothing by design
 │   │   ├── dump_camera_poses.py        # Diagnostic: configured vs. actually rendered camera pose + one PNG per cam
 │   │   ├── g1_dex3_cfg.py              # Articulation + camera config (look_at_world_quat helper)
 │   │   ├── client.py                   # ZMQ policy client + build_obs (state split into modality keys)
