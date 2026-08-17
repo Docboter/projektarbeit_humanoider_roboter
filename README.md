@@ -45,6 +45,65 @@ export HF_TOKEN=hf_...  WANDB_API_KEY=...
 
 ---
 
+## IKR: Isaac Sim im Browser über WireGuard
+
+Der Ordner **[IsaacSim-WebRTC/](IsaacSim-WebRTC/)** startet Lucas vorhandenes
+Isaac-Sim-6.0-Image als eigenständige Default-Umgebung und stellt den kompletten Viewport
+über einen Chromium-Web-Viewer bereit. GR00T, Checkpoints und Roboter-Code werden dabei nicht
+gestartet.
+
+**Einmalig auf einem neuen Arbeitsrechner:** WireGuard einrichten und den für diesen Server
+nötigen SSH-Schlüsselaustausch verwenden. Für wiederholte Nutzung kann die Option in
+`~/.ssh/config` hinterlegt werden.
+
+```sshconfig
+Host ikr-ki-server-01
+    HostName 192.168.20.230
+    User mspaeth
+    KexAlgorithms sntrup761x25519-sha512@openssh.com
+```
+
+Falls der öffentliche Schlüssel noch fehlt:
+
+```bash
+ssh-copy-id -o KexAlgorithms=sntrup761x25519-sha512@openssh.com \
+    mspaeth@192.168.20.230
+```
+
+**Auf dem IKR-Server:**
+
+```bash
+cd ~/projektarbeit_humanoider_roboter-webrtc
+./IsaacSim-WebRTC/run.sh start
+./IsaacSim-WebRTC/run.sh status
+./IsaacSim-WebRTC/run.sh logs
+```
+
+Danach lokal in Chromium/Chrome öffnen:
+
+```text
+http://192.168.20.230:8211/
+```
+
+Zum Beenden:
+
+```bash
+./IsaacSim-WebRTC/run.sh stop
+```
+
+`stop` entfernt nur die beiden eigenen Compose-Container; der Shader-Cache bleibt als
+Docker-Volume erhalten. Das Setup verwendet standardmäßig GPU 1 und die separaten Ports
+`8211/tcp` (Webseite), `49200/tcp` (WebRTC-Signaling) und `48100/udp` (Video). Die bereits
+laufenden Luca-Container auf 8210/49100/47998 bleiben unberührt. Abweichende Werte können als
+`GPU_DEVICE`, `WEB_VIEWER_PORT`, `ISAACSIM_SIGNAL_PORT` und `ISAACSIM_STREAM_PORT` gesetzt
+werden. Ein SSH-Tunnel reicht für WebRTC nicht, weil der Videostrom UDP verwendet. Das Skript
+ändert keine Firewallregeln.
+
+Referenzen: [NVIDIA Container Deployment](https://docs.isaacsim.omniverse.nvidia.com/latest/installation/install_container.html),
+[NVIDIA Livestream Clients](https://docs.isaacsim.omniverse.nvidia.com/latest/installation/manual_livestream_clients.html).
+
+---
+
 ## Dokumentation
 
 Die vollständige Dokumentation liegt unter **[docs/](docs/README.md)**:

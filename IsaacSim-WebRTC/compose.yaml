@@ -1,0 +1,50 @@
+name: mspaeth-isaacsim-browser
+
+services:
+  isaac-sim:
+    image: ${ISAAC_SIM_IMAGE:-lucam03/projekt-humanoider-roboter-sim-vastai:latest}
+    entrypoint: ["/isaac-sim/runheadless.sh"]
+    command:
+      - -v
+      - --/exts/omni.kit.livestream.app/primaryStream/publicIp=${ISAACSIM_HOST:-192.168.20.230}
+      - --/exts/omni.kit.livestream.app/primaryStream/signalPort=${ISAACSIM_SIGNAL_PORT:-49200}
+      - --/exts/omni.kit.livestream.app/primaryStream/streamPort=${ISAACSIM_STREAM_PORT:-48100}
+    network_mode: host
+    ipc: host
+    shm_size: 16gb
+    environment:
+      ACCEPT_EULA: "Y"
+      PRIVACY_CONSENT: "Y"
+      NVIDIA_DRIVER_CAPABILITIES: all
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["${GPU_DEVICE:-1}"]
+              capabilities: [gpu]
+    volumes:
+      - isaac-data:/data
+    stop_grace_period: 45s
+
+  web-viewer:
+    image: mspaeth-isaacsim-webviewer:${ISAACSIM_SIGNAL_PORT:-49200}-${ISAACSIM_STREAM_PORT:-48100}
+    pull_policy: build
+    build:
+      context: ../Simulation
+      dockerfile: Dockerfile.webviewer
+      network: host
+      args:
+        ISAACSIM_HOST: ${ISAACSIM_HOST:-192.168.20.230}
+        ISAACSIM_SIGNAL_PORT: ${ISAACSIM_SIGNAL_PORT:-49200}
+        ISAACSIM_STREAM_PORT: ${ISAACSIM_STREAM_PORT:-48100}
+        WEB_VIEWER_PORT: ${WEB_VIEWER_PORT:-8211}
+    network_mode: host
+    environment:
+      WEB_VIEWER_PORT: ${WEB_VIEWER_PORT:-8211}
+    depends_on:
+      isaac-sim:
+        condition: service_started
+
+volumes:
+  isaac-data:
