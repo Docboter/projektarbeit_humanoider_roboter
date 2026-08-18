@@ -1255,6 +1255,19 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
             self._policy_render_generation = 0
         if self.cfg.camera_render_every_n > 1:
             self.sim.render()
+            # ``SimulationContext.render()`` erzeugt den RTX-Frame, aktualisiert aber
+            # bei Isaac-Lab 3.0 nicht zwingend die Python-seitigen TiledCamera-Puffer.
+            # Normalerweise erledigt ``scene.update()`` das innerhalb von ``env.step()``;
+            # der Schnellpfad hat diese automatische Aktualisierung absichtlich
+            # unterdrückt. Ohne dieses Update kann die Policy trotz neuem Render einen
+            # alten RGB-Tensor erhalten.
+            #
+            # ``0.0`` ist hier absichtlich: Die Simulationszeit ist bereits durch den
+            # vorangehenden Action-Chunk fortgeschritten. Es soll nur der aktuelle
+            # Render-Produkt-Puffer eingelesen, keine zusätzliche Sensorzeit erfunden
+            # werden. Bei update_period=0 (Default der Kameras) ist jedes Update fällig.
+            for camera in self.cameras.values():
+                camera.update(0.0)
             self._policy_render_generation += 1
 
         sensor_tokens = {}
