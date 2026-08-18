@@ -411,6 +411,9 @@ class G1Dex3BlockstackEnvCfg(DirectRLEnvCfg):
     episode_length_s: float = 300.0   # 9000 Steps @ 30 Hz (5 min)
     policy_hz: float = 30.0
     execution_horizon: int = 8        # wie viele Chunk-Steps ausführen, dann re-plan
+    # 1 = bisher: nach jedem Policy-Step rendern. >1 = automatische Zwischen-Renderings
+    # unterdruecken; der Eval-Runner rendert dann explizit unmittelbar vor get_action().
+    camera_render_every_n: int = 1
 
     # Block-Sampling-Bereich = erreichbarer Greifraum (aus Replay: Hände greifen bei x≈0.35,
     # y≈±0.19, z≈0.92). x/y eng um den Greifraum, z = neue Tischoberfläche (0.87) + halbe Würfelhöhe.
@@ -448,6 +451,24 @@ class G1Dex3BlockstackEnvCfg(DirectRLEnvCfg):
         post = getattr(super(), "__post_init__", None)
         if callable(post):
             post()
+
+        try:
+            render_every = int(os.environ.get("CAMERA_RENDER_EVERY_N", "1"))
+        except ValueError as exc:
+            raise ValueError("CAMERA_RENDER_EVERY_N muss eine positive Ganzzahl sein") from exc
+        if render_every < 1:
+            raise ValueError("CAMERA_RENDER_EVERY_N muss >= 1 sein")
+        self.camera_render_every_n = render_every
+        if render_every > 1:
+            # DirectRLEnv wuerde sonst innerhalb jedes Action-Chunks weiterhin rendern,
+            # obwohl diese Frames nie an die Policy gehen. Der Runner ruft unmittelbar
+            # vor jeder Policy-Observation force_policy_camera_render() auf.
+            self.sim.render_interval = 1_000_000_000
+            print(
+                f"[cam] synchrones Policy-Rendering aktiv: alle {render_every} Schritte; "
+                "automatische Zwischen-Renderings aus.",
+                flush=True,
+            )
 
         # ── SCENE_CAM=0: Übersichtskamera weglassen ────────────────────────────────
         # Gemessen im Sim-Eval (2026-08-13, LIVESTREAM=2): 94 % der Wanduhr stecken in
@@ -1222,6 +1243,47 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
         # Umschlüsseln: "joint_pos" → "state.joint_pos"
         obs_np["state.joint_pos"] = obs_np.pop("joint_pos")
         return obs_np
+
+    def force_policy_camera_render(self) -> dict[str, Any]:
+        """Erzeugt genau vor einer Policy-Anfrage einen frischen Kamera-Frame.
+
+        Bei CAMERA_RENDER_EVERY_N=1 bleibt der historische DirectRLEnv-Pfad aktiv und
+        diese Methode ist ein No-op. Im synchronen Modus ist sie die einzige Stelle,
+        die den RTX-Renderer zwischen zwei Action-Chunks explizit aufruft.
+        """
+        if not hasattr(self, "_policy_render_generation"):
+            self._policy_render_generation = 0
+        if self.cfg.camera_render_every_n > 1:
+            self.sim.render()
+            self._policy_render_generation += 1
+
+        sensor_tokens = {}
+        for name, camera in self.cameras.items():
+            token = None
+            # Isaac-Lab-Versionen exponieren den letzten Sensor-Zeitpunkt unter
+            # unterschiedlichen (teilweise privaten) Namen. Rein diagnostisch lesen.
+            for owner in (camera, getattr(camera, "data", None)):
+                if owner is None:
+                    continue
+                # Nur echte Zeitstempel vergleichen. Ein generisches ``frame``-Attribut
+                # kann bei manchen Camera-Implementierungen statische Kalibrierungsdaten
+                # enthalten und wuerde dann faelschlich einen veralteten Frame melden.
+                for attr in ("_timestamp_last_update", "timestamp"):
+                    if hasattr(owner, attr):
+                        value = getattr(owner, attr)
+                        if isinstance(value, torch.Tensor):
+                            value = value.detach().cpu().reshape(-1).tolist()
+                        elif isinstance(value, np.ndarray):
+                            value = value.reshape(-1).tolist()
+                        token = value
+                        break
+                if token is not None:
+                    break
+            sensor_tokens[name] = token
+        return {
+            "generation": int(self._policy_render_generation),
+            "sensor_tokens": sensor_tokens,
+        }
 
     def get_obs_batched(self) -> dict[str, torch.Tensor]:
         """Batched Observation-Dict ALLER num_envs als GPU-Tensoren — für den RL-Rollout.

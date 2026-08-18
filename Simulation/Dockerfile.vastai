@@ -106,6 +106,11 @@ RUN UV_PREVIEW=1 UV_HTTP_TIMEOUT=300 UV_CONCURRENT_DOWNLOADS=4 \
     uv sync --frozen --no-install-project --extra dev --no-cache
 RUN uv pip install --python /app/Groot-1.6/.venv/bin/python -e . --no-deps
 RUN uv pip install --python /app/Groot-1.6/.venv/bin/python jsonlines pyzmq msgpack
+# ONNX ist das portable Zwischenformat; TensorRT-cu12 baut und laedt die GPU-spezifische
+# DiT-Engine. Der -cu12-Suffix ist Pflicht: das unversionierte NVIDIA-Paket zieht inzwischen
+# standardmaessig CUDA-13-Libraries, waehrend dieses Image auf CUDA 12.x basiert.
+RUN uv pip install --python /app/Groot-1.6/.venv/bin/python \
+        onnx==1.20.1 tensorrt-cu12==11.2.1
 # usd-core: standalone-pxr für den Hand-Recolor (recolor_hands_black.py). Isaacs gebündeltes
 # Python exponiert pxr NICHT für standalone-Skripte (ohne Kit-App-Start) → der Recolor muss
 # über dieses venv laufen. Separates Interpreter-Env als Isaac Sim → kein pxr-Konflikt.
@@ -240,6 +245,9 @@ ENV PATH="/app/Groot-1.6/.venv/bin:${PATH}" \
     HF_CHECKPOINT_REPO="" \
     # flash-attn: 0=aktiviert (RTX 3090+), 1=deaktiviert (sicherer Fallback)
     NO_FLASH_ATTN="0" \
+    GROOT_INFERENCE_BACKEND="eager" \
+    GROOT_TRT_ENGINE_PATH="" \
+    CAMERA_RENDER_EVERY_N="1" \
     SKIP_DOWNLOAD="0" \
     SHELL_ON_ERROR="0" \
     # Sim-Modus: leer/dex3 = DEX3-Closed-Loop (Default), baseline = stock G1 + Dex1-Greifer

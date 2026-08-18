@@ -41,6 +41,9 @@
 #                          live STATT Video — spart das Frame-Sammeln je Step)
 #   PUBLIC_IP            — Öffentliche Instanz-IP für den Remote-Endpunkt
 #                          (auto via ifconfig.me, nur wenn LIVESTREAM=1)
+#   GROOT_INFERENCE_BACKEND — eager (default), compile oder tensorrt
+#   GROOT_TRT_ENGINE_PATH   — TensorRT-Engine; leer = per Checkpoint-Fingerprint suchen
+#   CAMERA_RENDER_EVERY_N   — Policy-Schritte pro Render; 1 = bisheriges Verhalten
 #
 # Auf vast.ai:
 #   Image:          lucam03/projekt-humanoider-roboter-sim-vastai:latest
@@ -112,6 +115,9 @@ CHECKPOINT_PATH="${CHECKPOINT_PATH:-$DATA_DIR/checkpoints}"
 HF_CHECKPOINT_REPO="${HF_CHECKPOINT_REPO:-}"
 NO_FLASH_ATTN="${NO_FLASH_ATTN:-0}"
 SKIP_DOWNLOAD="${SKIP_DOWNLOAD:-0}"
+GROOT_INFERENCE_BACKEND="${GROOT_INFERENCE_BACKEND:-eager}"
+GROOT_TRT_ENGINE_PATH="${GROOT_TRT_ENGINE_PATH:-}"
+CAMERA_RENDER_EVERY_N="${CAMERA_RENDER_EVERY_N:-1}"
 
 # LIVE-Variante (WebRTC-Viewport, „Spur A"). Die gesamte Logik — Kit-Settings je
 # Isaac-Sim-Version, PUBLIC_IP nur im Modus 1, Verbindungshinweis, Video-an/aus —
@@ -231,12 +237,35 @@ if [[ "$NO_FLASH_ATTN" == "1" ]]; then
     warn "NO_FLASH_ATTN=1 wird ignoriert — Eagle-Block2A-2B-v2 erfordert flash_attention_2 zwingend."
 fi
 
-"$GROOT_ROOT/.venv/bin/python" "$GROOT_ROOT/gr00t/eval/run_gr00t_server.py" \
-    --model-path "$CHECKPOINT_PATH" \
-    --embodiment-tag NEW_EMBODIMENT \
-    --use-sim-policy-wrapper \
-    --port "$ZMQ_PORT" \
-    > "$GROOT_SERVER_LOG" 2>&1 &
+case "$GROOT_INFERENCE_BACKEND" in
+    eager)
+        SERVER_CMD=(
+            "$GROOT_ROOT/.venv/bin/python" "$GROOT_ROOT/gr00t/eval/run_gr00t_server.py"
+            --model-path "$CHECKPOINT_PATH"
+            --embodiment-tag NEW_EMBODIMENT
+            --use-sim-policy-wrapper
+            --port "$ZMQ_PORT"
+        )
+        ;;
+    compile|tensorrt)
+        SERVER_CMD=(
+            "$GROOT_ROOT/.venv/bin/python" /scripts/run_groot_optimized_server.py
+            --model-path "$CHECKPOINT_PATH"
+            --embodiment-tag new_embodiment
+            --backend "$GROOT_INFERENCE_BACKEND"
+            --port "$ZMQ_PORT"
+            --optimized-root "$DATA_DIR/optimized"
+        )
+        [[ -n "$GROOT_TRT_ENGINE_PATH" ]] \
+            && SERVER_CMD+=( --engine-path "$GROOT_TRT_ENGINE_PATH" )
+        ;;
+    *)
+        err "GROOT_INFERENCE_BACKEND='$GROOT_INFERENCE_BACKEND' ungueltig (eager|compile|tensorrt)."
+        exit 1
+        ;;
+esac
+log "Policy-Backend: $GROOT_INFERENCE_BACKEND"
+"${SERVER_CMD[@]}" > "$GROOT_SERVER_LOG" 2>&1 &
 GROOT_SERVER_PID=$!
 ok "GR00T-Server gestartet (PID $GROOT_SERVER_PID)"
 ok "Server-Log: $GROOT_SERVER_LOG"
@@ -282,6 +311,8 @@ export PYTHONUNBUFFERED=1
 printf "    %-22s %s\n" "Server:"         "tcp://localhost:$ZMQ_PORT"
 printf "    %-22s %s\n" "Episoden:"       "$NUM_EPISODES"
 printf "    %-22s %s\n" "Exec-Horizon:"   "$EXECUTION_HORIZON"
+printf "    %-22s %s\n" "Policy-Backend:" "$GROOT_INFERENCE_BACKEND"
+printf "    %-22s %s\n" "Render-Stride:"  "$CAMERA_RENDER_EVERY_N Policy-Schritt(e)"
 if [[ "$EPISODE_LENGTH_S" != "0" ]]; then
     printf "    %-22s %s\n" "Episodenlaenge:" "${EPISODE_LENGTH_S}s (EPISODE_LENGTH_S)"
 else

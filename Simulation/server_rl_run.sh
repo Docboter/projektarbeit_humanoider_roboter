@@ -600,6 +600,14 @@ PY
     err "  Details: docs/weiterfuehrend/rl-anleitung.md (Troubleshooting)"
     return 1
   fi
+  if docker run --rm --gpus "$GPUS" "$IMAGE" \
+      "$GROOT_ROOT/.venv/bin/python" -c \
+      "import onnx,tensorrt as trt; print('onnx',onnx.__version__,'tensorrt',trt.__version__); assert trt.Builder(trt.Logger())"; then
+    ok "ONNX + TensorRT-cu12 im GR00T-venv nutzbar."
+  else
+    err "ONNX/TensorRT-Preflight fehlgeschlagen — Image mit aktuellem Dockerfile.vastai bauen."
+    return 1
+  fi
 }
 
 do_setup() { ensure_checkpoint; ok "Setup abgeschlossen. Weiter mit:  $0 check"; }
@@ -686,7 +694,7 @@ do_eval() {
   # /scripts ist ins Image GEBACKEN (nur $SIM_DIR ist gemountet) — eine Aenderung an
   # entrypoint_sim.sh im Repo erreicht den Container sonst nie, und der Lauf liefe still
   # mit der alten Fassung. Gleiches Muster wie bei measure_domain_gap.py in do_gap.
-  sync_scripts entrypoint_sim.sh
+  sync_scripts entrypoint_sim.sh groot_inference_backend.py run_groot_optimized_server.py
   if livestream_active; then
     livestream_banner "$(host_addr)"
   fi
@@ -702,6 +710,9 @@ do_eval() {
     -e "BLACK_HANDS=$BLACK_HANDS" \
     -e "NUM_EPISODES=$eps" \
     -e "EXECUTION_HORIZON=$horizon" \
+    -e "GROOT_INFERENCE_BACKEND=${GROOT_INFERENCE_BACKEND:-eager}" \
+    -e "GROOT_TRT_ENGINE_PATH=${GROOT_TRT_ENGINE_PATH:-}" \
+    -e "CAMERA_RENDER_EVERY_N=${CAMERA_RENDER_EVERY_N:-1}" \
     -e "EPISODE_LENGTH_S=$ep_len" \
     -e "TASK_DESCRIPTION=${TASK_DESCRIPTION:-stack the blocks}" \
     -e "DR_ENABLED=${DR_ENABLED:-1}" \
@@ -731,6 +742,65 @@ do_eval() {
     "python3 -c \"import json;d=json.load(open('/data/sim_results/results.json'));\
 print('Erfolgsrate: %d/%d = %.1f%%' % (d['num_success'], d['num_episodes'], 100*d['success_rate']))\"" \
     2>/dev/null || true
+}
+
+# ONNX -> TensorRT auf der Ziel-GPU, plus reproduzierbarer Policy-/Closed-Loop-Benchmark.
+# Ein TensorRT-Plan ist absichtlich NICHT portabel: Metadaten binden ihn an Checkpoint,
+# GPU-Modell/Compute-Capability und TensorRT-Version. Deshalb laeuft diese Aktion auf dem
+# IKR-Server und nicht beim Image-Build.
+do_optimize() {
+  local phase="${1:-all}"
+  case "$phase" in export|build|validate|benchmark|all) ;; *)
+    err "optimize-Phase '$phase' ungueltig (export|build|validate|benchmark|all)."; return 2 ;;
+  esac
+  ensure_checkpoint
+  ensure_black_hands
+  sync_scripts optimize_groot_inference.py groot_inference_backend.py \
+               run_groot_optimized_server.py summarize_optimization.py
+
+  local root="${GROOT_OPTIMIZED_ROOT:-/data/optimized}"
+  local iters="${OPTIMIZE_ITERATIONS:-20}"
+  local warmup="${OPTIMIZE_WARMUP:-5}"
+  log "GR00T-Inferenz optimieren: Phase=$phase, Checkpoint=$CHECKPOINT_PATH"
+  docker exec "$CONTAINER" bash -lc "
+    unset VIRTUAL_ENV
+    '$GROOT_ROOT/.venv/bin/python' /scripts/optimize_groot_inference.py '$phase' \
+      --model-path '$CHECKPOINT_PATH' \
+      --output-root '$root' \
+      --iterations '$iters' --warmup '$warmup' \
+      --workspace-mb '${OPTIMIZE_WORKSPACE_MB:-8192}' \
+      --mean-tolerance '${OPTIMIZE_MEAN_TOLERANCE:-0.005}' \
+      --max-tolerance '${OPTIMIZE_MAX_TOLERANCE:-0.05}'" 2>&1 \
+    | tee /dev/stderr | grep -c "\[optimize\] fertig" >/dev/null \
+    || { err "ONNX/TensorRT-Phase ohne Erfolgsmarker beendet (Traceback oben)."; return 1; }
+
+  if [[ "$phase" == "all" ]]; then
+    local artifact
+    artifact="$(docker exec "$CONTAINER" python3 -c \
+      "import json;print(json.load(open('$root/latest.json'))['artifact_dir'])")"
+    local eps="${OPTIMIZE_SIM_EPISODES:-1}"
+    local seconds="${OPTIMIZE_SIM_EPISODE_LENGTH_S:-20}"
+    local horizon="${EXECUTION_HORIZON:-8}"
+    log "Closed-Loop A/B: $eps Episode(n) à ${seconds}s; Eager/Render=1 gegen TensorRT/Render=$horizon."
+
+    ( GROOT_INFERENCE_BACKEND=eager CAMERA_RENDER_EVERY_N=1 SCENE_CAM=1 \
+      NUM_EPISODES="$eps" EPISODE_LENGTH_S="$seconds" DR_ENABLED=0 do_eval )
+    docker exec "$CONTAINER" cp /data/sim_results/results.json \
+      "$artifact/sim_baseline_eager.json"
+
+    ( GROOT_INFERENCE_BACKEND=tensorrt CAMERA_RENDER_EVERY_N="$horizon" SCENE_CAM=0 \
+      NUM_EPISODES="$eps" EPISODE_LENGTH_S="$seconds" DR_ENABLED=0 do_eval )
+    docker exec "$CONTAINER" cp /data/sim_results/results.json \
+      "$artifact/sim_optimized_tensorrt.json"
+
+    docker exec "$CONTAINER" python3 /scripts/summarize_optimization.py \
+      --baseline "$artifact/sim_baseline_eager.json" \
+      --optimized "$artifact/sim_optimized_tensorrt.json" \
+      --report "$artifact/benchmark_report.json" \
+      --target-speedup "${OPTIMIZE_TARGET_SPEEDUP:-2.0}"
+    ok "A/B-Bericht: $HOST_DATA_DIR/${artifact#/data/}/benchmark_report.json"
+  fi
+  ok "Optimierungsartefakte: $HOST_DATA_DIR/${root#/data/}/"
 }
 
 # Kamera-Diagnose: konfigurierte gegen tatsächlich gerenderte Pose + PNG je Kamera.
@@ -1413,6 +1483,13 @@ Aktionen:
               Die einzige hier messbare Zahl, die auch auf echter Hardware gilt — dort
               faellt das Rendering weg, das in der Eval 94 % der Zeit frisst.
               LATENCY_ITERS (50), EXECUTION_HORIZON (8, nur als Budget-Bezug).
+  optimize    N1.6-DiT nach ONNX exportieren, GPU-spezifische TensorRT-Engine bauen und
+              validieren. Phasen: export|build|validate|benchmark|all (Default all).
+              'all' fuehrt zusaetzlich einen kurzen Closed-Loop-A/B-Lauf aus und schreibt
+              benchmark_report.json unter /data/optimized/<checkpoint-fingerprint>/.
+              OPTIMIZE_ITERATIONS (20), OPTIMIZE_WARMUP (5),
+              OPTIMIZE_SIM_EPISODES (1), OPTIMIZE_SIM_EPISODE_LENGTH_S (20),
+              OPTIMIZE_WORKSPACE_MB (8192), OPTIMIZE_TARGET_SPEEDUP (2.0).
   webview     Browser-Client fuer den WebRTC-Viewport starten — mit Maus/Tastatur, also
               echtes Steuern der Kamera, ohne die native App zu installieren. Laeuft als
               EIGENER kleiner Container (kein Simulator drin) und serviert nur eine Seite;
@@ -1429,6 +1506,7 @@ Aktionen:
 
 Beispiele:
   ./Simulation/server_rl_run.sh preflight
+  ./Simulation/server_rl_run.sh optimize all
   HF_TOKEN=hf_... ./Simulation/server_rl_run.sh check
   # Schritt 3 — BC-Erfolgsrate, 3x das Zeitbudget der menschlichen Demo (39 s):
   HF_TOKEN=hf_... NUM_EPISODES=20 EPISODE_LENGTH_S=120 DR_ENABLED=0 \\
@@ -1501,7 +1579,7 @@ ACTION="${1:-help}"
 # 'shell' bleibt ungespiegelt (interaktives -it verträgt die Pipe nicht), 'help'/'clean'
 # haben nichts zu protokollieren.
 case "$ACTION" in
-  preflight|setup|check|cams|gap|eval|grasp|span|rl|livecheck|latency|render|view|webview|layout|layoutcheck) start_logging "$ACTION" ;;
+  preflight|setup|check|cams|gap|eval|grasp|span|rl|livecheck|latency|optimize|render|view|webview|layout|layoutcheck) start_logging "$ACTION" ;;
 esac
 case "$ACTION" in
   preflight)  do_preflight ;;
@@ -1518,6 +1596,7 @@ case "$ACTION" in
   layoutcheck) do_layoutcheck ;;
   render)     do_render ;;
   latency)    do_latency ;;
+  optimize)   do_optimize "${2:-all}" ;;
   livecheck)  do_livecheck ;;
   rl)         do_rl ;;
   shell)      do_shell ;;

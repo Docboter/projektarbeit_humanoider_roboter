@@ -212,6 +212,11 @@ def run_episode(
         reach_start_m, min_reach_m, min_reach_step, block_shift_max_m, block_shift_m,
         finger_span_max_rad, max_cube_lift_cm, milestones
     """
+    # Im synchronen Modus ist der automatische Renderer praktisch deaktiviert. Ein
+    # initialer Frame stellt sicher, dass DirectRLEnv.reset() beim Aufbau seiner (hier
+    # ungenutzten) Observation nicht auf einen noch uninitialisierten Kamera-Puffer trifft.
+    if env.cfg.camera_render_every_n > 1:
+        env.force_policy_camera_render()
     obs_dict, _ = env.reset()
     client.reset()
 
@@ -270,8 +275,32 @@ def run_episode(
     # einzelner Ausreißer über dem Budget ist eine Lücke in der Aktionsfolge.
     n_infer = 0
     t_infer_max = 0.0
+    last_render_generation = None
+    last_sensor_tokens = None
 
     while step < max_steps:
+        if env.cfg.camera_render_every_n > 1:
+            if env.cfg.camera_render_every_n != execution_horizon:
+                raise RuntimeError(
+                    "Vergleichbarer synchroner Modus verlangt "
+                    "CAMERA_RENDER_EVERY_N == EXECUTION_HORIZON; "
+                    f"erhalten {env.cfg.camera_render_every_n} != {execution_horizon}"
+                )
+            render_state = env.force_policy_camera_render()
+            generation = render_state["generation"]
+            if last_render_generation is not None and generation <= last_render_generation:
+                raise RuntimeError("Kein neuer Policy-Render vor get_action()")
+            tokens = render_state["sensor_tokens"]
+            comparable_tokens = {
+                key: value for key, value in tokens.items() if value is not None
+            }
+            if last_sensor_tokens is not None and comparable_tokens == last_sensor_tokens:
+                raise RuntimeError(
+                    "Isaac-Lab-Sensor-Zeitstempel sind trotz neuem Policy-Render unveraendert"
+                )
+            last_render_generation = generation
+            last_sensor_tokens = comparable_tokens or None
+
         # Observation fürs Modell aufbauen
         _t0 = time.perf_counter()
         obs_np = env.get_obs_for_policy()
@@ -455,6 +484,12 @@ def main():
     cfg.execution_horizon = args.execution_horizon
     cfg.task_description = args.task_description
     cfg.dr_enabled = os.getenv("DR_ENABLED", "1") != "0"
+    if cfg.camera_render_every_n > 1 and cfg.camera_render_every_n != args.execution_horizon:
+        raise ValueError(
+            "CAMERA_RENDER_EVERY_N muss im vergleichbaren schnellen Modus exakt "
+            f"EXECUTION_HORIZON entsprechen ({cfg.camera_render_every_n} != "
+            f"{args.execution_horizon})"
+        )
     # Wirkt an beiden Stellen gleichzeitig, weil beide dieselbe cfg lesen: run_episode
     # bildet daraus max_steps, und _get_dones() den time_out. Ein Wert hier kann also
     # nicht auseinanderlaufen mit dem, was die Umgebung selbst als Episodenende sieht.
@@ -475,6 +510,7 @@ def main():
     print(f"  Server:           {args.server}")
     print(f"  Episoden:         {args.num_episodes}")
     print(f"  Exec-Horizon:     {args.execution_horizon}")
+    print(f"  Kamera-Render:    alle {cfg.camera_render_every_n} Policy-Schritt(e)")
     print(f"  Task:             {args.task_description}")
     print(f"  Video-Dir:        {args.video_dir or '(kein Video)'}")
     print(f"  Asset:            {cfg.scene.robot.spawn.usd_path}")
@@ -614,6 +650,10 @@ def main():
         "server": args.server,
         "task_description": args.task_description,
         "execution_horizon": args.execution_horizon,
+        "policy_hz": cfg.policy_hz,
+        "camera_render_every_n": cfg.camera_render_every_n,
+        "inference_backend": os.getenv("GROOT_INFERENCE_BACKEND", "eager"),
+        "scene_camera_enabled": os.getenv("SCENE_CAM", "1") not in ("0", "false", "no"),
         "episodes": results,
     }
     summary["episode_length_s"] = cfg.episode_length_s
