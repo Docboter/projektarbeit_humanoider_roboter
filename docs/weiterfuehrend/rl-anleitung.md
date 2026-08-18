@@ -1315,6 +1315,20 @@ HF_TOKEN=hf_... NUM_EPISODES=20 EPISODE_LENGTH_S=120 DR_ENABLED=0 \
     ./Simulation/server_rl_run.sh eval
 ```
 
+Das Inferenz-Backend wird ausdrücklich über `GROOT_INFERENCE_BACKEND` gewählt: `eager`
+(Default und Referenz), `compile` (`torch.compile`) oder `tensorrt` (vorher einmal
+`./Simulation/server_rl_run.sh optimize all`). Beispiel für den schnellen Modus:
+
+```bash
+GROOT_INFERENCE_BACKEND=tensorrt CAMERA_RENDER_EVERY_N=8 SCENE_CAM=0 \
+    NUM_EPISODES=20 EPISODE_LENGTH_S=120 DR_ENABLED=0 \
+    ./Simulation/server_rl_run.sh eval
+```
+
+Alle Voraussetzungen, Backend-Vergleiche und der automatische Engine-Pfad stehen in
+[inferenz-optimierung.md](../simulation/inferenz-optimierung.md). Für methodisch vergleichbare
+BC-/RL-Nullpunkte Backend und Renderkonfiguration im Ergebnisbericht festhalten.
+
 Was hier läuft, ist **nicht** `rl_finetune.py`, sondern die vollständige Closed-Loop-Pipeline
 (`entrypoint_sim.sh`: GR00T-Policy-Server über ZMQ + Isaac-Lab-Client). Der Unterschied ist für die
 Zahl wesentlich: der Client führt 8 Schritte eines 16er-Chunks aus, während der RL-Rollout jeden

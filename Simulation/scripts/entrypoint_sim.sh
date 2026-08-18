@@ -41,9 +41,13 @@
 #                          live STATT Video — spart das Frame-Sammeln je Step)
 #   PUBLIC_IP            — Öffentliche Instanz-IP für den Remote-Endpunkt
 #                          (auto via ifconfig.me, nur wenn LIVESTREAM=1)
-#   GROOT_INFERENCE_BACKEND — eager (default), compile oder tensorrt
-#   GROOT_TRT_ENGINE_PATH   — TensorRT-Engine; leer = per Checkpoint-Fingerprint suchen
-#   CAMERA_RENDER_EVERY_N   — Policy-Schritte pro Render; 1 = bisheriges Verhalten
+#   GROOT_INFERENCE_BACKEND — eager (Default, historischer PyTorch-Pfad), compile
+#                             (DiT via torch.compile) oder tensorrt (DiT-Engine; kein
+#                             stiller Fallback bei fehlender/inkompatibler Engine)
+#   GROOT_TRT_ENGINE_PATH   — TensorRT-Engine; leer = automatisch per
+#                             Checkpoint-Fingerprint unter /data/optimized suchen
+#   CAMERA_RENDER_EVERY_N   — Policy-Schritte pro Render; 1 = bisheriges Verhalten,
+#                             schneller Modus = EXECUTION_HORIZON (normalerweise 8)
 #
 # Auf vast.ai:
 #   Image:          lucam03/projekt-humanoider-roboter-sim-vastai:latest

@@ -41,6 +41,9 @@
 #   ./Simulation/server_rl_run.sh gap                          # Domain-Gap real vs. sim messen (nach 'cams')
 #   ./Simulation/server_rl_run.sh livecheck                    # Phase 0 der LIVE-Variante: NVENC/Extension/Ports
 #   LIVESTREAM=2 HF_TOKEN=hf_... ./Simulation/server_rl_run.sh eval   # LIVE statt Videos (WebRTC-Viewport)
+#   GROOT_INFERENCE_BACKEND=compile ./Simulation/server_rl_run.sh eval # DiT mit torch.compile
+#   GROOT_INFERENCE_BACKEND=tensorrt CAMERA_RENDER_EVERY_N=8 \
+#       SCENE_CAM=0 ./Simulation/server_rl_run.sh eval          # TensorRT + synchrones Rendering
 #   ./Simulation/server_rl_run.sh shell|clean|help
 #
 # Überschreibbar via Env (Defaults für diesen Server):
@@ -53,6 +56,10 @@
 #   RL_SAVE_EVERY, WANDB_API_KEY, WANDB_MODE, RL_WANDB_VIDEO_EVERY, SHELL_ON_ERROR,
 #   LIVE_VIEW, LIVE_VIEW_PORT, LIVE_VIEW_EVERY_N, LIVE_VIEW_CAMS — durchgereicht,
 #   LIVESTREAM, LIVESTREAM_PORT, LIVESTREAM_MEDIA_PORT, LIVE_KEEP_VIDEO (LIVE-Variante).
+#   GROOT_INFERENCE_BACKEND (eager|compile|tensorrt; Default eager),
+#   GROOT_TRT_ENGINE_PATH (optional; leer = Engine per Checkpoint-Fingerprint finden),
+#   CAMERA_RENDER_EVERY_N (Default 1; schneller Modus = EXECUTION_HORIZON, meist 8).
+#   Backend-Details und Build: docs/simulation/inferenz-optimierung.md
 #
 # ZWEI LIVE-WEGE, bewusst getrennt (docs/simulation/live-ansicht.md):
 #   LIVE_VIEW=1   „Spur B" — MJPEG-Bilder im Browser. Zustandslos, beliebig viele
@@ -1437,6 +1444,10 @@ Aktionen:
   eval        BC-Erfolgsrate in der Sim (Closed Loop, GR00T-Server + Isaac-Lab-Client).
               Schritt 3 der Diagnosekette und der Nullpunkt fuer jeden RL-Vergleich.
               NUM_EPISODES (20), EXECUTION_HORIZON (8), EPISODE_LENGTH_S (0 = 300 s).
+              GROOT_INFERENCE_BACKEND=eager|compile|tensorrt (Default eager).
+              TensorRT braucht vorher 'optimize all'; GROOT_TRT_ENGINE_PATH ist optional.
+              CAMERA_RENDER_EVERY_N=8 spart Zwischenframes und muss dann exakt dem
+              EXECUTION_HORIZON entsprechen. Details: docs/simulation/inferenz-optimierung.md
   grasp       Greif-Physik isoliert: Open-Loop-Replay der Dataset-Aktionen, kein Modell.
               Beantwortet, ob ein Wuerfel ueberhaupt angehoben werden KANN.
               GRASP_MODE=test (Default): Wuerfel an den geschaetzten Greifpunkten.
@@ -1507,6 +1518,10 @@ Aktionen:
 Beispiele:
   ./Simulation/server_rl_run.sh preflight
   ./Simulation/server_rl_run.sh optimize all
+  GROOT_INFERENCE_BACKEND=eager ./Simulation/server_rl_run.sh eval
+  GROOT_INFERENCE_BACKEND=compile ./Simulation/server_rl_run.sh eval
+  GROOT_INFERENCE_BACKEND=tensorrt CAMERA_RENDER_EVERY_N=8 SCENE_CAM=0 \\
+      ./Simulation/server_rl_run.sh eval
   HF_TOKEN=hf_... ./Simulation/server_rl_run.sh check
   # Schritt 3 — BC-Erfolgsrate, 3x das Zeitbudget der menschlichen Demo (39 s):
   HF_TOKEN=hf_... NUM_EPISODES=20 EPISODE_LENGTH_S=120 DR_ENABLED=0 \\

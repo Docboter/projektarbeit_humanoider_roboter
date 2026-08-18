@@ -12,6 +12,38 @@ Die Optimierung hat zwei getrennte Teile:
 Der historische Default bleibt `GROOT_INFERENCE_BACKEND=eager` und
 `CAMERA_RENDER_EVERY_N=1`.
 
+## Backend auswählen
+
+Das Backend wird beim Aufruf von `server_rl_run.sh eval` über
+`GROOT_INFERENCE_BACKEND` gewählt. ONNX ist dabei nur das Zwischenformat für den
+TensorRT-Build und kein eigenes Laufzeit-Backend.
+
+| Wert | Ausführung | Voraussetzung |
+|---|---|---|
+| `eager` | bisheriger PyTorch-DiT; Referenz und Default | keine Optimierungsartefakte |
+| `compile` | derselbe DiT mit `torch.compile(mode="max-autotune")` | aktuelles Sim-Image; erster Start kompiliert und dauert länger |
+| `tensorrt` | DiT über die BF16-TensorRT-Engine | vorher `server_rl_run.sh optimize all` |
+
+```bash
+# Referenzpfad
+GROOT_INFERENCE_BACKEND=eager ./Simulation/server_rl_run.sh eval
+
+# PyTorch-Compiler
+GROOT_INFERENCE_BACKEND=compile ./Simulation/server_rl_run.sh eval
+
+# Schnellmodus: TensorRT plus nur ein Kamerarendering je ausgeführtem Action-Chunk
+GROOT_INFERENCE_BACKEND=tensorrt CAMERA_RENDER_EVERY_N=8 SCENE_CAM=0 \
+    ./Simulation/server_rl_run.sh eval
+```
+
+Ohne Angabe gilt immer `eager`. Die Wahl kann alternativ für mehrere Aufrufe exportiert
+werden: `export GROOT_INFERENCE_BACKEND=compile`. `CAMERA_RENDER_EVERY_N` ist unabhängig
+vom Inferenz-Backend; Werte größer als 1 müssen exakt `EXECUTION_HORIZON` entsprechen.
+Bei TensorRT wird die Engine automatisch anhand des Checkpoint-Fingerprints gefunden.
+`GROOT_TRT_ENGINE_PATH=/data/optimized/.../dit_model_bf16.trt` überschreibt den Pfad
+explizit. Eine fehlende oder inkompatible Engine führt bewusst zum Abbruch, nicht zu einem
+stillen Eager-Fallback.
+
 ## Einmaliges Setup auf dem IKR-Server
 
 ```bash
