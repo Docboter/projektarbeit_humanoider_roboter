@@ -1,6 +1,6 @@
 # Basismodell-Fähigkeiten & Referenzaufgabe zur Sim-Validierung
 
-**Stand:** 2026-06-16
+**Stand:** 2026-06-16 · Status-Update 2026-08-18
 **Frage:** Was kann das Basismodell **GR00T N1.6** (`nvidia/GR00T-N1.6-3B`), das wir als Basis für unser Finetuning verwenden, *out-of-the-box* (zero-shot, ohne Finetuning)? Kann es bereits eine Aufgabe im **Closed Loop** lösen? Und können wir eine solche Aufgabe rekonstruieren, um zu prüfen, ob **unsere Entwicklungsumgebung** sie ebenfalls korrekt umsetzt?
 
 > **TL;DR**
@@ -81,29 +81,26 @@ Zweistufig: **Phase 1** validiert günstig die GR00T-Inferenz-Hälfte gegen eine
 ### Phase 1 — Goldstandard reproduzieren (1–2 Tage) ★ empfohlener Start
 Ziel: Zeigen, dass **unser** Setup das **Basismodell** im Closed Loop fahren und die **publizierte ø 47,6 % / 78,7 %** reproduzieren kann. Validiert: Checkpoint-Laden, `--embodiment-tag GR1`, Sim-Policy-Wrapper, Obs/Action-Konvention, ZMQ-Rollout.
 
-> **✅ Validiert (2026-07-19):** Aggregat-Mittel über 12 Tasks (je 100 Ep.) **47,7 % ≈ 47,8 %** erwartet (Top-Task-Ausreißer mittelt sich weg) auf 2× RTX PRO 6000.
-> Ergebnis: [docs/ergebnisse/basismodell-referenz-eval.md](../ergebnisse/basismodell-referenz-eval.md). Skripte:
-> Orchestrierung [`run_robocasa_ref_eval.sh`](../../Simulation/robocasa_reference/run_robocasa_ref_eval.sh),
-> Docker-Server [`server_robocasa_ref_run.sh`](../../Simulation/server_robocasa_ref_run.sh),
-> KISSKI-Job [`kisski_robocasa_ref_submit.sh`](../../Simulation/kisski_robocasa_ref_submit.sh),
-> Bedienung [`robocasa-referenz-eval.md`](robocasa-referenz-eval.md). Die manuellen Schritte unten sind dort gekapselt.
+> **✅ Validiert (2026-07-19):** Aggregat-Mittel **47,7 %** über 12 Tasks (2× RTX PRO 6000) —
+> Ergebnis: [basismodell-referenz-eval.md](../ergebnisse/basismodell-referenz-eval.md),
+> Bedienung: [robocasa-referenz-eval.md](robocasa-referenz-eval.md).
 
-1. [ ] Eval-Umgebung einrichten (einmalig):
+1. [x] Eval-Umgebung einrichten (einmalig):
    ```bash
    bash gr00t/eval/sim/robocasa-gr1-tabletop-tasks/setup_RoboCasaGR1TabletopTasks.sh
    ```
-2. [ ] **Server** (Basismodell, GR1, kein Finetune):
+2. [x] **Server** (Basismodell, GR1, kein Finetune):
    ```bash
    uv run python gr00t/eval/run_gr00t_server.py \
      --model-path nvidia/GR00T-N1.6-3B --embodiment-tag GR1 --use-sim-policy-wrapper
    ```
-3. [ ] **Client/Rollout** auf dem Top-Task:
+3. [x] **Client/Rollout** auf dem Top-Task:
    ```bash
    gr00t/eval/sim/robocasa/robocasa_uv/.venv/bin/python gr00t/eval/rollout_policy.py \
      --env-name gr1_unified/PosttrainPnPNovelFromPlateToPlateSplitA_GR1ArmsAndWaistFourierHands_Env \
      --n-rollouts <N>   # genug für enge CIs, z. B. 100–200
    ```
-4. [ ] **Akzeptanzkriterium:** gemessene Quote im **95-%-Konfidenzintervall** um 78,7 % (bzw. ø 47,6 % über alle 24 Tasks). Bei N=200 ist die Halbbreite ~±5–6 %.
+4. [x] **Akzeptanzkriterium:** gemessene Quote im **95-%-Konfidenzintervall** um 78,7 % (bzw. ø 47,6 % über alle 24 Tasks). Bei N=200 ist die Halbbreite ~±5–6 %.
 5. [x] **Phase-1-Schritte 1–4 durchgeführt** (Setup, Server, Rollout, Top-Task-Akzeptanz). Ergebnis dokumentiert in [docs/ergebnisse/basismodell-referenz-eval.md](../ergebnisse/basismodell-referenz-eval.md). Offen: `full`-Lauf (ø 47,6 % über alle 24 Tasks).
 
 > **Optional 1b — RoboCasa Panda** als zweiter, unabhängiger Goldstandard (Parallelgreifer, ø 66 %): analog mit `--embodiment-tag` aus [robocasa/README.md](../../app/Groot-1.6/examples/robocasa/README.md). Höhere Quoten → klareres Signal, aber kein geschickter-Hand-Bezug.
@@ -111,6 +108,13 @@ Ziel: Zeigen, dass **unser** Setup das **Basismodell** im Closed Loop fahren und
 **Aufwand:** gering, kein Eigencode, kein Asset-Bau. **Risiko:** robosuite-Setup-Skript / RoboCasa-Asset-Download kann zicken (Apt-Deps `libegl1-mesa-dev`, `libglu1-mesa`).
 
 ### Phase 2 — Referenztask in **unserem** Isaac Lab nachbauen (Stretch, 1–2 Wochen)
+
+> **Status (2026-08-18): nicht weiterverfolgt.** Die Pipeline-Validierung lief stattdessen über
+> den RoboCasa-Referenz-Eval (robosuite, Phase 1 oben) und die Domain-Gap-/Diagnose-Kette
+> ([domain-gap-analyse.md](../ergebnisse/domain-gap-analyse.md),
+> [diagnose-chronik.md](../ergebnisse/diagnose-chronik.md)) — der Aufwand für ein eigenes
+> GR-1-Asset in Isaac Lab war dafür nicht nötig.
+
 Nur falls explizit die **Isaac-Lab-Hälfte** validiert werden soll. Ziel: denselben GR-1-Pick-and-Place-Task (`PlateToPlate`) in Isaac Lab nachstellen und prüfen, ob die **Basismodell-Quote** dort ähnlich erreicht wird (Engine-Äquivalenz robosuite↔Isaac Lab).
 
 1. [ ] **GR-1-USD-Asset** beschaffen/konvertieren (Fourier-GR1-URDF → USD via vorhandener [convert_urdf_to_usd.py](../../Simulation/g1_dex3_sim/convert_urdf_to_usd.py)-Logik).

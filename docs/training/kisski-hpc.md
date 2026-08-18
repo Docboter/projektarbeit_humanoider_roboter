@@ -91,16 +91,10 @@ apptainer pull $HOME/images/projekt-humanoider-roboter.sif \
 Das erzeugt `$HOME/images/projekt-humanoider-roboter.sif` (~10–15 GB). Diese Datei nur neu
 erstellen, wenn ein neues Image auf Docker Hub gepusht wurde.
 
-> ⚠️ **Pfad-Abweichung beachten:** [`kisski_submit.sh`](../../Training/kisski_submit.sh) sucht das
-> SIF standardmäßig **nicht** unter `$HOME/images/`, sondern unter
-> `~/.project/dir.project/images/projekt-humanoider-roboter.sif` (im Skript als absoluter Pfad
-> hinterlegt). Wer das Image wie oben nach `$HOME/images/` legt, muss den Pfad beim Submit
-> mitgeben:
-> ```bash
-> SIF_IMAGE=$HOME/images/projekt-humanoider-roboter.sif sbatch Training/kisski_submit.sh
-> ```
-> Sonst bricht der Job mit `FEHLER: SIF-Image nicht gefunden` ab. `wandb-offline-sync.md` nutzt
-> die `~/.project/dir.project/images/`-Konvention — die deckt sich mit dem Skript-Default.
+> Wo [`kisski_submit.sh`](../../Training/kisski_submit.sh) das SIF sucht, steht oben unter
+> [Pfad-Konfiguration](#pfad-konfiguration--zwei-variablen-sonst-nichts): zuerst `$KISSKI_SIF_DIR`
+> (Default `$HOME/images`), dann `$KISSKI_PROJECT_DIR/images`. Wer das Image wie oben nach
+> `$HOME/images/` legt, ist damit bereits fertig — kein weiterer Handgriff nötig.
 
 ---
 
@@ -272,18 +266,14 @@ USE_AUGMENTATION=0 sbatch --export=ALL Training/kisski_submit.sh
 - **`USE_AUGMENTATION`** (Default `1`) — Color-Jitter/Domain-Randomization gegen den
   Sim-zu-Real-Domain-Gap; Stärken über `CJ_BRIGHTNESS/CONTRAST/SATURATION/HUE`. `0` = explizit aus.
 
-> ⚠️ **Bis 2026-08-13 wurden beide Schalter NICHT durchgereicht.** `kisski_submit.sh` baute die
-> `--env`-Liste für Apptainer von Hand, und `TRAIN_TEST_SPLIT`/`USE_AUGMENTATION` fehlten darin.
-> Apptainer erbt die Job-Umgebung nicht automatisch — ein `TRAIN_TEST_SPLIT=1 sbatch …` verpuffte
-> also folgenlos, ohne Fehlermeldung. Wer ältere Läufe auswertet: sie sind **ohne** Split gelaufen,
-> unabhängig davon, was beim Absenden gesetzt war. Der Job-Kopf zeigt die Werte jetzt an und warnt,
-> wenn kein Split aktiv ist.
+> Ältere Images vor 2026-08-13 reichten `TRAIN_TEST_SPLIT`/`USE_AUGMENTATION` nicht durch —
+> siehe [docs/historie.md](../historie.md).
 
-> ⚠️ **Jeder neue Lauf braucht einen neuen `EXPERIMENT_NAME`.** Der Fork ruft
-> `trainer.train(resume_from_checkpoint=True)` fest verdrahtet auf — ein Lauf in einen bereits
-> belegten Namespace **setzt fort statt neu zu trainieren** und ist bei erreichtem `MAX_STEPS`
-> sofort „fertig", mit den alten Gewichten und ohne Fehlermeldung (Job 15271760, 2026-08-13).
-> Seit dem bricht [`lib_resume_guard.sh`](../../Training/scripts/lib_resume_guard.sh) vorher ab;
+> ⚠️ **Jeder neue Lauf braucht einen neuen `EXPERIMENT_NAME`** — sonst setzt der Fork
+> unbemerkt am alten Checkpoint fort statt neu zu trainieren und meldet sich bei erreichtem
+> `MAX_STEPS` sofort mit den alten Gewichten als „fertig". Details, Hintergrund und die
+> Job-15271760-Geschichte: [env-vars.md § Namespace des Laufs](env-vars.md#namespace-des-laufs---der-fork-setzt-ungefragt-fort).
+> Seit [`lib_resume_guard.sh`](../../Training/scripts/lib_resume_guard.sh) bricht das vorher ab;
 > bewusstes Fortsetzen nach Walltime-Abbruch geht mit `RESUME=1`.
 
 Nach dem Lauf steht die Checkpoint-Auswahl an — nicht blind den letzten Step nehmen:
@@ -341,7 +331,7 @@ rsync -avz --progress \
 srun -p kisski:interactive -G 1g.10gb:1 --pty bash
 apptainer shell --nv \
     --bind /mnt/vast-kisski/projects/kisski-humrob/data:/data \
-    ~/.project/dir.project/images/projekt-humanoider-roboter.sif
+    "${KISSKI_SIF_DIR:-$HOME/images}/projekt-humanoider-roboter.sif"
 # Innerhalb des Containers:
 huggingface-cli upload <dein-namespace>/g1-dex3-blockstacking \
     /data/g1_dex3_finetune/blockstacking --repo-type=model
@@ -406,5 +396,6 @@ höhere Priorität).
 ### `No space left on device` im Container
 
 Der VAST-Projekt-Storage ist voll. Mit `du -sh /mnt/vast-kisski/projects/kisski-humrob/*`
-prüfen. Alte Checkpoints unter `.../data/g1_dex3_finetune/` aufräumen — `save_total_limit=5`
-im Training-Script sorgt dafür, dass maximal 5 Checkpoints gleichzeitig vorgehalten werden.
+prüfen. Alte Checkpoints unter `.../data/g1_dex3_finetune/` aufräumen — `SAVE_TOTAL_LIMIT`
+(Default `10`, auf KISSKI `40`, siehe [env-vars.md](env-vars.md)) begrenzt, wie viele
+Checkpoints gleichzeitig vorgehalten werden; für weniger Speicherbedarf niedriger setzen.

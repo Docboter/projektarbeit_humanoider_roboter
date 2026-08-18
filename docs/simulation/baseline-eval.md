@@ -1,5 +1,7 @@
 # Baseline-Closed-Loop-Test — stock Unitree G1 + Dex1-Greifer (UNITREE_G1)
 
+Status: Vorbereitung — erster Lauf steht aus (Stand 2026-08-18)
+
 Vergleichs-Baseline zum DEX3-Fine-Tune: Wie gut stapelt das **un-finetunte Basismodell
 `nvidia/GR00T-N1.6-3B`** mit dem **stock Unitree-G1-Greifer** (Dex1-Parallelgreifer,
 vorregistriertes Embodiment `UNITREE_G1`) auf **demselben** Block-Stacking-Task?
@@ -79,7 +81,7 @@ Diese Schritte sind **noch nicht** automatisiert/erledigt und müssen vor dem er
   stock-Greifer-Asset — nur DEX3-USDs. Der Konverter braucht `isaaclab.sh`, das **nur im
   Sim-Container** existiert → **nicht** auf dem nackten Host ausführen, sondern in einem
   **lokal gestarteten Docker-Container** (genau wie das DEX3-Asset, siehe
-  [vastai-anleitung.md](../simulation/vastai-anleitung.md) Schritt 3b). Im Repo-Root:
+  [vastai-anleitung.md](vastai-anleitung.md) Schritt 3b). Im Repo-Root:
   ```bash
   docker run -it --rm --gpus all --ipc=host --shm-size=8g \
     --entrypoint bash \

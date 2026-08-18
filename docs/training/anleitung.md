@@ -143,7 +143,7 @@ Submodule sind **nicht** mehr nötig — das Image bringt den Groot-1.6-Code sel
 ```bash
 git clone https://github.com/Docboter/projektarbeit_humanoider_roboter.git
 cd projektarbeit_humanoider_roboter
-git checkout training-luca-KISSKI
+git checkout training-luca-IKR-IS6.0
 ```
 
 ### B3. Token setzen
@@ -153,11 +153,8 @@ export HF_TOKEN=hf_DEIN_TOKEN
 export WANDB_API_KEY=dein_wandb_key      # optional
 ```
 
-Windows PowerShell:
-```powershell
-$env:HF_TOKEN = "hf_DEIN_TOKEN"
-$env:WANDB_API_KEY = "dein_wandb_key"
-```
+*(Unter Windows die Tokens ebenfalls in der WSL2-Bash exportieren — in PowerShell gesetzte
+`$env:`-Variablen erreichen das Bash-Skript in B4 nicht.)*
 
 ### B4. Skript starten
 
@@ -166,10 +163,8 @@ Linux / macOS / WSL2:
 ./Training/setup_and_train_DockerHub-pull.sh
 ```
 
-Windows PowerShell:
-```powershell
-.\Training\setup_and_train_DockerHub-pull.ps1
-```
+*(Die frühere Windows-PowerShell-Variante `setup_and_train_DockerHub-pull.ps1` wurde entfernt —
+unter Windows das Bash-Skript in WSL2 ausführen.)*
 
 Das Skript:
 1. Prüft Docker und NVIDIA Container Toolkit
@@ -246,21 +241,22 @@ Der Cluster zieht das Image per `apptainer pull docker://lucam03/projekt-humanoi
 
 > **Hinweis:** Der Build braucht **Docker auf deinem lokalen Rechner** (nicht auf dem Login-Knoten — dort läuft kein Docker). Du baust lokal, pushst nach Docker Hub und konvertierst dann auf dem Cluster.
 
-**Variante 1 — mit dem PowerShell-Skript (Windows, empfohlen):**
+**Variante 1 — mit dem Build-Skript (empfohlen):**
 
-[`Training/update_image.ps1`](../../Training/update_image.ps1) prüft Docker-Login, baut und pusht in einem Rutsch:
+[`Training/update_image.sh`](../../Training/update_image.sh) prüft Docker-Login, baut und pusht in einem Rutsch:
 
-```powershell
-docker login                          # einmalig — Token landet in %USERPROFILE%\.docker\config.json
+```bash
+docker login                            # einmalig
 cd Training
-.\update_image.ps1                    # Build + Push (aktueller Dockerfile-Stand)
-.\update_image.ps1 -UpdateCommit      # zusätzlich neuesten GR00T-Commit ins Dockerfile eintragen
-.\update_image.ps1 -NoCache           # Build ohne Cache (z. B. nach flash-attn-Problemen)
-.\update_image.ps1 -SkipPush          # nur lokal bauen, nicht pushen
-.\update_image.ps1 -DryRun            # nur Befehle anzeigen
+./update_image.sh                       # Build + Push (aktueller Dockerfile-Stand)
+./update_image.sh --update-commit       # zusätzlich neuesten GR00T-Commit ins Dockerfile eintragen
+./update_image.sh --no-cache            # Build ohne Cache (z. B. nach flash-attn-Problemen)
+./update_image.sh --skip-push           # nur lokal bauen, nicht pushen
+./update_image.sh --dry-run             # nur Befehle anzeigen
 ```
 
 Das Skript taggt das Image doppelt (`:latest` und `:<timestamp>`) und pusht beide.
+*(Das frühere Windows-Pendant `update_image.ps1` wurde entfernt; unter Windows WSL2 verwenden.)*
 
 **Variante 2 — manuell mit `docker` (Linux/macOS/WSL2):**
 
@@ -358,7 +354,7 @@ docker logs -f groot-train       # Logs verfolgen
 ```bash
 git clone https://github.com/Docboter/projektarbeit_humanoider_roboter.git
 cd projektarbeit_humanoider_roboter
-git checkout training-luca-KISSKI
+git checkout training-luca-IKR-IS6.0
 docker build -t projektarbeit-humanoider-roboter Training/   # Build-Context = Training/
 ```
 
@@ -459,26 +455,16 @@ docker cp groot-train:/data/g1_dex3_finetune ./checkpoints
 
 Mit dem Launcher: `./Training/setup_and_train_DockerHub-pull.sh --resume`. Manuell: `docker start -ai groot-train`. Der Entrypoint sieht, dass Daten vorhanden sind, und überspringt Download + Konvertierung.
 
-> **Wichtig — was beim Resume passiert:**
->
-> `docker start` bzw. `--resume` startet den *Container* neu, sodass Daten und geschriebene
-> Checkpoints erhalten bleiben. **Das Training setzt dabei automatisch am letzten Checkpoint
-> fort** — es beginnt *nicht* bei Step 0.
->
-> Warum: [`experiment.py:288/290`](../../app/Groot-1.6/gr00t/experiment/experiment.py) ruft
-> `trainer.train(resume_from_checkpoint=True)` **bedingungslos** auf; der Trainer löst das über
-> `get_last_checkpoint(output_dir)` auf und stellt `TrainerState` (inkl. `global_step`) und
-> Optimizer wieder her ([`trainer.py:244`](../../app/Groot-1.6/gr00t/experiment/trainer.py)).
-> Das funktioniert, weil `OUTPUT_DIR`/`EXPERIMENT_NAME` **nicht** datumsgestempelt sind
-> (`/data/g1_dex3_finetune/blockstacking` + `g1_dex3_blockstacking_v1`) und über Neustarts hinweg
-> identisch bleiben.
->
-> Zwei Konsequenzen:
-> - Findet der Trainer **keinen** Checkpoint im `output_dir`, loggt er eine Warnung und startet
->   regulär bei Step 0.
-> - Das Verhalten ist **nicht abschaltbar** — es gibt keinen `--resume_from_checkpoint`-CLI-Flag
->   in `launch_finetune.py`. Wer bewusst von vorn trainieren will, muss ein anderes
->   `EXPERIMENT_NAME` bzw. `OUTPUT_DIR` setzen oder die vorhandenen `checkpoint-*` wegräumen.
+> **Wichtig — was beim Resume passiert:** `docker start` bzw. `--resume` startet den
+> *Container* neu (Daten und Checkpoints bleiben erhalten), und **das Training setzt dabei
+> automatisch am letzten Checkpoint fort** — nicht bei Step 0. Der Trainer löst das über
+> `get_last_checkpoint(output_dir)` auf und stellt `TrainerState` (inkl. `global_step`) sowie
+> den Optimizer wieder her ([`trainer.py:244`](../../app/Groot-1.6/gr00t/experiment/trainer.py));
+> findet er **keinen** Checkpoint, loggt er eine Warnung und startet regulär bei Step 0. Nicht
+> abschaltbar (kein `--resume_from_checkpoint`-CLI-Flag) — bewusst von vorn trainieren geht nur
+> mit anderem `EXPERIMENT_NAME`/`OUTPUT_DIR` oder durch Wegräumen der vorhandenen
+> `checkpoint-*`. Hintergrund und Fundstellen (kanonische Fassung, inkl. Job-15271760-Vorfall):
+> [env-vars.md § Namespace des Laufs](env-vars.md#namespace-des-laufs---der-fork-setzt-ungefragt-fort).
 
 ### Was ist, wenn ich versehentlich `--rm` benutze?
 

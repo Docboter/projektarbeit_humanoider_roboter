@@ -288,7 +288,7 @@ belegt — die Gegenprobe zu [`lauf2-vision-auswertung.md`](lauf2-vision-auswert
 bestanden, wo derselbe Schalter *ohne* Jitter zum Politik-Kollaps führte. Der Gap ist damit
 allerdings nicht geschlossen: 27,6 % in der Sim gegen 100 % auf echten Bildern. Die vollständige
 Auswertung steht in
-[rl-anleitung.md, Läufe 33/34](../weiterfuehrend/rl-anleitung.md#läufe-3334-runs2026081403-runs2026081404-der-tune_visual-checkpoint-im-closed-loop).
+[diagnose-chronik.md, Läufe 33/34](diagnose-chronik.md#läufe-3334-runs2026081403-runs2026081404-der-tune_visual-checkpoint-im-closed-loop).
 
 ### 8.4 Episode 288 anschauen
 Billig und potenziell aufschlussreich: warum stagniert eine einzelne Testepisode ab Step
@@ -324,4 +324,4 @@ Befund für die Ausarbeitung.
 | Domain-Gap-Messung | [`domain-gap-analyse.md`](domain-gap-analyse.md) |
 | Methodik-Review Sim-Eval | [`sim-bewertung.md`](sim-bewertung.md) |
 | Priorisierung / Gate-Definition | [`next-steps.md`](../../next-steps.md) |
-| Closed-Loop-Eval + `span` von checkpoint-30000 (8.3) | `Simulation/runs/20260814/03` und `04` (gitignored) · Auswertung in [rl-anleitung.md](../weiterfuehrend/rl-anleitung.md#läufe-3334-runs2026081403-runs2026081404-der-tune_visual-checkpoint-im-closed-loop) |
+| Closed-Loop-Eval + `span` von checkpoint-30000 (8.3) | `Simulation/runs/20260814/03` und `04` (gitignored) · Auswertung in [diagnose-chronik.md](diagnose-chronik.md#läufe-3334-runs2026081403-runs2026081404-der-tune_visual-checkpoint-im-closed-loop) |

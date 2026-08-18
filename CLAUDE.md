@@ -22,8 +22,9 @@ Detailed guides (all prose docs live under [`docs/`](docs/README.md)):
 - **G1/DEX3 joint layout & datasets:** [`app/Groot-1.6/examples/G1_DEX3/README.md`](app/Groot-1.6/examples/G1_DEX3/README.md)
 - **Sim eval on vast.ai (German):** [`docs/simulation/vastai-anleitung.md`](docs/simulation/vastai-anleitung.md)
 - **Sim implementation notes & lessons learned:** [`docs/simulation/umsetzungsnotizen.md`](docs/simulation/umsetzungsnotizen.md)
-- **Results & evaluation (German):** [`docs/ergebnisse/`](docs/ergebnisse/README.md) — run analyses, domain-gap, sim methodology review, baseline
-- **Further work / concepts (German):** [`docs/weiterfuehrend/`](docs/weiterfuehrend/README.md) — RL plan + operative RL guide ([`rl-anleitung.md`](docs/weiterfuehrend/rl-anleitung.md); RL runs end-to-end on the Blackwell server; the runs 25–28 grasp-physics blocker fell in run 29 (2026-08-12) — with the corrected fingertip reference point the hand lifts a cube 7.9 cm, so a reward signal is reachable; learning effect still unverified), locomotion research (not implemented), livestream plan (Spur A/WebRTC open; Spur B/MJPEG `LIVE_VIEW` is built)
+- **Results & evaluation (German):** [`docs/ergebnisse/`](docs/ergebnisse/README.md) — run analyses, domain-gap, sim methodology review, plus the **diagnose chronicle** ([`diagnose-chronik.md`](docs/ergebnisse/diagnose-chronik.md), runs 08–34 — the project-wide "Lauf N" references resolve here)
+- **Further work / concepts (German):** [`docs/weiterfuehrend/`](docs/weiterfuehrend/README.md) — RL plan + slim operative RL guide ([`rl-anleitung.md`](docs/weiterfuehrend/rl-anleitung.md); RL runs end-to-end on the Blackwell server; run 32 (span gate) confirmed the domain gap, run 34 measured the `TUNE_VISUAL` checkpoint at 27.6% vs 20.5% finger span with `lifted` still 0/10 → next step is co-training, RL after; learning effect still unverified), locomotion research (not implemented), livestream plan (Spur A/WebRTC open; Spur B/MJPEG `LIVE_VIEW` is built)
+- **Outdated content / changelog raw material:** [`docs/historie.md`](docs/historie.md) — superseded findings are moved here instead of being kept inline (e.g. the former `umgebungsanalyse.md` audit, run-1 fix round, June domain-gap first measurement)
 
 ## Key commands
 
@@ -78,13 +79,13 @@ KISSKI partitions: `kisski` (A100 80 GB) and `kisski-h100` (H100 94 GB), max wal
 Full guide: [`docs/simulation/vastai-anleitung.md`](docs/simulation/vastai-anleitung.md)
 Known fixes & GPU requirements: [`docs/simulation/umsetzungsnotizen.md`](docs/simulation/umsetzungsnotizen.md)
 
-```powershell
+```bash
 # 1. Build + push sim image (includes entrypoint_sim.sh with unset VIRTUAL_ENV fix)
-.\Simulation\update_sim_image.ps1 -VastAI
+./Simulation/update_sim_image.sh --vastai
 
 # 2. Upload checkpoint to HuggingFace (skips optimizer.pt by default)
-python Simulation\scripts\upload_checkpoint.py `
-  --checkpoint "C:\path\to\checkpoint-3000" --repo luca-mue/groot-g1dex3-checkpoint
+python Simulation/scripts/upload_checkpoint.py \
+  --checkpoint /path/to/checkpoint-3000 --repo luca-mue/groot-g1dex3-checkpoint
 
 # 3. Generate USD asset (one-time, local Docker)
 #    → see docs/simulation/vastai-anleitung.md Schritt 3, or data/g1_dex3.usd already exists
@@ -182,21 +183,24 @@ repo root
 │   ├── README.md                       # Doc navigation hub + project structure
 │   ├── training/                       # operative guides: anleitung.md, kisski-hpc.md, env-vars.md,
 │   │                                   #   multi-gpu.md, train-test-split.md, wandb-offline-sync.md,
-│   │                                   #   fixes-aus-erstem-lauf.md, co-training.md (step 4: real +
+│   │                                   #   trainingsverfahren.md, co-training.md (step 4: real +
 │   │                                   #   rendered images; tools built 2026-08-14, run still pending)
-│   ├── simulation/                     # operative guides: vastai-anleitung.md, umsetzungsnotizen.md (READ FIRST)
+│   ├── simulation/                     # operative guides: vastai-anleitung.md, umsetzungsnotizen.md (READ FIRST),
+│   │                                   #   live-ansicht.md, inferenz-optimierung.md,
+│   │                                   #   wuerfellage-rekonstruktion.md (cube layout handover doc),
+│   │                                   #   baseline-eval.md (stock-gripper baseline, first run pending)
 │   │   └── archiv/                     # superseded planning docs (isaac-lab-plan, sim-docker-build,
 │   │                                   #   kisski-desktop, gpu-kompatibilitaet)
-│   ├── ergebnisse/                     # evaluations: lauf1-auswertung.md, lauf2-vision-auswertung.md,
+│   ├── ergebnisse/                     # evaluations: lauf1-zwischenstand.md, lauf1-auswertung.md,
+│   │                                   #   lauf2-vision-auswertung.md,
 │   │                                   #   lauf3-vision-split-auswertung.md (first real validation:
 │   │                                   #   checkpoint sweep U-curve, best ckpt 30000, last one 25% worse),
-│   │                                   #   wandb-run-auswertung.md, domain-gap-analyse.md,
-│   │                                   #   sim-bewertung.md, baseline-unitree-g1.md
-│   ├── weiterfuehrend/                 # reinforcement-learning-plan.md (+ rl-anleitung.md operative guide;
-│   │                                   #   RL runs end-to-end; runs 25–28 grasp blocker fell in run 29 —
-│   │                                   #   cube lifts 7.9 cm), lokomotion-recherche.md
+│   │                                   #   diagnose-chronik.md (runs 08–34 protocol — "Lauf N" refs live here),
+│   │                                   #   domain-gap-analyse.md, sim-bewertung.md
+│   ├── weiterfuehrend/                 # reinforcement-learning-plan.md (status source) + rl-anleitung.md
+│   │                                   #   (slim operative guide; run history moved to
+│   │                                   #   ergebnisse/diagnose-chronik.md), lokomotion-recherche.md
 │   │                                   #   (not implemented), livestream-plan.md (Spur A open, Spur B built)
-│   ├── umgebungsanalyse.md             # cross-cutting audit
 │   ├── fehlerbehebung.md               # cross-cutting troubleshooting
 │   └── portabilitaet.md                # ★ Portability: no host-bound paths in scripts any more.
 │                                       #   server_rl_run.sh reads a gitignored .env.local (template:
@@ -211,11 +215,9 @@ repo root
 │   ├── kisski_submit.sh                # SLURM batch script for KISSKI HPC cluster
 │   ├── kisski_open_loop_eval.sh        # SLURM job: open-loop checkpoint eval (open_loop_eval.py, no server)
 │   ├── kisski_rl_submit.sh             # SLURM job: RL fine-tuning (FPO) — sim SIF, RT-core GPU guard (TEMPLATE)
-│   ├── update_image.ps1                # Host build/push tool (must sit next to Dockerfile)
-│   ├── update_image.sh                 # Linux/bash port of update_image.ps1
+│   ├── update_image.sh                 # Host build/push tool (must sit next to Dockerfile)
 │   ├── setup_and_train_DockerHub-pull.sh   # Thin host launcher: docker pull + docker run
-│   ├── setup_and_train_DockerHub-pull.ps1  # Windows variant
-│   ├── setup_and_train_Container-build.* # Host launcher that builds the image locally
+│   ├── setup_and_train_Container-build.sh  # Host launcher that builds the image locally
 │   └── scripts/                        # COPIED into image at /scripts/
 │       ├── entrypoint.sh               # Autonomous orchestrator (download→convert→train; TUNE_VISUAL routes here)
 │       ├── download_data.sh            # HuggingFace download (model + dataset)
@@ -255,8 +257,7 @@ repo root
 │   │                                   #   switches the sim container to host networking — NVIDIA says
 │   │                                   #   WebRTC requires it; first suspect if the viewport stays black)
 │   ├── server_robocasa_ref_run.sh      # Own-server RoboCasa GR-1 reference eval (pipeline validation)
-│   ├── update_sim_image.ps1            # Build/push tool (-VastAI flag for Dockerfile.vastai)
-│   ├── update_sim_image.sh             # Linux/bash port of update_sim_image.ps1
+│   ├── update_sim_image.sh             # Build/push tool (--vastai flag for Dockerfile.vastai)
 │   │                                   #   (sim docs moved to docs/simulation/)
 │   ├── g1_dex3_sim/                    # COPIED into image at /workspace/g1_dex3_sim/
 │   │   ├── run_g1_dex3_sim_eval.py     # Main eval loop (model-based, ZMQ client to GR00T server)

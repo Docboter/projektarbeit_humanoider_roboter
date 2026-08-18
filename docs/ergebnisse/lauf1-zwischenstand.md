@@ -1,10 +1,11 @@
-# W&B-Auswertung — Run `g1_dex3_blockstacking_v1`
+# Zwischenstand — erster Trainingsdurchlauf (`g1_dex3_blockstacking_v1`)
 
 **Erstellt:** 2026-06-02 · **Aktualisiert:** 2026-06-03 · **Datenquelle:** W&B-Projekt
 `gr00t-g1-dex3` (Entity `projektarbeit_humanoider_roboter`) · **Run-ID:** `i6n1t613`
 
-> Momentaufnahme eines noch **laufenden** Trainings. Die unten genannten
-> Schrittzahlen sind der Stand zum Aktualisierungszeitpunkt; der Lauf läuft weiter.
+> **Zwischenstand-Auswertung (Health-Check) des zum Zeitpunkt der Erstellung noch
+> laufenden 1. Laufs**, Stand 2026-06-02/03. Die unten genannten Schrittzahlen sind der
+> Stand zum Aktualisierungszeitpunkt, nicht der Endstand.
 
 > ✅ **Der Lauf ist inzwischen abgeschlossen (175.000 Steps).** Die vollständige
 > Abschluss-Auswertung inkl. Verhaltens-Evaluation (Closed-Loop, Replay, Open-Loop) und

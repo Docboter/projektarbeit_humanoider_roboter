@@ -6,7 +6,7 @@ Partial-Finetune auf Unitree G1 + DEX3, Task „stack the blocks".
 
 > Dies ist die **abschließende** Auswertung des ersten kompletten Laufs (175.000 Steps,
 > abgeschlossen). Die mitlaufende Momentaufnahme während des Trainings steht in
-> [`wandb-run-auswertung.md`](wandb-run-auswertung.md); dieses Dokument ergänzt sie um
+> [`lauf1-zwischenstand.md`](lauf1-zwischenstand.md); dieses Dokument ergänzt sie um
 > die **Verhaltens-Evaluation** (Sim-Closed-Loop, Replay, Open-Loop) und das Gesamtfazit.
 
 ---
@@ -133,7 +133,7 @@ gedeckelt.
 
 **Strukturelle Lücke: keine Eval-Metrik.** `eval_strategy = "no"`,
 `enable_open_loop_eval = false` → kein Val-Signal, keine fundierte Checkpoint-Auswahl,
-Overfitting prinzipiell unsichtbar (Details in [`wandb-run-auswertung.md`](wandb-run-auswertung.md), Abschnitt 3).
+Overfitting prinzipiell unsichtbar (Details in [`lauf1-zwischenstand.md`](lauf1-zwischenstand.md), Abschnitt 3).
 
 ### Nachgemessen 2026-08-13: Step 1000 gegen Step 175000
 
@@ -171,7 +171,7 @@ Demonstrations-Aktionen mit MSE 0,0018 fast exakt vorher — in der **Sim** komm
 dieselbe Policy 19 % der Fingerspanne und erreicht 0/20. Das ist die schärfste
 Formulierung des Domain-Gaps, die das Projekt hat, unabhängig gemessen und deckungsgleich
 mit dem `span`-Gate aus Lauf 32 (Verhältnis 1,00 auf Realbildern, siehe
-[rl-anleitung.md](../weiterfuehrend/rl-anleitung.md)). „Griff nie gelernt" ist damit ein
+[diagnose-chronik.md](diagnose-chronik.md)). „Griff nie gelernt" ist damit ein
 zweites Mal ausgeschlossen, und die Trainingspipeline ist entlastet.
 
 ---
@@ -245,7 +245,7 @@ von `max_cube_lift = 1,0 cm` (kein Greifen) auf **2,8 cm** (Greifen bestätigt) 
 > **Aufgelöst mit Lauf 29 (2026-08-12):** Ursache war der Referenzpunkt der Messung — sie lief
 > am distalen Gelenk statt an den Fingerspitzen. Korrigiert hebt die Hand einen Würfel **7,9 cm**;
 > die Greif-Physik war nicht defekt. Siehe
-> [`rl-anleitung.md`](../weiterfuehrend/rl-anleitung.md), Läufe 25–29.
+> [`diagnose-chronik.md`](diagnose-chronik.md), Läufe 25–29.
 
 Die wesentlichen Fixes:
 
@@ -299,6 +299,11 @@ Die Diagnose ist damit **dreifach bestätigt**:
 - Benötigt ~3–4× mehr VRAM (volle 3B-Parameter trainierbar) und mehr Demonstrations-Daten.
 - Würde das Modell für eine spätere Verwendung am echten Roboter **schlechter** machen.
 
+> **Nachtrag 2026-08-14:** Lauf 3 (`tune_visual` **mit** Color-Jitter und 80/20-Split) zeigt
+> einen messbar positiven Closed-Loop-Effekt (Fingerspanne 27,6 % statt 20,5 %,
+> p = 3,3 · 10⁻⁴), `lifted` bleibt 0/10 — das Pauschal-Verdikt oben gilt so nicht mehr. Siehe
+> [`lauf3-vision-split-auswertung.md`](lauf3-vision-split-auswertung.md) §8.3.
+
 #### Option B: Reinforcement Learning (RL)
 
 **Machbar, mittlerer bis hoher Aufwand** (~2–3 Wochen Engineering):
@@ -338,7 +343,7 @@ Für dieses Projekt (kein echter Roboter verfügbar):
 
 | Zweck | Datei |
 |---|---|
-| W&B-Trainingsmetriken (Mid-Run-Snapshot) | [`wandb-run-auswertung.md`](wandb-run-auswertung.md) · [`wandb-run-charts.html`](wandb-run-charts.html) |
+| W&B-Trainingsmetriken (Mid-Run-Snapshot) | [`lauf1-zwischenstand.md`](lauf1-zwischenstand.md) · [`wandb-run-charts.html`](wandb-run-charts.html) |
 | Diagnose 1 — Dataset-Replay (Sim/Config) | [`Simulation/kisski_replay_submit.sh`](../../Simulation/kisski_replay_submit.sh) · `Simulation/scripts/entrypoint_replay.sh` |
 | Diagnose 2 — Open-Loop-Modell-Eval | [`Training/kisski_open_loop_eval.sh`](../../Training/kisski_open_loop_eval.sh) · `gr00t/eval/open_loop_eval.py` |
 | Closed-Loop-Sim-Eval | `Simulation/kisski_sim_submit.sh` · `Simulation/g1_dex3_sim/run_g1_dex3_sim_eval.py` |

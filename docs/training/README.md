@@ -17,7 +17,10 @@ KISSKI HPC-Cluster.
 | [train-test-split.md](train-test-split.md) | 80/20-Datensatz-Split **und Checkpoint-Auswahl** — Implementierung, Nutzung und warum die Validierung erst *nach* dem Lauf stattfinden kann (der Fork hat keine In-Training-Eval: `enable_open_loop_eval` ist tot, `factory.py` sperrt `eval_strategy != "no"`). Werkzeug: [`checkpoint_sweep.py`](../../Training/scripts/checkpoint_sweep.py). |
 | [co-training.md](co-training.md) | **Schritt 4 — echte + gerenderte Bilder.** Warum Lauf 34 (`TUNE_VISUAL`) den richtigen Hebel gefunden, aber nicht weit genug gedreht hat, und wie der Encoder Sim-Bilder ins Training bekommt: Renderer (`server_rl_run.sh render`), Zwei-Datensatz-Training (`USE_COTRAIN=1`), begründete Werte für Episodenzahl und Mischungsverhältnis, vorregistrierte Erfolgsregel. **Werkzeuge gebaut, Lauf steht aus.** |
 | [wandb-offline-sync.md](wandb-offline-sync.md) | W&B-Offline-Sync auf KISSKI (Compute-Knoten ohne Internet). |
-| [fixes-aus-erstem-lauf.md](fixes-aus-erstem-lauf.md) | **Fixes aus dem ersten Lauf** — konkrete Maßnahmen aus der Auswertung (Domain-Gap: Würfelfarbe, Stapel-Band, schwarze Hände, `BLACK_HANDS`-Auto-Recolor), neue Werkzeuge, Anwenden/Verifizieren, offene Punkte. |
+
+> Die abgeschlossene Fix-Runde aus dem 1. Lauf (Würfelfarbe, Stapel-Band, `BLACK_HANDS`-Recolor)
+> ist nach [../historie.md](../historie.md) ausgelagert; die Maßnahmen sind längst im Sim-Asset
+> aktiv und operativ in [../simulation/vastai-anleitung.md](../simulation/vastai-anleitung.md) dokumentiert.
 
 > **Auswertung der Läufe** liegt jetzt unter [`../ergebnisse/`](../ergebnisse/README.md)
 > (W&B-Metriken, Abschluss-Auswertung des 1. Laufs, Domain-Gap, Baseline). Der **RL-Plan** als

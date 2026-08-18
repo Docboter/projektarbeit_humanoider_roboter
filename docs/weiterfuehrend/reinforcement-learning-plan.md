@@ -14,7 +14,7 @@
 > Korrektur hebt die linke Hand im `GRASP_MODE=hold`-Test **7,9 cm** und hält den Würfel über
 > 202 Steps: **RL hat ein erreichbares Lernsignal.** Offen bleibt, wieviel des Hubs getragen ist
 > und wieviel Auflöse-Impuls des Einsetzens (der Test setzt den Würfel in die Fingergeometrie
-> hinein). Details: [rl-anleitung.md](rl-anleitung.md#lauf-29-der-würfel-hebt-ab-mit-einem-vorbehalt).
+> hinein). Details: [diagnose-chronik.md](../ergebnisse/diagnose-chronik.md#lauf-29-der-würfel-hebt-ab-mit-einem-vorbehalt).
 >
 > **⛔ RL ist trotzdem nicht der nächste Schritt (Lauf 30, 2026-08-12).** Die BC-Baseline steht bei
 > **0/20**, und die vorregistrierte Regel sagt dafür: einem Nullpunkt-Reward fehlt das Startsignal.
@@ -22,14 +22,14 @@
 > in der Demonstration (19 %)**, versucht also gar keinen Griff. Die Regel zeigt damit auf
 > **Wahrnehmung/Politik** (`TUNE_VISUAL=1`), nicht auf RL. Der FPO-Pfad bleibt gebaut und auf
 > Hardware validiert — er wartet auf eine BC-Policy, die überhaupt gelegentlich Erfolg hat.
-> Details: [rl-anleitung.md](rl-anleitung.md#lauf-30-die-vorregistrierte-regel-ist-geschlossen--die-politik-greift-nicht).
+> Details: [diagnose-chronik.md](../ergebnisse/diagnose-chronik.md#lauf-30-die-vorregistrierte-regel-ist-geschlossen--die-politik-greift-nicht).
 >
 > **✅ Bestätigt durch das `span`-Gate (Lauf 32, 2026-08-13).** Dieselbe Policy auf **echten
 > Datensatz-Bildern** erreicht ein Median-Verhältnis von **1,00** (fünf Trajektorien, 0,84–1,01) —
 > sie kommandiert die volle Greifbewegung, sobald die Bilder echt sind. Nach der vorregistrierten
 > Regel (`≥ 70 %`) ist damit der **Domain-Gap die Ursache** und „Griff nie gelernt" ausgeschlossen.
 > `TUNE_VISUAL=1` war damit der begründete nächste Lauf, RL kommt danach.
-> Details: [rl-anleitung.md](rl-anleitung.md#lauf-32-runs2026081301-das-span-gate-ist-entschieden--a1).
+> Details: [diagnose-chronik.md](../ergebnisse/diagnose-chronik.md#lauf-32-runs2026081301-das-span-gate-ist-entschieden--a1).
 >
 > **🟡 `TUNE_VISUAL` ist gefahren — das Gate hat sich bewegt, RL bleibt trotzdem hinten
 > (Lauf 34, 2026-08-14).** Der Vision-Checkpoint (`vision_v2`, checkpoint-30000) kommandiert im
@@ -38,7 +38,7 @@
 > Maßnahme wirkt also nachweislich, schließt den Gap aber nicht: **`lifted` bleibt 0/10** und die
 > BC-Erfolgsrate damit 0. Für RL ändert das nichts an der Reihenfolge — das Startsignal fehlt
 > weiterhin. Nächster Schritt ist Co-Training auf gerenderten Bildern.
-> Details: [rl-anleitung.md](rl-anleitung.md#läufe-3334-runs2026081403-runs2026081404-der-tune_visual-checkpoint-im-closed-loop).
+> Details: [diagnose-chronik.md](../ergebnisse/diagnose-chronik.md#läufe-3334-runs2026081403-runs2026081404-der-tune_visual-checkpoint-im-closed-loop).
 >
 > **Bereits umgesetzt** (Stand 2026-06-12, Glue-Fixes 2026-08-07/08):
 > - **Gruppe 1 (Reward):** Shaped Reward im Env hinter `reward_mode="shaped"` —
@@ -62,7 +62,8 @@
 > RT-Cores — RL läuft dort, keine vast.ai-Miete nötig. Isaac Sim 5.1 stürzte auf dem dortigen
 > Treiber-Branch 610.x im RTX-Renderer ab; der Treiber ist nicht änderbar, deshalb der Port auf
 > **Isaac Sim 6.0** (`isaac-lab` 3.0.0-beta2-post1). Auf einer Maschine ohne dieses Image zuerst
-> `update_sim_image.sh --vastai` bauen, siehe Status-Callout in [rl-anleitung.md](rl-anleitung.md).
+> `update_sim_image.sh --vastai` bauen, siehe
+> [Pfad B in rl-anleitung.md](rl-anleitung.md#pfad-b--eigener-docker-gpu-server-mit-rt-cores--empfohlen-wenn-verfügbar).
 >
 > 👉 **Operative Schritt-für-Schritt-Anleitung zum Starten:** [rl-anleitung.md](rl-anleitung.md)
 > (Pfad B = eigener Server, Pfad A = vast.ai).

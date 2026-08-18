@@ -26,7 +26,8 @@ Task „stack the blocks".
   **reinen Realdaten** aufzutauen schließt den Sim-Domain-Gap **nicht** — der Encoder
   bekommt im Training nie ein Sim-Bild zu sehen — und bringt bei nur ~301 Demonstrationen
   das Risiko von **Catastrophic Forgetting / Über-Spezialisierung** mit, das sich hier als
-  Politik-Kollaps materialisiert hat.
+  Politik-Kollaps materialisiert hat. Differenzierende Einordnung nach Lauf 3: siehe
+  §7-Nachtrag bzw. [`lauf3-vision-split-auswertung.md`](lauf3-vision-split-auswertung.md).
 - **Strukturelle Lücke wie in Lauf 1:** weiterhin **keine Validierungs-/Eval-Metrik**
   (`eval_strategy = "no"`) → Checkpoint-Auswahl blind, Overfitting prinzipiell unsichtbar.
 

@@ -717,7 +717,7 @@ do_rl() {
   docker exec "${RL_ENV[@]}" "$CONTAINER" bash -lc "bash /scripts/entrypoint_rl.sh"
 }
 
-# Schritt 3 der Diagnosekette (rl-anleitung.md): BC-Erfolgsrate in der Sim.
+# Schritt 3 der Diagnosekette (docs/ergebnisse/diagnose-chronik.md): BC-Erfolgsrate in der Sim.
 #
 # Misst die Zielgroesse direkt statt ueber den Proxy Domain-Gap — und entscheidet damit,
 # ob sich ein TUNE_VISUAL=1-Lauf (~48 h H100) lohnt. Zugleich der Nullpunkt, gegen den
@@ -862,7 +862,7 @@ do_optimize() {
 do_cams() {
   ensure_checkpoint
   ensure_black_hands
-  # Messhebel für die leeren Kamerabilder (je ein Lauf pro Wert, siehe rl-anleitung.md):
+  # Messhebel für die leeren Kamerabilder (je ein Lauf pro Wert, siehe docs/ergebnisse/diagnose-chronik.md):
   #   RL_SETTLE_STEPS   Render-Konvergenz
   #   RL_AA_MODE        Anti-Aliasing-Modus
   #   RL_DOME_INTENSITY Belichtung — Basiswert der Szene

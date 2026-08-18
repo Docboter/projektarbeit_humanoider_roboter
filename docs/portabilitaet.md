@@ -36,6 +36,11 @@ explizit gesetzte Umgebungsvariable   >   .env.local (nur server_rl_run.sh)   > 
 
 ## 2. Migration — das alte Verhalten auf den eigenen Maschinen wiederherstellen
 
+> **Zeitgebundener Abschnitt:** gilt nur für die Umstellung nach dem Umbau vom 2026-08-18.
+> Sobald die Checkliste in § 2.3 auf beiden Maschinen abgearbeitet ist, ist dieser Abschnitt
+> nur noch historisch relevant (→ dann nach [historie.md](historie.md) verschieben);
+> für neue Nutzer gilt allein § 3.
+
 ### 2.1 IKR-Server (Docker, `server_rl_run.sh`)
 
 Bisher lag `/data` des Containers auf `/home/lmuecke/project/data/RL`. Ohne Zutun landet es

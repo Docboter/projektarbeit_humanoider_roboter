@@ -14,10 +14,10 @@ Die **Messkette ist geschlossen**. Der Reihe nach:
 |---|---|
 | Die Sim-Harness ist nicht kaputt | [sim-bewertung.md](docs/ergebnisse/sim-bewertung.md) |
 | Die GR00T-Inferenz-Pipeline ist extern bestätigt (47,7 % vs. 47,8 % erwartet) | [basismodell-referenz-eval.md](docs/ergebnisse/basismodell-referenz-eval.md) |
-| Die Politik versucht in der Sim gar keinen Griff (0,39 rad gegen 2,09 rad = **19 %**) | Lauf 30, [rl-anleitung.md](docs/weiterfuehrend/rl-anleitung.md) |
+| Die Politik versucht in der Sim gar keinen Griff (0,39 rad gegen 2,09 rad = **19 %**) | Lauf 30, [diagnose-chronik.md](docs/ergebnisse/diagnose-chronik.md) |
 | Auf **echten** Datensatz-Bildern kommandiert dieselbe Politik die volle Greifbewegung (Verhältnis **1,00**) | Lauf 32, `span`-Gate |
 | Die Checkpoint-Auswahl war bisher nicht nur unbelegt, sondern **falsch**: der letzte Checkpoint ist 25 % schlechter als der beste | [lauf3-vision-split-auswertung.md](docs/ergebnisse/lauf3-vision-split-auswertung.md) |
-| `TUNE_VISUAL` hebt die Sim-Fingerspanne von 20,5 % auf **27,6 %** (vollständige Trennung, p = 3,3 · 10⁻⁴) — und reicht trotzdem nicht: `lifted` 0/10 | Lauf 34, [rl-anleitung.md](docs/weiterfuehrend/rl-anleitung.md) |
+| `TUNE_VISUAL` hebt die Sim-Fingerspanne von 20,5 % auf **27,6 %** (vollständige Trennung, p = 3,3 · 10⁻⁴) — und reicht trotzdem nicht: `lifted` 0/10 | Lauf 34, [diagnose-chronik.md](docs/ergebnisse/diagnose-chronik.md) |
 
 Daraus folgt nach der vorregistrierten Regel: **Ursache ist der Domain-Gap**, nicht „Griff nie
 gelernt". Die Kopfzahl des Projekts bleibt damit **0/20 im Closed-Loop**.
@@ -188,7 +188,7 @@ Würfel-Verschiebung nicht (+0,05) — der Greifbefehl wirkt also mechanisch und
 von mehr Kontakt.
 
 Vollständige Auswertung inklusive Episodentabelle, Zuordnung und Vorbehalten:
-[rl-anleitung.md, Läufe 33/34](docs/weiterfuehrend/rl-anleitung.md#läufe-3334-runs2026081403-runs2026081404-der-tune_visual-checkpoint-im-closed-loop).
+[diagnose-chronik.md, Läufe 33/34](docs/ergebnisse/diagnose-chronik.md#läufe-3334-runs2026081403-runs2026081404-der-tune_visual-checkpoint-im-closed-loop).
 
 **Damit ist die Regel angewandt.** Sie sagte: bewegt sich die Spanne nicht deutlich über 19 %, ist
 der Vision-Pfad ausgereizt. Sie hat sich bewegt — der Pfad ist also **nicht** ausgereizt, aber

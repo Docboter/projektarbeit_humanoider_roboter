@@ -43,15 +43,15 @@ Einmalig zu erledigen, bevor du die erste Instanz startest:
 
 Auf deinem Laptop im Repo-Root:
 
-```powershell
+```bash
 # NGC-Login (Basis-Image nvcr.io/nvidia/isaac-lab:3.0.0-beta2-post1 ist ~25 GB)
 docker login nvcr.io   # Username: $oauthtoken   Password: <NGC-API-Key>
 
 # Image bauen und nach Docker Hub pushen (~30-60 min, nur beim ersten Mal)
-.\Simulation\update_sim_image.ps1 -VastAI
+./Simulation/update_sim_image.sh --vastai
 
 # Nur bauen, nicht pushen (zum Testen):
-.\Simulation\update_sim_image.ps1 -VastAI -SkipPush
+./Simulation/update_sim_image.sh --vastai --skip-push
 ```
 
 Ergebnis: `lucam03/projekt-humanoider-roboter-sim-vastai:latest` auf Docker Hub.
@@ -385,38 +385,13 @@ scp -P <port> root@<ip>:/data/logs/groot_server.log ./groot_server.log
 
 ## Optional — Live-Stream des 3D-Viewports (WebRTC)
 
-> ⚠️ **Dieser Abschnitt ist in Teilen veraltet und beschreibt einen auf Hardware ungetesteten
-> Weg.** Zwei Punkte vorweg:
-> 1. **Der Browser-Client auf Port 8211 existiert nicht mehr.** Er stammt aus Isaac Sim ≤ 5.x
->    und ist mit der Migration auf Isaac Sim 6.0 (2026-08-07) entfallen; das Image exponiert
->    den Port bewusst nicht mehr ([Dockerfile.vastai](../../Simulation/Dockerfile.vastai),
->    `EXPOSE 49100 8900`). Alle 8211-Angaben unten sind gegenstandslos — es bleibt der native
->    „Isaac Sim WebRTC Streaming Client" auf `LIVESTREAM_PORT` (49100).
-> 2. **Spur A (WebRTC) ist nicht auf Hardware verifiziert.** Der Abschnitt liest sich wie ein
->    erprobter Workflow, ist aber Konzept
->    → [../weiterfuehrend/livestream-plan.md](../weiterfuehrend/livestream-plan.md).
->
-> **Funktionierende Alternative:** „Spur B" — der MJPEG-Frame-Stream `LIVE_VIEW=1` auf Port
-> 8900. Reines HTTP, beliebig viele Zuschauer, per `ssh -L` tunnelbar, kein NVENC nötig.
->
-> **Update 2026-08-13:** Die Defekte D1–D4 sind behoben (gemeinsame
-> [`lib_livestream.sh`](../../Simulation/scripts/lib_livestream.sh), versionsabhängige
-> Kit-Settings, `PUBLIC_IP` nur noch bei `LIVESTREAM=1`), und `LIVESTREAM` wirkt jetzt auf
-> alle vier Läufe. Die **Bedienung steht in [live-ansicht.md](live-ansicht.md)** — dieser
-> Abschnitt hier behandelt nur noch den vast.ai-Sonderfall (zufälliges Port-Mapping).
-> Auf dem eigenen Server ist der Weg deutlich einfacher: `LIVESTREAM=2`, Ports frei wählbar.
-
-Standardmäßig läuft die Eval **headless** und produziert nur MP4s (Schritt 7). Mit
-`LIVESTREAM=1` streamt Isaac Sim stattdessen den **3D-Viewport live per WebRTC** — zum
-Zuschauen beim Greif-Verhalten in Echtzeit.
-
-> **Seit 2026-08-13: live *statt* Video.** Bei aktivem Livestream wird `--video-dir` leer
-> übergeben, es entstehen also **keine MP4s** mehr (spart pro Step eine GPU→CPU-Kopie).
-> Wer beides braucht: `LIVE_KEEP_VIDEO=1`.
-
-> **GPU-Voraussetzung:** WebRTC braucht den **NVENC**-Hardware-Encoder. Alle für die Sim
-> ohnehin geeigneten GPUs (L40, RTX 3090/4090, A6000) haben NVENC — A100/H100 sind bereits
-> aus zwei Gründen ausgeschlossen (keine RT-Cores **und** kein NVENC).
+Die Bedienung — Client-Installation, `livecheck`, `view`, alle Env-Vars, Fehlersuche — steht
+zentral in [live-ansicht.md](live-ansicht.md); das ist die Quelle der Wahrheit. Der
+eingebaute Browser-Client auf Port 8211 ist mit Isaac Sim 6.0 (2026-08-07) entfallen — es
+bleibt der native *Isaac Sim WebRTC Streaming Client* auf `LIVESTREAM_PORT` (Default 49100).
+Dieser Abschnitt behandelt nur, was auf vast.ai zusätzlich zu beachten ist: das zufällige
+Port-Mapping und das Stoppen/Neustarten der Workloads für einen Env-Var-Wechsel. Auf dem
+eigenen Server ist der Weg deutlich einfacher: `LIVESTREAM=2`, Ports frei wählbar.
 
 ### ⚠️ Das vast.ai-Port-Problem (wichtig!)
 
@@ -450,6 +425,13 @@ Ablauf:
    > `-p 49100 -p 47998/udp` und **`LIVESTREAM=0`** starten, externe Ports ablesen,
    > dann den Container neu starten und `LIVESTREAM`/`LIVESTREAM_PORT` setzen — oder gleich per
    > SSH den Sim mit den richtigen Werten manuell starten (`bash /scripts/entrypoint_sim.sh`).
+
+**Verbinden:** Client wie in [live-ansicht.md](live-ansicht.md) beschrieben (native *Isaac Sim
+WebRTC Streaming Client*), aber als Server-Adresse `<PUBLIC_IP>:<extern-gemappter-49100>`
+eintragen — die auf vast.ai zufällige Portnummer, nicht der Default 49100. Nur **ein** Client
+gleichzeitig pro Instanz; keine VPN/Tunnel-IP (ZeroTier etc.) nutzen, WebRTC braucht die echte
+öffentliche IP. UDP-Mapping (47998) ist auf vast.ai weniger zuverlässig als TCP — falls das
+Bild nicht durchkommt, auf die MP4-Aufzeichnung zurückfallen.
 
 ### Laufenden Server/Sim stoppen und neu starten (für Env-Wechsel)
 
@@ -497,22 +479,6 @@ bash /scripts/entrypoint_sim.sh
 > Deshalb die Instanz am besten gleich mit `SHELL_ON_ERROR=1` starten. Dann ist das
 > manuelle Stoppen/Neustarten gefahrlos — oder du setzt `LIVESTREAM`/`LIVESTREAM_PORT`
 > direkt beim Launch und sparst dir den Neustart ganz.
-
-### Verbinden
-
-Der Entrypoint gibt beim Start die Client-URL aus. Generell:
-
-~~**Browser (am einfachsten):**~~ ⚠️ **entfallen** — der eingebaute Browser-Client
-(`http://<IP>:8211/streaming/webrtc-client`) existierte nur bis Isaac Sim 5.x. Unter Isaac
-Sim 6.0 liefert diese URL garantiert nichts.
-
-**Native Isaac Sim WebRTC Streaming Client** (von NVIDIA, läuft ohne lokale GPU) — der
-verbleibende Weg für Spur A:
-Server eintragen als `<PUBLIC_IP>:<extern-gemappter-49100>`.
-
-> Nur **ein** Client gleichzeitig pro Instanz. Kein VPN/Tunnel-IP (ZeroTier etc.) nutzen —
-> WebRTC braucht die echte öffentliche IP. UDP-Mapping (47998) ist auf vast.ai weniger
-> zuverlässig als TCP; falls das Bild nicht durchkommt, auf die MP4-Aufzeichnung zurückfallen.
 
 ---
 
@@ -650,10 +616,10 @@ Output. Danach kommt `[Phase A] Isaac-Lab-Sim wird initialisiert …`.
 
 ## Zusammenfassung: Schnellstart
 
-Voraussetzungen: Image gepusht (`.\Simulation\update_sim_image.ps1 -VastAI`), Checkpoint und
+Voraussetzungen: Image gepusht (`./Simulation/update_sim_image.sh --vastai`), Checkpoint und
 USD-Asset auf HuggingFace (`luca-mue/groot-g1dex3-checkpoint`).
 
-1. `.\Simulation\update_sim_image.ps1 -VastAI` ausführen (nur wenn Image noch nicht gepusht)
+1. `./Simulation/update_sim_image.sh --vastai` ausführen (nur wenn Image noch nicht gepusht)
 2. vast.ai → Search → **L40** filtern (≥24 GB, Ampere+, RT-Cores) → Rent
 3. Image: `lucam03/projekt-humanoider-roboter-sim-vastai:latest`
 4. Docker Options: `--ipc=host --shm-size=16g -p 22`

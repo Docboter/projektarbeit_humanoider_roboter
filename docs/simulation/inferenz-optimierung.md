@@ -133,6 +133,95 @@ EPISODE_LENGTH_S=120 \
 `EXECUTION_HORIZON` entsprechen. Die TensorRT-Engine wird automatisch über den
 Checkpoint-Fingerprint gefunden. Ein expliziter Pfad ist mit `GROOT_TRT_ENGINE_PATH` möglich.
 
+## Latenz-Messung und Denoising-Schritte
+
+*Verschoben aus [live-ansicht.md](live-ansicht.md) (2026-08-18) — reine Modell-Performance-Analyse
+ohne Sim-Bezug, passt hier besser neben die anderen Inferenz-Optimierungen.*
+
+### Für echte Hardware zählt eine andere Zahl
+
+Auf einem realen Roboter entfällt das Rendering ersatzlos — die Kameras liefern ihre Bilder
+selbst. Übrig bleiben die 5 %: die Zeit vom Observation-Dict bis zum Action-Chunk. Die misst
+[`policy_latency.py`](../../Simulation/scripts/policy_latency.py) isoliert, in-process, ohne
+Sim und ohne ZMQ:
+
+```bash
+HF_TOKEN=hf_... ./Simulation/server_rl_run.sh latency
+```
+
+Maßstab ist das Chunk-Budget: ein Aufruf deckt `EXECUTION_HORIZON` Schritte ab, bei 8 Schritten
+und 30 Hz also 267 ms. Berichtet werden Mittel, Median, p95 und **Maximum** — im Echtzeitbetrieb
+ist der schlechteste Aufruf die relevante Zahl, weil ein einzelner Ausreißer über dem Budget
+eine Lücke in der Aktionsfolge bedeutet.
+
+**Messung 2026-08-13** (RTX PRO 6000 Blackwell, 50 Aufrufe, 4 Kameras à 640×480):
+
+| Bedingung | Mittel | Spanne | Budget-Auslastung (schlechtester Aufruf) |
+|---|---|---|---|
+| **freie GPU** | **74,4 ms** | 72,1–79,5 ms | 30 % |
+| GPU geteilt (zweiter GR00T-Server) | 107,8 ms | 91,4–188,2 ms | 71 % |
+| über ZMQ, in der Sim gemessen | ~88 ms | — | — |
+
+Drei Ablesungen daraus:
+
+1. **Die Policy ist schnell genug.** 74 ms gegen 267 ms Budget heißt 3,6-fache Reserve; die
+   Streuung von 7 ms macht sie zudem vorhersagbar. Ein *synchroner* 30-Hz-Regelkreis wäre mit
+   13,4 Hz zwar unmöglich — genau dafür gibt es das Action-Chunking, das 16 Schritte auf
+   einmal liefert.
+2. **Der Transport kostet ~14 ms** (88 − 74). Der ZMQ-Weg mit 3,7 MB unkomprimierten Bildern
+   je Aufruf ist lokal also kein Engpass. Über ein Netz zum Roboter wäre er einer.
+3. **Fremdlast ist das eigentliche Risiko.** Eine geteilte Karte kostet nicht nur 45 % im
+   Mittel, sie macht die Latenz unvorhersagbar (Spanne 97 statt 7 ms). Auf einem Roboter
+   gehört die Policy auf eine dedizierte GPU — für Echtzeit zählt die Vorhersagbarkeit, nicht
+   der Durchschnitt.
+
+> **Noch offen:** dieselbe Messung auf der Zielhardware (z. B. Jetson Thor). Eine RTX PRO 6000
+> mit 300 W ist keine Referenz für das, was auf dem Roboter steckt — dort ist mit einem
+> Vielfachen zu rechnen, und erst dann entscheidet sich, ob `EXECUTION_HORIZON` oder die
+> Modellgröße angefasst werden muss.
+
+### Woraus die 74 ms bestehen
+
+`--denoising-sweep` variiert `num_inference_timesteps` und trennt über die Steigung den
+iterativen Aktionskopf vom festen Rest (der Backbone läuft **einmal**, vor der
+Denoising-Schleife — [`gr00t_n1d6.py`](../../app/Groot-1.6/gr00t/model/gr00t_n1d6/gr00t_n1d6.py)):
+
+| Denoising-Schritte | Latenz |
+|---|---|
+| 1 | 45,2 ms |
+| 2 | 54,7 ms |
+| 4 (Default) | 74,0 ms |
+
+```
+t(n) = 35,6 ms + n × 9,6 ms        (Vorhersage für n=2: 54,8 ms — gemessen 54,7 ms)
+```
+
+Damit ist der **Aktionskopf die größere Hälfte**: 4 × 9,6 = 38,4 ms gegen 35,6 ms für Vision,
+LLM und Transformationen zusammen. Das war nicht die Erwartung — bei vier Kamerabildern durch
+einen 3B-VLM hätte man den Backbone vorn vermutet — und es dreht die Rangfolge der Hebel um:
+
+- **Für eine langsamere Zielplattform** ist `num_inference_timesteps` der erste Hebel:
+  4 → 2 spart 26 % der Latenz, 4 → 1 spart 39 %.
+- **35,6 ms sind die Untergrenze.** Darunter kommt man nur über den Backbone: weniger Kameras,
+  kleinere Eingabe, TensorRT/FP8.
+- **Heute wird nichts davon gebraucht** — 74 ms gegen 267 ms Budget. Die Zerlegung ist ein
+  Planungswerkzeug für die Portierung, keine offene Baustelle.
+
+> ⚠️ **Falle:** [`open_loop_eval.py`](../../app/Groot-1.6/gr00t/eval/open_loop_eval.py) im
+> GR00T-Fork deklariert eine Option `denoising_steps`, **wendet sie aber nirgends an** (der
+> Name kommt in der Datei genau einmal vor, in seiner eigenen Definition). Wer die
+> Qualitätskosten damit misst, vergleicht zwei identische Läufe. Für eine echte Messung muss
+> der Wert nach dem Laden am `action_head` gesetzt werden — so, wie es
+> [`policy_latency.py`](../../Simulation/scripts/policy_latency.py) tut.
+
+Die Differenz zwischen dieser Zahl und dem `Inferenz … ms/Aufruf` aus der Eval ist der
+**Transport-Overhead** des ZMQ-Wegs (4 unkomprimierte Bilder ≈ 3,7 MB je Aufruf).
+
+> Die Balance des Roboters hängt **nicht** an dieser Schleife: der Whole-Body-Controller läuft
+> entkoppelt mit eigener, deutlich höherer Rate und folgt nur Geschwindigkeitsbefehlen der VLA
+> ([lokomotion-recherche.md §3.1](../weiterfuehrend/lokomotion-recherche.md)). Eine zu langsame
+> Policy erzeugt ruckelige Bewegung, keinen Sturz.
+
 ## Wichtige Grenzen
 
 - TensorRT-Pläne sind nicht portabel. Bei anderem Checkpoint, GPU-Modell, Compute Capability

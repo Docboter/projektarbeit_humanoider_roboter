@@ -4,10 +4,15 @@ Dieses Dokument fasst Erkenntnisse zusammen, die beim Aufbau des Sim-Eval-Workfl
 gewonnen wurden und in keinem anderen Dokument stehen. Stand: 2026-05-31
 (Abschnitte 10–16 ergänzt bis 2026-06-05).
 
+**Lesehilfe:**
+- Kalibrierung & aktueller Stand: §10–§11, §13–§15
+- Build-/Runtime-Fixes (Referenz): §1–§9
+- Doku-Meta: §16
+
 > **Neuere Erkenntnisse (August 2026)** — Isaac-Sim-6.0-Migration, Kamera-Pose-Bug und
 > Neukalibrierung (Sichtfeld, Montagepunkt, Stereobasis), Domain-Gap-Neumessung sowie die
-> Greif-Diagnostik-Kette (Läufe 9–28) — sind im Troubleshooting-Teil von
-> [../weiterfuehrend/rl-anleitung.md](../weiterfuehrend/rl-anleitung.md) dokumentiert.
+> Greif-Diagnostik-Kette (Läufe 9–28) sind in
+> [../ergebnisse/diagnose-chronik.md](../ergebnisse/diagnose-chronik.md) dokumentiert.
 > Insbesondere gilt der Befund „Greifen validiert" aus §13 unter Isaac Sim 6.0 nicht mehr
 > uneingeschränkt (siehe Hinweis dort).
 
@@ -450,32 +455,7 @@ Ab hier ist **Training der Hebel**. Optionale Feinschritte: Würfel-Reibungsmate
 
 ## 12. Aktueller Stand (2026-06-04)
 
-Pipeline vollständig validiert. Replay-Diagnose bestätigt: Sim-Config ist korrekt, Greif-Physik
-funktioniert. Closed-Loop-Versagen ist nachweislich **Domain Gap** (eingefrorenem Vision-Encoder),
-nicht die Sim — Details in [§13](#13-physics-calibration-session-2026-06-04) und
-[`lauf1-auswertung.md`](../ergebnisse/lauf1-auswertung.md).
-
-| Komponente | Status |
-|---|---|
-| Pipeline (download → server → sim → eval) | ✅ end-to-end verifiziert |
-| 4 Policy-Kameras (high + wrist) | ✅ alle zeigen Tisch/Hände/Würfel |
-| Szenen-Übersichtskamera (Video) | ✅ |
-| Roboter-Startpose (Dataset Frame 0) | ✅ |
-| **Tischhöhe / Würfelposition** | ✅ Tisch 0,87 m; `block_z_surface = 0,915` → Würfel-Oberkante z=0,940 = tiefster Handpunkt |
-| **Dex3-Finger (Sign-Convention-Fix)** | ✅ `middle_0`/`index_0` (Indices 17,19,24,26) negiert in Actions + Obs |
-| **Greif-Physik** | ✅ `max_cube_lift = 2,8 cm` (Schwelle >2 cm = Greifen bestätigt) |
-| Aktions-Tracking | ✅ 0,021 rad mittlerer Arm-Fehler |
-| Finger-Aktuatoren | ✅ stiffness=60, effort=20 N·m, solver_iter=8 |
-| Würfel-Reibung | ✅ static=3,0 / dynamic=2,5 |
-| `Dockerfile.vastai` | ✅ aktuell; Rebuild via `./update_sim_image.sh --vastai` |
-| Modell `checkpoint-175000` Closed-Loop | ❌ Domain Gap (eingefroren. Vision-Encoder vs. Sim-Bilder) |
-| KISSKI Sim-Eval | ❌ Blockiert (RTX 5000 Turing < Ampere) |
-
-**Iteration auf warmer Instanz** (ohne Rebuild): geänderte Sim-Dateien per `scp` nach
-`/workspace/g1_dex3_sim/`, dann `NUM_EPISODES=2 PYTHONUNBUFFERED=1 bash /scripts/entrypoint_sim.sh`.
-Für reproduzierbaren Stand: Image neu bauen + pushen.
-
----
+§12 (Momentaufnahme 2026-06-04) → ausgelagert nach [`../historie.md`](../historie.md).
 
 ---
 
@@ -491,7 +471,7 @@ Diese Session hat die Greif-Physik der Sim systematisch kalibriert, ausgehend vo
 > **Aufgelöst mit Lauf 29 (2026-08-12):** Ursache war der Referenzpunkt der Greif-Diagnostik —
 > gemessen wurde am distalen Gelenk statt an den Fingerspitzen. Mit korrigiertem Referenzpunkt
 > hebt die Hand einen Würfel **7,9 cm**; die Greif-Physik war nie defekt. Details:
-> [../weiterfuehrend/rl-anleitung.md](../weiterfuehrend/rl-anleitung.md) (Läufe 25–29).
+> [../ergebnisse/diagnose-chronik.md](../ergebnisse/diagnose-chronik.md) (Läufe 25–29).
 
 ### 14.1 Finger-Aktuatoren (`g1_dex3_cfg.py`)
 
@@ -614,12 +594,8 @@ Kernursache, warum der eingefrorene Vision-Encoder im Closed-Loop versagt (§13.
 Simulation/compare_domain_gap.sh ./sim_cam_frames ./domain_gap_compare.png
 ```
 
-Messergebnis des ersten Laufs (mittlere Cosine-Distanz 0.260, `cam_left_wrist` kritisch bei
-0.427) ist in [`umgebungsanalyse.md`](../umgebungsanalyse.md) festgehalten.
-
-> ⚠️ **Diese Erstmessung ist überholt.** Sie stammt von vor dem Isaac-Sim-6.0-Port und vor der
-> Kamerakalibrierung. Gültig ist die Neumessung vom 2026-08-08: Mittelwert **0,2229**,
-> `cam_left_wrist` **0,3556** → [`domain-gap-analyse.md`](../ergebnisse/domain-gap-analyse.md).
+Erstmessung Juni 2026 → [`../historie.md`](../historie.md); gültig ist die Neumessung vom
+2026-08-08, siehe [`domain-gap-analyse.md`](../ergebnisse/domain-gap-analyse.md).
 
 ---
 
@@ -724,3 +700,6 @@ Die folgenden Dokumente sind historisch/überholt und liegen daher im Unterordne
 > (Architekturbaum mit Replay-Tool/`camera_reference`, Sim-Env-Tabelle). Das Trainings-README und
 > die Trainings-Anleitung (`docs/training/`) betreffen nur das Training — von den Sim-Eval-
 > Änderungen unberührt.
+
+**Seit 2026-08-18** werden veraltete Inhalte aus diesem und anderen Sim-Dokumenten zentral in
+[`../historie.md`](../historie.md) gesammelt, statt sie einzeln in `archiv/` abzulegen.

@@ -107,19 +107,21 @@ Vision-Encoder produziert für synthetische Isaac-Sim-Bilder schlechtere Feature
 Messstand nach Kamera-Neukalibrierung (2026-08-08): mittlere Cosine-Distanz **0,2229**,
 `cam_left_wrist` **0,3556** — die Juni-Erstmessung (0.260 / 0.427) ist überholt.
 
-> **Stand August 2026:** Der Domain Gap allein erklärt das Verhalten **nicht mehr**. Er liegt
-> nach der Kalibrierung unter der real↔real-Baseline (0,2726), die Erfolgsrate bleibt aber bei
-> 0/20. Die Greif-Diagnose der Läufe 29–31 zeigt: die Politik kommandiert nur ~19 % der
-> demonstrierten Fingerspannweite; eine fehlerhafte De-Normalisierung wurde als Ursache
-> ausgeschlossen. Der Hebel liegt damit (auch) in Wahrnehmung/Politik, nicht nur im Rendering
-> → [weiterfuehrend/rl-anleitung.md](weiterfuehrend/rl-anleitung.md).
+> **Stand 2026-08-14 (Läufe 29–34):** Die Greif-Diagnose der Läufe 29–31 zeigte: die Politik
+> kommandiert nur ~19 % der demonstrierten Fingerspannweite; eine fehlerhafte De-Normalisierung
+> wurde ausgeschlossen. **Lauf 32** (`span`-Gate) entschied die Ursache: auf **echten** Bildern
+> erreicht dieselbe Politik 100 % der Demo-Spanne → der visuelle Domain Gap ist bestätigt.
+> **Lauf 34** maß den daraufhin trainierten Vision-Checkpoint (`TUNE_VISUAL=1` + Jitter + Split)
+> im Closed Loop: Fingerspanne **27,6 % statt 20,5 %** (p = 3,3 · 10⁻⁴) — die Maßnahme wirkt,
+> `lifted` bleibt aber 0/10. Details: [ergebnisse/diagnose-chronik.md](ergebnisse/diagnose-chronik.md).
 
-**Lösung:** Domain Gap angehen statt Sim-Pipeline weiter zu tunen — Vision-Encoder fine-tunen
-(`TUNE_VISUAL=1`) oder Domain Randomization in der Sim (`USE_AUGMENTATION=1`, Default an).
+**Lösung:** Der wirksame Hebel ist der Vision-Encoder — mit Realdaten allein aber ausgereizt.
+Nächster Schritt ist **Co-Training auf echten + gerenderten Bildern**
+([training/co-training.md](training/co-training.md), `USE_COTRAIN=1`).
 Diagnose-Werkzeuge: [simulation/umsetzungsnotizen.md §14–15](simulation/umsetzungsnotizen.md).
 Aktuelle Messung: [ergebnisse/domain-gap-analyse.md](ergebnisse/domain-gap-analyse.md).
-Vollanalyse: [umgebungsanalyse.md](umgebungsanalyse.md) und
-[ergebnisse/lauf1-auswertung.md](ergebnisse/lauf1-auswertung.md).
+Vollanalyse: [ergebnisse/lauf1-auswertung.md](ergebnisse/lauf1-auswertung.md) und
+[ergebnisse/lauf3-vision-split-auswertung.md](ergebnisse/lauf3-vision-split-auswertung.md).
 
 ### `flash-attn` / `--no-flash-attn`-Fehler auf älterer GPU
 

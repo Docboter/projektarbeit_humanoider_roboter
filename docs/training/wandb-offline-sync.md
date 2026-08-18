@@ -12,7 +12,7 @@ sie automatisch ein:
 ```bash
 printf '<dein-key>\n' > ~/.wandb_key   # von wandb.ai → Settings → API Keys
 chmod 600 ~/.wandb_key
-sbatch ~/.project/dir.project/kisski_submit.sh
+sbatch Training/kisski_submit.sh
 ```
 
 > **Warum eine Datei statt `export ... && sbatch`?** KISSKI setzt auf dem
@@ -20,7 +20,7 @@ sbatch ~/.project/dir.project/kisski_submit.sh
 > Script, sodass inline/exportierte Variablen **nicht** im Job ankommen — W&B
 > liefe dann ohne Key (kein Logging). Der Datei-Weg umgeht das zuverlässig.
 > Alternativ muss `--export=ALL` auf der Kommandozeile stehen (schlägt die
-> Env-Variable): `WANDB_API_KEY=<key> sbatch --export=ALL ~/.project/dir.project/kisski_submit.sh`
+> Env-Variable): `WANDB_API_KEY=<key> sbatch --export=ALL Training/kisski_submit.sh`
 
 `WANDB_MODE=offline` und `WANDB_DIR` werden automatisch vom Submit-Script gesetzt.
 Kein manuelles Konfigurieren nötig.
@@ -46,7 +46,7 @@ der dem Sync-Intervall entspricht.
 
 ```bash
 module load apptainer
-SIF=~/.project/dir.project/images/projekt-humanoider-roboter.sif
+SIF="${KISSKI_SIF_DIR:-$HOME/images}/projekt-humanoider-roboter.sif"
 DATA=/mnt/vast-kisski/projects/kisski-humrob/data
 RUN=$(ls -dt $DATA/g1_dex3_finetune/wandb/offline-run-* | head -1)   # neuester Run
 
@@ -63,7 +63,7 @@ stoppt automatisch, wenn der Job fertig ist — `<jobid>` anpassen):
 ```bash
 screen -S wandbsync
 module load apptainer
-SIF=~/.project/dir.project/images/projekt-humanoider-roboter.sif
+SIF="${KISSKI_SIF_DIR:-$HOME/images}/projekt-humanoider-roboter.sif"
 DATA=/mnt/vast-kisski/projects/kisski-humrob/data
 RUN=$(basename "$(ls -dt $DATA/g1_dex3_finetune/wandb/offline-run-* | head -1)")
 JOBID=<jobid>
@@ -98,7 +98,7 @@ module load apptainer
 apptainer exec \
     --bind /mnt/vast-kisski/projects/kisski-humrob/data:/data \
     --env "WANDB_API_KEY=<dein-key>" \
-    ~/.project/dir.project/images/projekt-humanoider-roboter.sif \
+    "${KISSKI_SIF_DIR:-$HOME/images}/projekt-humanoider-roboter.sif" \
     /app/Groot-1.6/.venv/bin/wandb sync /data/g1_dex3_finetune/wandb/offline-run-*/
 ```
 
@@ -110,7 +110,7 @@ Danach sind alle Metriken unter `wandb.ai/<dein-username>/gr00t-g1-dex3` sichtba
 apptainer exec \
     --bind /mnt/vast-kisski/projects/kisski-humrob/data:/data \
     --env "WANDB_API_KEY=<dein-key>" \
-    ~/.project/dir.project/images/projekt-humanoider-roboter.sif \
+    "${KISSKI_SIF_DIR:-$HOME/images}/projekt-humanoider-roboter.sif" \
     bash -c "for run in /data/g1_dex3_finetune/wandb/offline-run-*/; do
         /app/Groot-1.6/.venv/bin/wandb sync \"\$run\"
     done"

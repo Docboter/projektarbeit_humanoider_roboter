@@ -3,7 +3,7 @@
 **Stand:** 2026-08-17 · erster voller Renderlauf gefahren (60 Episoden), **Befund: Frames ab
 dem Griff sind falsch beschriftet** → `RENDER_STOP_AT_GRASP` (§ 3.2a), Trainingslauf steht
 noch aus · Vorgeschichte:
-[Lauf 34](../weiterfuehrend/rl-anleitung.md#läufe-3334-runs2026081403-runs2026081404-der-tune_visual-checkpoint-im-closed-loop),
+[Lauf 34](../ergebnisse/diagnose-chronik.md#läufe-3334-runs2026081403-runs2026081404-der-tune_visual-checkpoint-im-closed-loop),
 [next-steps.md Schritt 4](../../next-steps.md)
 
 ---
@@ -55,16 +55,19 @@ ohnehin als `/scripts` eingehängt.
 Der Datensatz speichert **keine Objektposen**. Spielt man die Aktionen ab, während die Env
 ihre Würfel zufällig auslegt, entstehen Paare, in denen der Arm dorthin greift, wo kein
 Würfel liegt — und der Encoder lernt, den Würfel zu **ignorieren**. Das wäre schlimmer als
-gar nichts.
+gar nichts. Die Würfel müssen also dorthin, wo sie in der echten Aufnahme lagen.
 
-Deshalb:
+Die beiden Stufen heute:
 
-1. **`scan`** — Episode abspielen, Kameras auf ein Zehntel der Auflösung, Übersichtskamera
-   aus. Gesucht wird je Hand der Moment der engsten Fingeröffnung und der Schwerpunkt der
-   drei Fingerkuppen dort. Das ist der Ort, an dem in der echten Aufnahme ein Würfel lag.
-   → `scan.json`
-2. **`render`** — dieselben Episoden mit den Würfeln an genau diesen Punkten (x/y aus dem
-   Greifpunkt, z = Tischauflage) und in kalibrierter Auflösung 640 × 480. → der Datensatz
+1. **`scan`** — Episode abspielen, Kameras auf ein Zehntel der Auflösung. Liefert je Episode
+   den Arm-Tracking-Fehler und je Hand einen Greifpunkt aus der Fingerkinematik → `scan.json`.
+   Der Greifpunkt ist seit 2026-08-17 nur noch **Notnagel** für die Würfelplatzierung: er
+   liegt bei ~der Hälfte der Griffe auf dem Transportweg statt am Pick (§ 3.2a). Die
+   maßgebliche Würfellage kommt aus den **Realbildern** — § 3.0 (`layout`,
+   [wuerfellage-rekonstruktion.md](../simulation/wuerfellage-rekonstruktion.md)). Die
+   ursprüngliche Greifpunkt-Begründung ist in [../historie.md](../historie.md) dokumentiert.
+2. **`render`** — dieselben Episoden mit den Würfeln an den Layout-Positionen (x/y aus dem
+   Realbild, z = Tischauflage) und in kalibrierter Auflösung 640 × 480. → der Datensatz
 
 > **Korrektur nach dem ersten Rauchtest (2026-08-14):** Der Scan ist billiger als das
 > Rendern, aber **nicht** vernachlässigbar. Gemessen: ~12 Steps/s bei 64×64 gegen ~8,6
@@ -86,6 +89,10 @@ Renderer die Würfel am Greifpunkt aus `scan.json`, und der ist falsch — siehe
 ```bash
 HF_TOKEN=hf_... RENDER_EPISODES=60 ./Simulation/server_rl_run.sh layout
 ```
+
+> **Verfahren, Koordinatentransformation und offene Punkte im Detail:**
+> [`../simulation/wuerfellage-rekonstruktion.md`](../simulation/wuerfellage-rekonstruktion.md)
+> — das Übergabedokument dazu.
 
 [`extract_block_layout.py`](../../Simulation/g1_dex3_sim/extract_block_layout.py) liest den
 ersten Frame jeder Episode, segmentiert die drei gesättigten Würfel (rot = `block_0`,
@@ -438,7 +445,7 @@ Ehrlich benannt, weil jeder dieser Punkte den Lauf entwerten würde:
 ## 8. Verwandte Dokumente
 
 - [next-steps.md](../../next-steps.md) — die Priorisierung, aus der dieser Schritt kommt
-- [rl-anleitung.md, Läufe 33/34](../weiterfuehrend/rl-anleitung.md#läufe-3334-runs2026081403-runs2026081404-der-tune_visual-checkpoint-im-closed-loop) — die Messung, die ihn begründet
+- [diagnose-chronik.md, Läufe 33/34](../ergebnisse/diagnose-chronik.md#läufe-3334-runs2026081403-runs2026081404-der-tune_visual-checkpoint-im-closed-loop) — die Messung, die ihn begründet
 - [lauf2-vision-auswertung.md](../ergebnisse/lauf2-vision-auswertung.md) — warum `tune_visual` auf reinen Realdaten kollabiert
 - [lauf3-vision-split-auswertung.md](../ergebnisse/lauf3-vision-split-auswertung.md) — Checkpoint-Auswahl und Overfitting-Nachweis
 - [train-test-split.md](train-test-split.md) — Split-Mechanik und Checkpoint-Sweep
