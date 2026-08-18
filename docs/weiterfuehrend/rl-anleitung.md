@@ -111,6 +111,25 @@ Isaac-Lab+GR00T-Container wie vast.ai (`Dockerfile.vastai`), aber als langlebige
 [RoboCasa-Referenz-Eval](../simulation/robocasa-referenz-eval.md)). Spart die vast.ai-Miete, **wenn** ein Server mit
 RT-Core-GPU (z. B. die RTX PRO 6000 Blackwell aus dem RoboCasa-Lauf) bereits zur Verfügung steht.
 
+**Einmalig pro Server — Datenverzeichnis und Tokens hinterlegen.** `server_rl_run.sh` liest beim
+Start eine gitignorierte `.env.local` aus dem Repo-Wurzelverzeichnis. Ohne sie landet `/data` des
+Containers unter `$HOME/groot-rl-data`; das Verzeichnis wächst auf 40–60 GB (HF-Checkpoint,
+Shader-Cache, RL-Checkpoints), gehört also bewusst gesetzt:
+
+```bash
+cp .env.local.example .env.local
+# darin (die := -Form beibehalten, sonst überschreibt die Datei explizit gesetzte Variablen):
+#   : "${RL_HOST_DATA_DIR:=/pfad/mit/platz}"
+#   : "${HF_TOKEN:=hf_…}"
+#   : "${WANDB_API_KEY:=…}"
+```
+
+Auf dem IKR-Server ist der historische Wert `/home/lmuecke/project/data/RL` — Details und
+Migrationsschritte in [portabilitaet.md](../portabilitaet.md). Ist das Verzeichnis nicht
+anlegbar, bricht jeder Aufruf sofort mit einer konkreten Anleitung ab, statt an `docker run` zu
+scheitern. Die `HF_TOKEN=…`-Präfixe in den folgenden Beispielen entfallen, sobald der Token in
+`.env.local` steht.
+
 ```bash
 ./Simulation/server_rl_run.sh preflight              # Python 3.12 + torch + flash-attn + gr00t auf der GPU
 HF_TOKEN=hf_... ./Simulation/server_rl_run.sh setup  # BC-Checkpoint + USD von HF laden (einmalig)

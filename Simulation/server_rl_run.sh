@@ -32,6 +32,13 @@
 # Isaac-Sim-Shader-Cache (OMNI_CACHE, unter /data) zwischen Läufen erhalten — erst
 # `clean` entfernt den Container.
 #
+# HOST-KONFIGURATION (seit 2026-08): Dieses Skript enthält KEINE rechnerspezifischen
+# Pfade mehr. Alles Host-Abhängige kommt aus einer gitignorierten .env.local im
+# Repo-Wurzelverzeichnis (Vorlage: .env.local.example). Ohne sie landet /data unter
+# $HOME/groot-rl-data. Auf dem IKR-Server stellt EINE Zeile den alten Ort wieder her:
+#   echo ': "${RL_HOST_DATA_DIR:=/home/lmuecke/project/data/RL}"' >> .env.local
+# Vollständige Anleitung inkl. KISSKI: docs/portabilitaet.md
+#
 # NUTZUNG:
 #   ./Simulation/server_rl_run.sh preflight                    # Image-Frische + GPU prüfen (kein HF_TOKEN nötig)
 #   ./Simulation/server_rl_run.sh view                         # nur die Szene ansehen — OHNE Modell/Checkpoint/HF_TOKEN
@@ -47,7 +54,7 @@
 #   ./Simulation/server_rl_run.sh shell|clean|help
 #
 # Überschreibbar via Env (Defaults für diesen Server):
-#   RL_HOST_DATA_DIR (/home/lmuecke/project/data/RL), RL_IMAGE, RL_CONTAINER,
+#   RL_HOST_DATA_DIR ($HOME/groot-rl-data — s. HOST-KONFIGURATION oben), RL_IMAGE, RL_CONTAINER,
 #   RL_GPUS ("device=1,0" — beide Karten; erste trägt Rendering+Training, zweite nur
 #            das eingefrorene Referenzmodell), RL_REF_DEVICE (auto|same|cuda:N),
 #   HF_TOKEN, HF_CHECKPOINT_REPO (luca-mue/groot-g1dex3-checkpoint),
@@ -78,10 +85,34 @@ ok()   { printf '\033[1;32m v \033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m ! \033[0m %s\n' "$*"; }
 err()  { printf '\033[1;31m!! \033[0m %s\n' "$*" >&2; }
 
+# ── Repo-Wurzel + lokale Host-Konfiguration ──────────────────────────────────
+# Steht bewusst VOR dem Konfigblock: .env.local darf dessen Defaults vorbelegen.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="${RL_REPO_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+
+# Alles Rechner-Spezifische (Datenverzeichnis, Tokens) gehört NICHT ins Skript, sondern
+# in eine gitignorierte .env.local im Repo-Wurzelverzeichnis. Vorlage: .env.local.example,
+# Erklärung: docs/portabilitaet.md.
+# Vorrang: explizite Umgebungsvariable > .env.local > eingebauter Default. Damit das gilt,
+# nutzt die Datei die Form  : "${VAR:=wert}"  — ein nacktes VAR=wert würde eine bereits
+# gesetzte Variable überschreiben. `set -a` exportiert das Gesetzte, damit es auch
+# Unterprozesse (docker, apptainer) erreicht.
+if [[ -f "$REPO_DIR/.env.local" ]]; then
+  set -a
+  # shellcheck source=/dev/null
+  source "$REPO_DIR/.env.local"
+  set +a
+fi
+
 # ── Konfiguration (alle via Env überschreibbar) ──────────────────────────────
 IMAGE="${RL_IMAGE:-lucam03/projekt-humanoider-roboter-sim-vastai:latest}"
 CONTAINER="${RL_CONTAINER:-groot-rl}"
-HOST_DATA_DIR="${RL_HOST_DATA_DIR:-/home/lmuecke/project/data/RL}"
+# Host-Verzeichnis, das im Container zu /data wird: HF-Checkpoint-Cache, RL-Checkpoints,
+# Isaac-Sim-Shader-Cache und die Logspiegelung. Wächst auf viele GB — auf eine Partition
+# mit Platz legen. Der Default ist bewusst host-agnostisch; der konkrete Pfad EINES Servers
+# gehört in .env.local, nicht hierher (bis 2026-08 stand hier fest /home/lmuecke/project/
+# data/RL — auf jedem anderen Rechner ein "Permission denied" beim ersten mkdir).
+HOST_DATA_DIR="${RL_HOST_DATA_DIR:-$HOME/groot-rl-data}"
 # Beide Karten, ABER in dieser Reihenfolge: die zuerst genannte wird im Container zu
 # cuda:0 und traegt Rendering + Policy + Optimizer; die zweite bekommt nur das
 # eingefrorene Referenzmodell (~6-7 GB, nur no_grad). Physische GPU 1 steht vorn, weil
@@ -121,10 +152,6 @@ SIM_DIR="/workspace/g1_dex3_sim"
 # Gleicher Pfad wie in entrypoint_sim.sh.
 GROOT_ROOT="${GROOT_ROOT:-/app/Groot-1.6}"
 
-# Repo-Wurzel (Elternverzeichnis dieses Skripts) — für den Live-Mount des Sim-Codes.
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_DIR="${RL_REPO_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
-
 # Dieselbe Livestream-Logik wie in den Entrypoints — hier auf dem HOST gesourct, damit
 # `grasp` (das rl-fremde Skripte direkt aufruft) nicht seine eigene Kopie braucht.
 # shellcheck source=scripts/lib_livestream.sh
@@ -137,7 +164,26 @@ livestream_init
 # Grund: `rl` läuft Stunden im Vordergrund und tmux-Scrollback ist endlich; und Ausgaben
 # wie die Kamera-Pose-Tabelle aus `cams` will man nachträglich noch lesen können.
 # Muster wie in entrypoint_sim.sh (dort /data/logs/entrypoint.log).
+# Legt das Host-Datenverzeichnis an — und bricht mit einer brauchbaren Anleitung ab,
+# statt kommentarlos an "Permission denied" zu sterben. Erste Stelle, die HOST_DATA_DIR
+# anfasst, ist die Logspiegelung; ensure_container ruft denselben Guard vor dem Mount.
+ensure_host_data_dir() {
+  [[ -d "$HOST_DATA_DIR" ]] && return 0
+  if mkdir -p "$HOST_DATA_DIR" 2>/dev/null; then
+    log "Host-Datenverzeichnis neu angelegt: $HOST_DATA_DIR"
+    return 0
+  fi
+  err "Host-Datenverzeichnis nicht anlegbar: $HOST_DATA_DIR"
+  err "  Dorthin mountet der Container /data (Checkpoints, Shader-Cache, Logs)."
+  err "  Einmalig einen passenden Pfad hinterlegen:"
+  err "    echo ': \"\${RL_HOST_DATA_DIR:=/pfad/mit/platz}\"' >> $REPO_DIR/.env.local"
+  err "  oder pro Aufruf:  RL_HOST_DATA_DIR=/pfad/mit/platz $0 <aktion>"
+  err "  Details: docs/portabilitaet.md"
+  exit 1
+}
+
 start_logging() {
+  ensure_host_data_dir
   LOG_DIR="$HOST_DATA_DIR/logs"
   mkdir -p "$LOG_DIR"
   LOG_FILE="$LOG_DIR/$1-$(date +%Y%m%d-%H%M%S).log"
@@ -257,7 +303,7 @@ ensure_container() {
     warn_if_container_stale
     return 0
   fi
-  mkdir -p "$HOST_DATA_DIR"
+  ensure_host_data_dir
   log "Erzeuge langlebigen Container '$CONTAINER' (Image: $IMAGE, GPU: $GPUS)."
   log "  /data -> $HOST_DATA_DIR  (Checkpoint-Cache, RL-Checkpoints, Isaac-Sim-Shader-Cache)"
   local create_env=( -e PYTHONUNBUFFERED=1 )

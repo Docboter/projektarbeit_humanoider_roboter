@@ -36,19 +36,52 @@
 #SBATCH -c 16
 #SBATCH --mem=32G
 #SBATCH -t 04:00:00
-#SBATCH --output=/user/luca.muecke/u28320/.project/dir.project/logs/slurm-sim-%j.out
-#SBATCH --error=/user/luca.muecke/u28320/.project/dir.project/logs/slurm-sim-%j.err
+# Logpfade sind RELATIV zum Verzeichnis, aus dem `sbatch` aufgerufen wird — in
+# #SBATCH-Zeilen kann SLURM keine Umgebungsvariablen auflösen, ein Knopf wie
+# KISSKI_PROJECT_DIR wirkt hier also nicht. Vor dem ersten Absenden einmal
+#   mkdir -p logs
+# (SLURM legt die Datei an, aber nicht das Verzeichnis — fehlt es, startet der Job
+# gar nicht). Anderer Ort ohne Skript-Änderung:
+#   sbatch --output=/pfad/logs/slurm-sim-%j.out --error=/pfad/logs/slurm-sim-%j.err <skript>
+#SBATCH --output=logs/slurm-sim-%j.out
+#SBATCH --error=logs/slurm-sim-%j.err
 #SBATCH --export=ALL
 
 set -euo pipefail
 
+# ── Portable Pfad-Auflösung ───────────────────────────────────────────────────
+# Bewusst in JEDEM SLURM-Skript dupliziert statt in ein lib-Skript ausgelagert: SLURM
+# kopiert das Batch-Skript vor der Ausführung in sein Spool-Verzeichnis, darum zeigen $0
+# und BASH_SOURCE im Job NICHT mehr ins Repo — ein `source "$(dirname "$0")/lib_…"` würde
+# fehlschlagen. Die paar Zeilen hier sind der Preis für Selbstgenügsamkeit.
+#
+# EIN Knopf für den Projektspeicher, alles Weitere leitet sich davon ab:
+#     KISSKI_PROJECT_DIR=/mnt/vast-kisski/projects/<projekt> sbatch <dieses Skript>
+# Das wirkt beim Absenden, weil oben `#SBATCH --export=ALL` steht — die Umgebung der
+# Submit-Shell landet unverändert im Job.
+KISSKI_PROJECT_DIR="${KISSKI_PROJECT_DIR:-/mnt/vast-kisski/projects/kisski-humrob}"
+
+# SIF-Ablage. Reihenfolge: eigenes $HOME/images zuerst — genau dorthin lädt der in
+# CLAUDE.md und docs/training/kisski-hpc.md dokumentierte `apptainer pull`; danach eine
+# gemeinsame Kopie auf dem Projektspeicher. Eigener Ort: KISSKI_SIF_DIR=… setzen.
+KISSKI_SIF_DIR="${KISSKI_SIF_DIR:-$HOME/images}"
+pick_sif() {   # erste EXISTIERENDE Datei gewinnt; sonst der erste Kandidat, damit die
+    local f    # Fehlermeldung weiter unten einen konkreten Pfad nennen kann
+    for f in "$@"; do [[ -f "$f" ]] && { printf '%s\n' "$f"; return; }; done
+    printf '%s\n' "$1"
+}
+
 # ── Konfiguration ─────────────────────────────────────────────────────────────
-SERVER_SIF="${SERVER_SIF:-/user/luca.muecke/u28320/.project/dir.project/images/projekt-humanoider-roboter.sif}"
-SIM_SIF="${SIM_SIF:-/user/luca.muecke/u28320/.project/dir.project/images/projekt-humanoider-roboter-sim.sif}"
+SERVER_SIF="${SERVER_SIF:-$(pick_sif \
+    "$KISSKI_SIF_DIR/projekt-humanoider-roboter.sif" \
+    "$KISSKI_PROJECT_DIR/images/projekt-humanoider-roboter.sif")}"
+SIM_SIF="${SIM_SIF:-$(pick_sif \
+    "$KISSKI_SIF_DIR/projekt-humanoider-roboter-sim.sif" \
+    "$KISSKI_PROJECT_DIR/images/projekt-humanoider-roboter-sim.sif")}"
 
 # Checkpoint-Verzeichnis (Ergebnis des Fine-tunings)
-CHECKPOINT_DIR="${CHECKPOINT_DIR:-/mnt/vast-kisski/projects/kisski-humrob/data/g1_dex3_finetune}"
-DATA_DIR="${DATA_DIR:-/mnt/vast-kisski/projects/kisski-humrob/data}"
+CHECKPOINT_DIR="${CHECKPOINT_DIR:-$KISSKI_PROJECT_DIR/data/g1_dex3_finetune}"
+DATA_DIR="${DATA_DIR:-$KISSKI_PROJECT_DIR/data}"
 
 # Eval-Parameter
 NUM_EPISODES="${NUM_EPISODES:-20}"
@@ -64,7 +97,7 @@ BLACK_HANDS="${BLACK_HANDS:-1}"
 
 # Isaac-Sim Cache-Verzeichnisse (SIF ist read-only → auf Projektspeicher umlenken,
 # analog zu DATA_DIR im Training-Job)
-ISAAC_CACHE="/mnt/vast-kisski/projects/kisski-humrob/isaac-cache"
+ISAAC_CACHE="${ISAAC_CACHE:-$KISSKI_PROJECT_DIR/isaac-cache}"
 
 # ── Voraussetzungen prüfen ────────────────────────────────────────────────────
 for SIF in "$SERVER_SIF" "$SIM_SIF"; do
@@ -100,16 +133,18 @@ echo ""
 
 module load apptainer
 
-export APPTAINER_CACHEDIR="/mnt/vast-kisski/projects/kisski-humrob/apptainer-cache"
-export APPTAINER_TMPDIR="/mnt/vast-kisski/projects/kisski-humrob/apptainer-tmp"
+export APPTAINER_CACHEDIR="${APPTAINER_CACHEDIR:-$KISSKI_PROJECT_DIR/apptainer-cache}"
+export APPTAINER_TMPDIR="${APPTAINER_TMPDIR:-$KISSKI_PROJECT_DIR/apptainer-tmp}"
 mkdir -p "$APPTAINER_CACHEDIR" "$APPTAINER_TMPDIR"
 
 # ── 1) GR00T-Policy-Server im Hintergrund starten ────────────────────────────
 echo "==> Starte GR00T-Policy-Server (Hintergrund) …"
 
-GROOT_FORK_DIR="${GROOT_FORK_DIR:-/mnt/vast-kisski/projects/kisski-humrob/repo-groot}"
-ASSETS_DIR="${ASSETS_DIR:-/mnt/vast-kisski/projects/kisski-humrob/assets}"
-SIM_CODE="${SIM_CODE:-/user/luca.muecke/u28320/.project/dir.project/repo/Simulation}"
+GROOT_FORK_DIR="${GROOT_FORK_DIR:-$KISSKI_PROJECT_DIR/repo-groot}"
+ASSETS_DIR="${ASSETS_DIR:-$KISSKI_PROJECT_DIR/assets}"
+# Repo-Checkout auf dem Cluster (Compute-Nodes haben kein Internet, deshalb muss das
+# Repo vorab auf dem Login-Node liegen). Eigener Ort: REPO_DIR bzw. SIM_CODE setzen.
+SIM_CODE="${SIM_CODE:-${REPO_DIR:-$KISSKI_PROJECT_DIR/repo}/Simulation}"
 
 # Spezifischer Checkpoint (nicht das übergeordnete Verzeichnis!)
 CHECKPOINT="${CHECKPOINT:-/data/g1_dex3_finetune/blockstacking/g1_dex3_blockstacking_v1/checkpoints/20260602/checkpoint-110000}"

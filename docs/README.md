@@ -71,6 +71,7 @@ Diese Sammlung speist das gleichnamige Kapitel der Projektarbeit.
 |---|---|
 | [umgebungsanalyse.md](umgebungsanalyse.md) | **Umgebungsanalyse / Audit** — konzeptuelle Stärken & Schwächen von Training- und Sim-Setup, konkrete Bug-/Risiko-Liste, priorisierte Empfehlungen |
 | [fehlerbehebung.md](fehlerbehebung.md) | **Fehlerbehebung** — gebündelte Fehlerlösungen: Domain-Gap, OOM/VRAM, KISSKI-Queue & W&B-Pflicht, Sim-GPU-Anforderung |
+| [portabilitaet.md](portabilitaet.md) | **Portabilität / Fremdnutzung** — das Repo auf einem anderen Rechner betreiben. `.env.local` für den Docker-Server, `KISSKI_PROJECT_DIR`/`KISSKI_SIF_DIR` für den Cluster; enthält die **Migrationsschritte**, mit denen die eigenen Maschinen nach dem Umbau vom 2026-08-18 wieder exakt wie vorher laufen |
 
 ## Submodul-Dokumentation (`app/Groot-1.6/examples/G1_DEX3/`)
 

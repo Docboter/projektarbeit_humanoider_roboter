@@ -6,10 +6,25 @@
 #   - Python 3 + Pygments:  pip install Pygments
 #   - latexmk:              in TeX Live enthalten
 
-# Python-Pfad explizit setzen (verhindert Windows-Store-Stub-Konflikt)
-$ENV{PATH} = 'C:\Users\mueck\AppData\Local\Programs\Python\Python312;'
-           . 'C:\Users\mueck\AppData\Local\Programs\Python\Python312\Scripts;'
-           . $ENV{PATH};
+# Python-Pfad unter Windows voranstellen — verhindert den Windows-Store-Stub-Konflikt,
+# bei dem `python` auf einen Platzhalter zeigt und minted/latexminted scheitert.
+# Der Ort ist rechnergebunden und steht deshalb NICHT mehr fest im Skript (bis 2026-08 war
+# hier ein bestimmtes Benutzerprofil verdrahtet):
+#   * Standard: die üblichen Installationsorte von Python 3.11-3.13 werden durchprobiert,
+#     genommen wird der erste, der wirklich existiert;
+#   * eigener Ort: Umgebungsvariable LATEX_PYTHON_DIR setzen.
+# Unter Linux/macOS passiert hier bewusst nichts — dort liefert die Distribution python3 und
+# pygments systemweit, latexmk findet sie über den normalen PATH.
+if ($^O eq 'MSWin32') {
+    my @candidates = $ENV{LATEX_PYTHON_DIR}
+        ? ($ENV{LATEX_PYTHON_DIR})
+        : map { "$ENV{LOCALAPPDATA}\\Programs\\Python\\$_" } qw(Python313 Python312 Python311);
+    foreach my $dir (@candidates) {
+        next unless -d $dir;
+        $ENV{PATH} = "$dir;$dir\\Scripts;" . $ENV{PATH};
+        last;
+    }
+}
 
 # Engine: LuaLaTeX mit Shell-Escape (für minted)
 $pdf_mode = 4;

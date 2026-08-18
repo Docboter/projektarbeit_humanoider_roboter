@@ -58,9 +58,33 @@
 
 set -euo pipefail
 
+# ── Portable Pfad-Auflösung ───────────────────────────────────────────────────
+# Bewusst in JEDEM SLURM-Skript dupliziert statt in ein lib-Skript ausgelagert: SLURM
+# kopiert das Batch-Skript vor der Ausführung in sein Spool-Verzeichnis, darum zeigen $0
+# und BASH_SOURCE im Job NICHT mehr ins Repo — ein `source "$(dirname "$0")/lib_…"` würde
+# fehlschlagen. Die paar Zeilen hier sind der Preis für Selbstgenügsamkeit.
+#
+# EIN Knopf für den Projektspeicher, alles Weitere leitet sich davon ab:
+#     KISSKI_PROJECT_DIR=/mnt/vast-kisski/projects/<projekt> sbatch <dieses Skript>
+# Das wirkt beim Absenden, weil oben `#SBATCH --export=ALL` steht — die Umgebung der
+# Submit-Shell landet unverändert im Job.
+KISSKI_PROJECT_DIR="${KISSKI_PROJECT_DIR:-/mnt/vast-kisski/projects/kisski-humrob}"
+
+# SIF-Ablage. Reihenfolge: eigenes $HOME/images zuerst — genau dorthin lädt der in
+# CLAUDE.md und docs/training/kisski-hpc.md dokumentierte `apptainer pull`; danach eine
+# gemeinsame Kopie auf dem Projektspeicher. Eigener Ort: KISSKI_SIF_DIR=… setzen.
+KISSKI_SIF_DIR="${KISSKI_SIF_DIR:-$HOME/images}"
+pick_sif() {   # erste EXISTIERENDE Datei gewinnt; sonst der erste Kandidat, damit die
+    local f    # Fehlermeldung weiter unten einen konkreten Pfad nennen kann
+    for f in "$@"; do [[ -f "$f" ]] && { printf '%s\n' "$f"; return; }; done
+    printf '%s\n' "$1"
+}
+
 # ── Konfiguration ─────────────────────────────────────────────────────────────
-SIF_IMAGE="${SIF_IMAGE:-/user/luca.muecke/u28320/.project/dir.project/images/projekt-humanoider-roboter.sif}"
-DATA_DIR="${DATA_DIR:-/mnt/vast-kisski/projects/kisski-humrob/data}"
+SIF_IMAGE="${SIF_IMAGE:-$(pick_sif \
+    "$KISSKI_SIF_DIR/projekt-humanoider-roboter.sif" \
+    "$KISSKI_PROJECT_DIR/images/projekt-humanoider-roboter.sif")}"
+DATA_DIR="${DATA_DIR:-$KISSKI_PROJECT_DIR/data}"
 
 # Prüfen ob DATA_DIR-Pfad vom Compute-Node aus erreichbar ist
 if [[ ! -d "$(dirname "$DATA_DIR")" ]]; then
@@ -74,7 +98,7 @@ GITHUB_REPO="${GITHUB_REPO:-https://github.com/Docboter/projektarbeit_humanoider
 GITHUB_BRANCH="${GITHUB_BRANCH:-training-luca-KISSKI}"
 # Repo muss vorab auf dem Login-Node geklont werden (Compute-Nodes haben keinen Internet-Zugang).
 # Einmalig: git clone --branch $GITHUB_BRANCH --depth 1 $GITHUB_REPO /mnt/vast-kisski/projects/kisski-humrob/repo
-REPO_DIR="${REPO_DIR:-/mnt/vast-kisski/projects/kisski-humrob/repo}"
+REPO_DIR="${REPO_DIR:-$KISSKI_PROJECT_DIR/repo}"
 SKIP_GIT_PULL="${SKIP_GIT_PULL:-1}"
 
 # 4× A100 (DeepSpeed ZeRO-2). global_batch_size MUSS durch NUM_GPUS teilbar sein
@@ -309,7 +333,7 @@ echo "    Skripte aus Repo: ${REPO_DIR}/Training/scripts"
 # G1_DEX3-Konfiguration + LeRobot-Konverter aus dem lucam06/Isaac-GR00T Fork mounten
 # (im Container-Image fehlen diese Dateien — nur die offizielle NVIDIA-Version ist eingebackt).
 # Einmalig: git clone --branch luca/g1-dex3 --depth 1 https://github.com/lucam06/Isaac-GR00T.git /mnt/vast-kisski/projects/kisski-humrob/repo-groot
-GROOT_FORK_DIR="${GROOT_FORK_DIR:-/mnt/vast-kisski/projects/kisski-humrob/repo-groot}"
+GROOT_FORK_DIR="${GROOT_FORK_DIR:-$KISSKI_PROJECT_DIR/repo-groot}"
 if [[ ! -d "$GROOT_FORK_DIR/examples/G1_DEX3" ]]; then
     echo "FEHLER: $GROOT_FORK_DIR/examples/G1_DEX3 nicht gefunden." >&2
     echo "       lucam06-Fork einmalig klonen:" >&2

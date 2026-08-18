@@ -32,7 +32,7 @@
 #   ./Simulation/server_robocasa_ref_run.sh shell|clean|help
 #
 # Überschreibbar via Env (Defaults für diesen Server):
-#   RC_HOST_DATA_DIR (/home/lmuecke/project/data/RoboCasa), RC_IMAGE, RC_CONTAINER,
+#   RC_HOST_DATA_DIR ($HOME/groot-robocasa-data; per .env.local setzbar), RC_IMAGE, RC_CONTAINER,
 #   RC_GPUS (all), RC_PRESET (top|smoke|full|custom), RC_N_EPISODES, RC_N_ENVS,
 #   RC_TASKS, RC_MODEL_PATH, RC_PORT, HF_TOKEN.
 
@@ -44,16 +44,31 @@ ok()   { printf '\033[1;32m v \033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m ! \033[0m %s\n' "$*"; }
 err()  { printf '\033[1;31m!! \033[0m %s\n' "$*" >&2; }
 
+# ── Repo-Wurzel + lokale Host-Konfiguration ──────────────────────────────────
+# Steht bewusst VOR dem Konfigblock: .env.local darf dessen Defaults vorbelegen.
+# Gleiches Muster wie server_rl_run.sh — siehe docs/portabilitaet.md.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="${RC_REPO_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+
+# Vorrang: explizite Umgebungsvariable > .env.local > Default. Deshalb nutzt die Datei
+# die Form  : "${VAR:=wert}"  — ein nacktes VAR=wert würde Gesetztes überschreiben.
+if [[ -f "$REPO_DIR/.env.local" ]]; then
+  set -a
+  # shellcheck source=/dev/null
+  source "$REPO_DIR/.env.local"
+  set +a
+fi
+
 # ── Konfiguration (alle via Env überschreibbar) ──────────────────────────────
 IMAGE="${RC_IMAGE:-lucam03/projekt-humanoider-roboter:latest}"
 CONTAINER="${RC_CONTAINER:-groot-robocasa-ref}"
-HOST_DATA_DIR="${RC_HOST_DATA_DIR:-/home/lmuecke/project/data/RoboCasa}"
+# Host-Verzeichnis, das im Container /data wird. Host-agnostischer Default; der konkrete
+# Pfad eines Servers gehört in .env.local (bis 2026-08 stand hier fest
+# /home/lmuecke/project/data/RoboCasa).
+HOST_DATA_DIR="${RC_HOST_DATA_DIR:-$HOME/groot-robocasa-data}"
 GPUS="${RC_GPUS:-all}"                 # z. B. RC_GPUS='"device=0"' zum Pinnen
 SHM_SIZE="${RC_SHM_SIZE:-16g}"
 
-# Repo-Wurzel = Elternverzeichnis dieses Skripts (Simulation/..)
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_DIR="${RC_REPO_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 SCAFFOLD_DIR="$REPO_DIR/Simulation/robocasa_reference"
 
 # Eval-Parameter (an run_robocasa_ref_eval.sh durchgereicht)
@@ -94,7 +109,15 @@ ensure_container() {
   # Neu anlegen (langlebiger idle-Container)
   [[ -d "$SCAFFOLD_DIR" ]] || { err "Scaffold fehlt: $SCAFFOLD_DIR"; \
       err "  Ist das Repo auf dem Server aktuell (Branch mit robocasa_reference gepullt)?"; exit 1; }
-  mkdir -p "$HOST_DATA_DIR"
+  if ! mkdir -p "$HOST_DATA_DIR" 2>/dev/null; then
+    err "Host-Datenverzeichnis nicht anlegbar: $HOST_DATA_DIR"
+    err "  Dorthin mountet der Container /data (Ergebnisse, Videos, Logs)."
+    err "  Einmalig hinterlegen:"
+    err "    echo ': \"\${RC_HOST_DATA_DIR:=/pfad/mit/platz}\"' >> $REPO_DIR/.env.local"
+    err "  oder pro Aufruf:  RC_HOST_DATA_DIR=/pfad/mit/platz $0 <aktion>"
+    err "  Details: docs/portabilitaet.md"
+    exit 1
+  fi
   log "Erzeuge langlebigen Container '$CONTAINER' (Image: $IMAGE, GPU: $GPUS)."
   log "  /data          -> $HOST_DATA_DIR"
   log "  Scaffold-Mount -> $SCAFFOLD_DIR"

@@ -25,19 +25,50 @@
 #SBATCH -c 16
 #SBATCH --mem=32G
 #SBATCH -t 02:00:00
-#SBATCH --output=/user/luca.muecke/u28320/.project/dir.project/logs/slurm-ckpt-sweep-%j.out
-#SBATCH --error=/user/luca.muecke/u28320/.project/dir.project/logs/slurm-ckpt-sweep-%j.err
+# Logpfade sind RELATIV zum Verzeichnis, aus dem `sbatch` aufgerufen wird — in
+# #SBATCH-Zeilen kann SLURM keine Umgebungsvariablen auflösen, ein Knopf wie
+# KISSKI_PROJECT_DIR wirkt hier also nicht. Vor dem ersten Absenden einmal
+#   mkdir -p logs
+# (SLURM legt die Datei an, aber nicht das Verzeichnis — fehlt es, startet der Job
+# gar nicht). Anderer Ort ohne Skript-Änderung:
+#   sbatch --output=/pfad/logs/slurm-ckpt-sweep-%j.out --error=/pfad/logs/slurm-ckpt-sweep-%j.err <skript>
+#SBATCH --output=logs/slurm-ckpt-sweep-%j.out
+#SBATCH --error=logs/slurm-ckpt-sweep-%j.err
 #SBATCH --export=ALL
 
 set -euo pipefail
 
+# ── Portable Pfad-Auflösung ───────────────────────────────────────────────────
+# Bewusst in JEDEM SLURM-Skript dupliziert statt in ein lib-Skript ausgelagert: SLURM
+# kopiert das Batch-Skript vor der Ausführung in sein Spool-Verzeichnis, darum zeigen $0
+# und BASH_SOURCE im Job NICHT mehr ins Repo — ein `source "$(dirname "$0")/lib_…"` würde
+# fehlschlagen. Die paar Zeilen hier sind der Preis für Selbstgenügsamkeit.
+#
+# EIN Knopf für den Projektspeicher, alles Weitere leitet sich davon ab:
+#     KISSKI_PROJECT_DIR=/mnt/vast-kisski/projects/<projekt> sbatch <dieses Skript>
+# Das wirkt beim Absenden, weil oben `#SBATCH --export=ALL` steht — die Umgebung der
+# Submit-Shell landet unverändert im Job.
+KISSKI_PROJECT_DIR="${KISSKI_PROJECT_DIR:-/mnt/vast-kisski/projects/kisski-humrob}"
+
+# SIF-Ablage. Reihenfolge: eigenes $HOME/images zuerst — genau dorthin lädt der in
+# CLAUDE.md und docs/training/kisski-hpc.md dokumentierte `apptainer pull`; danach eine
+# gemeinsame Kopie auf dem Projektspeicher. Eigener Ort: KISSKI_SIF_DIR=… setzen.
+KISSKI_SIF_DIR="${KISSKI_SIF_DIR:-$HOME/images}"
+pick_sif() {   # erste EXISTIERENDE Datei gewinnt; sonst der erste Kandidat, damit die
+    local f    # Fehlermeldung weiter unten einen konkreten Pfad nennen kann
+    for f in "$@"; do [[ -f "$f" ]] && { printf '%s\n' "$f"; return; }; done
+    printf '%s\n' "$1"
+}
+
 # ── Konfiguration ─────────────────────────────────────────────────────────────
-SERVER_SIF="${SERVER_SIF:-/user/luca.muecke/u28320/.project/dir.project/images/projekt-humanoider-roboter.sif}"
-GROOT_FORK_DIR="${GROOT_FORK_DIR:-/mnt/vast-kisski/projects/kisski-humrob/repo-groot}"
-DATA_DIR="${DATA_DIR:-/mnt/vast-kisski/projects/kisski-humrob/data}"
+SERVER_SIF="${SERVER_SIF:-$(pick_sif \
+    "$KISSKI_SIF_DIR/projekt-humanoider-roboter.sif" \
+    "$KISSKI_PROJECT_DIR/images/projekt-humanoider-roboter.sif")}"
+GROOT_FORK_DIR="${GROOT_FORK_DIR:-$KISSKI_PROJECT_DIR/repo-groot}"
+DATA_DIR="${DATA_DIR:-$KISSKI_PROJECT_DIR/data}"
 # Wie in kisski_submit.sh: fester Pfad auf dem Projektspeicher. NICHT über BASH_SOURCE
 # herleiten — sbatch führt eine Kopie aus dem SLURM-Spool aus, nicht die Datei im Repo.
-REPO_DIR="${REPO_DIR:-/mnt/vast-kisski/projects/kisski-humrob/repo}"
+REPO_DIR="${REPO_DIR:-$KISSKI_PROJECT_DIR/repo}"
 
 # Lauf-Verzeichnis (nicht ein einzelner Checkpoint — der Sweep sucht selbst).
 #   Standard-Lauf : /data/g1_dex3_finetune/blockstacking
@@ -81,8 +112,8 @@ echo ""
 
 module load apptainer
 
-export APPTAINER_CACHEDIR="/mnt/vast-kisski/projects/kisski-humrob/apptainer-cache"
-export APPTAINER_TMPDIR="/mnt/vast-kisski/projects/kisski-humrob/apptainer-tmp"
+export APPTAINER_CACHEDIR="${APPTAINER_CACHEDIR:-$KISSKI_PROJECT_DIR/apptainer-cache}"
+export APPTAINER_TMPDIR="${APPTAINER_TMPDIR:-$KISSKI_PROJECT_DIR/apptainer-tmp}"
 mkdir -p "$APPTAINER_CACHEDIR" "$APPTAINER_TMPDIR"
 
 # ── Checkpoint-Sweep ──────────────────────────────────────────────────────────

@@ -4,7 +4,7 @@ Checkpoint zu HuggingFace Hub hochladen.
 
 Verwendung:
     python upload_checkpoint.py --checkpoint ./checkpoint-110000/ --repo luca-mue/groot-g1dex3-checkpoint
-    python upload_checkpoint.py --checkpoint "C:\Users\mueck\Documents\docker\Checkpoints\20260602\checkpoint-110000" --repo luca-mue/groot-g1dex3-checkpoint --token hf_
+    python upload_checkpoint.py --checkpoint "C:\Pfad\zu\Checkpoints\20260602\checkpoint-110000" --repo <user>/<repo> --token hf_...
     python upload_checkpoint.py --help
 
 Wiederaufnahme nach Abbruch: einfach denselben Befehl erneut ausführen.

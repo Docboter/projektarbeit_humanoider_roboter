@@ -15,6 +15,7 @@ Detailed guides (all prose docs live under [`docs/`](docs/README.md)):
 - **User-facing training instructions (German):** [`docs/training/anleitung.md`](docs/training/anleitung.md)
 - **Project README (German):** [`README.md`](README.md)
 - **Env-var reference:** [`docs/training/env-vars.md`](docs/training/env-vars.md)
+- **Portability / running the repo elsewhere:** [`docs/portabilitaet.md`](docs/portabilitaet.md) — `.env.local` for the Docker server, `KISSKI_PROJECT_DIR`/`KISSKI_SIF_DIR` for the cluster, plus the migration steps that restore the previous behaviour on the existing machines
 - **KISSKI HPC training:** [`docs/training/kisski-hpc.md`](docs/training/kisski-hpc.md)
 - **Setup & Architecture:** [`app/Groot-1.6/examples/G1_DEX3/SETUP_DOCUMENTATION.md`](app/Groot-1.6/examples/G1_DEX3/SETUP_DOCUMENTATION.md)
 - **Fine-tuning step-by-step:** [`app/Groot-1.6/examples/G1_DEX3/FINETUNING_GUIDE.md`](app/Groot-1.6/examples/G1_DEX3/FINETUNING_GUIDE.md)
@@ -175,6 +176,8 @@ code comments or docs the commit touches — those stay German where they alread
 ```
 repo root
 ├── README.md                           # Slim landing page (overview + quickstart + doc links)
+├── .env.local.example                  # Template for host-specific config (copy to .env.local,
+│                                       #   gitignored). Read by Simulation/server_rl_run.sh only
 ├── docs/                               # ALL prose docs live here
 │   ├── README.md                       # Doc navigation hub + project structure
 │   ├── training/                       # operative guides: anleitung.md, kisski-hpc.md, env-vars.md,
@@ -194,7 +197,13 @@ repo root
 │   │                                   #   cube lifts 7.9 cm), lokomotion-recherche.md
 │   │                                   #   (not implemented), livestream-plan.md (Spur A open, Spur B built)
 │   ├── umgebungsanalyse.md             # cross-cutting audit
-│   └── fehlerbehebung.md               # cross-cutting troubleshooting
+│   ├── fehlerbehebung.md               # cross-cutting troubleshooting
+│   └── portabilitaet.md                # ★ Portability: no host-bound paths in scripts any more.
+│                                       #   server_rl_run.sh reads a gitignored .env.local (template:
+│                                       #   .env.local.example); the six KISSKI SLURM scripts derive
+│                                       #   every path from ONE KISSKI_PROJECT_DIR and find their SIF
+│                                       #   via KISSKI_SIF_DIR ($HOME/images first). Contains the
+│                                       #   migration checklist for the IKR server and KISSKI
 ├── Training/                           # Everything training-related (build, run scripts)
 │   ├── Dockerfile                      # Defines image; ENTRYPOINT = /scripts/entrypoint.sh
 │   │                                   #   build context = Training/ (so COPY scripts/ works)

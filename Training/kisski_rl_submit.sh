@@ -34,10 +34,34 @@
 
 set -euo pipefail
 
+# ── Portable Pfad-Auflösung ───────────────────────────────────────────────────
+# Bewusst in JEDEM SLURM-Skript dupliziert statt in ein lib-Skript ausgelagert: SLURM
+# kopiert das Batch-Skript vor der Ausführung in sein Spool-Verzeichnis, darum zeigen $0
+# und BASH_SOURCE im Job NICHT mehr ins Repo — ein `source "$(dirname "$0")/lib_…"` würde
+# fehlschlagen. Die paar Zeilen hier sind der Preis für Selbstgenügsamkeit.
+#
+# EIN Knopf für den Projektspeicher, alles Weitere leitet sich davon ab:
+#     KISSKI_PROJECT_DIR=/mnt/vast-kisski/projects/<projekt> sbatch <dieses Skript>
+# Das wirkt beim Absenden, weil oben `#SBATCH --export=ALL` steht — die Umgebung der
+# Submit-Shell landet unverändert im Job.
+KISSKI_PROJECT_DIR="${KISSKI_PROJECT_DIR:-/mnt/vast-kisski/projects/kisski-humrob}"
+
+# SIF-Ablage. Reihenfolge: eigenes $HOME/images zuerst — genau dorthin lädt der in
+# CLAUDE.md und docs/training/kisski-hpc.md dokumentierte `apptainer pull`; danach eine
+# gemeinsame Kopie auf dem Projektspeicher. Eigener Ort: KISSKI_SIF_DIR=… setzen.
+KISSKI_SIF_DIR="${KISSKI_SIF_DIR:-$HOME/images}"
+pick_sif() {   # erste EXISTIERENDE Datei gewinnt; sonst der erste Kandidat, damit die
+    local f    # Fehlermeldung weiter unten einen konkreten Pfad nennen kann
+    for f in "$@"; do [[ -f "$f" ]] && { printf '%s\n' "$f"; return; }; done
+    printf '%s\n' "$1"
+}
+
 # ── Konfiguration ─────────────────────────────────────────────────────────────
-SIM_SIF="${SIM_SIF:-$HOME/images/projekt-humanoider-roboter-sim.sif}"
-DATA_DIR="${DATA_DIR:-/mnt/vast-kisski/projects/kisski-humrob/data}"
-REPO_DIR="${REPO_DIR:-/mnt/vast-kisski/projects/kisski-humrob/repo}"
+SIM_SIF="${SIM_SIF:-$(pick_sif \
+    "$KISSKI_SIF_DIR/projekt-humanoider-roboter-sim.sif" \
+    "$KISSKI_PROJECT_DIR/images/projekt-humanoider-roboter-sim.sif")}"
+DATA_DIR="${DATA_DIR:-$KISSKI_PROJECT_DIR/data}"
+REPO_DIR="${REPO_DIR:-$KISSKI_PROJECT_DIR/repo}"
 
 CHECKPOINT_PATH="${CHECKPOINT_PATH:-/data/checkpoints/groot-g1dex3-checkpoint}"
 HF_CHECKPOINT_REPO="${HF_CHECKPOINT_REPO:-}"

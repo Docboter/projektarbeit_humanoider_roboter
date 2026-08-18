@@ -8,6 +8,37 @@ wird einmalig in eine Apptainer-`.sif`-Datei umgewandelt — danach läuft alles
 Zugang beantragen: [GWDG-Portal](https://docs.hpc.gwdg.de). SSH-Login-Knoten:
 `glogin-gpu.hpc.gwdg.de`.
 
+## Pfad-Konfiguration — zwei Variablen, sonst nichts
+
+Die sechs SLURM-Skripte enthalten seit 2026-08-18 **keine** kontogebundenen Pfade mehr. Sie
+leiten alles aus zwei Variablen ab:
+
+| Variable | Default | Wirkung |
+|---|---|---|
+| `KISSKI_PROJECT_DIR` | `/mnt/vast-kisski/projects/kisski-humrob` | daraus folgen `DATA_DIR`, `REPO_DIR`, `GROOT_FORK_DIR`, `ASSETS_DIR`, `ISAAC_CACHE`, `APPTAINER_CACHEDIR`/`_TMPDIR`, `SIM_CODE` |
+| `KISSKI_SIF_DIR` | `$HOME/images` | wo die `.sif`-Dateien gesucht werden; existiert dort nichts, wird `$KISSKI_PROJECT_DIR/images` geprüft |
+
+Für dieses Projekt sind beide Defaults richtig — vorausgesetzt, die SIFs liegen in
+`$HOME/images` (so lädt sie Schritt 1 unten). Liegen sie woanders, genügt **ein** Symlink:
+
+```bash
+ln -s /pfad/zu/deinen/images "$HOME/images"     # oder: export KISSKI_SIF_DIR=/pfad/zu/deinen/images
+```
+
+Ein anderes KISSKI-Projekt braucht genau eine Zeile — das wirkt, weil alle Skripte
+`#SBATCH --export=ALL` tragen:
+
+```bash
+KISSKI_PROJECT_DIR=/mnt/vast-kisski/projects/<projekt> sbatch Training/kisski_submit.sh
+```
+
+**SLURM-Logs** schreiben alle Skripte nach `logs/` **relativ zum Aufrufverzeichnis** von
+`sbatch` (in `#SBATCH`-Zeilen kann SLURM keine Variablen auflösen). Einmalig im Repo-Checkout
+`mkdir -p logs` — sonst startet der Job nicht, weil SLURM die Datei, aber nicht den Ordner
+anlegt. Anderer Ort: `sbatch --output=/pfad/%j.out --error=/pfad/%j.err <skript>`.
+
+Vollständige Referenz und Migrationsschritte: [portabilitaet.md](../portabilitaet.md).
+
 ## Verfügbare GPU-Partitionen
 
 | Partition | GPU | VRAM | Max. Walltime |
@@ -355,7 +386,10 @@ sbatch Training/kisski_submit.sh
 
 ### `SIF-Image nicht gefunden`
 
-Das Apptainer-Image wurde noch nicht erstellt. Einmalig auf dem Login-Knoten:
+Gesucht wird in dieser Reihenfolge: `$KISSKI_SIF_DIR` (Default `$HOME/images`), dann
+`$KISSKI_PROJECT_DIR/images`. Die Fehlermeldung nennt den ersten Kandidaten. Entweder liegt das
+Image an einem dritten Ort — dann `export KISSKI_SIF_DIR=…` bzw. `SIF_IMAGE=…` setzen —, oder es
+wurde noch nicht erstellt. Dann einmalig auf dem Login-Knoten:
 ```bash
 module load apptainer
 mkdir -p $HOME/images
