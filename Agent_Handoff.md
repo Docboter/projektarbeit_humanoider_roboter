@@ -24,6 +24,9 @@
   fittet daraus robuste Pixel-zu-Tisch-Homographien. Wrist-Kameras werden aus zeitgleichen
   Annäherungsframes optimiert; eine echte Isaac-Markerprüfung schließt den Schritt ab.
   Mindestens acht Anker sind Pflicht.
+- Der Anker-Collector segmentiert Kopfvideos parallel und reduziert, simuliert nur bis zu
+  den relevanten Pick-Frames und cached Tracking unter `REPLAY_WORK/tracking_cache`.
+  `calibration_anchors.json` enthält je Farbe konkrete Ablehnungsdiagnosen.
 - Die drei Würfel werden nach dem Roboter-Startzustand genau einmal aus `cube_poses.json`
   gesetzt. Danach gibt es weder Pose-Schreibzugriffe noch Attach/Tracking.
 - `REPLAY_OUTPUT_MODE=videos` schreibt fünf Prüf-MP4s; `dataset` schreibt LeRobot v2.1

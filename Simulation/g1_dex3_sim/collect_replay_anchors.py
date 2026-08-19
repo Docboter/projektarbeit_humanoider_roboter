@@ -4,9 +4,11 @@
 from __future__ import annotations
 
 import argparse
+from concurrent.futures import ThreadPoolExecutor
 import json
 import os
 from pathlib import Path
+import time
 
 from isaaclab.app import AppLauncher
 
@@ -20,6 +22,7 @@ parser.add_argument("--start-episode", type=int, default=0)
 parser.add_argument("--episode-ids", type=int, nargs="*", default=None)
 parser.add_argument("--train-ratio", type=float, default=0.8)
 parser.add_argument("--overwrite", action="store_true")
+parser.add_argument("--onset-tolerance-frames", type=int, default=12)
 AppLauncher.add_app_launcher_args(parser)
 args = parser.parse_args()
 
@@ -44,6 +47,7 @@ from reconstruct_cube_poses import (  # noqa: E402
 from replay_calibration import (  # noqa: E402
     action_sha256,
     best_top_face_detection,
+    closing_hand_scores,
     find_motion_onset,
     match_closing_hand,
     top_face_blob,
@@ -204,18 +208,59 @@ def camera_diagnostics(env: G1Dex3BlockstackEnv) -> dict[str, dict]:
     return diagnostics
 
 
+def analyze_real_episode(root: Path, info: dict, episode: int,
+                         cache_root: Path) -> dict:
+    paths = {camera: video_path(root, info, episode, camera) for camera in HEAD_CAMS}
+    signature = {
+        camera: {"size": path.stat().st_size, "mtime_ns": path.stat().st_mtime_ns}
+        for camera, path in paths.items()
+    }
+    cache_path = cache_root / f"episode_{episode:06d}.json"
+    if cache_path.is_file():
+        cached = json.loads(cache_path.read_text(encoding="utf-8"))
+        if cached.get("version") == 3 and cached.get("signature") == signature:
+            cached["cache_hit"] = True
+            return cached
+
+    print(f"[replay-calibrate] Episode {episode}: analysiere beide Realvideos …", flush=True)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futures = {
+            camera: executor.submit(track_colors, path)
+            for camera, path in paths.items()
+        }
+        tracks = {camera: future.result() for camera, future in futures.items()}
+    analysis = {
+        "version": 3,
+        "signature": signature,
+        "pixels": initial_pixels(root, info, episode),
+        "motion_onsets": {
+            color: {
+                camera: find_motion_onset(tracks[camera][color])
+                for camera in HEAD_CAMS
+            }
+            for color in CUBE_COLORS
+        },
+        "frames_scanned": {
+            camera: len(tracks[camera][CUBE_COLORS[0]]) for camera in HEAD_CAMS
+        },
+        "cache_hit": False,
+    }
+    cache_root.mkdir(parents=True, exist_ok=True)
+    cache_path.write_text(json.dumps(analysis, indent=2), encoding="utf-8")
+    return analysis
+
+
 def main() -> int:
     root = Path(args.dataset_path)
     info = read_info(root)
     episodes = select_episodes(info, args)
-    longest = max(len(pd.read_parquet(episode_path(root, info, ep))) for ep in episodes)
     cfg = G1Dex3BlockstackEnvCfg()
     if args.asset_path:
         cfg.scene.robot.spawn.usd_path = args.asset_path
     cfg.decimation = 7
     cfg.sim.dt = 1.0 / (30.0 * cfg.decimation)
     cfg.sim.render_interval = 1000000
-    cfg.episode_length_s = longest / 30.0 + 10.0
+    cfg.episode_length_s = 3600.0
     cfg.terminate_on_success = False
     env = G1Dex3BlockstackEnv(cfg=cfg, render_mode=None)
 
@@ -227,41 +272,91 @@ def main() -> int:
         "anchors": [],
         "wrist_observations": [],
         "action_hashes": {},
+        "episode_diagnostics": {},
         "actual_camera_diagnostics": diagnostics,
     }
+    cache_root = Path(args.out).parent / "tracking_cache"
     try:
         for ordinal, episode in enumerate(episodes, 1):
+            started = time.perf_counter()
             actions, states = load_episode(root, info, episode)
             before_hash = action_sha256(actions)
+            payload["action_hashes"][str(episode)] = before_hash
+            analysis = analyze_real_episode(root, info, episode, cache_root)
+            pixels = analysis["pixels"]
+            episode_diagnostics = {
+                "tracking_cache_hit": bool(analysis.get("cache_hit")),
+                "frames_scanned": analysis["frames_scanned"],
+                "colors": {},
+            }
+
+            temporal_candidates = []
+            for color in CUBE_COLORS:
+                onset_by_camera = analysis["motion_onsets"][color]
+                valid_onsets = [
+                    int(value) for value in onset_by_camera.values() if value is not None
+                ]
+                color_diagnostic = {
+                    "motion_onsets": onset_by_camera,
+                    "initial_pixel_cameras": sorted(pixels[color]),
+                }
+                episode_diagnostics["colors"][color] = color_diagnostic
+                if not valid_onsets:
+                    color_diagnostic["status"] = "no_stable_cube_motion"
+                    continue
+                if len(valid_onsets) == 2 \
+                        and max(valid_onsets) - min(valid_onsets) \
+                        > args.onset_tolerance_frames:
+                    color_diagnostic["status"] = "camera_onset_disagreement"
+                    continue
+                if len(pixels[color]) != len(HEAD_CAMS):
+                    color_diagnostic["status"] = "missing_initial_pixels"
+                    continue
+                onset = int(round(float(np.median(valid_onsets))))
+                if onset >= len(actions):
+                    color_diagnostic["status"] = "onset_outside_trajectory"
+                    continue
+                color_diagnostic["combined_onset"] = onset
+                color_diagnostic["onset_source"] = (
+                    "stereo" if len(valid_onsets) == 2 else "single_camera"
+                )
+                color_diagnostic["status"] = "temporal_candidate"
+                temporal_candidates.append((onset, color))
+
+            if not temporal_candidates:
+                payload["episode_diagnostics"][str(episode)] = episode_diagnostics
+                elapsed = time.perf_counter() - started
+                print(
+                    f"[replay-calibrate] ({ordinal}/{len(episodes)}) Episode {episode}: "
+                    f"0 Bewegungsanker; keine stabile Bewegung ({elapsed:.1f} s).",
+                    flush=True,
+                )
+                continue
+
+            replay_stop = min(len(actions), max(item[0] for item in temporal_candidates) + 6)
             spreads, centroids, wrist_positions, wrist_quaternions = replay_measurements(
-                env, actions, states[0]
+                env, actions[:replay_stop], states[0]
             )
             after_hash = action_sha256(actions)
             if before_hash != after_hash:
                 raise RuntimeError(f"Episode {episode}: Action-Hash hat sich geändert.")
-            payload["action_hashes"][str(episode)] = before_hash
-            pixels = initial_pixels(root, info, episode)
-            tracks_by_camera = {
-                camera: track_colors(video_path(root, info, episode, camera))
-                for camera in HEAD_CAMS
-            }
+            episode_diagnostics["simulated_frames"] = replay_stop
+            episode_diagnostics["source_frames"] = len(actions)
 
             candidates = []
-            for color in CUBE_COLORS:
-                onsets = [
-                    find_motion_onset(tracks_by_camera[camera][color])
-                    for camera in HEAD_CAMS
-                ]
-                if any(value is None for value in onsets):
-                    continue
-                if max(onsets) - min(onsets) > 5:
-                    continue
-                onset = int(round(float(np.median(onsets))))
-                if onset >= len(centroids):
-                    continue
+            for onset, color in temporal_candidates:
+                color_diagnostic = episode_diagnostics["colors"][color]
+                scores = closing_hand_scores(onset, spreads)
+                color_diagnostic["hand_closure_m"] = {
+                    "left": float(scores[0]) if np.isfinite(scores[0]) else None,
+                    "right": float(scores[1]) if np.isfinite(scores[1]) else None,
+                }
                 hand = match_closing_hand(onset, spreads)
-                if hand is None or len(pixels[color]) != len(HEAD_CAMS):
+                if hand is None:
+                    color_diagnostic["status"] = "no_unique_hand_closure"
                     continue
+                color_diagnostic["matched_hand"] = "left" if hand == 0 else "right"
+                color_diagnostic["status"] = "matched"
                 candidates.append((onset, color, hand))
 
             # Je Hand nur das erste eindeutige Pick-Ereignis. Spätere Bewegungen können
@@ -269,8 +364,10 @@ def main() -> int:
             used_hands: set[int] = set()
             for onset, color, hand in sorted(candidates):
                 if hand in used_hands:
+                    episode_diagnostics["colors"][color]["status"] = "hand_already_used"
                     continue
                 used_hands.add(hand)
+                episode_diagnostics["colors"][color]["status"] = "accepted"
                 xy = centroids[onset, hand, :2]
                 payload["anchors"].append({
                     "episode": int(episode),
@@ -287,16 +384,38 @@ def main() -> int:
                         wrist_positions, wrist_quaternions, xy,
                     )
                 )
+            payload["episode_diagnostics"][str(episode)] = episode_diagnostics
+            rejected = {}
+            for record in episode_diagnostics["colors"].values():
+                status = record["status"]
+                if status != "accepted":
+                    rejected[status] = rejected.get(status, 0) + 1
+            elapsed = time.perf_counter() - started
+            rejection_text = ", ".join(
+                f"{count}× {reason}" for reason, count in sorted(rejected.items())
+            ) or "keine"
             print(
                 f"[replay-calibrate] ({ordinal}/{len(episodes)}) Episode {episode}: "
-                f"{len(used_hands)} Bewegungsanker.",
+                f"{len(used_hands)} Bewegungsanker; Sim {replay_stop}/{len(actions)} Frames; "
+                f"verworfen: {rejection_text}; {elapsed:.1f} s.",
                 flush=True,
             )
 
         out = Path(args.out)
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        rejection_totals = {}
+        for episode_record in payload["episode_diagnostics"].values():
+            for color_record in episode_record["colors"].values():
+                status = color_record["status"]
+                if status != "accepted":
+                    rejection_totals[status] = rejection_totals.get(status, 0) + 1
         print(f"[replay-calibrate] Anker: {out}")
+        print(
+            f"[replay-calibrate] Gesamt: {len(payload['anchors'])} Bewegungsanker; "
+            f"Ablehnungen: {rejection_totals}.",
+            flush=True,
+        )
         print("[replay-anchor-collection] fertig.", flush=True)
     finally:
         env.close()

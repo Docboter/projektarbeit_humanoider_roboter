@@ -1273,14 +1273,18 @@ do_replay_calibrate() {
   local calibration="${REPLAY_CALIBRATION:-$work/geometry_calibration.json}"
   local anchors="${REPLAY_ANCHORS:-$work/calibration_anchors.json}"
   local debug="${REPLAY_CALIBRATION_DEBUG_DIR:-$work/calibration_report}"
+  local onset_tolerance="${REPLAY_ONSET_TOLERANCE_FRAMES:-12}"
   local overwrite=()
   [[ "${REPLAY_OVERWRITE:-0}" == "1" ]] && overwrite=( --overwrite )
+  [[ "$onset_tolerance" =~ ^[0-9]+$ ]] \
+    || { err "REPLAY_ONSET_TOLERANCE_FRAMES muss eine Ganzzahl sein."; return 1; }
 
   log "Erfasse unveränderte Fingertrajektorien und reale Würfelbewegungen."
   docker exec -w "$SIM_DIR" -e "DR_ENABLED=0" "$CONTAINER" \
     env -u VIRTUAL_ENV "$ISAAC_PY" "$SIM_DIR/collect_replay_anchors.py" \
       --headless --enable_cameras --dataset-path "$ds" --out "$anchors" \
-      --asset-path "$ASSET_PATH" "${overwrite[@]}" "${REPLAY_SELECTION_ARGS[@]}" \
+      --asset-path "$ASSET_PATH" --onset-tolerance-frames "$onset_tolerance" \
+      "${overwrite[@]}" "${REPLAY_SELECTION_ARGS[@]}" \
     2>&1 | tee /dev/stderr | grep -c "\[replay-anchor-collection\] fertig" >/dev/null \
     || { err "Bewegungsanker-Erfassung fehlgeschlagen (Ausgabe oben)."; return 1; }
 
@@ -1738,6 +1742,7 @@ Aktionen:
               Policy-Kameras, Sim-State und bytegleich geprüften Original-Actions.
               REPLAY_NUM_EPISODES (10), REPLAY_START_EPISODE (0), REPLAY_EPISODE_IDS,
               REPLAY_MAX_FRAMES (0), REPLAY_OVERWRITE (0),
+              REPLAY_ONSET_TOLERANCE_FRAMES (12),
               REPLAY_OUT (/data/cube_replay/videos),
               REPLAY_DATASET_OUT (/data/cube_replay/dataset),
               REPLAY_WORK (/data/cube_replay/work).

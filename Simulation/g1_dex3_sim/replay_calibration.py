@@ -9,7 +9,13 @@ from typing import Any
 
 import numpy as np
 
-from extract_block_layout import CUBE_COLORS, color_mask, largest_blob, rgb_to_hsv
+from extract_block_layout import (
+    CUBE_COLORS,
+    HSV_WINDOWS,
+    color_mask,
+    largest_blob,
+    rgb_to_hsv,
+)
 
 
 def action_sha256(actions: np.ndarray) -> str:
@@ -93,15 +99,32 @@ def track_color(path: Path, color: str, min_area: int = 80) -> list[list[float] 
 def track_colors(path: Path, min_area: int = 80) -> dict[str, list[list[float] | None]]:
     import imageio.v2 as imageio
 
+    scale = 2
+    reduced_min_area = max(20, min_area // (scale * scale))
     tracks: dict[str, list[list[float] | None]] = {color: [] for color in CUBE_COLORS}
     with imageio.get_reader(str(path), format="FFMPEG") as reader:
         for frame in reader:
-            rgb = np.asarray(frame)[..., :3]
+            rgb = np.asarray(frame)[::scale, ::scale, :3]
+            hue, saturation, value = rgb_to_hsv(rgb)
             for color in CUBE_COLORS:
-                blob = largest_blob(color_mask(rgb, color), min_area=min_area)
-                tracks[color].append(
-                    None if blob is None else [float(blob["u"]), float(blob["v"])]
-                )
+                window = HSV_WINDOWS[color]
+                hue_mask = np.zeros(hue.shape, dtype=bool)
+                for low, high in window["h"]:
+                    hue_mask |= (hue >= low) & (hue <= high)
+                mask = hue_mask & (saturation >= window["s"]) & (value >= window["v"])
+                y_pixels, x_pixels = np.nonzero(mask)
+                if len(x_pixels) < reduced_min_area:
+                    tracks[color].append(None)
+                else:
+                    tracks[color].append([
+                        float(x_pixels.mean() * scale),
+                        float(y_pixels.mean() * scale),
+                    ])
+            frame_count = len(tracks[CUBE_COLORS[0]])
+            if frame_count >= 30 and frame_count % 30 == 0 \
+                    and all(find_motion_onset(tracks[color]) is not None
+                            for color in CUBE_COLORS):
+                break
     return tracks
 
 
@@ -120,14 +143,22 @@ def find_motion_onset(track: list[list[float] | None], threshold_px: float = 8.0
     return None
 
 
-def match_closing_hand(onset: int, spreads: np.ndarray, min_close_m: float = 0.008,
-                       margin_m: float = 0.003) -> int | None:
-    before = max(0, onset - 12)
-    after = min(len(spreads), onset + 8)
-    if after - before < 5:
-        return None
-    open_level = np.nanmax(spreads[before:onset + 1], axis=0)
-    decreases = open_level - np.nanmin(spreads[onset:after], axis=0)
+def closing_hand_scores(onset: int, spreads: np.ndarray) -> np.ndarray:
+    """Hand closure before cube motion; contact usually starts after fingers close."""
+    open_start = max(0, onset - 60)
+    open_stop = max(open_start + 1, onset - 5)
+    closed_start = max(0, onset - 18)
+    closed_stop = min(len(spreads), onset + 6)
+    if open_stop - open_start < 4 or closed_stop - closed_start < 3:
+        return np.full(2, np.nan)
+    open_level = np.nanmax(spreads[open_start:open_stop], axis=0)
+    decreases = open_level - np.nanmin(spreads[closed_start:closed_stop], axis=0)
+    return decreases
+
+
+def match_closing_hand(onset: int, spreads: np.ndarray, min_close_m: float = 0.006,
+                       margin_m: float = 0.002) -> int | None:
+    decreases = closing_hand_scores(onset, spreads)
     order = np.argsort(decreases)[::-1]
     best, second = int(order[0]), int(order[1])
     if not np.isfinite(decreases[best]) or decreases[best] < min_close_m:

@@ -15,6 +15,7 @@ from reconstruct_cube_poses import (
 from replay_calibration import (
     action_sha256,
     apply_homography,
+    closing_hand_scores,
     find_motion_onset,
     fit_homography_ransac,
     match_closing_hand,
@@ -91,6 +92,14 @@ def test_motion_onset_and_closing_hand_are_aligned() -> None:
     spreads = np.full((30, 2), 0.08, dtype=float)
     spreads[12:, 0] = np.linspace(0.08, 0.04, 18)
     assert match_closing_hand(onset, spreads) == 0
+    assert closing_hand_scores(onset, spreads)[0] > 0.02
+
+
+def test_hand_closure_may_precede_cube_motion() -> None:
+    spreads = np.full((120, 2), 0.08, dtype=float)
+    spreads[35:56, 1] = np.linspace(0.08, 0.045, 21)
+    spreads[56:, 1] = 0.045
+    assert match_closing_hand(70, spreads) == 1
 
 
 def test_action_hash_detects_any_value_change() -> None:

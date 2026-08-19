@@ -37,6 +37,15 @@ Würfeln ab, misst die Fingerkuppen und verbindet eindeutige Schließereignisse 
 Bewegungsbeginn eines Farbblocks im Realvideo. Actions werden nur gelesen und per SHA-256
 vor und nach dem Lauf auf Unverändertheit geprüft.
 
+Ein Bewegungsanker ist genau eine solche eindeutige Zuordnung aus Würfelfarbe, realem
+Bewegungsbeginn, Hand und Sim-Fingerkuppenposition. Das Skript simuliert nur noch bis kurz
+nach dem letzten benötigten Bewegungsbeginn, segmentiert die beiden Kopfvideos parallel in
+halber Auflösung und puffert die Tracking-Ergebnisse unter `work/tracking_cache/`. Ein
+erneuter Lauf muss bereits untersuchte Episoden daher nicht wieder vollständig dekodieren.
+Pro Episode werden außerdem konkrete Ablehnungsgründe wie `no_stable_cube_motion`,
+`camera_onset_disagreement` oder `no_unique_hand_closure` ausgegeben und in
+`calibration_anchors.json` gespeichert.
+
 Aus zeitgleichen Annäherungsframes werden außerdem die link-relativen Wrist-Kameraposen
 optimiert. Abschließend rendert Isaac bekannte Markerpositionen. Die Kalibrierung gilt nur
 bei höchstens 5 px Median und 10 px p90 als erfolgreich.
@@ -106,6 +115,7 @@ werden beibehalten; `REPLAY_OVERWRITE=1` erzeugt sie neu.
 | `REPLAY_EPISODE_IDS` | leer | Explizite, leerzeichengetrennte Episoden |
 | `REPLAY_MAX_FRAMES` | `0` | `0` vollständig, sonst Techniktest |
 | `REPLAY_OVERWRITE` | `0` | Vorhandene Ergebnisse neu erzeugen |
+| `REPLAY_ONSET_TOLERANCE_FRAMES` | `12` | Erlaubter Versatz der beiden Bewegungsbeginne |
 | `REPLAY_OUTPUT_MODE` | `videos` | `videos` oder trainierbarer `dataset` |
 | `REPLAY_WORK` | `/data/cube_replay/work` | Kalibrierung, Posen und Kontrollbilder |
 | `REPLAY_OUT` | `/data/cube_replay/videos` | MP4-Ausgabe |
