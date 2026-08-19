@@ -100,7 +100,10 @@ Full guide: [`docs/simulation/vastai-anleitung.md`](docs/simulation/vastai-anlei
 Known fixes & GPU requirements: [`docs/simulation/umsetzungsnotizen.md`](docs/simulation/umsetzungsnotizen.md)
 
 ```bash
-# 1. Build + push sim image (includes entrypoint_sim.sh with unset VIRTUAL_ENV fix)
+# 1. Build + push sim image (includes entrypoint_sim.sh with unset VIRTUAL_ENV fix).
+#    Tags: :<repo-branch> + :<timestamp>; :latest only with --push-latest (same for
+#    Training/update_image.sh). Provenance is in OCI labels (repo branch/commit, GROOT_VERSIONS):
+#    docker inspect --format '{{json .Config.Labels}}' <image>
 ./Simulation/update_sim_image.sh --vastai
 
 # 2. Upload checkpoint to HuggingFace (skips optimizer.pt by default)

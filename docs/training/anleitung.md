@@ -297,10 +297,16 @@ cd Training
 ./update_image.sh --update-commit       # zusätzlich neuesten GR00T-Commit ins Dockerfile eintragen
 ./update_image.sh --no-cache            # Build ohne Cache (z. B. nach flash-attn-Problemen)
 ./update_image.sh --skip-push           # nur lokal bauen, nicht pushen
+./update_image.sh --push-latest         # zusätzlich :latest setzen + pushen
 ./update_image.sh --dry-run             # nur Befehle anzeigen
 ```
 
-Das Skript taggt das Image doppelt (`:latest` und `:<timestamp>`) und pusht beide.
+Das Skript taggt das Image mit `:<repo-branch>` (z. B. `:training-luca-IKR-IS6.0-GN1.7`, `/`→`-`)
+und `:<timestamp>` und pusht beide. **`:latest` wird nur mit `--push-latest` angefasst** — so
+überschreibt ein ungetesteter Build (etwa das Dual-Image N1.6+N1.7) nicht das Image, das
+`setup_and_train_DockerHub-pull.sh` und die KISSKI-`apptainer pull`-Befehle standardmäßig ziehen.
+Die Herkunft steht in OCI-Labels im Image (Repo-Branch/-Commit, `de.humrob.repo-dirty`,
+`GROOT_VERSIONS`, beide Fork-Pins): `docker inspect --format '{{json .Config.Labels}}' <image>`.
 *(Das frühere Windows-Pendant `update_image.ps1` wurde entfernt; unter Windows WSL2 verwenden.)*
 
 **Variante 2 — manuell mit `docker` (Linux/macOS/WSL2):**

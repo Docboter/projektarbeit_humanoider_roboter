@@ -57,9 +57,17 @@ docker login nvcr.io   # Username: $oauthtoken   Password: <NGC-API-Key>
 
 # Nur bauen, nicht pushen (zum Testen):
 ./Simulation/update_sim_image.sh --vastai --skip-push
+
+# Zusätzlich :latest setzen + pushen (Default: :latest bleibt unangetastet):
+./Simulation/update_sim_image.sh --vastai --push-latest
 ```
 
-Ergebnis: `lucam03/projekt-humanoider-roboter-sim-vastai:latest` auf Docker Hub.
+Ergebnis: `lucam03/projekt-humanoider-roboter-sim-vastai:<repo-branch>` (z. B.
+`:training-luca-IKR-IS6.0-GN1.7`) und `:<timestamp>` auf Docker Hub; `:latest` nur mit
+`--push-latest`. Herkunft (Repo-Branch/-Commit, `GROOT_VERSIONS`) steht in OCI-Labels:
+`docker inspect --format '{{json .Config.Labels}}' <image>`. Wer das Branch-Tag nutzt, setzt
+auf dem Server `RL_IMAGE=lucam03/projekt-humanoider-roboter-sim-vastai:<tag>` bzw. trägt es
+auf vast.ai als Image ein.
 
 > **Hinweis:** Das Image ist ~30-40 GB. Genug Plattenplatz einplanen (80+ GB frei).
 

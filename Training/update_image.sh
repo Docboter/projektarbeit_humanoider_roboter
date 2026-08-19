@@ -17,7 +17,16 @@
 #   ./update_image.sh --update-commit    # Neuesten GR00T-Commit eintragen + bauen
 #   ./update_image.sh --no-cache         # Build ohne Docker-Cache
 #   ./update_image.sh --skip-push        # Nur bauen, nicht pushen
+#   ./update_image.sh --push-latest      # zusaetzlich :latest taggen + pushen (sonst NICHT angefasst)
 #   ./update_image.sh --dry-run          # Befehle anzeigen, nichts ausfuehren
+#
+# Tags & Herkunft (seit 2026-08-19):
+#   Jeder Build bekommt :<repo-branch> (z. B. :training-luca-IKR-IS6.0-GN1.7, '/' -> '-')
+#   und :<zeitstempel>. :latest wird NUR mit --push-latest gesetzt/gepusht — das Dual-Image
+#   (N1.6+N1.7) soll :latest nicht ungepruefte ueberschreiben. Zusaetzlich tragen die Images
+#   OCI-Labels (docker inspect --format '{{json .Config.Labels}}' <image>):
+#     org.opencontainers.image.revision / .source / .created, de.humrob.repo-branch,
+#     de.humrob.repo-dirty, de.humrob.groot-versions, de.humrob.groot16-commit, .groot17-commit
 #
 # Voraussetzungen:
 #   docker login   (einmalig; Token wird in ~/.docker/config.json gespeichert)
@@ -36,6 +45,7 @@ set -euo pipefail
 UPDATE_COMMIT=0
 NO_CACHE=0
 SKIP_PUSH=0
+PUSH_LATEST=0
 DRY_RUN=0
 SHOW_HELP=0
 
@@ -44,6 +54,7 @@ for arg in "$@"; do
         --update-commit) UPDATE_COMMIT=1 ;;
         --no-cache)      NO_CACHE=1 ;;
         --skip-push)     SKIP_PUSH=1 ;;
+        --push-latest)   PUSH_LATEST=1 ;;
         --dry-run)       DRY_RUN=1 ;;
         -h|--help)       SHOW_HELP=1 ;;
         *)
@@ -186,12 +197,39 @@ echo ""
 
 
 BUILD_TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
+BUILD_CREATED="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+# Herkunft aus dem Repo (Branch/Commit dieses Repos, nicht des GR00T-Forks) — landet als
+# Image-Tag :<branch> und in den OCI-Labels. Ausserhalb eines Git-Checkouts: "unknown".
+REPO_BRANCH="$(git -C "$SCRIPT_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)"
+REPO_COMMIT="$(git -C "$SCRIPT_DIR" rev-parse HEAD 2>/dev/null || echo unknown)"
+REPO_DIRTY="false"
+if [[ "$REPO_COMMIT" != "unknown" ]] && ! git -C "$SCRIPT_DIR" diff --quiet HEAD -- . 2>/dev/null; then
+    REPO_DIRTY="true"
+fi
+REPO_SOURCE="$(git -C "$SCRIPT_DIR" remote get-url origin 2>/dev/null || echo unknown)"
+# Docker-Tag: nur [A-Za-z0-9_.-], max. 128 Zeichen, kein '/' (Branch 'a/b' -> 'a-b').
+BRANCH_TAG="$(printf '%s' "$REPO_BRANCH" | sed -E 's#[^A-Za-z0-9_.-]+#-#g; s#^[.-]+##' | cut -c1-128)"
+[[ -n "$BRANCH_TAG" && "$BRANCH_TAG" != "HEAD" ]] || BRANCH_TAG="detached-${REPO_COMMIT:0:12}"
+
 IMAGE_LATEST="${DOCKER_IMAGE}:latest"
 IMAGE_DATED="${DOCKER_IMAGE}:${BUILD_TIMESTAMP}"
+IMAGE_BRANCH="${DOCKER_IMAGE}:${BRANCH_TAG}"
 
 BUILD_CMD=(docker build --platform linux/amd64 --build-arg "GROOT_VERSIONS=$GROOT_VERSIONS")
+BUILD_CMD+=(--label "org.opencontainers.image.revision=$REPO_COMMIT"
+            --label "org.opencontainers.image.source=$REPO_SOURCE"
+            --label "org.opencontainers.image.created=$BUILD_CREATED"
+            --label "de.humrob.repo-branch=$REPO_BRANCH"
+            --label "de.humrob.repo-dirty=$REPO_DIRTY"
+            --label "de.humrob.groot-versions=$GROOT_VERSIONS"
+            --label "de.humrob.groot16-commit=${CURRENT_COMMIT:-unknown}"
+            --label "de.humrob.groot17-commit=${CURRENT_COMMIT17:-unknown}")
 if [[ $NO_CACHE -eq 1 ]]; then BUILD_CMD+=(--no-cache); fi
-BUILD_CMD+=(-t "$IMAGE_LATEST" -t "$IMAGE_DATED" "$SCRIPT_DIR")
+BUILD_CMD+=(-t "$IMAGE_BRANCH" -t "$IMAGE_DATED")
+if [[ $PUSH_LATEST -eq 1 ]]; then BUILD_CMD+=(-t "$IMAGE_LATEST"); fi
+BUILD_CMD+=("$SCRIPT_DIR")
+[[ "$REPO_DIRTY" == "true" ]] && warn "Repo hat uncommittete Aenderungen unter Training/ — Label de.humrob.repo-dirty=true."
 
 log "Baue: ${BUILD_CMD[*]}"
 if [[ $NO_CACHE -eq 1 ]]; then warn "Build ohne Cache — das kann 30-60 Minuten dauern (flash-attn)."; fi
@@ -199,8 +237,9 @@ echo ""
 
 invoke_cmd "${BUILD_CMD[@]}"
 
-ok "Image gebaut: $IMAGE_LATEST"
+ok "Image gebaut: $IMAGE_BRANCH"
 ok "Image gebaut: $IMAGE_DATED"
+if [[ $PUSH_LATEST -eq 1 ]]; then ok "Image gebaut: $IMAGE_LATEST"; else warn ":latest NICHT angefasst (dafuer --push-latest)."; fi
 echo ""
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -211,9 +250,13 @@ log "Schritt 4/4 — Nach Docker Hub pushen"
 if [[ $SKIP_PUSH -eq 1 ]]; then
     warn "Push uebersprungen (--skip-push)."
 else
-    invoke_cmd docker push "$IMAGE_LATEST"
+    invoke_cmd docker push "$IMAGE_BRANCH"
     invoke_cmd docker push "$IMAGE_DATED"
-    ok "Gepusht: $IMAGE_LATEST"
+    ok "Gepusht: $IMAGE_BRANCH"
+    if [[ $PUSH_LATEST -eq 1 ]]; then
+        invoke_cmd docker push "$IMAGE_LATEST"
+        ok "Gepusht: $IMAGE_LATEST"
+    fi
     ok "Gepusht: $IMAGE_DATED"
 fi
 echo ""
@@ -221,8 +264,14 @@ echo ""
 ok "Fertig."
 echo ""
 echo "  Zusammenfassung:"
-printf "    %-20s %s\n" "Image (latest):" "$IMAGE_LATEST"
+printf "    %-20s %s\n" "Image (branch):" "$IMAGE_BRANCH"
 printf "    %-20s %s\n" "Image (dated):"  "$IMAGE_DATED"
+if [[ $PUSH_LATEST -eq 1 ]]; then
+    printf "    %-20s %s\n" "Image (latest):" "$IMAGE_LATEST"
+else
+    printf "    %-20s %s\n" "Image (latest):" "unveraendert (--push-latest zum Aktualisieren)"
+fi
+printf "    %-20s %s\n" "Repo-Branch:"    "$REPO_BRANCH @ ${REPO_COMMIT:0:12}$([[ "$REPO_DIRTY" == "true" ]] && echo ' (dirty)')"
 printf "    %-20s %s\n" "GROOT_VERSIONS:" "$GROOT_VERSIONS"
 if [[ -n "$CURRENT_COMMIT" ]]; then
     printf "    %-20s %s\n" "N1.6-Commit:" "${CURRENT_COMMIT:0:12}..."
@@ -233,5 +282,6 @@ fi
 echo ""
 echo "  Naechste Schritte:"
 echo "    * Testen:  ./setup_and_train_DockerHub-pull.sh"
-echo "    * Ziehen:  docker pull $IMAGE_LATEST"
+echo "    * Ziehen:  docker pull $IMAGE_BRANCH"
+echo "    * Herkunft: docker inspect --format '{{json .Config.Labels}}' $IMAGE_BRANCH"
 echo ""
