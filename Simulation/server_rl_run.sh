@@ -1179,6 +1179,140 @@ do_layoutcheck() {
   echo "  bleibt; erst die entscheidet, ob das Layout brauchbar ist."
 }
 
+# Gemeinsame, als Bash-Array aufgebaute Episodenauswahl für die neuen Replay-Aktionen.
+# Keine String-Konkatenation: explizite IDs bleiben einzelne, validierte CLI-Argumente.
+replay_selection_args() {
+  local count="${REPLAY_NUM_EPISODES:-10}"
+  local start="${REPLAY_START_EPISODE:-0}"
+  [[ "$count" =~ ^[1-9][0-9]*$ ]] \
+    || { err "REPLAY_NUM_EPISODES muss eine positive Ganzzahl sein: '$count'"; return 1; }
+  [[ "$start" =~ ^[0-9]+$ ]] \
+    || { err "REPLAY_START_EPISODE muss eine nichtnegative Ganzzahl sein: '$start'"; return 1; }
+  REPLAY_SELECTION_ARGS=( --num-episodes "$count" --start-episode "$start" )
+  if [[ -n "${REPLAY_EPISODE_IDS:-}" ]]; then
+    local ids=() id
+    read -r -a ids <<<"$REPLAY_EPISODE_IDS"
+    for id in "${ids[@]}"; do
+      [[ "$id" =~ ^[0-9]+$ ]] \
+        || { err "Ungültige Episode in REPLAY_EPISODE_IDS: '$id'"; return 1; }
+    done
+    REPLAY_SELECTION_ARGS+=( --episode-ids "${ids[@]}" )
+  fi
+}
+
+ensure_replay_script() {
+  local script="$1"
+  if ! docker exec "$CONTAINER" test -f "$SIM_DIR/$script"; then
+    err "$script fehlt unter $SIM_DIR im Container."
+    err "  Das Verzeichnis ist read-only aus dem Repo gemountet; auf dem Server git pull."
+    return 1
+  fi
+}
+
+# Vollständigen v2.1-Quelldatensatz und das lokale G1+DEX3-Asset bereitstellen. Es werden
+# bewusst keine GR00T-Modellgewichte geladen: der Replay benutzt ausschließlich Dataset-Actions.
+do_replay_prepare() {
+  ensure_asset_local || return 1
+  local ds="${REPLAY_DATASET:-/data/unitreerobotics/G1_Dex3_BlockStacking_Dataset}"
+  ensure_dataset "$ds" || return 1
+  ensure_replay_script reconstruct_cube_poses.py || return 1
+  replay_selection_args || return 1
+
+  log "Prüfe Replay-Quelldatensatz: $ds"
+  docker exec -w "$SIM_DIR" "$CONTAINER" env -u VIRTUAL_ENV \
+    "$ISAAC_PY" "$SIM_DIR/reconstruct_cube_poses.py" inspect \
+      --dataset-path "$ds" "${REPLAY_SELECTION_ARGS[@]}" \
+    2>&1 | tee /dev/stderr | grep -c "\[replay-prepare\] fertig" >/dev/null \
+    || { err "Replay-Datensatzprüfung fehlgeschlagen (Ausgabe oben)."; return 1; }
+  ok "Replay vorbereitet; Asset: $ASSET_PATH"
+}
+
+# Prüft die rekonstruierte Kopfkamera-Skala an den realen Würfelsilhouetten und schreibt
+# die für Pose-Fit und Replay gemeinsame Geometrie. Kein Isaac-Start, also schnell.
+do_replay_calibrate() {
+  ensure_container
+  local ds="${REPLAY_DATASET:-/data/unitreerobotics/G1_Dex3_BlockStacking_Dataset}"
+  ensure_dataset "$ds" || return 1
+  ensure_replay_script reconstruct_cube_poses.py || return 1
+  replay_selection_args || return 1
+  local work="${REPLAY_WORK:-/data/cube_replay/work}"
+  local calibration="${REPLAY_CALIBRATION:-$work/geometry_calibration.json}"
+  local debug="${REPLAY_CALIBRATION_DEBUG_DIR:-$work/calibration_overlays}"
+
+  log "Kalibriere Replay-Geometrie aus maximal ${REPLAY_NUM_EPISODES:-10} Episoden."
+  docker exec -w "$SIM_DIR" "$CONTAINER" env -u VIRTUAL_ENV \
+    "$ISAAC_PY" "$SIM_DIR/reconstruct_cube_poses.py" calibrate \
+      --dataset-path "$ds" --out "$calibration" --debug-dir "$debug" \
+      "${REPLAY_SELECTION_ARGS[@]}" \
+    2>&1 | tee /dev/stderr | grep -c "\[replay-calibrate\] fertig" >/dev/null \
+    || { err "Replay-Kalibrierung fehlgeschlagen (Ausgabe oben)."; return 1; }
+  ok "Kalibrierung: $HOST_DATA_DIR/${calibration#/data/}"
+  echo "  Kontrollbilder: $HOST_DATA_DIR/${debug#/data/}"
+}
+
+# Rekonstruiert genau eine Anfangspose je Würfel und Episode. Fehlende Farben führen zum
+# Überspringen der Episode; es gibt keinen Greifpunkt- oder Zufalls-Fallback.
+do_replay_poses() {
+  ensure_container
+  local ds="${REPLAY_DATASET:-/data/unitreerobotics/G1_Dex3_BlockStacking_Dataset}"
+  ensure_dataset "$ds" || return 1
+  ensure_replay_script reconstruct_cube_poses.py || return 1
+  replay_selection_args || return 1
+  local work="${REPLAY_WORK:-/data/cube_replay/work}"
+  local calibration="${REPLAY_CALIBRATION:-$work/geometry_calibration.json}"
+  local poses="${REPLAY_POSES:-$work/cube_poses.json}"
+  local debug="${REPLAY_POSE_DEBUG_DIR:-$work/pose_overlays}"
+  local overwrite=()
+  [[ "${REPLAY_OVERWRITE:-0}" == "1" ]] && overwrite=( --overwrite )
+
+  if ! docker exec "$CONTAINER" test -f "$calibration"; then
+    err "Replay-Kalibrierung fehlt: $calibration"
+    err "  Zuerst: ./Simulation/server_rl_run.sh replay-calibrate"
+    return 1
+  fi
+  log "Bestimme einmalige Würfel-Startposen für maximal ${REPLAY_NUM_EPISODES:-10} Episoden."
+  docker exec -w "$SIM_DIR" "$CONTAINER" env -u VIRTUAL_ENV \
+    "$ISAAC_PY" "$SIM_DIR/reconstruct_cube_poses.py" poses \
+      --dataset-path "$ds" --calibration "$calibration" --out "$poses" \
+      --debug-dir "$debug" "${overwrite[@]}" "${REPLAY_SELECTION_ARGS[@]}" \
+    2>&1 | tee /dev/stderr | grep -c "\[replay-poses\] fertig" >/dev/null \
+    || { err "Würfelpose-Rekonstruktion fehlgeschlagen (Ausgabe oben)."; return 1; }
+  ok "Würfelposen: $HOST_DATA_DIR/${poses#/data/}"
+  echo "  Kontrollbilder: $HOST_DATA_DIR/${debug#/data/}"
+}
+
+# Spielt die Originalaktionen bei exakt 30 Hz ab und schreibt fünf MP4s je Episode.
+# Die Würfel werden nach env.reset genau einmal gesetzt und danach nie wieder beschrieben.
+do_replay_render() {
+  ensure_asset_local || return 1
+  local ds="${REPLAY_DATASET:-/data/unitreerobotics/G1_Dex3_BlockStacking_Dataset}"
+  ensure_dataset "$ds" || return 1
+  ensure_replay_script run_dataset_replay_videos.py || return 1
+  replay_selection_args || return 1
+  local work="${REPLAY_WORK:-/data/cube_replay/work}"
+  local poses="${REPLAY_POSES:-$work/cube_poses.json}"
+  local out="${REPLAY_OUT:-/data/cube_replay/videos}"
+  local extra=()
+  [[ "${REPLAY_OVERWRITE:-0}" == "1" ]] && extra+=( --overwrite )
+  [[ "${REPLAY_MAX_FRAMES:-0}" != "0" ]] \
+    && extra+=( --max-frames "${REPLAY_MAX_FRAMES}" )
+
+  if ! docker exec "$CONTAINER" test -f "$poses"; then
+    err "Würfelposen fehlen: $poses"
+    err "  Zuerst: ./Simulation/server_rl_run.sh replay-poses"
+    return 1
+  fi
+  log "Rendere maximal ${REPLAY_NUM_EPISODES:-10} physikbasierte Replay-Episoden nach $out."
+  docker exec -w "$SIM_DIR" -e "DR_ENABLED=${DR_ENABLED:-0}" "$CONTAINER" \
+    env -u VIRTUAL_ENV "$ISAAC_PY" "$SIM_DIR/run_dataset_replay_videos.py" \
+      --headless --enable_cameras --dataset-path "$ds" --poses "$poses" \
+      --out-dir "$out" --asset-path "$ASSET_PATH" \
+      "${extra[@]}" "${REPLAY_SELECTION_ARGS[@]}" \
+    2>&1 | tee /dev/stderr | grep -c "\[replay-render\] fertig" >/dev/null \
+    || { err "Replay-Rendering fehlgeschlagen (Ausgabe oben)."; return 1; }
+  ok "Replay-Videos: $HOST_DATA_DIR/${out#/data/}"
+}
+
 do_render() {
   ensure_checkpoint
   ensure_black_hands
@@ -1518,6 +1652,20 @@ Aktionen:
               Laeufe waren umsonst. LAYOUTCHECK_FRAME (Bild im Container),
               LAYOUTCHECK_EXPECT (bekannte Wuerfelpositionen als JSON, aus
               render_manifest.json -> cubes_xyz), LAYOUTCHECK_CAM (cam_left_high).
+  replay-prepare  Vollständigen Real-Datensatz holen/konvertieren und Schema, vier Kameras,
+              30 Hz sowie 28-DoF-State/Actions prüfen. Stellt das lokale G1+DEX3-Asset
+              bereit und lädt keine Modellgewichte.
+  replay-calibrate  Kopfkamera-Skala an realen Würfelsilhouetten prüfen und gemeinsame
+              5-cm-Würfel-/Tischgeometrie unter REPLAY_WORK ablegen.
+  replay-poses  Für maximal REPLAY_NUM_EPISODES (Default 10) die einmalige Anfangspose
+              aller Würfel aus beiden Kopfkameras fitten. Fehlende Farben überspringen
+              die Episode; kein Zufalls- oder Greifpunkt-Fallback.
+  replay-render  Originale 28-DoF-Actions bei exakt 30 Hz abspielen. Jeder Würfel wird
+              einmal vor Frame 0 gesetzt und danach ausschließlich von PhysX bewegt.
+              Ausgabe: fünf MP4s je Episode, kein Trainingsdatensatz.
+              REPLAY_NUM_EPISODES (10), REPLAY_START_EPISODE (0), REPLAY_EPISODE_IDS,
+              REPLAY_MAX_FRAMES (0), REPLAY_OVERWRITE (0),
+              REPLAY_OUT (/data/cube_replay/videos), REPLAY_WORK (/data/cube_replay/work).
   render      Gerenderten Co-Training-Datensatz erzeugen (Schritt 4): echte Dataset-Aktionen
               in der Sim abspielen und dabei die vier Policy-Kameras aufzeichnen. Ergebnis
               ist ein LeRobot-v2.1-Datensatz, den run_finetuning_cotrain.sh dazumischt.
@@ -1579,6 +1727,11 @@ Beispiele:
   # Schritt 4 — erst der Rauchtest (2 Episoden a 60 Frames), dann der lange Lauf:
   HF_TOKEN=hf_... RENDER_EPISODES=2 RENDER_MAX_FRAMES=60 ./Simulation/server_rl_run.sh render
   HF_TOKEN=hf_... RENDER_EPISODES=60 ./Simulation/server_rl_run.sh render
+  # Physikbasierte Videos aus zunächst höchstens zehn Real-Episoden:
+  HF_TOKEN=hf_... ./Simulation/server_rl_run.sh replay-prepare
+  REPLAY_NUM_EPISODES=10 ./Simulation/server_rl_run.sh replay-calibrate
+  REPLAY_NUM_EPISODES=10 ./Simulation/server_rl_run.sh replay-poses
+  DR_ENABLED=0 REPLAY_NUM_EPISODES=10 ./Simulation/server_rl_run.sh replay-render
   HF_TOKEN=hf_... WANDB_API_KEY=... RL_NUM_ENVS=4 ./Simulation/server_rl_run.sh rl
   # mit Live-Ansicht im Browser + W&B-Video alle 10 Iterationen:
   HF_TOKEN=hf_... WANDB_API_KEY=... LIVE_VIEW=1 RL_WANDB_VIDEO_EVERY=10 \\
@@ -1640,7 +1793,7 @@ ACTION="${1:-help}"
 # 'shell' bleibt ungespiegelt (interaktives -it verträgt die Pipe nicht), 'help'/'clean'
 # haben nichts zu protokollieren.
 case "$ACTION" in
-  preflight|setup|check|cams|gap|eval|grasp|span|rl|livecheck|latency|optimize|render|view|webview|layout|layoutcheck) start_logging "$ACTION" ;;
+  preflight|setup|check|cams|gap|eval|grasp|span|rl|livecheck|latency|optimize|render|view|webview|layout|layoutcheck|replay-prepare|replay-calibrate|replay-poses|replay-render) start_logging "$ACTION" ;;
 esac
 case "$ACTION" in
   preflight)  do_preflight ;;
@@ -1655,6 +1808,10 @@ case "$ACTION" in
   span)       do_span ;;
   layout)     do_layout ;;
   layoutcheck) do_layoutcheck ;;
+  replay-prepare) do_replay_prepare ;;
+  replay-calibrate) do_replay_calibrate ;;
+  replay-poses) do_replay_poses ;;
+  replay-render) do_replay_render ;;
   render)     do_render ;;
   latency)    do_latency ;;
   optimize)   do_optimize "${2:-all}" ;;

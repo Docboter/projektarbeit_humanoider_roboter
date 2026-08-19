@@ -425,6 +425,9 @@ class G1Dex3BlockstackEnvCfg(DirectRLEnvCfg):
     stack_xy_tol: float = 0.03  # max. horizontaler Versatz zwischen Würfel-Mittelpunkten
     stack_height_min: float = 0.08  # Mindesthöhe des Turms (2 × 0.05 m - Toleranz)
     stack_vel_max: float = 0.05  # max. Geschwindigkeit für "stabil gestapelt"
+    # Dataset-Replays müssen auch nach einem erfolgreichen Zwischenzustand bis zum Ende
+    # der Originalepisode weiterlaufen. Der Default bleibt für Eval/RL unverändert.
+    terminate_on_success: bool = True
 
     # Task-Beschreibung (geht ans Language-Modell)
     task_description: str = "stack the blocks"
@@ -1187,7 +1190,9 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
 
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
         self._episode_step += 1
-        terminated = self._check_success()
+        terminated = self._check_success() if self.cfg.terminate_on_success else torch.zeros(
+            self.num_envs, dtype=torch.bool, device=self.device
+        )
         time_out = self._episode_step >= int(self.cfg.episode_length_s * self.cfg.policy_hz)
         return terminated, time_out
 
