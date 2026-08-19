@@ -118,6 +118,10 @@ DATALOADER_WORKERS="${DATALOADER_WORKERS:-4}"
 # Steht hier oben, weil LR + Warmup davon abhängen.
 TUNE_VISUAL="${TUNE_VISUAL:-0}"
 
+# GR00T-Version: 1.6 (Default, Eagle-Backbone) oder 1.7 (Cosmos-Reason2-2B, gated Backbone,
+# eigener Code-Baum /app/Groot-1.7). Details: Training/scripts/lib_groot_version.sh.
+GROOT_VERSION="${GROOT_VERSION:-1.6}"
+
 # USE_COTRAIN=1 → Co-Training auf echten UND gerenderten Bildern (Schritt 4; Entrypoint
 # startet run_finetuning_cotrain.sh, Namespace /data/g1_dex3_finetune/blockstacking_cotrain).
 # Setzt --tune_visual selbst, also dieselbe LR-Behandlung wie ein Vision-Lauf.
@@ -237,6 +241,7 @@ echo "    LEARNING_RATE:     $LEARNING_RATE"
 echo "    WARMUP_RATIO:      $WARMUP_RATIO"
 echo "    WANDB_PROJECT:     $WANDB_PROJECT"
 echo "    TUNE_VISUAL:       $TUNE_VISUAL"
+echo "    GROOT_VERSION:     $GROOT_VERSION"
 echo "    USE_COTRAIN:       $USE_COTRAIN$([[ "$USE_COTRAIN" == "1" ]] && echo "  (Mischung ${COTRAIN_MIX_RATIO} gerendert)")"
 echo "    TRAIN_TEST_SPLIT:  $TRAIN_TEST_SPLIT  (Ratio=$TRAIN_SPLIT_RATIO)"
 echo "    USE_AUGMENTATION:  $USE_AUGMENTATION"
@@ -331,23 +336,63 @@ fi
 APPTAINER_ARGS+=(--bind "${REPO_DIR}/Training/scripts:/scripts")
 echo "    Skripte aus Repo: ${REPO_DIR}/Training/scripts"
 
+# ── GR00T-Version auflösen (N1.6 default, N1.7 als paralleler Pfad) ──────────
+# Nur groot_normalize_version() — eine reine Funktion ohne Exports. groot_resolve()
+# würde u. a. HF_HOME exportieren; Apptainer reicht die Host-Umgebung standardmäßig in
+# den Container durch, das würde den N1.6-Default (kein HF_HOME gesetzt) unbeabsichtigt
+# verändern. Die übrigen Werte (Wurzelverzeichnis, Namespace-Suffix) daher hier explizit.
+source "${REPO_DIR}/Training/scripts/lib_groot_version.sh"
+GROOT_VERSION="$(groot_normalize_version "$GROOT_VERSION")" || exit 1
+APPTAINER_ARGS+=(--env "GROOT_VERSION=$GROOT_VERSION")
+
+if [[ "$GROOT_VERSION" == "1.7" ]]; then
+    GROOT_TARGET_ROOT="/app/Groot-1.7"
+    GROOT_FORK_DIR="${GROOT17_FORK_DIR:-$KISSKI_PROJECT_DIR/repo-groot-n17}"
+    FORK_BRANCH_HINT="luca/g1-dex3-n17"
+
+    # N1.7 lädt das gated Cosmos-Reason2-2B-Backbone bei JEDEM Checkpoint-Laden vom
+    # HF-Hub nach → Compute-Nodes sind offline, daher fest auf den vorab befüllten Cache lenken.
+    APPTAINER_ARGS+=(--env "HF_HOME=/data/hf_cache" --env "HF_HUB_OFFLINE=1")
+
+    # Preflight: Modell + gated Backbone müssen VORHER auf dem Login-Node im Cache liegen.
+    # $DATA_DIR ist hier der HOST-Pfad (Bind-Ziel /data im Container).
+    BACKBONE_CFG=("$DATA_DIR"/hf_cache/hub/models--nvidia--Cosmos-Reason2-2B/snapshots/*/config.json)
+    MODEL17_CFG="$DATA_DIR/models/GR00T-N1.7-3B/config.json"
+    if [[ ! -f "${BACKBONE_CFG[0]}" || ! -f "$MODEL17_CFG" ]]; then
+        echo "FEHLER: GROOT_VERSION=1.7 braucht Modell + gated Backbone vorab im HF-Cache" >&2
+        echo "       (Compute-Nodes haben kein Internet). Auf dem LOGIN-Node ausführen (huggingface-cli" >&2
+        echo "       liegt in der SIF-venv; HF_TOKEN muss Zugang zum gated Backbone haben):" >&2
+        echo "         module load apptainer" >&2
+        echo "         apptainer exec --bind $DATA_DIR:/data --env HF_TOKEN=\$HF_TOKEN --env HF_HOME=/data/hf_cache \\" >&2
+        echo "             $SIF_IMAGE huggingface-cli download nvidia/Cosmos-Reason2-2B" >&2
+        echo "         apptainer exec --bind $DATA_DIR:/data --env HF_TOKEN=\$HF_TOKEN \\" >&2
+        echo "             $SIF_IMAGE huggingface-cli download nvidia/GR00T-N1.7-3B --local-dir /data/models/GR00T-N1.7-3B" >&2
+        echo "       Zugang zum gated Backbone-Repo vorher beantragen:" >&2
+        echo "         https://huggingface.co/nvidia/Cosmos-Reason2-2B" >&2
+        exit 1
+    fi
+else
+    GROOT_TARGET_ROOT="/app/Groot-1.6"
+    GROOT_FORK_DIR="${GROOT_FORK_DIR:-$KISSKI_PROJECT_DIR/repo-groot}"
+    FORK_BRANCH_HINT="luca/g1-dex3"
+fi
+
 # G1_DEX3-Konfiguration + LeRobot-Konverter aus dem lucam06/Isaac-GR00T Fork mounten
 # (im Container-Image fehlen diese Dateien — nur die offizielle NVIDIA-Version ist eingebackt).
-# Einmalig: git clone --branch luca/g1-dex3 --depth 1 https://github.com/lucam06/Isaac-GR00T.git /mnt/vast-kisski/projects/kisski-humrob/repo-groot
-GROOT_FORK_DIR="${GROOT_FORK_DIR:-$KISSKI_PROJECT_DIR/repo-groot}"
+# Einmalig: git clone --branch $FORK_BRANCH_HINT --depth 1 https://github.com/lucam06/Isaac-GR00T.git $GROOT_FORK_DIR
 if [[ ! -d "$GROOT_FORK_DIR/examples/G1_DEX3" ]]; then
     echo "FEHLER: $GROOT_FORK_DIR/examples/G1_DEX3 nicht gefunden." >&2
     echo "       lucam06-Fork einmalig klonen:" >&2
-    echo "       git clone --branch luca/g1-dex3 --depth 1 https://github.com/lucam06/Isaac-GR00T.git $GROOT_FORK_DIR" >&2
+    echo "       git clone --branch $FORK_BRANCH_HINT --depth 1 https://github.com/lucam06/Isaac-GR00T.git $GROOT_FORK_DIR" >&2
     exit 1
 fi
-APPTAINER_ARGS+=(--bind "$GROOT_FORK_DIR/examples/G1_DEX3:/app/Groot-1.6/examples/G1_DEX3")
-APPTAINER_ARGS+=(--bind "$GROOT_FORK_DIR/scripts/lerobot_conversion:/app/Groot-1.6/scripts/lerobot_conversion")
-# gr00t-Modul aus Fork: Container hat nur gr00t_n1d7-Code, Modell ist aber N1.6 (Gr00tN1d6).
-# Editable install (egg-info) lädt Code direkt aus /app/Groot-1.6/gr00t/.
-APPTAINER_ARGS+=(--bind "$GROOT_FORK_DIR/gr00t:/app/Groot-1.6/gr00t")
+APPTAINER_ARGS+=(--bind "$GROOT_FORK_DIR/examples/G1_DEX3:$GROOT_TARGET_ROOT/examples/G1_DEX3")
+APPTAINER_ARGS+=(--bind "$GROOT_FORK_DIR/scripts/lerobot_conversion:$GROOT_TARGET_ROOT/scripts/lerobot_conversion")
+# gr00t-Modul aus Fork: Editable install (egg-info) lädt Code direkt aus $GROOT_TARGET_ROOT/gr00t/.
+APPTAINER_ARGS+=(--bind "$GROOT_FORK_DIR/gr00t:$GROOT_TARGET_ROOT/gr00t")
+echo "    GROOT_VERSION:           $GROOT_VERSION  (root=$GROOT_TARGET_ROOT)"
 echo "    G1_DEX3-Config aus Fork: $GROOT_FORK_DIR/examples/G1_DEX3"
-echo "    gr00t-Modul (N1.6)  aus Fork: $GROOT_FORK_DIR/gr00t"
+echo "    gr00t-Modul aus Fork:    $GROOT_FORK_DIR/gr00t"
 
 [[ -n "${WANDB_API_KEY:-}" ]] && APPTAINER_ARGS+=(--env "WANDB_API_KEY=$WANDB_API_KEY")
 # Compute-Nodes haben kein Internet — W&B immer im Offline-Modus betreiben.

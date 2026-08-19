@@ -20,6 +20,7 @@
 # Optionale Überschreibungen (Inline-Prefix vor sbatch, mit --export=ALL):
 #   SIM_SIF, DATA_DIR, CHECKPOINT_PATH, HF_CHECKPOINT_REPO,
 #   RL_NUM_ENVS, RL_ITERATIONS, RL_ROLLOUT_STEPS, RL_LR, RL_KL_COEF, RL_CLIP
+#   GROOT_VERSION (nur 1.6 unterstützt — 1.7 bricht mit Hinweis auf Phase 6 ab)
 
 #SBATCH --job-name=groot-rl
 # >>> ANPASSEN: RT-Core-fähige Partition/GPU eintragen (z. B. eine Ada/L40-Partition).
@@ -74,6 +75,26 @@ RL_LR="${RL_LR:-1e-5}"
 RL_KL_COEF="${RL_KL_COEF:-0.1}"
 RL_CLIP="${RL_CLIP:-0.2}"
 
+# GR00T-Version: nur 1.6 unterstützt (Default). RL (rl_finetune.py) ist an N1.6-Interna
+# gekoppelt (Gr00tN1d6ActionHead-Forward, Processor-Maske) — siehe Phase 6 des Migrationsplans.
+# Nur groot_normalize_version() aus der lib sourcen (reine Funktion, keine Exports).
+GROOT_VERSION="${GROOT_VERSION:-1.6}"
+GROOT_LIB="$REPO_DIR/Training/scripts/lib_groot_version.sh"
+if [[ -f "$GROOT_LIB" ]]; then
+    source "$GROOT_LIB"
+    GROOT_VERSION="$(groot_normalize_version "$GROOT_VERSION")" || exit 1
+fi
+if [[ "$GROOT_VERSION" == "1.7" ]]; then
+    echo "FEHLER: RL-Fine-tuning (FPO) ist für GR00T N1.7 noch NICHT implementiert." >&2
+    echo "       rl_finetune.py repliziert bislang N1.6-Interna (Gr00tN1d6ActionHead.forward," >&2
+    echo "       Processor-Maske) und ist noch nicht auf N1.7 (Gr00tN1d7ActionHead," >&2
+    echo "       state_history_length, options-Dict) umgestellt. Siehe:" >&2
+    echo "       docs/weiterfuehrend/groot-n17-migration.md, Abschnitt \"Phase 6 — RL &" >&2
+    echo "       Co-Training nachziehen\"." >&2
+    echo "       GROOT_VERSION=1.6 setzen (Default) oder Phase 6 zuerst umsetzen." >&2
+    exit 1
+fi
+
 # ── Tokens aus Dateien (wie kisski_submit.sh) ─────────────────────────────────
 HF_TOKEN_FILE="${HF_TOKEN_FILE:-$HOME/.hf_token}"
 WANDB_KEY_FILE="${WANDB_KEY_FILE:-$HOME/.wandb_key}"
@@ -105,7 +126,7 @@ mkdir -p logs "$DATA_DIR"
 module load apptainer
 
 echo "==> RL-Job ${SLURM_JOB_ID:-local} auf $(hostname) — GPU: $GPU_NAME"
-echo "    SIM_SIF=$SIM_SIF  CHECKPOINT=$CHECKPOINT_PATH  num_envs=$RL_NUM_ENVS  iters=$RL_ITERATIONS"
+echo "    GROOT_VERSION=$GROOT_VERSION  SIM_SIF=$SIM_SIF  CHECKPOINT=$CHECKPOINT_PATH  num_envs=$RL_NUM_ENVS  iters=$RL_ITERATIONS"
 
 APPTAINER_ARGS=(
     --nv
@@ -120,6 +141,7 @@ APPTAINER_ARGS=(
     --env "RL_LR=$RL_LR"
     --env "RL_KL_COEF=$RL_KL_COEF"
     --env "RL_CLIP=$RL_CLIP"
+    --env "GROOT_VERSION=$GROOT_VERSION"
 )
 [[ -n "${WANDB_API_KEY:-}" ]] && APPTAINER_ARGS+=(--env "WANDB_API_KEY=$WANDB_API_KEY" --env "WANDB_MODE=offline")
 

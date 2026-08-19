@@ -40,9 +40,10 @@ Normalerweise über den Wrapper, der das Skript in den laufenden Container kopie
 
     HF_TOKEN=hf_... ./Simulation/server_rl_run.sh latency
 
-Direkt im Container (GR00T-venv, NICHT das Isaac-Python):
+Direkt im Container (GR00T-venv, NICHT das Isaac-Python). $GROOT_ROOT ist je nach
+GROOT_VERSION /app/Groot-1.6 oder /app/Groot-1.7 — das Skript selbst ist versionsneutral:
 
-    /app/Groot-1.6/.venv/bin/python /workspace/policy_latency.py \\
+    "$GROOT_ROOT/.venv/bin/python" /workspace/policy_latency.py \\
         --model-path /data/checkpoints/groot-g1dex3-checkpoint \\
         --iterations 50
 """
@@ -56,6 +57,21 @@ import numpy as np
 import torch
 from gr00t.data.embodiment_tags import EmbodimentTag
 from gr00t.policy.gr00t_policy import Gr00tPolicy, Gr00tSimPolicyWrapper
+
+
+def resolve_embodiment_tag(name: str) -> EmbodimentTag:
+    """String -> EmbodimentTag, in N1.6 wie in N1.7.
+
+    N1.7 hat dafuer die Klassenmethode ``resolve`` (Name ODER Wert, case-insensitive);
+    N1.6 kennt nur ``EmbodimentTag(wert)`` bzw. ``EmbodimentTag[NAME]``.
+    """
+    resolve = getattr(EmbodimentTag, "resolve", None)
+    if resolve is not None:
+        return resolve(name)
+    try:
+        return EmbodimentTag(name)
+    except ValueError:
+        return EmbodimentTag[name.upper()]
 
 # Gelenk-Aufteilung wie in Simulation/g1_dex3_sim/client.py build_obs(): dieselben
 # Gruppen, dieselben Schlüssel. Weicht das ab, misst der Bench einen anderen
@@ -104,7 +120,8 @@ def main() -> None:
     p.add_argument("--policy-hz", type=float, default=30.0)
     # Zerlegung der Latenz. Der Flow-Matching-Kopf iteriert num_inference_timesteps-mal
     # (Default 4), der Backbone — Vision-Tower + LLM, der teure Teil — läuft davor GENAU
-    # EINMAL (gr00t_n1d6.py: backbone_features werden vor der Denoising-Schleife berechnet).
+    # EINMAL (gr00t_n1d6.py bzw. gr00t_n1d7.py: die backbone_features werden vor der
+    # Denoising-Schleife berechnet; in beiden Versionen gleich aufgebaut).
     # Misst man mehrere Werte, trennt die Steigung den iterativen Kopf vom festen Backbone:
     #   t(n) ≈ backbone + n * kopf     -> Steigung = Kopf je Schritt, Achsenabschnitt = Backbone
     # Das sagt, wo eine Optimierung für echte Hardware überhaupt ansetzen müsste.
@@ -147,7 +164,7 @@ def main() -> None:
 
     policy = Gr00tPolicy(
         model_path=args.model_path,
-        embodiment_tag=EmbodimentTag(args.embodiment_tag),
+        embodiment_tag=resolve_embodiment_tag(args.embodiment_tag),
         device=device,
     )
     # Derselbe Wrapper, den run_gr00t_server.py mit --use-sim-policy-wrapper benutzt.
@@ -210,10 +227,11 @@ def main() -> None:
     # ── Zerlegung: fester Backbone gegen iterativen Aktionskopf ────────────────
     sweep_rows = []
     if args.denoising_sweep:
-        # Rekursiv suchen statt den Pfad zu raten: das Attribut sitzt auf
-        # Gr00tN1d6ActionHead, also eine Ebene unter policy.model — ein fest verdrahtetes
-        # policy.model.num_inference_timesteps lief 2026-08-13 ins Leere. named_modules()
-        # findet es unabhängig davon, wie tief es künftig hängt.
+        # Rekursiv suchen statt den Pfad zu raten: das Attribut sitzt auf dem Action-Head
+        # (Gr00tN1d6ActionHead bzw. Gr00tN1d7ActionHead), also eine Ebene unter
+        # policy.model — ein fest verdrahtetes policy.model.num_inference_timesteps lief
+        # 2026-08-13 ins Leere. named_modules() findet es unabhängig davon, wie tief es
+        # hängt, und funktioniert deshalb auch über Modellversionen hinweg.
         owners = [
             (name or "<root>", mod)
             for name, mod in getattr(policy, "model", None).named_modules()

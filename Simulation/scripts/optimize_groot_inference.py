@@ -6,6 +6,11 @@ Der Export benutzt eine synthetische Observation im exakten vier-Kamera-Simforma
 Ein Download des rund 18 GB grossen Trainingsdatensatzes ist daher nicht noetig.
 Die TensorRT-Engine wird absichtlich auf der Ziel-GPU gebaut und per Metadaten an
 Checkpoint, GPU-Modell, Compute Capability und TensorRT-Version gebunden.
+
+NUR GR00T N1.6. Export, Engine und Validierung sind gegen Gr00tN1d6ActionHead gebaut
+(DiT unter ``policy.model.action_head.model``, Eingabenamen aus dem AlternateVLDiT).
+Ein N1.7-Checkpoint wird beim Laden abgewiesen (require_gr00t_n1d6); portiert ist
+nichts davon — Stand: docs/weiterfuehrend/groot-n17-migration.md.
 """
 
 from __future__ import annotations
@@ -27,6 +32,7 @@ from groot_inference_backend import (
     checkpoint_fingerprint,
     gpu_fingerprint,
     install_backend,
+    require_gr00t_n1d6,
     validate_engine_metadata,
 )
 
@@ -53,6 +59,8 @@ def load_policy(model_path: str, embodiment_tag: str):
     policy = Gr00tPolicy(
         embodiment_tag=EmbodimentTag(embodiment_tag), model_path=model_path, device="cuda"
     )
+    # N1.6-only: der ganze Export haengt am Gr00tN1d6-DiT (siehe Modul-Docstring).
+    require_gr00t_n1d6(policy)
     return policy, Gr00tSimPolicyWrapper(policy)
 
 

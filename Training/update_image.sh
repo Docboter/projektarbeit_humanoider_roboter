@@ -5,9 +5,11 @@
 # Bringt das Docker-Image lucam03/projekt-humanoider-roboter:latest auf den
 # neuesten Stand:
 #
-#   1. Neuesten Commit der Isaac-GR00T-Repo ermitteln
+#   1. Neuesten Commit der Isaac-GR00T-Repo ermitteln — fuer BEIDE Fork-Branches
+#      (N1.6: luca/g1-dex3 -> ARG GROOT16_COMMIT, N1.7: luca/g1-dex3-n17 -> ARG GROOT17_COMMIT)
 #   2. Dockerfile aktualisieren (falls --update-commit gesetzt und Commit neuer)
-#   3. Image bauen (docker build)
+#   3. Image bauen (docker build) — Default: beide Modellgenerationen im Image
+#      (GROOT_VERSIONS="1.6 1.7"; nur eine: GROOT_VERSIONS=1.6 bzw. 1.7, siehe Dockerfile)
 #   4. Nach Docker Hub pushen
 #
 # Verwendung:
@@ -22,9 +24,11 @@
 #   git (im PATH)
 #
 # Umgebungsvariablen (optional, vor dem Aufruf setzen):
-#   DOCKER_IMAGE   (default: lucam03/projekt-humanoider-roboter)
-#   GROOT_REPO     (default: https://github.com/lucam06/Isaac-GR00T.git)
-#   GROOT_BRANCH   (default: luca/g1-dex3)
+#   DOCKER_IMAGE     (default: lucam03/projekt-humanoider-roboter)
+#   GROOT_REPO       (default: https://github.com/lucam06/Isaac-GR00T.git)
+#   GROOT_BRANCH     (default: luca/g1-dex3)      — N1.6-Fork-Branch -> ARG GROOT16_COMMIT
+#   GROOT17_BRANCH   (default: luca/g1-dex3-n17)  — N1.7-Fork-Branch -> ARG GROOT17_COMMIT
+#   GROOT_VERSIONS   (default: "1.6 1.7")         — Build-Arg: welche Baeume ins Image kommen
 
 set -euo pipefail
 
@@ -86,6 +90,8 @@ invoke_cmd() {
 DOCKER_IMAGE="${DOCKER_IMAGE:-lucam03/projekt-humanoider-roboter}"
 GROOT_REPO="${GROOT_REPO:-https://github.com/lucam06/Isaac-GR00T.git}"
 GROOT_BRANCH="${GROOT_BRANCH:-luca/g1-dex3}"
+GROOT17_BRANCH="${GROOT17_BRANCH:-luca/g1-dex3-n17}"
+GROOT_VERSIONS="${GROOT_VERSIONS:-1.6 1.7}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DOCKERFILE="$SCRIPT_DIR/Dockerfile"
@@ -97,7 +103,7 @@ fi
 # ── Banner ───────────────────────────────────────────────────────────────────
 echo ""
 echo "${C_MAGENTA}╔══════════════════════════════════════════════════════════════════╗${C_RESET}"
-echo "${C_MAGENTA}║   GR00T N1.6 — Docker-Image Update                               ║${C_RESET}"
+echo "${C_MAGENTA}║   GR00T N1.6 + N1.7 — Docker-Image Update                        ║${C_RESET}"
 echo "${C_MAGENTA}╚══════════════════════════════════════════════════════════════════╝${C_RESET}"
 echo ""
 if [[ $DRY_RUN -eq 1 ]]; then warn "DRY-RUN aktiv — es werden keine Befehle ausgefuehrt."; fi
@@ -136,54 +142,54 @@ echo ""
 # ══════════════════════════════════════════════════════════════════════════════
 log "Schritt 2/4 — Isaac-GR00T Commit pruefen"
 
-# Aktuell gepinnten Commit aus dem Dockerfile lesen
-CURRENT_COMMIT="$(grep -oE 'checkout [0-9a-f]{40}' "$DOCKERFILE" | head -n1 | awk '{print $2}')"
-
-if [[ -z "$CURRENT_COMMIT" ]]; then
-    warn "Kein gepinnter Commit im Dockerfile gefunden — ueberspringe Commit-Check."
-else
-    ok "Aktuell gepinnter Commit: ${CURRENT_COMMIT:0:12}..."
-
-    # Neuesten Remote-Commit ermitteln (ohne vollstaendigen Clone)
-    LATEST_COMMIT="$(git ls-remote "$GROOT_REPO" "refs/heads/$GROOT_BRANCH" 2>/dev/null | awk '{print $1}' | head -n1 || true)"
-
-    if [[ -z "$LATEST_COMMIT" ]]; then
-        warn "Konnte Remote-Commit nicht ermitteln (kein Netzwerk oder Repo nicht erreichbar?)."
-    elif [[ "$LATEST_COMMIT" == "$CURRENT_COMMIT" ]]; then
-        ok "Dockerfile ist bereits auf dem neuesten Stand (${LATEST_COMMIT:0:12}...)."
+# Gepinnte Commits aus dem Dockerfile lesen: ARG GROOT16_COMMIT=<sha> / ARG GROOT17_COMMIT=<sha>
+# (seit dem N1.7-Pfad zwei Pins; die alte Form `checkout <sha>` gibt es nicht mehr).
+read_pin() {  # $1 = ARG-Name
+    grep -oE "^ARG $1=[0-9a-f]{40}" "$DOCKERFILE" | head -n1 | sed "s/^ARG $1=//"
+}
+check_pin() {  # $1 = Label, $2 = ARG-Name, $3 = Branch
+    local label="$1" arg="$2" branch="$3" current latest
+    current="$(read_pin "$arg")"
+    if [[ -z "$current" ]]; then
+        warn "$label: kein gepinnter Commit (ARG $arg) im Dockerfile gefunden — ueberspringe."
+        return 0
+    fi
+    ok "$label: gepinnter Commit ${current:0:12}... (Branch $branch)"
+    latest="$(git ls-remote "$GROOT_REPO" "refs/heads/$branch" 2>/dev/null | awk '{print $1}' | head -n1 || true)"
+    if [[ -z "$latest" ]]; then
+        warn "$label: Remote-Commit nicht ermittelbar (kein Netzwerk oder Branch $branch fehlt?)."
+    elif [[ "$latest" == "$current" ]]; then
+        ok "$label: Dockerfile ist bereits auf dem neuesten Stand."
     else
-        warn "Neuer Commit verfuegbar!"
-        warn "  Aktuell: ${CURRENT_COMMIT:0:12}..."
-        warn "  Neu:     ${LATEST_COMMIT:0:12}..."
-
+        warn "$label: Neuer Commit verfuegbar!"
+        warn "  Aktuell: ${current:0:12}..."
+        warn "  Neu:     ${latest:0:12}..."
         if [[ $UPDATE_COMMIT -eq 1 ]]; then
-            log "Aktualisiere Dockerfile (--update-commit) ..."
+            log "$label: Aktualisiere Dockerfile (--update-commit) ..."
             if [[ $DRY_RUN -eq 0 ]]; then
-                # In-Place-Ersetzung des 40-stelligen Commit-Hashes
-                sed -i "s/$CURRENT_COMMIT/$LATEST_COMMIT/g" "$DOCKERFILE"
-                ok "Dockerfile aktualisiert: $CURRENT_COMMIT -> $LATEST_COMMIT"
+                sed -i "s/^ARG $arg=$current/ARG $arg=$latest/" "$DOCKERFILE"
+                ok "$label: Dockerfile aktualisiert: $current -> $latest"
             else
-                echo "${C_YELLOW}[dry-run] Ersetze '$CURRENT_COMMIT' -> '$LATEST_COMMIT' in Dockerfile${C_RESET}"
+                echo "${C_YELLOW}[dry-run] Ersetze ARG $arg=$current -> $latest in Dockerfile${C_RESET}"
             fi
-            CURRENT_COMMIT="$LATEST_COMMIT"
         else
-            warn "Dockerfile wird NICHT aktualisiert (kein --update-commit)."
-            warn "Zum Aktualisieren: ./update_image.sh --update-commit"
+            warn "$label: Dockerfile wird NICHT aktualisiert (kein --update-commit)."
+            warn "  Zum Aktualisieren: ./update_image.sh --update-commit"
         fi
     fi
-fi
+}
+[[ " $GROOT_VERSIONS " == *" 1.6 "* ]] && check_pin "N1.6" GROOT16_COMMIT "$GROOT_BRANCH"
+[[ " $GROOT_VERSIONS " == *" 1.7 "* ]] && check_pin "N1.7" GROOT17_COMMIT "$GROOT17_BRANCH"
+CURRENT_COMMIT="$(read_pin GROOT16_COMMIT)"
+CURRENT_COMMIT17="$(read_pin GROOT17_COMMIT)"
 echo ""
 
-# ══════════════════════════════════════════════════════════════════════════════
-# SCHRITT 3 — Docker-Image bauen
-# ══════════════════════════════════════════════════════════════════════════════
-log "Schritt 3/4 — Docker-Image bauen"
 
 BUILD_TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
 IMAGE_LATEST="${DOCKER_IMAGE}:latest"
 IMAGE_DATED="${DOCKER_IMAGE}:${BUILD_TIMESTAMP}"
 
-BUILD_CMD=(docker build --platform linux/amd64)
+BUILD_CMD=(docker build --platform linux/amd64 --build-arg "GROOT_VERSIONS=$GROOT_VERSIONS")
 if [[ $NO_CACHE -eq 1 ]]; then BUILD_CMD+=(--no-cache); fi
 BUILD_CMD+=(-t "$IMAGE_LATEST" -t "$IMAGE_DATED" "$SCRIPT_DIR")
 
@@ -217,8 +223,12 @@ echo ""
 echo "  Zusammenfassung:"
 printf "    %-20s %s\n" "Image (latest):" "$IMAGE_LATEST"
 printf "    %-20s %s\n" "Image (dated):"  "$IMAGE_DATED"
+printf "    %-20s %s\n" "GROOT_VERSIONS:" "$GROOT_VERSIONS"
 if [[ -n "$CURRENT_COMMIT" ]]; then
-    printf "    %-20s %s\n" "GR00T-Commit:" "${CURRENT_COMMIT:0:12}..."
+    printf "    %-20s %s\n" "N1.6-Commit:" "${CURRENT_COMMIT:0:12}..."
+fi
+if [[ -n "${CURRENT_COMMIT17:-}" ]]; then
+    printf "    %-20s %s\n" "N1.7-Commit:" "${CURRENT_COMMIT17:0:12}..."
 fi
 echo ""
 echo "  Naechste Schritte:"

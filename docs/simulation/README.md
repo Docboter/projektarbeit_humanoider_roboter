@@ -26,6 +26,14 @@ ZMQ-Requests eines Isaac-Lab-Sim-Clients.
 > und die [Diagnose-Chronik der Läufe 08–34](../ergebnisse/diagnose-chronik.md). Der **Livestream-Plan**
 > liegt unter [`../weiterfuehrend/livestream-plan.md`](../weiterfuehrend/livestream-plan.md).
 
+> **GR00T N1.7 im Sim-Image:** Das vast.ai-Image (`Dockerfile.vastai`) enthält seit 2026-08-19
+> auch eine N1.7-venv, auswählbar per `GROOT_VERSION=1.7` (Default `auto` erkennt die Version
+> aus dem Checkpoint). N1.6-only bleiben das optimierte Inferenz-Backend
+> ([inferenz-optimierung.md](inferenz-optimierung.md)), der Stock-G1-Baseline-Test
+> ([baseline-eval.md](baseline-eval.md)) und RL ([`../weiterfuehrend/rl-anleitung.md`](../weiterfuehrend/rl-anleitung.md)).
+> **Ungetestet** — kein Sim-Image mit N1.7 gebaut, kein N1.7-Sim-Lauf gefahren. Details:
+> [groot-n17-migration.md](../weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19).
+
 ## Archiv
 
 Im Unterordner [archiv/](archiv/) liegen historische Planungs- und Analyse-Dokumente. Sie sind

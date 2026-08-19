@@ -18,6 +18,8 @@
 #
 # Umgebungsvariablen (optional):
 #   DOCKER_IMAGE   (default abhängig von --vastai)
+#   GROOT_VERSIONS (default "1.6 1.7") — nur Dockerfile.vastai: welche GR00T-Generationen ins
+#                  Image kommen (Build-Arg). "1.6" = altes, halb so großes Image ohne N1.7-venv.
 
 set -euo pipefail
 
@@ -101,7 +103,8 @@ BUILD_TS="$(date +%Y%m%d-%H%M%S)"
 IMAGE_LATEST="${DOCKER_IMAGE}:latest"
 IMAGE_DATED="${DOCKER_IMAGE}:${BUILD_TS}"
 
-BUILD_CMD=(docker build --platform linux/amd64 -f "$DOCKERFILE")
+GROOT_VERSIONS="${GROOT_VERSIONS:-1.6 1.7}"
+BUILD_CMD=(docker build --platform linux/amd64 -f "$DOCKERFILE" --build-arg "GROOT_VERSIONS=$GROOT_VERSIONS")
 [[ "$NO_CACHE" == "1" ]] && BUILD_CMD+=(--no-cache)
 BUILD_CMD+=(-t "$IMAGE_LATEST" -t "$IMAGE_DATED" "$SCRIPT_DIR")
 

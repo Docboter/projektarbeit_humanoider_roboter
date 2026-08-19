@@ -30,4 +30,5 @@ services:
       - GLOBAL_BATCH_SIZE
       - NUM_GPUS
       - WANDB_PROJECT
+      - GROOT_VERSION   # 1.6 (Default) | 1.7 — siehe Training/scripts/lib_groot_version.sh
     working_dir: /app/Groot-1.6

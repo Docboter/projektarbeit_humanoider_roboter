@@ -9,12 +9,19 @@ lokal **identisch**. Der Entrypoint (`/scripts/entrypoint.sh`) liest sie ein.
 
 > **Wo die Defaults stehen:** Ein Teil ist als `ENV` im [Dockerfile](../../Training/Dockerfile)
 > gesetzt (`MAX_STEPS`, `GLOBAL_BATCH_SIZE`, `NUM_GPUS`, `WANDB_PROJECT`, `DATA_DIR`,
-> `SKIP_*`, `SHELL_ON_ERROR`). Die übrigen — u. a. `TUNE_VISUAL`, `USE_RL`,
+> `SKIP_*`, `SHELL_ON_ERROR`, `GROOT_VERSION`, `HF_HOME`). Die übrigen — u. a. `TUNE_VISUAL`, `USE_RL`,
 > `TRAIN_TEST_SPLIT`, `USE_AUGMENTATION`, `LEARNING_RATE`, `SAVE_STEPS`, `WEIGHT_DECAY`,
 > `WARMUP_RATIO` — sind Shell-Defaults in
 > [`entrypoint.sh`](../../Training/scripts/entrypoint.sh) bzw.
 > [`run_finetuning.sh`](../../Training/scripts/run_finetuning.sh). Für die Bedienung macht das
 > keinen Unterschied; beim Suchen im Code schon.
+>
+> **Build-Zeit vs. Laufzeit:** `GROOT_VERSION` wählt zur **Laufzeit** zwischen den zwei
+> Codebäumen, die im Image liegen. Welche Bäume überhaupt **gebaut** werden, entscheidet das
+> Docker-Build-Arg `GROOT_VERSIONS` (Default `"1.6 1.7"`, beide) — `--build-arg
+> GROOT_VERSIONS=1.6` baut nur den alten Baum (halbe Image-Größe, kein N1.7 zur Laufzeit
+> wählbar). Siehe [`Training/Dockerfile`](../../Training/Dockerfile) und
+> [`update_image.sh`](../../Training/update_image.sh).
 
 > **Nicht auswendig lernen:** Die Host-Launcher fragen diese Werte ab, wenn man sie ohne
 > Parameter startet, und erklären sie dabei — siehe
@@ -35,6 +42,8 @@ lokal **identisch**. Der Entrypoint (`/scripts/entrypoint.sh`) liest sie ein.
 |---|---|---|
 | `HF_TOKEN` | — | **Pflicht.** HuggingFace-Token (Lese-Berechtigung reicht) |
 | `WANDB_API_KEY` | — | Optional. W&B-Key. Ohne diesen läuft Training ohne W&B. |
+| `GROOT_VERSION` | `1.6` | `1.6` \| `1.7` — wählt die GR00T-Generation (Codebaum `/app/Groot-1.6` bzw. `/app/Groot-1.7`, venv, Modell-Repo, Output-Namespace-Suffix). Auflösung: [`lib_groot_version.sh`](../../Training/scripts/lib_groot_version.sh). `1.7` lädt zusätzlich das **gated** Backbone `nvidia/Cosmos-Reason2-2B` (Zugang separat beantragen) und hängt allen Output-Namespaces `_n17` an (`blockstacking_n17`, `blockstacking_vision_n17`, `blockstacking_cotrain_n17`). **Ungetestet:** Es gibt bislang keinen abgeschlossenen N1.7-Trainingslauf — siehe [groot-n17-migration.md](../weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19). |
+| `HF_HOME` | `$DATA_DIR/hf_cache` | HF-Cache-Verzeichnis. Nur für `GROOT_VERSION=1.7` relevant: das Cosmos-Reason2-2B-Backbone wird bei **jedem** Checkpoint-Laden erneut vom Hub gezogen, sofern es nicht schon im Cache liegt — der Cache muss deshalb persistent sein (liegt standardmäßig im Container-FS bzw. auf dem KISSKI-VAST-Mount). |
 | `MAX_STEPS` | `20000` | Anzahl Trainings-Steps. Auf ~241–301 Block-Stacking-Episoden sättigt BC früh; 20k konvergieren sauber (Lauf 1 war bei 30k bereits konvergiert). KISSKI-Multi-GPU-Default: `44000`. |
 | `GLOBAL_BATCH_SIZE` | `8` | Globale Batch-Size (8 für < 40 GB VRAM, 32 für 4x A100 80 GB) |
 | `NUM_GPUS` | `1` | Anzahl genutzter GPUs |

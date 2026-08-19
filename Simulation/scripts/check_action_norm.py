@@ -19,6 +19,12 @@ Geprüft wird:
 GPU. Damit läuft es auch dort, wo nichts installiert werden kann: direkt auf dem
 Host, ohne Container. Genau dafür ist es gedacht.
 
+Gilt für N1.6 **und** N1.7: beide Prozessoren schreiben dieselben zwei Dateien mit
+demselben Aufbau (`statistics.json` und `processor_config.json` mit
+`processor_kwargs.use_percentiles/clip_outliers/use_relative_action`). Zur Orientierung
+wird der `model_type` aus `config.json` mitausgegeben. Die G1-DEX3-Slices unten gelten
+für unser Embodiment, nicht für eine bestimmte Modellversion.
+
 Usage
 -----
     python3 check_action_norm.py <checkpoint_dir> [<dataset_dir>] [--embodiment new_embodiment]
@@ -78,7 +84,15 @@ def main() -> None:
     stats = json.loads((ckpt / "statistics.json").read_text())
     cfg = json.loads((ckpt / "processor_config.json").read_text())["processor_kwargs"]
 
+    # Rein informativ: Gr00tN1d6 oder Gr00tN1d7? Am Rest ändert das nichts — die beiden
+    # geprüften Dateien haben in beiden Versionen denselben Aufbau.
+    cfg_file = ckpt / "config.json"
+    model_type = "?"
+    if cfg_file.is_file():
+        model_type = json.loads(cfg_file.read_text()).get("model_type", "?")
+
     print(f"checkpoint            : {ckpt}")
+    print(f"model_type            : {model_type}")
     print(f"embodiments in stats  : {list(stats)}")
     print(f"use_percentiles       : {cfg['use_percentiles']}   (False -> min/max, True -> q01/q99)")
     print(f"clip_outliers         : {cfg['clip_outliers']}   (clippt auf [-1,1], staucht nicht)")

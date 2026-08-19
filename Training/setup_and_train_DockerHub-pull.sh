@@ -33,6 +33,8 @@
 #   GLOBAL_BATCH_SIZE  (default 8)
 #   NUM_GPUS           (default 1)
 #   WANDB_PROJECT      (default gr00t-g1-dex3)
+#   GROOT_VERSION      (default 1.6)      1.6 | 1.7 — waehlt Code-Baum/Modell/venv im
+#                                         Container (siehe Training/scripts/lib_groot_version.sh)
 #   CONTAINER_NAME     (default groot-train)
 #   DOCKER_HUB_IMAGE   (default lucam03/projekt-humanoider-roboter:latest)
 
@@ -128,6 +130,7 @@ MAX_STEPS="${MAX_STEPS:-30000}"
 GLOBAL_BATCH_SIZE="${GLOBAL_BATCH_SIZE:-8}"
 NUM_GPUS="${NUM_GPUS:-1}"
 WANDB_PROJECT="${WANDB_PROJECT:-gr00t-g1-dex3}"
+GROOT_VERSION="${GROOT_VERSION:-1.6}"
 
 # ── Banner ────────────────────────────────────────────────────────────────────
 echo ""
@@ -270,6 +273,7 @@ else
     printf "    %-25s %s\n" "GLOBAL_BATCH_SIZE" "$GLOBAL_BATCH_SIZE"
     printf "    %-25s %s\n" "NUM_GPUS"          "$NUM_GPUS"
     printf "    %-25s %s\n" "WANDB_PROJECT"     "$WANDB_PROJECT"
+    printf "    %-25s %s\n" "GROOT_VERSION"     "$GROOT_VERSION"
     printf "    %-25s %s\n" "CONTAINER_NAME"    "$CONTAINER_NAME"
     # Auch die durchgereichten Schalter anzeigen — sonst faellt nicht auf, wenn einer fehlt.
     for _v in TUNE_VISUAL USE_COTRAIN COTRAIN_MIX_RATIO TRAIN_TEST_SPLIT \
@@ -285,6 +289,7 @@ else
         "-e" "GLOBAL_BATCH_SIZE=$GLOBAL_BATCH_SIZE"
         "-e" "NUM_GPUS=$NUM_GPUS"
         "-e" "WANDB_PROJECT=$WANDB_PROJECT"
+        "-e" "GROOT_VERSION=$GROOT_VERSION"
     )
     [[ -n "${WANDB_API_KEY:-}" ]] && run_args+=("-e" "WANDB_API_KEY=$WANDB_API_KEY")
 

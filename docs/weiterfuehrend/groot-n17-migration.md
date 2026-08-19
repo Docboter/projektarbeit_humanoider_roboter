@@ -1,8 +1,9 @@
 # Umstieg GR00T N1.6 → N1.7: Überblick und Migrationsplan
 
-Recherche- und Planungsdokument (noch **nicht umgesetzt**): Was ist GR00T N1.7, was ändert sich
-gegenüber unserem N1.6-Stand, wie aufwendig ist der Umstieg, und in welchen Phasen würde er
-ablaufen. Operative Referenzen: [Training](../training/README.md) ·
+Recherche- und Planungsdokument. **Umsetzung als paralleler Pfad begonnen** (Stand 2026-08-19 —
+siehe [„Stand der Umsetzung"](#stand-der-umsetzung-2026-08-19) unten): Was ist GR00T N1.7, was
+ändert sich gegenüber unserem N1.6-Stand, wie aufwendig ist der Umstieg, und in welchen Phasen
+läuft er ab. Operative Referenzen: [Training](../training/README.md) ·
 [Simulation](../simulation/README.md) · [Portabilität](../portabilitaet.md) ·
 [Diagnose-Chronik](../ergebnisse/diagnose-chronik.md) (Läufe, gegen die ein N1.7-Checkpoint
 verglichen wird).
@@ -17,7 +18,109 @@ verglichen wird).
 - **Was uns rettet:** Unsere gesamte Pipeline hängt am Tag `NEW_EMBODIMENT` — der ist in N1.7 **unverändert** (Wert `"new_embodiment"`). `FinetuneConfig`/CLI-Flags (`--tune_visual`, `--color_jitter_params`, `--state_dropout_prob`, `--modality_config_path` …) sind **strukturell gleich**. Dataset-Format (LeRobot v2.1 + `meta/modality.json`) **unverändert**. `Gr00tPolicy`, `PolicyServer`, `Gr00tSimPolicyWrapper`, `run_gr00t_server.py --use-sim-policy-wrapper` **existieren weiter**; der ZMQ-Wire-Format ist gleich geblieben (nur Timeout-Härtung). Unser `g1_dex3_config.py` (28-dim State/Action, 16er-Action-Chunk, 4 Kameras) passt in die neuen Maxima (132 dim / 40 steps). Die 3 Fork-Commits (G1_DEX3-Beispiel, Train/Test-Split, v3→v2-Konverter) **mergen laut `git merge-tree` konfliktfrei** auf `n1.7-release` (nur `uv.lock`).
 - **Was echten Aufwand macht:** (1) **Backbone-Wechsel Eagle → Cosmos-Reason2-2B (Qwen3-VL)**: das Backbone ist ein **gated HF-Repo**, das *jeder* N1.7-Checkpoint beim Laden nachzieht → HF-Zugang beantragen, Offline-Cache für KISSKI, `download_data.sh`/Dockerfiles anpassen. (2) **N1.6-Checkpoints sind nicht ladbar** (anderes Modellpaket `gr00t_n1d6`→`gr00t_n1d7`, anderes Backbone, 32→16 DiT-Layer) → **alle Läufe neu trainieren**; die bisherigen Ergebnisse (Lauf 1–3, TUNE_VISUAL, Sweep) bleiben N1.6-Ergebnisse. (3) **Vier eigene Skripte koppeln an N1.6-Interna** und müssen nachgezogen werden: `rl_finetune.py` (Replikat von `Gr00tN1d6ActionHead.forward`/Processor-Maske), `policy_latency.py`, `groot_inference_backend.py`/`optimize_groot_inference.py` (Monkeypatch + TensorRT-Export des DiT), `launch_cotrain.py` (hardcoded `eagle_collator`/`model_name`). (4) **Entscheidung EA-Tag vs. GA-`main`**: GA (seit 2026-07-07) verlangt **Python 3.12 + torch 2.9 + flash-attn 2.8.3** → beide Docker-Images müssen neu gebaut werden (Basis-Image bleibt CUDA 12.8).
 - **Grobe Schätzung:** ~3–5 Arbeitstage Engineering (Fork-Branch, zwei Images, Skripte, Diagnose-Tools, Doku) **plus** ein Vergleichs-Trainingslauf (KISSKI, ~1 Tag Rechenzeit) **plus** Sim-Eval. Risiko: moderat; größte Unbekannte sind VRAM-Bedarf auf der 32-GB-5090 bei `--tune_visual` und das Verhalten der Qwen3-VL-Bildverarbeitung (native Seitenverhältnisse, Crop 230/Resize 256) im Sim-Real-Gap.
-- **Empfehlung:** Migrieren — aber als **paralleler Pfad** (neuer Fork-Branch, neue Image-Tags `:n17`), N1.6-Pipeline bleibt bis zum Vergleichslauf unangetastet. Der erste N1.7-Lauf ist ein **Baseline-Vergleich** gegen den besten N1.6-Checkpoint (Lauf 3, ckpt 30000) mit identischen Hyperparametern.
+- **Empfehlung — so umgesetzt (Details: [„Stand der Umsetzung"](#stand-der-umsetzung-2026-08-19)):** paralleler Pfad, aber anders als hier ursprünglich vorgeschlagen: statt separater Image-Tags `:n17` wählt **ein** Image beide Codebäume/venvs zur Laufzeit über `GROOT_VERSION` (Build-Arg `GROOT_VERSIONS` steuert, welche Bäume überhaupt gebaut werden). N1.6-Pipeline bleibt unangetastet (weiterhin Default). Der erste N1.7-Lauf soll ein **Baseline-Vergleich** gegen den besten N1.6-Checkpoint (Lauf 3, ckpt 30000) mit identischen Hyperparametern sein — **dieser Vergleichslauf steht noch aus**, ebenso wie jeder Image-Build und jeder N1.7-Trainings-/Sim-Lauf.
+
+## Stand der Umsetzung (2026-08-19)
+
+Umgesetzt wurde N1.7 als **paralleler Pfad neben N1.6** — nicht als Ersatz. Codebäume, Images
+und Scripts sind angepasst; **kein Image wurde neu gebaut, und kein N1.7-Trainings- oder
+Sim-Lauf hat bisher stattgefunden.** Der Rest dieses Dokuments (§1–§8) bleibt als
+Recherche-/Planungsgrundlage stehen; dieser Abschnitt hält den tatsächlichen Umsetzungsstand
+je Phase fest.
+
+**Phase 0 — Entscheidungen: getroffen.**
+- Pin-Strategie: GA-`main`-Commit als Basis (`376ba89`), nicht der EA-Tag.
+- Paralleler Pfad statt Ersetzung: Laufzeit-Auswahl über `GROOT_VERSION` (`1.6`|`1.7`|`auto`),
+  N1.6 bleibt Default.
+- Submodul-Pfad: **neues** `app/Groot-1.7` **neben** `app/Groot-1.6` (nicht dessen Umbenennung).
+- Abweichung von der ursprünglichen Empfehlung oben (separate Image-Tags `:n16`/`:n17`):
+  stattdessen **ein** Image mit **beiden** venvs, gesteuert per Build-Arg `GROOT_VERSIONS`
+  (Default `"1.6 1.7"`; `GROOT_VERSIONS=1.6` baut nur den alten Baum, halbe Image-Größe).
+
+**Phase 1 — Fork-Branch: fertig.** `app/Groot-1.7` zeigt auf `lucam06/Isaac-GR00T`, Branch
+`luca/g1-dex3-n17`, gepinnter Commit `efa0169` (= Upstream `main` `376ba89` + unser
+G1_DEX3-Beispiel/Konverter + Train/Test-Split-Patch + eine README-Notiz, erneut angewendet).
+`app/Groot-1.6` bleibt unverändert (Branch `luca/g1-dex3`). `.gitmodules` führt beide Submodule.
+
+**Phase 2 — Training-Image: Dockerfile + Scripts fertig, Image nicht gebaut.**
+[`Training/Dockerfile`](../../Training/Dockerfile) baut standardmäßig beide Bäume: N1.6-venv
+Python 3.10 unter `/app/Groot-1.6/.venv`, N1.7-venv Python 3.12 (uv-verwaltetes CPython unter
+`/opt/uv/python`, torch 2.9.0+cu128, flash-attn 2.8.3 cp312-Wheel, transformers 4.57.3,
+torchcodec 0.8.0) unter `/app/Groot-1.7/.venv`; separate `ARG GROOT16_COMMIT`/`GROOT17_COMMIT`;
+`ENV GROOT_VERSION=1.6 HF_HOME=/data/hf_cache`.
+[`Training/update_image.sh`](../../Training/update_image.sh) prüft/aktualisiert beide Pins
+(`--update-commit`), kennt `GROOT17_BRANCH` und reicht `GROOT_VERSIONS` als Build-Arg durch.
+Alle Trainings-Launcher (`entrypoint.sh`, `download_data.sh`, `run_finetuning*.sh`, `.ps1`,
+`setup_and_train_*.sh`, `docker-compose.yml`) lesen `GROOT_VERSION`; die Auflösung
+(Codebaum/venv/Modell-Repo/Namespace-Suffix) übernimmt der neue
+[`Training/scripts/lib_groot_version.sh`](../../Training/scripts/lib_groot_version.sh).
+**Nicht gemacht:** kein tatsächlicher `docker build`. Lokal geprüft wurden nur
+`docker build --check` (Lint) und `uv sync --dry-run` des N1.7-`uv.lock` unter Python 3.12
+(löst 173 Pakete auf, darunter torch 2.9.0+cu128 und das flash-attn-2.8.3-cp312-Wheel — ohne
+etwas zu installieren).
+
+**Phase 3 — lokaler Trainings-Smoke-Test: offen.** Kein Trainingslauf (mit oder ohne
+`TUNE_VISUAL`), keine VRAM-Messung, kein `checkpoint_sweep.py`-Lauf gegen einen echten
+N1.7-Checkpoint. `checkpoint_sweep.py` wurde zwar so angepasst, dass es unter beiden venvs
+läuft (introspiziert `execution_horizon` vs. `action_horizon`, `decoder_kwargs` vs.
+`video_backend`, `EmbodimentTag.resolve`), aber das ist ungetestet.
+
+**Phase 4 — KISSKI: Scripts fertig, kein Lauf.**
+[`kisski_submit.sh`](../../Training/kisski_submit.sh) reicht `GROOT_VERSION` durch, bindet für
+`1.7` einen zweiten Fork-Clone (`GROOT17_FORK_DIR`, Default
+`$KISSKI_PROJECT_DIR/repo-groot-n17`), setzt `HF_HOME=/data/hf_cache` und
+`HF_HUB_OFFLINE=1`, und prüft **vor** dem Start auf dem Login-Knoten, ob Modell und gated
+Backbone im HF-Cache liegen — sonst Abbruch mit den nötigen
+`apptainer exec … huggingface-cli download`-Kommandos.
+[`kisski_open_loop_eval.sh`](../../Training/kisski_open_loop_eval.sh) unterstützt
+`GROOT_VERSION` (Namespace-Suffix `_n17`). **Nicht gemacht:** kein Vergleichslauf, keine
+Sweep-Tabelle, HF-Zugang zum gated Backbone noch nicht bestätigt (muss je Token beantragt
+werden).
+
+**Phase 5 — Sim-Image & Inferenz: Scripts fertig, Image nicht gebaut, kein Lauf.**
+[`Simulation/Dockerfile.vastai`](../../Simulation/Dockerfile.vastai) baut ebenfalls beide
+venvs (N1.7 mit System-Python 3.12 von Ubuntu 24.04 + `python3.12-dev`, `usd-core` installiert,
+deepspeed entfernt, Build-Time-Smoke-Test); `ENV GROOT_VERSION=auto`; das fest gesetzte
+`GROOT_ROOT` wurde entfernt (die Lib leitet es her).
+[`entrypoint_sim.sh`](../../Simulation/scripts/entrypoint_sim.sh) löst `auto` aus dem
+Checkpoint auf (`model_type`), lädt bei Bedarf das Backbone einmalig vor und fällt für N1.7
+bei `GROOT_INFERENCE_BACKEND=compile|tensorrt` bewusst auf `eager` zurück (das optimierte
+Backend hängt am N1.6-DiT: `groot_inference_backend.py`/`optimize_groot_inference.py`/
+`run_groot_optimized_server.py` prüfen nur gegen `Gr00tN1d6`).
+[`entrypoint_baseline.sh`](../../Simulation/scripts/entrypoint_baseline.sh) bricht bei N1.7
+kontrolliert ab (`UNITREE_G1` bedeutet in N1.7 etwas anderes — Sim-Ganzkörper-Tag ohne
+Zero-Shot-Kopf im Basismodell; `REAL_G1` als Alternative ist ungeprüft).
+[`entrypoint_rl.sh`](../../Simulation/scripts/entrypoint_rl.sh) bricht bei N1.7 ebenfalls ab.
+`server_rl_run.sh` sourct die Lib, hält für `docker exec`-Aktionen (`span`, `latency`, `gap`, …)
+host-seitig standardmäßig `1.6`, reicht ein **explizit** gesetztes `GROOT_VERSION` an den
+Container durch (sonst bleibt `auto` aktiv), verweigert `rl`/`check`/`optimize` für `1.7`, und
+`preflight` prüft auch die N1.7-venv.
+[`kisski_sim_submit.sh`](../../Simulation/kisski_sim_submit.sh) bindet bei ungesetztem
+`GROOT_VERSION` **beide** Fork-Bäume und erkennt die Version aus dem Checkpoint; ein explizit
+gesetzter Wert bindet nur den passenden Baum. `--no-flash-attn` wird nur für `1.6` übergeben —
+der N1.7-Fork kennt das Flag noch nicht, und flash-attn ist auf der Turing-RTX-5000 der
+`jupyter`-Partition ohnehin nicht unterstützt → **N1.7-Sim auf KISSKI ist ungetestet und
+vermutlich blockiert**, bis das Flag auf den N1.7-Fork-Branch portiert ist.
+`kisski_rl_submit.sh` und `kisski_robocasa_ref_submit.sh` brechen bei `GROOT_VERSION=1.7`
+kontrolliert ab (RL nicht portiert; das Embodiment `GR1` ist in N1.7 entfernt).
+**Nicht gemacht:** kein `docker build` des Sim-Images, kein Sim-Eval-Lauf mit einem
+N1.7-Checkpoint.
+
+**Phase 6 — RL & Co-Training: teilweise.** Co-Training: neuer
+[`Training/scripts/launch_cotrain_n17.py`](../../Training/scripts/launch_cotrain_n17.py)
+(Spiegel der N1.7-`launch_finetune.py` mit derselben Mix-Ratio-Ergänzung wie beim
+N1.6-Pendant); `run_finetuning_cotrain.sh` ruft ihn bei `GROOT_VERSION=1.7` auf. **Kein
+Smoke-Test gefahren.** RL: **nicht portiert.** Das Isaac-Sim-Python im Sim-Image enthält
+weiterhin nur die N1.6-`gr00t`-Installation — `rl_finetune.py`, `entrypoint_rl.sh`,
+`server_rl_run.sh rl/check/optimize` und `kisski_rl_submit.sh` brechen bei N1.7 kontrolliert
+mit einer deutschen Fehlermeldung ab, statt etwas Falsches zu versuchen.
+
+**Phase 7 — Umschalten & Aufräumen: nicht begonnen.** `GROOT_VERSION`-Default bleibt `1.6`,
+kein Retag, keine Pfad-Umbenennung.
+
+**Phase 8 — Doku-Pass: dieser Durchgang.** Die in §8 unten genannten Dateien (plus einige mehr,
+die beim eigentlichen Bauen entstanden sind, z. B. `co-training.md`, `fehlerbehebung.md`) wurden
+mit diesem Stand aktualisiert; Changelog-Eintrag in [historie.md](../historie.md).
 
 ## 1. Was ist GR00T N1.7?
 
@@ -160,6 +263,9 @@ N1.6 bleibt vollständig lauffähig: Branch `luca/g1-dex3`, Images `:n16`, Upstr
 
 | Datum | Entscheidung | Begründung |
 |---|---|---|
-| 2026-08-19 | Plan erstellt, **Umsetzung vorerst zurückgestellt** | Recherche-/Planungsstand; Start der Migration wird separat entschieden |
-| — | Pin-Strategie (GA-`main`-Commit vs. EA-Tag) | offen — Empfehlung GA, siehe Phase 0 |
-| — | Submodul-Pfad `app/Groot-1.6` beibehalten | offen — Empfehlung: vorerst ja |
+| 2026-08-19 | Plan erstellt | Recherche-/Planungsstand |
+| 2026-08-19 | Umsetzung als paralleler Pfad **begonnen und größtenteils durchgeführt** (Dockerfiles, Scripts, zweiter Fork-Branch, KISSKI-Anpassungen, Doku) | siehe [„Stand der Umsetzung"](#stand-der-umsetzung-2026-08-19) oben |
+| 2026-08-19 | Pin-Strategie: GA-`main`-Commit (`376ba89`), nicht EA-Tag | Phase 0; N1.7-Fork-Commit `efa0169` basiert darauf |
+| 2026-08-19 | Submodul-Pfad `app/Groot-1.6` beibehalten, **neues** `app/Groot-1.7` daneben | kein Umbenennen/Ersetzen — kleinerer Blast-Radius |
+| 2026-08-19 | **Ein** Image mit beiden venvs (Build-Arg `GROOT_VERSIONS`) statt separater Image-Tags `:n16`/`:n17` | weicht von der ursprünglichen Phase-0-Empfehlung oben ab; einfacherer Rollout, ein Pull genügt |
+| 2026-08-19 | Kein Image gebaut, kein N1.7-Trainings-/Sim-Lauf gefahren | Umsetzung endet vorerst bei Code + Doku; Vergleichslauf und HF-Backbone-Zugang stehen aus |

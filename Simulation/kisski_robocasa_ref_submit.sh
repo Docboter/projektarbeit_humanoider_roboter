@@ -26,6 +26,7 @@
 # Überschreibungen (vor sbatch als export):
 #   RC_PRESET (top|smoke|full|custom), RC_N_EPISODES, RC_N_ENVS, RC_TASKS,
 #   RC_MODEL_PATH, SERVER_SIF, GROOT_FORK_DIR, RC_SKIP_SETUP
+#   GROOT_VERSION (nur 1.6 unterstützt — Embodiment GR1 entfällt in N1.7)
 
 # ── SLURM-Direktiven ──────────────────────────────────────────────────────────
 #SBATCH --job-name=groot-robocasa-ref
@@ -87,6 +88,23 @@ RC_TASKS="${RC_TASKS:-}"
 RC_MODEL_PATH="${RC_MODEL_PATH:-/data/models/GR00T-N1.6-3B}"
 RC_PORT="${RC_PORT:-5757}"
 RC_SKIP_SETUP="${RC_SKIP_SETUP:-1}"   # Setup vorab einmalig (Ops-Doc Schritt 1)
+
+# GR00T-Version: nur 1.6 unterstützt (Default). Das Embodiment GR1 (RoboCasa-Referenz-Eval)
+# wurde in N1.7 entfernt. Nur groot_normalize_version() aus der lib sourcen (reine Funktion,
+# keine Exports).
+GROOT_VERSION="${GROOT_VERSION:-1.6}"
+GROOT_LIB="$REPO_DIR/Simulation/scripts/lib_groot_version.sh"
+if [[ -f "$GROOT_LIB" ]]; then
+    source "$GROOT_LIB"
+    GROOT_VERSION="$(groot_normalize_version "$GROOT_VERSION")" || exit 1
+fi
+if [[ "$GROOT_VERSION" == "1.7" ]]; then
+    echo "FEHLER: Die RoboCasa-GR1-Referenz-Eval läuft NICHT mit GR00T N1.7." >&2
+    echo "       Das Embodiment GR1 wurde in N1.7 entfernt (siehe" >&2
+    echo "       docs/weiterfuehrend/groot-n17-migration.md)." >&2
+    echo "       GROOT_VERSION=1.6 setzen (Default) oder dieses Eval auf N1.6 belassen." >&2
+    exit 1
+fi
 
 # ── Voraussetzungen ───────────────────────────────────────────────────────────
 if [[ ! -f "$SERVER_SIF" ]]; then

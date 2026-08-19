@@ -28,6 +28,9 @@
 # Optionale Überschreibungen (vor sbatch als export setzen):
 #   SERVER_SIF, SIM_SIF, CHECKPOINT_DIR, DATA_DIR, NUM_EPISODES,
 #   EXECUTION_HORIZON, TASK_DESCRIPTION, SERVER_PORT, ASSET_PATH
+#   GROOT_VERSION (1.6 | 1.7 — unset lässt den Server-Start selbst anhand des Checkpoints
+#       erkennen; explizit gesetzt bindet NUR den passenden Fork), GROOT_FORK_DIR,
+#       GROOT17_FORK_DIR (Default $KISSKI_PROJECT_DIR/repo-groot-n17)
 
 # ── SLURM-Direktiven ──────────────────────────────────────────────────────────
 # WICHTIG: jupyter-Partition wegen RT-Cores (Isaac-Sim-Rendering)
@@ -142,6 +145,7 @@ mkdir -p "$APPTAINER_CACHEDIR" "$APPTAINER_TMPDIR"
 echo "==> Starte GR00T-Policy-Server (Hintergrund) …"
 
 GROOT_FORK_DIR="${GROOT_FORK_DIR:-$KISSKI_PROJECT_DIR/repo-groot}"
+GROOT17_FORK_DIR="${GROOT17_FORK_DIR:-$KISSKI_PROJECT_DIR/repo-groot-n17}"
 ASSETS_DIR="${ASSETS_DIR:-$KISSKI_PROJECT_DIR/assets}"
 # Repo-Checkout auf dem Cluster (Compute-Nodes haben kein Internet, deshalb muss das
 # Repo vorab auf dem Login-Node liegen). Eigener Ort: REPO_DIR bzw. SIM_CODE setzen.
@@ -158,20 +162,90 @@ GROOT_APPTAINER_ARGS=(
     --env "PYTHONUNBUFFERED=1"
 )
 
-# gr00t-Modul aus Fork einbinden (analog zu kisski_submit.sh)
-if [[ -d "$GROOT_FORK_DIR/gr00t" ]]; then
-    GROOT_APPTAINER_ARGS+=(--bind "$GROOT_FORK_DIR/gr00t:/app/Groot-1.6/gr00t")
-    GROOT_APPTAINER_ARGS+=(--bind "$GROOT_FORK_DIR/examples/G1_DEX3:/app/Groot-1.6/examples/G1_DEX3")
-    echo "    gr00t-Modul aus Fork: $GROOT_FORK_DIR/gr00t"
+# ── GR00T-Version: NUR weiterreichen, wenn die aufrufende Person GROOT_VERSION explizit
+# gesetzt hat. Der vast.ai-Sim-Entrypoint (entrypoint_sim.sh) hat GROOT_VERSION=auto als
+# Default (Checkpoint-Erkennung) — dieses Skript ruft run_gr00t_server.py aber DIREKT auf,
+# ohne über entrypoint_sim.sh zu gehen, daher hier eine eigene, leichtgewichtige Erkennung
+# (nur groot_detect_version — reine Funktion, kein Export/keine HF_HOME-Pollution) für den
+# Fall, dass GROOT_VERSION nicht gesetzt ist.
+GROOT_LIB="$SIM_CODE/scripts/lib_groot_version.sh"
+GROOT_VERSION_WAS_SET="${GROOT_VERSION+1}"
+GROOT_RESOLVED="1.6"
+if [[ -n "$GROOT_VERSION_WAS_SET" ]]; then
+    GROOT_RESOLVED="$GROOT_VERSION"
+    if [[ -f "$GROOT_LIB" ]]; then
+        source "$GROOT_LIB"
+        GROOT_RESOLVED="$(groot_normalize_version "$GROOT_VERSION")" || exit 1
+    fi
+    GROOT_APPTAINER_ARGS+=(--env "GROOT_VERSION=$GROOT_RESOLVED")
+elif [[ -f "$GROOT_LIB" ]]; then
+    source "$GROOT_LIB"
+    HOST_CHECKPOINT="${CHECKPOINT/#\/data/$DATA_DIR}"
+    DETECTED="$(groot_detect_version "$HOST_CHECKPOINT" 2>/dev/null || true)"
+    [[ -n "$DETECTED" ]] && GROOT_RESOLVED="$DETECTED"
+    # GROOT_VERSION bewusst NICHT gesetzt lassen — der Sim-Entrypoint (sofern verwendet)
+    # soll seine eigene auto-Erkennung fahren; hier nur die Fork-Binds + den Ausführungspfad
+    # (cd-Ziel unten) an dieselbe Erkennung anpassen.
 fi
 
+case "$GROOT_RESOLVED" in
+    1.7) GROOT_TARGET_ROOT="/app/Groot-1.7" ;;
+    *)   GROOT_TARGET_ROOT="/app/Groot-1.6" ;;
+esac
+# --no-flash-attn gibt es nur im N1.6-Fork (Commit dd87740, Turing/RTX-5000-Support);
+# N1.7s run_gr00t_server.py kennt das Flag nicht (tyro würde abbrechen). N1.7 nutzt
+# flash_attention_2, sobald flash-attn installiert ist (use_flash_attention=True im
+# Modell-Config) — auf der Turing-GPU der jupyter-Partition (sm_75) ist das NICHT lauffähig;
+# ein Port des Flags auf den N1.7-Fork-Branch steht aus (docs/weiterfuehrend/groot-n17-migration.md).
+if [[ "$GROOT_RESOLVED" == "1.7" ]]; then
+    SERVER_FLASH_FLAG=""
+    echo "WARNUNG: GROOT N1.7 auf der jupyter-Partition (Quadro RTX 5000, sm_75): flash-attn wird" >&2
+    echo "         dort nicht unterstützt und N1.7 hat noch kein --no-flash-attn — Lauf ungetestet." >&2
+else
+    SERVER_FLASH_FLAG="--no-flash-attn"
+fi
+if [[ "$GROOT_RESOLVED" == "1.7" ]]; then
+    # N1.7 lädt das gated Cosmos-Reason2-2B-Backbone bei JEDEM Checkpoint-Laden vom HF-Hub
+    # nach — Compute-Nodes sind offline, daher fest auf den vorab befüllten Cache lenken.
+    GROOT_APPTAINER_ARGS+=(--env "HF_HOME=/data/hf_cache" --env "HF_HUB_OFFLINE=1")
+fi
+
+# gr00t-Modul aus Fork einbinden (analog zu kisski_submit.sh)
+if [[ -n "$GROOT_VERSION_WAS_SET" ]]; then
+    # Version explizit gewählt: nur den passenden Fork-Checkout binden.
+    if [[ "$GROOT_RESOLVED" == "1.7" ]]; then
+        SRC_FORK_DIR="$GROOT17_FORK_DIR"
+    else
+        SRC_FORK_DIR="$GROOT_FORK_DIR"
+    fi
+    if [[ -d "$SRC_FORK_DIR/gr00t" ]]; then
+        GROOT_APPTAINER_ARGS+=(--bind "$SRC_FORK_DIR/gr00t:$GROOT_TARGET_ROOT/gr00t")
+        GROOT_APPTAINER_ARGS+=(--bind "$SRC_FORK_DIR/examples/G1_DEX3:$GROOT_TARGET_ROOT/examples/G1_DEX3")
+        echo "    gr00t-Modul aus Fork ($GROOT_RESOLVED): $SRC_FORK_DIR/gr00t"
+    fi
+else
+    # GROOT_VERSION nicht gesetzt: BEIDE Baumstände binden (falls vorhanden), damit die
+    # Checkpoint-Erkennung so oder so ein passendes gr00t-Modul vorfindet.
+    if [[ -d "$GROOT_FORK_DIR/gr00t" ]]; then
+        GROOT_APPTAINER_ARGS+=(--bind "$GROOT_FORK_DIR/gr00t:/app/Groot-1.6/gr00t")
+        GROOT_APPTAINER_ARGS+=(--bind "$GROOT_FORK_DIR/examples/G1_DEX3:/app/Groot-1.6/examples/G1_DEX3")
+        echo "    gr00t-Modul aus Fork (1.6): $GROOT_FORK_DIR/gr00t"
+    fi
+    if [[ -d "$GROOT17_FORK_DIR/gr00t" ]]; then
+        GROOT_APPTAINER_ARGS+=(--bind "$GROOT17_FORK_DIR/gr00t:/app/Groot-1.7/gr00t")
+        GROOT_APPTAINER_ARGS+=(--bind "$GROOT17_FORK_DIR/examples/G1_DEX3:/app/Groot-1.7/examples/G1_DEX3")
+        echo "    gr00t-Modul aus Fork (1.7): $GROOT17_FORK_DIR/gr00t"
+    fi
+fi
+echo "    GROOT-Ausführungspfad: $GROOT_TARGET_ROOT (Version ${GROOT_VERSION_WAS_SET:+explizit }${GROOT_RESOLVED}$([[ -z "$GROOT_VERSION_WAS_SET" ]] && echo " — auto/Checkpoint-Erkennung"))"
+
 apptainer exec "${GROOT_APPTAINER_ARGS[@]}" "$SERVER_SIF" \
-    bash -lc "cd /app/Groot-1.6 && \
+    bash -lc "cd $GROOT_TARGET_ROOT && \
         .venv/bin/python gr00t/eval/run_gr00t_server.py \
             --model-path $CHECKPOINT \
             --embodiment-tag NEW_EMBODIMENT \
             --use-sim-policy-wrapper \
-            --no-flash-attn \
+            $SERVER_FLASH_FLAG \
             --port $SERVER_PORT" \
     &
 SERVER_PID=$!

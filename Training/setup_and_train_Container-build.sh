@@ -27,6 +27,10 @@
 #   MAX_STEPS=30000
 #   GLOBAL_BATCH_SIZE=8
 #   NUM_GPUS=1
+#   GROOT_VERSION=1.6       1.6 | 1.7 — waehlt Code-Baum/Modell/venv im Container
+#                            (siehe Training/scripts/lib_groot_version.sh). Betrifft nur
+#                            SCHRITT 7 (Training); SCHRITT 6 (Konvertierung) in diesem
+#                            Skript ist fest auf /app/Groot-1.6 verdrahtet.
 
 set -euo pipefail
 
@@ -78,6 +82,7 @@ MAX_STEPS="${MAX_STEPS:-30000}"
 GLOBAL_BATCH_SIZE="${GLOBAL_BATCH_SIZE:-8}"
 NUM_GPUS="${NUM_GPUS:-1}"
 WANDB_PROJECT="${WANDB_PROJECT:-gr00t-g1-dex3}"
+GROOT_VERSION="${GROOT_VERSION:-1.6}"
 
 # ── Banner ────────────────────────────────────────────────────────────────────
 echo
@@ -280,6 +285,7 @@ printf "    %-25s %s\n" "MAX_STEPS"          "$MAX_STEPS"
 printf "    %-25s %s\n" "GLOBAL_BATCH_SIZE"  "$GLOBAL_BATCH_SIZE"
 printf "    %-25s %s\n" "NUM_GPUS"           "$NUM_GPUS"
 printf "    %-25s %s\n" "WANDB_PROJECT"      "$WANDB_PROJECT"
+printf "    %-25s %s\n" "GROOT_VERSION"      "$GROOT_VERSION"
 printf "    %-25s %s\n" "Logs (Host)"        "./data/logs/"
 echo
 warn "Hinweis: Standard GLOBAL_BATCH_SIZE=8 (sicher für ~40 GB VRAM)"
@@ -313,6 +319,7 @@ TRAIN_CMD=(
     -e "GLOBAL_BATCH_SIZE=${GLOBAL_BATCH_SIZE}"
     -e "NUM_GPUS=${NUM_GPUS}"
     -e "WANDB_PROJECT=${WANDB_PROJECT}"
+    -e "GROOT_VERSION=${GROOT_VERSION}"
     -e "USE_WANDB=1"
 )
 

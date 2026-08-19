@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 # TL;DR: GR00T-ZMQ-Server im Container mit optionalem torch.compile-/TensorRT-Backend fuer den DiT.
 """GR00T-ZMQ-Server mit opt-in torch.compile-/TensorRT-DiT-Backend."""
+"""GR00T-ZMQ-Server mit opt-in torch.compile-/TensorRT-DiT-Backend.
+
+NUR GR00T N1.6: der ersetzte DiT-Forward stammt aus Gr00tN1d6ActionHead. Mit einem
+N1.7-Checkpoint bricht der Server sofort ab (require_gr00t_n1d6) — fuer N1.7 ist der
+eager Server zustaendig (gr00t/eval/run_gr00t_server.py); entrypoint_sim.sh schaltet
+dorthin automatisch zurueck.
+"""
 
 from __future__ import annotations
 
@@ -8,7 +15,7 @@ import argparse
 import json
 from pathlib import Path
 
-from groot_inference_backend import checkpoint_fingerprint, install_backend
+from groot_inference_backend import checkpoint_fingerprint, install_backend, require_gr00t_n1d6
 
 
 def main() -> None:
@@ -44,6 +51,8 @@ def main() -> None:
         device=args.device,
         strict=True,
     )
+    # Frueh und eindeutig: erst pruefen, ob das ueberhaupt ein N1.6-Modell ist.
+    require_gr00t_n1d6(policy)
     details = install_backend(policy, args.backend, engine_path or None, model_path=model_path)
     print("  Backend-Details: " + json.dumps(details, default=str), flush=True)
     wrapped = Gr00tSimPolicyWrapper(policy)

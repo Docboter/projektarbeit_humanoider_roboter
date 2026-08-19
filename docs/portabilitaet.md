@@ -152,11 +152,14 @@ sbatch --output=/user/luca.muecke/u28320/.project/dir.project/logs/slurm-sim-%j.
 
 ## 3. Fremdnutzung — Repo klonen und in Betrieb nehmen
 
-Alles Nötige ist öffentlich: das Repo, beide Submodule
-(`lucam06/Isaac-GR00T`, `unitreerobotics/unitree_ros`), beide Docker-Images
+Alles Nötige ist öffentlich: das Repo, **drei** Submodule (`app/Groot-1.6` und `app/Groot-1.7`
+→ jeweils `lucam06/Isaac-GR00T`, verschiedene Branches; `data/unitree_ros`), beide Docker-Images
 (`lucam03/projekt-humanoider-roboter`, `…-sim-vastai`) sowie Modell und Datensatz auf
 HuggingFace (`nvidia/GR00T-N1.6-3B` ist **nicht** gated). Mitbringen muss man nur einen
-**eigenen HF-Token**, optional einen W&B-Key und passende GPU-Hardware.
+**eigenen HF-Token**, optional einen W&B-Key und passende GPU-Hardware. Wer zusätzlich
+**GR00T N1.7** nutzen will (`GROOT_VERSION=1.7`, seit 2026-08-19 als paralleler Pfad im
+selben Image — Details: [groot-n17-migration.md](weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19)),
+braucht zusätzlich Zugang zum **gated** Backbone `nvidia/Cosmos-Reason2-2B`.
 
 ```bash
 git clone https://github.com/Docboter/projektarbeit_humanoider_roboter.git
@@ -238,6 +241,8 @@ Das RoboCasa-Skript nutzt dieselbe Mechanik mit `RC_`-Präfix (`RC_HOST_DATA_DIR
 | `RL_CONTAINER` | `groot-rl` | Container-Name (mehrere Läufe pro Server) |
 | `RL_GPUS` | `"device=1,0"` | GPU-Auswahl; erste Karte trägt Rendering + Training |
 | `HF_TOKEN`, `WANDB_API_KEY` | — | Zugangsdaten; gehören in `.env.local` |
+| `GROOT_VERSION` | Container-Default `auto`, Host-Default `1.6` für `docker exec`-Aktionen | `1.6` \| `1.7` \| `auto` — nur ein **explizit** gesetzter Wert wird beim Anlegen des Containers durchgereicht (`-e`, wirkt nur bei `docker create`/`run` — nach einem Wechsel `clean` nötig). `1.7` braucht Zugang zum gated Backbone `nvidia/Cosmos-Reason2-2B`; `rl`/`check`/`optimize` und der Baseline-Lauf laufen nur mit `1.6` |
+| `HF_HOME` | `/data/hf_cache` (Container-Pfad) | Nur bei `GROOT_VERSION=1.7` relevant (Cosmos-Reason2-2B-Cache); muss unterhalb von `/data` liegen, sonst überlebt es kein `clean` |
 
 ### KISSKI-SLURM-Skripte
 
@@ -247,6 +252,7 @@ Das RoboCasa-Skript nutzt dieselbe Mechanik mit `RC_`-Präfix (`RC_HOST_DATA_DIR
 | `KISSKI_SIF_DIR` | `$HOME/images` | Wo die `.sif`-Dateien liegen (erster Kandidat) |
 | `SIF_IMAGE` / `SERVER_SIF` / `SIM_SIF` | Kandidatenliste | einzelnes SIF hart setzen |
 | `DATA_DIR`, `REPO_DIR`, `GROOT_FORK_DIR`, `ASSETS_DIR`, `ISAAC_CACHE`, `SIM_CODE` | aus `KISSKI_PROJECT_DIR` | einzeln überschreibbar |
+| `GROOT17_FORK_DIR` | `$KISSKI_PROJECT_DIR/repo-groot-n17` | zweiter Fork-Clone (Branch `luca/g1-dex3-n17`) für `GROOT_VERSION=1.7`; nur gebraucht, wenn N1.7 verwendet wird |
 | `APPTAINER_CACHEDIR`, `APPTAINER_TMPDIR` | aus `KISSKI_PROJECT_DIR` | werden jetzt respektiert, wenn gesetzt |
 
 Fachliche Parameter (`MAX_STEPS`, `GLOBAL_BATCH_SIZE`, `NUM_GPUS`, `TUNE_VISUAL`, …) stehen

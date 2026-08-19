@@ -38,12 +38,16 @@ Beispiel (im Container):
 
 import argparse
 import gc
+import inspect
 import json
 import os
 import re
 import sys
 from pathlib import Path
 
+# Versionsabhängig (N1.6 vs. N1.7): wird von lib_groot_version.sh (groot_resolve)
+# exportiert, wenn das aufrufende Trainings-Skript sie gesourct hat. Fallback N1.6, falls
+# checkpoint_sweep.py freistehend ohne diesen Kontext aufgerufen wird.
 GROOT_ROOT = os.environ.get("GROOT_ROOT", "/app/Groot-1.6")
 
 
@@ -328,20 +332,48 @@ def main() -> int:
     from gr00t.eval.open_loop_eval import evaluate_single_trajectory
     from gr00t.policy.gr00t_policy import Gr00tPolicy
 
+    # N1.7 hat den Parameter von evaluate_single_trajectory umbenannt:
+    # action_horizon (N1.6) -> execution_horizon (N1.7). Per Introspektion statt
+    # GROOT_VERSION-Vergleich auflösen, damit das auch ohne gesetzte Env-Var stimmt.
+    _horizon_params = inspect.signature(evaluate_single_trajectory).parameters
+    if "execution_horizon" in _horizon_params:
+        HORIZON_KWARG = "execution_horizon"
+    else:
+        HORIZON_KWARG = "action_horizon"
+
+    # N1.7 hat den Video-Backend-Umschalter von LeRobotEpisodeLoader entfernt:
+    # video_backend/video_backend_kwargs (N1.6) -> ein einziges decoder_kwargs (N1.7,
+    # Decoder ist intern fest torchcodec). Per Introspektion statt Versionsvergleich.
+    _loader_params = inspect.signature(LeRobotEpisodeLoader.__init__).parameters
+    if "video_backend" in _loader_params:
+        LOADER_KWARGS = {"video_backend": "torchcodec", "video_backend_kwargs": None}
+    else:
+        LOADER_KWARGS = {"decoder_kwargs": None}
+
     device = args.device or ("cuda" if torch.cuda.is_available() else "cpu")
     # Membername ("NEW_EMBODIMENT") und Wert ("new_embodiment") beide akzeptieren:
-    # die Trainings-Skripte übergeben den Membername, EmbodimentTag(...) löst aber
-    # über den Wert auf.
-    try:
-        embodiment_tag = EmbodimentTag[args.embodiment_tag]
-    except KeyError:
+    # die Trainings-Skripte übergeben den Membername. N1.7 hat dafür
+    # EmbodimentTag.resolve() (name ODER value, case-insensitive); N1.6 kennt nur
+    # EmbodimentTag[name] / EmbodimentTag(value) einzeln — Fallback-Kette wie dort.
+    if hasattr(EmbodimentTag, "resolve"):
         try:
-            embodiment_tag = EmbodimentTag(args.embodiment_tag)
+            embodiment_tag = EmbodimentTag.resolve(args.embodiment_tag)
         except ValueError:
             valid = ", ".join(t.name for t in EmbodimentTag)
             sys.exit(
                 f"FEHLER: Unbekannter Embodiment-Tag '{args.embodiment_tag}'. Gültig: {valid}"
             )
+    else:
+        try:
+            embodiment_tag = EmbodimentTag[args.embodiment_tag]
+        except KeyError:
+            try:
+                embodiment_tag = EmbodimentTag(args.embodiment_tag)
+            except ValueError:
+                valid = ", ".join(t.name for t in EmbodimentTag)
+                sys.exit(
+                    f"FEHLER: Unbekannter Embodiment-Tag '{args.embodiment_tag}'. Gültig: {valid}"
+                )
     plot_dir.mkdir(parents=True, exist_ok=True)
 
     results: list[dict] = []
@@ -358,9 +390,8 @@ def main() -> int:
         loader = LeRobotEpisodeLoader(
             dataset_path=str(dataset_path),
             modality_configs=policy.get_modality_config(),
-            video_backend="torchcodec",
-            video_backend_kwargs=None,
             split=args.split,
+            **LOADER_KWARGS,
         )
 
         if not positions:
@@ -392,8 +423,8 @@ def main() -> int:
                 embodiment_tag,
                 None,
                 steps=args.steps,
-                action_horizon=args.action_horizon,
                 save_plot_path=str(plot_dir / f"ckpt{step}_ep{episode_index}.jpeg"),
+                **{HORIZON_KWARG: args.action_horizon},
             )
             per_traj.append(
                 {

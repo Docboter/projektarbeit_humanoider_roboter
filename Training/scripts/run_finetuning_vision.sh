@@ -23,12 +23,18 @@
 
 set -euo pipefail
 
+# ── GR00T-Version auflösen (N1.6 | N1.7) ───────────────────────────────────────
+# Muss vor jeder Verwendung von GROOT_ROOT/MODEL_PATH/OUTPUT_DIR laufen.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib_groot_version.sh
+source "$SCRIPT_DIR/lib_groot_version.sh"
+groot_resolve || { echo "FEHLER: GR00T-Versionsauflösung fehlgeschlagen (GROOT_VERSION=${GROOT_VERSION:-})." >&2; exit 1; }
+
 # ── Trainings-Parameter (alle via Env-Var überschreibbar) ─────────────────────
-GROOT_ROOT="${GROOT_ROOT:-/app/Groot-1.6}"
-MODEL_PATH="${MODEL_PATH:-/data/models/GR00T-N1.6-3B}"
+MODEL_PATH="${MODEL_PATH:-/data/models/$GROOT_MODEL_NAME}"
 DATASET_PATH="${DATASET_PATH:-/data/unitreerobotics/G1_Dex3_BlockStacking_Dataset}"
 # Eigener Output-/Experiment-Namespace, damit Vision-Läufe nicht die Standard-Läufe überschreiben.
-OUTPUT_DIR="${OUTPUT_DIR:-/data/g1_dex3_finetune/blockstacking_vision}"
+OUTPUT_DIR="${OUTPUT_DIR:-/data/g1_dex3_finetune/blockstacking_vision${GROOT_NS_SUFFIX}}"
 EXPERIMENT_NAME="${EXPERIMENT_NAME:-g1_dex3_blockstacking_vision_v1}"
 MODALITY_CONFIG="${MODALITY_CONFIG:-$GROOT_ROOT/examples/G1_DEX3/g1_dex3_config.py}"
 EMBODIMENT_TAG="${EMBODIMENT_TAG:-NEW_EMBODIMENT}"
@@ -73,8 +79,8 @@ log()  { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 err()  { printf '\033[1;31m!! \033[0m%s\n' "$*" >&2; }
 warn() { printf '\033[1;33m ! \033[0m%s\n' "$*"; }
 
-# Split-Logik teilen sich beide Trainings-Skripte.
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Split-Logik teilen sich beide Trainings-Skripte. SCRIPT_DIR wurde bereits oben
+# für lib_groot_version.sh gesetzt.
 # shellcheck source=lib_split.sh
 source "$SCRIPT_DIR/lib_split.sh"
 # shellcheck source=lib_resume_guard.sh

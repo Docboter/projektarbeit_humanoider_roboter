@@ -16,6 +16,40 @@ Diese Anleitung beschreibt Schritt für Schritt, wie du das Fine-tuning von **GR
 - Auf vast.ai entspricht ein Container genau einer Instanz: Stop/Start lässt den Container weiterleben, Destroy löscht alles.
 - Vor dem Destroy → Checkpoints exportieren (siehe Abschnitt [Daten retten](#daten-retten)).
 
+## Modellgeneration wählen — N1.6 oder N1.7
+
+Standardmäßig trainiert der Container **GR00T N1.6** (`GROOT_VERSION=1.6`, so wie der Rest
+dieser Anleitung es beschreibt). Seit 2026-08-19 liegt **N1.7** als **paralleler Pfad** im
+selben Image — auswählbar über eine zusätzliche Env-Var, sonst ändert sich nichts:
+
+```bash
+-e GROOT_VERSION=1.7
+```
+
+**Voraussetzung:** Zugang zum **gated** HF-Backbone
+[`nvidia/Cosmos-Reason2-2B`](https://huggingface.co/nvidia/Cosmos-Reason2-2B) — auf der
+Model-Page beantragen, mit demselben HF-Konto, zu dem `HF_TOKEN` gehört. Ohne Zugang bricht
+der Download mit einer klaren Fehlermeldung samt Link ab.
+
+**Was sich mit `GROOT_VERSION=1.7` ändert:**
+- Modell `nvidia/GR00T-N1.7-3B` statt `nvidia/GR00T-N1.6-3B` → `/data/models/GR00T-N1.7-3B`.
+- Checkpoints landen in einem eigenen Namespace mit Suffix `_n17`
+  (`/data/g1_dex3_finetune/blockstacking_n17` statt `blockstacking`, entsprechend für
+  `_vision`/`_cotrain`).
+- Der Container nutzt intern den zweiten Codebaum `/app/Groot-1.7` (Python 3.12) statt
+  `/app/Groot-1.6` (Python 3.10) — für die Bedienung ohne Unterschied.
+
+> **Ungetestet:** Es gibt bislang **keinen** abgeschlossenen N1.7-Trainingslauf — weder lokal
+> noch auf KISSKI. Details zum Umsetzungsstand:
+> [groot-n17-migration.md § Stand der Umsetzung](../weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19).
+> Für KISSKI gilt zusätzlich: Modell **und** Backbone müssen vorab auf dem Login-Knoten im
+> HF-Cache liegen — siehe [kisski-hpc.md](kisski-hpc.md#schritt-2b--repos-einmalig-auf-dem-login-knoten-klonen).
+
+Volle Variablenreferenz (inkl. `HF_HOME`, Build-Arg `GROOT_VERSIONS`):
+[env-vars.md](env-vars.md).
+
+---
+
 ## Vier Wege zum Trainieren
 
 > **Ohne Parameter starten führt durch.** Ruft man eines der Host-Skripte ohne Argumente

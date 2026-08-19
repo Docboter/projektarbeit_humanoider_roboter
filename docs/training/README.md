@@ -36,6 +36,13 @@ KISSKI HPC-Cluster.
 > Funktioniert auf allen Wegen (Container, vast.ai, KISSKI). Details: [env-vars.md](env-vars.md)
 > (`TUNE_VISUAL`), Anwendung in [anleitung.md](anleitung.md) und [kisski-hpc.md](kisski-hpc.md).
 
+> **Variante — GR00T N1.7 statt N1.6:** Mit `GROOT_VERSION=1.7` trainiert derselbe Container
+> gegen das N1.7-Modell (Cosmos-Reason2-2B-Backbone) statt N1.6 — als **paralleler Pfad im
+> selben Image**, N1.6 bleibt Default. Braucht Zugang zum gated Backbone-Repo. **Ungetestet:**
+> es gibt noch keinen abgeschlossenen N1.7-Trainingslauf. Details: [env-vars.md](env-vars.md)
+> (`GROOT_VERSION`), Auswahl in [anleitung.md](anleitung.md#modellgeneration-wählen--n16-oder-n17),
+> Umsetzungsstand: [groot-n17-migration.md](../weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19).
+
 ## Die vier Wege im Überblick
 
 Welcher Weg passt — die konkreten Befehle stehen jeweils in [anleitung.md](anleitung.md):

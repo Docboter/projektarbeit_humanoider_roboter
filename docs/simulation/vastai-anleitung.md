@@ -249,6 +249,8 @@ lucam03/projekt-humanoider-roboter-sim-vastai:latest
 | `SHELL_ON_ERROR` | `1` | Empfohlen (für Debugging) |
 | `BLACK_HANDS` | `1` | Nein (default 1) — färbt die Hände schwarz (Domain-Gap-Fix) |
 | `LIVE_VIEW` | `1` | Nein (default 0) — MJPEG-Live-Ansicht im Browser, Port `LIVE_VIEW_PORT` (8900) |
+| `GROOT_VERSION` | `auto` | Nein (default `auto`) — erkennt N1.6 vs. N1.7 aus dem `model_type` in der Checkpoint-`config.json`; explizit `1.6` oder `1.7` erzwingt eine Generation. `1.7` braucht zusätzlich Zugang zum **gated** Backbone `nvidia/Cosmos-Reason2-2B`. Ungetestet mit echtem N1.7-Checkpoint — siehe [groot-n17-migration.md](../weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19) |
+| `HF_HOME` | — | Nein (default `$DATA_DIR/hf_cache`) — nur für N1.7 relevant: hier landet das Cosmos-Reason2-2B-Backbone, das bei jedem Checkpoint-Laden erneut vom Hub gezogen wird, wenn es nicht schon im Cache liegt |
 
 > Die vollständige Env-Var-Referenz des Sim-Containers steht in
 > [CLAUDE.md](../../CLAUDE.md) („Sim eval on vast.ai"); dort sind auch `LIVE_VIEW_EVERY_N`,
@@ -257,6 +259,13 @@ lucam03/projekt-humanoider-roboter-sim-vastai:latest
 > **Flash-Attention:** Das Modell (Eagle-Block2A-2B-v2) erfordert `flash_attention_2`
 > zwingend; es ist im Image installiert. Es gibt **keine** Möglichkeit, es abzuschalten —
 > `NO_FLASH_ATTN` wird ignoriert. Deshalb sind nur Ampere+-GPUs mit Flash-Attn-Support geeignet.
+
+> **Optimiertes Inferenz-Backend (`GROOT_INFERENCE_BACKEND=compile|tensorrt`) ist N1.6-only.**
+> Der `compile`/`tensorrt`-Pfad ist gegen den N1.6-DiT gebaut (`groot_inference_backend.py`,
+> `optimize_groot_inference.py`, `run_groot_optimized_server.py` prüfen alle auf `Gr00tN1d6`).
+> Bei `GROOT_VERSION=1.7` schaltet `entrypoint_sim.sh` automatisch mit einer Warnung auf
+> `eager` zurück, egal was `GROOT_INFERENCE_BACKEND` sagt. Details:
+> [inferenz-optimierung.md](inferenz-optimierung.md).
 
 > **Hinweis:** Wenn `HF_CHECKPOINT_REPO` gesetzt ist, setzt der Entrypoint `CHECKPOINT_PATH`
 > automatisch auf `/data/checkpoints/<repo-name>/`. `ASSET_PATH` muss trotzdem explizit

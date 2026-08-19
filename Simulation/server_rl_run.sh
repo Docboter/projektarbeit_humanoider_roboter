@@ -68,6 +68,15 @@
 #   GROOT_TRT_ENGINE_PATH (optional; leer = Engine per Checkpoint-Fingerprint finden),
 #   CAMERA_RENDER_EVERY_N (Default 1; schneller Modus = EXECUTION_HORIZON, meist 8).
 #   Backend-Details und Build: docs/simulation/inferenz-optimierung.md
+#   GROOT_VERSION (1.6 | 1.7; Default 1.6) — welcher GR00T-Code-Baum im Container benutzt
+#     wird (/app/Groot-1.6 mit Python 3.10+Eagle bzw. /app/Groot-1.7 mit Python 3.12+
+#     Cosmos-Reason2-2B). Auf dem HOST liegt kein Checkpoint, deshalb hier kein `auto`;
+#     der Wert wird beim Anlegen des Containers durchgereicht und überschreibt dort den
+#     Image-Default. N1.7 braucht zusätzlich HF-Zugang zum gated Repo
+#     https://huggingface.co/nvidia/Cosmos-Reason2-2B; ein gesetztes HF_HOME wird
+#     mitgereicht (sonst liegt der Cache unter /data/hf_cache im Container).
+#     NUR N1.6: 'rl', 'check', 'optimize' (und der Baseline-Lauf über
+#     entrypoint_baseline.sh) — Begründung in docs/weiterfuehrend/groot-n17-migration.md.
 #
 # ZWEI LIVE-WEGE, bewusst getrennt (docs/simulation/live-ansicht.md):
 #   LIVE_VIEW=1   „Spur B" — MJPEG-Bilder im Browser. Zustandslos, beliebig viele
@@ -151,9 +160,32 @@ LIVE_KEEP_VIDEO="${LIVE_KEEP_VIDEO:-0}"
 
 ISAAC_PY="/workspace/isaaclab/_isaac_sim/python.sh"
 SIM_DIR="/workspace/g1_dex3_sim"
-# GR00T-venv im Container: fuer reine Policy-Inferenz ohne Isaac Sim (Aktion 'span').
-# Gleicher Pfad wie in entrypoint_sim.sh.
-GROOT_ROOT="${GROOT_ROOT:-/app/Groot-1.6}"
+
+# ── GR00T-Version (N1.6 | N1.7) ──────────────────────────────────────────────
+# GROOT_ROOT ist ein CONTAINER-Pfad: das GR00T-venv fuer reine Policy-Inferenz ohne
+# Isaac Sim ('span', 'latency', 'optimize') und fuer den Policy-Server im Entrypoint.
+# Welcher der beiden Baeume das ist, entscheidet die gemeinsame Lib — dieselbe, die im
+# Container /scripts/lib_groot_version.sh ist. Hier auf dem HOST liegt kein Checkpoint,
+# also kann nichts erkannt werden: Default 1.6, `auto` waere sinnlos.
+# shellcheck source=scripts/lib_groot_version.sh
+source "$SCRIPT_DIR/scripts/lib_groot_version.sh"
+# Ein vom Nutzer gesetztes HF_HOME merken, BEVOR groot_resolve seinen Container-Default
+# (/data/hf_cache) einsetzt — sonst reichten wir gleich einen Pfad durch, den niemand
+# gesetzt hat, und auf dem Host bliebe ein falsches HF_HOME im Environment stehen.
+GROOT_HF_HOME_USER="${HF_HOME:-}"
+# Merken, ob GROOT_VERSION ueberhaupt gesetzt war (Env oder .env.local): dann wird dieser
+# Wert in den Container gereicht; sonst behaelt der Container seinen Image-Default `auto`
+# (Erkennung aus dem Checkpoint), waehrend Host-seitige docker-exec-Befehle (span, latency,
+# gap ...) mit 1.6 arbeiten — fuer N1.7-Checkpoints dort also GROOT_VERSION=1.7 setzen.
+GROOT_VERSION_SET="${GROOT_VERSION+1}"
+groot_resolve "${GROOT_VERSION:-1.6}"
+GROOT_VERSION_CONTAINER="${GROOT_VERSION_SET:+$GROOT_VERSION}"
+GROOT_VERSION_CONTAINER="${GROOT_VERSION_CONTAINER:-auto}"
+if [[ -n "$GROOT_HF_HOME_USER" ]]; then
+  export HF_HOME="$GROOT_HF_HOME_USER"
+else
+  unset HF_HOME
+fi
 
 # Dieselbe Livestream-Logik wie in den Entrypoints — hier auf dem HOST gesourct, damit
 # `grasp` (das rl-fremde Skripte direkt aufruft) nicht seine eigene Kopie braucht.
@@ -202,6 +234,19 @@ require_hf_token() {
       err "  Aufruf z. B.: HF_TOKEN=hf_... $0 $ACTION"; exit 1; }
 }
 
+# Aktionen, die es (noch) nur für N1.6 gibt: RL/check (rl_finetune.py laeuft im
+# Isaac-Sim-Python, dort ist nur das N1.6-gr00t installiert, und der Trainer repliziert
+# Gr00tN1d6-Interna) sowie optimize (ONNX/TensorRT-Export des N1.6-DiT). Lieber hier
+# abbrechen als nach dem Modell-Laden im Container. Stand: groot-n17-migration.md Phase 6.
+require_groot_n16() {
+  [[ "${GROOT_VERSION:-1.6}" == "1.7" ]] || return 0
+  err "Aktion '${1:-$ACTION}' gibt es bislang nur mit GR00T N1.6 (GROOT_VERSION=1.7 gesetzt)."
+  err "  Grund: ${2:-N1.7 ist für diesen Pfad nicht portiert}."
+  err "  Entweder GROOT_VERSION=1.6 setzen oder auf die Portierung warten"
+  err "  (docs/weiterfuehrend/groot-n17-migration.md, Phase 6)."
+  return 1
+}
+
 container_state() { docker inspect -f '{{.State.Running}}' "$CONTAINER" 2>/dev/null || echo missing; }
 
 # Ist der Host-Port frei? Reines Bash (kein ss/netstat/lsof im Image-losen Fall nötig).
@@ -243,7 +288,10 @@ livestream_docker_env() {
 # hineinkopiert werden, sonst läuft still die alte Fassung aus dem Image.
 sync_scripts() {
   local f
-  for f in lib_livestream.sh "$@"; do
+  # Die beiden Libs IMMER mitkopieren: die Entrypoints sourcen sie, und ein Container aus
+  # einem aelteren Image hat lib_groot_version.sh noch gar nicht — dann liefe der frisch
+  # kopierte Entrypoint in seinen Fallback statt in die Versionswahl.
+  for f in lib_livestream.sh lib_groot_version.sh "$@"; do
     docker cp "$REPO_DIR/Simulation/scripts/$f" "$CONTAINER:/scripts/$f"
   done
 }
@@ -310,6 +358,11 @@ ensure_container() {
   log "Erzeuge langlebigen Container '$CONTAINER' (Image: $IMAGE, GPU: $GPUS)."
   log "  /data -> $HOST_DATA_DIR  (Checkpoint-Cache, RL-Checkpoints, Isaac-Sim-Shader-Cache)"
   local create_env=( -e PYTHONUNBUFFERED=1 )
+  # Der Image-Default ist GROOT_VERSION=auto (aus dem Checkpoint erkennen). Nur ein auf
+  # dem Host EXPLIZIT gesetztes GROOT_VERSION wird durchgereicht; sonst bleibt `auto`.
+  # -e wirkt allerdings NUR beim ANLEGEN des Containers — nach einem Wechsel einmal `$0 clean`.
+  create_env+=( -e "GROOT_VERSION=$GROOT_VERSION_CONTAINER" )
+  [[ -n "${HF_HOME:-}" ]]          && create_env+=( -e "HF_HOME=$HF_HOME" )
   [[ -n "${HF_TOKEN:-}" ]]         && create_env+=( -e "HF_TOKEN=$HF_TOKEN" )
   [[ -n "${WANDB_API_KEY:-}" ]]    && create_env+=( -e "WANDB_API_KEY=$WANDB_API_KEY" )
   # g1_dex3_sim aus dem Repo ÜBER die Image-Kopie mounten (Muster wie kisski_submit.sh /
@@ -656,7 +709,22 @@ PY
     err "  Details: docs/weiterfuehrend/rl-anleitung.md (Troubleshooting)"
     return 1
   fi
-  if docker run --rm --gpus "$GPUS" "$IMAGE" \
+  # ONNX/TensorRT gehoeren zum optimierten Inferenz-Backend — das gibt es nur fuer N1.6.
+  # Fuer N1.7 waere ein Fehlschlag hier kein Mangel, deshalb pruefen wir dort stattdessen,
+  # dass der zweite Baum ueberhaupt importierbar ist (eigenes venv, eigenes Python).
+  if [[ "$GROOT_VERSION" == "1.7" ]]; then
+    if docker run --rm --gpus "$GPUS" "$IMAGE" \
+        "$GROOT_ROOT/.venv/bin/python" -c \
+        "import sys,gr00t; from gr00t.model.gr00t_n1d7 import gr00t_n1d7; \
+print('python', '.'.join(map(str, sys.version_info[:2])), '| gr00t_n1d7 importierbar')"; then
+      ok "GR00T-N1.7-venv nutzbar ($GROOT_ROOT)."
+    else
+      err "N1.7-Preflight fehlgeschlagen — enthaelt das Image $GROOT_ROOT mit eigenem venv?"
+      err "  Image neu bauen:  ./Simulation/update_sim_image.sh --vastai"
+      return 1
+    fi
+    warn "ONNX/TensorRT werden nicht geprueft: das optimierte Backend ist N1.6-only."
+  elif docker run --rm --gpus "$GPUS" "$IMAGE" \
       "$GROOT_ROOT/.venv/bin/python" -c \
       "import onnx,tensorrt as trt; print('onnx',onnx.__version__,'tensorrt',trt.__version__); assert trt.Builder(trt.Logger())"; then
     ok "ONNX + TensorRT-cu12 im GR00T-venv nutzbar."
@@ -669,6 +737,8 @@ PY
 do_setup() { ensure_checkpoint; ok "Setup abgeschlossen. Weiter mit:  $0 check"; }
 
 do_check() {
+  require_groot_n16 check "der Check baut Env+Policy+Critic mit rl_finetune.py auf (N1.6-only)" \
+    || return 1
   ensure_checkpoint
   ensure_black_hands
   log "LIVE-CHECK (Schritt 5/7 in rl-anleitung.md): Aufbau von Env+Policy+Critic, KEIN Training."
@@ -700,6 +770,8 @@ do_check() {
 }
 
 do_rl() {
+  require_groot_n16 rl "rl_finetune.py laeuft im Isaac-Sim-Python, das nur das N1.6-gr00t hat" \
+    || return 1
   ensure_checkpoint
   ensure_black_hands   # muss VOR build_rl_env laufen: der Fallback ändert ASSET_PATH
   # Wie in do_eval: /scripts liegt im Image, nicht im Mount. Ohne diese Zeile liefe ein
@@ -759,8 +831,12 @@ do_eval() {
   # zweiter HF-Zugriff im Entrypoint braeuchte nur wieder einen Token.
   # BLACK_HANDS wird mitgereicht, obwohl entrypoint_sim.sh dieselbe Logik selbst hat —
   # es findet das von ensure_black_hands erzeugte *_blackhands.usd dann einfach vor.
+  # GROOT_VERSION (und ggf. HF_HOME) hier NOCHMAL mitgeben: -e beim `docker run` wirkt nur
+  # beim ANLEGEN, ein Container aus einem frueheren Lauf kennt einen neuen Wert also nicht.
   docker exec \
     -e "SKIP_DOWNLOAD=1" \
+    -e "GROOT_VERSION=$GROOT_VERSION_CONTAINER" \
+    ${HF_HOME:+-e "HF_HOME=$HF_HOME"} \
     -e "CHECKPOINT_PATH=$CHECKPOINT_PATH" \
     -e "ASSET_PATH=$ASSET_PATH" \
     -e "BLACK_HANDS=$BLACK_HANDS" \
@@ -805,6 +881,8 @@ print('Erfolgsrate: %d/%d = %.1f%%' % (d['num_success'], d['num_episodes'], 100*
 # GPU-Modell/Compute-Capability und TensorRT-Version. Deshalb laeuft diese Aktion auf dem
 # IKR-Server und nicht beim Image-Build.
 do_optimize() {
+  require_groot_n16 optimize "ONNX-Export und TensorRT-Engine sind gegen den N1.6-DiT gebaut" \
+    || return 1
   local phase="${1:-all}"
   case "$phase" in export|build|validate|benchmark|all) ;; *)
     err "optimize-Phase '$phase' ungueltig (export|build|validate|benchmark|all)."; return 2 ;;
@@ -1631,6 +1709,18 @@ Live-Ansicht im Browser (opt-in, docs/weiterfuehrend/livestream-plan.md Spur B):
 Logs (jede Aktion außer 'shell' wird gespiegelt):
   Host-Seite:      $HOST_DATA_DIR/logs/<aktion>-<zeitstempel>.log
   Container-Seite: $HOST_DATA_DIR/logs/entrypoint_rl.log   (= /data/logs/… im Container)
+
+GR00T-Version (GROOT_VERSION, Host-Default 1.6 fuer docker-exec-Aktionen; an den
+Container geht nur ein EXPLIZIT gesetzter Wert, sonst dessen Image-Default `auto` =
+Erkennung aus der Checkpoint-config.json):
+  aktuell N$GROOT_VERSION (Host)  ->  Container: GROOT_VERSION=$GROOT_VERSION_CONTAINER, Baum $GROOT_ROOT
+  1.6  Python 3.10, Eagle-Backbone      — der bisherige und weiterhin voreingestellte Weg
+  1.7  Python 3.12, Cosmos-Reason2-2B   — Backbone kommt vom HF-Hub und ist GATED:
+       Zugang zu https://huggingface.co/nvidia/Cosmos-Reason2-2B noetig, ein gesetztes
+       HF_HOME wird durchgereicht (sonst Cache unter /data/hf_cache).
+  NUR N1.6: rl, check, optimize (und die Baseline ueber entrypoint_baseline.sh) —
+       Begruendung/Plan: docs/weiterfuehrend/groot-n17-migration.md
+  Achtung: -e wirkt nur beim ANLEGEN des Containers. Nach einem Wechsel einmal '$0 clean'.
 
 Datenverzeichnis (Host): $HOST_DATA_DIR   ->  Container /data
 Image:                    $IMAGE

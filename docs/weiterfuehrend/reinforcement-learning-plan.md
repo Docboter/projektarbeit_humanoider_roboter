@@ -5,7 +5,16 @@
 > Stand „Pipeline läuft end-to-end, Lernwirkung offen“ im Banner direkt darunter.
 
 > **Status: Pipeline läuft end-to-end, Lernwirkung noch offen.** Dieses Dokument beschreibt
-> Motivation, Bausteine und Phasen-Plan. Der **FPO-RL-Pfad ist gebaut** (Algorithmus-Kern gegen
+> Motivation, Bausteine und Phasen-Plan.
+>
+> **N1.6-only.** Der RL-Trainer ([`rl_finetune.py`](../../Simulation/g1_dex3_sim/rl_finetune.py))
+> repliziert N1.6-Interna (`Gr00tN1d6ActionHead.forward`, Processor-Maske), und das
+> Isaac-Sim-Python im Sim-Image hat nur die N1.6-`gr00t`-Installation. Mit `GROOT_VERSION=1.7`
+> brechen `entrypoint_rl.sh` und `kisski_rl_submit.sh` kontrolliert ab, statt mit falschen
+> N1.6-Annahmen gegen einen N1.7-Checkpoint zu trainieren — Portierung ist Phase 6 in
+> [groot-n17-migration.md](groot-n17-migration.md#stand-der-umsetzung-2026-08-19).
+>
+> Der **FPO-RL-Pfad ist gebaut** (Algorithmus-Kern gegen
 > die GR00T-API verifiziert) und am **2026-08-08** erstmals **vollständig durchgelaufen** —
 > Rollout → GAE → FPO-Update → `backward`/`optim.step` → Checkpoint, auf RTX PRO 6000 Blackwell
 > unter Isaac Sim 6.0. Damit ist die Hardware-Frage aus [Gruppe 0](#gruppe-0--machbarkeit--entscheidungen-war-blocker-für-alles-weitere)

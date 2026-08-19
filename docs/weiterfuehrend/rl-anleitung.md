@@ -20,6 +20,11 @@ statt nur Aktions-Nachahmung (Hintergrund: [reinforcement-learning-plan.md](rein
 >
 > **Status & Details:** [reinforcement-learning-plan.md](reinforcement-learning-plan.md) (die eine
 > gepflegte Statusquelle) · **Lauf-Historie:** [diagnose-chronik.md](../ergebnisse/diagnose-chronik.md).
+>
+> **N1.6-only.** Der RL-Trainer repliziert N1.6-Interna (`Gr00tN1d6ActionHead.forward`,
+> Processor-Maske), und das Isaac-Sim-Python im Sim-Image enthält nur die N1.6-`gr00t`-Installation.
+> Mit `GROOT_VERSION=1.7` bricht `entrypoint_rl.sh` deshalb kontrolliert ab, statt mit falschen
+> Interna zu trainieren. Details: [groot-n17-migration.md](groot-n17-migration.md#stand-der-umsetzung-2026-08-19).
 
 ---
 

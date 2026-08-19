@@ -4,7 +4,11 @@
 #
 # Im Gegensatz zum KISSKI-Sim-Container (Dockerfile) enthält dieses Image BEIDE Prozesse:
 #   * Isaac Lab / Isaac Sim  — Sim-Client (headless EGL, 4 RGB-Kameras)
-#   * GR00T N1.6 Policy      — ZMQ-Server (isolierte venv, kein Dependency-Konflikt)
+#   * GR00T N1.6 Policy      — ZMQ-Server (isolierte venv /app/Groot-1.6, Python 3.10)
+#   * GR00T N1.7 Policy      — ZMQ-Server (zweite isolierte venv /app/Groot-1.7, Python 3.12);
+#                              Auswahl zur Laufzeit: GROOT_VERSION=1.6|1.7|auto (Default auto =
+#                              aus model_type der Checkpoint-config.json; lib_groot_version.sh).
+#                              RL (rl_finetune.py) bleibt N1.6-only (Isaac-Python hat nur N1.6-gr00t).
 # Beide starten autonom via /scripts/entrypoint_sim.sh und kommunizieren
 # über ZMQ auf localhost:${ZMQ_PORT} (default 5555).
 #
@@ -27,11 +31,13 @@
 #     -f Simulation/Dockerfile.vastai \
 #     -t lucam03/projekt-humanoider-roboter-sim-vastai:latest \
 #     Simulation/
+#   Nur eine Modellgeneration ins Image: --build-arg GROOT_VERSIONS=1.6  (bzw. 1.7)
 #
 # Run (lokal zum Testen):
 #   docker run -it --rm --gpus all --ipc=host --shm-size=16g \
 #     -e HF_TOKEN=hf_... \
 #     -e CHECKPOINT_PATH=/data/checkpoints/checkpoint-3000 \
+#     -e GROOT_VERSION=auto \        # Default; 1.6|1.7 erzwingt die Generation
 #     -v /pfad/zum/checkpoint:/data/checkpoints \
 #     lucam03/projekt-humanoider-roboter-sim-vastai:latest
 #
@@ -58,6 +64,8 @@ ENV ACCEPT_EULA=Y \
 # System-Pakete (zusätzlich zum Isaac-Lab-Basis-Image)
 # Isaac Lab 3.0.0-beta2 basiert weiterhin auf Ubuntu 24.04 (Noble) — python3.10-* nicht im Haupt-Repo.
 # Deadsnakes-PPA liefert Python 3.10, das mit dem uv.lock des Training-Containers kompatibel ist.
+# python3.12-venv/-dev (Noble-Hauptrepo) für die N1.7-venv: Header unter /usr/include/python3.12,
+# sonst scheitert Triton zur Laufzeit (gleiche Falle wie beim 3.10-Pfad, s. u.).
 # ffmpeg wird von der LeRobot-v3.0->v2.1-Konvertierung gebraucht: sie schneidet die
 # zusammenhaengenden MP4s per Subprozess in Einzel-Episoden (convert_v3_to_v2_standalone.py,
 # _extract_video_segment). Der Training-Container hat es seit jeher; hier fehlte es bis
@@ -72,6 +80,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         python3.10 \
         python3.10-venv \
         python3.10-dev \
+        python3.12-venv \
+        python3.12-dev \
         python3-pip \
         git \
         git-lfs \
@@ -141,6 +151,38 @@ RUN PYVER=$(/app/Groot-1.6/.venv/bin/python -c 'import sys; print(f"{sys.version
 RUN if /app/Groot-1.6/.venv/bin/python -c "import deepspeed" 2>/dev/null; then \
         echo "FEHLER: deepspeed noch installiert — würde CUDA_HOME-Crash auslösen"; exit 1; \
     else echo "OK: deepspeed entfernt (Inferenz braucht es nicht)"; fi
+
+# ── GR00T N1.7 (paralleler Pfad; Laufzeit-Auswahl GROOT_VERSION=1.7 bzw. auto) ──────────
+# Upstream NVIDIA/Isaac-GR00T `main` (GA, 376ba89) + G1_DEX3-Beispiel + Split auf Fork-Branch
+# luca/g1-dex3-n17 — gleicher Pin wie im Training-Image (Training/Dockerfile, ARG GROOT17_COMMIT).
+# Eigene venv mit Python 3.12 (Upstream-uv.lock: torch 2.9.0, transformers 4.57.3, flash-attn 2.8.3
+# als offizielles cp312-Wheel per URL — kein nvcc nötig, passt zum toolkit-losen Isaac-Image).
+# Der ZMQ-Policy-Server (run_gr00t_server.py) läuft für N1.7 in DIESER venv; der Sim-Client und
+# rl_finetune.py laufen weiter im Isaac-Python (dort nur N1.6-gr00t → RL N1.7 nicht unterstützt).
+# Das Backbone nvidia/Cosmos-Reason2-2B (gated HF-Repo) zieht N1.7 beim Laden aus HF_HOME
+# (=/data/hf_cache, persistent) — entrypoint_sim.sh lädt es einmalig vor.
+# Build-Arg GROOT_VERSIONS (Default "1.6 1.7") kann den N1.7-Baum weglassen (halbe Größe).
+ARG GROOT_VERSIONS="1.6 1.7"
+ARG GROOT17_COMMIT=efa0169d3a5d3b381f4db66e98a850f3ec1ada4d
+RUN if [[ " ${GROOT_VERSIONS} " == *" 1.7 "* ]]; then \
+        git clone --branch luca/g1-dex3-n17 https://github.com/lucam06/Isaac-GR00T.git /app/Groot-1.7 \
+        && git -C /app/Groot-1.7 checkout "${GROOT17_COMMIT}" \
+        && git -C /app/Groot-1.7 lfs pull \
+        && cd /app/Groot-1.7 \
+        && uv venv --python /usr/bin/python3.12 /app/Groot-1.7/.venv \
+        && UV_PREVIEW=1 UV_HTTP_TIMEOUT=300 UV_CONCURRENT_DOWNLOADS=4 \
+           uv sync --frozen --no-install-project --extra dev --no-cache \
+        && uv pip install --python /app/Groot-1.7/.venv/bin/python -e . --no-deps \
+        && uv pip install --python /app/Groot-1.7/.venv/bin/python usd-core \
+        && (uv pip uninstall --python /app/Groot-1.7/.venv/bin/python deepspeed || true) \
+        && test -f /usr/include/python3.12/Python.h \
+        && ! /app/Groot-1.7/.venv/bin/python -c "import deepspeed" 2>/dev/null \
+        && /app/Groot-1.7/.venv/bin/python -c "import sys; assert sys.version_info[:2] == (3, 12), sys.version; \
+              import gr00t.model.gr00t_n1d7.gr00t_n1d7, gr00t.model.modules.qwen3_backbone; \
+              import flash_attn, torchcodec, zmq, msgpack, pxr; \
+              from gr00t.data.embodiment_tags import EmbodimentTag; assert EmbodimentTag.resolve('NEW_EMBODIMENT'); \
+              print('OK: N1.7-venv (Python 3.12, gr00t_n1d7, flash_attn, torchcodec, zmq, pxr; deepspeed entfernt)')"; \
+    else echo "GROOT_VERSIONS='${GROOT_VERSIONS}' — N1.7-Baum wird NICHT gebaut"; mkdir -p /app/Groot-1.7; fi
 
 # Versions-Guard: die flash-attn-Wheel-URL weiter unten ist fest auf cp312 verdrahtet. Bricht der
 # Base-Image-Tag diese Annahme (z. B. Rückkehr zu 3.11 oder Sprung auf 3.13), soll der Build hier
@@ -228,15 +270,20 @@ COPY scripts/ /scripts/
 RUN chmod +x /scripts/*.sh
 
 # Datenverzeichnisse (vast.ai: Disk-Volume nach /data mounten empfohlen)
-RUN mkdir -p /data/models /data/checkpoints /data/sim_videos /data/sim_results /data/logs
+RUN mkdir -p /data/models /data/checkpoints /data/sim_videos /data/sim_results /data/logs /data/hf_cache
 
 # Isaac Sim Cache auf persistenten Pfad (innerhalb /data, überlebt Container-Stop auf vast.ai)
 ENV OMNI_CACHE=/data/.omni_cache \
     NVCACHE_PATH=/data/.nvcache
 
+# Default-venv im PATH = N1.6 (Rückwärtskompatibilität für interaktive Shells). GROOT_ROOT wird
+# NICHT mehr fest gesetzt: /scripts/lib_groot_version.sh leitet ihn aus GROOT_VERSION ab —
+# 1.6 → /app/Groot-1.6, 1.7 → /app/Groot-1.7, auto → model_type aus der Checkpoint-config.json
+# (Gr00tN1d6/Gr00tN1d7; unklar → 1.6). Die Entrypoints rufen groot_resolve_from_checkpoint.
 ENV PATH="/app/Groot-1.6/.venv/bin:${PATH}" \
     VIRTUAL_ENV="/app/Groot-1.6/.venv" \
-    GROOT_ROOT="/app/Groot-1.6" \
+    GROOT_VERSION="auto" \
+    HF_HOME="/data/hf_cache" \
     UV_PREVIEW=1 \
     # Sim-Konfiguration (via -e beim docker run überschreiben)
     DATA_DIR="/data" \
@@ -256,7 +303,8 @@ ENV PATH="/app/Groot-1.6/.venv/bin:${PATH}" \
     SKIP_DOWNLOAD="0" \
     SHELL_ON_ERROR="0" \
     # Sim-Modus: leer/dex3 = DEX3-Closed-Loop (Default), baseline = stock G1 + Dex1-Greifer
-    # (UNITREE_G1, un-finetuntes GR00T-N1.6-3B). Bei baseline ASSET_PATH auf g1_gripper.usd setzen.
+    # (UNITREE_G1, un-finetuntes GR00T-N1.6-3B; nur N1.6 — in N1.7 hat UNITREE_G1 eine andere
+    # Bedeutung). Bei baseline ASSET_PATH auf g1_gripper.usd setzen.
     SIM_MODE="dex3" \
     # LIVE-Variante "Spur A": WebRTC-Viewport statt MP4-Aufzeichnung. 0=aus,
     # 1=öffentlich, 2=privat/lokal. Geöffnet wird er vom nativen "Isaac Sim WebRTC

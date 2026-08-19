@@ -52,13 +52,18 @@ GR00T-venv statt des Isaac-Python:
 
 Direkt im Container:
 
-    /app/Groot-1.6/.venv/bin/python finger_span_openloop.py \\
+    "$GROOT_ROOT/.venv/bin/python" finger_span_openloop.py \\
         --model-path /data/checkpoints/groot-g1dex3-checkpoint \\
         --dataset-path /data/unitreerobotics/G1_Dex3_BlockStacking_Dataset \\
         --traj-ids 0 1 2 3 4
+
+$GROOT_ROOT ist je nach GROOT_VERSION /app/Groot-1.6 oder /app/Groot-1.7; das Skript
+selbst ist versionsneutral (die drei Stellen, an denen sich die API unterscheidet, sind
+unten kommentiert).
 """
 
 import argparse
+import inspect
 import json
 import logging
 import os
@@ -69,8 +74,44 @@ import numpy as np
 from gr00t.data.dataset.lerobot_episode_loader import LeRobotEpisodeLoader
 from gr00t.data.dataset.sharded_single_step_dataset import extract_step_data
 from gr00t.data.embodiment_tags import EmbodimentTag
-from gr00t.eval.open_loop_eval import parse_action_gr00t, parse_observation_gr00t
+from gr00t.eval.open_loop_eval import parse_action_gr00t
 from gr00t.policy.gr00t_policy import Gr00tPolicy
+
+try:  # N1.6
+    from gr00t.eval.open_loop_eval import parse_observation_gr00t
+except ImportError:  # N1.7: nach gr00t.data.utils gewandert
+    from gr00t.data.utils import parse_observation_gr00t
+
+
+def resolve_embodiment_tag(name: str) -> EmbodimentTag:
+    """String -> EmbodimentTag, in N1.6 wie in N1.7.
+
+    N1.7 hat dafuer die Klassenmethode ``resolve`` (Name ODER Wert, case-insensitive);
+    N1.6 kennt nur ``EmbodimentTag(wert)`` bzw. ``EmbodimentTag[NAME]``.
+    """
+    resolve = getattr(EmbodimentTag, "resolve", None)
+    if resolve is not None:
+        return resolve(name)
+    try:
+        return EmbodimentTag(name)
+    except ValueError:
+        return EmbodimentTag[name.upper()]
+
+
+def make_episode_loader(dataset_path: str, modality_configs):
+    """LeRobotEpisodeLoader bauen — die Signatur hat sich zwischen den Versionen geaendert.
+
+    N1.6: ``video_backend="torchcodec", video_backend_kwargs=None``.
+    N1.7: kennt beides nicht mehr, sondern nur noch ``decoder_kwargs`` und waehlt den
+    Decoder selbst. Deshalb nicht raten, sondern die Signatur befragen.
+    """
+    params = inspect.signature(LeRobotEpisodeLoader.__init__).parameters
+    extra = {}
+    if "video_backend" in params:
+        extra = {"video_backend": "torchcodec", "video_backend_kwargs": None}
+    return LeRobotEpisodeLoader(
+        dataset_path=dataset_path, modality_configs=modality_configs, **extra
+    )
 
 # Welche Aktionsgruppen sind die Finger? Namen statt Indizes, damit eine geänderte
 # Gruppen-Reihenfolge das Ergebnis nicht still verfälscht — genau diese Sorte
@@ -158,18 +199,13 @@ def main() -> int:
 
     import torch
 
-    tag = EmbodimentTag(args.embodiment_tag)
+    tag = resolve_embodiment_tag(args.embodiment_tag)
     policy = Gr00tPolicy(
         embodiment_tag=tag,
         model_path=args.model_path,
         device="cuda" if torch.cuda.is_available() else "cpu",
     )
-    loader = LeRobotEpisodeLoader(
-        dataset_path=args.dataset_path,
-        modality_configs=policy.get_modality_config(),
-        video_backend="torchcodec",
-        video_backend_kwargs=None,
-    )
+    loader = make_episode_loader(args.dataset_path, policy.get_modality_config())
     print(f"[openloop] Datensatz: {len(loader)} Episoden | Checkpoint: {args.model_path}\n")
 
     rows = []

@@ -136,6 +136,11 @@ SKIP_DOWNLOAD=0 HF_TOKEN=hf_... WANDB_API_KEY=... sbatch Training/kisski_submit.
 Der Entrypoint lädt Modell und Datensatz dann selbst von HuggingFace (~25 GB, ca. 10–30 min).
 Bei allen weiteren Läufen ist `SKIP_DOWNLOAD=1` korrekt (Download wird automatisch übersprungen).
 
+> Zur Einordnung gegen den Hinweis in Schritt 2b unten („Compute-Nodes haben keinen
+> Internet-Zugang"): Für `GROOT_VERSION=1.7` müssen Modell **und** das gated Backbone in jedem
+> Fall vorab auf dem **Login-Knoten** in den HF-Cache geladen werden (siehe unten) — im Job
+> selbst läuft N1.7 mit `HF_HUB_OFFLINE=1`.
+
 ---
 
 ## Schritt 2b — Repos einmalig auf dem Login-Knoten klonen
@@ -157,6 +162,44 @@ git clone --branch luca/g1-dex3 --depth 1 \
 ```
 
 Pfade und Branch sind über `REPO_DIR`, `GITHUB_BRANCH` und `GROOT_FORK_DIR` überschreibbar.
+
+**Nur für `GROOT_VERSION=1.7` — zweiten Fork-Clone anlegen.** `kisski_submit.sh` bindet für
+N1.7 zusätzlich den Fork-Branch `luca/g1-dex3-n17` ein (`GROOT17_FORK_DIR`, Default
+`$KISSKI_PROJECT_DIR/repo-groot-n17`):
+
+```bash
+git clone --branch luca/g1-dex3-n17 --depth 1 \
+    https://github.com/lucam06/Isaac-GR00T.git \
+    /mnt/vast-kisski/projects/kisski-humrob/repo-groot-n17
+```
+
+**Nur für `GROOT_VERSION=1.7` — Modell + gated Backbone vorab auf dem Login-Knoten laden.**
+Compute-Nodes haben kein Internet (siehe Hinweis weiter unten); N1.7 braucht zusätzlich zum
+Basismodell das **gated** Backbone `nvidia/Cosmos-Reason2-2B`. `kisski_submit.sh` prüft vor
+jedem Start, ob beide bereits im HF-Cache (`$DATA_DIR/hf_cache`) bzw. unter
+`$DATA_DIR/models/GR00T-N1.7-3B` liegen, und bricht sonst mit genau diesen Befehlen ab:
+
+```bash
+module load apptainer
+
+# Gated Backbone — HF_TOKEN muss vorher auf https://huggingface.co/nvidia/Cosmos-Reason2-2B
+# freigeschaltet sein (gleiches Konto wie der Token):
+apptainer exec --bind /mnt/vast-kisski/projects/kisski-humrob/data:/data \
+    --env HF_TOKEN=$HF_TOKEN --env HF_HOME=/data/hf_cache \
+    $HOME/images/projekt-humanoider-roboter.sif \
+    huggingface-cli download nvidia/Cosmos-Reason2-2B
+
+# Basismodell
+apptainer exec --bind /mnt/vast-kisski/projects/kisski-humrob/data:/data \
+    --env HF_TOKEN=$HF_TOKEN \
+    $HOME/images/projekt-humanoider-roboter.sif \
+    huggingface-cli download nvidia/GR00T-N1.7-3B --local-dir /data/models/GR00T-N1.7-3B
+```
+
+Der Job selbst setzt danach `--env HF_HOME=/data/hf_cache --env HF_HUB_OFFLINE=1`, damit das
+Training den vorab gefüllten Cache trifft, statt (erfolglos) online nachzuladen. **Dieser
+Pfad ist bislang ungetestet** — es gibt noch keinen abgeschlossenen N1.7-Trainingslauf auf
+KISSKI, siehe [groot-n17-migration.md](../weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19).
 
 ---
 
@@ -191,6 +234,18 @@ HF_TOKEN=hf_... \
 WANDB_API_KEY=... \
 MAX_STEPS=175000 \
 GLOBAL_BATCH_SIZE=32 \
+sbatch Training/kisski_submit.sh
+```
+
+Für **GR00T N1.7** statt des Defaults `1.6` genügt eine zusätzliche Zeile im selben Prefix
+(Voraussetzung: zweiter Fork-Clone + Backbone/Modell vorab im Cache, siehe
+[Schritt 2b](#schritt-2b--repos-einmalig-auf-dem-login-knoten-klonen) oben — **ungetestet**,
+siehe [groot-n17-migration.md](../weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19)):
+
+```bash
+HF_TOKEN=hf_... \
+WANDB_API_KEY=... \
+GROOT_VERSION=1.7 \
 sbatch Training/kisski_submit.sh
 ```
 

@@ -15,6 +15,27 @@ from pathlib import Path
 from typing import Any
 
 
+def require_gr00t_n1d6(policy) -> str:
+    """Bricht ab, wenn die geladene Policy kein N1.6-Modell ist.
+
+    Das optimierte Backend haengt an Gr00tN1d6: der ONNX-Export greift auf den DiT
+    unter ``policy.model.action_head.model`` zu, die Engine-Metadaten binden Checkpoint
+    und GPU, und die Ein-/Ausgabenamen (``sa_embs``/``vl_embs``/``image_mask`` …)
+    stammen aus dem N1.6-AlternateVLDiT. Fuer N1.7 ist davon nichts portiert — dann
+    lieber hier abbrechen als eine Engine benutzen, die zum Modell nicht passt.
+    """
+    model = getattr(policy, "model", policy)
+    name = type(model).__name__
+    if name != "Gr00tN1d6":
+        raise RuntimeError(
+            "Optimiertes Inferenz-Backend bislang nur fuer GR00T N1.6 (Gr00tN1d6) — "
+            f"geladen wurde '{name}'. Fuer N1.7 den eager Server benutzen: "
+            "GROOT_INFERENCE_BACKEND=eager bzw. gr00t/eval/run_gr00t_server.py. "
+            "Stand/Plan: docs/weiterfuehrend/groot-n17-migration.md"
+        )
+    return name
+
+
 def checkpoint_fingerprint(model_path: str | Path) -> str:
     """Schneller, stabiler Fingerprint ohne mehrgigabyte-grosse Gewichte ganz zu lesen."""
     root = Path(model_path).resolve()
@@ -190,6 +211,7 @@ def install_backend(
     """Installiert das gewaehlte Backend in eine bereits geladene Gr00tPolicy."""
     import torch
 
+    require_gr00t_n1d6(policy)
     backend = backend.strip().lower()
     dit = policy.model.action_head.model
     if backend == "eager":

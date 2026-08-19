@@ -43,6 +43,23 @@ gepuffert, nicht live hochgeladen (relevant v. a. auf KISSKI ohne Internet auf d
 (vast.ai, eigener Server), lässt sich der Default per `WANDB_MODE=online` überschreiben
 ([entrypoint.sh:175](../Training/scripts/entrypoint.sh#L175)).
 
+### 401/403 / `GatedRepoError` bei `nvidia/Cosmos-Reason2-2B`
+
+**Symptom:** Download des Backbones (nur bei `GROOT_VERSION=1.7`) bricht mit `401`/`403` bzw.
+`GatedRepoError` ab — beim `download_data.sh`-Lauf, beim Checkpoint-Laden im Sim-Container
+(`entrypoint_sim.sh`) oder beim KISSKI-Preflight in `kisski_submit.sh`.
+
+**Ursache:** `nvidia/Cosmos-Reason2-2B` ist ein **gated** HF-Repo — anders als
+`nvidia/GR00T-N1.6-3B`, das nicht gated ist. Der `HF_TOKEN` gehört zwar zu einem gültigen
+Konto, aber dieses Konto hat auf der Model-Page noch keinen Zugang beantragt/erhalten.
+
+**Lösung:** Zugang auf https://huggingface.co/nvidia/Cosmos-Reason2-2B beantragen — mit
+**demselben** HF-Konto, zu dem `HF_TOKEN` gehört. Nach der Freigabe reicht ein Neustart des
+Downloads/Containers; ein bereits gefüllter `HF_HOME`-Cache (`$DATA_DIR/hf_cache`) macht
+künftige Starts idempotent. Details: [env-vars.md](training/env-vars.md). Zum verwandten
+Checkpoint/Version-Mismatch siehe [„N1.6-/N1.7-Checkpoint nicht ladbar"](#n16-n17-checkpoint-nicht-ladbar--model_type-warnung)
+weiter unten.
+
 ### Training startet nach `docker start` wieder bei Step 0
 
 **Symptom:** Nach Container-Neustart beginnt das Training erneut bei Schritt 0 — obwohl
@@ -133,10 +150,43 @@ Vollanalyse: [ergebnisse/lauf1-auswertung.md](ergebnisse/lauf1-auswertung.md) un
 Flag abgewiesen.
 
 **Ursache:** Flash Attention setzt **Ampere+** voraus (Volta/Turing brechen ab). Das Flag
-`--no-flash-attn` ist **nicht implementiert**.
+`--no-flash-attn` ist im N1.6-Fork **nicht implementiert**.
 
 **Lösung:** Ampere-or-newer-GPU verwenden (dieselbe Anforderung wie für das Rendering).
 Details: [simulation/umsetzungsnotizen.md](simulation/umsetzungsnotizen.md).
+
+### `--no-flash-attn` unbekannt (N1.7)
+
+**Symptom:** `tyro`/CLI bricht mit einem Fehler zu einem unbekannten Argument
+`--no-flash-attn` ab, wenn der GR00T-Policy-Server für **N1.7** gestartet wird.
+
+**Ursache:** `--no-flash-attn` existiert nur im N1.6-Fork (dort für Turing/RTX-5000-Support
+nachgerüstet). Der N1.7-Fork-Branch (`luca/g1-dex3-n17`) hat dieses Flag (noch) nicht — N1.7
+wählt die Attention-Implementierung stattdessen selbst (fällt ohne installiertes `flash_attn`
+automatisch auf `sdpa` zurück). Betroffen ist v. a.
+[`kisski_sim_submit.sh`](../Simulation/kisski_sim_submit.sh), das für N1.6 `--no-flash-attn`
+übergibt, für N1.7 aber kein Flag setzt.
+
+**Lösung:** Für N1.7 kein `--no-flash-attn` übergeben (die Skripte tun das bereits richtig).
+Auf einer GPU ohne Flash-Attn-Support (z. B. Turing RTX 5000 der `jupyter`-Partition) bleibt
+N1.7-Sim damit **ungetestet und vermutlich blockiert**, bis das Flag auf den N1.7-Fork-Branch
+portiert ist — siehe
+[groot-n17-migration.md](weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19).
+
+### N1.6-/N1.7-Checkpoint nicht ladbar / `model_type`-Warnung
+
+**Symptom:** Ein Checkpoint lädt nicht, oder `lib_groot_version.sh` warnt
+`GROOT_VERSION=$X, aber der Checkpoint ist ein N$Y-Checkpoint`.
+
+**Ursache:** N1.6- (`model_type: Gr00tN1d6`) und N1.7-Checkpoints (`Gr00tN1d7`) sind **nicht
+gegenseitig ladbar** — unterschiedliches Modellpaket, unterschiedliches Backbone (Eagle vs.
+Cosmos-Reason2-2B), unterschiedliche DiT-Layer-Anzahl. `GROOT_VERSION` (explizit oder `auto`)
+muss zum Checkpoint passen; `groot_detect_version()` liest `model_type` aus der `config.json`,
+um das zu prüfen.
+
+**Lösung:** Bei explizitem `GROOT_VERSION` die Version an den Checkpoint anpassen (oder
+umgekehrt); im Sim-Image ist `GROOT_VERSION=auto` der Default und erkennt die Version selbst.
+Es gibt keinen Weg, einen Checkpoint über eine Version hinweg zu laden.
 
 ---
 

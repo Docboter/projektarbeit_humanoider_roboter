@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project overview
 
-Fine-tuning of **NVIDIA GR00T N1.6** (Vision-Language-Action model) on the **Unitree G1 + DEX3-Hand** for block-stacking tasks. The full environment runs in a **self-contained Docker container** (CUDA 12.8, Python 3.10, package manager: `uv`).
+Fine-tuning of **NVIDIA GR00T** (Vision-Language-Action model) on the **Unitree G1 + DEX3-Hand** for block-stacking tasks. **N1.6** (default) and **N1.7** (parallel path, since 2026-08-19) are both selectable at runtime via `GROOT_VERSION=1.6|1.7|auto` — two code trees (`app/Groot-1.6`, `app/Groot-1.7`), two venvs, one image. N1.7 is scripted end-to-end but **untested**: no image has been rebuilt and no N1.7 training/sim run has happened yet — see [`docs/weiterfuehrend/groot-n17-migration.md`](docs/weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19). The full environment runs in a **self-contained Docker container** (CUDA 12.8, package manager: `uv`; Python 3.10 for N1.6, Python 3.12 for N1.7).
 
 The container is autonomous: launching the image triggers `/scripts/entrypoint.sh` (source: `Training/scripts/entrypoint.sh`), which orchestrates download → conversion → training. The same image runs locally, on cloud-GPU platforms like vast.ai, and on the **KISSKI HPC cluster** (GWDG Göttingen) via Apptainer — configuration is via env vars only.
 
@@ -23,7 +23,7 @@ Detailed guides (all prose docs live under [`docs/`](docs/README.md)):
 - **Sim eval on vast.ai (German):** [`docs/simulation/vastai-anleitung.md`](docs/simulation/vastai-anleitung.md)
 - **Sim implementation notes & lessons learned:** [`docs/simulation/umsetzungsnotizen.md`](docs/simulation/umsetzungsnotizen.md)
 - **Results & evaluation (German):** [`docs/ergebnisse/`](docs/ergebnisse/README.md) — run analyses, domain-gap, sim methodology review, plus the **diagnose chronicle** ([`diagnose-chronik.md`](docs/ergebnisse/diagnose-chronik.md), runs 08–34 — the project-wide "Lauf N" references resolve here)
-- **Further work / concepts (German):** [`docs/weiterfuehrend/`](docs/weiterfuehrend/README.md) — RL plan + slim operative RL guide ([`rl-anleitung.md`](docs/weiterfuehrend/rl-anleitung.md); RL runs end-to-end on the Blackwell server; run 32 (span gate) confirmed the domain gap, run 34 measured the `TUNE_VISUAL` checkpoint at 27.6% vs 20.5% finger span with `lifted` still 0/10 → next step is co-training, RL after; learning effect still unverified), locomotion research (not implemented), livestream plan (Spur A/WebRTC open; Spur B/MJPEG `LIVE_VIEW` is built), **GR00T N1.7 migration research + plan** ([`groot-n17-migration.md`](docs/weiterfuehrend/groot-n17-migration.md) — not executed; verdict "medium effort": `NEW_EMBODIMENT`, CLI, dataset, ZMQ server stay compatible, but the Cosmos-Reason2-2B backbone is HF-gated, GA needs Py 3.12/torch 2.9, and N1.6 checkpoints are not loadable)
+- **Further work / concepts (German):** [`docs/weiterfuehrend/`](docs/weiterfuehrend/README.md) — RL plan + slim operative RL guide ([`rl-anleitung.md`](docs/weiterfuehrend/rl-anleitung.md); RL runs end-to-end on the Blackwell server, **N1.6-only**; run 32 (span gate) confirmed the domain gap, run 34 measured the `TUNE_VISUAL` checkpoint at 27.6% vs 20.5% finger span with `lifted` still 0/10 → next step is co-training, RL after; learning effect still unverified), locomotion research (not implemented), livestream plan (Spur A/WebRTC open; Spur B/MJPEG `LIVE_VIEW` is built), **GR00T N1.7 migration** ([`groot-n17-migration.md`](docs/weiterfuehrend/groot-n17-migration.md) — research/plan, plus a **"Stand der Umsetzung" section (2026-08-19)**: N1.7 built as a parallel path — second submodule `app/Groot-1.7`, `GROOT_VERSION` runtime switch in one image (`GROOT_VERSIONS` build-arg) — but **no image rebuilt, no N1.7 run executed yet**; `NEW_EMBODIMENT`, CLI, dataset, ZMQ server stay compatible; the Cosmos-Reason2-2B backbone is HF-gated, N1.7 needs Py 3.12/torch 2.9, and N1.6/N1.7 checkpoints are not cross-loadable; RL, the optimized inference backend, the stock-G1 baseline, and the RoboCasa reference eval remain N1.6-only)
 - **Outdated content / changelog raw material:** [`docs/historie.md`](docs/historie.md) — superseded findings are moved here instead of being kept inline (e.g. the former `umgebungsanalyse.md` audit, run-1 fix round, June domain-gap first measurement)
 
 ## Key commands
@@ -131,14 +131,17 @@ On vast.ai: GPU must be **Ampere+ with RT-Cores** (L40, RTX 4090, A6000) — A10
 | `LIVE_VIEW_EVERY_N` | `1` | Publish only every n-th frame |
 | `LIVE_VIEW_CAMS` | `cam_left_high,cam_left_wrist` | Comma-separated cameras shown side by side. Defaults to the **calibrated policy cameras** (= the model's actual input). `cam_scene` is an unvalidated overview cam — diagnose with `server_rl_run.sh cams` ([`dump_camera_poses.py`](Simulation/g1_dex3_sim/dump_camera_poses.py)) |
 | `RL_WANDB_VIDEO_EVERY` | `0` | RL only: log a rollout video to W&B every N iterations (`0` = off) |
+| `GROOT_VERSION` | `auto` | `1.6` \| `1.7` \| `auto` (default here — resolved from the checkpoint's `model_type` in `config.json`). N1.6-only: the optimized inference backend (`compile`/`tensorrt`, falls back to `eager` on N1.7), the stock-G1 baseline (`SIM_MODE=baseline`, `entrypoint_baseline.sh` aborts on N1.7), and RL (`entrypoint_rl.sh` aborts on N1.7). **Untested** — no N1.7 sim run has completed |
 
 ### Build the image
 
 ```bash
 docker build -t projektarbeit-humanoider-roboter Training/   # build context = Training/
-# ~30 min first time (PyTorch, flash-attn). The Dockerfile clones the
-# Groot-1.6 submodule itself — no `git clone --recurse-submodules` needed
-# before building.
+# ~30 min first time (PyTorch, flash-attn). The Dockerfile clones both the
+# Groot-1.6 AND Groot-1.7 submodules itself — no `git clone --recurse-submodules`
+# needed before building. Both venvs are built by default (roughly doubles image
+# size / build time); to build only one tree:
+docker build --build-arg GROOT_VERSIONS=1.6 -t projektarbeit-humanoider-roboter Training/
 ```
 
 ### Interactive shell (entrypoint bypassed when a command is passed)
@@ -183,6 +186,8 @@ The entrypoint reads everything from env vars. Defaults are set as `ENV` in the 
 | `USE_AUGMENTATION` | `1` | Image augmentation / domain randomization (color jitter; `CJ_*`, `RANDOM_ROTATION_ANGLE`, `STATE_DROPOUT_PROB`). `0` = explicitly off |
 | `USE_RL` | `0` | `1` = RL fine-tuning (FPO). Not in the BC image (no Isaac Sim) — BC entrypoint errors with a pointer to the sim-image RL path (`entrypoint_rl.sh` / `kisski_rl_submit.sh`, RT-core GPU). See [docs/training/env-vars.md](docs/training/env-vars.md) + [RL plan](docs/weiterfuehrend/reinforcement-learning-plan.md) |
 | `USE_COTRAIN` | `0` | `1` = co-training on real **and** rendered images (step 4); routes to `run_finetuning_cotrain.sh` (namespace `blockstacking_cotrain`, sets `--tune_visual` itself, takes precedence over `TUNE_VISUAL`). Needs a rendered dataset from `server_rl_run.sh render` via `COTRAIN_DATASET_PATH` / `COTRAIN_HF_REPO`; `COTRAIN_MIX_RATIO` is the share of rendered samples (0.25 recommended, see [co-training.md](docs/training/co-training.md)) |
+| `GROOT_VERSION` | `1.6` | `1.6` \| `1.7` — selects the GR00T generation: code tree (`/app/Groot-1.6` vs `/app/Groot-1.7`), venv, model repo (`nvidia/GR00T-N1.6-3B` vs `nvidia/GR00T-N1.7-3B`), and output-namespace suffix (`""` vs `_n17`). Resolved by `lib_groot_version.sh`. `1.7` also downloads the **gated** backbone `nvidia/Cosmos-Reason2-2B` (separate HF access request needed). **Untested** — no N1.7 training run has completed yet. See [docs/weiterfuehrend/groot-n17-migration.md](docs/weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19) |
+| `HF_HOME` | `/data/hf_cache` | HF cache dir. Only matters for `GROOT_VERSION=1.7`: the Cosmos-Reason2-2B backbone is re-fetched from the Hub on every checkpoint load unless it's already cached here |
 
 ## Code style
 
@@ -229,9 +234,12 @@ repo root
 │   │                                   #   (slim operative guide; run history moved to
 │   │                                   #   ergebnisse/diagnose-chronik.md), lokomotion-recherche.md
 │   │                                   #   (not implemented), livestream-plan.md (Spur A open, Spur B built),
-│   │                                   #   groot-n17-migration.md (N1.6→N1.7 research + 8-phase plan, NOT
-│   │                                   #   executed: gated Cosmos-Reason2-2B backbone, Py 3.12/torch 2.9,
-│   │                                   #   N1.6 checkpoints not loadable; NEW_EMBODIMENT/CLI/ZMQ stay compatible)
+│   │                                   #   groot-n17-migration.md (N1.6→N1.7 research + 8-phase plan; "Stand
+│   │                                   #   der Umsetzung" section: built as a parallel path — app/Groot-1.7,
+│   │                                   #   GROOT_VERSION runtime switch — but no image rebuilt, no N1.7 run
+│   │                                   #   done yet; gated Cosmos-Reason2-2B backbone, Py 3.12/torch 2.9,
+│   │                                   #   N1.6/N1.7 checkpoints not cross-loadable; NEW_EMBODIMENT/CLI/ZMQ
+│   │                                   #   stay compatible)
 │   ├── fehlerbehebung.md               # cross-cutting troubleshooting
 │   └── portabilitaet.md                # ★ Portability: no host-bound paths in scripts any more.
 │                                       #   server_rl_run.sh reads a gitignored .env.local (template:
@@ -272,15 +280,23 @@ repo root
 │       ├── run_finetuning_vision.sh    # Vision-encoder variant (TUNE_VISUAL=1, blockstacking_vision namespace)
 │       ├── run_finetuning_cotrain.sh   # ★ Step 4: co-training on real + RENDERED images (USE_COTRAIN=1,
 │       │                               #   blockstacking_cotrain namespace, split on by default)
-│       ├── launch_cotrain.py           # Two-dataset training entry point (mix_ratio). Copy of the fork's
+│       ├── launch_cotrain.py           # Two-dataset training entry point (mix_ratio), N1.6. Copy of the fork's
 │       │                               #   launch_finetune.py with ONE change — the datasets list — so no
 │       │                               #   submodule change / image rebuild is needed. Re-check on GR00T bumps
+│       ├── launch_cotrain_n17.py       # Same idea for N1.7 (GROOT_VERSION=1.7) — mirror of N1.7's
+│       │                               #   launch_finetune.py with the same datasets-list change. Untested
 │       ├── lib_split.sh                # Shared train/test-split logic, sourced by all training launchers;
 │       │                               #   writes a split.json record next to the checkpoints
+│       ├── lib_groot_version.sh        # ★ N1.6/N1.7 selection: resolves GROOT_VERSION (1.6|1.7|auto) into
+│       │                               #   code tree, venv, model repo, and namespace suffix. Sourced by
+│       │                               #   every training launcher/entrypoint. Identical copy at
+│       │                               #   Simulation/scripts/lib_groot_version.sh (both land at /scripts/)
 │       └── checkpoint_sweep.py         # ★ Checkpoint SELECTION: open-loop MSE/MAE of every checkpoint on the
 │                                       #   HELD-OUT episodes. The fork has no in-training eval
 │                                       #   (enable_open_loop_eval is dead config; factory.py asserts
-│                                       #   eval_strategy=="no"), so validation happens after the run
+│                                       #   eval_strategy=="no"), so validation happens after the run.
+│                                       #   Works under either venv (introspects execution_horizon vs.
+│                                       #   action_horizon, decoder_kwargs vs. video_backend, EmbodimentTag.resolve)
 ├── Simulation/                         # Closed-loop sim eval
 │   ├── Dockerfile                      # KISSKI-only: slim Isaac Lab sim-client (no GR00T)
 │   ├── Dockerfile.vastai               # vast.ai: combined Isaac Sim + GR00T in one container
@@ -348,6 +364,7 @@ repo root
 │       ├── lib_livestream.sh           # Shared LIVE-variant logic (WebRTC viewport): sourced by all four
 │       │                               #   entrypoints AND by server_rl_run.sh on the host. Version-aware Kit
 │       │                               #   settings, live-instead-of-video rule, connection banner
+│       ├── lib_groot_version.sh        # Identical copy of Training/scripts/lib_groot_version.sh (see there)
 │       ├── measure_domain_gap.py       # Real→sim cosine-distance per camera via frozen SigLIP-ViT
 │       ├── overlay_camera_check.py     # Overlays dataset vs sim camera frames (calibration check)
 │       ├── dump_unitree_g1_dims.py     # Dumps stock UNITREE_G1 link/joint dimensions
@@ -361,12 +378,18 @@ repo root
 │   ├── unitree_ros/                    # Git submodule — Unitree ROS packages (URDF source)
 │   ├── g1_dex3.usd                     # Generated robot USD asset (run convert_urdf_to_usd.py)
 │   └── configuration/                  # Companion USD files referenced by g1_dex3.usd
-└── app/                                # Git submodule, cloned in Dockerfile at build time
-    └── Groot-1.6/                      # PRIMARY — custom fork (lucam06, pinned commit)
-        ├── gr00t/experiment/launch_finetune.py  # Training entry point
-        ├── gr00t/policy/               # Gr00tPolicy inference class
-        ├── examples/G1_DEX3/           # Embodiment config, modality JSONs, guides
-        └── scripts/lerobot_conversion/ # Dataset format converter (v3.0 → v2.1)
+└── app/                                # Two git submodules, both cloned in the Dockerfiles at build time
+    ├── Groot-1.6/                      # DEFAULT — custom fork (lucam06, branch luca/g1-dex3, pinned commit)
+    │   ├── gr00t/experiment/launch_finetune.py  # Training entry point
+    │   ├── gr00t/policy/               # Gr00tPolicy inference class
+    │   ├── examples/G1_DEX3/           # Embodiment config, modality JSONs, guides
+    │   └── scripts/lerobot_conversion/ # Dataset format converter (v3.0 → v2.1)
+    └── Groot-1.7/                      # PARALLEL PATH (GROOT_VERSION=1.7) — same fork, branch
+                                        #   luca/g1-dex3-n17, pinned commit efa0169 (= upstream
+                                        #   NVIDIA/Isaac-GR00T `main` 376ba89 GA + our G1_DEX3
+                                        #   example/converter + train/test-split patch). Same layout
+                                        #   as Groot-1.6 above. Untested — no image built yet, no
+                                        #   N1.7 run has happened
 ```
 
 At runtime, the container holds (no host mount):
@@ -378,7 +401,7 @@ At runtime, the container holds (no host mount):
 └── logs/                     # training logs
 ```
 
-**All G1/DEX3 work goes in `app/Groot-1.6/`.** The Python venv lives at `app/Groot-1.6/.venv`; use `uv run` to invoke it.
+**All G1/DEX3 work goes in `app/Groot-1.6/` (N1.6, default) and, for the N1.7 parallel path, `app/Groot-1.7/`.** Each tree has its own venv: `app/Groot-1.6/.venv` (Python 3.10) and `app/Groot-1.7/.venv` (Python 3.12); use `uv run` to invoke the one that matches the tree you're working in.
 
 ### Important: scripts are COPIED into the image, no host-side data persistence
 

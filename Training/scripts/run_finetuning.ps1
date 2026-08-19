@@ -7,9 +7,15 @@
 #   - Repo geklont, .\data Volume gefüllt (siehe scripts/download_data.sh)
 #
 # Verwendung:
-#   .\scripts\run_finetuning.ps1                          # Defaults
+#   .\scripts\run_finetuning.ps1                          # Defaults (N1.6)
 #   .\scripts\run_finetuning.ps1 -MaxSteps 10000          # einzeln overriden
+#   .\scripts\run_finetuning.ps1 -GrootVersion 1.7        # N1.7-Pfad (Code-Baum, Modell,
+#                                                          #   Output-Namespace passen sich an)
 #   .\scripts\run_finetuning.ps1 -DryRun                  # nur Befehl anzeigen
+#
+# GrootVersion steuert nur die Defaults von GrootRoot/ModelPath/OutputDir — anders als die
+# Bash-Skripte (lib_groot_version.sh) gibt es hier keine venv-Aktivierung/HF_HOME-Logik;
+# die läuft ausschließlich im Container über den Entrypoint.
 #
 # Logs landen unter .\logs\finetune-<timestamp>.log auf dem Host.
 
@@ -17,10 +23,12 @@
 param(
     [string]$Service          = "groot-training",
     [string]$ComposeFile      = "",
-    [string]$GrootRoot        = "/app/Groot-1.6",
-    [string]$ModelPath        = "/data/models/GR00T-N1.6-3B",
+    [ValidateSet("1.6", "1.7")]
+    [string]$GrootVersion     = "1.6",
+    [string]$GrootRoot        = "",
+    [string]$ModelPath        = "",
     [string]$DatasetPath      = "/data/unitreerobotics/G1_Dex3_BlockStacking_Dataset",
-    [string]$OutputDir        = "/data/g1_dex3_finetune/blockstacking",
+    [string]$OutputDir        = "",
     [string]$ExperimentName   = "g1_dex3_blockstacking_v1",
     [string]$ModalityConfig   = "",
     [string]$EmbodimentTag    = "NEW_EMBODIMENT",
@@ -38,6 +46,19 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+
+# ── GR00T-Version: Defaults für GrootRoot/ModelPath/OutputDir ──────────────────
+# Mirror von lib_groot_version.sh (nur die Namens-/Pfad-Zuordnung, kein venv/HF_HOME).
+if ($GrootVersion -eq "1.7") {
+    $GrootModelName = "GR00T-N1.7-3B"
+    $GrootNsSuffix  = "_n17"
+} else {
+    $GrootModelName = "GR00T-N1.6-3B"
+    $GrootNsSuffix  = ""
+}
+if (-not $GrootRoot)  { $GrootRoot  = "/app/Groot-$GrootVersion" }
+if (-not $ModelPath)  { $ModelPath  = "/data/models/$GrootModelName" }
+if (-not $OutputDir)  { $OutputDir  = "/data/g1_dex3_finetune/blockstacking$GrootNsSuffix" }
 
 # ── Pfade ─────────────────────────────────────────────────────────────────────
 $RepoRoot = Split-Path -Parent $PSScriptRoot

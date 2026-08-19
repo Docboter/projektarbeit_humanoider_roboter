@@ -25,7 +25,17 @@
 #   BLACK_HANDS          — 1=Hände schwarz einfärben (Domain-Gap-Fix, default), 0=Original-USD
 #                          Bei 1 wird das schwarzhändige USD bei Bedarf automatisch erzeugt
 #                          (Recolor aus g1_dex3.usd); schlägt das fehl, wird das Original genutzt.
-#   NO_FLASH_ATTN        — IGNORIERT (Eagle-Block2A-2B-v2 erzwingt flash_attention_2)
+#   GROOT_VERSION        — 1.6 | 1.7 | auto  (default auto: aus dem Checkpoint erkennen,
+#                          model_type in config.json → Gr00tN1d6/Gr00tN1d7). Wählt Code-Baum
+#                          und venv: /app/Groot-1.6 (Python 3.10, Eagle) bzw. /app/Groot-1.7
+#                          (Python 3.12, Cosmos-Reason2-2B). Logik: /scripts/lib_groot_version.sh
+#   HF_HOME              — HF-Cache (default $DATA_DIR/hf_cache). Nur für N1.7 relevant: das
+#                          Backbone nvidia/Cosmos-Reason2-2B wird bei JEDEM Modell-Laden vom
+#                          Hub geholt — der Cache muss also im /data-Mount liegen, sonst lädt
+#                          jeder Containerstart erneut ~5 GB. Das Repo ist GATED: HF_TOKEN
+#                          braucht freigeschalteten Zugang.
+#   NO_FLASH_ATTN        — N1.6: IGNORIERT (Eagle-Block2A-2B-v2 erzwingt flash_attention_2).
+#                          N1.7: siehe Hinweis beim Serverstart unten.
 #   SKIP_DOWNLOAD        — 1=Checkpoint-Download überspringen (default 0)
 #   SHELL_ON_ERROR       — 1=bei Fehler in Shell fallen    (default 0)
 #   LIVESTREAM           — LIVE-Variante statt Videos: 0=aus (default),
@@ -99,13 +109,48 @@ fi
 # ── Banner ────────────────────────────────────────────────────────────────────
 echo ""
 echo -e "\033[1;35m╔══════════════════════════════════════════════════════════════════╗\033[0m"
-echo -e "\033[1;35m║   GR00T N1.6 Closed-Loop Sim — vast.ai Container                  ║\033[0m"
+echo -e "\033[1;35m║   GR00T Closed-Loop Sim — vast.ai Container                       ║\033[0m"
 echo -e "\033[1;35m╚══════════════════════════════════════════════════════════════════╝\033[0m"
 echo ""
 
 # ── Konfiguration ─────────────────────────────────────────────────────────────
 DATA_DIR="${DATA_DIR:-/data}"
-GROOT_ROOT="${GROOT_ROOT:-/app/Groot-1.6}"
+
+# ── GR00T-Version wählen (N1.6 | N1.7) ────────────────────────────────────────
+# Im Sim ist `auto` der richtige Default: hier liegt ein Checkpoint, und dessen
+# config.json sagt eindeutig, welcher Code-Baum ihn laden kann (model_type
+# Gr00tN1d6/Gr00tN1d7). N1.6 und N1.7 sind NICHT gegenseitig ladbar — die Version
+# zu raten würde nur einen unverständlichen Ladefehler erzeugen.
+# Fehlt die Lib (Skript per `docker cp` in ein älteres Image gelegt), bleibt alles
+# beim alten N1.6-Verhalten — dasselbe Muster wie bei lib_livestream.sh unten.
+export GROOT_VERSION_DEFAULT="auto"
+if [[ -r /scripts/lib_groot_version.sh ]]; then
+    # shellcheck source=lib_groot_version.sh
+    source /scripts/lib_groot_version.sh
+else
+    warn "lib_groot_version.sh fehlt im Image — bleibe fest bei GR00T N1.6."
+    GROOT_VERSION="1.6"
+    GROOT_ROOT="${GROOT_ROOT:-/app/Groot-1.6}"
+    GROOT_VENV_PY="$GROOT_ROOT/.venv/bin/python"
+    GROOT_BACKBONE_REPO=""
+    GROOT_TAG="n16"
+    groot_normalize_version()       { echo "1.6"; }
+    groot_resolve()                 { return 0; }
+    groot_resolve_from_checkpoint() { return 0; }
+    groot_summary()  { printf 'GR00T N1.6  root=%s  (Fallback ohne lib_groot_version.sh)\n' "$GROOT_ROOT"; }
+fi
+# Den Wunsch merken: die vorläufige Auflösung unten überschreibt GROOT_VERSION, und
+# ein explizites GROOT_VERSION=1.7 darf dabei nicht verlorengehen.
+GROOT_VERSION_REQUESTED="$(groot_normalize_version "${GROOT_VERSION:-}")"
+# Vorläufig: für den HF-Download wird ein Python mit huggingface_hub gebraucht, bevor
+# der Checkpoint überhaupt auf der Platte liegt. Das haben beide venvs — bei `auto`
+# nehmen wir deshalb 1.6 und lösen nach dem Download endgültig auf.
+GROOT_PROVISIONAL="$GROOT_VERSION_REQUESTED"
+if [[ "$GROOT_PROVISIONAL" == "auto" ]]; then
+    GROOT_PROVISIONAL="1.6"
+fi
+groot_resolve "$GROOT_PROVISIONAL"
+
 ZMQ_PORT="${ZMQ_PORT:-5555}"
 NUM_EPISODES="${NUM_EPISODES:-20}"
 EXECUTION_HORIZON="${EXECUTION_HORIZON:-8}"
@@ -191,7 +236,7 @@ elif [[ -n "$HF_CHECKPOINT_REPO" ]]; then
         ok "Checkpoint bereits vorhanden: $CHECKPOINT_PATH"
     else
         log "Lade Checkpoint von HuggingFace: $HF_CHECKPOINT_REPO"
-        "$GROOT_ROOT/.venv/bin/python" - <<EOF
+        "$GROOT_VENV_PY" - <<EOF
 from huggingface_hub import snapshot_download
 snapshot_download(
     repo_id="${HF_CHECKPOINT_REPO}",
@@ -218,6 +263,56 @@ else
 fi
 echo ""
 
+# ── GR00T-Version endgültig festlegen (jetzt liegt der Checkpoint vor) ────────
+# Bei GROOT_VERSION=auto entscheidet model_type aus config.json; bei explizitem
+# 1.6/1.7 warnt die Lib nur, wenn der Checkpoint offensichtlich nicht dazu passt.
+GROOT_VERSION="$GROOT_VERSION_REQUESTED"
+groot_resolve_from_checkpoint "$CHECKPOINT_PATH"
+log "$(groot_summary)"
+
+# ── N1.7: Backbone-Cache (gated Repo nvidia/Cosmos-Reason2-2B) ────────────────
+# N1.7 lädt das VLM-Backbone bei JEDEM Modell-Laden über transformers vom Hub
+# (qwen3_backbone.py: Qwen3VLForConditionalGeneration.from_pretrained). Ohne
+# gefüllten Cache im /data-Mount zieht das jeder Containerstart neu; ohne
+# freigeschalteten HF-Zugang scheitert es mit einem 401/403 tief im Server-Log,
+# wo es niemand sucht. Deshalb hier einmal vorab und mit klarer Fehlermeldung.
+if [[ "$GROOT_VERSION" == "1.7" && -n "${GROOT_BACKBONE_REPO:-}" ]]; then
+    export HF_HOME
+    mkdir -p "$HF_HOME"
+    BACKBONE_CFG=( "$HF_HOME"/hub/models--nvidia--Cosmos-Reason2-2B/snapshots/*/config.json )
+    if [[ -f "${BACKBONE_CFG[0]}" ]]; then
+        ok "Backbone bereits im HF-Cache: $GROOT_BACKBONE_REPO ($HF_HOME)"
+    elif [[ -n "${HF_TOKEN:-}" ]]; then
+        log "Lade Backbone $GROOT_BACKBONE_REPO in den HF-Cache ($HF_HOME) …"
+        set +e
+        BACKBONE_LOG="$("$GROOT_VENV_PY" - <<EOF 2>&1
+from huggingface_hub import snapshot_download
+snapshot_download(repo_id="${GROOT_BACKBONE_REPO}", token="${HF_TOKEN}")
+print("Backbone-Download abgeschlossen.")
+EOF
+)"
+        BACKBONE_RC=$?
+        set -e
+        if [[ $BACKBONE_RC -ne 0 ]]; then
+            echo "$BACKBONE_LOG" | tail -n 5 >&2
+            err "Backbone '$GROOT_BACKBONE_REPO' konnte nicht geladen werden."
+            case "$BACKBONE_LOG" in
+                *401*|*403*|*[Gg]ated*|*[Aa]ccess*)
+                    err "Das Repo ist GATED. Zugang mit DEMSELBEN HF-Konto beantragen, zu dem"
+                    err "  HF_TOKEN gehört:  https://huggingface.co/nvidia/Cosmos-Reason2-2B"
+                    err "  Nach der Freigabe genügt ein Neustart des Containers." ;;
+            esac
+            exit 1
+        fi
+        ok "Backbone im HF-Cache: $HF_HOME"
+    else
+        warn "Backbone $GROOT_BACKBONE_REPO ist weder im Cache ($HF_HOME) noch ist HF_TOKEN"
+        warn "  gesetzt — das Laden des N1.7-Checkpoints wird scheitern. Zugang beantragen:"
+        warn "  https://huggingface.co/nvidia/Cosmos-Reason2-2B"
+    fi
+    echo ""
+fi
+
 # ── GR00T-Policy-Server starten ───────────────────────────────────────────────
 log "Schritt 2/3 — GR00T-Policy-Server (Port $ZMQ_PORT)"
 # Triton ruft gcc -lcuda auf wenn transformers importiert wird.
@@ -235,17 +330,37 @@ fi
 
 GROOT_SERVER_LOG="$DATA_DIR/logs/groot_server.log"
 
-# Hinweis: Flash-Attention 2 ist für nvidia/Eagle-Block2A-2B-v2 PFLICHT (hartes assert im
-# Modell-Backbone) und flash_attn ist im venv installiert. Es gibt kein --no-flash-attn-Flag
-# am Server (tyro ServerConfig kennt es nicht). NO_FLASH_ATTN wird daher ignoriert.
+# Hinweis Flash-Attention — in beiden Versionen ohne Schalter, aber aus verschiedenen Gründen:
+#   N1.6: Flash-Attention 2 ist für nvidia/Eagle-Block2A-2B-v2 PFLICHT (hartes assert im
+#         Modell-Backbone), flash_attn ist im venv installiert. Es gibt kein
+#         --no-flash-attn-Flag am Server (tyro ServerConfig kennt es nicht).
+#   N1.7: Der Qwen3-VL-Backbone wählt selbst — use_flash_attention kommt aus der
+#         Modell-Config des Checkpoints, und fehlt flash_attn, fällt er von sich aus auf
+#         sdpa zurück (qwen3_backbone.py: try import flash_attn / except ImportError →
+#         attn_implementation="sdpa"). Es gibt also nichts abzuschalten.
+# In beiden Fällen bleibt NO_FLASH_ATTN wirkungslos.
 if [[ "$NO_FLASH_ATTN" == "1" ]]; then
-    warn "NO_FLASH_ATTN=1 wird ignoriert — Eagle-Block2A-2B-v2 erfordert flash_attention_2 zwingend."
+    if [[ "$GROOT_VERSION" == "1.7" ]]; then
+        warn "NO_FLASH_ATTN=1 wird ignoriert — N1.7 wählt die Attention-Implementierung selbst"
+        warn "  (Qwen3-VL fällt ohne flash_attn automatisch auf sdpa zurück)."
+    else
+        warn "NO_FLASH_ATTN=1 wird ignoriert — Eagle-Block2A-2B-v2 erfordert flash_attention_2 zwingend."
+    fi
+fi
+
+# Das optimierte Backend (torch.compile/TensorRT) hängt am N1.6-DiT: der ONNX-Export und
+# die Engine-Metadaten sind gegen Gr00tN1d6ActionHead gebaut. Für N1.7 gibt es das (noch)
+# nicht — lieber eager weiterlaufen als mit einer Engine, die zum Modell nicht passt.
+if [[ "$GROOT_VERSION" == "1.7" && "$GROOT_INFERENCE_BACKEND" != "eager" ]]; then
+    warn "GROOT_INFERENCE_BACKEND=$GROOT_INFERENCE_BACKEND ist bislang nur für N1.6 gebaut —"
+    warn "  schalte für N1.7 auf 'eager' (docs/simulation/inferenz-optimierung.md)."
+    GROOT_INFERENCE_BACKEND="eager"
 fi
 
 case "$GROOT_INFERENCE_BACKEND" in
     eager)
         SERVER_CMD=(
-            "$GROOT_ROOT/.venv/bin/python" "$GROOT_ROOT/gr00t/eval/run_gr00t_server.py"
+            "$GROOT_VENV_PY" "$GROOT_ROOT/gr00t/eval/run_gr00t_server.py"
             --model-path "$CHECKPOINT_PATH"
             --embodiment-tag NEW_EMBODIMENT
             --use-sim-policy-wrapper
@@ -254,7 +369,7 @@ case "$GROOT_INFERENCE_BACKEND" in
         ;;
     compile|tensorrt)
         SERVER_CMD=(
-            "$GROOT_ROOT/.venv/bin/python" /scripts/run_groot_optimized_server.py
+            "$GROOT_VENV_PY" /scripts/run_groot_optimized_server.py
             --model-path "$CHECKPOINT_PATH"
             --embodiment-tag new_embodiment
             --backend "$GROOT_INFERENCE_BACKEND"
@@ -313,6 +428,7 @@ unset VIRTUAL_ENV
 # PYTHONUNBUFFERED=1: isaaclab.sh führt Pythons stdout als Pipe → print() würde sonst block-
 # gepuffert und der Episoden-Fortschritt erschiene erst am Ende. Unbuffered = Live-Ausgabe.
 export PYTHONUNBUFFERED=1
+printf "    %-22s %s\n" "GR00T-Version:"  "N$GROOT_VERSION ($GROOT_ROOT)"
 printf "    %-22s %s\n" "Server:"         "tcp://localhost:$ZMQ_PORT"
 printf "    %-22s %s\n" "Episoden:"       "$NUM_EPISODES"
 printf "    %-22s %s\n" "Exec-Horizon:"   "$EXECUTION_HORIZON"
@@ -349,10 +465,21 @@ if [[ "$BLACK_HANDS" == "1" ]]; then
     BH_USD="${BASE_USD%.usd}_blackhands.usd"
     if [[ -f "$BASE_USD" && ! -f "$BH_USD" ]]; then
         log "Domain-Gap-Fix: erzeuge schwarzhändiges Asset → $BH_USD"
-        # Recolor über das GR00T-venv (hat usd-core/pxr). Isaacs Python exponiert pxr NICHT
+        # Recolor über ein GR00T-venv (hat usd-core/pxr). Isaacs Python exponiert pxr NICHT
         # für standalone-Skripte → isaaclab.sh -p würde mit ModuleNotFoundError: pxr scheitern.
-        "$GROOT_ROOT/.venv/bin/python" /workspace/g1_dex3_sim/recolor_hands_black.py \
-            --in "$BASE_USD" --out "$BH_USD" || warn "Recolor fehlgeschlagen — nutze Original."
+        # Reines USD-Authoring, modellunabhängig: es zählt allein, welches venv `pxr` hat.
+        # Deshalb erst das aktive versuchen und dann beide Bäume durchgehen — das N1.7-venv
+        # ist ein eigenes und muss usd-core nicht zwingend enthalten.
+        RECOLOR_OK=0
+        for RECOLOR_PY in "$GROOT_VENV_PY" /app/Groot-1.6/.venv/bin/python /app/Groot-1.7/.venv/bin/python; do
+            [[ -x "$RECOLOR_PY" ]] || continue
+            if "$RECOLOR_PY" /workspace/g1_dex3_sim/recolor_hands_black.py \
+                    --in "$BASE_USD" --out "$BH_USD"; then
+                RECOLOR_OK=1
+                break
+            fi
+        done
+        [[ "$RECOLOR_OK" == "1" ]] || warn "Recolor fehlgeschlagen — nutze Original."
     fi
     if [[ -f "$BH_USD" ]]; then
         ASSET_PATH="$BH_USD"; ok "Asset (schwarze Hände): $ASSET_PATH"

@@ -4,6 +4,12 @@
 > (`GROOT_INFERENCE_BACKEND`) und Kamerarendering per `CAMERA_RENDER_EVERY_N` auf den Action-Chunk
 > synchronisieren. Für alle, die Latenz und Durchsatz der Closed-Loop-Sim-Eval verbessern wollen;
 > enthält die vollständigen IKR-Server-Kommandos.
+> **N1.6-only.** Der `compile`/`tensorrt`-Pfad exportiert den N1.6-DiT-Aktionskopf
+> (`Gr00tN1d6ActionHead`) über ONNX; `groot_inference_backend.py`,
+> `optimize_groot_inference.py` und `run_groot_optimized_server.py` prüfen explizit auf diese
+> Klasse. Für `GROOT_VERSION=1.7` (16-Layer-DiT statt 32) gibt es noch keine Portierung —
+> `entrypoint_sim.sh` fällt dort automatisch auf `eager` zurück. Details:
+> [groot-n17-migration.md §5](../weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19).
 
 Die Optimierung hat zwei getrennte Teile:
 

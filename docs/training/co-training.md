@@ -43,7 +43,8 @@ Oberflächen-Statistik der Realbilder verlassen.
 |---|---|
 | [`Simulation/g1_dex3_sim/render_cotrain_dataset.py`](../../Simulation/g1_dex3_sim/render_cotrain_dataset.py) | Der Renderer. Zwei Stufen (`scan` → `render`), schreibt einen vollwertigen LeRobot-**v2.1**-Datensatz. |
 | [`Simulation/server_rl_run.sh render`](../../Simulation/server_rl_run.sh) | Wrapper auf dem Sim-Server: Checkpoint + Asset + echter Datensatz sicherstellen, beide Stufen fahren. |
-| [`Training/scripts/launch_cotrain.py`](../../Training/scripts/launch_cotrain.py) | Trainings-Einstieg für **zwei** Datensätze mit Mischungsverhältnis. |
+| [`Training/scripts/launch_cotrain.py`](../../Training/scripts/launch_cotrain.py) | Trainings-Einstieg für **zwei** Datensätze mit Mischungsverhältnis (GR00T N1.6). |
+| [`Training/scripts/launch_cotrain_n17.py`](../../Training/scripts/launch_cotrain_n17.py) | Dasselbe für **GR00T N1.7** (`GROOT_VERSION=1.7`) — Spiegel von N1.7s `launch_finetune.py` mit derselben Mix-Ratio-Ergänzung. `run_finetuning_cotrain.sh` wählt zwischen beiden. Ungetestet (kein Smoke-Lauf), siehe [groot-n17-migration.md](../weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19). |
 | [`Training/scripts/run_finetuning_cotrain.sh`](../../Training/scripts/run_finetuning_cotrain.sh) | Trainings-Launcher (eigener Namespace `blockstacking_cotrain`, `--tune_visual`, Split an). |
 | [`Training/scripts/entrypoint.sh`](../../Training/scripts/entrypoint.sh) | `USE_COTRAIN=1` routet auf den neuen Launcher. |
 
@@ -439,6 +440,7 @@ Ehrlich benannt, weil jeder dieser Punkte den Lauf entwerten würde:
 | `COTRAIN_HF_REPO` | — | HF-Dataset-Repo; wird geladen, wenn der Pfad leer ist |
 | `COTRAIN_MIX_RATIO` | `0.5` im Skript, **0.25 empfohlen** (§4.2) | Anteil gerenderter Stichproben |
 | `TRAIN_TEST_SPLIT` | `1` | Hier standardmäßig **an** — ohne Split fehlt die Leitplanke aus §5 |
+| `GROOT_VERSION` | `1.6` | `1.7` routet auf `launch_cotrain_n17.py` statt `launch_cotrain.py` und hängt den Checkpoints den Namespace-Suffix `_n17` an (`blockstacking_cotrain_n17`) — ungetestet |
 
 > Der Skript-Default für `COTRAIN_MIX_RATIO` steht auf 0.5, weil das der neutrale Wert für
 > „zwei gleichberechtigte Datensätze" ist. Für den konkreten ersten Lauf ist 0.25 die

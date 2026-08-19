@@ -7,6 +7,12 @@
 
 Status: Vorbereitung — erster Lauf steht aus (Stand 2026-08-18)
 
+> **N1.6-only.** Der Baseline-Test hängt am Embodiment-Tag `UNITREE_G1`, der in GR00T N1.7 eine
+> andere Bedeutung hat (Sim-Ganzkörper-Post-Train-Tag statt des hier verwendeten Basismodell-Tags)
+> und dessen Basismodell dafür keinen Zero-Shot-Kopf mitbringt. `entrypoint_baseline.sh` bricht
+> bei `GROOT_VERSION=1.7` deshalb kontrolliert ab. Details:
+> [groot-n17-migration.md](../weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19).
+
 Vergleichs-Baseline zum DEX3-Fine-Tune: Wie gut stapelt das **un-finetunte Basismodell
 `nvidia/GR00T-N1.6-3B`** mit dem **stock Unitree-G1-Greifer** (Dex1-Parallelgreifer,
 vorregistriertes Embodiment `UNITREE_G1`) auf **demselben** Block-Stacking-Task?

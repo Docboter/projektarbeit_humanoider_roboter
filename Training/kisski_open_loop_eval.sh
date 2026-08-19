@@ -18,6 +18,7 @@
 #
 # Optionale Überschreibungen (vor sbatch als export):
 #   RUN_DIR, DATASET_PATH, EVAL_SPLIT, EVAL_NUM_TRAJ, EVAL_STEPS, EVAL_CHECKPOINTS
+#   GROOT_VERSION (1.6 Default | 1.7), GROOT_FORK_DIR, GROOT17_FORK_DIR
 
 # ── SLURM-Direktiven ──────────────────────────────────────────────────────────
 #SBATCH --job-name=groot-ckpt-sweep
@@ -65,16 +66,36 @@ pick_sif() {   # erste EXISTIERENDE Datei gewinnt; sonst der erste Kandidat, dam
 SERVER_SIF="${SERVER_SIF:-$(pick_sif \
     "$KISSKI_SIF_DIR/projekt-humanoider-roboter.sif" \
     "$KISSKI_PROJECT_DIR/images/projekt-humanoider-roboter.sif")}"
-GROOT_FORK_DIR="${GROOT_FORK_DIR:-$KISSKI_PROJECT_DIR/repo-groot}"
 DATA_DIR="${DATA_DIR:-$KISSKI_PROJECT_DIR/data}"
 # Wie in kisski_submit.sh: fester Pfad auf dem Projektspeicher. NICHT über BASH_SOURCE
 # herleiten — sbatch führt eine Kopie aus dem SLURM-Spool aus, nicht die Datei im Repo.
 REPO_DIR="${REPO_DIR:-$KISSKI_PROJECT_DIR/repo}"
 
-# Lauf-Verzeichnis (nicht ein einzelner Checkpoint — der Sweep sucht selbst).
-#   Standard-Lauf : /data/g1_dex3_finetune/blockstacking
-#   Vision-Lauf   : /data/g1_dex3_finetune/blockstacking_vision
-RUN_DIR="${RUN_DIR:-/data/g1_dex3_finetune/blockstacking}"
+# GR00T-Version: 1.6 (Default) oder 1.7 (Cosmos-Reason2-2B, eigener Code-Baum/venv unter
+# /app/Groot-1.7). Nur groot_normalize_version() aus der lib sourcen (reine Funktion, keine
+# Exports) — groot_resolve() würde u. a. HF_HOME exportieren, und Apptainer reicht die
+# Host-Umgebung standardmäßig durch, was den N1.6-Default unbeabsichtigt ändern könnte.
+GROOT_VERSION="${GROOT_VERSION:-1.6}"
+GROOT_LIB="$REPO_DIR/Training/scripts/lib_groot_version.sh"
+if [[ -f "$GROOT_LIB" ]]; then
+    source "$GROOT_LIB"
+    GROOT_VERSION="$(groot_normalize_version "$GROOT_VERSION")" || exit 1
+elif [[ "$GROOT_VERSION" != "1.6" ]]; then
+    echo "FEHLER: GROOT_VERSION=$GROOT_VERSION angefordert, aber $GROOT_LIB fehlt (REPO_DIR korrekt?)." >&2
+    exit 1
+fi
+case "$GROOT_VERSION" in
+    1.7) GROOT_TARGET_ROOT="/app/Groot-1.7"; GROOT_NS_SUFFIX="_n17"
+         GROOT_FORK_DIR="${GROOT17_FORK_DIR:-$KISSKI_PROJECT_DIR/repo-groot-n17}" ;;
+    *)   GROOT_TARGET_ROOT="/app/Groot-1.6"; GROOT_NS_SUFFIX=""
+         GROOT_FORK_DIR="${GROOT_FORK_DIR:-$KISSKI_PROJECT_DIR/repo-groot}" ;;
+esac
+
+# Lauf-Verzeichnis (nicht ein einzelner Checkpoint — der Sweep sucht selbst). Suffix folgt
+# der GR00T-Version wie bei den Trainings-Namespaces (blockstacking → blockstacking_n17).
+#   Standard-Lauf : /data/g1_dex3_finetune/blockstacking[_n17]
+#   Vision-Lauf   : /data/g1_dex3_finetune/blockstacking_vision[_n17] (RUN_DIR explizit setzen)
+RUN_DIR="${RUN_DIR:-/data/g1_dex3_finetune/blockstacking${GROOT_NS_SUFFIX}}"
 
 # Dataset (LeRobot-Format, GR00T-konvertiert — enthält episodes.jsonl + modality.json)
 DATASET_PATH="${DATASET_PATH:-/data/unitreerobotics/G1_Dex3_BlockStacking_Dataset}"
@@ -104,6 +125,7 @@ fi
 echo "==> SLURM Job: ${SLURM_JOB_ID:-local} auf $(hostname)"
 echo "    GPU:        $(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null || echo 'unbekannt')"
 echo "    SIF:        $SERVER_SIF"
+echo "    GROOT_VERSION: $GROOT_VERSION  (root=$GROOT_TARGET_ROOT)"
 echo "    Lauf:       $RUN_DIR"
 echo "    Dataset:    $DATASET_PATH"
 echo "    Split:      $EVAL_SPLIT   (Episoden: $EVAL_NUM_TRAJ, Steps: $EVAL_STEPS)"
@@ -123,7 +145,16 @@ APPTAINER_ARGS=(
     --bind "$DATA_DIR:/data"
     --env "TMPDIR=/tmp"
     --env "UV_OFFLINE=1"
+    # checkpoint_sweep.py liest GROOT_ROOT selbst aus der Umgebung (Default /app/Groot-1.6) —
+    # damit reicht das Weiterreichen, ohne das Skript selbst anfassen zu müssen.
+    --env "GROOT_VERSION=$GROOT_VERSION"
+    --env "GROOT_ROOT=$GROOT_TARGET_ROOT"
 )
+# N1.7 lädt das gated Cosmos-Reason2-2B-Backbone bei JEDEM Checkpoint-Laden vom HF-Hub nach —
+# Compute-Nodes sind offline, daher fest auf den vorab befüllten Cache lenken (wie kisski_submit.sh).
+if [[ "$GROOT_VERSION" == "1.7" ]]; then
+    APPTAINER_ARGS+=(--env "HF_HOME=/data/hf_cache" --env "HF_HUB_OFFLINE=1")
+fi
 
 # Skripte aus dem Repo einbinden, damit Änderungen ohne Image-Rebuild wirken
 # (gleiche Konvention wie kisski_submit.sh).
@@ -132,13 +163,13 @@ if [[ -d "$REPO_DIR/Training/scripts" ]]; then
     echo "    Skripte:    $REPO_DIR/Training/scripts (Bind-Mount)"
 fi
 
-# gr00t-Modul aus Fork einbinden (falls vorhanden)
+# gr00t-Modul aus Fork einbinden (falls vorhanden), auf den zur GR00T-Version passenden Baum.
 if [[ -d "$GROOT_FORK_DIR/gr00t" ]]; then
-    APPTAINER_ARGS+=(--bind "$GROOT_FORK_DIR/gr00t:/app/Groot-1.6/gr00t")
+    APPTAINER_ARGS+=(--bind "$GROOT_FORK_DIR/gr00t:$GROOT_TARGET_ROOT/gr00t")
     echo "    Fork:       $GROOT_FORK_DIR/gr00t"
 fi
 if [[ -d "$GROOT_FORK_DIR/examples/G1_DEX3" ]]; then
-    APPTAINER_ARGS+=(--bind "$GROOT_FORK_DIR/examples/G1_DEX3:/app/Groot-1.6/examples/G1_DEX3")
+    APPTAINER_ARGS+=(--bind "$GROOT_FORK_DIR/examples/G1_DEX3:$GROOT_TARGET_ROOT/examples/G1_DEX3")
 fi
 
 SWEEP_ARGS=(
@@ -154,7 +185,7 @@ SWEEP_ARGS=(
 
 echo "==> Starte Checkpoint-Sweep …"
 apptainer exec "${APPTAINER_ARGS[@]}" "$SERVER_SIF" \
-    bash -lc "cd /app/Groot-1.6 && .venv/bin/python /scripts/checkpoint_sweep.py $(printf '%q ' "${SWEEP_ARGS[@]}")"
+    bash -lc "cd $GROOT_TARGET_ROOT && .venv/bin/python /scripts/checkpoint_sweep.py $(printf '%q ' "${SWEEP_ARGS[@]}")"
 
 echo ""
 echo "==> Checkpoint-Sweep abgeschlossen."
