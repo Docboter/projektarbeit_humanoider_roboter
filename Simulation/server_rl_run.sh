@@ -35,8 +35,9 @@
 # HOST-KONFIGURATION (seit 2026-08): Dieses Skript enthält KEINE rechnerspezifischen
 # Pfade mehr. Alles Host-Abhängige kommt aus einer gitignorierten .env.local im
 # Repo-Wurzelverzeichnis (Vorlage: .env.local.example). Ohne sie landet /data unter
-# $HOME/groot-rl-data. Auf dem IKR-Server stellt EINE Zeile den alten Ort wieder her:
-#   echo ': "${RL_HOST_DATA_DIR:=/home/lmuecke/project/data/RL}"' >> .env.local
+# $HOME/groot-rl-data. Auf dem IKR-Server kann ein benutzerunabhängiger Projektpfad
+# gesetzt werden:
+#   echo ': "${RL_HOST_DATA_DIR:=$HOME/project/data/RL}"' >> .env.local
 # Vollständige Anleitung inkl. KISSKI: docs/portabilitaet.md
 #
 # NUTZUNG:
@@ -189,6 +190,7 @@ start_logging() {
   LOG_FILE="$LOG_DIR/$1-$(date +%Y%m%d-%H%M%S).log"
   exec > >(tee -a "$LOG_FILE") 2>&1
   log "Log dieses Aufrufs: $LOG_FILE"
+  log "Host-Datenverzeichnis: $HOST_DATA_DIR  (Container: /data)"
 }
 
 # ── Kleine Helfer ─────────────────────────────────────────────────────────────
@@ -200,6 +202,32 @@ require_hf_token() {
 }
 
 container_state() { docker inspect -f '{{.State.Running}}' "$CONTAINER" 2>/dev/null || echo missing; }
+
+container_data_source() {
+  docker inspect -f '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Source}}{{end}}{{end}}' \
+    "$CONTAINER" 2>/dev/null || true
+}
+
+# Ein langlebiger Container behält seinen ursprünglichen /data-Mount. Wenn später
+# RL_HOST_DATA_DIR geändert wird, würden Logs auf Host A landen, während Datensatz und
+# Ergebnisse im Container weiterhin Host B benutzen. Dieser stille Split ist zu gefährlich.
+validate_container_data_mount() {
+  local actual expected
+  actual="$(container_data_source)"
+  [[ -n "$actual" ]] || { err "Container '$CONTAINER' hat keinen /data-Mount."; return 1; }
+  expected="$(cd "$HOST_DATA_DIR" && pwd -P)"
+  [[ -d "$actual" ]] && actual="$(cd "$actual" && pwd -P)"
+  if [[ "$actual" != "$expected" ]]; then
+    err "Datenpfade widersprechen sich:"
+    err "  laufender Container /data -> $actual"
+    err "  RL_HOST_DATA_DIR erwartet  -> $expected"
+    err "Wenn der bestehende Datenbestand richtig ist, in .env.local setzen:"
+    err "  : \"\${RL_HOST_DATA_DIR:=$actual}\""
+    err "Soll stattdessen der neue Pfad gelten: '$0 clean' und danach erneut aufrufen."
+    err "'clean' entfernt nur den Container, nicht die Datenverzeichnisse."
+    return 1
+  fi
+}
 
 # Ist der Host-Port frei? Reines Bash (kein ss/netstat/lsof im Image-losen Fall nötig).
 port_free() { ! (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null; }
@@ -295,9 +323,13 @@ warn_if_container_stale() {
 ensure_container() {
   local state; state="$(container_state)"
   if [[ "$state" == "true" ]]; then
+    ensure_host_data_dir
+    validate_container_data_mount || return 1
     warn_if_container_stale
     return 0
   elif [[ "$state" == "false" ]]; then
+    ensure_host_data_dir
+    validate_container_data_mount || return 1
     log "Container '$CONTAINER' vorhanden (gestoppt) — starte ihn."
     docker start "$CONTAINER" >/dev/null
     warn_if_container_stale

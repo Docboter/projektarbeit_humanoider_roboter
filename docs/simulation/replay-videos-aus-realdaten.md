@@ -21,6 +21,12 @@ Die Videos liegen auf dem Host standardmäßig unter:
 $RL_HOST_DATA_DIR/cube_replay/videos/
 ```
 
+Auf dem IKR-Server empfiehlt sich in `.env.local` der benutzerunabhängige Eintrag
+`: "${RL_HOST_DATA_DIR:=$HOME/project/data/RL}"`. Das Skript vergleicht diesen Pfad mit
+dem tatsächlichen `/data`-Mount eines vorhandenen Containers und bricht bei einem
+Widerspruch mit beiden Pfaden ab. Dadurch können Logs und Ergebnisse nicht unbemerkt in
+verschiedenen Benutzerverzeichnissen landen.
+
 Je Episode entstehen fünf MP4s: beide Kopfkameras, beide Wrist-Kameras und `scene`.
 Kalibrierungsdaten und Kontrollbilder liegen getrennt unter `cube_replay/work/`.
 
@@ -53,8 +59,9 @@ werden beibehalten; `REPLAY_OVERWRITE=1` erzeugt sie neu.
 - Eine Episode wird nicht gerendert, wenn nicht alle drei Farben in beiden Kopfkameras
   zuverlässig erkannt werden.
 - Die Würfelkante ist global 5 cm. Ihre gemessene Bildgröße kalibriert die Brennweite;
-  die gemeinsame Tischhöhe folgt aus der Stereo-Triangulation beider Kopfkameras. Größe
-  und Tischhöhe werden nicht je Episode verändert.
+  die gemeinsame Tischhöhe folgt aus einem 3D-Würfelmodell, das gleichzeitig an beide
+  Kopfkameras angepasst wird. Die empfindlichere reine Stereo-Triangulation wird nur als
+  Diagnosewert gespeichert. Größe und Tischhöhe werden nicht je Episode verändert.
 - Der Replay läuft mit `dt=1/210 s` und sieben Physics-Schritten je Frame, also exakt 30 Hz.
 - Ein Aufgabenerfolg löst im Replay keinen Auto-Reset aus. Die Originalepisode läuft bis
   zu ihrem Ende.

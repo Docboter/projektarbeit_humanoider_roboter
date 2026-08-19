@@ -282,7 +282,8 @@ tail -f "$RL_HOST_DATA_DIR"/logs/rl-*.log         # mitlesen
 ```
 
 Beide liegen unter dem gemounteten `/data`, sind also ohne `docker cp` direkt auf dem Host
-lesbar. `RL_HOST_DATA_DIR` ist standardmäßig `/home/lmuecke/project/data/RL`.
+lesbar. Ohne `.env.local` ist `RL_HOST_DATA_DIR` standardmäßig `$HOME/groot-rl-data`;
+auf dem IKR-Server empfiehlt sich `$HOME/project/data/RL`.
 
 #### Live zusehen (`LIVE_VIEW=1`) — dringend empfohlen beim ersten großen Lauf
 

@@ -231,6 +231,7 @@ def run_calibrate(args: argparse.Namespace) -> int:
                     "u": round(float(blob["u"]), 3),
                     "v": round(float(blob["v"]), 3),
                     "width_px": round(width_px, 2),
+                    "bbox": [int(v) for v in blob["bbox"]],
                     "distance_m": round(distance, 4),
                     "edge_m": round(edge_m, 5),
                 })
@@ -275,12 +276,17 @@ def run_calibrate(args: argparse.Namespace) -> int:
         name: camera_from_record(record) for name, record in camera_records.items()
     }
 
-    # Mittelpunkt aus den beiden Sehstrahlen triangulieren. Das ersetzt die bisherige
-    # Annahme z=0.915 durch eine Messung; die kleine Distanz der beiden Strahlen ist zugleich
-    # ein Qualitätsmaß für Stereo-Synchronität und Kamerageometrie.
+    # Die reine Sehstrahl-Triangulation ist bei der nur ungefähr bekannten realen
+    # Stereo-Basis zu empfindlich: schon wenige Millimeter Basisfehler verschieben die
+    # geschätzte Tischhöhe um Dezimeter. Sie bleibt deshalb ein Diagnosewert. Die Höhe
+    # wird stattdessen aus dem gemeinsamen 3D-Würfelmodell und seiner bekannten Kantenlänge
+    # geschätzt. Dabei müssen beide Kameras gleichzeitig zu allen vier Bounding-Box-Kanten
+    # passen.
     by_key = {(s["episode"], s["color"], s["camera"]): s for s in samples}
     stereo_centers: list[np.ndarray] = []
     stereo_gaps: list[float] = []
+    model_centers: list[np.ndarray] = []
+    model_errors: list[float] = []
     for ep in episodes:
         for color in CUBE_COLORS:
             left = by_key.get((ep, color, "cam_left_high"))
@@ -303,11 +309,27 @@ def run_calibrate(args: argparse.Namespace) -> int:
             p1, p2 = c1.eye + t1 * d1, c2.eye + t2 * d2
             stereo_centers.append((p1 + p2) / 2.0)
             stereo_gaps.append(float(np.linalg.norm(p1 - p2)))
-    if len(stereo_centers) < 6:
+
+            blobs = {
+                "cam_left_high": {
+                    "u": float(left["u"]), "v": float(left["v"]), "bbox": left["bbox"],
+                },
+                "cam_right_high": {
+                    "u": float(right["u"]), "v": float(right["v"]), "bbox": right["bbox"],
+                },
+            }
+            center, _, fit_error = fit_cube_pose_3d(
+                blobs, calibrated_cameras, Z_CUBE_CENTER, edge_m,
+            )
+            if fit_error <= args.max_fit_error_px:
+                model_centers.append(center)
+                model_errors.append(fit_error)
+    if len(model_centers) < 6:
         raise SystemExit(
-            f"Nur {len(stereo_centers)} gültige Stereo-Triangulationen; mindestens 6 nötig."
+            f"Nur {len(model_centers)} gültige gemeinsame 3D-Würfel-Fits; mindestens 6 "
+            f"mit höchstens {args.max_fit_error_px:.1f} px Fehler nötig."
         )
-    center_z = float(np.median(np.asarray(stereo_centers)[:, 2]))
+    center_z = float(np.median(np.asarray(model_centers)[:, 2]))
     if not 0.85 <= center_z <= 1.00:
         raise SystemExit(
             f"Triangulierter Würfelmittelpunkt z={center_z:.3f} m ist unplausibel."
@@ -339,8 +361,19 @@ def run_calibrate(args: argparse.Namespace) -> int:
             "observed_edge_p10_m": float(np.percentile(edge_estimates, 10)),
             "observed_edge_p90_m": float(np.percentile(edge_estimates, 90)),
             "stereo_samples": len(stereo_centers),
-            "stereo_ray_gap_median_m": float(np.median(stereo_gaps)),
-            "stereo_ray_gap_p90_m": float(np.percentile(stereo_gaps, 90)),
+            "stereo_center_z_median_m": (
+                float(np.median(np.asarray(stereo_centers)[:, 2]))
+                if stereo_centers else None
+            ),
+            "stereo_ray_gap_median_m": (
+                float(np.median(stereo_gaps)) if stereo_gaps else None
+            ),
+            "stereo_ray_gap_p90_m": (
+                float(np.percentile(stereo_gaps, 90)) if stereo_gaps else None
+            ),
+            "cube_model_samples": len(model_centers),
+            "cube_model_fit_error_median_px": float(np.median(model_errors)),
+            "cube_model_fit_error_p90_px": float(np.percentile(model_errors, 90)),
             "projection_roundtrip_max_m": max(roundtrip_errors),
         },
         "samples": samples,
@@ -349,15 +382,24 @@ def run_calibrate(args: argparse.Namespace) -> int:
             "Würfelgröße geprüft.",
             "Die Würfelkante ist global 0.05 m; je Kopfkamera wird nur die Brennweite "
             "an der beobachteten Silhouettenskala korrigiert.",
-            "Würfelmittelpunkt wird aus beiden Kopfkameras trianguliert; die Tischoberkante "
-            "liegt exakt eine halbe Würfelkante darunter.",
+            "Würfelmittelpunkt und Tischhöhe stammen aus einem gemeinsamen 3D-Würfel-Fit "
+            "beider Kopfkameras; reine Stereo-Triangulation bleibt nur Diagnosewert.",
         ],
     }
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     print(f"[replay-calibrate] Bildkante Median {raw_edge * 100:.2f} cm; verwendet 5.00 cm.")
-    print(f"[replay-calibrate] Stereo-Mittelpunkt z={center_z:.3f} m; "
+    print(f"[replay-calibrate] 3D-Würfelmodell: Mittelpunkt z={center_z:.3f} m; "
           f"Tischoberkante z={table_top_z:.3f} m.")
+    if stereo_centers:
+        stereo_z = float(np.median(np.asarray(stereo_centers)[:, 2]))
+        if abs(stereo_z - center_z) > 0.05:
+            print(
+                f"[replay-calibrate] Hinweis: reine Stereo-Triangulation ergibt "
+                f"z={stereo_z:.3f} m. Wegen der unsicheren realen Kamerabasis wird dieser "
+                "Wert nur diagnostisch gespeichert.",
+                flush=True,
+            )
     print(f"[replay-calibrate] {out}")
     print("[replay-calibrate] fertig.", flush=True)
     return 0
@@ -380,6 +422,60 @@ def projected_bbox(camera: PinholeCamera, center: np.ndarray, edge: float,
     if not np.all(np.isfinite(uv)):
         return np.full(4, np.nan)
     return np.array([uv[:, 0].min(), uv[:, 1].min(), uv[:, 0].max(), uv[:, 1].max()])
+
+
+def fit_cube_pose_3d(blobs: dict[str, dict], cameras: dict[str, PinholeCamera],
+                     z_initial: float, edge: float) -> tuple[np.ndarray, float, float]:
+    """Fit x/y/z/yaw of one known-size cube jointly to both camera bounding boxes."""
+    starts = [
+        cameras[name].backproject_to_plane(blob["u"], blob["v"], z_initial)
+        for name, blob in blobs.items()
+    ]
+    xyz0 = np.mean(np.asarray(starts), axis=0)
+
+    def loss(x: float, y: float, z: float, yaw: float) -> float:
+        if not 0.10 <= x <= 0.90 or not -0.30 <= y <= 0.30 or not 0.85 <= z <= 1.00:
+            return float("inf")
+        residuals = []
+        for name, blob in blobs.items():
+            pred = projected_bbox(cameras[name], np.array([x, y, z]), edge, yaw)
+            if not np.all(np.isfinite(pred)):
+                return float("inf")
+            residuals.extend((pred - np.asarray(blob["bbox"], dtype=float)).tolist())
+        return float(np.sqrt(np.mean(np.square(residuals))))
+
+    best = (float("inf"), float(xyz0[0]), float(xyz0[1]), float(z_initial), 0.0)
+    for yaw in np.linspace(0.0, math.pi / 2.0, 13, endpoint=False):
+        candidate = (
+            loss(xyz0[0], xyz0[1], z_initial, yaw),
+            float(xyz0[0]), float(xyz0[1]), float(z_initial), float(yaw),
+        )
+        if candidate[0] < best[0]:
+            best = candidate
+
+    step_xy, step_z, step_yaw = 0.015, 0.015, math.radians(8.0)
+    while max(step_xy, step_z) > 0.00025:
+        improved = False
+        _, bx, by, bz, byaw = best
+        for dx, dy, dz, da in (
+            (step_xy, 0, 0, 0), (-step_xy, 0, 0, 0),
+            (0, step_xy, 0, 0), (0, -step_xy, 0, 0),
+            (0, 0, step_z, 0), (0, 0, -step_z, 0),
+            (0, 0, 0, step_yaw), (0, 0, 0, -step_yaw),
+        ):
+            yaw = (byaw + da) % (math.pi / 2.0)
+            candidate = (
+                loss(bx + dx, by + dy, bz + dz, yaw),
+                bx + dx, by + dy, bz + dz, yaw,
+            )
+            if candidate[0] < best[0]:
+                best, improved = candidate, True
+        if not improved:
+            step_xy *= 0.5
+            step_z *= 0.5
+            step_yaw *= 0.5
+    fit_error, x, y, z, yaw = best
+    return np.array([x, y, z]), yaw, fit_error
 
 
 def fit_cube_pose(blobs: dict[str, dict], cameras: dict[str, PinholeCamera],
@@ -556,6 +652,7 @@ def main() -> int:
     calibrate.add_argument("--cube-edge", type=float, default=0.05)
     calibrate.add_argument("--edge-min", type=float, default=0.04)
     calibrate.add_argument("--edge-max", type=float, default=0.065)
+    calibrate.add_argument("--max-fit-error-px", type=float, default=25.0)
     add_selection_args(calibrate)
 
     poses = sub.add_parser("poses", help="Würfelpose je Episode aus zwei Kopfkameras fitten")
