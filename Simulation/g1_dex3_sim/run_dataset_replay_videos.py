@@ -299,12 +299,15 @@ def main() -> int:
                 tmp_path.replace(paths[cam])
             print(f"[replay-render] ({ordinal}/{len(loaded)}) Episode {ep}: "
                   f"{len(actions)} Frames, 5 MP4s.", flush=True)
+
+        # Isaac Lab 3 / Isaac Sim 6 kann den Python-Ablauf bereits in env.close() beenden.
+        # Der Host-Wrapper erkennt Erfolg deshalb an einem Marker VOR dem Cleanup. Zu diesem
+        # Zeitpunkt sind alle Writer geschlossen und alle .tmp.mp4 atomar umbenannt.
+        print(f"[replay-render] Videos: {out_dir}")
+        print("[replay-render] fertig.", flush=True)
     finally:
         env.close()
         simulation_app.close()
-
-    print(f"[replay-render] Videos: {out_dir}")
-    print("[replay-render] fertig.", flush=True)
     return 0
 
 

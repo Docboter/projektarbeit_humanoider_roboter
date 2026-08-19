@@ -1342,7 +1342,7 @@ do_replay_render() {
       "${extra[@]}" "${REPLAY_SELECTION_ARGS[@]}" \
     2>&1 | tee /dev/stderr | grep -c "\[replay-render\] fertig" >/dev/null \
     || { err "Replay-Rendering fehlgeschlagen (Ausgabe oben)."; return 1; }
-  ok "Replay-Videos: $HOST_DATA_DIR/${out#/data/}"
+  ok "Fertige Rendering-Videos (Host): $HOST_DATA_DIR/${out#/data/}"
 }
 
 do_render() {
