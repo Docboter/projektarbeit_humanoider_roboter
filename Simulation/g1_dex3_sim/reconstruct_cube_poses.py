@@ -21,12 +21,23 @@ from typing import Any
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from camera_geometry import CAMERA_CFG, PinholeCamera  # noqa: E402
+from camera_geometry import (  # noqa: E402
+    CAMERA_CFG,
+    PinholeCamera,
+    look_at_world_quat,
+    quat_to_matrix,
+)
 from extract_block_layout import (  # noqa: E402
     CUBE_COLORS,
     Z_CUBE_CENTER,
     color_mask,
     largest_blob,
+)
+from replay_calibration import (  # noqa: E402
+    apply_homography,
+    best_top_face_detection,
+    homography_report,
+    read_json,
 )
 
 HEAD_CAMS = ("cam_left_high", "cam_right_high")
@@ -121,11 +132,13 @@ def best_detection(frames: list[np.ndarray], min_area: int) -> tuple[int, np.nda
 
 
 def camera_record(name: str) -> dict[str, Any]:
-    pose = getattr(CAMERA_CFG, name)
+    pose_name = name if not name.endswith("_wrist") else f"{name}_local"
+    pose = getattr(CAMERA_CFG, pose_name)
+    focal = CAMERA_CFG.focal_wrist if name.endswith("_wrist") else CAMERA_CFG.focal_high
     return {
         "eye": [float(v) for v in pose["pos"]],
         "quat_wxyz": [float(v) for v in pose["rot"]],
-        "focal_mm": float(CAMERA_CFG.focal_high),
+        "focal_mm": float(focal),
         "aperture_mm": float(CAMERA_CFG.horizontal_aperture_mm),
         "width": int(CAMERA_CFG.width),
         "height": int(CAMERA_CFG.height),
@@ -193,6 +206,8 @@ def run_inspect(args: argparse.Namespace) -> int:
 
 
 def run_calibrate(args: argparse.Namespace) -> int:
+    if args.anchors:
+        return run_anchor_calibrate(args)
     root = Path(args.dataset_path)
     info = read_info(root)
     episodes = select_episodes(info, args)
@@ -405,6 +420,324 @@ def run_calibrate(args: argparse.Namespace) -> int:
     return 0
 
 
+def optimize_head_camera(camera_name: str, anchors: list[dict[str, Any]],
+                         z_top: float) -> tuple[dict[str, Any], dict[str, float]]:
+    usable = [a for a in anchors if camera_name in a.get("pixels", {})]
+    world = np.asarray([[*a["world_xy_m"], z_top] for a in usable], dtype=float)
+    observed = np.asarray(
+        [a["pixels"][camera_name]["top_uv"] for a in usable], dtype=float
+    )
+    base = camera_record(camera_name)
+    camera = camera_from_record(base)
+    direction = camera.R[:, 0]
+    distance = (z_top - camera.eye[2]) / direction[2]
+    target = camera.eye + distance * direction
+    params = np.array([
+        *camera.eye, target[0], target[1], float(base["focal_mm"]),
+    ])
+    lower = np.array([-0.10, -0.15, 1.10, 0.15, -0.25, 7.0])
+    upper = np.array([0.25, 0.15, 1.55, 0.75, 0.25, 25.0])
+
+    def record(values: np.ndarray) -> dict[str, Any]:
+        eye = values[:3]
+        target_point = (values[3], values[4], z_top)
+        quat = look_at_world_quat(eye, target_point)
+        return {
+            **base,
+            "eye": [float(v) for v in eye],
+            "quat_wxyz": [float(v) for v in quat],
+            "focal_mm": float(values[5]),
+        }
+
+    def loss(values: np.ndarray) -> float:
+        model = camera_from_record(record(values))
+        projected = model.project(world)
+        return float(np.sqrt(np.mean(np.square(projected - observed))))
+
+    best = (loss(params), params.copy())
+    steps = np.array([0.025, 0.025, 0.025, 0.035, 0.035, 1.5])
+    while float(np.max(steps)) > 0.0005:
+        improved = False
+        for index in range(6):
+            for sign in (-1.0, 1.0):
+                candidate = best[1].copy()
+                candidate[index] = np.clip(
+                    candidate[index] + sign * steps[index], lower[index], upper[index]
+                )
+                score = loss(candidate)
+                if score < best[0]:
+                    best, improved = (score, candidate), True
+        if not improved:
+            steps[:6] *= 0.5
+    fitted = record(best[1])
+    errors = np.linalg.norm(camera_from_record(fitted).project(world) - observed, axis=1)
+    return fitted, {
+        "median_pixel_error": float(np.median(errors)),
+        "p90_pixel_error": float(np.percentile(errors, 90)),
+        "rmse_pixel": float(best[0]),
+    }
+
+
+def matrix_to_quat(matrix: np.ndarray) -> list[float]:
+    matrix = np.asarray(matrix, dtype=float)
+    eigenvalues, eigenvectors = np.linalg.eigh(np.array([
+        [matrix[0, 0] - matrix[1, 1] - matrix[2, 2],
+         matrix[1, 0] + matrix[0, 1], matrix[2, 0] + matrix[0, 2],
+         matrix[1, 2] - matrix[2, 1]],
+        [matrix[1, 0] + matrix[0, 1], matrix[1, 1] - matrix[0, 0] - matrix[2, 2],
+         matrix[2, 1] + matrix[1, 2], matrix[2, 0] - matrix[0, 2]],
+        [matrix[2, 0] + matrix[0, 2], matrix[2, 1] + matrix[1, 2],
+         matrix[2, 2] - matrix[0, 0] - matrix[1, 1],
+         matrix[0, 1] - matrix[1, 0]],
+        [matrix[1, 2] - matrix[2, 1], matrix[2, 0] - matrix[0, 2],
+         matrix[0, 1] - matrix[1, 0], matrix[0, 0] + matrix[1, 1] + matrix[2, 2]],
+    ]) / 3.0)
+    quaternion = eigenvectors[:, np.argmax(eigenvalues)][[3, 0, 1, 2]]
+    if quaternion[0] < 0:
+        quaternion *= -1
+    return [float(v) for v in quaternion]
+
+
+def rotation_xyz(angles: np.ndarray) -> np.ndarray:
+    x, y, z = angles
+    cx, cy, cz = np.cos(angles)
+    sx, sy, sz = np.sin(angles)
+    return np.array([
+        [cy * cz, cz * sx * sy - cx * sz, sx * sz + cx * cz * sy],
+        [cy * sz, cx * cz + sx * sy * sz, cx * sy * sz - cz * sx],
+        [-sy, cy * sx, cx * cy],
+    ])
+
+
+def optimize_wrist_camera(camera_name: str, observations: list[dict[str, Any]],
+                          z_top: float) -> tuple[dict[str, Any], dict[str, Any]]:
+    usable = [item for item in observations if item["camera"] == camera_name]
+    base = camera_record(camera_name)
+    if len(usable) < 12 or len({item["episode"] for item in usable}) < 2:
+        return base, {
+            "status": "insufficient_observations",
+            "samples": len(usable),
+            "episodes": len({item["episode"] for item in usable}),
+        }
+    base_eye = np.asarray(base["eye"], dtype=float)
+    base_rotation = quat_to_matrix(base["quat_wxyz"])
+    params = np.r_[base_eye, np.zeros(3), float(base["focal_mm"])]
+    lower = np.r_[base_eye - 0.05, [-0.45] * 3, 7.0]
+    upper = np.r_[base_eye + 0.05, [0.45] * 3, 30.0]
+
+    def projected(values: np.ndarray) -> np.ndarray:
+        local_eye = values[:3]
+        local_rotation = base_rotation @ rotation_xyz(values[3:6])
+        focal_px = values[6] / float(base["aperture_mm"]) * int(base["width"])
+        pixels = []
+        for item in usable:
+            link_rotation = quat_to_matrix(item["link_quat_wxyz"])
+            eye = np.asarray(item["link_position_m"]) + link_rotation @ local_eye
+            camera_rotation = link_rotation @ local_rotation
+            point = np.array([*item["world_xy_m"], z_top], dtype=float)
+            camera_point = (point - eye) @ camera_rotation
+            if camera_point[0] <= 1e-6:
+                pixels.append([np.nan, np.nan])
+                continue
+            pixels.append([
+                base["width"] / 2.0 - 0.5 - focal_px * camera_point[1] / camera_point[0],
+                base["height"] / 2.0 - 0.5 - focal_px * camera_point[2] / camera_point[0],
+            ])
+        return np.asarray(pixels)
+
+    observed = np.asarray([item["top_uv"] for item in usable], dtype=float)
+
+    def loss(values: np.ndarray) -> float:
+        prediction = projected(values)
+        if not np.isfinite(prediction).all():
+            return 1e9
+        return float(np.sqrt(np.mean(np.square(prediction - observed))))
+
+    best = (loss(params), params.copy())
+    steps = np.array([0.01, 0.01, 0.01, 0.06, 0.06, 0.06, 1.5])
+    while float(np.max(steps)) > 0.0005:
+        improved = False
+        for index in range(len(params)):
+            for sign in (-1.0, 1.0):
+                candidate = best[1].copy()
+                candidate[index] = np.clip(
+                    candidate[index] + sign * steps[index], lower[index], upper[index]
+                )
+                score = loss(candidate)
+                if score < best[0]:
+                    best, improved = (score, candidate), True
+        if not improved:
+            steps *= 0.5
+    fitted_values = best[1]
+    fitted = {
+        **base,
+        "eye": [float(v) for v in fitted_values[:3]],
+        "quat_wxyz": matrix_to_quat(
+            base_rotation @ rotation_xyz(fitted_values[3:6])
+        ),
+        "focal_mm": float(fitted_values[6]),
+    }
+    errors = np.linalg.norm(projected(fitted_values) - observed, axis=1)
+    return fitted, {
+        "status": "ok",
+        "samples": len(usable),
+        "episodes": len({item["episode"] for item in usable}),
+        "median_pixel_error": float(np.median(errors)),
+        "p90_pixel_error": float(np.percentile(errors, 90)),
+        "rmse_pixel": float(best[0]),
+    }
+
+
+def run_anchor_calibrate(args: argparse.Namespace) -> int:
+    anchor_doc = read_json(Path(args.anchors))
+    anchors = anchor_doc.get("anchors", [])
+    if len(anchors) < args.min_anchors:
+        raise SystemExit(
+            f"Nur {len(anchors)} Bewegungsanker; mindestens {args.min_anchors} erforderlich. "
+            "REPLAY_NUM_EPISODES erhöhen."
+        )
+    homographies = {}
+    for camera_name in HEAD_CAMS:
+        try:
+            report = homography_report(anchors, camera_name, args.min_anchors)
+        except ValueError as exc:
+            raise SystemExit(str(exc)) from exc
+        if report["median_error_m"] > args.max_median_error_m \
+                or report["p90_error_m"] > args.max_p90_error_m:
+            raise SystemExit(
+                f"{camera_name}: Homographiefehler Median/P90 "
+                f"{report['median_error_m']:.3f}/{report['p90_error_m']:.3f} m zu groß."
+            )
+        homographies[camera_name] = report
+
+    left_h = np.asarray(homographies[HEAD_CAMS[0]]["pixel_to_world"])
+    right_h = np.asarray(homographies[HEAD_CAMS[1]]["pixel_to_world"])
+    both = [a for a in anchors if all(cam in a.get("pixels", {}) for cam in HEAD_CAMS)]
+    left_xy = apply_homography(
+        left_h, np.asarray([a["pixels"][HEAD_CAMS[0]]["top_uv"] for a in both])
+    )
+    right_xy = apply_homography(
+        right_h, np.asarray([a["pixels"][HEAD_CAMS[1]]["top_uv"] for a in both])
+    )
+    disagreement = np.linalg.norm(left_xy - right_xy, axis=1)
+    median_disagreement = float(np.median(disagreement))
+    if median_disagreement > args.max_camera_disagreement_m:
+        raise SystemExit(
+            f"Kopfkameras widersprechen sich im Median um {median_disagreement:.3f} m."
+        )
+
+    edge_m = float(args.cube_edge)
+    z_values = [float(a["world_xyz_m"][2]) for a in anchors if "world_xyz_m" in a]
+    if not z_values:
+        raise SystemExit("Bewegungsanker enthalten keine Fingerkuppenhöhe.")
+    z_spread = float(np.percentile(z_values, 90) - np.percentile(z_values, 10))
+    if z_spread > 0.04:
+        raise SystemExit(
+            f"Fingerkuppenhöhen streuen mit {z_spread:.3f} m zu stark; Anker mehrdeutig."
+        )
+    measured_center_z = float(np.median(z_values))
+    center_z = measured_center_z if args.cube_center_z is None else float(args.cube_center_z)
+    if not 0.85 <= center_z <= 1.00:
+        raise SystemExit(f"Bewegungsanker ergeben unplausibles Würfel-z={center_z:.3f} m.")
+    table_top_z = center_z - edge_m / 2.0
+    cameras, camera_fit = {}, {}
+    for camera_name in HEAD_CAMS:
+        cameras[camera_name], camera_fit[camera_name] = optimize_head_camera(
+            camera_name, anchors, table_top_z + edge_m
+        )
+        if camera_fit[camera_name]["median_pixel_error"] > 5.0 \
+                or camera_fit[camera_name]["p90_pixel_error"] > 10.0:
+            raise SystemExit(
+                f"{camera_name}: analytischer Pixel-Fit Median/P90 "
+                f"{camera_fit[camera_name]['median_pixel_error']:.1f}/"
+                f"{camera_fit[camera_name]['p90_pixel_error']:.1f} px zu groß."
+            )
+    wrist_fit = {}
+    for camera_name in ("cam_left_wrist", "cam_right_wrist"):
+        cameras[camera_name], wrist_fit[camera_name] = optimize_wrist_camera(
+            camera_name, anchor_doc.get("wrist_observations", []), table_top_z + edge_m
+        )
+    wrist_ready = all(
+        record.get("status") == "ok"
+        and record["median_pixel_error"] <= 10.0
+        and record["p90_pixel_error"] <= 20.0
+        for record in wrist_fit.values()
+    )
+
+    payload = {
+        "version": 2,
+        "method": "trajectory_anchored_homography",
+        "source_dataset": str(args.dataset_path),
+        "anchor_file": str(args.anchors),
+        "episodes": anchor_doc.get("episodes", []),
+        "cube_edge_m": edge_m,
+        "table_top_z_m": table_top_z,
+        "cube_center_z_m": center_z,
+        "homographies": homographies,
+        "cameras": cameras,
+        "camera_fit": camera_fit,
+        "wrist_calibration": {
+            "status": "ok" if wrist_ready else "warning",
+            "dataset_ready": wrist_ready,
+            "fits": wrist_fit,
+            "note": "Im Videomodus Warnung; im Dataset-Modus verpflichtend.",
+        },
+        "quality": {
+            "num_anchors": len(anchors),
+            "head_camera_disagreement_median_m": median_disagreement,
+            "head_camera_disagreement_p90_m": float(np.percentile(disagreement, 90)),
+            "action_hashes": anchor_doc.get("action_hashes", {}),
+            "actual_camera_diagnostics": anchor_doc.get("actual_camera_diagnostics", {}),
+            "fingertip_anchor_z_median_m": (
+                float(np.median(z_values)) if z_values else None
+            ),
+            "fingertip_anchor_z_p90_p10_m": z_spread,
+            "cube_center_z_source": (
+                "fingertip_anchor_median" if args.cube_center_z is None else "cli_override"
+            ),
+        },
+    }
+    out = Path(args.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    report_dir = Path(args.debug_dir)
+    report_dir.mkdir(parents=True, exist_ok=True)
+    (report_dir / "calibration_report.json").write_text(
+        json.dumps(payload["quality"] | {"camera_fit": camera_fit}, indent=2),
+        encoding="utf-8",
+    )
+    from PIL import Image, ImageDraw
+
+    root = Path(args.dataset_path)
+    info = read_info(root)
+    frame_cache: dict[tuple[int, str, int], np.ndarray] = {}
+    for anchor in anchors:
+        for camera_name, pixel in anchor.get("pixels", {}).items():
+            frame_index = int(pixel.get("frame", 0))
+            key = (int(anchor["episode"]), camera_name, frame_index)
+            if key not in frame_cache:
+                frames = load_video_frames(
+                    video_path(root, info, key[0], camera_name), frame_index + 1
+                )
+                frame_cache[key] = frames[frame_index]
+            image = Image.fromarray(frame_cache[key].copy())
+            draw = ImageDraw.Draw(image)
+            u, v = pixel["top_uv"]
+            draw.ellipse((u - 7, v - 7, u + 7, v + 7), outline="black", width=3)
+            draw.text((u + 9, v - 9), f"{anchor['color']} {anchor['world_xy_m']}", fill="black")
+            image.save(
+                report_dir /
+                f"ep{int(anchor['episode']):06d}_{anchor['color']}_{camera_name}.png"
+            )
+    print(
+        f"[replay-calibrate] {len(anchors)} Bewegungsanker; Kameradifferenz "
+        f"Median {median_disagreement * 100:.2f} cm."
+    )
+    print(f"[replay-calibrate] {out}")
+    print("[replay-calibrate] fertig.", flush=True)
+    return 0
+
+
 def cube_vertices(center: np.ndarray, edge: float, yaw: float) -> np.ndarray:
     half = edge / 2.0
     local = np.array([
@@ -543,11 +876,184 @@ def save_pose_overlay(rgb: np.ndarray, found: list, camera: PinholeCamera,
     image.save(path)
 
 
+def save_homography_overlay(rgb: np.ndarray, blocks: list[dict[str, Any]], camera: str,
+                            matrix: np.ndarray, path: Path) -> None:
+    from PIL import Image, ImageDraw
+
+    image = Image.fromarray(rgb)
+    draw = ImageDraw.Draw(image)
+    inverse = np.linalg.inv(matrix)
+    colors = {"rot": "red", "gruen": "green", "gelb": "yellow"}
+    for block in blocks:
+        estimate = block.get("camera_estimates", {}).get(camera)
+        if estimate:
+            u, v = estimate["top_uv"]
+            draw.ellipse((u - 6, v - 6, u + 6, v + 6), outline=colors[block["color"]], width=3)
+        if block.get("status") == "ok":
+            xy = np.asarray([block["position_m"][:2]], dtype=float)
+            uv = apply_homography(inverse, xy)[0]
+            draw.line((uv[0] - 8, uv[1], uv[0] + 8, uv[1]), fill="black", width=3)
+            draw.line((uv[0], uv[1] - 8, uv[0], uv[1] + 8), fill="black", width=3)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    image.save(path)
+
+
+def run_homography_poses(args: argparse.Namespace, root: Path, info: dict[str, Any],
+                          episodes: list[int], calibration: dict[str, Any]) -> int:
+    matrices = {
+        camera: np.asarray(calibration["homographies"][camera]["pixel_to_world"], dtype=float)
+        for camera in HEAD_CAMS
+    }
+    anchor_doc = read_json(Path(calibration["anchor_file"]))
+    anchor_map = {
+        (int(anchor["episode"]), anchor["color"]): anchor for anchor in anchor_doc["anchors"]
+    }
+    edge = float(calibration["cube_edge_m"])
+    center_z = float(calibration["cube_center_z_m"])
+    out_path = Path(args.out)
+    result = {
+        "version": 2,
+        "method": "trajectory_anchored_homography",
+        "source_dataset": str(root),
+        "calibration": str(args.calibration),
+        "cube_edge_m": edge,
+        "table_top_z_m": float(calibration["table_top_z_m"]),
+        "episodes": {},
+    }
+    if out_path.exists() and not args.overwrite:
+        old = read_json(out_path)
+        if old.get("calibration") == str(args.calibration) and old.get("version") == 2:
+            result["episodes"].update(old.get("episodes", {}))
+
+    for ordinal, episode in enumerate(episodes, 1):
+        if str(episode) in result["episodes"] and not args.overwrite:
+            print(f"[replay-poses] ({ordinal}/{len(episodes)}) Episode {episode}: vorhanden.")
+            continue
+        frames_by_camera: dict[str, np.ndarray] = {}
+        detections: dict[str, dict[str, dict]] = {}
+        for camera in HEAD_CAMS:
+            frames = load_video_frames(video_path(root, info, episode, camera), args.max_frames)
+            detections[camera] = {}
+            for color in CUBE_COLORS:
+                frame_index, rgb, blob = best_top_face_detection(
+                    frames, color, min_area=max(60, args.min_area // 2)
+                )
+                detections[camera][color] = blob
+                if camera not in frames_by_camera or frame_index == 0:
+                    frames_by_camera[camera] = rgb
+        wrist_detections: dict[str, dict[str, dict]] = {}
+        for camera in ("cam_left_wrist", "cam_right_wrist"):
+            frames = load_video_frames(video_path(root, info, episode, camera), args.max_frames)
+            wrist_detections[camera] = {}
+            for color in CUBE_COLORS:
+                frame_index, _, blob = best_top_face_detection(
+                    frames, color, min_area=max(40, args.min_area // 3)
+                )
+                wrist_detections[camera][color] = (frame_index, blob)
+
+        blocks = []
+        for color in CUBE_COLORS:
+            estimates = {}
+            yaw_values = []
+            for camera in HEAD_CAMS:
+                blob = detections[camera][color]
+                if blob is None:
+                    continue
+                uv = np.asarray([[blob["u"], blob["v"]]], dtype=float)
+                xy = apply_homography(matrices[camera], uv)[0]
+                x0, y0, x1, y1 = blob["bbox"]
+                axis_uv = np.asarray(blob.get(
+                    "axis_uv", [[x0, (y0 + y1) / 2], [x1, (y0 + y1) / 2]]
+                ))
+                axis_xy = apply_homography(matrices[camera], axis_uv)
+                delta = axis_xy[1] - axis_xy[0]
+                yaw_values.append(float(math.atan2(delta[1], delta[0]) % (math.pi / 2.0)))
+                estimates[camera] = {
+                    "top_uv": [float(blob["u"]), float(blob["v"])],
+                    "world_xy_m": [float(xy[0]), float(xy[1])],
+                    "bbox": [int(v) for v in blob["bbox"]],
+                    "detection_source": blob.get("source", "full_blob"),
+                }
+            block = {"name": COLOR_TO_BLOCK[color], "color": color,
+                     "camera_estimates": estimates}
+            block["wrist_observations"] = {
+                camera: {
+                    "top_uv": [float(blob["u"]), float(blob["v"])],
+                    "bbox": [int(v) for v in blob["bbox"]],
+                    "frame": int(frame_index),
+                }
+                for camera, per_color in wrist_detections.items()
+                if (frame_index := per_color[color][0]) >= 0
+                and (blob := per_color[color][1]) is not None
+            }
+            if len(estimates) != len(HEAD_CAMS):
+                block.update(status="missing", reason="nicht in beiden Kopfkameras erkannt")
+                blocks.append(block)
+                continue
+            xy_values = np.asarray([estimates[c]["world_xy_m"] for c in HEAD_CAMS])
+            camera_delta = float(np.linalg.norm(xy_values[0] - xy_values[1]))
+            image_xy = np.median(xy_values, axis=0)
+            anchor = anchor_map.get((episode, color))
+            source = "head_homography"
+            if anchor is not None:
+                anchor_xy = np.asarray(anchor["world_xy_m"], dtype=float)
+                anchor_delta = float(np.linalg.norm(image_xy - anchor_xy))
+                if anchor_delta > args.max_anchor_disagreement_m:
+                    block.update(
+                        status="rejected",
+                        reason=f"Bild/Griffanker widersprechen sich um {anchor_delta:.3f} m",
+                        image_anchor_disagreement_m=anchor_delta,
+                    )
+                    blocks.append(block)
+                    continue
+                image_xy, source = anchor_xy, "trajectory_anchor"
+                block["trajectory_anchor"] = anchor
+                block["image_anchor_disagreement_m"] = anchor_delta
+            if camera_delta > args.max_camera_disagreement_m:
+                block.update(
+                    status="rejected",
+                    reason=f"Kopfkameras widersprechen sich um {camera_delta:.3f} m",
+                )
+                blocks.append(block)
+                continue
+            inside = 0.10 <= image_xy[0] <= 0.90 and -0.35 <= image_xy[1] <= 0.35
+            yaw = float(np.median(yaw_values)) if yaw_values else 0.0
+            block.update({
+                "status": "ok" if inside else "rejected",
+                "reason": "" if inside else "Position außerhalb des Tischbereichs",
+                "source": source,
+                "position_m": [float(image_xy[0]), float(image_xy[1]), center_z],
+                "yaw_rad": yaw,
+                "orientation_wxyz": [math.cos(yaw / 2.0), 0.0, 0.0,
+                                      math.sin(yaw / 2.0)],
+                "edge_m": edge,
+                "camera_disagreement_m": camera_delta,
+            })
+            blocks.append(block)
+
+        status = "ok" if len(blocks) == 3 and all(b["status"] == "ok" for b in blocks) \
+            else "skipped"
+        result["episodes"][str(episode)] = {"status": status, "blocks": blocks}
+        for camera in HEAD_CAMS:
+            save_homography_overlay(
+                frames_by_camera[camera], blocks, camera, matrices[camera],
+                Path(args.debug_dir) / f"ep{episode:06d}_{camera}.png",
+            )
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(json.dumps(result, indent=2), encoding="utf-8")
+        print(f"[replay-poses] ({ordinal}/{len(episodes)}) Episode {episode}: {status}.")
+    print(f"[replay-poses] {out_path}")
+    print("[replay-poses] fertig.", flush=True)
+    return 0
+
+
 def run_poses(args: argparse.Namespace) -> int:
     root = Path(args.dataset_path)
     info = read_info(root)
     episodes = select_episodes(info, args)
     calibration = json.loads(Path(args.calibration).read_text(encoding="utf-8"))
+    if calibration.get("method") == "trajectory_anchored_homography":
+        return run_homography_poses(args, root, info, episodes, calibration)
     cameras = {
         name: camera_from_record(calibration["cameras"][name]) for name in HEAD_CAMS
     }
@@ -647,12 +1153,18 @@ def main() -> int:
     calibrate.add_argument("--dataset-path", required=True)
     calibrate.add_argument("--out", required=True)
     calibrate.add_argument("--debug-dir", required=True)
+    calibrate.add_argument("--anchors", default="")
     calibrate.add_argument("--max-frames", type=int, default=30)
     calibrate.add_argument("--min-area", type=int, default=120)
     calibrate.add_argument("--cube-edge", type=float, default=0.05)
+    calibrate.add_argument("--cube-center-z", type=float, default=None)
     calibrate.add_argument("--edge-min", type=float, default=0.04)
     calibrate.add_argument("--edge-max", type=float, default=0.065)
     calibrate.add_argument("--max-fit-error-px", type=float, default=25.0)
+    calibrate.add_argument("--min-anchors", type=int, default=8)
+    calibrate.add_argument("--max-median-error-m", type=float, default=0.015)
+    calibrate.add_argument("--max-p90-error-m", type=float, default=0.03)
+    calibrate.add_argument("--max-camera-disagreement-m", type=float, default=0.02)
     add_selection_args(calibrate)
 
     poses = sub.add_parser("poses", help="Würfelpose je Episode aus zwei Kopfkameras fitten")
@@ -663,6 +1175,8 @@ def main() -> int:
     poses.add_argument("--max-frames", type=int, default=30)
     poses.add_argument("--min-area", type=int, default=120)
     poses.add_argument("--max-fit-error-px", type=float, default=20.0)
+    poses.add_argument("--max-camera-disagreement-m", type=float, default=0.03)
+    poses.add_argument("--max-anchor-disagreement-m", type=float, default=0.03)
     poses.add_argument("--overwrite", action="store_true")
     add_selection_args(poses)
 

@@ -1259,27 +1259,49 @@ do_replay_prepare() {
   ok "Replay vorbereitet; Asset: $ASSET_PATH"
 }
 
-# Prüft die rekonstruierte Kopfkamera-Skala an den realen Würfelsilhouetten und schreibt
-# die für Pose-Fit und Replay gemeinsame Geometrie. Kein Isaac-Start, also schnell.
+# Verankert Realpixel über die unveränderte Sim-Trajektorie und prüft die resultierenden
+# Kameras anschließend mit bekannten Markern im tatsächlichen Isaac-Renderer.
 do_replay_calibrate() {
-  ensure_container
+  ensure_asset_local || return 1
   local ds="${REPLAY_DATASET:-/data/unitreerobotics/G1_Dex3_BlockStacking_Dataset}"
   ensure_dataset "$ds" || return 1
   ensure_replay_script reconstruct_cube_poses.py || return 1
+  ensure_replay_script collect_replay_anchors.py || return 1
+  ensure_replay_script validate_replay_calibration.py || return 1
   replay_selection_args || return 1
   local work="${REPLAY_WORK:-/data/cube_replay/work}"
   local calibration="${REPLAY_CALIBRATION:-$work/geometry_calibration.json}"
-  local debug="${REPLAY_CALIBRATION_DEBUG_DIR:-$work/calibration_overlays}"
+  local anchors="${REPLAY_ANCHORS:-$work/calibration_anchors.json}"
+  local debug="${REPLAY_CALIBRATION_DEBUG_DIR:-$work/calibration_report}"
+  local overwrite=()
+  [[ "${REPLAY_OVERWRITE:-0}" == "1" ]] && overwrite=( --overwrite )
 
-  log "Kalibriere Replay-Geometrie aus maximal ${REPLAY_NUM_EPISODES:-10} Episoden."
+  log "Erfasse unveränderte Fingertrajektorien und reale Würfelbewegungen."
+  docker exec -w "$SIM_DIR" -e "DR_ENABLED=0" "$CONTAINER" \
+    env -u VIRTUAL_ENV "$ISAAC_PY" "$SIM_DIR/collect_replay_anchors.py" \
+      --headless --enable_cameras --dataset-path "$ds" --out "$anchors" \
+      --asset-path "$ASSET_PATH" "${overwrite[@]}" "${REPLAY_SELECTION_ARGS[@]}" \
+    2>&1 | tee /dev/stderr | grep -c "\[replay-anchor-collection\] fertig" >/dev/null \
+    || { err "Bewegungsanker-Erfassung fehlgeschlagen (Ausgabe oben)."; return 1; }
+
+  log "Kalibriere Kamera-zu-Tisch-Abbildung aus den Bewegungsankern."
   docker exec -w "$SIM_DIR" "$CONTAINER" env -u VIRTUAL_ENV \
     "$ISAAC_PY" "$SIM_DIR/reconstruct_cube_poses.py" calibrate \
-      --dataset-path "$ds" --out "$calibration" --debug-dir "$debug" \
+      --dataset-path "$ds" --anchors "$anchors" --out "$calibration" --debug-dir "$debug" \
       "${REPLAY_SELECTION_ARGS[@]}" \
     2>&1 | tee /dev/stderr | grep -c "\[replay-calibrate\] fertig" >/dev/null \
     || { err "Replay-Kalibrierung fehlgeschlagen (Ausgabe oben)."; return 1; }
+
+  log "Prüfe die Kalibrierung mit Markern im tatsächlichen Isaac-Renderer."
+  docker exec -w "$SIM_DIR" -e "DR_ENABLED=0" "$CONTAINER" \
+    env -u VIRTUAL_ENV "$ISAAC_PY" "$SIM_DIR/validate_replay_calibration.py" \
+      --headless --enable_cameras --dataset-path "$ds" --calibration "$calibration" \
+      --anchors "$anchors" --report-dir "$debug" --asset-path "$ASSET_PATH" \
+    2>&1 | tee /dev/stderr | grep -c "\[replay-calibration-render\] fertig" >/dev/null \
+    || { err "Renderer-Markerprüfung fehlgeschlagen (Bericht oben)."; return 1; }
   ok "Kalibrierung: $HOST_DATA_DIR/${calibration#/data/}"
-  echo "  Kontrollbilder: $HOST_DATA_DIR/${debug#/data/}"
+  echo "  Bewegungsanker: $HOST_DATA_DIR/${anchors#/data/}"
+  echo "  Kalibrierbericht: $HOST_DATA_DIR/${debug#/data/}"
 }
 
 # Rekonstruiert genau eine Anfangspose je Würfel und Episode. Fehlende Farben führen zum
@@ -1324,7 +1346,16 @@ do_replay_render() {
   local work="${REPLAY_WORK:-/data/cube_replay/work}"
   local poses="${REPLAY_POSES:-$work/cube_poses.json}"
   local out="${REPLAY_OUT:-/data/cube_replay/videos}"
+  local mode="${REPLAY_OUTPUT_MODE:-videos}"
+  local dataset_out="${REPLAY_DATASET_OUT:-/data/cube_replay/dataset}"
+  local reports="${REPLAY_RENDER_REPORT_DIR:-$work/render_reports}"
   local extra=()
+  [[ "$mode" == "videos" || "$mode" == "dataset" ]] \
+    || { err "REPLAY_OUTPUT_MODE muss videos oder dataset sein: '$mode'"; return 1; }
+  if [[ "$mode" == "dataset" && "${REPLAY_MAX_FRAMES:-0}" != "0" ]]; then
+    err "REPLAY_MAX_FRAMES ist im Dataset-Modus verboten; Techniktest mit videos ausführen."
+    return 1
+  fi
   [[ "${REPLAY_OVERWRITE:-0}" == "1" ]] && extra+=( --overwrite )
   [[ "${REPLAY_MAX_FRAMES:-0}" != "0" ]] \
     && extra+=( --max-frames "${REPLAY_MAX_FRAMES}" )
@@ -1338,11 +1369,17 @@ do_replay_render() {
   docker exec -w "$SIM_DIR" -e "DR_ENABLED=${DR_ENABLED:-0}" "$CONTAINER" \
     env -u VIRTUAL_ENV "$ISAAC_PY" "$SIM_DIR/run_dataset_replay_videos.py" \
       --headless --enable_cameras --dataset-path "$ds" --poses "$poses" \
-      --out-dir "$out" --asset-path "$ASSET_PATH" \
+      --out-dir "$out" --output-mode "$mode" --dataset-out "$dataset_out" \
+      --report-dir "$reports" --asset-path "$ASSET_PATH" \
       "${extra[@]}" "${REPLAY_SELECTION_ARGS[@]}" \
     2>&1 | tee /dev/stderr | grep -c "\[replay-render\] fertig" >/dev/null \
     || { err "Replay-Rendering fehlgeschlagen (Ausgabe oben)."; return 1; }
-  ok "Fertige Rendering-Videos (Host): $HOST_DATA_DIR/${out#/data/}"
+  if [[ "$mode" == "dataset" ]]; then
+    ok "Fertiger LeRobot-Datensatz (Host): $HOST_DATA_DIR/${dataset_out#/data/}"
+  else
+    ok "Fertige Rendering-Videos (Host): $HOST_DATA_DIR/${out#/data/}"
+  fi
+  echo "  Renderberichte: $HOST_DATA_DIR/${reports#/data/}"
 }
 
 do_render() {
@@ -1687,17 +1724,23 @@ Aktionen:
   replay-prepare  Vollständigen Real-Datensatz holen/konvertieren und Schema, vier Kameras,
               30 Hz sowie 28-DoF-State/Actions prüfen. Stellt das lokale G1+DEX3-Asset
               bereit und lädt keine Modellgewichte.
-  replay-calibrate  Kopfkamera-Skala an realen Würfelsilhouetten prüfen und gemeinsame
-              5-cm-Würfel-/Tischgeometrie unter REPLAY_WORK ablegen.
+  replay-calibrate  Originalaktionen unverändert und ohne Würfelkontakt abspielen,
+              reale Farbbewegungen den Finger-Schließpunkten zuordnen und daraus robuste
+              Pixel-zu-Tisch-Homographien sowie korrigierte Kopf-/Wrist-Kameras bestimmen.
+              Eine Markerprüfung im tatsächlichen Isaac-Renderer ist Teil dieses Schritts.
   replay-poses  Für maximal REPLAY_NUM_EPISODES (Default 10) die einmalige Anfangspose
               aller Würfel aus beiden Kopfkameras fitten. Fehlende Farben überspringen
               die Episode; kein Zufalls- oder Greifpunkt-Fallback.
   replay-render  Originale 28-DoF-Actions bei exakt 30 Hz abspielen. Jeder Würfel wird
               einmal vor Frame 0 gesetzt und danach ausschließlich von PhysX bewegt.
-              Ausgabe: fünf MP4s je Episode, kein Trainingsdatensatz.
+              REPLAY_OUTPUT_MODE=videos (Default): fünf MP4s je Episode.
+              REPLAY_OUTPUT_MODE=dataset: trainierbarer LeRobot-v2.1-Datensatz mit vier
+              Policy-Kameras, Sim-State und bytegleich geprüften Original-Actions.
               REPLAY_NUM_EPISODES (10), REPLAY_START_EPISODE (0), REPLAY_EPISODE_IDS,
               REPLAY_MAX_FRAMES (0), REPLAY_OVERWRITE (0),
-              REPLAY_OUT (/data/cube_replay/videos), REPLAY_WORK (/data/cube_replay/work).
+              REPLAY_OUT (/data/cube_replay/videos),
+              REPLAY_DATASET_OUT (/data/cube_replay/dataset),
+              REPLAY_WORK (/data/cube_replay/work).
   render      Gerenderten Co-Training-Datensatz erzeugen (Schritt 4): echte Dataset-Aktionen
               in der Sim abspielen und dabei die vier Policy-Kameras aufzeichnen. Ergebnis
               ist ein LeRobot-v2.1-Datensatz, den run_finetuning_cotrain.sh dazumischt.
@@ -1764,6 +1807,7 @@ Beispiele:
   REPLAY_NUM_EPISODES=10 ./Simulation/server_rl_run.sh replay-calibrate
   REPLAY_NUM_EPISODES=10 ./Simulation/server_rl_run.sh replay-poses
   DR_ENABLED=0 REPLAY_NUM_EPISODES=10 ./Simulation/server_rl_run.sh replay-render
+  REPLAY_OUTPUT_MODE=dataset REPLAY_NUM_EPISODES=10 ./Simulation/server_rl_run.sh replay-render
   HF_TOKEN=hf_... WANDB_API_KEY=... RL_NUM_ENVS=4 ./Simulation/server_rl_run.sh rl
   # mit Live-Ansicht im Browser + W&B-Video alle 10 Iterationen:
   HF_TOKEN=hf_... WANDB_API_KEY=... LIVE_VIEW=1 RL_WANDB_VIDEO_EVERY=10 \\

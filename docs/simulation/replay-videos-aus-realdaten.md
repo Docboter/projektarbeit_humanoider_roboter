@@ -1,8 +1,9 @@
 # Physikbasierte Replay-Videos aus dem Realdatensatz
 
-Dieser Workflow bestimmt die drei Würfelposen aus den realen Kopfkameras und spielt danach
-die originalen 28-DoF-Actions in Isaac Lab ab. Die Würfel werden pro Episode genau einmal
-gesetzt. Danach verändert nur PhysX ihre Pose; es gibt kein Tracking und keinen Attach.
+Dieser Workflow verankert reale Würfelpixel an den simulierten Finger-Schließpunkten und
+spielt danach die originalen 28-DoF-Actions in Isaac Lab ab. Die Kalibrierung verfolgt
+Farbwürfel offline im Realvideo; im finalen Replay werden sie genau einmal gesetzt. Danach
+verändert nur PhysX ihre Pose, ohne Tracking oder Attach.
 
 ## Schnellstart mit höchstens zehn Episoden
 
@@ -12,7 +13,8 @@ Auf dem Simulationsserver im Repository:
 HF_TOKEN=hf_... ./Simulation/server_rl_run.sh replay-prepare
 REPLAY_NUM_EPISODES=10 ./Simulation/server_rl_run.sh replay-calibrate
 REPLAY_NUM_EPISODES=10 ./Simulation/server_rl_run.sh replay-poses
-DR_ENABLED=0 REPLAY_NUM_EPISODES=10 ./Simulation/server_rl_run.sh replay-render
+DR_ENABLED=0 REPLAY_OUTPUT_MODE=videos REPLAY_NUM_EPISODES=10 \
+    ./Simulation/server_rl_run.sh replay-render
 ```
 
 Die Videos liegen auf dem Host standardmäßig unter:
@@ -30,6 +32,15 @@ verschiedenen Benutzerverzeichnissen landen.
 Je Episode entstehen fünf MP4s: beide Kopfkameras, beide Wrist-Kameras und `scene`.
 Kalibrierungsdaten und Kontrollbilder liegen getrennt unter `cube_replay/work/`.
 
+`replay-calibrate` ist jetzt GPU-basiert: Es spielt die Originalaktionen mit ausgelagerten
+Würfeln ab, misst die Fingerkuppen und verbindet eindeutige Schließereignisse mit dem
+Bewegungsbeginn eines Farbblocks im Realvideo. Actions werden nur gelesen und per SHA-256
+vor und nach dem Lauf auf Unverändertheit geprüft.
+
+Aus zeitgleichen Annäherungsframes werden außerdem die link-relativen Wrist-Kameraposen
+optimiert. Abschließend rendert Isaac bekannte Markerpositionen. Die Kalibrierung gilt nur
+bei höchstens 5 px Median und 10 px p90 als erfolgreich.
+
 ## Kleine Tests und gezielte Episoden
 
 Nur 60 Frames einer Episode rendern:
@@ -38,6 +49,19 @@ Nur 60 Frames einer Episode rendern:
 REPLAY_NUM_EPISODES=1 REPLAY_MAX_FRAMES=60 \
     ./Simulation/server_rl_run.sh replay-render
 ```
+
+Nach erfolgreicher Sichtprüfung einen trainierbaren Datensatz erzeugen:
+
+```bash
+REPLAY_OUTPUT_MODE=dataset REPLAY_NUM_EPISODES=10 \
+    ./Simulation/server_rl_run.sh replay-render
+```
+
+Der Dataset-Modus schreibt LeRobot v2.1 mit vier Policy-Kameras, tatsächlichem Sim-State
+und unveränderten Original-Actions nach `/data/cube_replay/dataset`. Metadaten, numerische
+Statistiken, ursprüngliche Task-IDs und das Replay-Manifest werden mitgeführt. Teil-Episoden
+via `REPLAY_MAX_FRAMES` sind in diesem Modus absichtlich verboten. Eine unzureichende
+Wrist-Kalibrierung warnt im Videomodus, sperrt aber bewusst den Dataset-Modus.
 
 Bestimmte Episoden verwenden:
 
@@ -58,10 +82,16 @@ werden beibehalten; `REPLAY_OVERWRITE=1` erzeugt sie neu.
   `data/G1_Dex3_BlockStacking` enthält nur Metadaten.
 - Eine Episode wird nicht gerendert, wenn nicht alle drei Farben in beiden Kopfkameras
   zuverlässig erkannt werden.
-- Die Würfelkante ist global 5 cm. Ihre gemessene Bildgröße kalibriert die Brennweite;
-  die gemeinsame Tischhöhe folgt aus einem 3D-Würfelmodell, das gleichzeitig an beide
-  Kopfkameras angepasst wird. Die empfindlichere reine Stereo-Triangulation wird nur als
-  Diagnosewert gespeichert. Größe und Tischhöhe werden nicht je Episode verändert.
+- Die Würfelkante ist global 5 cm. XY stammt aus trajektorienverankerten Homographien;
+  gegriffene Würfel verwenden ihren eindeutigen Bewegungsanker, sofern Bild und Anker
+  höchstens 3 cm auseinanderliegen.
+- Die gemeinsame Würfelhöhe stammt aus dem robusten Median der Fingerkuppenanker; mehr als
+  4 cm p90-p10-Streuung oder eine unplausible Höhe bricht die Kalibrierung ab.
+- Mindestens acht räumlich verteilte Anker sind erforderlich. Reichen zehn Episoden nicht,
+  wird abgebrochen und die Kalibrierung mit zwanzig Episoden wiederholt.
+- `replay-calibrate` prüft bekannte Positionen gegen den tatsächlichen Isaac-Renderer.
+  Beim Rendern werden Kopfkameras in Frame 0 und Wrist-Kameras in den jeweils zeitgleichen
+  Trajektorienframes erneut geprüft.
 - Der Replay läuft mit `dt=1/210 s` und sieben Physics-Schritten je Frame, also exakt 30 Hz.
 - Ein Aufgabenerfolg löst im Replay keinen Auto-Reset aus. Die Originalepisode läuft bis
   zu ihrem Ende.
@@ -76,6 +106,8 @@ werden beibehalten; `REPLAY_OVERWRITE=1` erzeugt sie neu.
 | `REPLAY_EPISODE_IDS` | leer | Explizite, leerzeichengetrennte Episoden |
 | `REPLAY_MAX_FRAMES` | `0` | `0` vollständig, sonst Techniktest |
 | `REPLAY_OVERWRITE` | `0` | Vorhandene Ergebnisse neu erzeugen |
+| `REPLAY_OUTPUT_MODE` | `videos` | `videos` oder trainierbarer `dataset` |
 | `REPLAY_WORK` | `/data/cube_replay/work` | Kalibrierung, Posen und Kontrollbilder |
 | `REPLAY_OUT` | `/data/cube_replay/videos` | MP4-Ausgabe |
+| `REPLAY_DATASET_OUT` | `/data/cube_replay/dataset` | LeRobot-v2.1-Ausgabe |
 | `REPLAY_DATASET` | `/data/unitreerobotics/G1_Dex3_BlockStacking_Dataset` | Quelldatensatz |

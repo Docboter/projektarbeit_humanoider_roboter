@@ -18,8 +18,16 @@
   `docs/simulation/replay-videos-aus-realdaten.md`.
 - Default sind höchstens zehn Episoden. `REPLAY_EPISODE_IDS` überschreibt die fortlaufende
   Auswahl, `REPLAY_MAX_FRAMES=60` eignet sich für den Techniktest.
+- Seit der Episode-0-Abnahme werden XY und Kopfkameras nicht mehr aus der analytischen
+  Pinhole-Rückprojektion bestimmt. `replay-calibrate` spielt die unveränderten Actions mit
+  ausgelagerten Würfeln ab, verbindet reale Farbbewegungen mit Finger-Schließpunkten und
+  fittet daraus robuste Pixel-zu-Tisch-Homographien. Wrist-Kameras werden aus zeitgleichen
+  Annäherungsframes optimiert; eine echte Isaac-Markerprüfung schließt den Schritt ab.
+  Mindestens acht Anker sind Pflicht.
 - Die drei Würfel werden nach dem Roboter-Startzustand genau einmal aus `cube_poses.json`
   gesetzt. Danach gibt es weder Pose-Schreibzugriffe noch Attach/Tracking.
+- `REPLAY_OUTPUT_MODE=videos` schreibt fünf Prüf-MP4s; `dataset` schreibt LeRobot v2.1
+  mit vier Policy-Kameras, Sim-State und per SHA-256 geprüften Original-Actions.
 - Der Replay überschreibt nur seine lokale Env-Config auf exakt 30 Hz und deaktiviert den
   Success-Auto-Reset. Eval/RL behalten ihre bisherigen Defaults.
 - Hardware-/Isaac-Abnahme des neuen Pfads steht noch aus; lokal wurden nur Syntax und
