@@ -23,7 +23,7 @@ Detailed guides (all prose docs live under [`docs/`](docs/README.md)):
 - **Sim eval on vast.ai (German):** [`docs/simulation/vastai-anleitung.md`](docs/simulation/vastai-anleitung.md)
 - **Sim implementation notes & lessons learned:** [`docs/simulation/umsetzungsnotizen.md`](docs/simulation/umsetzungsnotizen.md)
 - **Results & evaluation (German):** [`docs/ergebnisse/`](docs/ergebnisse/README.md) — run analyses, domain-gap, sim methodology review, plus the **diagnose chronicle** ([`diagnose-chronik.md`](docs/ergebnisse/diagnose-chronik.md), runs 08–34 — the project-wide "Lauf N" references resolve here)
-- **Further work / concepts (German):** [`docs/weiterfuehrend/`](docs/weiterfuehrend/README.md) — RL plan + slim operative RL guide ([`rl-anleitung.md`](docs/weiterfuehrend/rl-anleitung.md); RL runs end-to-end on the Blackwell server; run 32 (span gate) confirmed the domain gap, run 34 measured the `TUNE_VISUAL` checkpoint at 27.6% vs 20.5% finger span with `lifted` still 0/10 → next step is co-training, RL after; learning effect still unverified), locomotion research (not implemented), livestream plan (Spur A/WebRTC open; Spur B/MJPEG `LIVE_VIEW` is built)
+- **Further work / concepts (German):** [`docs/weiterfuehrend/`](docs/weiterfuehrend/README.md) — RL plan + slim operative RL guide ([`rl-anleitung.md`](docs/weiterfuehrend/rl-anleitung.md); RL runs end-to-end on the Blackwell server; run 32 (span gate) confirmed the domain gap, run 34 measured the `TUNE_VISUAL` checkpoint at 27.6% vs 20.5% finger span with `lifted` still 0/10 → next step is co-training, RL after; learning effect still unverified), locomotion research (not implemented), livestream plan (Spur A/WebRTC open; Spur B/MJPEG `LIVE_VIEW` is built), **GR00T N1.7 migration research + plan** ([`groot-n17-migration.md`](docs/weiterfuehrend/groot-n17-migration.md) — not executed; verdict "medium effort": `NEW_EMBODIMENT`, CLI, dataset, ZMQ server stay compatible, but the Cosmos-Reason2-2B backbone is HF-gated, GA needs Py 3.12/torch 2.9, and N1.6 checkpoints are not loadable)
 - **Outdated content / changelog raw material:** [`docs/historie.md`](docs/historie.md) — superseded findings are moved here instead of being kept inline (e.g. the former `umgebungsanalyse.md` audit, run-1 fix round, June domain-gap first measurement)
 
 ## Key commands
@@ -228,7 +228,10 @@ repo root
 │   ├── weiterfuehrend/                 # reinforcement-learning-plan.md (status source) + rl-anleitung.md
 │   │                                   #   (slim operative guide; run history moved to
 │   │                                   #   ergebnisse/diagnose-chronik.md), lokomotion-recherche.md
-│   │                                   #   (not implemented), livestream-plan.md (Spur A open, Spur B built)
+│   │                                   #   (not implemented), livestream-plan.md (Spur A open, Spur B built),
+│   │                                   #   groot-n17-migration.md (N1.6→N1.7 research + 8-phase plan, NOT
+│   │                                   #   executed: gated Cosmos-Reason2-2B backbone, Py 3.12/torch 2.9,
+│   │                                   #   N1.6 checkpoints not loadable; NEW_EMBODIMENT/CLI/ZMQ stay compatible)
 │   ├── fehlerbehebung.md               # cross-cutting troubleshooting
 │   └── portabilitaet.md                # ★ Portability: no host-bound paths in scripts any more.
 │                                       #   server_rl_run.sh reads a gitignored .env.local (template:
