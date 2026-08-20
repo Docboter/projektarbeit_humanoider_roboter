@@ -248,6 +248,8 @@ repo root
 ├── Training/                           # Everything training-related (build, run scripts)
 │   ├── Dockerfile                      # Defines image; ENTRYPOINT = /scripts/entrypoint.sh
 │   │                                   #   build context = Training/ (so COPY scripts/ works)
+│   ├── .dockerignore                   # Keeps the build context at scripts/ — the host
+│   │                                   #   launchers next to it never belong in the image
 │   ├── docker-compose.yml              # Optional (dev convenience; no host volume mounts)
 │   ├── kisski_submit.sh                # SLURM batch script for KISSKI HPC cluster
 │   ├── kisski_menu.sh                  # ★ Login-node helper: asks partition/walltime and
