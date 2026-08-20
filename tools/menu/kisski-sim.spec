@@ -1,3 +1,4 @@
+# TL;DR: Menue-Parameter der Aktion sim von kisski_sim_submit.sh (Sim-Eval, jupyter-Partition).
 action sim "Sim-Eval einreichen" \
   --rank 10 --group "Simulation" \
   --cli "Simulation/kisski_sim_submit.sh" \

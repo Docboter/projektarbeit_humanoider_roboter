@@ -1,3 +1,4 @@
+# TL;DR: Menue-Parameter der Aktion livecheck (Phase 0 LIVE-Variante) von server_rl_run.sh.
 action livecheck "Phase 0 der LIVE-Variante pruefen" \
   --rank 20 \
   --group "Ansehen" \

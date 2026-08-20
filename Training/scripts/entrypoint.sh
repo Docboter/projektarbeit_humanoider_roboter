@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# TL;DR: Container-Entrypoint des Trainings-Images: Download → Konvertierung → Training, nur per Env-Vars.
 # entrypoint.sh — Container-Entrypoint für vast.ai & andere Cloud-GPU-Plattformen.
 #
 # Lauft beim Containerstart komplett autonom durch:

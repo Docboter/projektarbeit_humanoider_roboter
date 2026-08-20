@@ -1,3 +1,4 @@
+# TL;DR: Menue-Parameter der Aktion rl von kisski_rl_submit.sh (RL-Fine-tuning FPO).
 action rl "RL-Fine-tuning (FPO) einreichen" \
   --rank 20 --group "Training" \
   --cli "Training/kisski_rl_submit.sh" \

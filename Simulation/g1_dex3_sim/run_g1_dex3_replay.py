@@ -1,3 +1,4 @@
+# TL;DR: Open-Loop-Diagnose: spielt echte Dataset-Aktionen in die Env (kein Modell/Server).
 """
 Open-Loop-REPLAY-Diagnose für G1 + Dex3 in Isaac Lab.
 

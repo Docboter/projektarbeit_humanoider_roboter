@@ -1,3 +1,4 @@
+# TL;DR: Einmalig: konvertiert das G1+Dex3-URDF in eine Isaac-Sim-USD-Datei.
 """
 Konvertiert das G1+Hand URDF in eine Isaac Sim USD-Datei (Isaac Lab 2.x API).
 

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# TL;DR: Läuft im Container — wie run_finetuning.sh, trainiert aber zusätzlich den Vision-Encoder mit.
 # run_finetuning_vision.sh — Variante von run_finetuning.sh, die ZUSÄTZLICH den
 # Vision-Encoder (Eagle-Backbone) mittrainiert (--tune_visual).
 #

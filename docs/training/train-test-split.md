@@ -1,5 +1,9 @@
 # Train-Test-Split (80/20)
 
+> **TL;DR:** Beschreibt den 80/20-Train-Test-Split des Datensatzes und die Checkpoint-Auswahl
+> per Open-Loop-Eval nach dem Training (`checkpoint_sweep.py`), da In-Training-Validierung im
+> Fork nicht möglich ist. Aktivierbar per `TRAIN_TEST_SPLIT=1`.
+
 Dieses Dokument beschreibt, wie der Block-Stacking-Datensatz in einen Trainings- und einen Test-Split aufgeteilt wurde, damit das nachtrainierte Modell nach dem Fine-tuning auf ungesehenen Episoden bewertet werden kann.
 
 ---

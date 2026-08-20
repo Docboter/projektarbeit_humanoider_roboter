@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# TL;DR: Sim-Container-Entrypoint (vast.ai): startet GR00T-Server + Isaac-Lab-Client für Closed-Loop-Eval.
 # entrypoint_sim.sh — Sim-Container-Entrypoint für vast.ai
 #
 # Startet autonom:

@@ -1,5 +1,9 @@
 # RL-Fine-tuning (FPO) — Schritt-für-Schritt-Anleitung
 
+> **TL;DR:** RL-Bedienungsanleitung (operativ, schlank): Schritt für Schritt vom Image-Bau über den
+> BC-Checkpoint bis zum laufenden RL-Training auf einer RT-Core-GPU, plus die Diagnose-Werkzeuge
+> `gap`/`eval`/`grasp`/`span`. Status und Lauf-Historie im Banner direkt darunter.
+
 Ziel: Den feingetunten GR00T-N1.6-**BC-Checkpoint** per **Reinforcement Learning (FPO)** in der
 Isaac-Lab-Block-Stacking-Sim weiter verfeinern — auf einer **RT-Core-GPU** (L40 / RTX 4090 / A6000
 oder ein eigener Server mit RT-Core-GPU, z. B. RTX PRO 6000 Blackwell). RL trainiert die Policy

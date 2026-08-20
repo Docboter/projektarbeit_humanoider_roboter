@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# TL;DR: Lokale Diagnose: überlagert Real- und Sim-Kamera-Frames zur Wrist-Kamera-Kalibrierung.
 """
 Overlay-Verfahren für Wrist-Kamera-Kalibrierung.
 

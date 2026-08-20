@@ -1,3 +1,4 @@
+# TL;DR: Gemeinsame Trainings-Parameter (WANDB_API_KEY, Container-Name/-Image).
 # _common-train.spec — Parameter, die sich die Trainings-Aktionen teilen.
 # Geladen nach _common.spec, nur fuer den Prefix "train".
 

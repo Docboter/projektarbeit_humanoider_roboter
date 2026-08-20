@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# TL;DR: Kameraposen, Intrinsics, Pinhole-Modell (numpy, Isaac-frei); von g1_dex3_cfg.py importiert.
 """
 camera_geometry.py — Kameraposen, Intrinsics und das Pinhole-Modell dazu.
 

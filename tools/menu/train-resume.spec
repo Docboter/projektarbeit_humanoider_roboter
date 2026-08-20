@@ -1,3 +1,4 @@
+# TL;DR: Trainings-Launcher-Aktion --resume: bestehenden Container weiterlaufen lassen.
 action resume "Bestehenden Container weiterlaufen lassen" \
   --cli "--resume" \
   --rank 20 --group "Training" \

@@ -1,3 +1,4 @@
+# TL;DR: Menue-Parameter der Aktion render (Co-Training-Datensatz) von server_rl_run.sh.
 action render "Gerenderten Co-Training-Datensatz erzeugen" \
   --rank 30 \
   --group "Co-Training vorbereiten" \

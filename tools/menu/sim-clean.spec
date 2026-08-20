@@ -1,3 +1,4 @@
+# TL;DR: Menue-Parameter der Aktion clean (Container entfernen) von server_rl_run.sh.
 action clean "Container entfernen (Daten bleiben)" \
   --rank 20 \
   --group "Werkzeuge" \

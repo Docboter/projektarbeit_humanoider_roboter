@@ -1,5 +1,10 @@
 # Würfellage aus den Realbildern — Verfahren, Koordinaten, offene Punkte
 
+> **TL;DR:** Übergabe-Doku zur Würfellage-Rekonstruktion: wie die Position der drei Würfel aus
+> realen Trainingsbildern per Farbsegmentierung und Kamerastrahl in Sim-Koordinaten überführt
+> wird, inklusive der beiden gescheiterten Vorgängerverfahren. Für alle, die den
+> Co-Training-Renderer weiterbauen; der Abnahme-Test gegen den Renderer steht noch aus.
+
 **Stand:** 2026-08-17 · Verfahren gebaut und lokal geprüft, **Abnahme-Test gegen den Renderer
 offen** · Vorgeschichte: [co-training.md](../training/co-training.md) §3.0/§3.2a
 

@@ -1,5 +1,9 @@
 # Ergebnisse & Evaluation
 
+> **TL;DR:** Navigations-Hub für alle Auswertungen, Messungen und Methodik-Reviews aus Training und
+> Simulation — die zentrale Anlaufstelle für die Frage „Was kam raus?“. Verweist unten auf die
+> Einzeldokumente, chronologisch geordnet in der Zeitleiste.
+
 Gebündelte Auswertungen, Messungen und Methodik-Reviews aus Training und Simulation — die
 „Was kam raus?"-Anlaufstelle. Die operativen Anleitungen, die diese Ergebnisse erzeugt haben,
 liegen unter [`../training/`](../training/README.md) und [`../simulation/`](../simulation/README.md).

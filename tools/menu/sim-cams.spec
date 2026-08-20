@@ -1,3 +1,4 @@
+# TL;DR: Menue-Parameter der Aktion cams (Kamera-Pose-Diagnose) von server_rl_run.sh.
 action cams "Kamera-Diagnose: Pose + ein PNG je Kamera" \
   --rank 10 \
   --group "Messen" \

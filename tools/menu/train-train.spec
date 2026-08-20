@@ -1,3 +1,4 @@
+# TL;DR: Menue-Parameter der Standardaktion train (neues Training starten).
 action train "Neues Training starten" \
   --cli "" \
   --rank 10 --group "Training" \

@@ -1,5 +1,10 @@
 # Zweiten Docker-Container für die Sim bauen — Isaac Lab + GR00T-Client
 
+> **TL;DR:** Archiviert (teilweise überholt): beschreibt den ursprünglichen
+> Zwei-Container-Build-Plan für Isaac Lab + GR00T-Client. Für vast.ai ersetzt durch den
+> kombinierten Container ([Dockerfile.vastai](../../../Simulation/Dockerfile.vastai)); für KISSKI
+> näherungsweise weiterhin gültig.
+
 > ⚠️ **ARCHIVIERT — teilweise überholt.** Zwei Einschränkungen:
 > - **Für vast.ai überholt:** Der hier beschriebene Zwei-Container-Plan wurde durch den
 >   **kombinierten** Container ersetzt → [`Dockerfile.vastai`](../../../Simulation/Dockerfile.vastai),

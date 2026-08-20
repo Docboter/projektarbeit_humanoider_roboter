@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# TL;DR: SLURM-Job auf KISSKI — wertet alle Checkpoints eines Laufs offline aus, meldet den besten.
 # kisski_open_loop_eval.sh — Checkpoint-Auswahl per Open-Loop-Eval auf KISSKI
 #
 # Läuft checkpoint_sweep.py über ALLE Checkpoints eines Trainingslaufs:

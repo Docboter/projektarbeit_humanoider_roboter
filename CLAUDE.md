@@ -192,6 +192,14 @@ Config: [`app/Groot-1.6/pyproject.toml`](app/Groot-1.6/pyproject.toml) under `[t
 **Commit messages: English.** Subject and body. This holds regardless of the language of the
 code comments or docs the commit touches — those stay German where they already are.
 
+**TL;DR convention (every doc page and every script).** A Markdown page under `docs/` (plus
+`README.md`, `next-steps.md`) starts with a `> **TL;DR:** …` blockquote directly under its H1:
+1–3 German sentences — what the page is, when to read it, what is *not* here (link). A script
+under `Training/`, `Simulation/`, `tools/` (`.sh`/`.py`/`.ps1`/`.spec`, `Dockerfile*`,
+`docker-compose.yml`) carries `# TL;DR: …` as the first comment line after the shebang
+(line 2 of a Dockerfile, below `# syntax=`). New files follow suit; `tools/check_tldr.sh` fails
+when one is missing and `tools/check_tldr.sh --list` prints the whole overview.
+
 ## Architecture
 
 ```
@@ -235,6 +243,7 @@ repo root
 │   │                                   #   missing; the training launchers had none)
 │   ├── gen_docs.sh                     # Drift check: spec default vs. ${VAR:-…} vs. docs
 │   ├── test_menu.sh                    # The §8 acceptance plan, runnable (30 checks)
+│   ├── check_tldr.sh                   # TL;DR convention guard; --list = one-screen overview
 │   └── menu/*.spec                     # Parameter specs — one file per action
 ├── Training/                           # Everything training-related (build, run scripts)
 │   ├── Dockerfile                      # Defines image; ENTRYPOINT = /scripts/entrypoint.sh

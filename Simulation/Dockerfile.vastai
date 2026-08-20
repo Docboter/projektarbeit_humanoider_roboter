@@ -1,4 +1,5 @@
 # syntax=docker/dockerfile:1
+# TL;DR: vast.ai-Image: Isaac Lab + GR00T-Policy-Server kombiniert in einem Container (RT-Core-GPU).
 # Sim + GR00T-Policy-Server — kombinierter Container für vast.ai
 #
 # Im Gegensatz zum KISSKI-Sim-Container (Dockerfile) enthält dieses Image BEIDE Prozesse:

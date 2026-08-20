@@ -1,3 +1,4 @@
+# TL;DR: Windows-Host-Skript — startet das Finetuning im Docker-Container via docker compose exec.
 # Startet das GR00T-Finetuning *vom Host aus* im Docker-Container (Windows-Variante).
 #
 # Voraussetzungen auf dem Host:

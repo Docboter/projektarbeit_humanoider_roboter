@@ -1,5 +1,9 @@
 # Weiterführende Arbeiten
 
+> **TL;DR:** Navigations-Hub für Konzept- und Planungsdokumente zu möglichen Folgeschritten (RL,
+> Lokomotion, Live-Ansicht, CLI-Menüführung) — größtenteils recherchiert, noch nicht end-to-end
+> validiert. Ausnahmen: RL läuft seit 2026-08-08 end-to-end, ebenso die Live-Ansicht-Spur B.
+
 Konzept- und Planungs-Dokumente für mögliche Folgeschritte — überwiegend **recherchiert, noch nicht
 end-to-end validiert**. Ausnahmen: **RL** ist gebaut und läuft seit 2026-08-08 end-to-end auf
 RT-Core-Hardware, und die **Live-Ansicht des RL-Laufs** („Spur B" des Livestream-Plans) ist seit

@@ -1,3 +1,4 @@
+# TL;DR: Speichert Standbilder der 4 Policy-Kameras für den Domain-Gap-Vergleich mit Realbildern.
 """
 Dump-Skript: speichert je ein RGB-Standbild der vier POLICY-Kameras der Isaac-Lab-Env.
 

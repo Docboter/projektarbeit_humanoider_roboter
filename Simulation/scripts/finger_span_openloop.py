@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# TL;DR: Container-Diagnose: prüft kommandierte Fingerspanne der Policy auf echten Dataset-Bildern.
 """Kommandierte Fingerspanne der BC-Policy auf ECHTEN Datensatz-Bildern.
 
 Wozu

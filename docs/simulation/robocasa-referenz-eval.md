@@ -1,5 +1,11 @@
 # RoboCasa GR-1 Referenz-Eval — Bedienung
 
+> **TL;DR:** Operative Bedienungsanleitung für den RoboCasa-GR-1-Referenz-Eval: lässt das
+> un-finetunte Basismodell `GR00T-N1.6-3B` zero-shot auf dem RoboCasa-GR-1-Tabletop-Benchmark
+> laufen, um die eigene GR00T-Inferenz-Pipeline gegen NVIDIAs publizierte Erfolgsquoten zu prüfen.
+> Motivation und Hintergrund stehen in
+> [basismodell-referenzaufgabe.md](basismodell-referenzaufgabe.md).
+
 **Stand:** 2026-07-19 · **Status:** ✅ Validiert auf 2× RTX PRO 6000 — Aggregat-Mittel über 12 Tasks **47,7 % ≈ 47,8 %** erwartet. Ergebnis: [docs/ergebnisse/basismodell-referenz-eval.md](../ergebnisse/basismodell-referenz-eval.md). `full`-Lauf bei 12/24 Tasks manuell gestoppt; Re-Run offen.
 
 Operative Anleitung für die **Referenzaufgabe** aus

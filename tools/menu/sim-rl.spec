@@ -1,3 +1,4 @@
+# TL;DR: Menue-Parameter der Aktion rl (echter RL-Lauf per FPO) von server_rl_run.sh.
 action rl "Echter RL-Lauf (FPO, Vordergrund)" \
   --rank 10 \
   --group "Trainieren" \

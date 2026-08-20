@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# TL;DR: SLURM-Job (KISSKI): Closed-Loop-Sim-Eval, GR00T-Server + Isaac-Lab-Client (RTX 5000).
 # kisski_sim_submit.sh — SLURM-Skript für die G1+Dex3 Closed-Loop-Sim-Eval auf GWDG
 #
 # Startet GR00T-Policy-Server + Isaac-Lab-Sim-Client im selben SLURM-Job.

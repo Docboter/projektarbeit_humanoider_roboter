@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# TL;DR: Host-Skript: montiert Sim- neben Dataset-Kamera-Frames zum visuellen Domain-Gap-Vergleich.
 # compare_domain_gap.sh — montiert Dataset- vs. Sim-Policy-Kamera-Frames nebeneinander.
 #
 # Domain-Gap-Diagnose (Schritt 1): legt je Policy-Kamera das ECHTE Dataset-Referenzbild

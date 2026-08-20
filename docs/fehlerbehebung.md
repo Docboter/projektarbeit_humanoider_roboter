@@ -1,5 +1,9 @@
 # Troubleshooting
 
+> **TL;DR:** Gebündelte Fehlerlösungen für Training und Simulation nach Symptom → Ursache →
+> Lösung, mit Verweis auf die jeweilige Detail-Doku. Bei einem konkreten Fehler nachschlagen,
+> nicht linear lesen.
+
 Gebündelte Fehlerlösungen für Training und Simulation. Jeder Eintrag: **Symptom → Ursache →
 Lösung**, mit Verweis auf die jeweilige Detail-Doku.
 

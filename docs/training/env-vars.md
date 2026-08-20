@@ -1,5 +1,9 @@
 # Konfiguration über Env-Vars
 
+> **TL;DR:** Referenz aller Trainings-Env-Vars (Pflicht- und optionale Parameter,
+> VRAM-Richtwerte) — die Single Source of Truth, auf die andere Trainingsdocs verweisen.
+> Zum gezielten Nachschlagen einzelner Variablen, nicht zum Auswendiglernen.
+
 Alle Trainings-Parameter werden über Umgebungsvariablen gesteuert — auf vast.ai, KISSKI und
 lokal **identisch**. Der Entrypoint (`/scripts/entrypoint.sh`) liest sie ein.
 

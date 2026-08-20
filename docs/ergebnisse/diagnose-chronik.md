@@ -1,5 +1,10 @@
 # Diagnose-Chronik — Sim- und RL-Läufe 08–34
 
+> **TL;DR:** Chronologisches Protokoll aller Sim-/RL-Diagnoseläufe (Läufe 08–34): Kamera-Fixes,
+> Domain-Gap-Messungen, Greif-Physik, `span`-Gate, `TUNE_VISUAL` im Closed Loop. Nachschlagewerk für
+> die projektweiten „Lauf N“-Verweise — gezielt den passenden Abschnitt ansteuern statt komplett
+> lesen.
+
 Chronologisches Protokoll der Diagnose-, Kalibrier- und Eval-Läufe der Isaac-Lab-Sim
 (2026-08-08 bis 2026-08-14). Entstanden am 2026-08-18 durch Aufteilung von
 [rl-anleitung.md](../weiterfuehrend/rl-anleitung.md), die auf 2197 Zeilen angewachsen war und

@@ -1,5 +1,9 @@
 # Bewertung der Sim-Umsetzung — Sinnvoll & korrekt? (2026-06-05)
 
+> **TL;DR:** Methodik-Review: Ist die Closed-Loop-Sim-Eval sinnvoll und korrekt aufgebaut? Klärt per
+> Code-Verifikation und Literaturrecherche, warum 0 % Erfolg der erwartete Real→Sim-Gap ist und
+> Open-Loop-MSE die valide Metrik bleibt.
+
 Tiefenreview der Closed-Loop-Sim-Eval: Ist der aktuelle Aufbau methodisch sinnvoll und
 technisch korrekt? Grundlage sind (a) eine Code-Verifikation gegen die echte GR00T-Trainings-
 konfiguration und (b) eine belegte Literaturrecherche (Quellen jeweils verlinkt).

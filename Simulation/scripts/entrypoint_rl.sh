@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# TL;DR: Sim-Container-Entrypoint: startet das FPO-RL-Fine-tuning des GR00T-Action-Heads (rl_finetune.py).
 # entrypoint_rl.sh — RL-Fine-tuning (FPO) im kombinierten Isaac-Sim + GR00T-Container.
 #
 # Läuft autonom: lädt den BC-Checkpoint (HF oder lokal) und startet das

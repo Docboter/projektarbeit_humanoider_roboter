@@ -1,5 +1,9 @@
 # Co-Training auf echten und gerenderten Bildern (Schritt 4)
 
+> **TL;DR:** Schritt 4 der Domain-Gap-Behebung: warum Co-Training auf echten + gerenderten
+> Sim-Bildern der nächste Hebel ist, und welche Werkzeuge dafür gebaut wurden (Renderer,
+> Zwei-Datensatz-Training `USE_COTRAIN=1`). Werkzeuge stehen, der Trainingslauf steht noch aus.
+
 **Stand:** 2026-08-17 · erster voller Renderlauf gefahren (60 Episoden), **Befund: Frames ab
 dem Griff sind falsch beschriftet** → `RENDER_STOP_AT_GRASP` (§ 3.2a), Trainingslauf steht
 noch aus · Vorgeschichte:

@@ -1,4 +1,5 @@
 #!/bin/bash
+# TL;DR: Läuft im Container — lädt Modellgewichte und Datensatz von HuggingFace nach /data.
 # Lädt Modellgewichte und Datensätze von HuggingFace herunter.
 # Ausführen: bash scripts/download_data.sh
 #

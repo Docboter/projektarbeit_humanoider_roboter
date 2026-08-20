@@ -1,3 +1,4 @@
+# TL;DR: Menue-Parameter der Aktion train von kisski_submit.sh (BC-Fine-tuning).
 action train "BC-Fine-tuning einreichen" \
   --rank 10 --group "Training" \
   --cli "Training/kisski_submit.sh" \

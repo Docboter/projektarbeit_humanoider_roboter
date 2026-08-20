@@ -1,3 +1,4 @@
+# TL;DR: Menue-Parameter der Aktion view (Szene ohne Modell/Checkpoint) von server_rl_run.sh.
 action view "Szene ansehen - ohne Modell, ohne Checkpoint" \
   --rank 10 \
   --group "Ansehen" \

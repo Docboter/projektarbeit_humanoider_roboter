@@ -1,3 +1,4 @@
+# TL;DR: Closed-Loop-Baseline-Eval des un-finetunten GR00T auf stock G1+Dex1-Greifer.
 """
 Closed-Loop-Baseline-Eval für **un-finetuntes GR00T-N1.6-3B** auf dem
 **stock Unitree G1 + Dex1-Greifer** (Embodiment ``UNITREE_G1``) in Isaac Lab.

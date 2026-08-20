@@ -1,3 +1,4 @@
+# TL;DR: Menue-Parameter der Aktion webview (Browser-Client, WebRTC) von server_rl_run.sh.
 action webview "Browser-Client fuer den WebRTC-Viewport" \
   --rank 30 \
   --group "Ansehen" \

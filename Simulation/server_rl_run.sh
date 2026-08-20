@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# TL;DR: Host-Workflow für den eigenen Docker-Server: preflight/setup/check/eval/gap/rl/... als Unterbefehle.
 # server_rl_run.sh — RL-Fine-tuning (FPO) auf einem generischen Docker-GPU-Server
 #   (z. B. 2× RTX PRO 6000 Blackwell) statt auf vast.ai.
 #

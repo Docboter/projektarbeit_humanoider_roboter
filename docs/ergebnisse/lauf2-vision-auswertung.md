@@ -1,5 +1,9 @@
 # Auswertung — zweiter Trainingsdurchlauf mit Vision-Encoder (`g1_dex3_blockstacking_vision_v1`)
 
+> **TL;DR:** Auswertung des zweiten Trainingslaufs mit mittrainiertem Vision-Encoder
+> (`tune_visual=true`, ohne Augmentierung) als Gegenprobe zu Lauf 1 — die Closed-Loop-Policy
+> kollabiert auf reines Arm-Zurückziehen. Kurzfazit der Befunde in §1.
+
 **Erstellt:** 2026-06-05 · **Run-ID:** `ajgoskon` (W&B-Projekt `gr00t-g1-dex3`, Entity
 `projektarbeit_humanoider_roboter`) · **Modell:** GR00T N1.6 (3,29 Mrd. Parameter),
 Finetune **mit aufgetautem Vision-Encoder** (`tune_visual = true`) auf Unitree G1 + DEX3,

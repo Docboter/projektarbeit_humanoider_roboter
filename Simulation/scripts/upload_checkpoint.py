@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# TL;DR: Host-Skript: lädt einen Checkpoint zu HuggingFace Hub hoch, resumable, mit hf_transfer.
 r"""
 Checkpoint zu HuggingFace Hub hochladen.
 

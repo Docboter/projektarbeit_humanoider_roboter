@@ -1,5 +1,9 @@
 # W&B Offline-Sync auf KISSKI
 
+> **TL;DR:** Anleitung zum manuellen Hochladen der W&B-Offline-Runs vom KISSKI-Login-Node, da
+> die Compute-Nodes keinen Internetzugang haben — inkl. Live-Tracking per periodischem
+> Auto-Sync.
+
 KISSKI-Compute-Nodes haben keinen Internetzugang. W&B läuft daher automatisch
 im Offline-Modus und schreibt Runs lokal. Nach dem Training müssen sie einmalig
 vom Login-Node aus hochgeladen werden.

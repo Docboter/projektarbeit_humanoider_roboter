@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# TL;DR: GR00T-ZMQ-Server im Container mit optionalem torch.compile-/TensorRT-Backend fuer den DiT.
 """GR00T-ZMQ-Server mit opt-in torch.compile-/TensorRT-DiT-Backend."""
 
 from __future__ import annotations

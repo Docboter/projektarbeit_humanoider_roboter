@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# TL;DR: Host-Workflow für RoboCasa-GR-1-Referenz-Eval auf dem eigenen Docker-Server (preflight/setup/eval).
 # server_robocasa_ref_run.sh — RoboCasa GR-1 Referenz-Eval auf einem generischen
 #   Docker-GPU-Server (z. B. 2× RTX PRO 6000 Blackwell).
 #

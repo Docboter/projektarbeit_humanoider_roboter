@@ -1,3 +1,4 @@
+# TL;DR: Menue-Parameter der Aktion check (LIVE-CHECK ohne Training) von server_rl_run.sh.
 action check "LIVE-CHECK: Aufbau ohne Training" \
   --rank 30 \
   --group "Vorbereiten" \

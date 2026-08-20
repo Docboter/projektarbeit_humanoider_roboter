@@ -1,3 +1,4 @@
+# TL;DR: Articulation-Config (Joints, Aktuatoren) für G1+Dex3; Kamera-Teil aus camera_geometry.py.
 """
 Articulation-Konfiguration für G1 + Dex3-Hand in Isaac Lab.
 

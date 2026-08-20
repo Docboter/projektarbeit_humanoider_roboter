@@ -1,3 +1,4 @@
+# TL;DR: Menue-Parameter der Aktion setup (Checkpoint + USD-Asset laden) von server_rl_run.sh.
 action setup "BC-Checkpoint + USD-Asset von HF laden" \
   --rank 20 \
   --group "Vorbereiten" \

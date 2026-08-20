@@ -1,3 +1,4 @@
+# TL;DR: Menue-Parameter der Aktion span (Fingerspanne, echte Bilder) von server_rl_run.sh.
 action span "Fingerspanne auf ECHTEN Datensatz-Bildern" \
   --rank 50 \
   --group "Messen" \

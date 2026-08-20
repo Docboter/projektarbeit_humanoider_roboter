@@ -1,3 +1,4 @@
+# TL;DR: Menue-Parameter der Aktion preflight (Image/GPU-Check) von server_rl_run.sh.
 action preflight "Image-Frische + GPU/RT-Cores pruefen" \
   --rank 10 \
   --group "Vorbereiten" \

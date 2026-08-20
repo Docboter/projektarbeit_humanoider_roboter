@@ -1,5 +1,11 @@
 # Sim-Eval Implementation Notes — Lessons Learned & aktueller Stand
 
+> **TL;DR:** Lessons Learned und Fixes der Sim-Umsetzung (Build-/Runtime-Probleme,
+> Kamera-Rekonstruktion, Open-Loop-Replay-Diagnose), Stand bis Juni 2026 — zuerst lesen vor dem
+> Sim-Setup. Neuere Erkenntnisse seit August 2026 (Isaac-Sim-6.0-Port, Kamera-Neukalibrierung,
+> Greif-Diagnostik) stehen in
+> [../ergebnisse/diagnose-chronik.md](../ergebnisse/diagnose-chronik.md).
+
 Dieses Dokument fasst Erkenntnisse zusammen, die beim Aufbau des Sim-Eval-Workflows
 gewonnen wurden und in keinem anderen Dokument stehen. Stand: 2026-05-31
 (Abschnitte 10–16 ergänzt bis 2026-06-05).

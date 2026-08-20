@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# TL;DR: Container-Skript: startet GR00T-Server + RoboCasa-Client für den Basismodell-Referenz-Eval.
 # run_robocasa_ref_eval.sh — Referenz-Eval: GR00T-N1.6 Basismodell (zero-shot)
 # auf dem RoboCasa GR-1 Tabletop Benchmark (robosuite/MuJoCo).
 #

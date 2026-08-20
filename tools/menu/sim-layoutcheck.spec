@@ -1,3 +1,4 @@
+# TL;DR: Menue-Parameter der Aktion layoutcheck (Kameramodell pruefen) von server_rl_run.sh.
 action layoutcheck "Kameramodell gegen ein Renderbild pruefen" \
   --rank 10 \
   --group "Co-Training vorbereiten" \

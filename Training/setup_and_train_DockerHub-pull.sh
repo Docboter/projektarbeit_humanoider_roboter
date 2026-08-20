@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# TL;DR: Schlanker Host-Launcher — zieht das Image von Docker Hub, startet den autonomen Container.
 # setup_and_train_DockerHub-pull.sh
 #
 # Schlankes Host-Skript: zieht das Image von Docker Hub und startet den
@@ -55,7 +56,7 @@ for arg in "$@"; do
         --no-menu)     MENU=0 ;;
         --profile=*)   MENU_PROFILE="${arg#*=}"; MENU=1 ;;
         --help|-h)
-            sed -n '2,30p' "$0" | sed 's/^# \?//'
+            awk 'NR>1 { if (/^#/) { sub(/^# ?/, ""); print; next } if (/^[[:space:]]*$/) { print ""; next } exit }' "$0"
             exit 0
             ;;
         *)

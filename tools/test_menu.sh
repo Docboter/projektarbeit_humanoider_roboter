@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# TL;DR: Host-Werkzeug — fuehrt den 30-Pruefungen-Akzeptanztest fuer die CLI-Menues aus (§8).
 # test_menu.sh — der Pruefplan aus docs/weiterfuehrend/cli-menuefuehrung.md §8.
 #
 # Alles ohne GPU und ohne Container pruefbar: das Menue ist reine Host-Logik. Die

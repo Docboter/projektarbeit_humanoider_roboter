@@ -1,3 +1,4 @@
+# TL;DR: Trainings-Launcher-Aktion --destroy: Container loeschen und neu starten.
 action destroy "Container loeschen und neu starten" \
   --cli "--destroy" \
   --rank 30 --group "Training" \

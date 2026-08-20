@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# TL;DR: SLURM-Job für GR00T-Finetuning auf KISSKI — klont Repo, lädt Daten, trainiert autonom.
 # kisski_submit.sh — SLURM-Job-Script für GR00T N1.6 Fine-tuning auf KISSKI
 #
 # Voraussetzungen (einmalig):

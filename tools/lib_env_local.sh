@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# TL;DR: Gesourcte Host-Bibliothek — laedt die gitignorierte .env.local fuer alle Host-Launcher.
 # lib_env_local.sh — gemeinsames Laden der gitignorierten .env.local.
 #
 # Vorher stand dieser Block wortgleich in server_rl_run.sh und server_robocasa_ref_run.sh,

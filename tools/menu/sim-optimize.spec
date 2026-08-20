@@ -1,3 +1,4 @@
+# TL;DR: Menue-Parameter der Aktion optimize (DiT nach ONNX/TensorRT) von server_rl_run.sh.
 action optimize "DiT nach ONNX + TensorRT-Engine bauen" \
   --rank 10 \
   --group "Beschleunigen" \

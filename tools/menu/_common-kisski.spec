@@ -1,3 +1,4 @@
+# TL;DR: Gemeinsame KISSKI-Parameter (Partition, Walltime, Zugang) fuer kisski_menu.sh.
 # _common-kisski.spec — was alle KISSKI-Jobs teilen.
 
 group "Rechenzeit"

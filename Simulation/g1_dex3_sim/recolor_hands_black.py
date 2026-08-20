@@ -1,3 +1,4 @@
+# TL;DR: Einmaliges USD-Tool: färbt die DEX3-Hände schwarz (Domain-Gap-Fix), kein Isaac-Sim nötig.
 """
 Offline-USD-Recolor: färbt die DEX3-Hände im g1_dex3.usd schwarz.
 

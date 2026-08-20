@@ -1,3 +1,4 @@
+# TL;DR: Reihenfolge der Aktionsgruppen im Sim-Menue: bildet die Diagnosekette ab.
 # _order.spec — Reihenfolge der Aktionsliste.
 #
 # Die Specs werden alphabetisch eingelesen; ohne diese Datei stuende die Liste in

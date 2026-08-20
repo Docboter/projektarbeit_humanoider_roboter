@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# TL;DR: SLURM-Job (KISSKI): RoboCasa-GR-1-Referenz-Eval des GR00T-Basismodells (zero-shot).
 # kisski_robocasa_ref_submit.sh — RoboCasa GR-1 Tabletop Referenz-Eval auf KISSKI
 #   (Basismodell GR00T-N1.6-3B, zero-shot, Embodiment GR1; robosuite/MuJoCo).
 #

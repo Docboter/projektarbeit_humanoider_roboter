@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# TL;DR: Gesourcte Host-Bibliothek — Engine der gefuehrten CLI-Menues fuer die Host-Launcher.
 # lib_menu.sh — gefuehrte CLI-Menues fuer die Host-Launcher dieses Repos.
 #
 # Plan und Begruendung: docs/weiterfuehrend/cli-menuefuehrung.md

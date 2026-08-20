@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# TL;DR: Sim-Container-Entrypoint: spielt echte Dataset-Aktionen ab, Open-Loop ohne GR00T-Server.
 # entrypoint_replay.sh — Open-Loop-Dataset-Replay (Diagnose Config vs. Training).
 #
 # Eigenständig & additiv: nutzt KEINEN GR00T-Server und KEIN Modell. Spielt die echten

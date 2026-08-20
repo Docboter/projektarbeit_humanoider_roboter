@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# TL;DR: Läuft im Container — Co-Training auf echten UND gerenderten Bildern (Schritt 4, --tune_visual).
 # run_finetuning_cotrain.sh — Co-Training auf ECHTEN + GERENDERTEN Bildern (Schritt 4).
 #
 # Verhältnis zu den anderen beiden Trainings-Skripten:

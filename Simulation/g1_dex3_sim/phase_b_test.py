@@ -1,3 +1,4 @@
+# TL;DR: Einmaliger Test: G1+Dex3-USD laden und Arm-Joints ansteuern (Phase-B-Abnahme).
 """
 Phase-B-Test: G1+Dex3 USD in Isaac Lab laden und Arm-Joints prüfen.
 

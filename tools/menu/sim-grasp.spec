@@ -1,3 +1,4 @@
+# TL;DR: Menue-Parameter der Aktion grasp (Greif-Physik, Open-Loop) von server_rl_run.sh.
 action grasp "Greif-Physik isoliert (Open-Loop-Replay)" \
   --rank 40 \
   --group "Messen" \

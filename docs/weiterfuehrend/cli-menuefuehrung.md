@@ -1,5 +1,9 @@
 # Implementierungsplan — geführte CLI-Menüs für Training und Simulation
 
+> **TL;DR:** Design- und Begründungsdokument für die geführten CLI-Menüs in Training und Simulation
+> — inzwischen umgesetzt (Status-Banner unten). Erklärt Architektur, Parameter-Spezifikation als
+> einzige Quelle und, in §12, die Abweichungen vom ursprünglichen Plan.
+
 > **Status: umgesetzt am 2026-08-20** auf `training-luca-IKR-IS6.0`. Alle sieben Phasen
 > stehen, mit zwei bewussten Abweichungen vom Plan (Phase 5 und §4.4) — siehe
 > [§12 Umsetzungsstand](#12-umsetzungsstand). Der Plantext unten bleibt als

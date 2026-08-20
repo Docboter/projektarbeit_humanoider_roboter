@@ -1,3 +1,4 @@
+# TL;DR: Menue-Parameter der Aktion gap (Domain-Gap real vs. sim) von server_rl_run.sh.
 action gap "Domain-Gap real vs. sim messen" \
   --rank 20 \
   --group "Messen" \

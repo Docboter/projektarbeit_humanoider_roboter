@@ -1,5 +1,9 @@
 # Anleitung — GR00T N1.6 Fine-tuning
 
+> **TL;DR:** Schritt-für-Schritt-Anleitung zum Starten des GR00T-N1.6-Fine-tunings über die
+> vier Wege (vast.ai, lokal per Skript, lokal per `docker run`, KISSKI) inkl. Speicher-Modell,
+> Daten-retten und FAQ. Erste Anlaufstelle vor dem ersten Trainingsstart.
+
 Diese Anleitung beschreibt Schritt für Schritt, wie du das Fine-tuning von **GR00T N1.6** für den Unitree G1 mit DEX3-Hand startest. Die Umgebung ist als autonomer Docker-Container aufgebaut: **du gibst Env-Vars an, der Container macht den Rest.**
 
 ## Speicher-Modell — wichtig vorab

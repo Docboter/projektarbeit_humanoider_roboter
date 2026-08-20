@@ -1,3 +1,4 @@
+# TL;DR: Gemeinsame Live-Ansicht-Parameter aller Sim-Aktionen von server_rl_run.sh.
 # _common-sim.spec — Parameter, die sich die Sim-Aktionen teilen.
 # Geladen nach _common.spec, nur fuer den Prefix "sim".
 

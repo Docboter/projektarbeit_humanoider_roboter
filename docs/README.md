@@ -1,10 +1,19 @@
 # Dokumentation — Übersicht
 
+> **TL;DR:** Globaler Navigations-Hub für die gesamte Projekt-Dokumentation, thematisch nach
+> Training, Simulation, Ergebnisse und Weiterführende Arbeiten sortiert. Hier einsteigen, um
+> die passende Detail-Anleitung zu finden.
+
 Navigations-Hub für die gesamte Projekt-Dokumentation. Das [Projekt-README](../README.md) im
 Repo-Root gibt den Schnellstart; hier liegen die ausführlichen Anleitungen, thematisch sortiert.
 Die Gliederung folgt dem Projektverlauf: **Anleitung → Ergebnis → Ausblick**.
 Veraltete Inhalte werden nicht in den Dokumenten mitgeschleppt, sondern nach
 [historie.md](historie.md) ausgelagert (Changelog-Rohmaterial). *(Struktur-Stand: 2026-08-18)*
+
+> **Konvention — TL;DR zuerst:** Jede Doku-Seite beginnt unter ihrer Überschrift mit einem
+> `> **TL;DR:**`-Block (was ist das, wann lesen, was steht *nicht* hier), jedes Skript unter
+> `Training/`, `Simulation/`, `tools/` mit einer Zeile `# TL;DR: …` nach dem Shebang.
+> `tools/check_tldr.sh` prüft das, `tools/check_tldr.sh --list` druckt alle TL;DRs als Übersicht.
 
 ## Training (Fine-tuning von GR00T N1.6)
 
@@ -126,6 +135,8 @@ Diese Sammlung speist das gleichnamige Kapitel der Projektarbeit.
 │   ├── g1_dex3_sim/           # Sim-Code (Env, Cams, Client, Eval, Replay)
 │   ├── camera_reference/      # Dataset-Referenzframes für Kamera-Kalibrierung
 │   └── scripts/               # In das vast.ai-Image kopiert (→ /scripts)
+├── tools/                     # Host-Helfer, nie im Image: Menü-Engine + Specs, gen_docs.sh,
+│                              #   test_menu.sh, check_tldr.sh (TL;DR-Konvention)
 ├── data/                      # Lokale Assets + Submodule (überwiegend gitignored)
 │   └── unitree_ros/           # Git-Submodul — Unitree-ROS (URDF-Quelle)
 └── app/                       # Git-Submodul, im Image geklont

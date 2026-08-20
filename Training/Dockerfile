@@ -1,4 +1,5 @@
 # syntax=docker/dockerfile:1
+# TL;DR: Trainings-Image (CUDA 12.8, uv) — ENTRYPOINT ist entrypoint.sh; Build-Kontext ist Training/.
 # Projektarbeit Humanoider Roboter – Unitree G1 mit GR00T N1.6
 #
 # Build (Build-Context ist der Training/-Ordner, der dieses Dockerfile + scripts/ enthält):

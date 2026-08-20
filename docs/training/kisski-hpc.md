@@ -1,5 +1,9 @@
 # HPC-Training auf KISSKI
 
+> **TL;DR:** Anleitung für HPC-Training auf dem KISSKI-Cluster (Apptainer + SLURM statt
+> Docker): SIF-Konvertierung, Pfad-Konfiguration, GPU-Partitionen, Monitoring und
+> Checkpoint-Export. Für lange Trainingsläufe auf A100/H100.
+
 KISSKI ist ein dedizierter GPU-Cluster der GWDG Göttingen. Er läuft **kein Docker**, sondern
 **Apptainer** (früher Singularity) als Container-Runtime und **SLURM** als Job-Scheduler. Das
 bedeutet: kein `docker run`, sondern `sbatch Training/kisski_submit.sh`. Das Docker-Hub-Image

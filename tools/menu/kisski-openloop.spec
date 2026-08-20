@@ -1,3 +1,4 @@
+# TL;DR: Menue-Parameter der Aktion openloop von kisski_open_loop_eval.sh (Checkpoint-Sweep).
 action openloop "Checkpoint-Sweep (Open-Loop-Eval) einreichen" \
   --rank 10 --group "Auswerten" \
   --cli "Training/kisski_open_loop_eval.sh" \

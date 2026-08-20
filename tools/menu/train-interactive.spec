@@ -1,3 +1,4 @@
+# TL;DR: Trainings-Launcher-Aktion --interactive: Shell statt Training starten.
 action interactive "Shell statt Training" \
   --cli "--interactive" \
   --rank 40 --group "Werkzeuge" \

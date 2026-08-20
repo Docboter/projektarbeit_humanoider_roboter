@@ -1,5 +1,9 @@
 # Implementierungsplan — Live-Ansicht der Isaac-Lab-Sim
 
+> **TL;DR:** Implementierungsplan für die Live-Ansicht der Isaac-Lab-Sim: WebRTC-Viewport („Spur A“)
+> und MJPEG-Frame-Stream („Spur B“) als Ersatz für nachträglich abgeholte MP4s. Aktueller
+> Umsetzungsstand pro Teil direkt im Status-Banner unten.
+
 **Status:** **Spur B gebaut** ([`live_view.py`](../../Simulation/g1_dex3_sim/live_view.py), 2026-08-08) ·
 **Spur A gebaut** (2026-08-13, D1–D4 + D6 behoben) — **beide noch nie auf Hardware gesehen** ·
 **Erstellt:** 2026-06-02 · **Revision v2:** 2026-08-07 · **v3:** 2026-08-08 · **v4:** 2026-08-13

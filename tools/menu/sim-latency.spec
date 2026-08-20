@@ -1,3 +1,4 @@
+# TL;DR: Menue-Parameter der Aktion latency (reine Policy-Latenz) von server_rl_run.sh.
 action latency "Reine Policy-Latenz (ms je Action-Chunk)" \
   --rank 60 \
   --group "Messen" \

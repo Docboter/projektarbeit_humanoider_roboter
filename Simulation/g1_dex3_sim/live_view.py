@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# TL;DR: MJPEG-Live-Ansicht der Sim im Browser (Spur B); von rl_finetune.py per LIVE_VIEW=1 genutzt.
 """Live-Ansicht der Sim im Browser — MJPEG ueber HTTP ("Spur B" des Livestream-Plans).
 
 Zweck: waehrend eines langen Laufs (v. a. RL-Fine-tuning ueber Stunden/Tage) im Browser

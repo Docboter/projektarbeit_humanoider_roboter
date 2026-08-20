@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# TL;DR: Läuft im Container (via entrypoint.sh) — Standard-Finetuning, Vision-Encoder bleibt eingefroren.
 # Startet das GR00T-Finetuning *innerhalb des Containers*.
 #
 # Verwendung (im Container):

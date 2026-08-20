@@ -1,5 +1,9 @@
 # Domain-Gap-Analyse: Real → Isaac Sim
 
+> **TL;DR:** Messung des visuellen Domain-Gaps zwischen realen Trainingsbildern und
+> Isaac-Sim-Renderings per Cosine-Distanz (frozen SigLIP-ViT), inkl. Handlungsoptionen. Relevant, um
+> den Real→Sim-Gap als Ursache für Closed-Loop-Fehlschläge zu belegen; Ergebnis in §Ergebnis.
+
 > Aktuelle Messung: 2026-08-08 (`runs/20260808/22`). Die Erstmessung vom 2026-06-04 ist überholt
 > (Kamera-Neukalibrierung + Albedo-Fix „schwarze Hände") und archiviert in
 > [`historie.md`](../historie.md).

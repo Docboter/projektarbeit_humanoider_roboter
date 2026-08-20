@@ -1,5 +1,9 @@
 # Training — Fine-tuning von GR00T N1.6
 
+> **TL;DR:** Einstiegspunkt für alle Trainings-Dokumente: welche Datei wann lesen, die vier
+> Wege zum Trainieren (vast.ai, lokal, KISSKI) im Überblick. Für die konkreten Befehle direkt
+> zu [anleitung.md](anleitung.md).
+
 Fine-tuning von NVIDIAs GR00T-N1.6-VLA-Modell auf den Unitree G1 + DEX3-Hand (Block-Stacking).
 Die Umgebung läuft autonom in einem Docker-Container: Env-Vars setzen → der Container erledigt
 Download, Konvertierung und Training. Derselbe Container läuft lokal, auf vast.ai und auf dem

@@ -1,3 +1,4 @@
+# TL;DR: Browser-Client-Image für den Isaac-Sim-WebRTC-Viewport; enthält selbst keinen Simulator.
 # Dockerfile.webviewer — Browser-Client für den Isaac-Sim-WebRTC-Stream ("Spur A im Browser").
 #
 # WAS DAS IST: Isaac Sim 6.0 hat keinen eingebauten Browser-Client mehr (der alte auf Port

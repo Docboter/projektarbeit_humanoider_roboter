@@ -1,3 +1,4 @@
+# TL;DR: Gemeinsamer HF_TOKEN-Parameter, geladen vor jeder Sim- und Trainings-Aktion.
 # _common.spec — Parameter, die sich mehrere Aktionen teilen.
 #
 # Wird VOR jeder Aktions-Spec geladen; direkt danach _common-<prefix>.spec (also

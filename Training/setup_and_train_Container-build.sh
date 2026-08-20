@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# TL;DR: Host-Setup-Skript — baut das Image lokal und startet danach Download, Konvertierung, Training.
 # setup_and_train.sh
 #
 # Vollständiges Setup-Skript für das GR00T N1.6 Fine-tuning Projekt.
@@ -54,7 +55,7 @@ for arg in "$@"; do
         --only-train)    ONLY_TRAIN=1; SKIP_CLONE=1; SKIP_BUILD=1; SKIP_DOWNLOAD=1; SKIP_CONVERT=1 ;;
         --dry-run)       DRY_RUN=1 ;;
         --help|-h)
-            sed -n '4,30p' "$0"
+            awk 'NR>1 { if (/^#/) { sub(/^# ?/, ""); print; next } if (/^[[:space:]]*$/) { print ""; next } exit }' "$0"
             exit 0 ;;
         *) warn "Unbekannter Parameter: $arg — ignoriert" ;;
     esac

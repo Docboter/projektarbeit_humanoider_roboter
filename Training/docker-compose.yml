@@ -1,3 +1,4 @@
+# TL;DR: Optionale Dev-Variante mit Host-Bind-Mounts; fuer den taeglichen Betrieb nicht noetig.
 # Optionale Dev-Variante — fuer den taeglichen Betrieb NICHT noetig.
 # Das Image ist autonom: `docker run lucam03/projekt-humanoider-roboter:latest`
 # (oder ./setup_and_train_DockerHub-pull.sh) startet alles selbst.

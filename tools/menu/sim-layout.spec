@@ -1,3 +1,4 @@
+# TL;DR: Menue-Parameter der Aktion layout (Wuerfellage aus Realbildern) von server_rl_run.sh.
 action layout "Wuerfellage aus den Realbildern lesen" \
   --rank 20 \
   --group "Co-Training vorbereiten" \

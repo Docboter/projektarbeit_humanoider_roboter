@@ -1,3 +1,4 @@
+# TL;DR: Menue-Parameter der Aktion eval (Closed-Loop-BC-Eval) von server_rl_run.sh.
 action eval "BC-Erfolgsrate in der Sim (Closed Loop)" \
   --rank 30 \
   --group "Messen" \

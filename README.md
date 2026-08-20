@@ -1,4 +1,9 @@
 # Projektarbeit Humanoider Roboter
+
+> **TL;DR:** Schlanke Projekt-Landingpage: Überblick über das GR00T-N1.6-Fine-tuning-Projekt,
+> Schnellstart-Befehle für KISSKI/vast.ai/lokal und Links in die ausführliche Doku unter
+> [docs/](docs/README.md).
+
 ## GR00T N1.6 Fine-tuning — Unitree G1 mit DEX3-Hand
 
 Dieses Repository dokumentiert das Fine-tuning von NVIDIAs **GR00T N1.6**

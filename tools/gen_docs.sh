@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# TL;DR: Host-Werkzeug — prueft Parameter-Defaults in Spec, Skript und Doku gegeneinander (Drift-Check).
 # gen_docs.sh — die Versicherung gegen auseinanderdriftende Parameterbeschreibungen.
 #
 # HINTERGRUND (docs/weiterfuehrend/cli-menuefuehrung.md §0): Jeder Parameter ist heute
@@ -38,7 +39,7 @@ while [[ $# -gt 0 ]]; do
     --check)  MODE=check; shift ;;
     --quiet)  QUIET=1; shift ;;
     --table)  MODE=table; TABLE_PREFIX="${2:-sim}"; shift 2 ;;
-    -h|--help) sed -n '2,30p' "$0" | sed 's/^# \?//'; exit 0 ;;
+    -h|--help) awk 'NR>1 { if (/^#/) { sub(/^# ?/, ""); print; next } if (/^[[:space:]]*$/) { print ""; next } exit }' "$0"; exit 0 ;;
     *) echo "Unbekannt: $1" >&2; exit 2 ;;
   esac
 done

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# TL;DR: Gemeinsame, importierte Bibliothek fuer ONNX/TensorRT-Backends der GR00T-DiT-Inferenz.
 """Gemeinsame ONNX/TensorRT-Helfer fuer die GR00T-N1.6-Inferenz.
 
 Nur der DiT-Forward des Action-Heads wird ersetzt. Vision-/Sprach-Backbone,

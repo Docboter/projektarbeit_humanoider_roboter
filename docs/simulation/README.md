@@ -1,5 +1,9 @@
 # Simulation — Closed-Loop-Eval in Isaac Lab
 
+> **TL;DR:** Navigations-Hub der Sim-Doku: verlinkt alle operativen Anleitungen (Setup, vast.ai,
+> Live-Ansicht, Inferenz-Optimierung, Würfellage) sowie das Archiv überholter Planungsdokumente.
+> Einstiegspunkt, um sich in der Closed-Loop-Eval-Doku zu orientieren.
+
 Closed-Loop-Evaluation des feingetunten GR00T-N1.6-Checkpoints in der Isaac-Lab-Simulation
 auf dem Unitree G1 + DEX3-Hand (Block-Stacking). Ein GR00T-Policy-Server beantwortet die
 ZMQ-Requests eines Isaac-Lab-Sim-Clients.

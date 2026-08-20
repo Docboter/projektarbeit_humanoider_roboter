@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# TL;DR: Host-Menue auf dem KISSKI-Login-Node — fragt Partition/Walltime, baut die sbatch-Zeile.
 # kisski_menu.sh — gefuehrtes Einreichen auf dem KISSKI-Login-Node.
 #
 # Baut die sbatch-Zeile und zeigt sie an, bevor sie laeuft. Gedacht fuer genau die zwei
@@ -41,7 +42,7 @@ for a in "$@"; do
     --dry-run) DRY_RUN=1 ;;
     --menu)    MENU=1 ;;
     --profile=*) MENU_PROFILE="${a#*=}"; MENU=1 ;;
-    -h|--help) sed -n '2,25p' "$0" | sed 's/^# \?//'; exit 0 ;;
+    -h|--help) awk 'NR>1 { if (/^#/) { sub(/^# ?/, ""); print; next } if (/^[[:space:]]*$/) { print ""; next } exit }' "$0"; exit 0 ;;
     *)         ACTION="$a" ;;
   esac
 done
