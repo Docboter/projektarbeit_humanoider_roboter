@@ -67,6 +67,7 @@ Diese Sammlung speist das gleichnamige Kapitel der Projektarbeit.
 | [weiterfuehrend/rl-anleitung.md](weiterfuehrend/rl-anleitung.md) | **RL-Bedienungsanleitung (operativ, schlank)** — Image bauen → BC-Checkpoint → RT-Core-GPU (eigener Docker-Server via `server_rl_run.sh` oder vast.ai) → RL starten → überwachen → Checkpoints sichern; plus Diagnose-Werkzeuge `gap`/`eval`/`grasp`/`span`. Die Lauf-Historie dazu: [ergebnisse/diagnose-chronik.md](ergebnisse/diagnose-chronik.md) |
 | [weiterfuehrend/lokomotion-recherche.md](weiterfuehrend/lokomotion-recherche.md) | **Lokomotions-Recherche** — Warum der Roboter fixiert ist, GR00T-N1.6-Whole-Body-Control (entkoppelt: RL-Beine + IK/VLA-Arme), Unitree-G1-Lokomotions-Stacks, Integrationspfade + Quellen |
 | [weiterfuehrend/livestream-plan.md](weiterfuehrend/livestream-plan.md) | **Livestream-Plan** — **Spur B** (MJPEG-Frame-Stream im Browser, `LIVE_VIEW=1`) ist für den RL-Lauf gebaut; **Spur A** (WebRTC-Echtzeit-Viewport) ist gebaut, aber auf Hardware ungetestet — inzwischen mit zwei Clients: nativer App und **Browser** (`webview`, Port 8210). Bedienung: [simulation/live-ansicht.md](simulation/live-ansicht.md) |
+| [weiterfuehrend/cli-menuefuehrung.md](weiterfuehrend/cli-menuefuehrung.md) | **Geführte CLI-Menüs (Plan, nicht umgesetzt)** — Skriptstart ohne Parameter führt durch die nötigen Werte und erklärt sie. Kern ist eine deklarative Parameter-Spezifikation als einzige Quelle für Menü, `usage()` und Doku-Tabellen (heute 99 Env-Vars + 200 Zeilen `usage()` allein in `server_rl_run.sh`); reines Bash, nur Host-seitig, 7 Phasen mit Abnahmekriterien |
 
 ## Querschnitt (Training + Simulation)
 
@@ -97,7 +98,7 @@ Diese Sammlung speist das gleichnamige Kapitel der Projektarbeit.
 │   ├── training/              # operative Trainings-Doku
 │   ├── simulation/            # operative Sim-Eval-Doku (+ archiv/)
 │   ├── ergebnisse/            # Auswertungen, Messungen, Methodik-Reviews
-│   ├── weiterfuehrend/        # Konzept-/Plan-Docs (RL, Lokomotion, Livestream)
+│   ├── weiterfuehrend/        # Konzept-/Plan-Docs (RL, Lokomotion, Livestream, CLI-Menüführung)
 │   ├── fehlerbehebung.md      # Querschnitt-Fehlerlösungen
 │   ├── portabilitaet.md       # Repo auf anderen Maschinen betreiben
 │   └── historie.md            # ausgelagerte veraltete Inhalte (Changelog-Rohmaterial)
