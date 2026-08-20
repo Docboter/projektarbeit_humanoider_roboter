@@ -77,6 +77,7 @@ Diese Sammlung speist das gleichnamige Kapitel der Projektarbeit.
 | [weiterfuehrend/lokomotion-recherche.md](weiterfuehrend/lokomotion-recherche.md) | **Lokomotions-Recherche** — Warum der Roboter fixiert ist, GR00T-N1.6-Whole-Body-Control (entkoppelt: RL-Beine + IK/VLA-Arme), Unitree-G1-Lokomotions-Stacks, Integrationspfade + Quellen |
 | [weiterfuehrend/livestream-plan.md](weiterfuehrend/livestream-plan.md) | **Livestream-Plan** — **Spur B** (MJPEG-Frame-Stream im Browser, `LIVE_VIEW=1`) ist für den RL-Lauf gebaut; **Spur A** (WebRTC-Echtzeit-Viewport) ist gebaut, aber auf Hardware ungetestet — inzwischen mit zwei Clients: nativer App und **Browser** (`webview`, Port 8210). Bedienung: [simulation/live-ansicht.md](simulation/live-ansicht.md) |
 | [weiterfuehrend/cli-menuefuehrung.md](weiterfuehrend/cli-menuefuehrung.md) | **Geführte CLI-Menüs (umgesetzt 2026-08-20)** — Skriptstart ohne Parameter führt durch die nötigen Werte und erklärt sie; `MENU=0` schaltet ab. Parameter-Specs unter [`tools/menu/`](../tools/menu/) sind die einzige Quelle, `tools/gen_docs.sh` prüft sie gegen Skripte und Doku-Tabellen. §12 hält die Abweichungen vom Plan fest und zwei dabei gefundene Defekte im Trainings-Launcher |
+| [weiterfuehrend/wiki-migration-plan.md](weiterfuehrend/wiki-migration-plan.md) | **GitHub-Wiki-Migration (Plan)** — ob/wie sich `docs/` ins GitHub-Wiki übertragen lässt (eigenes Git-Repo, Link-Rewriting nötig, kein Auto-Sync); Alternative GitHub Pages/MkDocs. Reine Recherche, nichts umgesetzt |
 
 ## Querschnitt (Training + Simulation)
 
