@@ -68,11 +68,12 @@
 #   GROOT_TRT_ENGINE_PATH (optional; leer = Engine per Checkpoint-Fingerprint finden),
 #   CAMERA_RENDER_EVERY_N (Default 1; schneller Modus = EXECUTION_HORIZON, meist 8).
 #   Backend-Details und Build: docs/simulation/inferenz-optimierung.md
-#   GROOT_VERSION (1.6 | 1.7; Default 1.6) — welcher GR00T-Code-Baum im Container benutzt
-#     wird (/app/Groot-1.6 mit Python 3.10+Eagle bzw. /app/Groot-1.7 mit Python 3.12+
-#     Cosmos-Reason2-2B). Auf dem HOST liegt kein Checkpoint, deshalb hier kein `auto`;
-#     der Wert wird beim Anlegen des Containers durchgereicht und überschreibt dort den
-#     Image-Default. N1.7 braucht zusätzlich HF-Zugang zum gated Repo
+#   GROOT_VERSION (auto | 1.6 | 1.7; Default auto) — welcher GR00T-Code-Baum im Container
+#     benutzt wird (/app/Groot-1.6 mit Python 3.10+Eagle bzw. /app/Groot-1.7 mit Python
+#     3.12+Cosmos-Reason2-2B). Der Wert geht beim Anlegen des Containers durch; `auto`
+#     laesst dort die Checkpoint-config.json entscheiden. Auf dem HOST liegt kein
+#     Checkpoint, deshalb arbeiten die docker-exec-Aktionen (span, latency, gap ...) bei
+#     `auto` mit 1.6 — fuer N1.7-Checkpoints dort ausdruecklich GROOT_VERSION=1.7 setzen. N1.7 braucht zusätzlich HF-Zugang zum gated Repo
 #     https://huggingface.co/nvidia/Cosmos-Reason2-2B; ein gesetztes HF_HOME wird
 #     mitgereicht (sonst liegt der Cache unter /data/hf_cache im Container).
 #     NUR N1.6: 'rl', 'check', 'optimize' (und der Baseline-Lauf über
@@ -173,14 +174,18 @@ source "$SCRIPT_DIR/scripts/lib_groot_version.sh"
 # (/data/hf_cache) einsetzt — sonst reichten wir gleich einen Pfad durch, den niemand
 # gesetzt hat, und auf dem Host bliebe ein falsches HF_HOME im Environment stehen.
 GROOT_HF_HOME_USER="${HF_HOME:-}"
-# Merken, ob GROOT_VERSION ueberhaupt gesetzt war (Env oder .env.local): dann wird dieser
-# Wert in den Container gereicht; sonst behaelt der Container seinen Image-Default `auto`
-# (Erkennung aus dem Checkpoint), waehrend Host-seitige docker-exec-Befehle (span, latency,
-# gap ...) mit 1.6 arbeiten — fuer N1.7-Checkpoints dort also GROOT_VERSION=1.7 setzen.
-GROOT_VERSION_SET="${GROOT_VERSION+1}"
-groot_resolve "${GROOT_VERSION:-1.6}"
-GROOT_VERSION_CONTAINER="${GROOT_VERSION_SET:+$GROOT_VERSION}"
-GROOT_VERSION_CONTAINER="${GROOT_VERSION_CONTAINER:-auto}"
+# GROOT_VERSION hat hier ZWEI Adressaten, die verschieden viel vertragen:
+#   - der Container bekommt den Wunsch unveraendert, `auto` eingeschlossen — dort steht der
+#     Checkpoint, aus dessen config.json sich die Generation erkennen laesst;
+#   - host-seitige docker-exec-Befehle (span, latency, gap ...) brauchen eine KONKRETE
+#     Generation, weil groot_resolve ohne Checkpoint nicht raten kann. `auto` faellt hier
+#     deshalb auf 1.6 zurueck — fuer N1.7-Checkpoints dort also GROOT_VERSION=1.7 setzen.
+# Nicht gesetzt und ausdruecklich `auto` sind damit dasselbe; genau das kann das Menue
+# anbieten, ohne die Erkennung aus dem Checkpoint zu verlieren.
+GROOT_VERSION_CONTAINER="$(groot_normalize_version "${GROOT_VERSION:-auto}")" || exit 1
+GROOT_VERSION_HOST="$GROOT_VERSION_CONTAINER"
+if [[ "$GROOT_VERSION_HOST" == "auto" ]]; then GROOT_VERSION_HOST="1.6"; fi
+groot_resolve "$GROOT_VERSION_HOST"
 if [[ -n "$GROOT_HF_HOME_USER" ]]; then
   export HF_HOME="$GROOT_HF_HOME_USER"
 else
@@ -1710,9 +1715,9 @@ Logs (jede Aktion außer 'shell' wird gespiegelt):
   Host-Seite:      $HOST_DATA_DIR/logs/<aktion>-<zeitstempel>.log
   Container-Seite: $HOST_DATA_DIR/logs/entrypoint_rl.log   (= /data/logs/… im Container)
 
-GR00T-Version (GROOT_VERSION, Host-Default 1.6 fuer docker-exec-Aktionen; an den
-Container geht nur ein EXPLIZIT gesetzter Wert, sonst dessen Image-Default `auto` =
-Erkennung aus der Checkpoint-config.json):
+GR00T-Version (GROOT_VERSION, Default `auto` = Erkennung aus der Checkpoint-config.json
+im Container; host-seitige docker-exec-Aktionen arbeiten bei `auto` mit 1.6, weil auf dem
+Host kein Checkpoint liegt):
   aktuell N$GROOT_VERSION (Host)  ->  Container: GROOT_VERSION=$GROOT_VERSION_CONTAINER, Baum $GROOT_ROOT
   1.6  Python 3.10, Eagle-Backbone      — der bisherige und weiterhin voreingestellte Weg
   1.7  Python 3.12, Cosmos-Reason2-2B   — Backbone kommt vom HF-Hub und ist GATED:

@@ -30,3 +30,10 @@ group "Verhalten bei Fehlern"
 param SHELL_ON_ERROR bool 0 advanced \
   "Bei Fehler in eine Shell im Container fallen" \
   "Empfohlen beim ersten Lauf auf einer neuen Maschine: der Container bleibt stehen und man sieht sich den Zustand an, statt ihn zu verlieren."
+
+group "GR00T-Generation"
+param GROOT_VERSION choice auto advanced \
+  "GR00T-Generation im Container" \
+  "auto liest model_type aus der config.json des Checkpoints — der Normalfall, weil der Checkpoint selbst weiss, womit er trainiert wurde. Nur festnageln, wenn die Erkennung danebengreift. ACHTUNG: Der Wert wird beim ANLEGEN des Containers gesetzt; nach einem Wechsel einmal 'clean' fahren. Host-seitige Aktionen (span, latency, gap) arbeiten bei auto mit 1.6, weil auf dem Host kein Checkpoint liegt. N1.7 ist bislang ungetestet, und rl/baseline/optimize gibt es nur mit 1.6." \
+  --options "auto:aus dem Checkpoint erkennen (Default);1.6:Python 3.10, Eagle-Backbone;1.7:Python 3.12, Cosmos-Reason2-2B (gated, ungetestet)" \
+  --override "auto = Erkennung aus der Checkpoint-config.json; die 1.6 in env-vars.md gilt dem Training, wo kein Checkpoint zum Erkennen bereitliegt"

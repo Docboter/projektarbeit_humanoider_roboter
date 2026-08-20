@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+# TL;DR: Trainingseinstieg für zwei Datensätze (Mix-Ratio) unter GR00T N1.7; von
+#   run_finetuning_cotrain.sh bei GROOT_VERSION=1.7 gestartet. Ungetestet.
 """
 launch_cotrain_n17.py — Trainings-Einstieg für ZWEI Datensätze (echt + gerendert), N1.7.
 

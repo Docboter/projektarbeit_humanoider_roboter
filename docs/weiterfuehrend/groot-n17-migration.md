@@ -1,5 +1,11 @@
 # Umstieg GR00T N1.6 → N1.7: Überblick und Migrationsplan
 
+> **TL;DR:** Recherche und Migrationsplan für den Umstieg GR00T N1.6 → N1.7, plus den erreichten
+> Umsetzungsstand. N1.7 ist als **paralleler Pfad** gebaut — zweiter Code-Baum `app/Groot-1.7`,
+> Laufzeit-Auswahl per `GROOT_VERSION` in einem Image —, aber **noch kein Image gebaut und kein
+> N1.7-Lauf gefahren**. Was sich ändert (gated Cosmos-Reason2-2B-Backbone, Python 3.12/torch 2.9,
+> N1.6-Checkpoints nicht ladbar), was N1.6-only bleibt, und die 8 Phasen mit Abnahmekriterien.
+
 Recherche- und Planungsdokument. **Umsetzung als paralleler Pfad begonnen** (Stand 2026-08-19 —
 siehe [„Stand der Umsetzung"](#stand-der-umsetzung-2026-08-19) unten): Was ist GR00T N1.7, was
 ändert sich gegenüber unserem N1.6-Stand, wie aufwendig ist der Umstieg, und in welchen Phasen

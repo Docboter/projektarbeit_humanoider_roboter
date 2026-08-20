@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# TL;DR: Gesourcte Bibliothek — löst GROOT_VERSION (1.6|1.7|auto) in Code-Baum, venv,
+#   Modell-Repo und Namespace-Suffix auf; wortgleiche Kopie unter Simulation/scripts/.
 # lib_groot_version.sh — Auswahl zwischen GR00T N1.6 und N1.7 (Modell + Code-Baum + venv).
 #
 # Wird von allen Launchern/Entrypoints GESOURCED (Training UND Simulation). Beide Images
