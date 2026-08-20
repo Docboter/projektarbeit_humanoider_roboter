@@ -97,12 +97,14 @@ REPO_DIR="${RL_REPO_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 # nutzt die Datei die Form  : "${VAR:=wert}"  — ein nacktes VAR=wert würde eine bereits
 # gesetzte Variable überschreiben. `set -a` exportiert das Gesetzte, damit es auch
 # Unterprozesse (docker, apptainer) erreicht.
-if [[ -f "$REPO_DIR/.env.local" ]]; then
-  set -a
-  # shellcheck source=/dev/null
-  source "$REPO_DIR/.env.local"
-  set +a
-fi
+# Die Mechanik selbst steht in tools/lib_env_local.sh — dieselbe Fassung nutzen jetzt
+# auch die Trainings-Launcher, denen sie bis 2026-08 ganz fehlte. env_local_load merkt
+# sich zusaetzlich, welche Variablen der Aufrufer schon gesetzt hatte und welche aus
+# .env.local kamen; das Menue zeigt sie damit als "vorgegeben" bzw. "aus .env.local" an,
+# statt sie erneut zu fragen.
+# shellcheck source=../tools/lib_env_local.sh
+source "$REPO_DIR/tools/lib_env_local.sh"
+env_local_load "$REPO_DIR"
 
 # ── Konfiguration (alle via Env überschreibbar) ──────────────────────────────
 IMAGE="${RL_IMAGE:-lucam03/projekt-humanoider-roboter-sim-vastai:latest}"
@@ -1636,12 +1638,59 @@ EOF
 
 # ── Dispatch ──────────────────────────────────────────────────────────────────
 require_docker
-ACTION="${1:-help}"
+
+# ── Geführte Menüführung (docs/weiterfuehrend/cli-menuefuehrung.md) ───────────
+# Das Menü erzeugt NUR Umgebungsvariablen und läuft VOR dem Dispatch — die
+# Aktionsfunktionen darunter sind unverändert und wissen nichts davon. Es meldet sich
+# ausschließlich, wenn wirklich ein Mensch davorsitzt (Terminal, kein SLURM/CI, kein
+# Container); `MENU=0` bzw. `--no-menu` schaltet es hart ab.
+# shellcheck source=../tools/lib_menu.sh
+source "$REPO_DIR/tools/lib_menu.sh"
+MENU_SPEC_DIR="$REPO_DIR/tools/menu"
+_MENU_LAUNCHER="./Simulation/server_rl_run.sh"    # für den äquivalenten Ein-Zeiler
+
+# --menu/--no-menu/--profile vorweg aus der Argumentliste ziehen, damit sie nicht als
+# Aktion missverstanden werden.
+_ARGS=()
+for _a in "$@"; do
+  case "$_a" in
+    --menu)      MENU=1 ;;
+    --no-menu)   MENU=0 ;;
+    --profile=*) MENU_PROFILE="${_a#*=}"; MENU=1 ;;
+    *)           _ARGS+=("$_a") ;;
+  esac
+done
+set -- ${_ARGS[@]+"${_ARGS[@]}"}
+
+ACTION="${1:-}"
+if [[ -z "$ACTION" ]] && menu_enabled; then
+  ACTION="$(menu_pick_action "$MENU_SPEC_DIR" sim)" || { echo; warn "Abgebrochen."; exit 0; }
+fi
+: "${ACTION:=help}"
+
+# Fragen läuft ZWINGEND vor start_logging. Zwei Gründe: start_logging setzt
+# `exec > >(tee …)`, und durch die Prozesssubstitution kann die Reihenfolge zwischen
+# read-Prompt (stderr) und Eingabe verrutschen — das Menü wirkt dann kaputt. Und der
+# HF-Token hat in der Log-Datei nichts verloren.
+if [[ "$ACTION" != help && "$ACTION" != -h && "$ACTION" != --help ]] && menu_enabled; then
+  menu_ask "$MENU_SPEC_DIR" sim "$ACTION" || exit 0
+  # Positionsargumente aus dem Menü nachreichen (optimize <phase>, webview stop), aber
+  # nur, wenn der Aufrufer selbst keins mitgegeben hat.
+  if [[ $# -le 1 ]] && (( ${#MENU_ARGV[@]} )); then
+    set -- "$ACTION" ${MENU_ARGV[@]+"${MENU_ARGV[@]}"}
+  fi
+fi
+
 # 'shell' bleibt ungespiegelt (interaktives -it verträgt die Pipe nicht), 'help'/'clean'
 # haben nichts zu protokollieren.
 case "$ACTION" in
   preflight|setup|check|cams|gap|eval|grasp|span|rl|livecheck|latency|optimize|render|view|webview|layout|layoutcheck) start_logging "$ACTION" ;;
 esac
+
+# Erst JETZT — nach start_logging — die aufgelöste Konfiguration ins Log schreiben.
+# Maskiert; das ist die Provenienz-Information, die man beim Nachlesen eines Laufs
+# braucht ("stand NUM_EPISODES=2 wirklich so drin?").
+if [[ -n "${MENU_ACTION_ASKED:-}" ]]; then menu_summary_for_log || true; fi
 case "$ACTION" in
   preflight)  do_preflight ;;
   setup)      do_setup ;;

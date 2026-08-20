@@ -158,6 +158,14 @@ Pfade und Branch sind über `REPO_DIR`, `GITHUB_BRANCH` und `GROOT_FORK_DIR` üb
 
 ## Schritt 3 — Tokens setzen und Job einreichen
 
+> **Geführter Weg auf dem Login-Knoten:** `./Training/kisski_menu.sh` fragt Partition,
+> Walltime und die Trainingsparameter ab und baut daraus die `sbatch`-Zeile
+> (`--dry-run` zeigt sie nur an). Es setzt dabei immer `--export=ALL` — ohne das kommen
+> die Variablen wegen `SBATCH_EXPORT=none` **nicht** im Job an, siehe unten. Das Menü ist
+> ein Zusatz: `kisski_submit.sh` bleibt weiterhin allein auf den Cluster kopierbar.
+> Details: [cli-menuefuehrung.md](../weiterfuehrend/cli-menuefuehrung.md)
+
+
 > **WICHTIG — Variablen als Inline-Prefix angeben.** Alle Tokens und Overrides müssen **direkt vor
 > `sbatch` in einer Zeile** stehen (per `\` umgebrochen), **nicht** als getrennte `export`-Zeilen
 > davor. Grund: Das Script setzt `#SBATCH --export=ALL`, das aber nur die Umgebung des

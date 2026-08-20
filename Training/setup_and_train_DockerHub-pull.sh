@@ -20,6 +20,11 @@
 #   ./setup_and_train_DockerHub-pull.sh --destroy             # Alten Container loeschen + neu starten
 #   ./setup_and_train_DockerHub-pull.sh --dry-run             # Nur Befehle anzeigen
 #
+#   Ohne Parameter aufgerufen fuehrt das Skript durch die noetigen Werte (gefuehrtes
+#   Menue, docs/weiterfuehrend/cli-menuefuehrung.md). --no-menu bzw. MENU=0 schaltet
+#   das ab; jede Aktion bleibt vollstaendig per Flag und Env-Var aufrufbar.
+#   --profile=<name> laedt ein zuvor gesichertes Profil.
+#
 # Umgebungsvariablen:
 #   HF_TOKEN           (Pflicht)  HuggingFace-Token
 #   WANDB_API_KEY      (optional) W&B-Key — ohne laeuft Training ohne W&B
@@ -46,6 +51,9 @@ for arg in "$@"; do
         --resume)      RESUME=true ;;
         --destroy)     DESTROY=true ;;
         --dry-run)     DRY_RUN=true ;;
+        --menu)        MENU=1 ;;
+        --no-menu)     MENU=0 ;;
+        --profile=*)   MENU_PROFILE="${arg#*=}"; MENU=1 ;;
         --help|-h)
             sed -n '2,30p' "$0" | sed 's/^# \?//'
             exit 0
@@ -72,6 +80,44 @@ invoke_cmd() {
     fi
     "$@"
 }
+
+# ── Repo-Wurzel + lokale Host-Konfiguration ───────────────────────────────────
+# Bis 2026-08 las NUR server_rl_run.sh die gitignorierte .env.local — die in
+# docs/portabilitaet.md beschriebene Vorrangregel galt hier also gar nicht, und ein
+# dort hinterlegter HF_TOKEN wurde trotzdem abgefragt. Jetzt teilen sich beide Seiten
+# dieselbe Fassung.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="${REPO_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+# shellcheck source=../tools/lib_env_local.sh
+source "$REPO_DIR/tools/lib_env_local.sh"
+env_local_load "$REPO_DIR"
+
+# ── Gefuehrte Menuefuehrung ───────────────────────────────────────────────────
+# Das Menue erzeugt NUR Umgebungsvariablen und laeuft VOR allem anderen. Es meldet
+# sich ausschliesslich, wenn wirklich ein Mensch davorsitzt.
+# shellcheck source=../tools/lib_menu.sh
+source "$REPO_DIR/tools/lib_menu.sh"
+_MENU_LAUNCHER="./Training/setup_and_train_DockerHub-pull.sh"
+
+MENU_ACTION=""
+if $RESUME;      then MENU_ACTION=resume
+elif $DESTROY;   then MENU_ACTION=destroy
+elif $INTERACTIVE; then MENU_ACTION=interactive
+fi
+if menu_enabled; then
+    if [[ -z "$MENU_ACTION" ]]; then
+        # Die Aktionsliste ersetzt die frueher handgestrickte resume/destroy-Abfrage
+        # weiter unten — sie kommt jetzt VOR der Arbeit statt mitten hinein, und sie
+        # zeigt gleich mit an, ob ueberhaupt ein Container existiert.
+        MENU_ACTION="$(menu_pick_action "$REPO_DIR/tools/menu" train)" || { echo; exit 0; }
+    fi
+    menu_ask "$REPO_DIR/tools/menu" train "$MENU_ACTION" || exit 0
+    case "$MENU_ACTION" in
+        resume)      RESUME=true ;;
+        destroy)     DESTROY=true ;;
+        interactive) INTERACTIVE=true ;;
+    esac
+fi
 
 # ── Konfiguration ─────────────────────────────────────────────────────────────
 DOCKER_HUB_IMAGE="${DOCKER_HUB_IMAGE:-lucam03/projekt-humanoider-roboter:latest}"
@@ -108,8 +154,13 @@ if docker run --rm --gpus all --entrypoint nvidia-smi \
 else
     warn "NVIDIA Container Toolkit nicht verfuegbar oder keine GPU erkannt."
     warn "Training ohne GPU nicht moeglich."
-    read -rp "  Trotzdem fortfahren? [j/N] " ans
-    [[ "${ans,,}" == "j" ]] || fatal "Abgebrochen."
+    if [[ -t 0 ]]; then
+        ans=""
+        read -rp "  Trotzdem fortfahren? [j/N] " ans || true
+        [[ "${ans,,}" == "j" ]] || fatal "Abgebrochen."
+    else
+        fatal "Keine GPU erkannt und kein Terminal zum Nachfragen. Abgebrochen."
+    fi
 fi
 echo ""
 
@@ -149,7 +200,13 @@ if $CONTAINER_EXISTS; then
         warn "Optionen:"
         warn "  --resume   den Container weiterlaufen lassen (Daten + Checkpoints bleiben)"
         warn "  --destroy  Container loeschen, alles verwerfen und neu starten"
-        read -rp "  Was tun? [r=resume / d=destroy / a=abbrechen] " ans
+        # Ohne Terminal hier nicht fragen, sondern abbrechen: `read` wuerde unter
+        # `set -euo pipefail` bei EOF das Skript stumm beenden.
+        if [[ ! -t 0 ]]; then
+            fatal "Kein Terminal — bitte --resume oder --destroy angeben."
+        fi
+        ans=""
+        read -rp "  Was tun? [r=resume / d=destroy / a=abbrechen] " ans || true
         case "${ans,,}" in
             r) invoke_cmd docker start -ai "$CONTAINER_NAME"; exit 0 ;;
             d) invoke_cmd docker rm -f "$CONTAINER_NAME"; CONTAINER_EXISTS=false ;;
@@ -160,19 +217,23 @@ fi
 echo ""
 
 # ── 3. Pflicht-Env pruefen ────────────────────────────────────────────────────
+# Die frueheren zwei handgestrickten `read`-Abfragen standen hier. Sie hatten zwei
+# Probleme: sie kannten nur diese beiden Variablen (alle Trainingsparameter musste man
+# vorher wissen), und ohne Terminal riss `read` unter `set -euo pipefail` das Skript
+# kommentarlos mit — `./setup_and_train_… < /dev/null` starb genau an dieser Stelle.
+# Das Fragen erledigt jetzt das Menue weiter oben; hier bleibt nur die Pruefung.
 if ! $INTERACTIVE; then
     if [[ -z "${HF_TOKEN:-}" ]]; then
-        warn "Kein HF_TOKEN gesetzt."
-        read -rp "  HuggingFace-Token eingeben: " hf_input
-        [[ -n "$hf_input" ]] || fatal "HF_TOKEN ist Pflicht."
-        export HF_TOKEN="$hf_input"
+        err "Kein HF_TOKEN gesetzt — er ist Pflicht."
+        err "  Dauerhaft hinterlegen:  echo ': \"\${HF_TOKEN:=hf_...}\"' >> $REPO_DIR/.env.local"
+        err "  Oder pro Aufruf:        HF_TOKEN=hf_... $0"
+        menu_enabled || err "  Oder das gefuehrte Menue nutzen:  $0 --menu"
+        exit 1
     fi
     ok "HF_TOKEN gesetzt"
 
     if [[ -z "${WANDB_API_KEY:-}" ]]; then
         warn "Kein WANDB_API_KEY gesetzt — Training laeuft ohne W&B-Logging."
-        read -rp "  WandB API-Key eingeben (leer lassen fuer ohne W&B): " wandb_input
-        [[ -n "$wandb_input" ]] && export WANDB_API_KEY="$wandb_input"
     fi
 fi
 echo ""
@@ -209,6 +270,12 @@ else
     printf "    %-25s %s\n" "NUM_GPUS"          "$NUM_GPUS"
     printf "    %-25s %s\n" "WANDB_PROJECT"     "$WANDB_PROJECT"
     printf "    %-25s %s\n" "CONTAINER_NAME"    "$CONTAINER_NAME"
+    # Auch die durchgereichten Schalter anzeigen — sonst faellt nicht auf, wenn einer fehlt.
+    for _v in TUNE_VISUAL USE_COTRAIN COTRAIN_MIX_RATIO TRAIN_TEST_SPLIT \
+              USE_AUGMENTATION SKIP_DOWNLOAD SKIP_CONVERT SKIP_TRAIN \
+              SHELL_ON_ERROR WANDB_MODE; do
+        [[ -n "${!_v:-}" ]] && printf "    %-25s %s\n" "$_v" "${!_v}"
+    done
     echo ""
 
     run_args+=(
@@ -219,6 +286,19 @@ else
         "-e" "WANDB_PROJECT=$WANDB_PROJECT"
     )
     [[ -n "${WANDB_API_KEY:-}" ]] && run_args+=("-e" "WANDB_API_KEY=$WANDB_API_KEY")
+
+    # Bis 2026-08 endete die Liste hier — die Feature-Schalter des Entrypoints waren vom
+    # Host aus also gar nicht erreichbar. Wer TUNE_VISUAL=1 ./setup_and_train_… aufrief,
+    # bekam still ein normales Training: die Variable stand in der Host-Shell und kam nie
+    # im Container an. entrypoint.sh liest 19 Variablen, weitergereicht wurden 6.
+    # Weitergereicht wird nur, was auch gesetzt ist — sonst ueberschriebe ein leeres
+    # "-e VAR=" die ENV-Defaults aus dem Dockerfile.
+    for _v in TUNE_VISUAL USE_COTRAIN COTRAIN_MIX_RATIO COTRAIN_DATASET_PATH \
+              COTRAIN_HF_REPO TRAIN_TEST_SPLIT TRAIN_SPLIT_RATIO USE_AUGMENTATION \
+              USE_RL SKIP_DOWNLOAD SKIP_CONVERT SKIP_TRAIN SHELL_ON_ERROR \
+              WANDB_MODE WANDB_DIR DATA_DIR; do
+        [[ -n "${!_v:-}" ]] && run_args+=("-e" "$_v=${!_v}")
+    done
     # -it sorgt fuer farbiges Log + Ctrl+C; bei reinem Headless waere -d sinnvoll.
     run_args+=("-it" "$DOCKER_HUB_IMAGE")
 fi

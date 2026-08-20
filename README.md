@@ -20,6 +20,13 @@ Training läuft. Derselbe Container läuft lokal, auf Cloud-GPU-Plattformen wie
 
 ## Schnellstart
 
+> **Ohne Parameter starten führt durch.** Ruft man eines der Host-Skripte ohne Argumente
+> auf, fragt es die nötigen Werte ab und erklärt sie (`?` bei einer Frage zeigt den
+> Langtext). Am Ende zeigt es den äquivalenten Ein-Zeiler an — beim dritten Mal kommt man
+> also ohne aus. `MENU=0` bzw. `--no-menu` schaltet es ab; im Container, unter SLURM und
+> ohne Terminal erscheint es nie. Die Beispiele unten funktionieren unverändert weiter.
+> Details: [cli-menuefuehrung.md](docs/weiterfuehrend/cli-menuefuehrung.md)
+
 **KISSKI (HPC-Cluster, empfohlen für langes Training):**
 ```bash
 # Einmalig auf dem Login-Knoten glogin-gpu.hpc.gwdg.de:

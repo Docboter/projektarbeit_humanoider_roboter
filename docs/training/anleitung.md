@@ -14,6 +14,13 @@ Diese Anleitung beschreibt Schritt für Schritt, wie du das Fine-tuning von **GR
 
 ## Vier Wege zum Trainieren
 
+> **Ohne Parameter starten führt durch.** Ruft man eines der Host-Skripte ohne Argumente
+> auf, fragt es die nötigen Werte ab und erklärt sie (`?` bei einer Frage zeigt den
+> Langtext). Am Ende zeigt es den äquivalenten Ein-Zeiler an — beim dritten Mal kommt man
+> also ohne aus. `MENU=0` bzw. `--no-menu` schaltet es ab; im Container, unter SLURM und
+> ohne Terminal erscheint es nie. Die Beispiele unten funktionieren unverändert weiter.
+> Details: [cli-menuefuehrung.md](../weiterfuehrend/cli-menuefuehrung.md)
+
 - **Weg A — vast.ai** (oder andere Cloud-GPU-Anbieter): du brauchst nur das Image und einige Env-Vars
 - **Weg B — Lokales Training mit dem Launcher-Skript**: bequem unter Linux/macOS/WSL2
 - **Weg C — Lokales Training mit `docker run`**: maximale Kontrolle, kein Skript

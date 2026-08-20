@@ -12,6 +12,17 @@ Pfade auf genau *einen* Rechner bzw. *ein* HPC-Konto. Wer das Repo klonte, lief 
 
 ---
 
+> **Nachtrag 2026-08-20 — `.env.local` gilt jetzt wirklich überall.** Bis zu diesem Datum
+> lasen nur [`server_rl_run.sh`](../Simulation/server_rl_run.sh) und
+> `server_robocasa_ref_run.sh` die Datei; in den Trainings-Launchern fehlte der Block
+> ganz, die unten beschriebene Vorrangregel galt dort also nicht. Ein in `.env.local`
+> hinterlegter `HF_TOKEN` wurde von
+> [`setup_and_train_DockerHub-pull.sh`](../Training/setup_and_train_DockerHub-pull.sh)
+> trotzdem abgefragt. Die Mechanik steckt jetzt einmal in
+> [`tools/lib_env_local.sh`](../tools/lib_env_local.sh) und wird von beiden Seiten
+> gesourct. Aufgefallen beim Umsetzen der
+> [CLI-Menüführung](weiterfuehrend/cli-menuefuehrung.md).
+
 ## 1. Was sich geändert hat
 
 | Wo | Vorher (fest verdrahtet) | Jetzt |

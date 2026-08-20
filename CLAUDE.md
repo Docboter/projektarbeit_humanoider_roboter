@@ -28,6 +28,26 @@ Detailed guides (all prose docs live under [`docs/`](docs/README.md)):
 
 ## Key commands
 
+### Guided menus — start any host launcher without arguments
+
+Every host launcher walks you through the values it needs when it is started without
+arguments and a human is actually at the terminal. Nothing else changes: the menu only
+sets env vars and then runs the unmodified path, and it always prints the equivalent
+one-liner so you can skip it next time.
+
+```bash
+./Simulation/server_rl_run.sh                 # action list + questions
+./Training/setup_and_train_DockerHub-pull.sh  # training parameters, VRAM-aware suggestion
+./Training/kisski_menu.sh --dry-run           # builds the sbatch line (login node only)
+MENU=0 ./Simulation/server_rl_run.sh eval     # off — behaves exactly as before
+```
+
+It never appears in a container, under SLURM, in CI, or without a TTY. Engine and
+parameter specs live in [`tools/`](tools/) (host-only, never copied into an image);
+`tools/gen_docs.sh` checks spec defaults against the scripts and the docs, and
+`tools/test_menu.sh` runs the 30-check acceptance suite. Design and deviations:
+[`docs/weiterfuehrend/cli-menuefuehrung.md`](docs/weiterfuehrend/cli-menuefuehrung.md).
+
 ### Run the full pipeline (download → convert → train)
 
 ```bash
@@ -208,11 +228,23 @@ repo root
 │                                       #   every path from ONE KISSKI_PROJECT_DIR and find their SIF
 │                                       #   via KISSKI_SIF_DIR ($HOME/images first). Contains the
 │                                       #   migration checklist for the IKR server and KISSKI
+├── tools/                              # ★ Host-only helpers — NEVER copied into an image,
+│   │                                   #   so changes here never need a rebuild
+│   ├── lib_menu.sh                     # Guided-CLI engine (pure bash, stderr-only UI)
+│   ├── lib_env_local.sh                # Shared .env.local loader (was duplicated /
+│   │                                   #   missing; the training launchers had none)
+│   ├── gen_docs.sh                     # Drift check: spec default vs. ${VAR:-…} vs. docs
+│   ├── test_menu.sh                    # The §8 acceptance plan, runnable (30 checks)
+│   └── menu/*.spec                     # Parameter specs — one file per action
 ├── Training/                           # Everything training-related (build, run scripts)
 │   ├── Dockerfile                      # Defines image; ENTRYPOINT = /scripts/entrypoint.sh
 │   │                                   #   build context = Training/ (so COPY scripts/ works)
 │   ├── docker-compose.yml              # Optional (dev convenience; no host volume mounts)
 │   ├── kisski_submit.sh                # SLURM batch script for KISSKI HPC cluster
+│   ├── kisski_menu.sh                  # ★ Login-node helper: asks partition/walltime and
+│   │                                   #   builds the `sbatch --export=ALL …` line.
+│   │                                   #   Standalone on purpose — kisski_submit.sh must
+│   │                                   #   stay scp-able alone, so it gets no tools/ dep
 │   ├── kisski_open_loop_eval.sh        # SLURM job: open-loop checkpoint eval (open_loop_eval.py, no server)
 │   ├── kisski_rl_submit.sh             # SLURM job: RL fine-tuning (FPO) — sim SIF, RT-core GPU guard (TEMPLATE)
 │   ├── update_image.sh                 # Host build/push tool (must sit next to Dockerfile)

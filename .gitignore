@@ -107,3 +107,7 @@ venv/
 # --- OS-Artefakte ---
 Thumbs.db
 .DS_Store
+
+# Zustand der gefuehrten CLI-Menues (tools/lib_menu.sh): zuletzt benutzte Antworten
+# und benannte Profile. Rechnerspezifisch, gehoert nicht ins Repo.
+.menu/

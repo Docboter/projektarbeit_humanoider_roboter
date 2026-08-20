@@ -1,6 +1,15 @@
 # Implementierungsplan — geführte CLI-Menüs für Training und Simulation
 
-> **Status:** Plan, noch nichts umgesetzt. Idee aus der Projektabsprache vom 2026-08-20:
+> **Status: umgesetzt am 2026-08-20** auf `training-luca-IKR-IS6.0`. Alle sieben Phasen
+> stehen, mit zwei bewussten Abweichungen vom Plan (Phase 5 und §4.4) — siehe
+> [§12 Umsetzungsstand](#12-umsetzungsstand). Der Plantext unten bleibt als
+> Begründungsprotokoll erhalten; wo die Umsetzung abweicht, steht es dort.
+>
+> **Bedienung in einem Satz:** Eines der Skripte ohne Parameter starten, dann führt es
+> durch. `MENU=0` bzw. `--no-menu` schaltet das ab; jeder bisherige Aufruf funktioniert
+> unverändert weiter.
+>
+> Idee aus der Projektabsprache vom 2026-08-20:
 > *„Wenn man das Sim-Skript ohne Parameter startet, soll es die nötigen Werte in der CLI
 > abfragen und ggf. erklären — dann muss man die Parameter nicht kennen."*
 >
@@ -37,16 +46,18 @@ Aufwand: **1–2 Tage** für den tragenden Teil (Engine + `eval` + Trainings-Lau
 
 ## 1. Befund am bestehenden Code
 
-Erhoben am 2026-08-20 auf dem Stand von Branch `training-luca-IKR-IS6.0-GN1.7`.
+Ursprünglich erhoben auf `training-luca-IKR-IS6.0-GN1.7`; die Spalte „hier" ist auf
+`training-luca-IKR-IS6.0` vor der Umsetzung nachgezählt worden.
 
-| Befund | Zahl / Stelle |
-|---|---|
-| Aktionen in [`server_rl_run.sh`](../../Simulation/server_rl_run.sh) | **20** (`preflight … clean`), Dispatch ab Zeile 1727 |
-| Distinkte Env-Vars, die dasselbe Skript liest | **99** |
-| Länge des `usage()`-Heredocs | **~200 Zeilen** (Zeile 1541–1734) |
-| Gesamtlänge des Skripts | 1757 Zeilen / 97 KB |
-| Weitere Host-Einstiegspunkte | `setup_and_train_DockerHub-pull.sh` (245), `setup_and_train_Container-build.sh` (342), `server_robocasa_ref_run.sh` (292), `update_image.sh` (286), `update_sim_image.sh` (198), `kisski_*.sh` |
-| Env-Vars im Trainings-Entrypoint | 20 (`entrypoint.sh`), plus die Feature-Schalter aus `run_finetuning*.sh` |
+| Befund | GN1.7 | hier |
+|---|---|---|
+| Aktionen in [`server_rl_run.sh`](../../Simulation/server_rl_run.sh) | 20 | **19** (`preflight … clean`, plus Alias `down`), Dispatch ab Zeile 1637 |
+| Distinkte Env-Vars, die dasselbe Skript liest | 99 | **101** |
+| Länge des `usage()`-Heredocs | ~200 Zeilen | **171 Zeilen** (1463–1634) |
+| Gesamtlänge des Skripts | 1757 Zeilen | 1667 Zeilen / 91 KB |
+| Weitere Host-Einstiegspunkte | `setup_and_train_DockerHub-pull.sh`, `setup_and_train_Container-build.sh`, `server_robocasa_ref_run.sh`, `update_image.sh`, `update_sim_image.sh`, `kisski_*.sh` | dieselben |
+| Env-Vars im Trainings-Entrypoint | 20 | **19** (`entrypoint.sh`), plus die Feature-Schalter aus `run_finetuning*.sh` |
+| **Davon vom Host-Launcher durchgereicht** | — | **6** — der Rest kam nie im Container an (siehe §12.1) |
 
 Weitere für den Entwurf relevante Beobachtungen:
 
@@ -62,7 +73,10 @@ Weitere für den Entwurf relevante Beobachtungen:
   KISSKI-Login-Node nicht vorausgesetzt werden. `jq` ist vorhanden, wird aber nicht gebraucht.
 - **`.env.local` ist bereits die richtige Schicht** für alles Rechnerspezifische
   (siehe [portabilitaet.md](../portabilitaet.md)) — das Menü setzt darauf auf, statt sie zu
-  ersetzen.
+  ersetzen. **Beim Umsetzen zeigte sich allerdings:** nur `server_rl_run.sh` und
+  `server_robocasa_ref_run.sh` lasen die Datei überhaupt. In den Trainings-Launchern galt
+  die in `portabilitaet.md` beschriebene Vorrangregel gar nicht — ein dort hinterlegter
+  `HF_TOKEN` wurde trotzdem abgefragt. Siehe §12.1.
 - **`start_logging` spiegelt die gesamte Ausgabe** nach `$HOST_DATA_DIR/logs/<aktion>-<ts>.log`
   (Zeile 217 ff., `exec > >(tee -a …) 2>&1`). Das hat zwei Konsequenzen für das Menü —
   Reihenfolge und Geheimnisse, siehe §6.
@@ -127,19 +141,31 @@ Stelle, die veraltet.
 
 ### 3.1 Dateien
 
+Geplant war das hier; **tatsächlich entstanden** ist die rechte Fassung:
+
 ```
 tools/
-├── lib_menu.sh              # Menü-Engine, reines Bash (>= 4.2), ~300 Zeilen
-├── gen_docs.sh              # rendert Spezifikationen in docs/ zwischen Markern
+├── lib_menu.sh              # Menü-Engine, reines Bash (>= 4.2), ~870 Zeilen
+├── lib_env_local.sh         # ★ NEU: gemeinsames Laden der .env.local (§12.1)
+├── gen_docs.sh              # ★ PRÜFT statt zu generieren (§12.2)
+├── test_menu.sh             # ★ NEU: der Prüfplan aus §8, ausführbar (30 Prüfungen)
 └── menu/
-    ├── _common.spec         # Parameter, die mehrere Aktionen teilen (HF_TOKEN, LIVE*,
-    │                        #   GROOT_VERSION nur auf dem N1.7-Branch)
-    ├── sim-eval.spec
-    ├── sim-rl.spec
-    ├── sim-render.spec
-    ├── …                    # je Aktion von server_rl_run.sh eine Datei
-    └── train-local.spec     # setup_and_train_DockerHub-pull.sh
+    ├── _order.spec          # ★ Reihenfolge der Gruppen (sonst alphabetisch, §12.3)
+    ├── _order-train.spec
+    ├── _order-kisski.spec
+    ├── _common.spec         # was ALLE teilen (HF_TOKEN)
+    ├── _common-sim.spec     # ★ je Prefix getrennt: LIVE* gehört nicht ins Training
+    ├── _common-train.spec
+    ├── _common-kisski.spec
+    ├── sim-<aktion>.spec    # 19 Stück, je Aktion von server_rl_run.sh eine
+    ├── train-{train,resume,destroy,interactive}.spec
+    └── kisski-{train,openloop,rl,sim}.spec
 ```
+
+Dazu ein neues Host-Skript [`Training/kisski_menu.sh`](../../Training/kisski_menu.sh):
+der Login-Node-Weg aus §4.3. Bewusst eigenständig, weil `kisski_submit.sh` weiterhin
+allein auf den Cluster kopierbar bleiben soll (`scp kisski_submit.sh …`) und deshalb
+keine Abhängigkeit auf `tools/` bekommen darf.
 
 **Warum `tools/` und nicht `Simulation/scripts/`:** Letzteres wird in die Images **kopiert**
 (`COPY scripts/ /scripts/`), jede Änderung bräuchte dort einen Image-Rebuild. Die Host-Launcher
@@ -450,30 +476,30 @@ Punkt, an dem Einsteiger hängenbleiben.
 
 Bewusst inkrementell — nach jeder Phase ist das Repo benutzbar.
 
-### Phase 1 — Engine + eine Aktion (Beweis)
+### Phase 1 — Engine + eine Aktion (Beweis) — ✓ erledigt
 `tools/lib_menu.sh`, `tools/menu/sim-eval.spec`, Hook in `server_rl_run.sh`.
 **Abnahme:** `./Simulation/server_rl_run.sh` ohne Argument führt durch `eval`;
 `NUM_EPISODES=20 ./Simulation/server_rl_run.sh eval` verhält sich **unverändert**;
 `./Simulation/server_rl_run.sh eval < /dev/null` bricht mit klarer Meldung ab statt zu hängen.
 
-### Phase 2 — Trainings-Launcher
+### Phase 2 — Trainings-Launcher — ✓ erledigt
 `tools/menu/train-local.spec`, Hook in `setup_and_train_DockerHub-pull.sh`, Ablösung der
 zwei handgestrickten Abfragen, VRAM-basierter Vorschlag für `GLOBAL_BATCH_SIZE`.
 **Abnahme:** Ein Trainingsstart ist ohne Blick in [env-vars.md](../training/env-vars.md)
 möglich; der Ein-Zeiler in der Zusammenfassung startet denselben Lauf.
 
-### Phase 3 — Restliche Sim-Aktionen
+### Phase 3 — Restliche Sim-Aktionen — ✓ erledigt
 Specs für die übrigen 19 Aktionen, `_common.spec` für die geteilten Parameter
 (`HF_TOKEN`, `LIVESTREAM*`, `LIVE_VIEW*`, `SHELL_ON_ERROR`; auf dem N1.7-Branch zusätzlich
 `GROOT_VERSION`).
 **Abnahme:** Jede Aktion aus dem Menü erreichbar; `usage()` und Menü nennen dieselben Defaults
 (automatisch prüfbar, siehe §8).
 
-### Phase 4 — Recall und Profile
+### Phase 4 — Recall und Profile — ✓ erledigt
 `.menu/last/`, `.menu/profiles/`, `--profile <name>`, `.gitignore`-Eintrag.
 **Abnahme:** Zweiter Aufruf derselben Aktion ist mit einem `[Enter]` erledigt.
 
-### Phase 5 — Generierung von Hilfe und Doku
+### Phase 5 — Generierung von Hilfe und Doku — ⚠ bewusst geändert, siehe §12.2
 `menu_render_usage` ersetzt die generierbaren Teile des Heredocs;
 `tools/gen_docs.sh` schreibt zwischen `<!-- BEGIN generated: … -->`-Marker in
 [env-vars.md](../training/env-vars.md) und eine neue Sim-Variablen-Tabelle.
@@ -481,13 +507,13 @@ Prüfmodus `tools/gen_docs.sh --check` für einen Pre-Commit-Hook.
 **Abnahme:** Ein geänderter Default in einer Spec taucht ohne weitere Handgriffe in `--help`
 **und** in der Doku auf; `--check` schlägt bei veralteter Doku fehl.
 
-### Phase 6 — KISSKI und Nebenskripte
+### Phase 6 — KISSKI und Nebenskripte — ✓ KISSKI erledigt, Nebenskripte entfallen (§12.4)
 Login-Node-Menü, das die `export …; sbatch …`-Zeile baut (Partition, Walltime, Batch-Size);
 `update_image.sh` / `update_sim_image.sh` (`--push-latest`); `server_robocasa_ref_run.sh`.
 **Abnahme:** Ein KISSKI-Job lässt sich ohne Blick in [kisski-hpc.md](../training/kisski-hpc.md)
 absenden.
 
-### Phase 7 — Doku-Pass
+### Phase 7 — Doku-Pass — ✓ erledigt
 [README.md](../../README.md), [docs/README.md](../README.md),
 [anleitung.md](../training/anleitung.md), [rl-anleitung.md](rl-anleitung.md) und CLAUDE.md
 auf „ohne Parameter starten führt durch" hinweisen. Die bestehenden Ein-Zeiler-Beispiele
@@ -561,3 +587,139 @@ Plan verhindern soll. Solange Phase 5 nicht steht, muss sie manuell laufen.
 | 2026-08-20 | Spec-DSL als Bash-Funktionsaufrufe | Kein Parser nötig; `when`-Abhängigkeiten fallen direkt heraus |
 | 2026-08-20 | Äquivalenter Ein-Zeiler wird immer angezeigt | Menü als Lernhilfe, nicht als Ersatz für das Wissen |
 | 2026-08-20 | Doku-Generierung ist Pflicht-Phase, nicht Kür | Sonst ist das Menü die fünfte Kopie derselben Beschreibungen |
+
+---
+
+## 12. Umsetzungsstand
+
+Umgesetzt am 2026-08-20. Der Plantext oben ist unverändert erhalten; hier steht, was
+beim Bauen anders wurde und warum. Prüfstand: `tools/test_menu.sh` — **30 Prüfungen,
+alle bestanden**, ohne GPU und ohne Container.
+
+### 12.1 Zwei Defekte, die der Plan nicht kennen konnte
+
+Beide fielen erst beim Verdrahten auf, und beide hätten das Trainings-Menü sinnlos
+gemacht. Sie sind mitbehoben.
+
+**Der Trainings-Launcher las `.env.local` überhaupt nicht.** Nur
+[`server_rl_run.sh`](../../Simulation/server_rl_run.sh) und `server_robocasa_ref_run.sh`
+hatten den Block; in [`setup_and_train_DockerHub-pull.sh`](../../Training/setup_and_train_DockerHub-pull.sh)
+fehlte er ganz. Die in [portabilitaet.md](../portabilitaet.md) beschriebene Vorrangregel
+galt dort also nie — ein in `.env.local` hinterlegter `HF_TOKEN` wurde trotzdem
+abgefragt. Damit hätte auch §3.4 („das Menü wird stiller, je besser `.env.local` gepflegt
+ist") auf der Trainingsseite nicht funktioniert. Die Mechanik steckt jetzt einmal in
+[`tools/lib_env_local.sh`](../../tools/lib_env_local.sh) und wird von beiden Seiten
+gesourct.
+
+**Der Trainings-Launcher reichte 6 von 19 Env-Vars durch.**
+[`entrypoint.sh`](../../Training/scripts/entrypoint.sh) liest 19 Variablen; die
+`docker run`-Zeile setzte davon 6 (`HF_TOKEN`, `MAX_STEPS`, `GLOBAL_BATCH_SIZE`,
+`NUM_GPUS`, `WANDB_PROJECT`, `WANDB_API_KEY`). `TUNE_VISUAL`, `USE_COTRAIN`,
+`TRAIN_TEST_SPLIT`, `USE_AUGMENTATION`, `SKIP_*`, `SHELL_ON_ERROR` und `WANDB_MODE`
+kamen im Container nie an: wer `TUNE_VISUAL=1 ./setup_and_train_DockerHub-pull.sh`
+aufrief, bekam **still ein normales Training**. Ein Menü, das danach fragt und den Wert
+dann verschluckt, wäre schlimmer als keins gewesen. Der Launcher reicht jetzt alle 19
+durch — aber nur, wenn sie gesetzt sind, damit ein leeres `-e VAR=` nicht die
+`ENV`-Defaults aus dem Dockerfile überschreibt.
+
+Nebenbei fielen drei `read`-Aufrufe im selben Skript, die unter `set -euo pipefail` bei
+EOF das Skript **kommentarlos beendeten** — genau der Fall aus §6.
+`./setup_and_train_DockerHub-pull.sh < /dev/null` starb an der WandB-Abfrage. Zwei davon
+ersetzt jetzt das Menü, die dritte (`resume`/`destroy`) prüft `[[ -t 0 ]]`, bevor sie
+fragt.
+
+### 12.2 Phase 5: Prüfen statt Generieren
+
+**Geplant:** `usage()` und die Doku-Tabellen aus den Specs rendern.
+**Gebaut:** [`tools/gen_docs.sh`](../../tools/gen_docs.sh) vergleicht drei Quellen —
+Spec-Default, echtes `${VAR:-…}` im Skript (bzw. `ENV` im Dockerfile) und die Zeile in
+der Doku-Tabelle — und schlägt bei Abweichung mit Rückgabewert 1 fehl.
+
+Der Grund für den Tausch: Generieren hätte hier Information **vernichtet**. Der
+`usage()`-Heredoc verwebt Prosa und Parameter und liest live `$HOST_DATA_DIR` und
+`$IMAGE`; [env-vars.md](../training/env-vars.md) trägt je Zeile mehr Begründung, als
+eine Spec je fassen wird (Lauf-Nummern, Verweise, Warnungen wie „gilt seit 2026-08-13
+auch für `TUNE_VISUAL=1`"). Der Zweck von Phase 5 war nie die Generierung an sich,
+sondern die Sicherheit gegen Drift — und die liefert der Abgleich vollständig, ohne eine
+gewachsene Zeile anzufassen. Das ist Prüfung 9 des Plans, automatisiert.
+
+Der Abgleich fand beim ersten Lauf **27 Abweichungen**. Die meisten waren falsche
+Annahmen in den frisch geschriebenen Specs (der Abgleich hat sie also sofort erledigt,
+wofür er da ist). Zwei sind **echte Inkonsistenzen im Repo**, die bewusst stehen
+bleiben und hier nur festgehalten werden:
+
+| Stelle | Wert | Bemerkung |
+|---|---|---|
+| `MAX_STEPS` | Launcher `30000`, `entrypoint.sh` `20000`, [env-vars.md](../training/env-vars.md) `20000` | Der Host-Launcher überstimmt den Container-Default. Nicht falsch, aber überraschend — wer über den Launcher startet, bekommt 30000, wer das Image direkt fährt, 20000. |
+| `COTRAIN_MIX_RATIO` | Code `0.5`, Doku empfiehlt `0.25` | [run_finetuning_cotrain.sh](../../Training/scripts/run_finetuning_cotrain.sh) hat `0.5` als Default, während env-vars.md, CLAUDE.md und [co-training.md](../training/co-training.md) übereinstimmend `0.25` für den ersten Lauf empfehlen. Die Spec folgt dem Code (`0.5`) und nennt `0.25` im Erklärtext. **Zu entscheiden:** Default auf `0.25` ziehen oder die Empfehlung streichen. |
+
+Zwei Ergänzungen der Spec-Sprache machen den Abgleich erst belastbar:
+
+- `--override "<grund>"` — diese Aktion weicht **absichtlich** vom Skript-Default ab.
+  `do_view` etwa setzt `SCENE_CAM=0` und `CAM_RES_SCALE=0.5` selbst, weil es nichts misst
+  und deshalb sparen darf. Ohne diese Angabe meldete der Abgleich bekannte Wahrheiten als
+  Fehler — und ein Prüfwerkzeug, das anmeckert, was stimmt, gewöhnt man sich ab zu lesen.
+- `--default-from "<datei>"` — der wirksame Default liegt woanders (argparse in
+  `rl_finetune.py`, `entrypoint_rl.sh`). Ein `secret` ist automatisch ausgenommen: ein
+  Geheimnis hat per Definition keinen Default.
+
+Was **nicht** stillschweigend durchgeht: Parameter ohne prüfbaren Default und ohne eine
+dieser beiden Angaben meldet der Bericht als `UNGEPRUEFT`. Derzeit sind es null.
+
+### 12.3 Kleinere Abweichungen
+
+| Punkt | Plan | Umsetzung | Grund |
+|---|---|---|---|
+| **Positionsargumente** | nicht vorgesehen | `argpos` in der DSL; `set -- "$ACTION" "${MENU_ARGV[@]}"` nach dem Fragen | `optimize <phase>` und `webview stop` lesen `$2`. Ohne das hätte das Menü zwei der 19 Aktionen nicht vollständig bedienen können. |
+| **Reihenfolge der Aktionsliste** | implizit | `_order.spec` mit `group_order`, `--rank` je Aktion | Specs werden alphabetisch geglobbt; die Liste stand in Dateinamen-Reihenfolge. Damit wäre gerade der Nutzen aus §5.1 weg — sie soll die Kette `preflight → setup → cams → gap → eval → layout → render → rl` zeigen. |
+| **`_common.spec`** | eine Datei | zusätzlich `_common-<prefix>.spec` | Die `LIVE*`-Parameter gehören zur Sim, nicht ins Trainings-Menü. |
+| **Container-Erkennung** | `/.dockerenv` | zusätzlich `APPTAINER_NAME`, `SINGULARITY_NAME`, `APPTAINER_CONTAINER`, `SLURM_JOBID`, `GITHUB_ACTIONS` | Auf KISSKI läuft derselbe Code unter Apptainer, ganz ohne `/.dockerenv`. Der Rest des Repos prüft beides (`run_finetuning.sh`), das Menü muss es auch. |
+| **Ein-Zeiler** | Aktionsname anhängen | `--cli` je Aktion | Die Trainings-Launcher kennen Flags (`--resume`), keine Positionsargumente. Der angezeigte Ein-Zeiler wäre sonst nicht lauffähig gewesen — und er ist der halbe Zweck des Menüs. |
+| **Schalter** | nur `MENU=0` | zusätzlich `--menu`, `--no-menu`, `--profile=<name>` | Über ein Flag stolpert man in `--help`; über eine Env-Var nicht. |
+| **VRAM-Vorschlag** | Batch-Size vorschlagen | `--suggest` als allgemeiner Mechanismus | So hängt auch `NUM_GPUS` daran. Der **statische** Spec-Default bleibt die prüfbare Wahrheit; der Vorschlag ist nur das, was im Prompt steht. |
+
+### 12.4 Was bewusst nicht gebaut wurde
+
+- **`update_image.sh` / `update_sim_image.sh`** (§4.4). Der Plan nennt als Hauptgewinn die
+  Frage „auch `:latest` pushen?" (`--push-latest`). Dieses Flag existiert auf
+  `training-luca-IKR-IS6.0` **nicht** — es kam auf dem N1.7-Branch dazu. Übrig blieben
+  vier selbsterklärende Flags (`--no-cache`, `--skip-push`, `--dry-run`,
+  `--update-commit`); dafür lohnt ein Menü nicht. Nach einem Merge des N1.7-Pfads neu zu
+  bewerten.
+- **`server_robocasa_ref_run.sh`** (§4.4). Wenige Parameter, seltene Benutzung. Es liest
+  seine `.env.local` weiterhin über den eigenen Block — der Umbau auf
+  `lib_env_local.sh` wäre eine Verbesserung, gehört aber nicht in diesen Schritt.
+- **`setup_and_train_Container-build.sh`.** Teilt sich die Spec mit der Pull-Fassung, ist
+  aber noch nicht verdrahtet. Ein Einzeiler wie in der Pull-Fassung genügt dafür.
+
+### 12.5 Bedienung
+
+```bash
+./Simulation/server_rl_run.sh                 # führt durch (Aktionsliste + Fragen)
+./Simulation/server_rl_run.sh eval            # führt nur durch die Parameter von 'eval'
+MENU=0 ./Simulation/server_rl_run.sh eval     # wie bisher, keine Rückfrage
+./Simulation/server_rl_run.sh --profile=rauchtest eval
+
+./Training/setup_and_train_DockerHub-pull.sh  # führt durch
+./Training/kisski_menu.sh --dry-run           # baut die sbatch-Zeile, reicht nicht ein
+
+./tools/gen_docs.sh                           # Abgleich Spec <-> Skript <-> Doku
+./tools/gen_docs.sh --table sim               # Markdown-Tabelle aller Sim-Parameter
+./tools/test_menu.sh                          # der Prüfplan aus §8 (30 Prüfungen)
+```
+
+In der Fragerunde: `?` zeigt den Langtext, leere Eingabe nimmt den Default.
+Auf der Bestätigungsseite: `[Enter]` startet, `[1-n]` ändert einen Wert,
+`[e]` blendet die erweiterten Optionen ein, `[b]` zeigt nur den Befehl,
+`[p]` sichert ein Profil, `[a]` bricht ab.
+
+### 12.6 Wenn eine Spec geändert wird
+
+1. Datei unter `tools/menu/` bearbeiten — reines Bash, `bash -n` prüft sie.
+2. `./tools/gen_docs.sh` laufen lassen. Meldet er eine Abweichung, ist entweder die Spec
+   falsch oder die andere Stelle — **nicht** die Meldung.
+3. `./tools/test_menu.sh` laufen lassen.
+
+Schritt 2 ist der Punkt, an dem dieses Vorhaben steht oder fällt: ohne ihn wären die
+Specs die fünfte Kopie derselben Beschreibungen, und der Plan hätte in §9 mit dem
+höchsten Risiko recht behalten.

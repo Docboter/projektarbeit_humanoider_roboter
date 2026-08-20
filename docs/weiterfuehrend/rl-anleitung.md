@@ -21,6 +21,13 @@ statt nur Aktions-Nachahmung (Hintergrund: [reinforcement-learning-plan.md](rein
 
 ## Überblick: Was läuft wo
 
+> **Ohne Parameter starten führt durch.** Ruft man eines der Host-Skripte ohne Argumente
+> auf, fragt es die nötigen Werte ab und erklärt sie (`?` bei einer Frage zeigt den
+> Langtext). Am Ende zeigt es den äquivalenten Ein-Zeiler an — beim dritten Mal kommt man
+> also ohne aus. `MENU=0` bzw. `--no-menu` schaltet es ab; im Container, unter SLURM und
+> ohne Terminal erscheint es nie. Die Beispiele unten funktionieren unverändert weiter.
+> Details: [cli-menuefuehrung.md](cli-menuefuehrung.md)
+
 ```
 vast.ai Instanz (L40 48 GB / RTX 4090 24 GB — RT-Cores PFLICHT)
 └── Docker-Container: lucam03/projekt-humanoider-roboter-sim-vastai:latest
