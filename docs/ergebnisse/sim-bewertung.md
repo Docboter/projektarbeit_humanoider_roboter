@@ -102,7 +102,7 @@ Quellen:
 
 | Prio | Datei | Befund | Maßnahme |
 |---|---|---|---|
-| 🔴 | [`g1_dex3_cfg.py:139-141`](../../Simulation/g1_dex3_sim/g1_dex3_cfg.py#L139-L141) | Kommentar behauptet „Arme = relative Deltas, im Loop addiert" — Code wendet **alle 28 Dims absolut** an. Widerspricht der korrekten `_pre_physics_step`-Docstring. | Kommentar korrigieren (irreführend). |
+| ✅ | [`g1_dex3_cfg.py:149-159`](../../Simulation/g1_dex3_sim/g1_dex3_cfg.py#L149-L159) | Kommentar behauptete „Arme = relative Deltas, im Loop addiert" — Code wendet **alle 28 Dims absolut** an. Widersprach der korrekten `_pre_physics_step`-Docstring. | **Erledigt 2026-08-21:** Kommentar auf ABSOLUTE Targets korrigiert, plus die gemessenen Tracking-Werte als Beleg gegen die wiederkehrende „PD-Gains zu weich"-These. |
 | 🟠 | [`g1_dex3_blockstack_env.py:280`](../../Simulation/g1_dex3_sim/g1_dex3_blockstack_env.py#L280) | `dr_enabled=True` bei Eval bringt für eingefrorenen Encoder nichts (s. §2). | Für Eval auf `False` (oder als Trainings-Augmentierung verschieben). |
 | 🟠 | [`g1_dex3_blockstack_env.py:259-260`](../../Simulation/g1_dex3_sim/g1_dex3_blockstack_env.py#L259-L260) | `policy_hz=30.0`, real aber 28,57 Hz (`dt=1/200`, `decimation=7`). | Label auf 28,57 setzen **oder** `dt=1/210` für echte 30 Hz. |
 | 🟡 | [`g1_dex3_blockstack_env.py:625-655`](../../Simulation/g1_dex3_sim/g1_dex3_blockstack_env.py#L625-L655) | Erfolg verlangt vollständige 3er-Säule (alle Paare xy<3 cm + Höhe>8 cm + stabil). | Gegen die echte Dataset-Task abgleichen (stapelt sie 2 oder 3?). |

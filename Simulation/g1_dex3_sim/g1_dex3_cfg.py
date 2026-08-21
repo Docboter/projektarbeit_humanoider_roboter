@@ -146,9 +146,17 @@ G1_DEX3_CFG = ArticulationCfg(
         joint_vel={".*": 0.0},
     ),
     actuators={
-        # Arme: positionsgeregelt (PD-Controller)
-        # GR00T-Aktionen sind RELATIVE Deltas → werden im Control-Loop auf
-        # aktuelle Position addiert und dann als Target gesetzt.
+        # Arme: positionsgeregelt (PD-Controller), ABSOLUTE Targets — wie die Hände.
+        # Der GR00T-Checkpoint trägt zwar use_relative_action=true, aber der Server
+        # dekodiert das bereits per processor.decode_action() gegen den beobachteten
+        # State zurück. _pre_physics_step() setzt die 28 Werte deshalb DIREKT als
+        # Positions-Target — kein Aufaddieren auf joint_pos (das würde die
+        # Verschiebung verdoppeln und die Arme wegdriften lassen).
+        # Gains gemessen, nicht geschätzt: der Open-Loop-Replay mit echten
+        # Dataset-Aktionen (Läufe 26/27, docs/ergebnisse/diagnose-chronik.md) ergibt
+        # 0,019 rad mittleren Arm-Regelfehler bei Schwelle 0,1 — die Sim folgt den
+        # aufgezeichneten Trajektorien. Wer hier K erhöht, muss D mit √K mitziehen,
+        # sonst kippt der Regler ins Unterdämpfte (Jitter statt besserem Tracking).
         "left_arm": ImplicitActuatorCfg(
             joint_names_expr=LEFT_ARM_JOINTS,
             effort_limit=300.0,
@@ -168,7 +176,7 @@ G1_DEX3_CFG = ArticulationCfg(
             damping=10.0,
             armature=0.01,
         ),
-        # Hände: positionsgeregelt (ABSOLUTE Targets aus GR00T-Aktionen).
+        # Hände: positionsgeregelt, ABSOLUTE Targets (siehe Arme oben).
         # stiffness=60 / effort_limit=20 N·m: reale Dex3-Finger müssen ~50g Würfel gegen
         # Schwerkraft halten; mit stiffness=20/effort=5 schließen die Distal-Joints nicht
         # vollständig (per_joint_max_error Index 18/27 war 0.74/0.88 rad im Replay).
