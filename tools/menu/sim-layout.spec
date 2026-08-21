@@ -8,6 +8,10 @@ action layout "Wuerfellage aus den Realbildern lesen" \
 
 param HF_TOKEN secret "" advanced "HuggingFace-Token" "Nur noetig, wenn der Datensatz noch fehlt." \
   --default-from "Geheimnis - hat per Definition keinen Default"
+param CHECKPOINT_PATH path "/data/checkpoints/groot-g1dex3-checkpoint" expert \
+  "Checkpoint im Container" "Nicht noetig — die Wuerfellage kommt aus den Realbildern, ohne Modell."
+param HF_CHECKPOINT_REPO str "luca-mue/groot-g1dex3-checkpoint" expert \
+  "HuggingFace-Repo des Checkpoints" "Nicht noetig."
 group "Umfang"
 param RENDER_EPISODES int 60 basic "Anzahl Episoden" --range 1:500
 param LAYOUT_OUT path "/data/cotrain/layout.json" advanced "Ausgabedatei im Container"

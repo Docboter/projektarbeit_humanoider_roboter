@@ -5,6 +5,10 @@ action layoutcheck "Kameramodell gegen ein Renderbild pruefen" \
   --hint  "Bevor man 'layout' glaubt. In Lauf 13 lagen konfigurierte Pose und cam.data 95,6 Grad auseinander und drei Laeufe waren umsonst."
 
 param HF_TOKEN secret "" expert "HuggingFace-Token" "Nicht noetig."
+param CHECKPOINT_PATH path "/data/checkpoints/groot-g1dex3-checkpoint" expert \
+  "Checkpoint im Container" "Nicht noetig."
+param HF_CHECKPOINT_REPO str "luca-mue/groot-g1dex3-checkpoint" expert \
+  "HuggingFace-Repo des Checkpoints" "Nicht noetig."
 
 group "Eingaben"
 param LAYOUTCHECK_FRAME path "" basic \

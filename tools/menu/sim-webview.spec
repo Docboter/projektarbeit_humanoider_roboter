@@ -9,4 +9,8 @@ argpos 2 "" "Unterbefehl" \
   --options ":starten;stop:beenden"
 
 param HF_TOKEN secret "" expert "HuggingFace-Token" "Nicht noetig."
+param CHECKPOINT_PATH path "/data/checkpoints/groot-g1dex3-checkpoint" expert \
+  "Checkpoint im Container" "Nicht noetig — der Web-Viewer enthaelt keinen Simulator."
+param HF_CHECKPOINT_REPO str "luca-mue/groot-g1dex3-checkpoint" expert \
+  "HuggingFace-Repo des Checkpoints" "Nicht noetig."
 param WEBVIEW_PORT int 8210 advanced "Host-Port der Seite"
