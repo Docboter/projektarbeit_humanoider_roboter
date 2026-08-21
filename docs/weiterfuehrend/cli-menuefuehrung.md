@@ -8,10 +8,13 @@
 > stehen, mit zwei bewussten Abweichungen vom Plan (Phase 5 und §4.4) — siehe
 > [§12 Umsetzungsstand](#12-umsetzungsstand). Der Plantext unten bleibt als
 > Begründungsprotokoll erhalten; wo die Umsetzung abweicht, steht es dort.
+> **Nachtrag 2026-08-21:** ein Einstiegspunkt [`./run.sh`](../../run.sh) über allen
+> Launchern, Pfeiltasten-Bedienung und eine Gruppenebene für lange Aktionslisten —
+> [§13](#13-nachtrag-2026-08-21--ein-einstiegspunkt-und-pfeiltasten).
 >
-> **Bedienung in einem Satz:** Eines der Skripte ohne Parameter starten, dann führt es
-> durch. `MENU=0` bzw. `--no-menu` schaltet das ab; jeder bisherige Aufruf funktioniert
-> unverändert weiter.
+> **Bedienung in einem Satz:** `./run.sh` starten — oder eines der Skripte direkt, ohne
+> Parameter. Beides führt durch; `[←]` bzw. `[z]` führt jederzeit eine Ebene zurück. `MENU=0` bzw. `--no-menu` schaltet das ab, `MENU_ARROWS=0`
+> nur die Pfeiltasten; jeder bisherige Aufruf funktioniert unverändert weiter.
 >
 > Idee aus der Projektabsprache vom 2026-08-20:
 > *„Wenn man das Sim-Skript ohne Parameter startet, soll es die nötigen Werte in der CLI
@@ -727,3 +730,266 @@ Auf der Bestätigungsseite: `[Enter]` startet, `[1-n]` ändert einen Wert,
 Schritt 2 ist der Punkt, an dem dieses Vorhaben steht oder fällt: ohne ihn wären die
 Specs die fünfte Kopie derselben Beschreibungen, und der Plan hätte in §9 mit dem
 höchsten Risiko recht behalten.
+
+---
+
+## 13. Nachtrag 2026-08-21 — ein Einstiegspunkt und Pfeiltasten
+
+Nachgereicht auf denselben Branch. Fünf Dinge, die der Plan nicht vorsah: die Ebene
+**über** den Aktionen (§13.1), Pfeiltasten (§13.3), eine Gruppenebene **innerhalb**
+einer Domäne (§13.4), den Rückweg über alle Ebenen (§13.5) und die Einsicht, dass
+KISSKI kein eigener Zweig ist, sondern ein Trainings-Ort (§13.6). Prüfstand jetzt
+**71 Prüfungen** statt 30.
+
+### 13.1 `run.sh` — die Domänen-Ebene
+
+Bisher musste man wissen, *welches Skript* man aufruft: `server_rl_run.sh`,
+`setup_and_train_DockerHub-pull.sh` oder `kisski_menu.sh`. Das ist genau die Sorte
+Vorwissen, die das Menü eigentlich abschaffen sollte — nur eine Ebene höher.
+
+```bash
+./run.sh              # fragt: Simulation / Training / KISSKI
+./run.sh sim          # direkt in die Simulation
+./run.sh sim eval     # ganz durch bis zu den Parametern von 'eval'
+```
+
+**Der Router wählt nur und übergibt per `exec`.** Er baut keinen `docker run`-Aufruf,
+setzt keinen Trainingsparameter und kennt keine Aktionsliste — ab dem `exec` läuft der
+unveränderte Launcher mit seinem eigenen Menü. Damit gilt §2.1 („kein zweiter
+Ausführungspfad") eine Ebene höher unverändert weiter, und alles, was die Launcher
+können, gilt automatisch mit: `MENU=0`, `--profile=<name>`, jede Env-Var, jedes Argument.
+
+Der Ausbau war deshalb billig: [`lib_menu.sh`](../../tools/lib_menu.sh) war seit Phase 3
+ohnehin über einen `<prefix>` parametrisiert (`sim` / `train` / `kisski`), inklusive
+`_order-<prefix>.spec` und `_common-<prefix>.spec`. Es fehlte buchstäblich nur die Ebene
+darüber.
+
+Die Zuordnung Domäne → Launcher steht in
+[`tools/menu/_domains.spec`](../../tools/menu/_domains.spec), nicht im Skript — dieselbe
+Regel wie überall hier. `run.sh` enthält keine Liste.
+
+### 13.2 Was der Router zusätzlich kann — und was bewusst nicht
+
+**Kontexterkennung.** Die drei Domänen laufen an verschiedenen Orten: Sim und Training
+brauchen Docker, KISSKI braucht `sbatch` (nur auf dem Login-Node). Fehlt das Kommando,
+bleibt der Eintrag **sichtbar und gesperrt**, mit dem Grund daneben:
+
+```
+  auf fedora:  docker ✓  sbatch ✗  apptainer ✗
+
+   1) sim          Simulation      19 Aktionen
+   2) train        Training         4 Aktionen
+   3) kisski       KISSKI (HPC)    kein sbatch
+```
+
+Sichtbar-und-gesperrt statt versteckt: dass es den KISSKI-Weg *gibt*, soll man auch auf
+dem Rechner erfahren, auf dem er gerade nicht geht. Die Aktionszahl wird aus den Specs
+abgeleitet (`menu_list_actions`), nicht gepflegt — Prüfung 30 hält das fest.
+
+**Keine Zustandsauswertung auf dem Startbildschirm.** Die `--state`-Marker der Aktionen
+(`✓ liegt bereits vor`, `! braucht vorher cams`) wertet der Router **nicht** aus. Drei
+von ihnen rufen `docker ps` (`train-resume`, `train-destroy`, `train-train`). Auf dem
+Startbildschirm wäre das ein Aufruf, der bei hängendem Docker-Daemon das ganze Menü
+einfriert — und zwar bevor überhaupt eine Domäne gewählt ist. Die Marker erscheinen
+weiterhin, nur einen Schirm später in der Aktionsliste. Die Standortzeile oben nutzt aus
+demselben Grund ausschließlich `command -v`, kein `docker info`, kein `nvidia-smi`.
+
+> Der Kommentarkopf in `lib_menu.sh` verlangt für `--state` „reine
+> Dateisystem-Prüfungen". Die drei `docker ps`-Ausdrücke halten das nicht ein. Sie sind
+> mit `2>/dev/null` abgesichert und in der Aktionsliste vertretbar, aber es bleibt eine
+> offene Kleinigkeit — nicht in diesem Schritt angefasst.
+
+### 13.3 Pfeiltasten — eine Zugabe, kein Modus
+
+Das Entscheidungslog (§11) verwirft `whiptail`/`dialog`/`gum`/`fzf`, und die Gründe
+gelten unverändert: keins davon ist auf dem IKR-Server oder dem KISSKI-Login-Node
+vorausgesetzt, und ein Vollbild-TUI verträgt sich nicht mit der `tee`-Spiegelung aus
+`start_logging`. Pfeiltasten brauchen davon nichts — ANSI-Sequenzen und `read -rsn1`
+genügen.
+
+Umgesetzt als eine generische Auswahl (`menu_select`), die Domänenliste, Aktionsliste und
+künftig weitere Listen gemeinsam benutzen. Zwei Regeln machen sie unkritisch:
+
+1. **Die Zahleneingabe bleibt der Boden.** Jede Liste ist vollständig per Ziffer
+   bedienbar, auch im Pfeiltasten-Modus (Prüfung 41).
+2. **Sie schaltet sich selbst ab**, wenn kein echtes Terminal da ist, `TERM` fehlt oder
+   `dumb` ist, oder `MENU_ARROWS=0` gesetzt wurde.
+
+Regel 2 hat einen angenehmen Nebeneffekt: `tools/test_menu.sh` fährt sein Pseudoterminal
+mit `TERM=dumb`, also laufen **alle 31 Alt-Prüfungen weiter über die Zahleneingabe** —
+denselben Pfad wie vor der Änderung. Die Pfeiltasten bekamen eigene Prüfungen (35–41),
+die den pty-Treiber um Rohbytes (`<RAW>\x1b[B`) und ein setzbares `TERM` erweitern.
+
+Details, die beim Bauen Zeit gekostet haben und deshalb im Code kommentiert stehen:
+
+| Punkt | Warum |
+|---|---|
+| Zeile erst als **Klartext** bauen, dann einfärben | Farbcodes zählen in `${#s}` mit. Färbt man zuerst, verrutscht die Breitenrechnung, die Zeile bricht um — und beim Neuzeichnen stimmt die Zeilenzahl nicht mehr, das Bild zerfranst |
+| `\033[K` an **jedem** Zeilenende | Sonst bleiben Reste der vorigen, längeren Fassung stehen |
+| Ziffern mit Timeout nachlesen | Nach einer `1` muss klar werden, ob noch eine `2` folgt (Eintrag 12) oder nicht (Eintrag 1) — ohne dass die Anzeige bis zum nächsten Tastendruck einfriert |
+| `trap … INT` speichern und wiederherstellen | Der Cursor ist während der Auswahl versteckt. Ohne Handler bliebe er nach Ctrl-C unsichtbar; der Handler stellt ihn her, räumt sich weg und sendet das Signal erneut, damit Ctrl-C nicht verschluckt wird |
+| Erklärung (`?`) erzwingt ein **frisches** Bild | Sie fügt Zeilen ein; ein Neuzeichnen an Ort und Stelle würde daneben landen |
+
+### 13.4 Gruppenebene — Schachtelung mit Vorschau
+
+Die Sim-Aktionsliste zeigte 19 Einträge in 7 Gruppen, gut 30 Zeilen. Sie ist jetzt
+zweistufig — aber **nicht** einfach eingeklappt.
+
+```
+  Simulation — Was moechtest du tun?
+
+ › 1) Vorbereiten              preflight, setup, check                  3 Akt.
+   2) Ansehen                  view, livecheck, webview                 3 Akt.
+   3) Messen                   cams, gap, eval, grasp, span, latency    6 Akt.  !
+   4) Co-Training vorbereiten  layoutcheck, layout, render              3 Akt.  !
+   5) Trainieren               rl                                       1 Akt.
+   6) Beschleunigen            optimize                                 1 Akt.
+   7) Werkzeuge                shell, clean                             2 Akt.
+
+  [↑↓] waehlen  [Enter] bestaetigen  [1-7] direkt  [?] erklaeren  [*] alle 19 Aktionen  [a] abbrechen
+```
+
+**Der Konflikt, den das lösen musste:** §12.3 hält fest, dass `_order.spec` genau dafür
+existiert, die Kette `preflight → setup → cams → gap → eval → layout → render → rl`
+sichtbar zu machen — sie läuft quer durch vier Gruppen. Reines Schachteln hätte sie
+hinter Überschriften versteckt und damit den Nutzen aus §5.1 kassiert.
+
+Drei Dinge halten sie sichtbar:
+
+1. **Vorschau der Aktionsnamen** je Gruppe. Die Kette bleibt lesbar, in einem Siebtel
+   der Zeilen.
+2. **`[*]` schaltet auf die Gesamtliste** — das alte Verhalten, unverändert, einen
+   Tastendruck entfernt.
+3. **`?<nr>` erklärt eine ganze Gruppe**: Aktionsnamen mit Titeln und offenen
+   Voraussetzungen, ohne hineinzugehen.
+
+Das `!` in der rechten Spalte heißt: mindestens eine Aktion dieser Gruppe hat eine
+offene Voraussetzung. Welche, steht eine Ebene tiefer — oben wäre es Rauschen.
+
+**Geschachtelt wird nach Größe, nicht pauschal.** Bei 19 Aktionen in 7 Gruppen ist ein
+Schirm voll; bei den 4 Aktionen von Training und KISSKI wäre eine Gruppenebene davor
+reine Mehrarbeit. Schwelle: mehr als `MENU_NEST_MIN` (10) Aktionen **und** mindestens 3
+Gruppen. `MENU_NEST=0` erzwingt flach, `MENU_NEST=1` erzwingt geschachtelt.
+
+Zurück geht es mit `[←]` (bzw. `[z]` ohne Pfeiltasten). Die Zustandsmarker werden pro
+Aufruf **einmal** ausgewertet und zwischengespeichert — beim Blättern zwischen den Ebenen
+liefen sonst wiederholt Ausdrücke, unter denen `docker ps` ist (§13.2).
+
+**Drei Prüfungen mussten dem folgen**, weil sich der Ablauf bewusst geändert hat: 7
+(Kettenreihenfolge), 8 (`?<nr>`) und 14b (Auswahl plus Fragen). Sie prüfen jetzt beide
+Ebenen — die alte Absicht steckt unverändert in der `MENU_NEST=0`-Variante daneben
+(7b, 8, 14c). Dazu sieben neue (15a–15g) für die Schachtelung selbst. Stand: **57
+Prüfungen**.
+
+### 13.5 Der Rückweg — `[←]` führt immer eine Ebene höher
+
+```
+   Untermenue  ──[←]──▶  Gruppenuebersicht  ──[←]──▶  Hauptmenue  ──[a]──▶  Ende
+   (Messen)                (Simulation)                (Domaenen)
+```
+
+Ohne Pfeiltasten dieselbe Bewegung mit `[z]`. Die Fußzeile beschriftet die Taste nach
+ihrem Ziel — `[←] zurueck` innerhalb einer Domäne, `[←] Hauptmenue` auf der obersten
+Ebene.
+
+**Warum das nicht trivial war:** `run.sh` übergab bisher per `exec`. Das ersetzt den
+Prozess — mit ihm wäre das Hauptmenü weg gewesen, es gäbe schlicht nichts, wohin man
+zurückkehren könnte. Die Übergabe hat jetzt zwei Wege:
+
+| Fall | Übergabe | Warum |
+|---|---|---|
+| Menü an (Terminal, kein `MENU=0`) | Launcher als **Kindprozess** | Nur so überlebt `run.sh` und kann das Hauptmenü erneut zeigen |
+| Menü aus (`MENU=0`, kein Terminal, Skriptaufruf) | **`exec`** | Kein Menü, kein Rückweg — und Rückgabewert wie Signale gehen unverändert durch |
+
+Der Launcher meldet den Rückwunsch über den Rückgabewert **`MENU_RC_BACK` (97)**.
+Bewusst eine hohe, sonst nirgends benutzte Zahl: die Launcher enden regulär mit 0, 1
+oder 2. `run.sh` wertet sie ausschließlich aus, wenn es den Launcher selbst gestartet
+hat, und `MENU_TOPLEVEL_BACK=1` schaltet das `[←]` der obersten Liste überhaupt erst
+frei. **Beim direkten Aufruf** (`./Simulation/server_rl_run.sh`) bleibt die Taste
+deshalb tot — ein Rücksprung ins Nichts würde das Skript kommentarlos beenden, und
+genau das prüfen 15m/15n.
+
+Zwei Feinheiten, die beim Bauen auffielen:
+
+- **Auch eine per Argument gewählte Domäne hat einen Rückweg.** `./run.sh sim` bietet
+  `[←] Hauptmenue` genau wie `./run.sh`. Die Asymmetrie „mit Argument kein Zurück"
+  merkt sich niemand.
+- **Beim Rücksprung fallen die restlichen Argumente weg.** Bei `./run.sh sim eval` →
+  `[←]` → *Training* wäre `eval` an den Trainings-Launcher weitergereicht worden — es
+  ist dort keine gültige Aktion. Sie gehörten zur alten Domäne und werden verworfen.
+
+Sieben neue Prüfungen (15h–15n) decken das ab, inklusive der beiden Fälle, in denen
+`[←]` **nichts** tun darf.
+
+### 13.6 KISSKI gehört unter „Training" — die Sim kann der Cluster nicht
+
+Die erste Fassung der Domänenliste stellte Simulation, Training und KISSKI gleichrangig
+nebeneinander. Das mischte zwei Achsen: *was* man tut und *wo*. Der Befund dahinter:
+
+| Aktion | Status auf KISSKI |
+|---|---|
+| `kisski-train` | läuft — der eigentliche Zweck des Clusters hier |
+| `kisski-openloop` | läuft — reine Rechenarbeit, kein Rendering |
+| `kisski-sim` | **tot.** Zielt auf die `jupyter`-Partition, weil nur deren Quadro RTX 5000 überhaupt RT-Cores hat. Die ist aber Turing und damit „eine Generation zu alt" ([fehlerbehebung.md](../fehlerbehebung.md)); die zugehörige Anleitung liegt längst in [`simulation/archiv/`](../simulation/archiv/kisski-desktop.md) |
+| `kisski-rl` | **nicht einreichbar.** Vorlage mit `#SBATCH -p PLACEHOLDER_RTCORE_PARTITION`; der RT-Core-Guard bricht auf A100/H100 ab, und eine RT-Core-Partition gibt es dort nicht |
+
+**KISSKI ist in diesem Projekt also ausschließlich Training plus Checkpoint-Auswertung.**
+Die Simulation läuft auf dem IKR-Server. Zwei Konsequenzen:
+
+**1. Die Domänenliste ist gruppiert, nicht geschachtelt.**
+
+```
+  Simulation
+   1) sim          auf dem IKR-Server (Docker, RT-Cores)      19 Aktionen
+  Training
+   2) train        auf diesem Rechner (Docker)                 4 Aktionen
+   3) kisski       auf dem KISSKI-Cluster (sbatch)             kein sbatch
+```
+
+Ein echtes Untermenü unter „Training" wäre eine eigene Ebene für eine Ja/Nein-Wahl
+gewesen — genau das, was §13.4 für kurze Listen ablehnt — und die beiden Zweige haben
+verschiedene Launcher, was die Domänenebene architektonisch aufgeweicht hätte. Die
+Gruppierung nutzt dieselbe `_MENU_SEL_HEAD`-Mechanik wie die Aktionsliste und kostet
+keine Ebene.
+
+Dafür beschreibt der Titel einer Domäne jetzt nur noch die **Variante** („auf diesem
+Rechner (Docker)") — er ergibt ohne die Gruppe daneben keinen Satz mehr. Überschriften
+tieferer Ebenen brauchen deshalb einen Kurznamen: `--label` („Training (KISSKI)"),
+sonst stünde dort „auf dem KISSKI-Cluster (sbatch) — Was moechtest du tun?".
+
+**2. `--blocked` für dauerhaft nicht lauffähige Aktionen.**
+
+```
+  Nicht auf diesem Cluster
+   3) sim         Sim-Eval einreichen         RTX 5000 zu alt -> IKR-Server
+   4) rl          RL-Fine-tuning (FPO)        Vorlage, keine RT-Core-Partition
+```
+
+Bewusst nicht gelöscht: das Wissen *warum das hier nicht geht* soll dort stehen, wo die
+Frage aufkommt — dieselbe Begründung wie beim Sperren einer ganzen Domäne (§13.2). `?`
+liefert den Langtext samt Verweis auf den Weg, der funktioniert. Die Skripte bleiben
+unangetastet im Repo.
+
+Unterschied zum Domänen-Sperrgrund: `--needs` heißt „hier gerade nicht" (ortsabhängig,
+per `command -v` geprüft), `--blocked` heißt „grundsätzlich nicht" (eine Eigenschaft des
+Ziels, statisch in der Spec). Deshalb zählt die Domänenzeile nur die **lauffähigen**
+Aktionen (`menu_list_actions --runnable`, „2 Aktionen" statt 4) — eine Zahl, die die
+nächste Ebene nicht einlöst, wäre ein Versprechen zu viel. `menu_list_actions` **ohne**
+den Schalter listet weiterhin alles: `gen_docs.sh` prüft darüber die Defaults, eine
+stille Filterung wäre ein Loch in der Drift-Sicherung.
+
+Eine Gruppe, in der nichts lauffähig ist, wird selbst gesperrt — hineingehen zu dürfen,
+um dort nur Graues zu finden, wäre eine Sackgasse.
+
+### 13.7 Nicht gebaut — und warum
+
+**Eine flache Gesamtliste über alle Domänen** (27 Einträge, Domäne als
+Gruppenüberschrift) wäre der nächste Schritt und ist von hier aus klein. Sie bleibt
+offen: 27 Einträge auf einem Schirm sind ohne Tippfilter unübersichtlicher als zwei
+saubere Ebenen. Sinnvoll wird sie erst, wenn die Kontexterkennung die Liste real
+zusammenstreicht — oder mit `fzf`, das dann aber wieder eine Abhängigkeit wäre.
+
+**`tools/check_tldr.sh` durchsuchte das Wurzelverzeichnis nicht.** Es prüfte nur
+`Training/`, `Simulation/` und `tools/`; ein `run.sh` im Repo-Wurzelverzeichnis wäre
+ungeprüft durchgerutscht — ausgerechnet der Einstiegspunkt. Mitbehoben, Zählung jetzt
+151/151 statt 150/150.

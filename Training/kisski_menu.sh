@@ -52,7 +52,8 @@ command -v sbatch >/dev/null 2>&1 || warn "sbatch nicht gefunden — laeuft dies
 if [[ -z "$ACTION" ]]; then
   menu_enabled || { err "Keine Aktion angegeben und kein Terminal zum Fragen."; \
                     err "  Verfuegbar: $(menu_list_actions "$REPO_DIR/tools/menu" kisski | tr '\n' ' ')"; exit 2; }
-  ACTION="$(menu_pick_action "$REPO_DIR/tools/menu" kisski)" || { echo; exit 0; }
+  ACTION="$(menu_pick_action "$REPO_DIR/tools/menu" kisski)" || { _rc=$?; menu_pick_rc "$_rc"
+                                                                  echo; exit 0; }
 fi
 menu_enabled && { menu_ask "$REPO_DIR/tools/menu" kisski "$ACTION" || exit 0; }
 

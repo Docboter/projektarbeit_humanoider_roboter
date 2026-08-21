@@ -1665,7 +1665,8 @@ set -- ${_ARGS[@]+"${_ARGS[@]}"}
 
 ACTION="${1:-}"
 if [[ -z "$ACTION" ]] && menu_enabled; then
-  ACTION="$(menu_pick_action "$MENU_SPEC_DIR" sim)" || { echo; warn "Abgebrochen."; exit 0; }
+  ACTION="$(menu_pick_action "$MENU_SPEC_DIR" sim)" || { _rc=$?; menu_pick_rc "$_rc"
+                                                         echo; warn "Abgebrochen."; exit 0; }
 fi
 : "${ACTION:=help}"
 

@@ -110,7 +110,8 @@ if menu_enabled; then
         # Die Aktionsliste ersetzt die frueher handgestrickte resume/destroy-Abfrage
         # weiter unten — sie kommt jetzt VOR der Arbeit statt mitten hinein, und sie
         # zeigt gleich mit an, ob ueberhaupt ein Container existiert.
-        MENU_ACTION="$(menu_pick_action "$REPO_DIR/tools/menu" train)" || { echo; exit 0; }
+        MENU_ACTION="$(menu_pick_action "$REPO_DIR/tools/menu" train)" || { _rc=$?; menu_pick_rc "$_rc"
+                                                                            echo; exit 0; }
     fi
     menu_ask "$REPO_DIR/tools/menu" train "$MENU_ACTION" || exit 0
     case "$MENU_ACTION" in

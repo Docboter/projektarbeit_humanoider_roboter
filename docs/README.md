@@ -76,7 +76,7 @@ Diese Sammlung speist das gleichnamige Kapitel der Projektarbeit.
 | [weiterfuehrend/rl-anleitung.md](weiterfuehrend/rl-anleitung.md) | **RL-Bedienungsanleitung (operativ, schlank)** — Image bauen → BC-Checkpoint → RT-Core-GPU (eigener Docker-Server via `server_rl_run.sh` oder vast.ai) → RL starten → überwachen → Checkpoints sichern; plus Diagnose-Werkzeuge `gap`/`eval`/`grasp`/`span`. Die Lauf-Historie dazu: [ergebnisse/diagnose-chronik.md](ergebnisse/diagnose-chronik.md) |
 | [weiterfuehrend/lokomotion-recherche.md](weiterfuehrend/lokomotion-recherche.md) | **Lokomotions-Recherche** — Warum der Roboter fixiert ist, GR00T-N1.6-Whole-Body-Control (entkoppelt: RL-Beine + IK/VLA-Arme), Unitree-G1-Lokomotions-Stacks, Integrationspfade + Quellen |
 | [weiterfuehrend/livestream-plan.md](weiterfuehrend/livestream-plan.md) | **Livestream-Plan** — **Spur B** (MJPEG-Frame-Stream im Browser, `LIVE_VIEW=1`) ist für den RL-Lauf gebaut; **Spur A** (WebRTC-Echtzeit-Viewport) ist gebaut, aber auf Hardware ungetestet — inzwischen mit zwei Clients: nativer App und **Browser** (`webview`, Port 8210). Bedienung: [simulation/live-ansicht.md](simulation/live-ansicht.md) |
-| [weiterfuehrend/cli-menuefuehrung.md](weiterfuehrend/cli-menuefuehrung.md) | **Geführte CLI-Menüs (umgesetzt 2026-08-20)** — Skriptstart ohne Parameter führt durch die nötigen Werte und erklärt sie; `MENU=0` schaltet ab. Parameter-Specs unter [`tools/menu/`](../tools/menu/) sind die einzige Quelle, `tools/gen_docs.sh` prüft sie gegen Skripte und Doku-Tabellen. §12 hält die Abweichungen vom Plan fest und zwei dabei gefundene Defekte im Trainings-Launcher |
+| [weiterfuehrend/cli-menuefuehrung.md](weiterfuehrend/cli-menuefuehrung.md) | **Geführte CLI-Menüs (umgesetzt 2026-08-20, Router 2026-08-21)** — [`./run.sh`](../run.sh) ist der eine Einstiegspunkt: Domäne wählen, dann führt der jeweilige Launcher weiter. Skriptstart ohne Parameter führt durch die nötigen Werte und erklärt sie. Lange Aktionslisten bekommen eine Gruppenebene mit Vorschau der enthaltenen Aktionen (`[*]` = doch alles auf einen Schirm). `MENU=0` schaltet ab, `MENU_ARROWS=0` nur die Pfeiltasten, `MENU_NEST=0`/`1` die Schachtelung. `[←]`/`[z]` führt aus jeder Ebene zurück bis ins Hauptmenü. Parameter-Specs unter [`tools/menu/`](../tools/menu/) sind die einzige Quelle, `tools/gen_docs.sh` prüft sie gegen Skripte und Doku-Tabellen. §12 hält die Abweichungen vom Plan fest und zwei dabei gefundene Defekte im Trainings-Launcher, §13 den Router, die Pfeiltasten, die Gruppenebene, den Rückweg und die Einordnung von KISSKI unter „Training“ |
 | [weiterfuehrend/wiki-migration-plan.md](weiterfuehrend/wiki-migration-plan.md) | **GitHub-Wiki-Migration (Plan)** — ob/wie sich `docs/` ins GitHub-Wiki übertragen lässt (eigenes Git-Repo, Link-Rewriting nötig, kein Auto-Sync); Alternative GitHub Pages/MkDocs. Reine Recherche, nichts umgesetzt |
 
 ## Querschnitt (Training + Simulation)
@@ -101,6 +101,11 @@ Diese Sammlung speist das gleichnamige Kapitel der Projektarbeit.
 
 ```
 /
+├── run.sh                     # ★ Der EINE Einstiegspunkt: fragt Simulation/Training/KISSKI
+│                              #   ab und übergibt an den passenden Host-Launcher. Wählt
+│                              #   nur — baut selbst nichts, kennt keine Aktionsliste.
+│                              #   [←] führt aus jeder Ebene zurück bis hierher.
+│                              #   Zuordnung Domäne → Launcher: tools/menu/_domains.spec
 ├── README.md                  # Projekt-Überblick & Schnellstart (Landing)
 ├── CLAUDE.md                  # Anweisungen für Claude Code
 ├── docs/                      # ▶ Diese Dokumentation
@@ -138,6 +143,7 @@ Diese Sammlung speist das gleichnamige Kapitel der Projektarbeit.
 │   └── scripts/               # In das vast.ai-Image kopiert (→ /scripts)
 ├── tools/                     # Host-Helfer, nie im Image: Menü-Engine + Specs, gen_docs.sh,
 │                              #   test_menu.sh, check_tldr.sh (TL;DR-Konvention)
+│   └── menu/_domains.spec     #   Domänenliste für run.sh (Launcher, --needs, Erklärtext)
 ├── data/                      # Lokale Assets + Submodule (überwiegend gitignored)
 │   └── unitree_ros/           # Git-Submodul — Unitree-ROS (URDF-Quelle)
 └── app/                       # Git-Submodul, im Image geklont

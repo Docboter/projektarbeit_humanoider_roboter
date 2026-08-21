@@ -25,11 +25,30 @@ Training läuft. Derselbe Container läuft lokal, auf Cloud-GPU-Plattformen wie
 
 ## Schnellstart
 
-> **Ohne Parameter starten führt durch.** Ruft man eines der Host-Skripte ohne Argumente
-> auf, fragt es die nötigen Werte ab und erklärt sie (`?` bei einer Frage zeigt den
-> Langtext). Am Ende zeigt es den äquivalenten Ein-Zeiler an — beim dritten Mal kommt man
-> also ohne aus. `MENU=0` bzw. `--no-menu` schaltet es ab; im Container, unter SLURM und
-> ohne Terminal erscheint es nie. Die Beispiele unten funktionieren unverändert weiter.
+> **Wenn du nur einen Befehl behalten willst: `./run.sh`.**
+>
+> ```bash
+> ./run.sh              # fragt: Simulation / Training / KISSKI — dann weiter durch alles
+> ```
+>
+> Das ist der einzige Einstiegspunkt. Er wählt nur die Domäne und übergibt an den
+> passenden Host-Launcher; ab dort führt dessen eigenes Menü durch die Aktion und ihre
+> Parameter. Die Liste ist nach *Tätigkeit* gruppiert: **Simulation** läuft nur auf dem
+> IKR-Server, **Training** wahlweise hier oder auf KISSKI. Was auf diesem Rechner nicht
+> läuft (kein Docker, kein `sbatch`), bleibt sichtbar und wird mit Grund gesperrt.
+> Mit Pfeiltasten bedienbar, Zahlen gehen weiter.
+>
+> Lange Aktionslisten (Simulation: 19) sind nach Gruppen geschachtelt, wobei jede Gruppe
+> die enthaltenen Aktionen als Vorschau zeigt — `[*]` blendet trotzdem alles auf einen
+> Schirm, `?<nr>` erklärt eine Gruppe. **`[←]` (bzw. `[z]`) führt immer eine Ebene
+> zurück:** aus einer Gruppe in die Übersicht, von dort ins Hauptmenü.
+>
+> **Ohne Parameter starten führt durch** — das gilt auch für jedes Skript einzeln
+> (`./Simulation/server_rl_run.sh`, `./Training/setup_and_train_DockerHub-pull.sh`).
+> `?` bei einer Frage zeigt den Langtext; am Ende steht der äquivalente Ein-Zeiler, beim
+> dritten Mal kommt man also ohne aus. `MENU=0` bzw. `--no-menu` schaltet ab; im
+> Container, unter SLURM und ohne Terminal erscheint nie ein Menü. Alle Beispiele unten
+> funktionieren unverändert weiter.
 > Details: [cli-menuefuehrung.md](docs/weiterfuehrend/cli-menuefuehrung.md)
 
 **KISSKI (HPC-Cluster, empfohlen für langes Training):**

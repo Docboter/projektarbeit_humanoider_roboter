@@ -31,9 +31,13 @@ done
 
 doc_files() { find docs README.md next-steps.md -name '*.md' | sort; }
 script_files() {
-  find Training Simulation tools -type f \
-    \( -name '*.sh' -o -name '*.py' -o -name '*.ps1' -o -name '*.spec' \
-       -o -name 'Dockerfile*' -o -name 'docker-compose.yml' \) | sort
+  # Auch die Skripte direkt im Wurzelverzeichnis (run.sh) — die Konvention gilt
+  # dort genauso, und gerade der Einstiegspunkt sollte sein TL;DR nicht verpassen.
+  { find Training Simulation tools -type f \
+      \( -name '*.sh' -o -name '*.py' -o -name '*.ps1' -o -name '*.spec' \
+         -o -name 'Dockerfile*' -o -name 'docker-compose.yml' \)
+    find . -maxdepth 1 -type f -name '*.sh'
+  } | sed 's|^\./||' | sort
 }
 
 # TL;DR-Text einer Datei (leer, wenn keins gefunden)

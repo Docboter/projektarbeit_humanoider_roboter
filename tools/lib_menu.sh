@@ -116,12 +116,308 @@ menu_enabled() {
   return 0
 }
 
+# ── Tastaturauswahl (Pfeiltasten) ─────────────────────────────────────────────
+# Reines Bash, wie die Hausregel oben es verlangt: kein whiptail/dialog/gum/fzf.
+#
+# Die Pfeiltasten sind eine ZUGABE, kein zweiter Pfad. Jede Liste bleibt vollstaendig
+# per Zahleneingabe bedienbar, und ohne echtes Terminal (Pipe, TERM=dumb, der
+# Pseudoterminal-Test in tools/test_menu.sh) wird gar nicht erst umgeschaltet. Damit
+# aendert diese Schicht kein einziges bestehende Verhalten — sie legt sich davor.
+#
+# MENU_ARROWS=0 schaltet sie auch am Terminal ab.
+_menu_can_arrows() {
+  [[ "${MENU_ARROWS:-auto}" != 0 ]]       || return 1
+  [[ -t 0 && -t 2 ]]                      || return 1
+  [[ -n "${TERM:-}" && "$TERM" != dumb ]] || return 1
+  return 0
+}
+
+_menu_cursor_hide() { _menu_can_arrows && printf '\033[?25l' >&2 || true; }
+_menu_cursor_show() { _menu_can_arrows && printf '\033[?25h' >&2 || true; }
+
+# Eine Taste lesen. Gibt einen Namen auf stdout aus: up/down/home/end/enter/esc/back/
+# skip/timeout/eof oder "char <zeichen>". Escape-Sequenzen werden mit kurzem Timeout
+# nachgelesen — ein blankes ESC (ohne Folgezeichen) bleibt so unterscheidbar.
+#
+# $1 = optionaler Timeout in Sekunden. Ohne ihn wird blockierend gewartet; mit ihm
+# ist "timeout" ein eigenes Ergebnis. Das braucht die Ziffernerkennung: nach einer
+# "1" muss klar werden, ob noch eine "2" folgt (-> Eintrag 12) oder nicht (-> 1),
+# ohne dass die Anzeige bis zum naechsten Tastendruck einfriert.
+_menu_read_key() {
+  local t="${1:-}" k rest="" rc=0
+  if [[ -n "$t" ]]; then
+    IFS= read -rsn1 -t "$t" k 2>/dev/null || rc=$?
+    (( rc == 0 )) || { (( rc > 128 )) && printf 'timeout' || printf 'eof'; return 0; }
+  else
+    IFS= read -rsn1 k 2>/dev/null || { printf 'eof'; return 0; }
+  fi
+  if [[ "$k" == $'\033' ]]; then
+    IFS= read -rsn2 -t 0.06 rest 2>/dev/null || rest=""
+    # PgUp/PgDn & Co. senden "[5" plus ein abschliessendes "~" — das wegschlucken,
+    # sonst landet es als naechster Tastendruck in der Schleife.
+    if [[ "$rest" == '['[0-9] ]]; then
+      IFS= read -rsn1 -t 0.06 _MENU_SEL_JUNK 2>/dev/null || true
+      printf 'skip'; return 0
+    fi
+    case "$rest" in
+      '[A'|'OA') printf 'up' ;;
+      '[B'|'OB') printf 'down' ;;
+      '[C'|'OC') printf 'right' ;;
+      '[D'|'OD') printf 'left' ;;
+      '[H'|'OH') printf 'home' ;;
+      '[F'|'OF') printf 'end' ;;
+      '')        printf 'esc' ;;
+      *)         printf 'skip' ;;
+    esac
+    return 0
+  fi
+  case "$k" in
+    '')             printf 'enter' ;;
+    $'\177'|$'\b')  printf 'back' ;;
+    *)              printf 'char %s' "$k" ;;
+  esac
+  return 0
+}
+
+# ── Generische Einfachauswahl ─────────────────────────────────────────────────
+# Bash 4.2 kennt keine namerefs (die kamen in 4.3), deshalb globale Arrays statt
+# Parameter — dieselbe Form, die der Rest dieser Datei ohnehin benutzt.
+#
+#   Eingabe   _MENU_SEL_VALUE[i]  Rueckgabewert des Eintrags
+#             _MENU_SEL_LABEL[i]  Beschriftung (Klartext, ohne Farbe)
+#             _MENU_SEL_META[i]   gedimmter Zusatz rechts ("✓ liegt vor")
+#             _MENU_SEL_HEAD[i]   Gruppenueberschrift VOR diesem Eintrag ("" = keine)
+#             _MENU_SEL_DIS[i]    nicht leer -> nicht waehlbar, Text ist der Grund
+#             _MENU_SEL_TITLE     Ueberschrift
+#             _MENU_SEL_KEYW      Breite der Wertespalte
+#             _MENU_SEL_EXPLAIN   Name einer Funktion, die "?" beantwortet (optional)
+#             _MENU_SEL_BACK      1 -> [←]/[z] erlaubt, Rueckgabewert 2 statt Auswahl
+#             _MENU_SEL_BACKLABEL Beschriftung dazu (Vorgabe "zurueck")
+#             _MENU_SEL_XKEY      optionaler Zusatzschluessel (ein Zeichen), z. B. "*"
+#             _MENU_SEL_XLABEL    seine Beschriftung in der Fusszeile
+#   Ausgabe   _MENU_SEL_RESULT    gewaehlter Wert
+#   Rueckgabewert  0 = gewaehlt · 1 = Abbruch/EOF · 2 = zurueck · 3 = Zusatzschluessel
+declare -a _MENU_SEL_VALUE=() _MENU_SEL_LABEL=() _MENU_SEL_META=() _MENU_SEL_HEAD=() _MENU_SEL_DIS=()
+_MENU_SEL_TITLE=""; _MENU_SEL_RESULT=""; _MENU_SEL_EXPLAIN=""; _MENU_SEL_KEYW=11
+_MENU_SEL_BACK=0; _MENU_SEL_XKEY=""; _MENU_SEL_XLABEL=""; _MENU_SEL_BACKLABEL="zurueck"
+_MENU_SEL_LINES=0; _MENU_SEL_FRESH=1
+
+# Womit ein Launcher seinem Aufrufer (run.sh) sagt: "der Nutzer will zurueck ins
+# Hauptmenue" — kein Fehler, kein Abbruch. Bewusst eine hohe, sonst nirgends benutzte
+# Zahl: die Launcher enden regulaer mit 0, 1 oder 2. run.sh wertet sie nur aus, wenn es
+# den Launcher selbst gestartet hat; wer das Skript direkt aufruft, sieht sie nie.
+MENU_RC_BACK=97
+
+_menu_sel_reset() {
+  _MENU_SEL_VALUE=(); _MENU_SEL_LABEL=(); _MENU_SEL_META=(); _MENU_SEL_HEAD=(); _MENU_SEL_DIS=()
+  _MENU_SEL_TITLE=""; _MENU_SEL_RESULT=""; _MENU_SEL_EXPLAIN=""; _MENU_SEL_KEYW=11
+  _MENU_SEL_BACK=0; _MENU_SEL_XKEY=""; _MENU_SEL_XLABEL=""; _MENU_SEL_BACKLABEL="zurueck"
+}
+
+# <wert> <beschriftung> [zusatz] [gruppe] [gesperrt-grund]
+_menu_sel_add() {
+  _MENU_SEL_VALUE+=("$1"); _MENU_SEL_LABEL+=("$2")
+  _MENU_SEL_META+=("${3:-}"); _MENU_SEL_HEAD+=("${4:-}"); _MENU_SEL_DIS+=("${5:-}")
+}
+
+# Eine Zeile ausgeben und mitzaehlen. \033[K raeumt den Rest der Zeile weg, damit
+# beim Neuzeichnen keine Reste der vorigen (laengeren) Fassung stehen bleiben.
+_menu_sel_line() {
+  printf '%s\033[K\n' "$*" >&2
+  _MENU_SEL_LINES=$(( _MENU_SEL_LINES + 1 ))
+}
+
+_menu_sel_render() {
+  local cur="$1" arrows="$2"
+  local cols; cols=$(_menu_cols); (( cols > 96 )) && cols=96
+  local w=$(( cols - 3 )); (( w > 74 )) && w=74; (( w < 40 )) && w=40
+
+  if (( _MENU_SEL_FRESH )); then
+    _MENU_SEL_FRESH=0
+  else
+    printf '\033[%dA\r' "$_MENU_SEL_LINES" >&2
+  fi
+  _MENU_SEL_LINES=0
+
+  _menu_sel_line ""
+  _menu_sel_line "  ${_MENU_C_HEAD}${_MENU_SEL_TITLE}${_MENU_C_OFF}"
+  # Ohne Gruppenueberschriften klebt der erste Eintrag sonst am Titel — mit ihnen
+  # bringt die Ueberschrift die Leerzeile schon mit.
+  [[ -z "${_MENU_SEL_HEAD[0]:-}" ]] && _menu_sel_line ""
+
+  local i n=0 last_head="__keine__"
+  for i in "${!_MENU_SEL_VALUE[@]}"; do
+    n=$(( n + 1 ))
+    if [[ -n "${_MENU_SEL_HEAD[$i]}" && "${_MENU_SEL_HEAD[$i]}" != "$last_head" ]]; then
+      last_head="${_MENU_SEL_HEAD[$i]}"
+      _menu_sel_line ""
+      _menu_sel_line "  ${_MENU_C_DIM}${last_head}${_MENU_C_OFF}"
+    fi
+    # Die Zeile wird als KLARTEXT gebaut und erst danach eingefaerbt. Nur so stimmt
+    # die Laengenrechnung — Farbcodes zaehlen in ${#s} mit und wuerden den Umbruch
+    # verschieben, was beim Neuzeichnen die Zeilenzahl zerlegt.
+    local ptr="  "
+    (( arrows )) && { [[ "$i" == "$cur" ]] && ptr=" ›" || ptr="  "; }
+    local row
+    row="$(printf '%s%2d) %s %s' "$ptr" "$n" \
+           "$(_menu_pad "${_MENU_SEL_VALUE[$i]}" "$_MENU_SEL_KEYW")" "${_MENU_SEL_LABEL[$i]}")"
+    row="$(_menu_pad "${row:0:$w}" "$w")"
+    local meta="${_MENU_SEL_META[$i]}"
+    [[ -n "${_MENU_SEL_DIS[$i]}" ]] && meta="${_MENU_SEL_DIS[$i]}"
+    if [[ -n "${_MENU_SEL_DIS[$i]}" ]]; then
+      _menu_sel_line "${_MENU_C_DIM}${row} ${meta}${_MENU_C_OFF}"
+    elif (( arrows )) && [[ "$i" == "$cur" ]]; then
+      _menu_sel_line "$(printf '\033[7m%s\033[0m %s%s%s' "$row" "$_MENU_C_DIM" "$meta" "$_MENU_C_OFF")"
+    else
+      _menu_sel_line "${row} ${_MENU_C_DIM}${meta}${_MENU_C_OFF}"
+    fi
+  done
+
+  local back="" extra=""
+  (( _MENU_SEL_BACK )) && back="   [←] ${_MENU_SEL_BACKLABEL}"
+  [[ -n "$_MENU_SEL_XKEY" ]] && extra="   [$_MENU_SEL_XKEY] $_MENU_SEL_XLABEL"
+
+  _menu_sel_line ""
+  if (( arrows )); then
+    _menu_sel_line "  ${_MENU_C_DIM}[↑↓] waehlen   [Enter] bestaetigen   [1-$n] direkt   [?] erklaeren${back}${extra}   [a] abbrechen${_MENU_C_OFF}"
+  else
+    (( _MENU_SEL_BACK )) && back="   [z] ${_MENU_SEL_BACKLABEL}"
+    _menu_sel_line "  ${_MENU_C_DIM}[a] abbrechen   [?] <nr> erklaert einen Eintrag${back}${extra}${_MENU_C_OFF}"
+  fi
+}
+
+# Index des naechsten waehlbaren Eintrags ab <start> in Richtung <schritt>.
+_menu_sel_next() {
+  local i="$1" step="$2" n="${#_MENU_SEL_VALUE[@]}" tries=0
+  while (( tries < n )); do
+    i=$(( (i + step + n) % n ))
+    [[ -z "${_MENU_SEL_DIS[$i]}" ]] && { printf '%s' "$i"; return 0; }
+    tries=$(( tries + 1 ))
+  done
+  printf '%s' "$1"
+}
+
+_menu_sel_explain() {
+  local val="$1"
+  [[ -n "$_MENU_SEL_EXPLAIN" ]] || return 0
+  declare -F "$_MENU_SEL_EXPLAIN" >/dev/null || return 0
+  "$_MENU_SEL_EXPLAIN" "$val"
+  _MENU_SEL_FRESH=1        # die Erklaerung hat Zeilen ergaenzt -> frisch zeichnen
+}
+
+menu_select() {
+  local n="${#_MENU_SEL_VALUE[@]}"
+  (( n )) || return 1
+  _MENU_SEL_RESULT=""
+  _MENU_SEL_FRESH=1
+
+  local arrows=0; _menu_can_arrows && arrows=1
+
+  # Erster waehlbarer Eintrag. Sind alle gesperrt, bleibt nur der Abbruch.
+  local cur=-1 i
+  for i in "${!_MENU_SEL_VALUE[@]}"; do
+    [[ -z "${_MENU_SEL_DIS[$i]}" ]] && { cur="$i"; break; }
+  done
+
+  if (( ! arrows )); then
+    # ── Zahleneingabe: exakt das Verhalten von vor der Pfeiltasten-Zugabe ──
+    _menu_sel_render -1 0
+    while :; do
+      _menu_read "  > " || { _menu_eof_abort; return 1; }
+      local ans="$_MENU_REPLY"
+      case "$ans" in
+        "")     continue ;;
+        a|A|q|Q) return 1 ;;
+        z|Z|'<') (( _MENU_SEL_BACK )) && return 2; continue ;;
+        "$_MENU_SEL_XKEY") [[ -n "$_MENU_SEL_XKEY" ]] && return 3; continue ;;
+        \?*)
+          local want="${ans#\?}"; want="${want// /}"
+          if [[ "$want" =~ ^[0-9]+$ ]] && (( want >= 1 && want <= n )); then
+            _menu_sel_explain "${_MENU_SEL_VALUE[$(( want - 1 ))]}"
+          else
+            _menu_out "  ${_MENU_C_WARN}!${_MENU_C_OFF} '?<nr>' mit einer Nummer aus der Liste."
+          fi
+          continue ;;
+      esac
+      if [[ "$ans" =~ ^[0-9]+$ ]] && (( ans >= 1 && ans <= n )); then
+        i=$(( ans - 1 ))
+        if [[ -n "${_MENU_SEL_DIS[$i]}" ]]; then
+          _menu_out "  ${_MENU_C_WARN}!${_MENU_C_OFF} ${_MENU_SEL_VALUE[$i]}: ${_MENU_SEL_DIS[$i]}"
+          continue
+        fi
+        _MENU_SEL_RESULT="${_MENU_SEL_VALUE[$i]}"; return 0
+      fi
+      for i in "${!_MENU_SEL_VALUE[@]}"; do
+        if [[ "${_MENU_SEL_VALUE[$i]}" == "$ans" && -z "${_MENU_SEL_DIS[$i]}" ]]; then
+          _MENU_SEL_RESULT="$ans"; return 0
+        fi
+      done
+      _menu_out "  ${_MENU_C_WARN}!${_MENU_C_OFF} Bitte eine Zahl von 1 bis $n (oder 'a')."
+    done
+  fi
+
+  # ── Pfeiltasten ──
+  (( cur >= 0 )) || cur=0
+  # Ohne das bliebe der Cursor unsichtbar, wenn hier jemand Ctrl-C drueckt. Der
+  # Handler stellt ihn her, raeumt sich selbst weg und schickt das Signal erneut —
+  # damit gilt wieder das normale Abbruchverhalten statt eines verschluckten Ctrl-C.
+  local old_int; old_int="$(trap -p INT)"
+  trap '_menu_cursor_show; trap - INT; kill -INT $$' INT
+  _menu_cursor_hide
+
+  # Die Ziffernerkennung muss eine Taste zu weit lesen, um zu wissen, ob die Zahl zu
+  # Ende ist. Diese Taste geht hierhin zurueck statt verloren — sonst schluckt jede
+  # Zifferneingabe den naechsten Tastendruck ("3" dann "?" tat nichts).
+  local rc=1 key more d t pending=""
+  while :; do
+    _menu_sel_render "$cur" 1
+    if [[ -n "$pending" ]]; then key="$pending"; pending=""; else key="$(_menu_read_key)"; fi
+    case "$key" in
+      up)    cur="$(_menu_sel_next "$cur" -1)" ;;
+      down)  cur="$(_menu_sel_next "$cur" 1)" ;;
+      home)  cur="$(_menu_sel_next -1 1)" ;;
+      end)   cur="$(_menu_sel_next 0 -1)" ;;
+      enter) [[ -z "${_MENU_SEL_DIS[$cur]}" ]] && { _MENU_SEL_RESULT="${_MENU_SEL_VALUE[$cur]}"; rc=0; break; } ;;
+      esc)   rc=1; break ;;
+      eof)   rc=9; break ;;
+      left|back|'char z'|'char Z') (( _MENU_SEL_BACK )) && { rc=2; break; } ;;
+      'char ?') _menu_sel_explain "${_MENU_SEL_VALUE[$cur]}" ;;
+      'char a'|'char A'|'char q'|'char Q') rc=1; break ;;
+      'char '[0-9])
+        d="${key#char }"
+        while :; do
+          more="$(_menu_read_key 0.4)"
+          [[ "$more" == 'char '[0-9] ]] || break
+          d+="${more#char }"
+        done
+        if (( 10#$d >= 1 && 10#$d <= n )); then
+          t=$(( 10#$d - 1 ))
+          [[ -z "${_MENU_SEL_DIS[$t]}" ]] && cur="$t"
+        fi
+        # Alles ausser dem Ablauf des Timeouts ist eine echte Taste — zurueck in die
+        # Schleife damit, statt sie hier noch einmal einzeln zu behandeln.
+        [[ "$more" == timeout ]] || pending="$more"
+        ;;
+      *)
+        # Zusatzschluessel ("*" fuer "alle Aktionen"). Erst hier, damit er keine der
+        # festen Tasten ueberdeckt, falls jemand ein "a" oder "z" dafuer vergibt.
+        [[ -n "$_MENU_SEL_XKEY" && "$key" == "char $_MENU_SEL_XKEY" ]] && { rc=3; break; }
+        : ;;
+    esac
+  done
+
+  _menu_cursor_show
+  eval "${old_int:-trap - INT}"
+  (( rc == 9 )) && { _menu_eof_abort; return 1; }
+  return "$rc"
+}
+
 # ── Spezifikations-DSL ────────────────────────────────────────────────────────
 # Eine .spec-Datei ist reines Bash: eine Folge von Aufrufen der Funktionen unten.
 # Kein Parser noetig, und Abhaengigkeiten zwischen Fragen (`when`) fallen direkt heraus.
 
 declare -A _MENU_A_TITLE _MENU_A_GROUP _MENU_A_HINT _MENU_A_NEEDS _MENU_A_STATE _MENU_A_FILE
-declare -A _MENU_A_RANK _MENU_A_CLI
+declare -A _MENU_A_RANK _MENU_A_CLI _MENU_A_MARKER _MENU_A_BLOCKED
 declare -a _MENU_A_ORDER=()
 
 # Die Specs werden alphabetisch eingelesen (sim-cams vor sim-preflight). Ohne eine
@@ -145,12 +441,16 @@ _MENU_ACTION=""
 declare -a _MENU_NOTES=()
 
 # action <name> "<titel>" [--group G] [--hint H] [--needs A] [--state 'shell-ausdruck']
+#        [--blocked "<grund>"]
+#   --blocked heisst: diese Aktion laeuft hier grundsaetzlich nicht (nicht "gerade
+#   nicht"). Sie bleibt sichtbar und waehlbar-gesperrt, damit die Begruendung dort
+#   steht, wo die Frage aufkommt. Der Grund erscheint statt des Zustandsmarkers.
 #   --state wird beim Anzeigen der Aktionsliste ausgewertet und darf einen Marker auf
 #   stdout schreiben ("✓ liegt bereits vor"). Er MUSS billig sein: reine Dateisystem-
 #   Pruefungen. Ein `docker inspect`, das haengt, wuerde das Menue einfrieren.
 action() {
   local name="$1" title="$2"; shift 2
-  local group="Weiteres" hint="" needs="" state="" rank=50 cli="__SELF__"
+  local group="Weiteres" hint="" needs="" state="" rank=50 cli="__SELF__" blocked=""
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --group) group="$2"; shift 2 ;;
@@ -159,6 +459,7 @@ action() {
       --hint)  hint="$2";  shift 2 ;;
       --needs) needs="$2"; shift 2 ;;
       --state) state="$2"; shift 2 ;;
+      --blocked) blocked="$2"; shift 2 ;;
       *) shift ;;
     esac
   done
@@ -169,6 +470,7 @@ action() {
   _MENU_A_NEEDS["$name"]="$needs"
   _MENU_A_STATE["$name"]="$state"
   _MENU_A_RANK["$name"]="$rank"
+  _MENU_A_BLOCKED["$name"]="$blocked"
   [[ "$cli" == "__SELF__" ]] && cli="$name"
   _MENU_A_CLI["$name"]="$cli"
   _MENU_ACTION="$name"
@@ -246,7 +548,7 @@ argpos() {
 _menu_reset() {
   local v
   for v in _MENU_A_TITLE _MENU_A_GROUP _MENU_A_HINT _MENU_A_NEEDS _MENU_A_STATE _MENU_A_FILE \
-           _MENU_A_RANK _MENU_A_CLI \
+           _MENU_A_RANK _MENU_A_CLI _MENU_A_MARKER _MENU_A_BLOCKED \
            _MENU_P_TYPE _MENU_P_DEFAULT _MENU_P_LEVEL _MENU_P_SHORT _MENU_P_LONG \
            _MENU_P_RANGE _MENU_P_OPTIONS _MENU_P_GROUP _MENU_P_WHEN _MENU_P_ORIGIN \
            _MENU_P_SOURCE _MENU_P_SUGGEST _MENU_P_OVERRIDE \
@@ -334,57 +636,159 @@ menu_pick_action() {
   )
   _MENU_A_ORDER=("${sorted[@]}")
 
-  local -a idx_action=(); local n=0
-  _menu_out ""
-  _menu_out "  ${_MENU_C_HEAD}Was moechtest du tun?${_MENU_C_OFF}"
+  # Zustandsmarker EINMAL auswerten, nicht je Bildschirm. Sonst laufen sie beim
+  # Hin- und Herblaettern zwischen Gruppen- und Aktionsebene immer wieder — und
+  # unter ihnen sind Ausdruecke, die `docker ps` aufrufen.
+  _MENU_A_MARKER=()
+  for a in "${_MENU_A_ORDER[@]}"; do
+    _MENU_A_MARKER["$a"]=""
+    # Fehler im Zustands-Ausdruck duerfen das Menue nie umbringen.
+    [[ -n "${_MENU_A_STATE[$a]}" ]] && _MENU_A_MARKER["$a"]="$(eval "${_MENU_A_STATE[$a]}" 2>/dev/null || true)"
+  done
+
+  # Schachteln oder nicht? Bei 19 Aktionen in 7 Gruppen ist ein Schirm voll; bei 4
+  # Aktionen waere eine Gruppenebene davor reine Mehrarbeit. Also nach Groesse
+  # entscheiden statt pauschal — MENU_NEST=0/1 ueberstimmt beides.
+  local nest=0
+  if [[ "${MENU_NEST:-auto}" == 1 ]]; then nest=1
+  elif [[ "${MENU_NEST:-auto}" == 0 ]]; then nest=0
+  elif (( ${#_MENU_A_ORDER[@]} > ${MENU_NEST_MIN:-10} && ${#groups[@]} >= 3 )); then nest=1
+  fi
+
+  # Darf die OBERSTE Liste noch eine Ebene hoeher zurueck? Nur wenn es dort etwas gibt —
+  # also wenn run.sh diesen Launcher gestartet hat. Beim direkten Aufruf bleibt [←] dort
+  # wirkungslos, weil ein "zurueck" ins Nichts fuehren wuerde.
+  local top_back="${MENU_TOPLEVEL_BACK:-0}"
+
+  local dom="${MENU_DOMAIN_LABEL:-}"
+  while :; do
+    if (( nest )); then
+      local grc=0; _menu_pick_group "${groups[@]}" || grc=$?
+      (( grc == 2 )) && return 2                      # [←] auf der Gruppenebene -> Hauptmenue
+      (( grc == 0 )) || return 1
+      case "$_MENU_PICK_GROUP" in
+        __alle__) nest=0; continue ;;                 # [*] -> doch die Gesamtliste
+      esac
+      _menu_sel_reset
+      _MENU_SEL_TITLE="${dom:+$dom · }${_MENU_PICK_GROUP}"
+      _MENU_SEL_EXPLAIN="_menu_action_explain"
+      _MENU_SEL_KEYW=11
+      _MENU_SEL_BACK=1
+      for a in "${_MENU_A_ORDER[@]}"; do
+        [[ "${_MENU_A_GROUP[$a]}" == "$_MENU_PICK_GROUP" ]] || continue
+        _menu_sel_add "$a" "${_MENU_A_TITLE[$a]:0:44}" "${_MENU_A_MARKER[$a]}" "" "${_MENU_A_BLOCKED[$a]:-}"
+      done
+      local rc=0; menu_select || rc=$?
+      case "$rc" in
+        0) printf '%s\n' "$_MENU_SEL_RESULT"; return 0 ;;
+        2) continue ;;                                # [←] zurueck zur Gruppenebene
+        *) return 1 ;;
+      esac
+    fi
+
+    # Flache Gesamtliste — das Verhalten von vor der Schachtelung, unveraendert.
+    _menu_sel_reset
+    _MENU_SEL_TITLE="${dom:+$dom — }Was moechtest du tun?"
+    _MENU_SEL_EXPLAIN="_menu_action_explain"
+    _MENU_SEL_KEYW=11
+    _MENU_SEL_BACK="$top_back"
+    _MENU_SEL_BACKLABEL="Hauptmenue"
+    for g in "${groups[@]}"; do
+      for a in "${_MENU_A_ORDER[@]}"; do
+        [[ "${_MENU_A_GROUP[$a]}" == "$g" ]] || continue
+        _menu_sel_add "$a" "${_MENU_A_TITLE[$a]:0:44}" "${_MENU_A_MARKER[$a]}" "$g" "${_MENU_A_BLOCKED[$a]:-}"
+      done
+    done
+    local frc=0; menu_select || frc=$?
+    (( frc == 2 )) && return 2
+    (( frc == 0 )) || return 1
+    printf '%s\n' "$_MENU_SEL_RESULT"
+    return 0
+  done
+}
+
+# Rueckgabewert von menu_pick_action in ein Programmende uebersetzen. Nur der
+# Zurueck-Fall braucht Sonderbehandlung — er ist KEIN Fehler, sondern die Bitte, den
+# Aufrufer wieder uebernehmen zu lassen. Als Funktion, damit die drei Launcher nicht
+# dreimal dieselbe Zeile tragen.
+menu_pick_rc() {
+  (( ${1:-0} == 2 )) && exit "${MENU_RC_BACK:-97}"
+  return 0
+}
+
+# Gruppenebene. Zeigt je Gruppe die enthaltenen Aktionsnamen als Vorschau — sonst
+# verschwaende die Schachtelung genau das, wofuer _order.spec da ist: die Kette
+# preflight -> setup -> cams -> gap -> eval -> layout -> render -> rl sichtbar zu
+# machen (§12.3). Mit Vorschau bleibt sie lesbar, nur eben in einem Siebtel der Zeilen.
+_MENU_PICK_GROUP=""
+_menu_pick_group() {
+  local -a groups=("$@")
+  _menu_sel_reset
+  _MENU_SEL_TITLE="${MENU_DOMAIN_LABEL:+${MENU_DOMAIN_LABEL} — }Was moechtest du tun?"
+  _MENU_SEL_KEYW=24
+  _MENU_SEL_EXPLAIN="_menu_group_explain"
+  _MENU_SEL_XKEY="*"
+  _MENU_SEL_XLABEL="alle ${#_MENU_A_ORDER[@]} Aktionen"
+  _MENU_SEL_BACK="${MENU_TOPLEVEL_BACK:-0}"
+  _MENU_SEL_BACKLABEL="Hauptmenue"
+
+  local g a preview cnt open flag
   for g in "${groups[@]}"; do
-    _menu_out ""
-    _menu_out "  ${_MENU_C_DIM}$g${_MENU_C_OFF}"
+    preview=""; cnt=0; open=0; flag=""
     for a in "${_MENU_A_ORDER[@]}"; do
       [[ "${_MENU_A_GROUP[$a]}" == "$g" ]] || continue
-      n=$((n+1)); idx_action[$n]="$a"
-      local marker=""
-      if [[ -n "${_MENU_A_STATE[$a]}" ]]; then
-        # Fehler im Zustands-Ausdruck duerfen das Menue nie umbringen.
-        marker="$(eval "${_MENU_A_STATE[$a]}" 2>/dev/null || true)"
-      fi
-      printf '   %2d) %s %s %s\n' \
-        "$n" "$(_menu_pad "$a" 11)" "$(_menu_pad "${_MENU_A_TITLE[$a]:0:44}" 44)" \
-        "${_MENU_C_DIM}${marker}${_MENU_C_OFF}" >&2
+      cnt=$(( cnt + 1 ))
+      preview+="${preview:+, }$a"
+      [[ -z "${_MENU_A_BLOCKED[$a]:-}" ]] && open=$(( open + 1 ))
+      [[ "${_MENU_A_MARKER[$a]:-}" == '!'* ]] && flag="!"
     done
+    (( cnt )) || continue
+    # Das "!" heisst: mindestens eine Aktion dieser Gruppe hat eine offene
+    # Voraussetzung. Welche, steht eine Ebene tiefer — hier waere es nur Rauschen.
+    # Ist in einer Gruppe NICHTS lauffaehig, wird sie selbst gesperrt: hineingehen
+    # duerfen, um dort nur Graues zu finden, waere eine Sackgasse.
+    local dis=""
+    (( open )) || dis="hier nicht verfuegbar"
+    _menu_sel_add "$g" "${preview:0:46}" "$(printf '%2d Akt.%s' "$cnt" "${flag:+  $flag}")" "" "$dis"
+  done
+
+  local rc=0; menu_select || rc=$?
+  case "$rc" in
+    0) _MENU_PICK_GROUP="$_MENU_SEL_RESULT"; return 0 ;;
+    3) _MENU_PICK_GROUP="__alle__"; return 0 ;;
+    2) return 2 ;;                                    # [←] -> eine Ebene hoeher
+    *) return 1 ;;
+  esac
+}
+
+# Antwortet auf "?" auf der Gruppenebene: die Vorschau nennt nur die Aktionsnamen,
+# hier kommen die Titel und die offenen Voraussetzungen dazu. Damit muss man fuer den
+# Ueberblick ueber eine Gruppe nicht erst hineingehen.
+_menu_group_explain() {
+  local g="$1" a
+  _menu_out ""
+  _menu_out "  ${_MENU_C_KEY}$g${_MENU_C_OFF}"
+  for a in "${_MENU_A_ORDER[@]}"; do
+    [[ "${_MENU_A_GROUP[$a]}" == "$g" ]] || continue
+    printf '     %s %s %s\n' "$(_menu_pad "$a" 12)" \
+      "$(_menu_pad "${_MENU_A_TITLE[$a]:0:44}" 44)" \
+      "${_MENU_C_DIM}${_MENU_A_BLOCKED[$a]:-${_MENU_A_MARKER[$a]:-}}${_MENU_C_OFF}" >&2
   done
   _menu_out ""
-  _menu_out "  ${_MENU_C_DIM}[a] abbrechen   [?] <nr> erklaert eine Aktion${_MENU_C_OFF}"
+  return 0
+}
 
-  while :; do
-    _menu_read "  > " || { _menu_eof_abort; return 1; }
-    local ans="$_MENU_REPLY"
-    case "$ans" in
-      a|A|q|Q|"") [[ -z "$ans" ]] && continue; return 1 ;;
-      \?*)
-        local want="${ans#\?}"; want="${want// /}"
-        if [[ "$want" =~ ^[0-9]+$ ]] && (( want >= 1 && want <= n )); then
-          local t="${idx_action[$want]}"
-          _menu_out ""
-          _menu_out "  ${_MENU_C_KEY}$t${_MENU_C_OFF} — ${_MENU_A_TITLE[$t]}"
-          [[ -n "${_MENU_A_HINT[$t]}" ]] && _menu_wrap "     " "${_MENU_A_HINT[$t]}"
-          [[ -n "${_MENU_A_NEEDS[$t]}" ]] && _menu_out "     ${_MENU_C_WARN}!${_MENU_C_OFF} setzt voraus: ${_MENU_A_NEEDS[$t]}"
-          _menu_out ""
-        else
-          _menu_out "  ${_MENU_C_WARN}!${_MENU_C_OFF} '?<nr>' mit einer Nummer aus der Liste."
-        fi
-        continue ;;
-    esac
-    if [[ "$ans" =~ ^[0-9]+$ ]] && (( ans >= 1 && ans <= n )); then
-      printf '%s\n' "${idx_action[$ans]}"
-      return 0
-    fi
-    # Auch der Aktionsname selbst wird akzeptiert.
-    for a in "${_MENU_A_ORDER[@]}"; do
-      if [[ "$a" == "$ans" ]]; then printf '%s\n' "$a"; return 0; fi
-    done
-    _menu_out "  ${_MENU_C_WARN}!${_MENU_C_OFF} Bitte eine Zahl von 1 bis $n (oder 'a')."
-  done
+# Antwortet auf "?" in der Aktionsliste. Als benannte Funktion, weil menu_select sie
+# ueber _MENU_SEL_EXPLAIN aufruft — die Auswahl selbst weiss nichts von Aktionen.
+_menu_action_explain() {
+  local t="$1"
+  _menu_out ""
+  _menu_out "  ${_MENU_C_KEY}$t${_MENU_C_OFF} — ${_MENU_A_TITLE[$t]:-}"
+  [[ -n "${_MENU_A_HINT[$t]:-}" ]]  && _menu_wrap "     " "${_MENU_A_HINT[$t]}"
+  [[ -n "${_MENU_A_NEEDS[$t]:-}" ]] && _menu_out "     ${_MENU_C_WARN}!${_MENU_C_OFF} setzt voraus: ${_MENU_A_NEEDS[$t]}"
+  [[ -n "${_MENU_A_BLOCKED[$t]:-}" ]] && _menu_out "     ${_MENU_C_WARN}!${_MENU_C_OFF} nicht lauffaehig: ${_MENU_A_BLOCKED[$t]}"
+  _menu_out ""
+  return 0
 }
 
 # ── Validierung je Typ ────────────────────────────────────────────────────────
@@ -910,5 +1314,130 @@ menu_spec_defaults() {
 
 menu_list_actions() {
   _menu_load_actions "$1" "$2"
-  local a; for a in "${_MENU_A_ORDER[@]}"; do printf '%s\n' "$a"; done
+  local a
+  for a in "${_MENU_A_ORDER[@]}"; do
+    [[ "${3:-}" == --runnable && -n "${_MENU_A_BLOCKED[$a]:-}" ]] && continue
+    printf '%s\n' "$a"
+  done
+}
+
+# ── Domaenen: die Ebene ueber den Aktionen ────────────────────────────────────
+# Traegt den einen Einstiegspunkt ./run.sh. Bewusst dieselbe Bauform wie alles
+# andere hier: eine Spec-Datei (tools/menu/_domains.spec) ist die einzige Quelle,
+# das Skript selbst kennt keine Liste.
+#
+# Was diese Ebene NICHT tut: die --state-Ausdruecke der Aktionen auswerten. Einige
+# davon rufen `docker ps` (train-resume, train-destroy, train-train). Auf dem
+# Startbildschirm waere das ein Aufruf, der bei haengendem Docker-Daemon das ganze
+# Menue einfriert — und zwar bevor der Nutzer ueberhaupt eine Domaene gewaehlt hat.
+# Die Marker erscheinen weiterhin, nur eben einen Schirm spaeter in der Aktionsliste,
+# wo die Domaene bereits feststeht.
+declare -A _MENU_D_TITLE _MENU_D_LAUNCH _MENU_D_PREFIX _MENU_D_NEEDS _MENU_D_HINT _MENU_D_RANK _MENU_D_GROUP _MENU_D_LABEL
+declare -a _MENU_D_ORDER=()
+
+# domain <name> "<titel>" --launcher <pfad> [--prefix <p>] [--needs "<cmd> …"]
+#                         [--group G] [--label "<kurzname>"] [--hint "<text>"] [--rank <n>]
+#   --group  Ueberschrift in der Liste; gleiche Gruppe = benachbart (Reihenfolge: --rank).
+#   --label  Kurzname fuer Ueberschriften tieferer Ebenen (Vorgabe: Gruppe, dann Titel).
+#   --needs nennt Kommandos, die vorhanden sein muessen. Fehlt eines, bleibt der
+#   Eintrag sichtbar, aber gesperrt — mit dem Grund daneben. Sichtbar-und-gesperrt
+#   ist hier richtiger als versteckt: dass es den KISSKI-Weg gibt, soll man auch auf
+#   dem Rechner erfahren, auf dem er gerade nicht geht.
+domain() {
+  local name="$1" title="$2"; shift 2
+  local launch="" prefix="" needs="" hint="" rank=50 group="" label=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --launcher) launch="$2"; shift 2 ;;
+      --group)    group="$2";  shift 2 ;;
+      --label)    label="$2";  shift 2 ;;
+      --prefix)   prefix="$2"; shift 2 ;;
+      --needs)    needs="$2";  shift 2 ;;
+      --hint)     hint="$2";   shift 2 ;;
+      --rank)     rank="$2";   shift 2 ;;
+      *) shift ;;
+    esac
+  done
+  _MENU_D_ORDER+=("$name")
+  _MENU_D_TITLE["$name"]="$title";  _MENU_D_LAUNCH["$name"]="$launch"
+  _MENU_D_PREFIX["$name"]="$prefix"; _MENU_D_NEEDS["$name"]="$needs"
+  _MENU_D_HINT["$name"]="$hint";     _MENU_D_RANK["$name"]="$rank"
+  _MENU_D_GROUP["$name"]="$group"
+  # Kurzname fuer Ueberschriften ("Training (KISSKI) — Was moechtest du tun?").
+  # Der Titel taugt dafuer nicht: er beschreibt seit der Gruppierung nur noch die
+  # VARIANTE ("auf dem KISSKI-Cluster (sbatch)") und ergibt ohne die Gruppe daneben
+  # keinen Satz. Ohne --label faellt es auf Gruppe, dann Titel zurueck.
+  _MENU_D_LABEL["$name"]="${label:-${group:-$title}}"
+}
+
+menu_load_domains() {
+  local specdir="$1"
+  [[ -f "$specdir/_domains.spec" ]] || return 1
+  _MENU_D_ORDER=()
+  # shellcheck source=/dev/null
+  source "$specdir/_domains.spec"
+  (( ${#_MENU_D_ORDER[@]} ))
+}
+
+menu_domain_launcher() { printf '%s' "${_MENU_D_LAUNCH[$1]:-}"; }
+menu_domain_label()    { printf '%s' "${_MENU_D_LABEL[$1]:-${_MENU_D_TITLE[$1]:-}}"; }
+menu_domain_prefix()   { printf '%s' "${_MENU_D_PREFIX[$1]:-}"; }
+menu_domain_known()    { [[ -n "${_MENU_D_TITLE[$1]:-}" ]]; }
+menu_domain_list()     { local d; for d in "${_MENU_D_ORDER[@]}"; do printf '%s\n' "$d"; done; }
+
+# Leer = verfuegbar; sonst der Grund, warum nicht.
+_menu_domain_block() {
+  local name="$1" c
+  local launch="${_MENU_D_LAUNCH[$name]}"
+  [[ -z "$launch" || -f "${REPO_DIR:-.}/$launch" ]] || { printf 'Skript fehlt'; return; }
+  for c in ${_MENU_D_NEEDS[$name]}; do
+    command -v "$c" >/dev/null 2>&1 || { printf 'kein %s' "$c"; return; }
+  done
+  printf ''
+}
+
+_menu_domain_explain() {
+  local d="$1"
+  _menu_out ""
+  _menu_out "  ${_MENU_C_KEY}$d${_MENU_C_OFF} — ${_MENU_D_GROUP[$d]:+${_MENU_D_GROUP[$d]} }${_MENU_D_TITLE[$d]:-}"
+  [[ -n "${_MENU_D_HINT[$d]:-}" ]] && _menu_wrap "     " "${_MENU_D_HINT[$d]}"
+  [[ -n "${_MENU_D_LAUNCH[$d]:-}" ]] && _menu_out "     ${_MENU_C_DIM}startet: ${_MENU_D_LAUNCH[$d]}${_MENU_C_OFF}"
+  local b; b="$(_menu_domain_block "$d")"
+  [[ -n "$b" ]] && _menu_out "     ${_MENU_C_WARN}!${_MENU_C_OFF} hier nicht verfuegbar: $b"
+  _menu_out ""
+  return 0
+}
+
+# menu_pick_domain <specdir> — gewaehlte Domaene auf STDOUT, alles andere nach stderr.
+menu_pick_domain() {
+  local specdir="$1"
+  menu_load_domains "$specdir" || { _menu_out "Keine _domains.spec unter $specdir."; return 1; }
+
+  # Nach --rank sortieren, wie bei den Aktionen.
+  local -a sorted=(); local d
+  while IFS=$'\t' read -r _ d; do sorted+=("$d"); done < <(
+    for d in "${_MENU_D_ORDER[@]}"; do printf '%s\t%s\n' "${_MENU_D_RANK[$d]:-50}" "$d"; done | sort -n -s -k1,1
+  )
+  _MENU_D_ORDER=("${sorted[@]}")
+
+  _menu_sel_reset
+  _MENU_SEL_TITLE="Womit moechtest du arbeiten?"
+  _MENU_SEL_EXPLAIN="_menu_domain_explain"
+  _MENU_SEL_KEYW=12
+  for d in "${_MENU_D_ORDER[@]}"; do
+    # Aktionszahl aus den Specs ableiten statt sie zu pflegen. In einer Subshell,
+    # damit das Laden der Aktions-Specs die Domaenen-Arrays nicht ueberschreibt.
+    # --runnable: gesperrte Aktionen mitzuzaehlen waere ein Versprechen, das die
+    # naechste Ebene nicht haelt.
+    local cnt=""
+    if [[ -n "${_MENU_D_PREFIX[$d]}" ]]; then
+      cnt="$(menu_list_actions "$specdir" "${_MENU_D_PREFIX[$d]}" --runnable 2>/dev/null | grep -c .)" || cnt=""
+      [[ "$cnt" == 0 ]] && cnt=""
+      [[ -n "$cnt" ]] && cnt="$cnt Aktionen"
+    fi
+    _menu_sel_add "$d" "${_MENU_D_TITLE[$d]}" "$cnt" "${_MENU_D_GROUP[$d]:-}" "$(_menu_domain_block "$d")"
+  done
+
+  menu_select || return 1
+  printf '%s\n' "$_MENU_SEL_RESULT"
 }
