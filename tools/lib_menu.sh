@@ -853,9 +853,32 @@ _menu_ask_one() {
   local var="$1"
   local type="${_MENU_P_TYPE[$var]}"
   local cur="${!var:-${_MENU_P_DEFAULT[$var]}}" why=""
-  # Vorschlag aus der Umgebung (z. B. VRAM) schlaegt den statischen Default — aber nur,
-  # wenn der Nutzer nichts gesetzt hat und der Ausdruck wirklich etwas liefert.
-  if [[ -z "${!var:-}" && -n "${_MENU_P_SUGGEST[$var]:-}" ]]; then
+  # Vorschlag aus der Umgebung (z. B. VRAM, vorhandene Checkpoints) schlaegt den statischen
+  # Default — aber nur, wenn der Nutzer nichts gesetzt hat und der Ausdruck wirklich etwas
+  # liefert.
+  #
+  # "Nichts gesetzt" hiess bis 2026-08-21 schlicht "Variable leer", und das war zu streng:
+  # die Launcher setzen ihre eigenen Defaults im Konfigblock, LANGE bevor das Menue laeuft
+  # (CHECKPOINT_PATH etwa in server_rl_run.sh Zeile 129). Damit war nie etwas leer und ein
+  # Vorschlag kam nur bei Variablen an, die gar keinen Skript-Default haben. Massgeblich
+  # ist nicht "leer", sondern "stammt nicht vom Nutzer" — und genau das weiss env_preset
+  # (Momentaufnahme von VOR dem Konfigblock) bzw. env_local_provided.
+  #
+  # Fehlt diese Maschinerie — kisski_menu.sh laeuft bewusst ohne lib_env_local, damit
+  # kisski_submit.sh allein scp-bar bleibt —, gilt weiter der alte, strenge Test: lieber
+  # kein Vorschlag als einer, der eine bewusste Angabe ueberschreibt.
+  #
+  # _MENU_P_ORIGIN schuetzt die zweite Runde: wer einen Wert auf der Bestaetigungsseite
+  # noch einmal aendert, bekommt seine eigene Antwort vorgelegt, nicht erneut den Vorschlag.
+  local may_suggest=0
+  if [[ -n "${_MENU_P_SUGGEST[$var]:-}" && -z "${_MENU_P_ORIGIN[$var]:-}" ]]; then
+    if [[ -z "${!var:-}" ]]; then
+      may_suggest=1
+    elif declare -F env_preset >/dev/null && ! _menu_pregiven "$var"; then
+      may_suggest=1
+    fi
+  fi
+  if (( may_suggest )); then
     local sv; sv="$(eval "${_MENU_P_SUGGEST[$var]}" 2>/dev/null || true)"
     if [[ -n "$sv" ]]; then
       why="${sv#*|}"; sv="${sv%%|*}"
@@ -1186,6 +1209,47 @@ _menu_suggest_batch_size() {
   if (( gb < 40 )); then
     printf ' NVIDIA nennt fuer ein volles Fine-tuning mindestens 40 GB; darunter laeuft es, aber sehr langsam.'
   fi
+}
+
+# Vorschlag fuer CHECKPOINT_PATH: welche Checkpoints liegen tatsaechlich auf diesem Rechner?
+#
+# Die Frage nennt einen Pfad IM CONTAINER (/data/checkpoints/...), das Verzeichnis liegt
+# aber auf dem Host unter HOST_DATA_DIR/checkpoints/ — ohne diese Uebersetzung tippt man den
+# Namen blind ab. Vorgeschlagen wird der zuletzt geaenderte VOLLSTAENDIGE Checkpoint, die
+# uebrigen stehen in der Erklaerung: ein Vergleichslauf ("misst denselben Aufbau mit anderen
+# Gewichten") ist damit reines Abschreiben statt Suchen.
+#
+# Angeschnittene Downloads werden getrennt gemeldet statt vorgeschlagen — dieselbe
+# Bedingung, die checkpoint_complete() in server_rl_run.sh prueft, hier aber auf dem Host
+# und ohne Docker: das Menue laeuft, bevor ueberhaupt ein Container stehen muss. Gibt es
+# NUR angeschnittene, wird gar nichts vorgeschlagen und der statische Default bleibt stehen
+# — ein kaputtes Verzeichnis vorzuschlagen waere schlimmer als keine Hilfe.
+_menu_suggest_checkpoint() {
+  local host="${HOST_DATA_DIR:-$HOME/groot-rl-data}/checkpoints"
+  [[ -d "$host" ]] || return 0
+  local -a full=() partial=()
+  local d
+  # `ls -1t` sortiert nach Aenderungszeit, neueste zuerst — das ist fast immer der Lauf,
+  # um den es gerade geht.
+  while IFS= read -r d; do
+    [[ -n "$d" && -d "$host/$d" ]] || continue
+    if compgen -G "$host/$d/*.safetensors" >/dev/null 2>&1; then
+      full+=("$d")
+    else
+      partial+=("$d")
+    fi
+  done < <(ls -1t -- "$host" 2>/dev/null)
+  (( ${#full[@]} )) || return 0
+
+  local why="Auf diesem Rechner vorhanden (neueste zuerst): ${full[*]}."
+  if (( ${#full[@]} > 1 )); then
+    why+=" Fuer einen Vergleichslauf einfach einen der anderen Namen eintragen."
+  fi
+  if (( ${#partial[@]} )); then
+    why+=" UNVOLLSTAENDIG (keine *.safetensors, vermutlich abgebrochener Download):"
+    why+=" ${partial[*]}."
+  fi
+  printf '/data/checkpoints/%s|%s' "${full[0]}" "$why"
 }
 
 # ── Zustand: Recall und Profile (Plan §3.5) ───────────────────────────────────

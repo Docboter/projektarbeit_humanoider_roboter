@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# TL;DR: Host-Werkzeug — fuehrt den 30-Pruefungen-Akzeptanztest fuer die CLI-Menues aus (§8).
+# TL;DR: Host-Werkzeug — fuehrt den 76-Pruefungen-Akzeptanztest fuer die CLI-Menues aus (§8).
 # test_menu.sh — der Pruefplan aus docs/weiterfuehrend/cli-menuefuehrung.md §8.
 #
 # Alles ohne GPU und ohne Container pruefbar: das Menue ist reine Host-Logik. Die
@@ -114,24 +114,28 @@ chki "8   ?<nr> erklaert eine Aktion (flache Liste)" \
      'MENU_NEST=0 tty_run "$SIM" "?9|a" | grep -qi "diagnosekette"'
 chki "8b  ?<nr> erklaert eine Gruppe samt Voraussetzungen" \
      'tty_run "$SIM" "?3|a" | grep -q "braucht vorher cams"'
-chki "9   eval fragt hoechstens 5 Werte, nicht alle 15" \
-     '[ "$(tty_run "$SIM eval" "t||||b" | grep -cE "^  .+\(([A-Z_]+)\)")" -le 5 ]'
+chki "9   eval fragt hoechstens 5 Werte, nicht alle 21" \
+     '[ "$(tty_run "$SIM eval" "t|||||b" | grep -cE "^  .+\(([A-Z_]+)\)")" -le 5 ]'
+# Die Tastenfolgen zaehlen die Grundfragen von eval ab: HF_TOKEN, CHECKPOINT_PATH,
+# NUM_EPISODES, EPISODE_LENGTH_S, DR_ENABLED, dann die Zusammenfassung. Eine Leerzeile
+# zu viel landet dort als [Enter] und STARTET den Lauf — bei 10/11/11b war das lange so
+# und fiel nur nicht auf, weil auf dieser Maschine kein Container hochkommt.
 chki "10  ? bei einer Frage zeigt den Langtext" \
-     'tty_run "$SIM eval" "t|?|20||||b" | grep -qi "rauchtest"'
+     'tty_run "$SIM eval" "t||?|20|||b" | grep -qi "rauchtest"'
 chki "11  ungueltige Eingabe fragt erneut statt abzustuerzen" \
-     'tty_run "$SIM eval" "t|abc|20||||b" | grep -q "ganze Zahl erwartet"'
+     'tty_run "$SIM eval" "t||abc|20|||b" | grep -q "ganze Zahl erwartet"'
 chki "11b Wert ausserhalb des Bereichs wird abgewiesen" \
-     'tty_run "$SIM eval" "t|9999|20||||b" | grep -q "ausserhalb von 1 bis 200"'
+     'tty_run "$SIM eval" "t||9999|20|||b" | grep -q "ausserhalb von 1 bis 200"'
 chki "12  [b] zeigt nur den Befehl und startet nichts" \
-     'tty_run "$SIM eval" "t||||b" | grep -q "Nicht gestartet"'
+     'tty_run "$SIM eval" "t|||||b" | grep -q "Nicht gestartet"'
 chki "13  [e] blendet die erweiterten Optionen ein" \
-     'tty_run "$SIM eval" "t||||e|b" | grep -q "GROOT_INFERENCE_BACKEND"'
+     'tty_run "$SIM eval" "t|||||e|b" | grep -q "GROOT_INFERENCE_BACKEND"'
 chki "14  EOF mitten in einer Frage bricht sauber ab" \
      'tty_run "$SIM eval" "t|<EOF>" | grep -q "Eingabe abgebrochen"'
 chki "14b Auswahl ueber Gruppe + Aktion UND anschliessendes Fragen" \
-     'tty_run "$SIM" "3|3|hf_abc|5|120||b" | grep -q "NUM_EPISODES=5"'
+     'tty_run "$SIM" "3|3|hf_abc||5|120||b" | grep -q "NUM_EPISODES=5"'
 chki "14c dasselbe ueber die flache Liste" \
-     'MENU_NEST=0 tty_run "$SIM" "9|hf_abc|5|120||b" | grep -q "NUM_EPISODES=5"'
+     'MENU_NEST=0 tty_run "$SIM" "9|hf_abc||5|120||b" | grep -q "NUM_EPISODES=5"'
 chki "15  Positionsargument (optimize <phase>) wird erfragt" \
      'tty_run "$SIM optimize" "t|build|b" | grep -q "optimize build"'
 echo ""
@@ -167,7 +171,7 @@ chki "15l nach dem Rueckweg gilt eine andere Domaene: KISSKI ist waehlbar" \
 chki "15m direkter Launcher-Aufruf bietet KEIN Hauptmenue an" \
      '! tty_run "$SIM" "a" | grep -q "Hauptmenue"'
 chki "15n ... und [z] beendet ihn dort nicht versehentlich" \
-     'tty_run "$SIM" "z|3|3|hf_x|2|10||b" | grep -q "NUM_EPISODES=2"'
+     'tty_run "$SIM" "z|3|3|hf_x||2|10||b" | grep -q "NUM_EPISODES=2"'
 echo ""
 echo "Dauerhaft nicht lauffaehige Aktionen (KISSKI kann die Sim nicht):"
 KM="./Training/kisski_menu.sh --dry-run"
@@ -188,11 +192,11 @@ chki "16  gesetzte Variablen werden als vorgegeben angezeigt" \
 chki "17  gesetztes NUM_EPISODES wird nicht erneut gefragt" \
      '[ "$(HF_TOKEN=hf_x NUM_EPISODES=3 tty_run "$SIM eval" "|||b" | grep -c "Anzahl Eval-Episoden")" -le 1 ]'
 chki "18  Token erscheint maskiert" \
-     'tty_run "$SIM eval" "hf_GEHEIM123||||b" | grep -q "hf_…"'
+     'tty_run "$SIM eval" "hf_GEHEIM123|||||b" | grep -q "hf_…"'
 chki "18b Token erscheint NICHT im Klartext" \
-     '! tty_run "$SIM eval" "hf_GEHEIM123||||b" | grep -q "GEHEIM123"'
+     '! tty_run "$SIM eval" "hf_GEHEIM123|||||b" | grep -q "GEHEIM123"'
 rm -rf "$MENU_STATE_DIR" "$TMP/data/logs"
-tty_run "$SIM eval" "hf_GEHEIM123|2|10|||" >/dev/null 2>&1
+tty_run "$SIM eval" "hf_GEHEIM123||2|10|||" >/dev/null 2>&1
 chk  "19  Token steht in keiner Log-Datei" \
      '! grep -rq "hf_GEHEIM123" "$TMP/data/logs" 2>/dev/null'
 chk  "20  Token steht in keiner Recall-Datei" \
@@ -257,6 +261,60 @@ chki "40  Pfeil ab + Enter waehlt tatsaechlich den zweiten Eintrag" \
      'o=$(MENU_SPEC_DIR=$TMP/spec tty_run "./run.sh" "<RAW>\x1b[B|<RAW>\r" xterm); echo "$o" | grep -q "tools/gen_docs.sh" && ! echo "$o" | grep -q "tools/check_tldr.sh"'
 chki "41  Zifferneingabe waehlt auch im Pfeiltasten-Modus" \
      'o=$(MENU_SPEC_DIR=$TMP/spec tty_run "./run.sh" "<RAW>2|<RAW>\r" xterm); echo "$o" | grep -q "tools/gen_docs.sh" && ! echo "$o" | grep -q "tools/check_tldr.sh"'
+echo ""
+echo "Gewichte — WELCHER Checkpoint gemessen wird, muss im Menue stehen:"
+# Bis 2026-08-21 nannte nur sim-setup.spec den Checkpoint. Jede andere Aktion ruft
+# ensure_checkpoint aber selbst auf und hat den Default im Zweifel stillschweigend
+# geladen — eine Erfolgsrate ohne die Angabe, welche Gewichte sie gemessen hat, ist
+# nicht vergleichbar. Deshalb ist der Pfad bei 'eval' eine Grundfrage.
+chki "42  eval fragt den Checkpoint-Pfad im Grunddialog, nicht erst hinter [e]" \
+     'tty_run "$SIM eval" "t|||||b" | grep -q "(CHECKPOINT_PATH)"'
+chki "43  ... und die Antwort landet in der Befehlszeile" \
+     'tty_run "$SIM eval" "t|/data/checkpoints/lauf3||||b" | grep -q "CHECKPOINT_PATH=/data/checkpoints/lauf3"'
+# Das Repo ist der schwaechere Hebel (ensure_checkpoint prueft nur, ob der PFAD schon
+# existiert), gehoert aber erreichbar zu sein — hinter [e] reicht.
+chki "44  HF_CHECKPOINT_REPO ist bei eval unter [e] erreichbar" \
+     'tty_run "$SIM eval" "t|||||e|b" | grep -q "HF_CHECKPOINT_REPO"'
+# Gegenprobe: Aktionen ohne Gewichte duerfen davon nichts sehen — sonst waere der
+# gemeinsame Block aus _common-sim.spec eine Verschlechterung fuer neun Aktionen.
+chki "45  'view' fragt weder Pfad noch Repo — auch nicht unter [e]" \
+     '! tty_run "$SIM view" "||e|b" | grep -qE "\(CHECKPOINT_PATH\)|\(HF_CHECKPOINT_REPO\)"'
+mkdir -p "$TMP/data/checkpoints/lauf3"
+chki "46  der Zustandsmarker nennt den vorliegenden Checkpoint beim Namen" \
+     'CHECKPOINT_PATH=/data/checkpoints/lauf3 MENU_NEST=0 tty_run "$SIM" "a" | grep -E "\) eval" | grep -q "lauf3"'
+rmdir "$TMP/data/checkpoints/lauf3" 2>/dev/null
+
+# Vorschlagsliste: der Pfad in der Frage gilt im Container, die Verzeichnisse liegen auf
+# dem Host — ohne Uebersetzung tippt man den Namen blind ab. Aufbau der Probe: zwei
+# brauchbare Checkpoints und ein angeschnittener Download, der NEUER ist als beide.
+mkdir -p "$TMP/data/checkpoints/alt-3000" "$TMP/data/checkpoints/neu-30000" \
+         "$TMP/data/checkpoints/abgebrochen"
+touch "$TMP/data/checkpoints/alt-3000/model.safetensors" \
+      "$TMP/data/checkpoints/neu-30000/model.safetensors" \
+      "$TMP/data/checkpoints/abgebrochen/config.json"
+touch "$TMP/data/checkpoints/neu-30000"    # juengste Aenderungszeit -> soll gewinnen
+chki "47  der Vorschlag setzt den neuesten vorhandenen Checkpoint als Vorgabe" \
+     'tty_run "$SIM eval" "t|||||b" | grep -q "\[/data/checkpoints/neu-30000\]"'
+chki "48  ... und nennt die uebrigen, damit ein Vergleichslauf abschreibbar ist" \
+     'tty_run "$SIM eval" "t|||||b" | grep -q "alt-3000"'
+# Der angeschnittene Ordner ist der juengste — er darf trotzdem NICHT die Vorgabe werden.
+# Genau diese Verwechslung liess `check` am 2026-08-21 erst im Isaac-Sim-Aufbau sterben.
+chki "49  ein angeschnittener Download wird gemeldet, aber nicht vorgeschlagen" \
+     'o=$(tty_run "$SIM eval" "t|||||b"); echo "$o" | grep -q "UNVOLLSTAENDIG" \
+      && ! echo "$o" | grep -q "\[/data/checkpoints/abgebrochen\]"'
+rm -rf "$TMP/data/checkpoints"
+chki "50  ohne jeden Checkpoint bleibt der statische Default stehen" \
+     'tty_run "$SIM eval" "t|||||b" | grep -q "\[/data/checkpoints/groot-g1dex3-checkpoint\]"'
+# Die Gegenprobe zur erweiterten Vorschlagsregel: ein Vorschlag darf einen Wert, den der
+# Aufrufer selbst mitgegeben hat, unter keinen Umstaenden ueberschreiben. Der Fixture-Ordner
+# ist dabei absichtlich vorhanden — sonst prueft der Test nur, dass gar nichts vorlag.
+mkdir -p "$TMP/data/checkpoints/neu-30000"
+touch "$TMP/data/checkpoints/neu-30000/model.safetensors"
+chki "51  ein vom Aufrufer gesetzter Pfad schlaegt den Vorschlag" \
+     'CHECKPOINT_PATH=/data/checkpoints/meiner tty_run "$SIM eval" "t|||||b" \
+      | grep -q "CHECKPOINT_PATH */data/checkpoints/meiner"'
+rm -rf "$TMP/data/checkpoints"
+
 echo ""
 echo "Struktur und Abgleich:"
 chk  "22  bash -n ueber Bibliotheken, Werkzeug und alle Specs" \

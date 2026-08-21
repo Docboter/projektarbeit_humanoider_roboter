@@ -439,16 +439,62 @@ build_rl_env() {
 # Lädt BC-Checkpoint + USD-Asset von HF, falls noch nicht im Container vorhanden
 # (identische Download-Logik wie in entrypoint_rl.sh — wird hier separat gebraucht,
 # weil ein direkter rl_finetune.py-Aufruf für `check` den Entrypoint umgeht).
+#
+# Vollstaendigkeit wird an DREI Dingen gemessen, nicht am blossen Vorhandensein des
+# Verzeichnisses: config.json, mindestens eine *.safetensors-Datei und kein Rest im
+# .incomplete-Zustand. Grund: `huggingface-cli download` legt das Zielverzeichnis sofort
+# an und fuellt es erst nach und nach. Bricht der Download ab (Strg-C, Platte voll, Netz
+# weg), bleibt genau dieses halbe Verzeichnis stehen — und ein `test -d` haelt es fuer
+# fertig. Beobachtet 2026-08-21: `check` sprang mit "BC-Checkpoint bereits vorhanden" ueber
+# den Download und starb erst Minuten spaeter mitten im Isaac-Sim-Aufbau an
+# "FileNotFoundError: model-00001-of-00002.safetensors". Der Fehler stand also zwei
+# Bildschirmseiten von seiner Ursache entfernt.
+checkpoint_complete() {
+  local ck="$1"
+  docker exec "$CONTAINER" test -f "$ck/config.json" 2>/dev/null || return 1
+  docker exec "$CONTAINER" bash -lc "compgen -G '$ck/*.safetensors' >/dev/null" 2>/dev/null \
+    || return 1
+  # .incomplete-Reste liegen im HF-Cache INNERHALB des Zielverzeichnisses. Sie sind der
+  # eindeutige Beleg fuer einen abgebrochenen Download — auch dann, wenn zufaellig schon
+  # eine der beiden Shards fertig ist und der Test oben allein durchginge.
+  # Kein `| grep -q`: `grep -q` steigt nach dem ersten Treffer aus, schiesst `find` per
+  # SIGPIPE ab, und `set -o pipefail` macht daraus einen Fehlschlag der ganzen Pipe — der
+  # Fund wuerde als "nichts gefunden" durchgehen. Deshalb in eine Variable lesen.
+  local leftover
+  leftover="$(docker exec "$CONTAINER" \
+      find "$ck/.cache" -name '*.incomplete' -print -quit 2>/dev/null || true)"
+  if [[ -n "$leftover" ]]; then
+    return 1
+  fi
+  return 0
+}
+
 ensure_checkpoint() {
   ensure_container
-  if docker exec "$CONTAINER" test -d "$CHECKPOINT_PATH"; then
+  if checkpoint_complete "$CHECKPOINT_PATH"; then
     ok "BC-Checkpoint bereits vorhanden: $CHECKPOINT_PATH"
     return 0
   fi
+  if docker exec "$CONTAINER" test -d "$CHECKPOINT_PATH"; then
+    warn "Checkpoint-Verzeichnis vorhanden, aber UNVOLLSTAENDIG: $CHECKPOINT_PATH"
+    warn "  Sieht nach einem abgebrochenen Download aus. Der Aufruf unten setzt wieder auf."
+    warn "  Kommt es wieder, zuerst den Platz pruefen:  df -h $HOST_DATA_DIR"
+  fi
   require_hf_token
-  log "Lade BC-Checkpoint von HF: $HF_CHECKPOINT_REPO -> $CHECKPOINT_PATH (~10 GB, einmalig)"
+  log "Lade BC-Checkpoint von HF: $HF_CHECKPOINT_REPO -> $CHECKPOINT_PATH"
+  # Groessenangabe bewusst konkret: das Repo enthaelt neben den ~9,8 GB Gewichten eine
+  # 13 GB grosse optimizer.pt, die NUR ein Training-Resume braucht (s. upload_checkpoint.py
+  # --with-optimizer). Wer mehrere Checkpoints nebeneinander vergleicht, laeuft sonst in
+  # genau die volle Platte, die den Abbruch oben verursacht.
+  log "  (~23 GB vollstaendig; davon 13 GB optimizer.pt, die Sim und RL nie lesen.)"
   docker exec -e "HF_TOKEN=$HF_TOKEN" -e "HUGGING_FACE_HUB_TOKEN=$HF_TOKEN" "$CONTAINER" \
     bash -lc "huggingface-cli download '$HF_CHECKPOINT_REPO' --local-dir '$CHECKPOINT_PATH'"
+  if ! checkpoint_complete "$CHECKPOINT_PATH"; then
+    err "Checkpoint nach dem Download immer noch unvollstaendig: $CHECKPOINT_PATH"
+    err "  Erwartet: config.json + *.safetensors, keine *.incomplete-Reste."
+    err "  Inhalt ansehen:  docker exec $CONTAINER ls -lh $CHECKPOINT_PATH"
+    return 1
+  fi
   ok "Checkpoint geladen."
 }
 
@@ -526,23 +572,63 @@ ensure_dataset() {
   ok "Datensatz einsatzbereit: $ds"
 }
 
-# Stellt das schwarzhändige Asset sicher (Domain-Gap: reale DEX3 schwarz, URDF-Asset weiß).
-# Reines USD-Authoring, keine GPU, wenige Sekunden — deshalb bei jedem Lauf geprüft statt
-# einmalig dokumentiert. Schlägt der Recolor fehl, fällt ASSET_PATH aufs Original zurück,
-# damit ein kosmetischer Fehler keinen Lauf verhindert.
+# Stellt das USD-Asset sicher — und zwar in der richtigen Handfarbe (Domain-Gap: reale DEX3
+# schwarz, URDF-Asset weiß). Reines USD-Authoring, keine GPU, wenige Sekunden — deshalb bei
+# jedem Lauf geprüft statt einmalig dokumentiert. Schlägt der Recolor fehl, fällt ASSET_PATH
+# aufs Original zurück, damit ein kosmetischer Fehler keinen Lauf verhindert.
+#
+# Zwei Dinge, die die Funktion seit 2026-08-21 zusätzlich tut, beide wegen des
+# Checkpoint-Wechsels per CHECKPOINT_PATH: sie prüft die Existenz des Assets auch bei
+# BLACK_HANDS=0, und sie sucht das USD an den anderen bekannten Orten, statt bei einem
+# checkpoint-fremden Ordner nur zu warnen. Der Aufrufer kann sich danach darauf verlassen,
+# dass ASSET_PATH auf eine Datei zeigt, die es gibt.
 ensure_black_hands() {
-  [[ "$BLACK_HANDS" == "1" ]] || return 0
-  [[ "$ASSET_PATH" == *g1_dex3_blackhands.usd ]] || return 0
+  local want_black=0
+  if [[ "$BLACK_HANDS" == "1" && "$ASSET_PATH" == *g1_dex3_blackhands.usd ]]; then
+    want_black=1
+  fi
   local orig="$CHECKPOINT_PATH/g1_dex3.usd"
 
+  # Schritt 1: Liegt das gewünschte Asset schon da? Geprüft wird das JETZT auch bei
+  # BLACK_HANDS=0 — früher stieg die Funktion in dem Fall in Zeile 1 aus und prüfte
+  # überhaupt nichts, der fehlende Pfad fiel erst Isaac Sim auf.
   if docker exec "$CONTAINER" test -f "$ASSET_PATH"; then
-    ok "Schwarzhändiges Asset vorhanden: $ASSET_PATH"
+    if (( want_black )); then
+      ok "Schwarzhändiges Asset vorhanden: $ASSET_PATH"
+    else
+      ok "USD-Asset vorhanden: $ASSET_PATH"
+    fi
     return 0
   fi
+
+  # Schritt 2: Auch das weiße Original fehlt neben dem Checkpoint. Seit man Checkpoints
+  # per CHECKPOINT_PATH umschaltet, ist das der Normalfall und kein Defekt: ASSET_PATH wird
+  # aus CHECKPOINT_PATH abgeleitet (s. Konfiguration oben), das USD gehört aber gar nicht
+  # zum Checkpoint — es ist die Robotergeometrie und für alle Trainingsläufe dieselbe.
+  # Ein Ordner mit nur Gewichten hat es nicht. Statt hier wie bis 2026-08 nur zu warnen und
+  # mit einem Pfad weiterzulaufen, den es nie gab, dieselbe Suche fahren wie 'view':
+  # Container-Orte der Reihe nach, zuletzt vom Host kopieren.
   if ! docker exec "$CONTAINER" test -f "$orig"; then
-    warn "Weder $ASSET_PATH noch $orig im Container — Asset-Pfad prüfen."
+    warn "Kein USD neben $CHECKPOINT_PATH — suche das Asset an den bekannten Orten."
+    ASSET_PATH=""            # sonst gewinnt der fehlende Pfad in ensure_asset_local
+    ensure_asset_local || return 1
+    # ensure_asset_local bevorzugt bei BLACK_HANDS=1 bereits die schwarze Variante; hat es
+    # sie gefunden, ist der Recolor unnötig.
+    if [[ "$ASSET_PATH" == *g1_dex3_blackhands.usd ]] || (( ! want_black )); then
+      return 0
+    fi
+    # Nur das weiße Original gefunden — die schwarze Fassung daneben erzeugen.
+    orig="$ASSET_PATH"
+    ASSET_PATH="${orig%/*}/g1_dex3_blackhands.usd"
+  elif (( ! want_black )); then
+    # Hierher kommt nur, wer ASSET_PATH selbst auf etwas Nicht-Existierendes gesetzt hat
+    # (bei BLACK_HANDS=0 ist ASSET_PATH == $orig, dann greift schon der Zweig darüber).
+    # Der Rückfall ist brauchbar, aber nichts, was man stillschweigend tun sollte.
+    warn "ASSET_PATH zeigt ins Leere — falle auf $orig zurück."
+    ASSET_PATH="$orig"
     return 0
   fi
+
   # Ausgabe MUSS neben das Original: der Wrapper referenziert configuration/ relativ.
   log "Erzeuge schwarzhändiges Asset (Recolor, offline auf dem USD)."
   if docker exec "$CONTAINER" bash -lc "

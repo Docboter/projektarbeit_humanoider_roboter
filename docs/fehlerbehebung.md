@@ -87,6 +87,39 @@ nach `/data`. Der alte SCRATCH-SCC-Speicher (`/scratch/`) wurde **am 2026-03-31 
 
 ## Simulation (Isaac Lab / Isaac Sim)
 
+### `FileNotFoundError: …/model-00001-of-00002.safetensors` — Erfolgsmarker fehlt
+
+**Symptom:** `check`, `eval` oder `rl` bricht mitten im Isaac-Sim-Aufbau ab; ganz unten steht
+`!! Check FEHLGESCHLAGEN — Erfolgsmarker ('Aufbau OK') fehlt in der Ausgabe.` Zwei
+Bildschirmseiten darüber im Traceback fehlt eine `*.safetensors` des Checkpoints.
+
+**Ursache:** Der Checkpoint ist **unvollständig heruntergeladen**. `huggingface-cli download`
+legt das Zielverzeichnis sofort an und füllt es erst nach und nach; bricht der Download ab
+(Strg-C, volle Platte, Netz weg), bleibt ein halbes Verzeichnis stehen. Bis 2026-08-21 prüfte
+`ensure_checkpoint` nur, *ob* das Verzeichnis existiert — und hielt es damit für fertig.
+
+**Wo suchen?** Der Pfad im Traceback (`/data/checkpoints/…`) gilt **im Container**. Auf dem
+Host liegt er unter `$RL_HOST_DATA_DIR/checkpoints/`; `RL_HOST_DATA_DIR` kommt aus `.env.local`
+oder ist `$HOME/groot-rl-data` (siehe [portabilitaet.md](portabilitaet.md)). Der verlässlichste
+Weg, das aufzulösen, ist der Container selbst:
+
+```bash
+docker inspect -f '{{range .Mounts}}{{.Source}} -> {{.Destination}}{{"\n"}}{{end}}' groot-rl
+du -sh  "$RL_HOST_DATA_DIR/checkpoints/"*          # Soll: ~10 GB, mit optimizer.pt ~23 GB
+find    "$RL_HOST_DATA_DIR/checkpoints" -name '*.incomplete'   # Beleg für den Abbruch
+df -h   "$RL_HOST_DATA_DIR"                        # die übliche Ursache
+```
+
+**Lösung:** Erneut `setup` fahren — der Download nimmt wieder auf, und seit 2026-08-21 erkennt
+`ensure_checkpoint` den halben Ordner, statt ihn zu überspringen. Ist die Platte das Problem:
+`optimizer.pt` (13 GB) braucht nur ein Training-Resume, Sim und RL lesen sie nie —
+
+```bash
+docker exec -e HF_TOKEN="$HF_TOKEN" -e HUGGING_FACE_HUB_TOKEN="$HF_TOKEN" groot-rl \
+  huggingface-cli download luca-mue/groot-g1dex3-checkpoint \
+    --local-dir /data/checkpoints/groot-g1dex3-checkpoint --exclude 'optimizer.pt'
+```
+
 ### Kamera-Rendering scheitert: `createDLSSContext error`
 
 **Symptom:** `[Error] [rtx.postprocessing.plugin] createDLSSContext error` beim Start mit

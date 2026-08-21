@@ -74,9 +74,12 @@ also means the arrow layer stays out of the way whenever `TERM` is `dumb` or uns
 
 Engine and parameter specs live in [`tools/`](tools/) (host-only, never copied into an
 image); `tools/gen_docs.sh` checks spec defaults against the scripts and the docs, and
-`tools/test_menu.sh` runs the 71-check acceptance suite. Design and deviations:
+`tools/test_menu.sh` runs the 81-check acceptance suite. Design and deviations:
 [`docs/weiterfuehrend/cli-menuefuehrung.md`](docs/weiterfuehrend/cli-menuefuehrung.md)
-(§13 covers the router, the arrow keys, the group level, the back path and why KISSKI sits under Training).
+(§13 covers the router, the arrow keys, the group level, the back path, why KISSKI sits under
+Training, why every measuring run now asks which checkpoint it measures — §13.7 — and how the
+menu suggests the checkpoints actually present under `HOST_DATA_DIR/checkpoints/`, so switching
+between two of them is copying a name rather than looking it up — §13.8).
 
 ### Run the full pipeline (download → convert → train)
 

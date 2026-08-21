@@ -9,7 +9,8 @@
 > [§12 Umsetzungsstand](#12-umsetzungsstand). Der Plantext unten bleibt als
 > Begründungsprotokoll erhalten; wo die Umsetzung abweicht, steht es dort.
 > **Nachtrag 2026-08-21:** ein Einstiegspunkt [`./run.sh`](../../run.sh) über allen
-> Launchern, Pfeiltasten-Bedienung und eine Gruppenebene für lange Aktionslisten —
+> Launchern, Pfeiltasten-Bedienung, eine Gruppenebene für lange Aktionslisten und der
+> Checkpoint als Grundfrage jedes Messlaufs —
 > [§13](#13-nachtrag-2026-08-21--ein-einstiegspunkt-und-pfeiltasten).
 >
 > **Bedienung in einem Satz:** `./run.sh` starten — oder eines der Skripte direkt, ohne
@@ -735,11 +736,12 @@ höchsten Risiko recht behalten.
 
 ## 13. Nachtrag 2026-08-21 — ein Einstiegspunkt und Pfeiltasten
 
-Nachgereicht auf denselben Branch. Fünf Dinge, die der Plan nicht vorsah: die Ebene
+Nachgereicht auf denselben Branch. Sechs Dinge, die der Plan nicht vorsah: die Ebene
 **über** den Aktionen (§13.1), Pfeiltasten (§13.3), eine Gruppenebene **innerhalb**
-einer Domäne (§13.4), den Rückweg über alle Ebenen (§13.5) und die Einsicht, dass
-KISSKI kein eigener Zweig ist, sondern ein Trainings-Ort (§13.6). Prüfstand jetzt
-**71 Prüfungen** statt 30.
+einer Domäne (§13.4), den Rückweg über alle Ebenen (§13.5), die Einsicht, dass
+KISSKI kein eigener Zweig ist, sondern ein Trainings-Ort (§13.6), und die Lücke, dass
+kein Messlauf danach fragte, **welche Gewichte** er misst (§13.7). Prüfstand jetzt
+**76 Prüfungen** statt 30.
 
 ### 13.1 `run.sh` — die Domänen-Ebene
 
@@ -981,7 +983,112 @@ stille Filterung wäre ein Loch in der Drift-Sicherung.
 Eine Gruppe, in der nichts lauffähig ist, wird selbst gesperrt — hineingehen zu dürfen,
 um dort nur Graues zu finden, wäre eine Sackgasse.
 
-### 13.7 Nicht gebaut — und warum
+### 13.7 Welche Gewichte gemessen werden, gehört ins Menü
+
+Beim ersten Durchspielen von `./run.sh → sim → Messen → eval` fiel auf, dass der Dialog
+nach Token, Episodenzahl, Zeitbudget und Randomisierung fragt — aber mit keinem Wort
+danach, **welcher Checkpoint** eigentlich gemessen wird. Der Befund:
+
+- Nur [`sim-setup.spec`](../../tools/menu/sim-setup.spec) nannte `HF_CHECKPOINT_REPO`.
+  Alle anderen Aktionen erbten davon nichts.
+- `CHECKPOINT_PATH` stand in **keiner** Spec. Über das Menü war ein zweiter Checkpoint
+  damit gar nicht erreichbar — obwohl genau dieser Vergleich der Punkt ist: Lauf 3
+  zeigte eine U-Kurve über die Checkpoints, der beste lag bei 30000, der letzte war
+  25 % schlechter ([lauf3-vision-split-auswertung.md](../ergebnisse/lauf3-vision-split-auswertung.md)).
+- Zehn der 19 Sim-Aktionen rufen `ensure_checkpoint` **selbst** auf (`setup`, `check`,
+  `rl`, `eval`, `optimize`, `cams`, `grasp`, `span`, `latency`, `render`). Das
+  `--needs "setup"` bei `eval` ist nur ein Hinweis, keine Sperre — ohne vorheriges
+  `setup` lud `eval` also stillschweigend das Default-Repo herunter, 10 GB, ungefragt.
+
+Eine Erfolgsrate ohne die Angabe, welche Gewichte sie gemessen hat, ist nicht
+vergleichbar. Also gehört der Checkpoint in den **Grunddialog**, nicht hinter `[e]`.
+
+**Der Pfad ist der Hebel, nicht das Repo.** `ensure_checkpoint`
+([`server_rl_run.sh`](../../Simulation/server_rl_run.sh)) prüft ausschließlich, ob
+`$CHECKPOINT_PATH` existiert; liegt das Verzeichnis da, wird nichts nachgeladen und
+`HF_CHECKPOINT_REPO` bleibt wirkungslos. Ein Wechsel des Trainingslaufs braucht deshalb
+**beide** Felder — sonst misst der zweite Lauf den ersten Checkpoint. Genau das steht
+jetzt als `note` über dem Dialog und im Langtext beider Parameter.
+
+Umgesetzt nach dem Muster, das `_common.spec` für `HF_TOKEN` schon vorgibt:
+
+| Ort | Stufe | Aktionen |
+|---|---|---|
+| [`_common-sim.spec`](../../tools/menu/_common-sim.spec), Gruppe „Gewichte" | `advanced` | alle Sim-Aktionen erben beide Felder |
+| [`sim-eval.spec`](../../tools/menu/sim-eval.spec) | `CHECKPOINT_PATH` auf `basic` | der Messlauf fragt danach zuerst |
+| [`sim-setup.spec`](../../tools/menu/sim-setup.spec) | beide erneut unter „Quelle" | Repo und Zielpfad stehen nebeneinander |
+| `preflight`, `view`, `webview`, `livecheck`, `gap`, `layout`, `layoutcheck`, `shell`, `clean` | beide auf `expert` | dokumentiert, aber nie gefragt |
+
+Das erneute Nennen in `sim-eval.spec` und `sim-setup.spec` ist kein Duplikat, sondern
+die vorgesehene Mechanik: die spätere Fassung gewinnt und bestimmt auch die **Position**.
+Ohne sie stünde `HF_CHECKPOINT_REPO` in der `[e]`-Liste ganz oben und der zugehörige
+Pfad zehn Zeilen darunter.
+
+**Der Zustandsmarker nennt den Checkpoint beim Namen.** Vorher: `! braucht vorher setup`.
+Jetzt zeigt `eval` den tatsächlich vorliegenden Namen — `✓ lauf3` —, ausgewertet über
+denselben billigen Dateisystem-Test wie bisher (§5.1: ein `docker inspect` an dieser
+Stelle würde das Menü einfrieren).
+
+Fünf neue Prüfungen (42–46) in [`test_menu.sh`](../../tools/test_menu.sh) halten das
+fest, darunter die Gegenprobe, dass `view` weder Pfad noch Repo zeigt — der gemeinsame
+Block darf für die neun gewichtslosen Aktionen keine Verschlechterung sein. Zählung
+jetzt 76 statt 71.
+
+**Nebenbefund beim Nachziehen der Tastenfolgen.** Die Prüfungen 10, 11 und 11b hatten je
+eine Leerzeile zu viel: die letzte landete auf der Zusammenfassung und ist dort `[Enter]`
+= **starten**. Auf dieser Maschine fiel das nie auf, weil kein Container hochkommt — auf
+dem IKR-Server hätte der Prüfplan drei echte Eval-Läufe angestoßen. Behoben; damit fasst
+außer dem absichtlichen Paar 19/20 (es prüft, dass der Token in keinem Log landet) keine
+Prüfung mehr einen Container an.
+
+### 13.8 Checkpoints vorschlagen — und wann ein Vorschlag überhaupt greifen darf
+
+Nachtrag desselben Tages, ausgelöst von einer Frage aus der Praxis: „gibt es eine leichte
+Möglichkeit, zwischen verschiedenen Checkpoints zu wechseln?" Der Mechanismus war da
+(§13.7, `CHECKPOINT_PATH` als Grundfrage bei `eval`), aber die Frage war ein leeres Textfeld
+mit einem Default darin. Der Pfad gilt **im Container**, die Verzeichnisse liegen unter
+`HOST_DATA_DIR/checkpoints/` auf dem Host — man musste den Namen also woanders nachsehen und
+abtippen.
+
+Neu ist `_menu_suggest_checkpoint` in [`lib_menu.sh`](../../tools/lib_menu.sh): es listet die
+Verzeichnisse, die tatsächlich da sind, schlägt den zuletzt geänderten **vollständigen** als
+Vorgabe vor und nennt die übrigen darunter. Ein angeschnittener Download (kein
+`*.safetensors`) wird getrennt als `UNVOLLSTAENDIG` gemeldet, aber nie vorgeschlagen —
+dieselbe Bedingung, die `checkpoint_complete()` in `server_rl_run.sh` prüft, hier nur auf dem
+Host und ohne Docker. Gibt es *nur* angeschnittene, kommt gar kein Vorschlag: ein kaputtes
+Verzeichnis vorzuschlagen wäre schlechter als keine Hilfe.
+
+**Der eigentliche Fund steckt eine Ebene tiefer.** Der `--suggest`-Mechanismus gab es seit
+Phase 3, er hat aber praktisch nie gefeuert. Die Bedingung war:
+
+```bash
+if [[ -z "${!var:-}" && -n "${_MENU_P_SUGGEST[$var]:-}" ]]; then
+```
+
+„Variable leer" ist die falsche Frage. Die Launcher setzen ihre eigenen Defaults im
+Konfigblock — `CHECKPOINT_PATH="${CHECKPOINT_PATH:-…}"` steht in `server_rl_run.sh` Zeile 129
+—, und der läuft **lange vor** dem Menü. Damit war nie etwas leer, und ein Vorschlag erreichte
+nur Variablen ohne Skript-Default. Der VRAM-Vorschlag beim Training funktionierte bloß, weil
+`GLOBAL_BATCH_SIZE` zufällig zu dieser Sorte gehört.
+
+Maßgeblich ist nicht „leer", sondern „stammt nicht vom Nutzer" — und genau das weiß die
+Herkunftslogik aus §3.4 schon: `env_preset` kennt die Momentaufnahme von *vor* dem
+Konfigblock, `env_local_provided` die `.env.local`-Herkunft. Die Bedingung heißt jetzt
+sinngemäß „hat einen Vorschlag, ist noch nicht beantwortet, und der Wert kam nicht vom
+Nutzer". Zwei Rückfallebenen bleiben:
+
+- Fehlt die Herkunftsmaschinerie ganz — `kisski_menu.sh` läuft bewusst ohne
+  `lib_env_local`, damit `kisski_submit.sh` allein scp-bar bleibt —, gilt weiter der alte,
+  strenge Test. Lieber kein Vorschlag als einer, der eine bewusste Angabe überschreibt.
+- `_MENU_P_ORIGIN` schützt die zweite Runde: wer einen Wert auf der Bestätigungsseite noch
+  einmal ändert, bekommt seine eigene Antwort vorgelegt, nicht wieder den Vorschlag.
+
+Prüfungen 47–51 decken die fünf Fälle ab: neuester gewinnt, die übrigen werden genannt, ein
+angeschnittener wird gemeldet aber nicht vorgeschlagen, ohne Checkpoints bleibt der statische
+Default stehen — und die Gegenprobe, dass ein vom Aufrufer gesetzter Pfad den Vorschlag
+schlägt. Damit steht die Suite bei 81.
+
+### 13.9 Nicht gebaut — und warum
 
 **Eine flache Gesamtliste über alle Domänen** (27 Einträge, Domäne als
 Gruppenüberschrift) wäre der nächste Schritt und ist von hier aus klein. Sie bleibt

@@ -4,12 +4,26 @@ action eval "BC-Erfolgsrate in der Sim (Closed Loop)" \
   --group "Messen" \
   --needs "setup" \
   --hint  "Schritt 3 der Diagnosekette und der Nullpunkt jedes RL-Vergleichs. GR00T-Server plus Isaac-Lab-Client, geschlossene Schleife." \
-  --state '[[ -d "${HOST_DATA_DIR:-$HOME/groot-rl-data}/checkpoints" ]] || echo "! braucht vorher setup"'
+  --state 'd="${HOST_DATA_DIR:-$HOME/groot-rl-data}/checkpoints/$(basename "${CHECKPOINT_PATH:-groot-g1dex3-checkpoint}")"; [[ -d "$d" ]] && echo "✓ ${d##*/}" || echo "! braucht vorher setup"'
 
 group "Zugang"
 param HF_TOKEN secret "" basic "HuggingFace-Token" \
   "Wird fuer den Checkpoint-Download gebraucht. Dauerhaft besser in .env.local ablegen — dann fragt das Menue hier nicht mehr." \
   --default-from "Geheimnis - hat per Definition keinen Default"
+group "Gewichte"
+note "Der Checkpoint steht hier vorn, weil eine Erfolgsrate ohne ihn nicht vergleichbar ist. Massgeblich ist der PFAD: liegt er schon im Container, wird nichts nachgeladen und HF_CHECKPOINT_REPO bleibt wirkungslos."
+
+param CHECKPOINT_PATH path "/data/checkpoints/groot-g1dex3-checkpoint" basic \
+  "Checkpoint im Container" \
+  "Was tatsaechlich gemessen wird. Lauf 3 zeigte eine U-Kurve ueber die Checkpoints — der beste lag bei 30000, der letzte war 25 % schlechter; ein Vergleich zweier Checkpoints laeuft genau ueber dieses Feld. Auf dem Host liegt der Pfad unter HOST_DATA_DIR/checkpoints/; die dort vorhandenen Checkpoints stehen als Vorschlag unter der Frage." \
+  --suggest '_menu_suggest_checkpoint'
+
+# Erneut genannt, obwohl _common-sim.spec ihn schon liefert: sonst stuende das Repo in
+# der [e]-Liste ganz oben und der zugehoerige Pfad zehn Zeilen darunter.
+param HF_CHECKPOINT_REPO str "luca-mue/groot-g1dex3-checkpoint" advanced \
+  "HuggingFace-Repo des Checkpoints" \
+  "Greift nur, wenn CHECKPOINT_PATH im Container noch fehlt. Fuer einen zweiten Trainingslauf beide Felder aendern."
+
 group "Laufumfang"
 param NUM_EPISODES int 20 basic \
   "Anzahl Eval-Episoden" \
