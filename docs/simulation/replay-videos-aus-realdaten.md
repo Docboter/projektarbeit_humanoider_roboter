@@ -1,123 +1,146 @@
 # Physikbasierte Replay-Videos aus dem Realdatensatz
 
-Dieser Workflow verankert reale Würfelpixel an den simulierten Finger-Schließpunkten und
-spielt danach die originalen 28-DoF-Actions in Isaac Lab ab. Die Kalibrierung verfolgt
-Farbwürfel offline im Realvideo; im finalen Replay werden sie genau einmal gesetzt. Danach
-verändert nur PhysX ihre Pose, ohne Tracking oder Attach.
+Der Workflow bestimmt die anfänglichen Würfelpositionen aus den ersten 30 Frames der
+beiden Kopfkameras. Eine effiziente Greifstütze ergänzt die CV-Schätzung: Sie erkennt
+Fingerbewegungen im aufgezeichneten Gelenkzustand und wertet nur wenige Zustände per
+Isaac-Vorwärtskinematik aus. Vollständige Trajektorien werden erst beim finalen Rendering
+abgespielt.
 
-## Schnellstart mit höchstens zehn Episoden
+Die Würfel werden vor Frame 0 genau einmal gesetzt. Danach verändert ausschließlich PhysX
+ihre Pose; es gibt weder Tracking noch kinematisches Attach.
 
-Auf dem Simulationsserver im Repository:
+## Schnellstart
 
 ```bash
 HF_TOKEN=hf_... ./Simulation/server_rl_run.sh replay-prepare
-REPLAY_NUM_EPISODES=10 ./Simulation/server_rl_run.sh replay-calibrate
-REPLAY_NUM_EPISODES=10 ./Simulation/server_rl_run.sh replay-poses
-DR_ENABLED=0 REPLAY_OUTPUT_MODE=videos REPLAY_NUM_EPISODES=10 \
-    ./Simulation/server_rl_run.sh replay-render
+
+REPLAY_NUM_EPISODES=10 \
+./Simulation/server_rl_run.sh replay-calibrate
+
+REPLAY_EPISODE_IDS="0" \
+REPLAY_GRASP_SUPPORT=1 \
+REPLAY_OVERWRITE=1 \
+./Simulation/server_rl_run.sh replay-poses
+
+DR_ENABLED=0 \
+REPLAY_EPISODE_IDS="0" \
+REPLAY_MAX_FRAMES=60 \
+REPLAY_OVERWRITE=1 \
+./Simulation/server_rl_run.sh replay-render
 ```
 
-Die Videos liegen auf dem Host standardmäßig unter:
+Die Videos liegen standardmäßig unter:
 
 ```text
 $RL_HOST_DATA_DIR/cube_replay/videos/
 ```
 
-Auf dem IKR-Server empfiehlt sich in `.env.local` der benutzerunabhängige Eintrag
-`: "${RL_HOST_DATA_DIR:=$HOME/project/data/RL}"`. Das Skript vergleicht diesen Pfad mit
-dem tatsächlichen `/data`-Mount eines vorhandenen Containers und bricht bei einem
-Widerspruch mit beiden Pfaden ab. Dadurch können Logs und Ergebnisse nicht unbemerkt in
-verschiedenen Benutzerverzeichnissen landen.
-
-Je Episode entstehen fünf MP4s: beide Kopfkameras, beide Wrist-Kameras und `scene`.
-Kalibrierungsdaten und Kontrollbilder liegen getrennt unter `cube_replay/work/`.
-
-`replay-calibrate` ist jetzt GPU-basiert: Es spielt die Originalaktionen mit ausgelagerten
-Würfeln ab, misst die Fingerkuppen und verbindet eindeutige Schließereignisse mit dem
-Bewegungsbeginn eines Farbblocks im Realvideo. Actions werden nur gelesen und per SHA-256
-vor und nach dem Lauf auf Unverändertheit geprüft.
-
-Ein Bewegungsanker ist genau eine solche eindeutige Zuordnung aus Würfelfarbe, realem
-Bewegungsbeginn, Hand und Sim-Fingerkuppenposition. Das Skript simuliert nur noch bis kurz
-nach dem letzten benötigten Bewegungsbeginn, segmentiert die beiden Kopfvideos parallel in
-halber Auflösung und puffert die Tracking-Ergebnisse unter `work/tracking_cache/`. Ein
-erneuter Lauf muss bereits untersuchte Episoden daher nicht wieder vollständig dekodieren.
-Pro Episode werden außerdem konkrete Ablehnungsgründe wie `no_stable_cube_motion`,
-`camera_onset_disagreement` oder `no_unique_hand_closure` ausgegeben und in
-`calibration_anchors.json` gespeichert.
-
-Aus zeitgleichen Annäherungsframes werden außerdem die link-relativen Wrist-Kameraposen
-optimiert. Abschließend rendert Isaac bekannte Markerpositionen. Die Kalibrierung gilt nur
-bei höchstens 5 px Median und 10 px p90 als erfolgreich.
-
-## Kleine Tests und gezielte Episoden
-
-Nur 60 Frames einer Episode rendern:
+Auf dem IKR-Server gehört der benutzerspezifische Datenpfad in `.env.local`, zum Beispiel:
 
 ```bash
-REPLAY_NUM_EPISODES=1 REPLAY_MAX_FRAMES=60 \
-    ./Simulation/server_rl_run.sh replay-render
+: "${RL_HOST_DATA_DIR:=$HOME/project/data/RL}"
 ```
 
-Nach erfolgreicher Sichtprüfung einen trainierbaren Datensatz erzeugen:
+Dadurch funktioniert derselbe Workflow unter verschiedenen Benutzern. Der Container mountet
+dieses Verzeichnis nach `/data` und prüft einen bereits vorhandenen Mount auf Widersprüche.
+
+## Was die Schritte tun
+
+### `replay-calibrate`
+
+- läuft ohne Isaac und ohne GPU;
+- liest höchstens 30 Frames je Kopfkamera und Episode;
+- segmentiert die hellen Oberseiten der roten, grünen und gelben Würfel;
+- prüft die Kameraskala gegen die bekannte Würfelkante von 5 cm;
+- verwendet fest `z=0.915 m`, statt eine unzuverlässige Tischhöhe zu triangulieren;
+- schreibt `geometry_calibration.json` und Kontrollbilder unter `cube_replay/work/`.
+
+### `replay-poses`
+
+Zuerst werden alle drei XY-Positionen aus beiden Kopfkameras bestimmt. Stimmen die beiden
+Schätzungen um mehr als 3 cm nicht überein oder fehlt eine Farbe, wird die Episode
+übersprungen.
+
+Mit `REPLAY_GRASP_SUPPORT=1` startet anschließend einmalig ein Isaac-Prozess ohne
+Kamerarendering. Aus den Fingerzuständen werden wenige mögliche Schließintervalle gewählt.
+Nur deren Anfangs- und Endzustände werden direkt gesetzt; die Actions werden nicht
+ausgeführt oder verändert. Eine Greifstütze gilt nur, wenn:
+
+- mindestens zwei Fingergelenke koordiniert bewegt werden;
+- die gemessene Fingeröffnung um mindestens 6 mm abnimmt;
+- die Fingerkuppen im Arbeitsbereich liegen;
+- der nächste CV-Würfel höchstens 8 cm entfernt und mindestens 3 cm eindeutiger als der
+  zweitnächste ist.
+
+Dann wird nur XY kombiniert:
+
+```text
+Endposition = 0,75 × Fingerkuppenschwerpunkt + 0,25 × CV-Position
+```
+
+Nicht gegriffene oder mehrdeutige Würfel bleiben rein CV-basiert. Jeder Block enthält in
+`cube_poses.json` sowohl `cv_position_m` als auch die tatsächlich verwendete `position_m`
+und die vollständige Entscheidungsdiagnose unter `grasp_support`.
+
+Ein reiner CV-Vergleich ist möglich mit:
 
 ```bash
-REPLAY_OUTPUT_MODE=dataset REPLAY_NUM_EPISODES=10 \
-    ./Simulation/server_rl_run.sh replay-render
+REPLAY_EPISODE_IDS="0" \
+REPLAY_GRASP_SUPPORT=0 \
+REPLAY_POSES=/data/cube_replay/work/cube_poses_cv_only.json \
+REPLAY_OVERWRITE=1 \
+./Simulation/server_rl_run.sh replay-poses
 ```
 
-Der Dataset-Modus schreibt LeRobot v2.1 mit vier Policy-Kameras, tatsächlichem Sim-State
-und unveränderten Original-Actions nach `/data/cube_replay/dataset`. Metadaten, numerische
-Statistiken, ursprüngliche Task-IDs und das Replay-Manifest werden mitgeführt. Teil-Episoden
-via `REPLAY_MAX_FRAMES` sind in diesem Modus absichtlich verboten. Eine unzureichende
-Wrist-Kalibrierung warnt im Videomodus, sperrt aber bewusst den Dataset-Modus.
+### `replay-render`
 
-Bestimmte Episoden verwenden:
+- setzt den Roboter auf `observation.state[0]`;
+- setzt jeden Würfel einmal vor Frame 0;
+- nimmt Frame `t` auf und führt danach die unveränderte Originalaktion `action[t]` aus;
+- prüft die Actions elementweise und per SHA-256;
+- schreibt fünf MP4s pro Episode mit 30 fps.
+
+Eine Abweichung der Kopfkamera-Projektion wird im schnellen Videomodus gemeldet, blockiert
+aber nicht die manuelle Sichtprüfung. Der strengere Dataset-Modus bleibt bis zu einer
+separaten Wrist-Kamera-Abnahme gesperrt.
+
+## Vollständiger Testlauf
+
+Nach erfolgreichem 60-Frame-Test:
 
 ```bash
-REPLAY_EPISODE_IDS="0 12 41" ./Simulation/server_rl_run.sh replay-calibrate
-REPLAY_EPISODE_IDS="0 12 41" ./Simulation/server_rl_run.sh replay-poses
-REPLAY_EPISODE_IDS="0 12 41" ./Simulation/server_rl_run.sh replay-render
+DR_ENABLED=0 \
+REPLAY_EPISODE_IDS="0" \
+REPLAY_MAX_FRAMES=0 \
+REPLAY_OVERWRITE=1 \
+./Simulation/server_rl_run.sh replay-render
 ```
 
-`REPLAY_EPISODE_IDS` überschreibt `REPLAY_NUM_EPISODES` und `REPLAY_START_EPISODE`.
-Ohne explizite IDs werden ab `REPLAY_START_EPISODE=0` höchstens zehn Episoden verarbeitet.
-Übersprungene Episoden werden nicht durch weitere ersetzt. Vorhandene Videos und Posen
-werden beibehalten; `REPLAY_OVERWRITE=1` erzeugt sie neu.
+Danach auf zehn Episoden erhöhen:
 
-## Verhalten und Grenzen
+```bash
+REPLAY_NUM_EPISODES=10 REPLAY_OVERWRITE=1 \
+./Simulation/server_rl_run.sh replay-poses
 
-- Der vollständige Datensatz wird nach LeRobot v2.1 konvertiert. Der eingecheckte Ordner
-  `data/G1_Dex3_BlockStacking` enthält nur Metadaten.
-- Eine Episode wird nicht gerendert, wenn nicht alle drei Farben in beiden Kopfkameras
-  zuverlässig erkannt werden.
-- Die Würfelkante ist global 5 cm. XY stammt aus trajektorienverankerten Homographien;
-  gegriffene Würfel verwenden ihren eindeutigen Bewegungsanker, sofern Bild und Anker
-  höchstens 3 cm auseinanderliegen.
-- Die gemeinsame Würfelhöhe stammt aus dem robusten Median der Fingerkuppenanker; mehr als
-  4 cm p90-p10-Streuung oder eine unplausible Höhe bricht die Kalibrierung ab.
-- Mindestens acht räumlich verteilte Anker sind erforderlich. Reichen zehn Episoden nicht,
-  wird abgebrochen und die Kalibrierung mit zwanzig Episoden wiederholt.
-- `replay-calibrate` prüft bekannte Positionen gegen den tatsächlichen Isaac-Renderer.
-  Beim Rendern werden Kopfkameras in Frame 0 und Wrist-Kameras in den jeweils zeitgleichen
-  Trajektorienframes erneut geprüft.
-- Der Replay läuft mit `dt=1/210 s` und sieben Physics-Schritten je Frame, also exakt 30 Hz.
-- Ein Aufgabenerfolg löst im Replay keinen Auto-Reset aus. Die Originalepisode läuft bis
-  zu ihrem Ende.
-- Ob ein Griff gelingt, wird in dieser Version bewusst nur durch Sichtprüfung beurteilt.
+DR_ENABLED=0 REPLAY_NUM_EPISODES=10 REPLAY_OVERWRITE=1 \
+./Simulation/server_rl_run.sh replay-render
+```
 
 ## Variablen
 
 | Variable | Default | Bedeutung |
 |---|---:|---|
-| `REPLAY_NUM_EPISODES` | `10` | Maximal verarbeitete Quell­episoden |
+| `REPLAY_NUM_EPISODES` | `10` | Maximal verarbeitete Quellepisoden |
 | `REPLAY_START_EPISODE` | `0` | Erste Episode der fortlaufenden Auswahl |
 | `REPLAY_EPISODE_IDS` | leer | Explizite, leerzeichengetrennte Episoden |
-| `REPLAY_MAX_FRAMES` | `0` | `0` vollständig, sonst Techniktest |
+| `REPLAY_GRASP_SUPPORT` | `1` | Sparse Greifpunktstütze aktivieren |
+| `REPLAY_MAX_FRAMES` | `0` | `0` vollständig, sonst Videotechniktest |
 | `REPLAY_OVERWRITE` | `0` | Vorhandene Ergebnisse neu erzeugen |
-| `REPLAY_ONSET_TOLERANCE_FRAMES` | `12` | Erlaubter Versatz der beiden Bewegungsbeginne |
-| `REPLAY_OUTPUT_MODE` | `videos` | `videos` oder trainierbarer `dataset` |
+| `REPLAY_OUTPUT_MODE` | `videos` | `videos` oder später `dataset` |
 | `REPLAY_WORK` | `/data/cube_replay/work` | Kalibrierung, Posen und Kontrollbilder |
 | `REPLAY_OUT` | `/data/cube_replay/videos` | MP4-Ausgabe |
-| `REPLAY_DATASET_OUT` | `/data/cube_replay/dataset` | LeRobot-v2.1-Ausgabe |
-| `REPLAY_DATASET` | `/data/unitreerobotics/G1_Dex3_BlockStacking_Dataset` | Quelldatensatz |
+| `REPLAY_DATASET` | `/data/unitreerobotics/G1_Dex3_BlockStacking_Dataset` | Quelle |
+
+`REPLAY_NUM_EPISODES=10` bedeutet maximal zehn ausgewählte Quellepisoden. Übersprungene
+Episoden werden nicht durch weitere ersetzt. Bereits fertige Videos werden ohne
+`REPLAY_OVERWRITE=1` beibehalten.

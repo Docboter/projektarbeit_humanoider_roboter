@@ -587,18 +587,24 @@ def main() -> int:
                 and head_projection["median_px"] <= 5.0 \
                 and head_projection["p90_px"] <= 10.0
             if not projection_ok:
-                manifest["episodes"][str(ep)] = {
-                    "status": "rejected",
-                    "reason": "renderer_projection_mismatch",
-                    "renderer_projection": {"head": head_projection},
-                }
+                message = (
+                    f"Episode {ep}: Renderer-Abweichung Median/P90 Head "
+                    f"{head_projection['median_px']:.1f}/"
+                    f"{head_projection['p90_px']:.1f} px"
+                )
+                if args.output_mode == "dataset":
+                    manifest["episodes"][str(ep)] = {
+                        "status": "rejected",
+                        "reason": "renderer_projection_mismatch",
+                        "renderer_projection": {"head": head_projection},
+                    }
+                    print(f"[replay-render] {message}; Episode verworfen.", flush=True)
+                    continue
                 print(
-                    f"[replay-render] Episode {ep}: Renderer-Abweichung Median/P90 "
-                    f"Head {head_projection['median_px']:.1f}/"
-                    f"{head_projection['p90_px']:.1f} px; Episode verworfen.",
+                    f"[replay-render] WARNUNG: {message}; Videomodus läuft zur "
+                    "manuellen Sichtprüfung weiter.",
                     flush=True,
                 )
-                continue
             writers, temporary = open_writers(paths, fps)
             achieved = np.zeros_like(actions, dtype=np.float32)
             wrist_expected = wrist_schedule(blocks)

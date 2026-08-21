@@ -1259,52 +1259,26 @@ do_replay_prepare() {
   ok "Replay vorbereitet; Asset: $ASSET_PATH"
 }
 
-# Verankert Realpixel über die unveränderte Sim-Trajektorie und prüft die resultierenden
-# Kameras anschließend mit bekannten Markern im tatsächlichen Isaac-Renderer.
+# Kalibriert die Kopfkameraskala ausschließlich aus frühen realen RGB-Frames und der
+# bekannten 5-cm-Würfelkante. Dieser Schritt braucht weder Isaac noch Actions.
 do_replay_calibrate() {
-  ensure_asset_local || return 1
+  ensure_container
   local ds="${REPLAY_DATASET:-/data/unitreerobotics/G1_Dex3_BlockStacking_Dataset}"
   ensure_dataset "$ds" || return 1
   ensure_replay_script reconstruct_cube_poses.py || return 1
-  ensure_replay_script collect_replay_anchors.py || return 1
-  ensure_replay_script validate_replay_calibration.py || return 1
   replay_selection_args || return 1
   local work="${REPLAY_WORK:-/data/cube_replay/work}"
   local calibration="${REPLAY_CALIBRATION:-$work/geometry_calibration.json}"
-  local anchors="${REPLAY_ANCHORS:-$work/calibration_anchors.json}"
   local debug="${REPLAY_CALIBRATION_DEBUG_DIR:-$work/calibration_report}"
-  local onset_tolerance="${REPLAY_ONSET_TOLERANCE_FRAMES:-12}"
-  local overwrite=()
-  [[ "${REPLAY_OVERWRITE:-0}" == "1" ]] && overwrite=( --overwrite )
-  [[ "$onset_tolerance" =~ ^[0-9]+$ ]] \
-    || { err "REPLAY_ONSET_TOLERANCE_FRAMES muss eine Ganzzahl sein."; return 1; }
 
-  log "Erfasse unveränderte Fingertrajektorien und reale Würfelbewegungen."
-  docker exec -w "$SIM_DIR" -e "DR_ENABLED=0" "$CONTAINER" \
-    env -u VIRTUAL_ENV "$ISAAC_PY" "$SIM_DIR/collect_replay_anchors.py" \
-      --headless --enable_cameras --dataset-path "$ds" --out "$anchors" \
-      --asset-path "$ASSET_PATH" --onset-tolerance-frames "$onset_tolerance" \
-      "${overwrite[@]}" "${REPLAY_SELECTION_ARGS[@]}" \
-    2>&1 | tee /dev/stderr | grep -c "\[replay-anchor-collection\] fertig" >/dev/null \
-    || { err "Bewegungsanker-Erfassung fehlgeschlagen (Ausgabe oben)."; return 1; }
-
-  log "Kalibriere Kamera-zu-Tisch-Abbildung aus den Bewegungsankern."
+  log "Kalibriere Kopfkameras aus frühen RGB-Frames und der 5-cm-Würfelkante."
   docker exec -w "$SIM_DIR" "$CONTAINER" env -u VIRTUAL_ENV \
     "$ISAAC_PY" "$SIM_DIR/reconstruct_cube_poses.py" calibrate \
-      --dataset-path "$ds" --anchors "$anchors" --out "$calibration" --debug-dir "$debug" \
+      --dataset-path "$ds" --out "$calibration" --debug-dir "$debug" \
       "${REPLAY_SELECTION_ARGS[@]}" \
     2>&1 | tee /dev/stderr | grep -c "\[replay-calibrate\] fertig" >/dev/null \
     || { err "Replay-Kalibrierung fehlgeschlagen (Ausgabe oben)."; return 1; }
-
-  log "Prüfe die Kalibrierung mit Markern im tatsächlichen Isaac-Renderer."
-  docker exec -w "$SIM_DIR" -e "DR_ENABLED=0" "$CONTAINER" \
-    env -u VIRTUAL_ENV "$ISAAC_PY" "$SIM_DIR/validate_replay_calibration.py" \
-      --headless --enable_cameras --dataset-path "$ds" --calibration "$calibration" \
-      --anchors "$anchors" --report-dir "$debug" --asset-path "$ASSET_PATH" \
-    2>&1 | tee /dev/stderr | grep -c "\[replay-calibration-render\] fertig" >/dev/null \
-    || { err "Renderer-Markerprüfung fehlgeschlagen (Bericht oben)."; return 1; }
   ok "Kalibrierung: $HOST_DATA_DIR/${calibration#/data/}"
-  echo "  Bewegungsanker: $HOST_DATA_DIR/${anchors#/data/}"
   echo "  Kalibrierbericht: $HOST_DATA_DIR/${debug#/data/}"
 }
 
@@ -1321,7 +1295,10 @@ do_replay_poses() {
   local poses="${REPLAY_POSES:-$work/cube_poses.json}"
   local debug="${REPLAY_POSE_DEBUG_DIR:-$work/pose_overlays}"
   local overwrite=()
+  local grasp_support="${REPLAY_GRASP_SUPPORT:-1}"
   [[ "${REPLAY_OVERWRITE:-0}" == "1" ]] && overwrite=( --overwrite )
+  [[ "$grasp_support" == "0" || "$grasp_support" == "1" ]] \
+    || { err "REPLAY_GRASP_SUPPORT muss 0 oder 1 sein: '$grasp_support'"; return 1; }
 
   if ! docker exec "$CONTAINER" test -f "$calibration"; then
     err "Replay-Kalibrierung fehlt: $calibration"
@@ -1335,6 +1312,20 @@ do_replay_poses() {
       --debug-dir "$debug" "${overwrite[@]}" "${REPLAY_SELECTION_ARGS[@]}" \
     2>&1 | tee /dev/stderr | grep -c "\[replay-poses\] fertig" >/dev/null \
     || { err "Würfelpose-Rekonstruktion fehlgeschlagen (Ausgabe oben)."; return 1; }
+  if [[ "$grasp_support" == "1" ]]; then
+    ensure_asset_local || return 1
+    ensure_replay_script estimate_grasp_pose_support.py || return 1
+    log "Ergänze Positionen über wenige direkt gesetzte Greifzustände (kein Trajektorienlauf)."
+    docker exec -w "$SIM_DIR" -e "DR_ENABLED=0" "$CONTAINER" \
+      env -u VIRTUAL_ENV "$ISAAC_PY" "$SIM_DIR/estimate_grasp_pose_support.py" \
+        --headless --enable_cameras --dataset-path "$ds" --poses "$poses" \
+        --asset-path "$ASSET_PATH" \
+        "${REPLAY_SELECTION_ARGS[@]}" \
+      2>&1 | tee /dev/stderr | grep -c "\[replay-grasp-support\] fertig" >/dev/null \
+      || { err "Greifpunktstütze fehlgeschlagen (Ausgabe oben)."; return 1; }
+  else
+    log "Greifpunktstütze deaktiviert; cube_poses.json bleibt rein CV-basiert."
+  fi
   ok "Würfelposen: $HOST_DATA_DIR/${poses#/data/}"
   echo "  Kontrollbilder: $HOST_DATA_DIR/${debug#/data/}"
 }
@@ -1728,13 +1719,13 @@ Aktionen:
   replay-prepare  Vollständigen Real-Datensatz holen/konvertieren und Schema, vier Kameras,
               30 Hz sowie 28-DoF-State/Actions prüfen. Stellt das lokale G1+DEX3-Asset
               bereit und lädt keine Modellgewichte.
-  replay-calibrate  Originalaktionen unverändert und ohne Würfelkontakt abspielen,
-              reale Farbbewegungen den Finger-Schließpunkten zuordnen und daraus robuste
-              Pixel-zu-Tisch-Homographien sowie korrigierte Kopf-/Wrist-Kameras bestimmen.
-              Eine Markerprüfung im tatsächlichen Isaac-Renderer ist Teil dieses Schritts.
+  replay-calibrate  Höchstens 30 frühe Frames je Kopfkamera auswerten, die Skala gegen
+              die bekannte 5-cm-Würfelkante prüfen und eine reine CV-Kalibrierung schreiben.
+              Keine Actions, kein Isaac und keine Bewegungsanker in diesem Schritt.
   replay-poses  Für maximal REPLAY_NUM_EPISODES (Default 10) die einmalige Anfangspose
-              aller Würfel aus beiden Kopfkameras fitten. Fehlende Farben überspringen
-              die Episode; kein Zufalls- oder Greifpunkt-Fallback.
+              aller Würfel aus beiden Kopfkameras fitten. REPLAY_GRASP_SUPPORT=1 ergänzt
+              eindeutige Würfel über wenige direkt gesetzte Fingerzustände; es wird keine
+              Trajektorie abgespielt. REPLAY_GRASP_SUPPORT=0 erzeugt einen CV-Vergleich.
   replay-render  Originale 28-DoF-Actions bei exakt 30 Hz abspielen. Jeder Würfel wird
               einmal vor Frame 0 gesetzt und danach ausschließlich von PhysX bewegt.
               REPLAY_OUTPUT_MODE=videos (Default): fünf MP4s je Episode.
@@ -1742,7 +1733,7 @@ Aktionen:
               Policy-Kameras, Sim-State und bytegleich geprüften Original-Actions.
               REPLAY_NUM_EPISODES (10), REPLAY_START_EPISODE (0), REPLAY_EPISODE_IDS,
               REPLAY_MAX_FRAMES (0), REPLAY_OVERWRITE (0),
-              REPLAY_ONSET_TOLERANCE_FRAMES (12),
+              REPLAY_GRASP_SUPPORT (1),
               REPLAY_OUT (/data/cube_replay/videos),
               REPLAY_DATASET_OUT (/data/cube_replay/dataset),
               REPLAY_WORK (/data/cube_replay/work).

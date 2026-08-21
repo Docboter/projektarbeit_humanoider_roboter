@@ -18,20 +18,20 @@
   `docs/simulation/replay-videos-aus-realdaten.md`.
 - Default sind höchstens zehn Episoden. `REPLAY_EPISODE_IDS` überschreibt die fortlaufende
   Auswahl, `REPLAY_MAX_FRAMES=60` eignet sich für den Techniktest.
-- Seit der Episode-0-Abnahme werden XY und Kopfkameras nicht mehr aus der analytischen
-  Pinhole-Rückprojektion bestimmt. `replay-calibrate` spielt die unveränderten Actions mit
-  ausgelagerten Würfeln ab, verbindet reale Farbbewegungen mit Finger-Schließpunkten und
-  fittet daraus robuste Pixel-zu-Tisch-Homographien. Wrist-Kameras werden aus zeitgleichen
-  Annäherungsframes optimiert; eine echte Isaac-Markerprüfung schließt den Schritt ab.
-  Mindestens acht Anker sind Pflicht.
-- Der Anker-Collector segmentiert Kopfvideos parallel und reduziert, simuliert nur bis zu
-  den relevanten Pick-Frames und cached Tracking unter `REPLAY_WORK/tracking_cache`.
-  `calibration_anchors.json` enthält je Farbe konkrete Ablehnungsdiagnosen.
+- `replay-calibrate` ist ein reiner CPU/CV-Schritt: Er liest höchstens 30 Frames der beiden
+  Kopfkameras, prüft die Skala gegen die bekannte 5-cm-Würfelkante und hält den
+  Würfelmittelpunkt fest auf z=0,915 m. Es gibt keine Bewegungsanker, Homographien oder
+  vollständige Trajektoriensimulation während der Kalibrierung.
+- `replay-poses` ergänzt die Stereo-CV-Schätzung standardmäßig mit
+  `REPLAY_GRASP_SUPPORT=1`. Mögliche Schließintervalle kommen aus den aufgezeichneten
+  Fingerzuständen; Isaac wertet nur wenige direkt gesetzte Zustände per Vorwärtskinematik
+  aus. Eine eindeutige Handposition wird 75/25 mit dem nächsten CV-Würfel kombiniert.
+  `REPLAY_GRASP_SUPPORT=0` erzeugt eine reine CV-Vergleichsdatei.
 - Die drei Würfel werden nach dem Roboter-Startzustand genau einmal aus `cube_poses.json`
   gesetzt. Danach gibt es weder Pose-Schreibzugriffe noch Attach/Tracking.
 - `REPLAY_OUTPUT_MODE=videos` schreibt fünf Prüf-MP4s; `dataset` schreibt LeRobot v2.1
   mit vier Policy-Kameras, Sim-State und per SHA-256 geprüften Original-Actions.
 - Der Replay überschreibt nur seine lokale Env-Config auf exakt 30 Hz und deaktiviert den
   Success-Auto-Reset. Eval/RL behalten ihre bisherigen Defaults.
-- Hardware-/Isaac-Abnahme des neuen Pfads steht noch aus; lokal wurden nur Syntax und
-  Shell-Struktur geprüft.
+- Hardware-/Isaac-Abnahme der sparsamen FK-Stütze steht noch aus; lokal sind nur die
+  reinen Python-Tests, Syntax und Shell-Struktur ausführbar.
