@@ -53,6 +53,13 @@ import torch  # noqa: E402
 
 from g1_dex3_blockstack_env import G1Dex3BlockstackEnv, G1Dex3BlockstackEnvCfg  # noqa: E402
 from replay_calibration import action_sha256, top_face_blob  # noqa: E402
+from replay_grasp_metrics import (  # noqa: E402
+    artifact_validation_errors,
+    infer_expected_first_pick,
+    mark_episode_existing,
+    manifest_compatibility_errors,
+    summarize_grasp_trace,
+)
 
 
 CAMS = ("cam_left_high", "cam_right_high", "cam_left_wrist", "cam_right_wrist", "scene")
@@ -190,6 +197,24 @@ def place_cubes_once(env: G1Dex3BlockstackEnv, blocks: list[dict]) -> None:
         env.blocks[index].write_root_velocity_to_sim(
             torch.zeros((1, 6), device=env.device, dtype=torch.float32)
         )
+
+
+def read_physics_positions(env: G1Dex3BlockstackEnv) -> tuple[np.ndarray, np.ndarray]:
+    """Read env-local fingertip and block positions without mutating simulation state."""
+    origin = env.scene.env_origins[0]
+    fingertips = env.get_contact_points_w()
+    blocks = torch.stack([block.data.root_pos_w for block in env.blocks], dim=1)
+    if fingertips.shape != (1, 6, 3) or blocks.shape != (1, 3, 3):
+        raise RuntimeError(
+            "Griffdiagnose benötigt Fingerkuppen (1,6,3) und Würfel (1,3,3), "
+            f"erhalten {tuple(fingertips.shape)}/{tuple(blocks.shape)}"
+        )
+    if tuple(origin.shape) != (3,):
+        raise RuntimeError(f"Unerwartete Scene-Origin-Form: {tuple(origin.shape)}")
+    return (
+        (blocks[0] - origin).detach().cpu().numpy(),
+        (fingertips[0] - origin).detach().cpu().numpy(),
+    )
 
 
 def render_current(env: G1Dex3BlockstackEnv) -> dict:
@@ -386,13 +411,16 @@ def finalize_dataset(out: Path, source: Path, info: dict, manifest: dict, fps: f
         for key in numeric:
             numeric[key].append(np.stack(frame[key].to_numpy()).astype(np.float32))
     (meta / "episodes.jsonl").write_text(
-        "".join(json.dumps(record) + "\n" for record in episodes), encoding="utf-8"
+        "".join(json.dumps(record, allow_nan=False) + "\n" for record in episodes),
+        encoding="utf-8",
     )
     if source_tasks.is_file():
         shutil.copyfile(source_tasks, meta / "tasks.jsonl")
     else:
         (meta / "tasks.jsonl").write_text(
-            json.dumps({"task_index": 0, "task": "stack the blocks"}) + "\n",
+            json.dumps(
+                {"task_index": 0, "task": "stack the blocks"}, allow_nan=False
+            ) + "\n",
             encoding="utf-8",
         )
     source_modality = source / "meta" / "modality.json"
@@ -403,7 +431,9 @@ def finalize_dataset(out: Path, source: Path, info: dict, manifest: dict, fps: f
         if key not in {f"observation.images.{cam}" for cam in CAMS}
     }
     for camera in POLICY_CAMS:
-        feature = json.loads(json.dumps(info["features"][f"observation.images.{camera}"]))
+        feature = json.loads(json.dumps(
+            info["features"][f"observation.images.{camera}"], allow_nan=False
+        ))
         feature["info"].update({
             "video.fps": fps,
             "video.codec": "h264",
@@ -430,7 +460,9 @@ def finalize_dataset(out: Path, source: Path, info: dict, manifest: dict, fps: f
         ),
         "features": features,
     }
-    (meta / "info.json").write_text(json.dumps(output_info, indent=2), encoding="utf-8")
+    (meta / "info.json").write_text(
+        json.dumps(output_info, indent=2, allow_nan=False), encoding="utf-8"
+    )
     stats = {}
     for key, parts in numeric.items():
         values = np.concatenate(parts, axis=0)
@@ -441,8 +473,12 @@ def finalize_dataset(out: Path, source: Path, info: dict, manifest: dict, fps: f
             "std": values.std(axis=0, dtype=np.float64).tolist(),
             "count": [len(values)],
         }
-    (meta / "stats.json").write_text(json.dumps(stats, indent=2), encoding="utf-8")
-    (out / "replay_manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    (meta / "stats.json").write_text(
+        json.dumps(stats, indent=2, allow_nan=False), encoding="utf-8"
+    )
+    (out / "replay_manifest.json").write_text(
+        json.dumps(manifest, indent=2, allow_nan=False), encoding="utf-8"
+    )
 
 
 def validate_dataset(out: Path, manifest: dict) -> None:
@@ -481,8 +517,28 @@ def main() -> int:
             "--max-frames ist im Dataset-Modus verboten; Techniktests im Modus videos ausführen."
         )
     dataset = Path(args.dataset_path)
-    pose_doc = json.loads(Path(args.poses).read_text(encoding="utf-8"))
-    calibration = json.loads(Path(pose_doc["calibration"]).read_text(encoding="utf-8"))
+    pose_path = Path(args.poses)
+    try:
+        pose_doc = json.loads(pose_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise SystemExit(f"Würfelpose ist nicht lesbar: {pose_path}: {exc}") from exc
+    calibration_reference = pose_doc.get("calibration")
+    if not isinstance(calibration_reference, str):
+        raise SystemExit("Würfelpose enthält keinen gültigen calibration-Pfad.")
+    calibration_path = Path(calibration_reference)
+    try:
+        calibration_bytes = calibration_path.read_bytes()
+        calibration = json.loads(calibration_bytes)
+    except (OSError, json.JSONDecodeError) as exc:
+        raise SystemExit(
+            f"Kalibrierung ist nicht lesbar: {calibration_path}: {exc}"
+        ) from exc
+    calibration_hash = hashlib.sha256(calibration_bytes).hexdigest()
+    artifact_errors = artifact_validation_errors(
+        pose_doc, calibration, dataset, calibration_hash
+    )
+    if artifact_errors:
+        raise SystemExit("Ungültige Replay-Artefakte: " + "; ".join(artifact_errors))
     if args.output_mode == "dataset" \
             and not calibration.get("wrist_calibration", {}).get("dataset_ready"):
         raise SystemExit(
@@ -499,7 +555,10 @@ def main() -> int:
     for ep in selected:
         pose_entry = pose_doc.get("episodes", {}).get(str(ep))
         if not pose_entry or pose_entry.get("status") != "ok":
-            print(f"[replay-render] Episode {ep}: keine vollständige Würfelpose — übersprungen.")
+            print(
+                f"[replay-render] Episode {ep}: keine vollständige Würfelpose — "
+                "übersprungen."
+            )
             continue
         try:
             loaded[ep] = load_episode(dataset, info, ep)
@@ -530,16 +589,16 @@ def main() -> int:
     print(f"  Tischoberkante:{calibration['table_top_z_m']:.3f} m")
     print("  Würfelmodus:   einmaliger Spawn, danach ausschließlich PhysX")
 
-    env = G1Dex3BlockstackEnv(cfg=cfg, render_mode=None)
     out_dir = Path(args.dataset_out if args.output_mode == "dataset" else args.out_dir)
     report_dir = Path(args.report_dir)
-    manifest_path = out_dir / "replay_manifest.json"
-    calibration_hash = hashlib.sha256(
-        Path(pose_doc["calibration"]).read_bytes()
-    ).hexdigest()
-    pose_hash = hashlib.sha256(Path(args.poses).read_bytes()).hexdigest()
+    manifest_path = (
+        out_dir / "replay_manifest.json"
+        if args.output_mode == "dataset"
+        else report_dir / "replay_manifest.json"
+    )
+    pose_hash = hashlib.sha256(pose_path.read_bytes()).hexdigest()
     manifest = {
-        "version": 1,
+        "version": 2,
         "output_mode": args.output_mode,
         "source_dataset": str(dataset),
         "calibration": pose_doc["calibration"],
@@ -547,17 +606,53 @@ def main() -> int:
         "poses_sha256": pose_hash,
         "episodes": {},
     }
-    if args.output_mode == "dataset" and manifest_path.is_file():
-        existing_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        compatible = existing_manifest.get("source_dataset") == str(dataset) \
-            and existing_manifest.get("calibration_sha256") == calibration_hash
-        if not compatible and not args.overwrite:
-            raise RuntimeError(
-                f"{out_dir} enthält einen Datensatz aus einer anderen Kalibrierung; "
-                "REPLAY_OVERWRITE=1 oder ein neues REPLAY_DATASET_OUT verwenden."
+    output_files = list(out_dir.rglob("episode_*.mp4"))
+    if args.output_mode == "dataset":
+        output_files.extend(out_dir.rglob("episode_*.parquet"))
+    episodes_with_outputs = set()
+    for path in output_files:
+        suffix = path.name.split("episode_", maxsplit=1)[-1]
+        try:
+            episodes_with_outputs.add(int(suffix[:6]))
+        except ValueError:
+            continue
+    if manifest_path.is_file():
+        try:
+            existing_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            if not args.overwrite:
+                raise RuntimeError(
+                    f"Vorhandenes Replay-Manifest ist nicht lesbar: {manifest_path}. "
+                    "REPLAY_OVERWRITE=1 oder neues Ausgabeverzeichnis verwenden."
+                ) from exc
+            existing_manifest = {}
+        compatibility_errors = manifest_compatibility_errors(existing_manifest, manifest)
+        existing_episodes = existing_manifest.get("episodes")
+        untracked_outputs = sorted(
+            episode for episode in episodes_with_outputs
+            if not isinstance(existing_episodes, dict)
+            or existing_episodes.get(str(episode), {}).get("status") != "ok"
+        )
+        if untracked_outputs:
+            compatibility_errors.append(
+                "Replay-Dateien ohne Manifest-Episode: "
+                + ", ".join(str(episode) for episode in untracked_outputs)
             )
-        if compatible:
+        if compatibility_errors and not args.overwrite:
+            raise RuntimeError(
+                f"Vorhandene Replay-Ausgabe ist nicht mit Manifest v2 kompatibel: "
+                f"{'; '.join(compatibility_errors)}. REPLAY_OVERWRITE=1 oder neues "
+                "Ausgabeverzeichnis verwenden."
+            )
+        if not compatibility_errors:
             manifest["episodes"].update(existing_manifest.get("episodes", {}))
+    elif output_files and not args.overwrite:
+        raise RuntimeError(
+            f"Replay-Dateien existieren, aber das zugehörige Manifest v2 fehlt: "
+            f"{manifest_path}. REPLAY_OVERWRITE=1 oder neues Ausgabeverzeichnis verwenden."
+        )
+
+    env = G1Dex3BlockstackEnv(cfg=cfg, render_mode=None)
     try:
         for ordinal, (ep, (actions, states, task_index)) in enumerate(loaded.items(), 1):
             parquet, paths = (dataset_paths(out_dir, ep) if args.output_mode == "dataset"
@@ -565,13 +660,10 @@ def main() -> int:
             complete = all(path.is_file() for path in paths.values())
             complete = complete and (parquet is None or parquet.is_file())
             if not args.overwrite and complete:
-                manifest["episodes"][str(ep)] = {
-                    "status": "ok",
-                    "frames": len(actions),
-                    "action_sha256": action_sha256(actions),
-                    "actions_unchanged": True,
-                    "existing": True,
-                }
+                previous_record = manifest["episodes"].get(str(ep))
+                if not isinstance(previous_record, dict):
+                    raise RuntimeError(f"Episode {ep}: Manifest-v2-Eintrag fehlt.")
+                manifest["episodes"][str(ep)] = mark_episode_existing(previous_record)
                 print(f"[replay-render] ({ordinal}/{len(loaded)}) Episode {ep}: vorhanden.")
                 continue
 
@@ -579,7 +671,9 @@ def main() -> int:
             source_actions = actions.copy()
             env.reset()
             set_robot_state(env, states[0])
-            blocks = pose_doc["episodes"][str(ep)]["blocks"]
+            pose_episode = pose_doc["episodes"][str(ep)]
+            blocks = pose_episode["blocks"]
+            expected_pick = infer_expected_first_pick(pose_episode, calibration, ep)
             place_cubes_once(env, blocks)
             obs = render_current(env)
             head_projection = validate_initial_projection(obs, blocks, report_dir, ep)
@@ -595,8 +689,15 @@ def main() -> int:
                 if args.output_mode == "dataset":
                     manifest["episodes"][str(ep)] = {
                         "status": "rejected",
+                        "render_status": "rejected",
                         "reason": "renderer_projection_mismatch",
                         "renderer_projection": {"head": head_projection},
+                        "grasp_validation": {
+                            "status": "unavailable",
+                            "grasp_success": False,
+                            "reason": "render_rejected_before_replay",
+                            "expected_first_pick": expected_pick,
+                        },
                     }
                     print(f"[replay-render] {message}; Episode verworfen.", flush=True)
                     continue
@@ -607,6 +708,9 @@ def main() -> int:
                 )
             writers, temporary = open_writers(paths, fps)
             achieved = np.zeros_like(actions, dtype=np.float32)
+            # T Video-/State-Beobachtungen plus der Physikzustand direkt nach action[T-1].
+            block_position_trace = np.zeros((len(actions) + 1, 3, 3), dtype=np.float32)
+            fingertip_position_trace = np.zeros((len(actions) + 1, 6, 3), dtype=np.float32)
             wrist_expected = wrist_schedule(blocks)
             wrist_details = []
             try:
@@ -620,6 +724,9 @@ def main() -> int:
                             wrist_details.extend(measure_wrist_projection(
                                 obs, wrist_expected[frame_idx], report_dir, ep, frame_idx
                             ))
+                        block_positions, fingertip_positions = read_physics_positions(env)
+                        block_position_trace[frame_idx] = block_positions
+                        fingertip_position_trace[frame_idx] = fingertip_positions
                         achieved[frame_idx] = obs["joint_pos"][0].detach().cpu().numpy()
                         action_row = actions[frame_idx].copy()
                         action = torch.from_numpy(action_row).to(env.device).unsqueeze(0)
@@ -631,6 +738,9 @@ def main() -> int:
                                 f"      Episode {ep}: Frame {frame_idx}/{len(actions)}",
                                 flush=True,
                             )
+                    final_blocks, final_fingertips = read_physics_positions(env)
+                    block_position_trace[-1] = final_blocks
+                    fingertip_position_trace[-1] = final_fingertips
                 finally:
                     for writer in writers.values():
                         writer.close()
@@ -640,6 +750,9 @@ def main() -> int:
                 raise
 
             wrist_projection = summarize_wrist_projection(wrist_details)
+            grasp_validation = summarize_grasp_trace(
+                block_position_trace, fingertip_position_trace, expected_pick
+            )
             projection = {"head": head_projection, "wrist": wrist_projection}
             wrist_cameras_ok = all(
                 camera in wrist_projection["validated_cameras"]
@@ -659,8 +772,10 @@ def main() -> int:
                         tmp_path.unlink(missing_ok=True)
                     manifest["episodes"][str(ep)] = {
                         "status": "rejected",
+                        "render_status": "rejected",
                         "reason": "wrist_projection_mismatch",
                         "renderer_projection": projection,
+                        "grasp_validation": grasp_validation,
                     }
                     print(f"[replay-render] {message}; Episode verworfen.", flush=True)
                     continue
@@ -691,11 +806,13 @@ def main() -> int:
                 )
             manifest["episodes"][str(ep)] = {
                 "status": "ok",
+                "render_status": "ok",
                 "frames": len(actions),
                 "action_sha256": source_hash,
                 "actions_unchanged": True,
                 "task_index": task_index,
                 "renderer_projection": projection,
+                "grasp_validation": grasp_validation,
                 "cube_poses": blocks,
             }
             print(f"[replay-render] ({ordinal}/{len(loaded)}) Episode {ep}: "
@@ -715,7 +832,7 @@ def main() -> int:
         else:
             report_dir.mkdir(parents=True, exist_ok=True)
             (report_dir / "replay_manifest.json").write_text(
-                json.dumps(manifest, indent=2), encoding="utf-8"
+                json.dumps(manifest, indent=2, allow_nan=False), encoding="utf-8"
             )
 
         # Isaac Lab 3 / Isaac Sim 6 kann den Python-Ablauf bereits in env.close() beenden.

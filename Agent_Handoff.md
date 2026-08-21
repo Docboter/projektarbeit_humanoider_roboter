@@ -16,22 +16,33 @@
 - Neuer Ablauf: `replay-prepare` → `replay-calibrate` → `replay-poses` → `replay-render`
   in `Simulation/server_rl_run.sh`; Bedienung unter
   `docs/simulation/replay-videos-aus-realdaten.md`.
-- Default sind höchstens zehn Episoden. `REPLAY_EPISODE_IDS` überschreibt die fortlaufende
-  Auswahl, `REPLAY_MAX_FRAMES=60` eignet sich für den Techniktest.
-- `replay-calibrate` ist ein reiner CPU/CV-Schritt: Er liest höchstens 30 Frames der beiden
-  Kopfkameras, prüft die Skala gegen die bekannte 5-cm-Würfelkante und hält den
-  Würfelmittelpunkt fest auf z=0,915 m. Es gibt keine Bewegungsanker, Homographien oder
-  vollständige Trajektoriensimulation während der Kalibrierung.
-- `replay-poses` ergänzt die Stereo-CV-Schätzung standardmäßig mit
-  `REPLAY_GRASP_SUPPORT=1`. Mögliche Schließintervalle kommen aus den aufgezeichneten
-  Fingerzuständen; Isaac wertet nur wenige direkt gesetzte Zustände per Vorwärtskinematik
-  aus. Eine eindeutige Handposition wird 75/25 mit dem nächsten CV-Würfel kombiniert.
-  `REPLAY_GRASP_SUPPORT=0` erzeugt eine reine CV-Vergleichsdatei.
+- Aktueller Artefaktstand ist Version 4: `replay-calibrate` sammelt Pick-Anker aus
+  Farbtracking, Bewegungsbeginn und sparsamer Direct-State-Fingerkuppen-FK. Es spielt keine
+  Actions ab und lernt je Kopfkamera eine `pick_anchored_homography` von Pixel nach Tisch-XY.
+- Kalibriert wird separat auf den ersten 40 Episoden. Ganze Episoden werden mit Seed 17 in
+  80 % Fit und 20 % Holdout geteilt. Gates: mindestens 24/6 Fit-/Holdout-Anker aus
+  mindestens 8/3 Episoden, 12 cm Arbeitsraumabdeckung, je Kamera höchstens 1,5/3 cm
+  Holdout-Median/p90 und höchstens 2/3 cm Kameraabweichung im Holdout.
+- `REPLAY_NUM_EPISODES`, `REPLAY_START_EPISODE` und `REPLAY_EPISODE_IDS` wählen nur die
+  Ziel-Episoden für Posen und Replay. `replay-poses` schreibt
+  `cube_poses.json` Version 4 (`stationary_top_face_homography`) aus stabilen Frames vor
+  der ersten Bewegung. Es gibt keine FOV-Korrektur aus der AABB, keine 75/25-Fusion und
+  keinen Greifpunkt-, Zufalls- oder Alt-Layout-Fallback. Der Einzelkamera-Fallback nutzt
+  ausschließlich den Median aus mindestens fünf echten Top-Face-Detektionen.
 - Die drei Würfel werden nach dem Roboter-Startzustand genau einmal aus `cube_poses.json`
   gesetzt. Danach gibt es weder Pose-Schreibzugriffe noch Attach/Tracking.
 - `REPLAY_OUTPUT_MODE=videos` schreibt fünf Prüf-MP4s; `dataset` schreibt LeRobot v2.1
   mit vier Policy-Kameras, Sim-State und per SHA-256 geprüften Original-Actions.
+- Das Replay-Manifest ist Version 2. Es misst Fingerkuppenabstände und Würfelhub
+  ausschließlich lesend aus PhysX. Der erwartete erste Griff gilt als erfolgreich, wenn
+  der zugeordnete Würfel mindestens 2 cm für fünf aufeinanderfolgende Frames angehoben ist.
+  `calibration_sha256` und `poses_sha256` stehen auf Manifestebene;
+  `pick_anchor_diagnostics` steht auf Ebene der jeweiligen `cube_poses`-Episode. Alte oder
+  hash-inkompatible Ausgaben benötigen `REPLAY_OVERWRITE=1` oder ein neues Ziel.
+- Der Renderer akzeptiert nur das exakte v4-Artefaktpaar mit passenden Methoden,
+  Quelldatensatz und Kalibrierungs-Hash. `REPLAY_OVERWRITE=1` umgeht diese Eingabeprüfung
+  nicht; es steuert nur die Neuberechnung der gewählten Posen beziehungsweise Renderausgaben.
 - Der Replay überschreibt nur seine lokale Env-Config auf exakt 30 Hz und deaktiviert den
   Success-Auto-Reset. Eval/RL behalten ihre bisherigen Defaults.
-- Hardware-/Isaac-Abnahme der sparsamen FK-Stütze steht noch aus; lokal sind nur die
-  reinen Python-Tests, Syntax und Shell-Struktur ausführbar.
+- Die neue Homographie-, Renderer- und Griffmetrik braucht noch die Abnahme auf dem
+  GPU-/Isaac-Server. Lokal sind nur reine Python-Tests, Syntax und Shell-Struktur prüfbar.

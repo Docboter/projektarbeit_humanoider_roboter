@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """Reconstruct initial cube poses for physical dataset replay from real RGB frames.
 
-Only the first frames of the two fixed head cameras are inspected. Cube tracking and
-trajectory-derived calibration anchors are deliberately not part of this tool.
+Calibration uses sparse pick anchors; pose reconstruction uses only stationary real frames.
 """
 
 from __future__ import annotations
@@ -18,7 +17,20 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from camera_geometry import CAMERA_CFG, PinholeCamera  # noqa: E402
 from extract_block_layout import CUBE_COLORS  # noqa: E402
-from replay_calibration import best_top_face_detection  # noqa: E402
+from replay_calibration import (  # noqa: E402
+    apply_homography,
+    build_calibration,
+    combine_camera_estimates,
+    episode_diagnostic_pixels,
+    file_sha256,
+    find_motion_onset,
+    pose_resume_matches,
+    require_calibration_dataset,
+    require_pick_homography_calibration,
+    stable_top_face_measurement,
+    track_colors,
+    validate_anchor_document,
+)
 
 HEAD_CAMS = ("cam_left_high", "cam_right_high")
 POLICY_CAMS = HEAD_CAMS + ("cam_left_wrist", "cam_right_wrist")
@@ -160,6 +172,23 @@ def save_overlay(
     image.save(path)
 
 
+def save_measurement_overlay(
+    rgb: np.ndarray, measurement: dict[str, Any], world_xy: list[float], path: Path
+) -> None:
+    """Write one overlay on the exact frame from which its measurement came."""
+    from PIL import Image, ImageDraw
+
+    image = Image.fromarray(rgb)
+    draw = ImageDraw.Draw(image)
+    x0, y0, x1, y1 = measurement["bbox"]
+    draw.rectangle((x0, y0, x1, y1), outline="white", width=3)
+    u, v = measurement["top_uv"]
+    draw.ellipse((u - 5, v - 5, u + 5, v + 5), outline="black", width=3)
+    draw.text((u + 7, v + 7), f"x={world_xy[0]:.3f} y={world_xy[1]:.3f}", fill="white")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    image.save(path)
+
+
 def run_inspect(args: argparse.Namespace) -> int:
     root = Path(args.dataset_path)
     info = read_info(root)
@@ -200,105 +229,80 @@ def run_calibrate(args: argparse.Namespace) -> int:
     root = Path(args.dataset_path)
     info = read_info(root)
     episodes = select_episodes(info, args)
-    records = {camera: camera_record(camera) for camera in HEAD_CAMS}
-    samples: list[dict[str, Any]] = []
-    edge_by_camera: dict[str, list[float]] = {camera: [] for camera in HEAD_CAMS}
-    z_top = float(args.cube_center_z) + float(args.cube_edge) / 2.0
-
-    for episode in episodes:
-        for camera_name in HEAD_CAMS:
-            frames = load_video_frames(
-                video_path(root, info, episode, camera_name), args.max_frames
-            )
-            camera = camera_from_record(records[camera_name])
-            overlay_detections = {}
-            overlay_rgb = frames[0]
-            for color in CUBE_COLORS:
-                frame_index, rgb, blob = best_top_face_detection(
-                    frames, color, min_area=args.min_area
-                )
-                overlay_rgb = rgb
-                overlay_detections[color] = blob
-                if blob is None:
-                    continue
-                point = camera.backproject_to_plane(float(blob["u"]), float(blob["v"]), z_top)
-                distance = float(np.linalg.norm(point - camera.eye))
-                x0, y0, x1, y1 = blob["bbox"]
-                extent_px = float(max(x1 - x0 + 1, y1 - y0 + 1))
-                edge_m = extent_px * distance / camera.f_px
-                edge_by_camera[camera_name].append(edge_m)
-                samples.append(
-                    {
-                        "episode": episode,
-                        "camera": camera_name,
-                        "color": color,
-                        "frame": frame_index,
-                        "top_uv": [float(blob["u"]), float(blob["v"])],
-                        "extent_px": extent_px,
-                        "observed_edge_m": edge_m,
-                        "source": blob.get("source", "full_blob"),
-                    }
-                )
-            save_overlay(
-                overlay_rgb,
-                overlay_detections,
-                {},
-                camera,
-                z_top,
-                Path(args.debug_dir) / f"ep{episode:06d}_{camera_name}.png",
-            )
-
-    if len(samples) < 6 or any(not edge_by_camera[camera] for camera in HEAD_CAMS):
-        raise SystemExit(
-            f"Nur {len(samples)} gültige Würfeloberseiten; mindestens sechs und beide "
-            "Kopfkameras erforderlich."
-        )
-    all_edges = np.asarray([sample["observed_edge_m"] for sample in samples])
-    raw_edge = float(np.median(all_edges))
-    if not args.edge_min <= raw_edge <= args.edge_max:
-        raise SystemExit(
-            f"Bildbasierte Würfelkante {raw_edge * 100:.2f} cm außerhalb "
-            f"{args.edge_min * 100:.1f}–{args.edge_max * 100:.1f} cm."
-        )
-    for camera_name in HEAD_CAMS:
-        focal_scale = float(np.median(edge_by_camera[camera_name])) / args.cube_edge
-        if not 0.8 <= focal_scale <= 1.3:
-            raise SystemExit(
-                f"FOV-Korrektur für {camera_name} unplausibel: {focal_scale:.3f}."
-            )
-        records[camera_name]["focal_mm"] *= focal_scale
-        records[camera_name]["focal_scale"] = focal_scale
-
+    anchor_document = json.loads(Path(args.anchors).read_text(encoding="utf-8"))
+    try:
+        validate_anchor_document(anchor_document, root, episodes)
+    except ValueError as exc:
+        raise SystemExit(f"{exc} `replay-calibrate` sammelt die Anker neu.") from exc
+    anchors = anchor_document.get("anchors", [])
+    fit = build_calibration(anchors, episodes, holdout_ratio=args.holdout_ratio, seed=args.seed)
+    raw_samples = []
+    z_top = args.cube_center_z + args.cube_edge / 2.0
+    episode_diagnostics = anchor_document.get("episode_diagnostics", {})
+    for pixel in episode_diagnostic_pixels(episode_diagnostics):
+        camera = camera_from_record(camera_record(pixel["camera"]))
+        u, v = pixel["top_uv"]
+        point = camera.backproject_to_plane(float(u), float(v), z_top)
+        distance = float(np.linalg.norm(point - camera.eye))
+        observed = float(pixel.get("extent_px", 0.0)) * distance / camera.f_px
+        raw_samples.append({
+            **pixel,
+            "observed_edge_m": observed if np.isfinite(observed) else None,
+        })
+    observed_edges = np.asarray([
+        sample["observed_edge_m"]
+        for sample in raw_samples
+        if sample["observed_edge_m"] is not None
+    ])
     payload = {
-        "version": 2,
-        "method": "cv_cube_scale",
-        "source_dataset": str(root),
+        "version": 4,
+        "method": "pick_anchored_homography",
+        "valid": bool(fit["valid"]),
+        "source_dataset": str(root.resolve()),
         "episodes": episodes,
-        "cameras": records,
+        "fit_episodes": fit["fit_episodes"],
+        "holdout_episodes": fit["holdout_episodes"],
+        "cameras": {
+            name: {**camera_record(name), **record}
+            for name, record in fit["cameras"].items()
+        },
         "cube_edge_m": float(args.cube_edge),
         "cube_center_z_m": float(args.cube_center_z),
         "table_top_z_m": float(args.cube_center_z - args.cube_edge / 2.0),
         "quality": {
-            "num_samples": len(samples),
-            "observed_edge_median_m": raw_edge,
-            "observed_edge_p10_m": float(np.percentile(all_edges, 10)),
-            "observed_edge_p90_m": float(np.percentile(all_edges, 90)),
+            **fit["quality"],
+            "failures": fit["failures"],
+            "diagnostic_observed_edge_median_m": (
+                float(np.median(observed_edges)) if len(observed_edges) else None
+            ),
+            "diagnostic_observed_edge_p10_m": (
+                float(np.percentile(observed_edges, 10)) if len(observed_edges) else None
+            ),
+            "diagnostic_observed_edge_p90_m": (
+                float(np.percentile(observed_edges, 90)) if len(observed_edges) else None
+            ),
         },
-        "samples": samples,
-        "notes": [
-            "Nur frühe RGB-Frames und die bekannte 5-cm-Würfelkante werden verwendet.",
-            "Würfelmittelpunkt und Tischhöhe werden nicht trianguliert.",
-            "Greifstützen werden erst episodenspezifisch in replay-poses ergänzt.",
-        ],
+        "samples": raw_samples,
+        "anchors": anchors,
+        "action_hashes": anchor_document.get("action_hashes", {}),
+        "episode_diagnostics": episode_diagnostics,
+        "notes": ["Die AABB-Kantenschätzung ist nur Diagnose und verändert keine Intrinsics."],
     }
+    report = Path(args.debug_dir) / "calibration_report.json"
+    report.parent.mkdir(parents=True, exist_ok=True)
+    report.write_text(json.dumps(payload, indent=2, allow_nan=False), encoding="utf-8")
     out = Path(args.out)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-    print(
-        f"[replay-calibrate] {len(samples)} Oberseiten; Bildkante Median "
-        f"{raw_edge * 100:.2f} cm; verwendet 5.00 cm."
-    )
-    print(f"[replay-calibrate] {out}")
+    if fit["valid"]:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(json.dumps(payload, indent=2, allow_nan=False), encoding="utf-8")
+    elif out.exists():
+        out.unlink()
+    print(f"[replay-calibrate] Diagnosebericht: {report}")
+    if not fit["valid"]:
+        for failure in fit["failures"]:
+            print(f"[replay-calibrate] QUALITY-GATE: {failure}")
+        return 1
+    print(f"[replay-calibrate] {len(anchors)} Anker; {out}")
     print("[replay-calibrate] fertig.", flush=True)
     return 0
 
@@ -307,102 +311,121 @@ def run_poses(args: argparse.Namespace) -> int:
     root = Path(args.dataset_path)
     info = read_info(root)
     episodes = select_episodes(info, args)
-    calibration = json.loads(Path(args.calibration).read_text(encoding="utf-8"))
-    cameras = {
-        name: camera_from_record(calibration["cameras"][name]) for name in HEAD_CAMS
-    }
+    calibration_path = Path(args.calibration)
+    calibration_sha256 = file_sha256(calibration_path)
+    calibration = json.loads(calibration_path.read_text(encoding="utf-8"))
+    try:
+        require_pick_homography_calibration(calibration)
+        require_calibration_dataset(calibration, root)
+    except ValueError as exc:
+        raise SystemExit(f"{exc} `replay-calibrate` erneut ausführen.") from exc
+    matrices = {name: np.asarray(calibration["cameras"][name]["pixel_to_table_xy"], dtype=float)
+                for name in HEAD_CAMS}
     edge = float(calibration["cube_edge_m"])
     z_center = float(calibration["cube_center_z_m"])
-    z_top = z_center + edge / 2.0
     out_path = Path(args.out)
     result = {
-        "version": 3,
-        "method": "cv_top_face_stereo",
-        "source_dataset": str(root),
+        "version": 4,
+        "method": "stationary_top_face_homography",
+        "source_dataset": str(root.resolve()),
         "calibration": str(args.calibration),
+        "calibration_sha256": calibration_sha256,
         "cube_edge_m": edge,
         "table_top_z_m": float(calibration["table_top_z_m"]),
         "episodes": {},
     }
     if out_path.exists() and not args.overwrite:
         old = json.loads(out_path.read_text(encoding="utf-8"))
-        if old.get("version") == 3 and old.get("calibration") == str(args.calibration):
+        if pose_resume_matches(old, root, calibration_sha256):
             result["episodes"].update(old.get("episodes", {}))
 
     for ordinal, episode in enumerate(episodes, 1):
         if str(episode) in result["episodes"] and not args.overwrite:
             print(f"[replay-poses] ({ordinal}/{len(episodes)}) Episode {episode}: vorhanden.")
             continue
-        detections: dict[str, dict[str, dict | None]] = {}
-        debug_frames = {}
+        detections: dict[str, dict[str, dict | None]] = {camera: {} for camera in HEAD_CAMS}
+        camera_frames = {}
         for camera_name in HEAD_CAMS:
-            frames = load_video_frames(
-                video_path(root, info, episode, camera_name), args.max_frames
+            path = video_path(root, info, episode, camera_name)
+            tracks = track_colors(path, min_area=args.min_area)
+            onsets = {color: find_motion_onset(tracks[color]) for color in CUBE_COLORS}
+            limit = max(
+                [value for value in onsets.values() if value is not None]
+                + [args.max_frames]
             )
-            detections[camera_name] = {}
-            debug_frames[camera_name] = frames[0]
+            frames = load_video_frames(path, limit + 1)
+            camera_frames[camera_name] = frames
             for color in CUBE_COLORS:
-                _, rgb, blob = best_top_face_detection(
-                    frames, color, min_area=args.min_area
+                stop = (
+                    onsets[color]
+                    if onsets[color] is not None
+                    else min(len(frames), args.max_frames)
                 )
-                debug_frames[camera_name] = rgb
-                detections[camera_name][color] = blob
+                detections[camera_name][color] = stable_top_face_measurement(
+                    frames, color, stop, min_area=args.min_area, min_samples=5,
+                    allow_full_blob=True,
+                )
 
         blocks = []
-        overlay_estimates = {camera: {} for camera in HEAD_CAMS}
         for color in CUBE_COLORS:
             estimates = {}
             for camera_name in HEAD_CAMS:
-                blob = detections[camera_name][color]
-                if blob is None:
+                measurement = detections[camera_name][color]
+                if measurement is None:
                     continue
-                point = cameras[camera_name].backproject_to_plane(
-                    float(blob["u"]), float(blob["v"]), z_top
-                )
-                xy = [float(point[0]), float(point[1])]
+                xy_array = apply_homography(matrices[camera_name], [measurement["top_uv"]])[0]
+                xy = [float(value) for value in xy_array]
+                top_face_xy = None
+                if measurement["top_face_uv"] is not None:
+                    top_face_array = apply_homography(
+                        matrices[camera_name], [measurement["top_face_uv"]]
+                    )[0]
+                    top_face_xy = [float(value) for value in top_face_array]
                 estimates[camera_name] = {
-                    "top_uv": [float(blob["u"]), float(blob["v"])],
+                    "top_uv": measurement["top_uv"],
                     "world_xy_m": xy,
-                    "bbox": [int(value) for value in blob["bbox"]],
-                    "source": blob.get("source", "full_blob"),
+                    "bbox": measurement["bbox"],
+                    "source": measurement["source"],
+                    "frame": measurement["frame"],
+                    "frames": measurement["frames"],
+                    "num_samples": measurement["num_samples"],
+                    "top_face_count": measurement["top_face_count"],
+                    "top_face_uv": measurement["top_face_uv"],
+                    "top_face_frames": measurement["top_face_frames"],
+                    "top_face_world_xy_m": top_face_xy,
                 }
-                overlay_estimates[camera_name][color] = xy
+                frame_index = measurement["frame"]
+                overlay_path = Path(args.debug_dir) / (
+                    f"ep{episode:06d}_{camera_name}_{color}_f{frame_index:04d}.png"
+                )
+                save_measurement_overlay(
+                    camera_frames[camera_name][frame_index], measurement, xy, overlay_path
+                )
             block = {
                 "name": COLOR_TO_BLOCK[color],
                 "color": color,
                 "camera_estimates": estimates,
             }
-            if len(estimates) != 2:
+            if not estimates:
                 block.update(
                     status="missing",
-                    reason=f"nur in {len(estimates)}/2 Kopfkameras erkannt",
+                    reason="in keiner Kopfkamera stabil erkannt",
                 )
                 blocks.append(block)
                 continue
-            points = np.asarray(
-                [estimates[camera]["world_xy_m"] for camera in HEAD_CAMS], dtype=float
+            xy, disagreement, reason = combine_camera_estimates(
+                estimates, args.max_camera_disagreement_m
             )
-            disagreement = float(np.linalg.norm(points[0] - points[1]))
-            xy = np.median(points, axis=0)
-            inside = 0.25 <= xy[0] <= 0.45 and -0.25 <= xy[1] <= 0.25
-            accepted = disagreement <= args.max_camera_disagreement_m and inside
-            reason = ""
-            if disagreement > args.max_camera_disagreement_m:
-                reason = f"Kopfkameras widersprechen sich um {disagreement:.3f} m"
-            elif not inside:
-                reason = "Position außerhalb des Würfel-Arbeitsbereichs"
-            position = [float(xy[0]), float(xy[1]), z_center]
+            accepted = xy is not None
+            position = ([float(xy[0]), float(xy[1]), z_center]
+                        if xy is not None else [None, None, z_center])
             block.update(
                 {
                     "status": "ok" if accepted else "rejected",
                     "reason": reason,
-                    "cv_position_m": position,
                     "position_m": position.copy(),
-                    "position_source": "cv",
-                    "grasp_support": {
-                        "accepted": False,
-                        "reason": "noch nicht ausgewertet",
-                    },
+                    "position_source": "pick_anchored_homography",
+                    "confidence": "stereo" if len(estimates) == 2 else "single_top_face",
                     "yaw_rad": 0.0,
                     "orientation_wxyz": [1.0, 0.0, 0.0, 0.0],
                     "edge_m": edge,
@@ -416,23 +439,15 @@ def run_poses(args: argparse.Namespace) -> int:
         result["episodes"][str(episode)] = {
             "status": status,
             "blocks": blocks,
-            "grasp_support": {"enabled": False, "accepted": 0, "fk_states": 0},
+            "pick_anchor_diagnostics": [anchor for anchor in calibration.get("anchors", [])
+                if int(anchor["episode"]) == episode],
         }
-        for camera_name in HEAD_CAMS:
-            save_overlay(
-                debug_frames[camera_name],
-                detections[camera_name],
-                overlay_estimates[camera_name],
-                cameras[camera_name],
-                z_top,
-                Path(args.debug_dir) / f"ep{episode:06d}_{camera_name}.png",
-            )
         out_path.parent.mkdir(parents=True, exist_ok=True)
-        out_path.write_text(json.dumps(result, indent=2), encoding="utf-8")
+        out_path.write_text(json.dumps(result, indent=2, allow_nan=False), encoding="utf-8")
         cv_count = sum(block["status"] == "ok" for block in blocks)
         print(
             f"[replay-poses] ({ordinal}/{len(episodes)}) Episode {episode}: "
-            f"{status}; CV {cv_count}/3.",
+            f"{status}; Homographie {cv_count}/3.",
             flush=True,
         )
     print(f"[replay-poses] {out_path}")
@@ -456,16 +471,15 @@ def main() -> int:
 
     calibrate = sub.add_parser("calibrate")
     calibrate.add_argument("--dataset-path", required=True)
+    calibrate.add_argument("--anchors", required=True)
     calibrate.add_argument("--out", required=True)
     calibrate.add_argument("--debug-dir", required=True)
-    calibrate.add_argument("--max-frames", type=int, default=30)
-    calibrate.add_argument("--min-area", type=int, default=80)
     calibrate.add_argument("--cube-edge", type=float, default=DEFAULT_CUBE_EDGE_M)
     calibrate.add_argument(
         "--cube-center-z", type=float, default=DEFAULT_CUBE_CENTER_Z_M
     )
-    calibrate.add_argument("--edge-min", type=float, default=0.04)
-    calibrate.add_argument("--edge-max", type=float, default=0.065)
+    calibrate.add_argument("--holdout-ratio", type=float, default=0.2)
+    calibrate.add_argument("--seed", type=int, default=17)
     add_selection_args(calibrate)
 
     poses = sub.add_parser("poses")
@@ -482,6 +496,8 @@ def main() -> int:
     args = parser.parse_args()
     if args.num_episodes < 1:
         raise SystemExit("--num-episodes muss mindestens 1 sein.")
+    if args.command == "calibrate" and not 0.0 < args.holdout_ratio < 1.0:
+        raise SystemExit("--holdout-ratio muss zwischen 0 und 1 liegen.")
     return {"inspect": run_inspect, "calibrate": run_calibrate, "poses": run_poses}[
         args.command
     ](args)

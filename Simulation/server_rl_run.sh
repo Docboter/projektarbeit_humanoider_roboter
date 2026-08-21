@@ -1259,23 +1259,42 @@ do_replay_prepare() {
   ok "Replay vorbereitet; Asset: $ASSET_PATH"
 }
 
-# Kalibriert die Kopfkameraskala ausschließlich aus frühen realen RGB-Frames und der
-# bekannten 5-cm-Würfelkante. Dieser Schritt braucht weder Isaac noch Actions.
+# Lernt Realbild-Pixel -> Tisch-XY aus visuellen Bewegungsbeginnen und wenigen direkt
+# gesetzten FK-Zuständen. Originalaktionen werden dabei nicht abgespielt.
 do_replay_calibrate() {
   ensure_container
+  ensure_asset_local || return 1
   local ds="${REPLAY_DATASET:-/data/unitreerobotics/G1_Dex3_BlockStacking_Dataset}"
   ensure_dataset "$ds" || return 1
   ensure_replay_script reconstruct_cube_poses.py || return 1
-  replay_selection_args || return 1
+  ensure_replay_script collect_replay_anchors.py || return 1
   local work="${REPLAY_WORK:-/data/cube_replay/work}"
   local calibration="${REPLAY_CALIBRATION:-$work/geometry_calibration.json}"
   local debug="${REPLAY_CALIBRATION_DEBUG_DIR:-$work/calibration_report}"
+  local anchors="${REPLAY_CALIBRATION_ANCHORS:-$work/replay_anchors.json}"
+  local count="${REPLAY_CALIBRATION_NUM_EPISODES:-40}"
+  local ratio="${REPLAY_CALIBRATION_HOLDOUT_RATIO:-0.2}"
+  local seed="${REPLAY_CALIBRATION_SEED:-17}"
+  [[ "$count" =~ ^[1-9][0-9]*$ ]] \
+    || { err "REPLAY_CALIBRATION_NUM_EPISODES muss positiv sein: '$count'"; return 1; }
+  [[ "$seed" =~ ^[0-9]+$ ]] \
+    || { err "REPLAY_CALIBRATION_SEED muss nichtnegativ sein: '$seed'"; return 1; }
+  [[ "$ratio" =~ ^0?\.[0-9]+$ && "$ratio" =~ [1-9] ]] \
+    || { err "REPLAY_CALIBRATION_HOLDOUT_RATIO muss >0 und <1 sein: '$ratio'"; return 1; }
+  local calibration_selection=( --num-episodes "$count" --start-episode 0 )
 
-  log "Kalibriere Kopfkameras aus frühen RGB-Frames und der 5-cm-Würfelkante."
+  log "Sammle Pick-Anker aus Realvideos und wenigen direkten FK-Zuständen."
+  docker exec -w "$SIM_DIR" -e "DR_ENABLED=0" "$CONTAINER" env -u VIRTUAL_ENV \
+    "$ISAAC_PY" "$SIM_DIR/collect_replay_anchors.py" --headless --enable_cameras \
+      --dataset-path "$ds" --out "$anchors" --debug-dir "$debug" \
+      --asset-path "$ASSET_PATH" "${calibration_selection[@]}" \
+    2>&1 | tee /dev/stderr | grep -c "\[replay-anchor-collection\]" >/dev/null \
+    || { err "Sammeln der Replay-Anker fehlgeschlagen (Ausgabe oben)."; return 1; }
+  log "Fitte Homographien und prüfe getrennte Holdout-Episoden."
   docker exec -w "$SIM_DIR" "$CONTAINER" env -u VIRTUAL_ENV \
     "$ISAAC_PY" "$SIM_DIR/reconstruct_cube_poses.py" calibrate \
-      --dataset-path "$ds" --out "$calibration" --debug-dir "$debug" \
-      "${REPLAY_SELECTION_ARGS[@]}" \
+      --dataset-path "$ds" --anchors "$anchors" --out "$calibration" --debug-dir "$debug" \
+      --holdout-ratio "$ratio" --seed "$seed" "${calibration_selection[@]}" \
     2>&1 | tee /dev/stderr | grep -c "\[replay-calibrate\] fertig" >/dev/null \
     || { err "Replay-Kalibrierung fehlgeschlagen (Ausgabe oben)."; return 1; }
   ok "Kalibrierung: $HOST_DATA_DIR/${calibration#/data/}"
@@ -1295,10 +1314,7 @@ do_replay_poses() {
   local poses="${REPLAY_POSES:-$work/cube_poses.json}"
   local debug="${REPLAY_POSE_DEBUG_DIR:-$work/pose_overlays}"
   local overwrite=()
-  local grasp_support="${REPLAY_GRASP_SUPPORT:-1}"
   [[ "${REPLAY_OVERWRITE:-0}" == "1" ]] && overwrite=( --overwrite )
-  [[ "$grasp_support" == "0" || "$grasp_support" == "1" ]] \
-    || { err "REPLAY_GRASP_SUPPORT muss 0 oder 1 sein: '$grasp_support'"; return 1; }
 
   if ! docker exec "$CONTAINER" test -f "$calibration"; then
     err "Replay-Kalibrierung fehlt: $calibration"
@@ -1312,20 +1328,6 @@ do_replay_poses() {
       --debug-dir "$debug" "${overwrite[@]}" "${REPLAY_SELECTION_ARGS[@]}" \
     2>&1 | tee /dev/stderr | grep -c "\[replay-poses\] fertig" >/dev/null \
     || { err "Würfelpose-Rekonstruktion fehlgeschlagen (Ausgabe oben)."; return 1; }
-  if [[ "$grasp_support" == "1" ]]; then
-    ensure_asset_local || return 1
-    ensure_replay_script estimate_grasp_pose_support.py || return 1
-    log "Ergänze Positionen über wenige direkt gesetzte Greifzustände (kein Trajektorienlauf)."
-    docker exec -w "$SIM_DIR" -e "DR_ENABLED=0" "$CONTAINER" \
-      env -u VIRTUAL_ENV "$ISAAC_PY" "$SIM_DIR/estimate_grasp_pose_support.py" \
-        --headless --enable_cameras --dataset-path "$ds" --poses "$poses" \
-        --asset-path "$ASSET_PATH" \
-        "${REPLAY_SELECTION_ARGS[@]}" \
-      2>&1 | tee /dev/stderr | grep -c "\[replay-grasp-support\] fertig" >/dev/null \
-      || { err "Greifpunktstütze fehlgeschlagen (Ausgabe oben)."; return 1; }
-  else
-    log "Greifpunktstütze deaktiviert; cube_poses.json bleibt rein CV-basiert."
-  fi
   ok "Würfelposen: $HOST_DATA_DIR/${poses#/data/}"
   echo "  Kontrollbilder: $HOST_DATA_DIR/${debug#/data/}"
 }
@@ -1719,13 +1721,14 @@ Aktionen:
   replay-prepare  Vollständigen Real-Datensatz holen/konvertieren und Schema, vier Kameras,
               30 Hz sowie 28-DoF-State/Actions prüfen. Stellt das lokale G1+DEX3-Asset
               bereit und lädt keine Modellgewichte.
-  replay-calibrate  Höchstens 30 frühe Frames je Kopfkamera auswerten, die Skala gegen
-              die bekannte 5-cm-Würfelkante prüfen und eine reine CV-Kalibrierung schreiben.
-              Keine Actions, kein Isaac und keine Bewegungsanker in diesem Schritt.
+  replay-calibrate  Aus Bewegungsbeginn, stabilen Top-Face-Pixeln und wenigen direkt
+              gesetzten FK-Zuständen zwei Pixel-zu-Tisch-Homographien lernen. Vollständige
+              Episoden bleiben als Holdout getrennt; Original-Actions werden nicht abgespielt.
+              REPLAY_CALIBRATION_NUM_EPISODES (40),
+              REPLAY_CALIBRATION_HOLDOUT_RATIO (0.2), REPLAY_CALIBRATION_SEED (17).
   replay-poses  Für maximal REPLAY_NUM_EPISODES (Default 10) die einmalige Anfangspose
-              aller Würfel aus beiden Kopfkameras fitten. REPLAY_GRASP_SUPPORT=1 ergänzt
-              eindeutige Würfel über wenige direkt gesetzte Fingerzustände; es wird keine
-              Trajektorie abgespielt. REPLAY_GRASP_SUPPORT=0 erzeugt einen CV-Vergleich.
+              aller Würfel aus stabilen Realframes und den geprüften Homographien bestimmen.
+              Es gibt keinen Greifpunkt-, Zufalls- oder Alt-Layout-Fallback.
   replay-render  Originale 28-DoF-Actions bei exakt 30 Hz abspielen. Jeder Würfel wird
               einmal vor Frame 0 gesetzt und danach ausschließlich von PhysX bewegt.
               REPLAY_OUTPUT_MODE=videos (Default): fünf MP4s je Episode.
@@ -1733,7 +1736,6 @@ Aktionen:
               Policy-Kameras, Sim-State und bytegleich geprüften Original-Actions.
               REPLAY_NUM_EPISODES (10), REPLAY_START_EPISODE (0), REPLAY_EPISODE_IDS,
               REPLAY_MAX_FRAMES (0), REPLAY_OVERWRITE (0),
-              REPLAY_GRASP_SUPPORT (1),
               REPLAY_OUT (/data/cube_replay/videos),
               REPLAY_DATASET_OUT (/data/cube_replay/dataset),
               REPLAY_WORK (/data/cube_replay/work).
@@ -1800,7 +1802,7 @@ Beispiele:
   HF_TOKEN=hf_... RENDER_EPISODES=60 ./Simulation/server_rl_run.sh render
   # Physikbasierte Videos aus zunächst höchstens zehn Real-Episoden:
   HF_TOKEN=hf_... ./Simulation/server_rl_run.sh replay-prepare
-  REPLAY_NUM_EPISODES=10 ./Simulation/server_rl_run.sh replay-calibrate
+  REPLAY_CALIBRATION_NUM_EPISODES=40 ./Simulation/server_rl_run.sh replay-calibrate
   REPLAY_NUM_EPISODES=10 ./Simulation/server_rl_run.sh replay-poses
   DR_ENABLED=0 REPLAY_NUM_EPISODES=10 ./Simulation/server_rl_run.sh replay-render
   REPLAY_OUTPUT_MODE=dataset REPLAY_NUM_EPISODES=10 ./Simulation/server_rl_run.sh replay-render
