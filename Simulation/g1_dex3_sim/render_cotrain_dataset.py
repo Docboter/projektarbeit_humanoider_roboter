@@ -418,38 +418,47 @@ def consistency_report(spread: np.ndarray, centroid: np.ndarray,
 
     Die Frage ist NICHT, ob die Episode die Aufgabe löst — die Aktionen stammen aus einer
     echten Aufnahme, ihr Erfolg ist Eigenschaft des realen Datensatzes und hier nicht
-    messbar. Die Frage ist, ob das gerenderte BILD zeigt, was die Aktion tut. Deshalb je
-    Hand: liegt im Moment des engsten Griffs ein Würfel zwischen den Fingerkuppen? Und je
-    Würfel: bewegt er sich überhaupt, hebt er ab?
+    messbar. Die Frage ist, ob das gerenderte BILD zeigt, was die Aktion tut.
 
-    ``dist_cm`` ist das Kernmaß. Der Würfel wurde per Konstruktion unter den Greifpunkt
-    gelegt, also gehört dort ein kleiner Wert hin. Ein großer Wert heißt: die Hand schließt
-    sich neben dem Würfel, und ab diesem Frame beschreibt die Aktion einen Transport, den
-    das Bild nicht zeigt.
+    Gemessen wird am **letzten Frame des Fensters**. Das ist der Bewegungsbeginn aus
+    ``layout.json``: der Moment, in dem sich der Würfel im Realvideo nachweislich zu bewegen
+    beginnt, also von einer Hand mitgenommen wird. Passt die Kette aus Würfellage,
+    Kameramodell und Roboter-FK zusammen, muss dort eine Fingerkuppe am Würfel stehen.
+
+    Bis 2026-08-22 wurde stattdessen am Minimum der Fingeröffnung gemessen. Das ist für die
+    DEX3 keine sinnvolle Stelle — bei 101 von 116 Griffen bleibt die engste Kuppenöffnung
+    über 6 cm bei 5 cm Würfelkante —, und weil das Minimum innerhalb des Fensters gesucht
+    wird, verschob ein kürzeres (richtigeres) Fenster die Messstelle nach vorne und ließ die
+    Zahl schlechter aussehen, obwohl der Datensatz besser wurde.
+
+    ``dist_end_cm`` ist das Kernmaß, ``dist_min_cm`` die beste Annäherung im Fenster
+    überhaupt. Sind beide groß, beschreibt die Aktion einen Griff, den das Bild nicht zeigt.
     """
     if blocks is None or spread.shape[0] == 0:
         return None
     hands: list[dict | None] = []
     for h in range(2):
-        s = spread[:, h]
-        valid = np.isfinite(s)
-        if valid.sum() < 10:
+        c_all = centroid[:, h]
+        ok = np.all(np.isfinite(c_all), axis=-1) & np.all(np.isfinite(blocks), axis=(1, 2))
+        if ok.sum() < 2:
             hands.append(None)
             continue
-        idx_valid = np.flatnonzero(valid)
-        i_min = int(idx_valid[int(np.argmin(s[valid]))])
-        c, b = centroid[i_min, h], blocks[i_min]
-        if not np.all(np.isfinite(c)) or not np.all(np.isfinite(b)):
-            hands.append(None)
-            continue
-        d3 = np.linalg.norm(b - c, axis=-1)
-        j = int(np.argmin(d3))
+        idx = np.flatnonzero(ok)
+        # (Frames, Würfel) — Abstand jeder Kuppenmitte zu jedem Würfel
+        d = np.linalg.norm(blocks[idx] - c_all[idx][:, None, :], axis=-1)
+        end = int(idx[-1])
+        j_end = int(np.argmin(d[-1]))
+        f_min, j_min = np.unravel_index(int(np.argmin(d)), d.shape)
         hands.append({
-            "close_step": i_min,
-            "spread_cm": round(float(s[i_min]) * 100, 2),
-            "cube": j,
-            "dist_cm": round(float(d3[j]) * 100, 2),
-            "dist_xy_cm": round(float(np.linalg.norm(b[j][:2] - c[:2])) * 100, 2),
+            "end_step": end,
+            "cube": j_end,
+            "dist_end_cm": round(float(d[-1, j_end]) * 100, 2),
+            "dist_end_xy_cm": round(float(np.linalg.norm(
+                blocks[end][j_end][:2] - c_all[end][:2])) * 100, 2),
+            "dist_min_cm": round(float(d[f_min, j_min]) * 100, 2),
+            "dist_min_step": int(idx[f_min]),
+            "spread_end_cm": (round(float(spread[end, h]) * 100, 2)
+                              if np.isfinite(spread[end, h]) else None),
         })
 
     cubes = []
@@ -477,19 +486,23 @@ def summarize_consistency(manifest: dict) -> None:
             if r.get("status") == "ok" and r.get("consistency")]
     if not recs:
         return
-    dists = [h["dist_cm"] for r in recs for h in r["consistency"]["hands"] if h]
+    ends = [h["dist_end_cm"] for r in recs for h in r["consistency"]["hands"] if h]
+    mins = [h["dist_min_cm"] for r in recs for h in r["consistency"]["hands"] if h]
     lifts = [c["lift_cm"] for r in recs for c in r["consistency"]["cubes"] if c]
     moved = [c["moved_cm"] for r in recs for c in r["consistency"]["cubes"] if c]
-    if not dists:
+    if not ends:
         return
-    near = sum(1 for d in dists if d <= 4.0)
+    near = sum(1 for d in ends if d <= 4.0)
     print(f"\n[render] Konsistenz über {len(recs)} Episoden:")
-    print(f"  Abstand Kuppen↔Würfel beim Griff: Median {float(np.median(dists)):.1f} cm, "
-          f"p90 {float(np.percentile(dists, 90)):.1f} cm, "
-          f"≤ 4 cm bei {near}/{len(dists)} Händen")
+    print(f"  Kuppen↔Würfel am Fensterende (Bewegungsbeginn): Median "
+          f"{float(np.median(ends)):.1f} cm, p90 {float(np.percentile(ends, 90)):.1f} cm, "
+          f"≤ 4 cm bei {near}/{len(ends)} Händen")
+    print(f"  beste Annäherung im Fenster: Median {float(np.median(mins)):.1f} cm, "
+          f"min {float(np.min(mins)):.1f} cm")
     print(f"  Würfel bewegt   > 2 cm: {sum(1 for m in moved if m > 2.0)}/{len(moved)}")
     print(f"  Würfel angehoben> 1 cm: {sum(1 for m in lifts if m > 1.0)}/{len(lifts)}")
-    print("  Das misst NICHT Aufgabenerfolg, sondern ob das Bild zur Aktion passt.",
+    print("  Das misst NICHT Aufgabenerfolg, sondern ob das Bild zur Aktion passt: am "
+          "Fensterende bewegt sich der reale Würfel, dort MUSS eine Kuppe an ihm stehen.",
           flush=True)
 
 
