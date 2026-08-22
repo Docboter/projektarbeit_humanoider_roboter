@@ -31,6 +31,17 @@ Operative Anleitungen zum Trainieren. Die Auswertung der Läufe steht unter [Erg
 | [training/co-training.md](training/co-training.md) | **Schritt 4 — Co-Training echt + gerendert** (`USE_COTRAIN=1`). Renderer für Sim-Bilder zu echten Aktionen, Zwei-Datensatz-Training mit `mix_ratio`, begründete Episodenzahl/Mischung, vorregistrierte Erfolgsregel. Werkzeuge gebaut, Lauf steht aus |
 | [training/wandb-offline-sync.md](training/wandb-offline-sync.md) | W&B-Offline-Sync auf KISSKI |
 
+## Augmentation (Video-Augmentierung mit Cosmos-Transfer2.5)
+
+Erzeugt zusätzliche Trainingsdaten, indem echte Trainingsvideos per NVIDIA
+Cosmos-Transfer2.5 stilvariiert werden (Domain-Randomization). Läuft auf einem eigenen
+Docker-Server (A100/H100-Klasse). Das Ergebnis speist den Co-Training-Pfad unter Training.
+
+| Dokument | Inhalt |
+|---|---|
+| [augmentation/](augmentation/README.md) | **Einstieg Augmentation** (Index) |
+| [augmentation/anleitung.md](augmentation/anleitung.md) | **Bedienungsanleitung** — Warum Cosmos-Transfer2.5, Build/Run, Env-Var-Referenz, Einbindung ins Training (`USE_COTRAIN`), offene Punkte |
+
 ## Simulation (Closed-Loop-Eval in Isaac Lab)
 
 Operativer Sim-Eval-Workflow. Mess- und Methodik-Ergebnisse stehen unter [Ergebnisse](#ergebnisse--evaluation).
@@ -126,6 +137,14 @@ Diese Sammlung speist das gleichnamige Kapitel der Projektarbeit.
 │       ├── entrypoint.sh      # orchestriert Download → Convert → Train
 │       ├── download_data.sh   # HuggingFace-Download
 │       └── run_finetuning.sh  # Trainings-Launcher im Container
+├── Augmentation/               # Cosmos-Transfer2.5-Video-Augmentierung (eigener Docker-Server)
+│   ├── Dockerfile              # Cosmos-Transfer2.5 + vendorter v3→v2.1-Konverter, gepinnter Commit
+│   ├── update_image.sh         # Host-Build/Push-Tool
+│   ├── setup_and_augment_DockerHub-pull.sh  # Host-Launcher (Dauerbetrieb, wie Training/)
+│   └── scripts/                # In das Image kopiert (→ /scripts)
+│       ├── entrypoint.sh       # Download → Control-Videos → Specs → Cosmos-Inferenz → Datensatz
+│       ├── build_controlnet_specs.py  # Episode/Kamera/Variante → Canny-Edge-Control + Spec-JSON
+│       └── assemble_dataset.py # Cosmos-Rohvideos → COTRAIN_DATASET_PATH-kompatibler Datensatz
 ├── Simulation/                # Sim-Client-Code, Dockerfiles, Build-Tools
 │   ├── Dockerfile             # KISSKI: schlanker Isaac-Lab-Sim-Client
 │   ├── Dockerfile.vastai      # vast.ai: kombiniert Isaac Sim + GR00T

@@ -1,0 +1,152 @@
+# Augmentation — Bedienungsanleitung
+
+> **TL;DR:** Baut und startet den `Augmentation/`-Container, der echte Trainingsvideos per
+> NVIDIA Cosmos-Transfer2.5 stilvariiert und als Co-Training-fähigen Datensatz zusammenbaut.
+> Läuft auf einem eigenen Docker-Server mit A100/H100-Klasse-GPU (~65 GB VRAM). Für die
+> Trainings-seitige Einbindung (`USE_COTRAIN=1`) siehe [co-training.md](../training/co-training.md).
+
+## 1. Warum Cosmos-Transfer2.5, und warum dieser Workflow?
+
+**cosmos-transfer2.5** (nicht das ältere `cosmos-transfer1`) ist der aktiv gepflegte
+NVIDIA-Nachfolger für Video-zu-Video-ControlNet-Transfer — kleineres 2B-Modell, Checkpoints
+laden automatisch von HuggingFace beim ersten Lauf (kein separater 300-GB-Download-Schritt
+wie bei transfer1), und das Repo bringt bereits Beispiel-Assets für Robotervideos mit
+(`assets/robot_example/`).
+
+Es gibt zwei Wege, damit Robotervideos zu augmentieren:
+
+1. **Generisches Multimodal-ControlNet** (dieser Workflow) — Depth/Edge-Kontrollsignale
+   werden aus dem Quellvideo selbst abgeleitet, kein zusätzlicher Datenprep nötig.
+2. `robot_augmentation`-Submodul — erhält den Roboter pixelgenau, randomisiert nur den
+   Hintergrund; braucht aber pro-Frame-Segmentierungsmasken des Roboters als Zusatzdaten.
+   **Bewusst nicht gewählt** — der Maskierungs-Schritt ist zusätzlicher Scope, den dieses
+   Projekt (noch) nicht braucht.
+
+**Konkret erzeugt dieser Container die Kontrollsignale selbst**, per klassischer
+Canny-Kantenerkennung (`AUGMENT_MODEL_VARIANT=edge/distilled`, Default) — kein zusätzliches
+ML-Modell, deterministisch, läuft in der schlanken Tools-venv ohne GPU. Eine
+Depth-Variante (`AUGMENT_MODEL_VARIANT=depth`) ist über Cosmos' eigene
+`video-depth-anything`-Abhängigkeit denkbar, aber in diesem Container **nicht implementiert**
+— offener Punkt, siehe §6.
+
+## 2. Voraussetzung — Lizenz manuell akzeptieren (einmalig, außerhalb des Containers)
+
+Cosmos-Transfer2.5-2B ist ein *gated* HuggingFace-Modell. Vor dem ersten Lauf:
+
+1. https://huggingface.co/nvidia/Cosmos-Transfer2.5-2B öffnen
+2. Mit dem HF-Account einloggen, dessen Token als `HF_TOKEN` verwendet wird
+3. „NVIDIA Open Model License Agreement" akzeptieren
+
+Der Entrypoint prüft das beim Containerstart und bricht mit einer klaren Fehlermeldung ab,
+statt nach Stunden Inferenz mit einem kryptischen 403 zu scheitern.
+
+## 3. Build
+
+```bash
+docker build -t projekt-humanoider-roboter-augmentation Augmentation/
+```
+
+Baut in einer eigenen Stufe cosmos-transfer2.5 aus dem Quellcode (gepinnter Commit), fährt
+dessen eigenes `just install`-Rezept, und legt daneben eine zweite, schlanke Python-venv fürs
+Datensatz-Tooling an (Details: Kommentare im [Dockerfile](../../Augmentation/Dockerfile)).
+**Noch nicht gegen einen echten Build verifiziert** — siehe „Offene Punkte" (§6).
+
+## 4. Run
+
+```bash
+HF_TOKEN=hf_... AUGMENT_EPISODE_LIMIT=1 AUGMENT_CAMERAS=cam_left_high SKIP_INFERENCE=1 \
+    ./Augmentation/setup_and_augment_DockerHub-pull.sh    # nur Specs generieren, Prompts prüfen
+
+HF_TOKEN=hf_... AUGMENT_EPISODE_LIMIT=1 \
+    ./Augmentation/setup_and_augment_DockerHub-pull.sh --resume   # billiger Testlauf, alle 4 Kameras
+
+HF_TOKEN=hf_... AUGMENT_EPISODE_LIMIT=0 \
+    ./Augmentation/setup_and_augment_DockerHub-pull.sh --resume   # voller, fortsetzbarer Lauf
+```
+
+`--resume` setzt denselben Container fort statt einen neuen zu erzeugen (Daten bleiben
+erhalten — siehe `Augmentation/setup_and_augment_DockerHub-pull.sh --help`).
+
+## 5. Env-Var-Referenz
+
+| Variable | Default | Zweck |
+|---|---|---|
+| `HF_TOKEN` | — (Pflicht) | Zugriff auf den Datensatz UND das gated Modell (siehe §2) |
+| `HF_HOME` | `/data/hf_cache` | Cosmos-Checkpoint-Cache, innerhalb `DATA_DIR` |
+| `DATA_DIR` | `/data` | Wie im Training-Image |
+| `NUM_GPU` | `1` | Cosmos' eigener Variablenname (`torchrun --nproc_per_node`) — bewusst **nicht** `NUM_GPUS` wie im Training-Image |
+| `SKIP_DOWNLOAD` | `0` | Datensatz-Download überspringen, falls vorhanden |
+| `SKIP_CONVERT` | `0` | v3.0→v2.1-Konvertierung überspringen, falls `modality.json` existiert |
+| `SOURCE_DATASET_REPO` | `unitreerobotics/G1_Dex3_BlockStacking_Dataset` | HF-Datensatz-Repo |
+| `AUGMENT_TRAIN_RATIO` | `0.8` | **Muss mit `TRAIN_SPLIT_RATIO`** im Training-Image übereinstimmen — dupliziertes Formel-Kontrakt, kein gemeinsames Artefakt (siehe `Training/scripts/lib_split.sh`) |
+| `AUGMENT_EPISODE_LIMIT` | `2` | Kappung für billige erste Läufe; `0` = alle Train-Episoden |
+| `AUGMENT_EPISODE_IDS` | `""` | Explizite, leerzeichengetrennte Indizes — überschreibt das Limit; bricht hart ab bei Index `>= n_train` |
+| `AUGMENT_CAMERAS` | alle 4 Policy-Kameras | Teilmenge für billige/visuelle QS-Läufe; alle 4 nötig, damit eine Episode COTRAIN-nutzbar wird |
+| `AUGMENT_VARIANTS` | `1` | Anzahl stilvariierter Kopien pro Quell-Episode/Kamera, je eine eigene Ausgabe-Episode |
+| `AUGMENT_PROMPT_TEMPLATE` | eingebautes generisches Template | Erster konkreter Formulierungs-Durchgang — offener Punkt (§6) |
+| `AUGMENT_MODEL_VARIANT` | `edge/distilled` | Cosmos-Modell+Modalität (`edge`, `depth`, `depth/distilled` ebenfalls gültig — depth hier nicht implementiert) |
+| `AUGMENT_NUM_STEPS` | `4` | Passend zum distillierten Modell |
+| `AUGMENT_STRICT_FRAME_CHECK` | `1` | `1` = Episode bei Frame-/FPS-Abweichung verwerfen; `0` = trimmen (nur bei Frame-Überschuss möglich) |
+| `AUGMENT_OUT_DIR` | `$DATA_DIR/augmentation/g1_dex3_cosmos_augmented` | Ziel-Datensatz (LeRobot v2.1) |
+| `AUGMENT_HF_REPO` | `""` | Falls gesetzt: Upload nach Fertigstellung |
+| `SKIP_INFERENCE` | `0` | Nach Spec-Generierung stoppen — Prompts vor der GPU-Zeit prüfen |
+| `SKIP_ASSEMBLE` | `0` | Nach der Inferenz stoppen — Rohvideos vor dem Zusammenbau prüfen |
+| `AUGMENT_OVERWRITE` | `0` | Bereits abgeschlossene Arbeitseinträge erneut ausführen |
+| `SHELL_ON_ERROR` | `0` | Bei Fehler in eine Shell fallen statt abzubrechen |
+
+## 6. Ins Training einbinden
+
+Der fertige Datensatz unter `AUGMENT_OUT_DIR` (bzw. `AUGMENT_HF_REPO`, falls hochgeladen) ist
+ein normaler LeRobot-v2.1-Datensatz mit **byte-identischer** `meta/modality.json` zum echten
+Datensatz — genau der Vertrag, den `USE_COTRAIN=1` im Training-Image prüft
+(`run_finetuning_cotrain.sh`, `cmp -s`). Keine Änderung im Training-Image nötig:
+
+```bash
+HF_TOKEN=hf_... WANDB_API_KEY=... \
+USE_COTRAIN=1 COTRAIN_DATASET_PATH=/pfad/zum/augmentierten/datensatz COTRAIN_MIX_RATIO=0.25 \
+    ./Training/setup_and_train_DockerHub-pull.sh
+```
+
+**`COTRAIN_MIX_RATIO` neu berechnen, nicht 0,25 blind übernehmen.** Die Formel aus
+[co-training.md §4.2](../training/co-training.md#42-welches-mischungsverhältnis--025-gerendert)
+gilt unverändert (`mix* = F_augmentiert / (F_augmentiert + F_echt)`), aber die konkrete Zahl
+0,25 wurde für 60 gerenderte gegen 240 echte Episoden hergeleitet — bei anderer
+`AUGMENT_EPISODE_LIMIT`/`AUGMENT_VARIANTS`-Kombination ergibt sich ein anderer Ausgleichspunkt.
+
+## 7. Offene Punkte
+
+1. **Checkpoint-Größe unbestätigt.** cosmos-transfer1 lud ~300 GB; das 2B-Modell sollte
+   deutlich kleiner sein — vor dem ersten vollen Lauf `df -h` prüfen.
+2. **„Parquet unverändert kopieren" setzt exakte Frame-/FPS-Erhaltung durch Cosmos voraus.**
+   `AUGMENT_STRICT_FRAME_CHECK` + `ffprobe`-Vergleich in `assemble_dataset.py` ist das
+   Sicherheitsnetz — am ersten echten Output verifizieren.
+3. **Inferenzkosten pro Episode/Kamera bei ~65 GB VRAM unbekannt** — `AUGMENT_EPISODE_LIMIT`
+   (Default `2`) ist der eingebaute Knopf für billige erste Läufe.
+4. **`AUGMENT_PROMPT_TEMPLATE`-Formulierung ist ein erster Entwurf**, nicht validiert. Die
+   vier eingebauten Stil-Deskriptoren (Beleuchtung/Hintergrund/Tischfarbe) in
+   `build_controlnet_specs.py` sind ein Ausgangspunkt für `AUGMENT_VARIANTS > 1`.
+5. **`convert_v3_to_v2_standalone.py`s genaue Python-Abhängigkeiten sind ungeprüft** — das
+   Dockerfile installiert eine plausible Teilmenge (pandas/pyarrow/jsonlines) in die
+   Tools-venv; ggf. beim ersten Build nachschärfen.
+6. **Cosmos' Ausgabe-Dateibenennung unter `-o <out_dir>` ist bis zum ersten echten Lauf
+   unbekannt** — `assemble_dataset.py` sucht daher per Glob (`*.mp4`) statt einen festen
+   Namen anzunehmen.
+7. **Auflösung/FPS/Codec-Kompatibilität der Quellvideos mit Cosmos' Erwartung ist unbestätigt**
+   — vor dem ersten vollen Lauf gegen `assets/robot_example/` im cosmos-transfer2.5-Repo
+   gegenprüfen.
+8. **Depth-Kontrollsignal nicht implementiert** — nur die Canny-Edge-Variante ist gebaut
+   (siehe §1).
+9. **Dockerfile-Übernahme aus cosmos-transfer2.5s eigenem Dockerfile ist eine Transkription,
+   kein automatischer Abgleich** — bei zukünftigen `COSMOS_COMMIT`-Updates (`update_image.sh
+   --update-commit`) ggf. `git show <sha>:Dockerfile` im cosmos-transfer2.5-Repo gegenprüfen,
+   ob sich Basis-Image/System-Pakete geändert haben.
+
+## 8. Nachgelagerte QS (Follow-up, nicht Teil dieses Durchgangs)
+
+- Geführtes CLI-Menü (`tools/menu/augment-*.spec`), analog zu `train-*.spec`.
+- `tools/gen_docs.sh`-Drift-Check auf die neuen Skripte erweitern.
+- Ein an [`measure_domain_gap.py`](../../Simulation/scripts/measure_domain_gap.py) angelehntes
+  Werkzeug, das die frozen-SigLIP-Cosine-Distanz auch für augmentierte-vs-echte Bilder
+  berechnet — erwartungsgemäß deutlich unter dem Sim-vs-Echt-Referenzwert 0,22 aus
+  [domain-gap-analyse.md](../ergebnisse/domain-gap-analyse.md), da es sich um Echt-zu-Echt-
+  Restyling handelt statt um Sim-Rendering.
