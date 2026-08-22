@@ -40,7 +40,7 @@ VERWENDUNG
 ──────────
     # 1. Modell gegen den Renderer prüfen (Sim-Bild + bekannte Würfelpositionen)
     python3 extract_block_layout.py detect sim_frame0.png \\
-        --expect '[[0.34,-0.15,0.915],[0.36,0.0,0.915],[0.34,0.15,0.915]]' --debug-dir /tmp/dbg
+        --expect '[[0.34,-0.15,0.895],[0.36,0.0,0.895],[0.34,0.15,0.895]]' --debug-dir /tmp/dbg
 
     # 2. Realbilder → layout.json
     python3 extract_block_layout.py extract \\
@@ -75,8 +75,12 @@ HSV_WINDOWS = {
     "gelb":  {"h": ((35.0, 70.0),),               "s": 0.35, "v": 0.28},
 }
 
-# Würfelmittelpunkt-Ebene. Muss zu block_z_surface in g1_dex3_blockstack_env.py passen.
-Z_CUBE_CENTER = 0.915
+# Würfelmittelpunkt-Ebene — die RUHELAGE, nicht die Spawnhöhe. Der Tisch ist 0,87 m hoch
+# (Box 0.87, Mittelpunkt z=0.435), ein 5-cm-Würfel ruht also mit dem Mittelpunkt auf 0,895.
+# Bis 2026-08-22 standen hier 0,915, der Spawnwert der Env, aus dem die Würfel zwei
+# Zentimeter herunterfallen. Gegen die `cams`-Grundwahrheit gemessen kostete das rund 1 cm:
+# Restfehler 1,11 cm (links) / 0,89 cm (rechts) mit 0,915 gegen 0,30 / 0,22 cm mit 0,895.
+Z_CUBE_CENTER = 0.895
 CUBE_EDGE_M = 0.05
 
 VIDEO_TEMPLATE = "videos/chunk-{episode_chunk:03d}/{video_key}/episode_{episode_index:06d}.mp4"
@@ -426,7 +430,7 @@ def main() -> int:
                    choices=("cam_left_high", "cam_right_high", "cam_scene"))
     d.add_argument("--expect", type=str, default="",
                    help='Bekannte Würfelpositionen als JSON, z. B. '
-                        '"[[0.34,-0.15,0.915],[0.36,0,0.915],[0.34,0.15,0.915]]" '
+                        '"[[0.34,-0.15,0.895],[0.36,0,0.895],[0.34,0.15,0.895]]" '
                         '(render_manifest.json → cubes_xyz)')
 
     e = sub.add_parser("extract", parents=[common],

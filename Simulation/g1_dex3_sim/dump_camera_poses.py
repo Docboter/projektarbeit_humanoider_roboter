@@ -86,7 +86,7 @@ def scene_points(env, origins):
     """Weltpositionen der Szenenobjekte zur LAUFZEIT — {Name: (3,)}.
 
     Der bislang ungeprüfte Teil: Alle Frustum-Rechnungen gingen von den Werten aus der
-    Config aus (Tisch bei (0.5, 0, 0.435), Würfel bei z=0.915). Stehen die Objekte real
+    Config aus (Tisch bei (0.5, 0, 0.435), Würfel bei z=0.895). Stehen die Objekte real
     woanders — falscher USD-Maßstab, weggekippt, anderes Asset —, ist jede daraus
     abgeleitete Aussage wertlos. Deshalb hier die echten Root-Posen aus der Physik.
     """
@@ -413,8 +413,8 @@ def main() -> None:
     # dagegen in Weltkoordinaten — wer nur eine Spalte sieht, vergleicht Äpfel mit Birnen.
     print("\nSzenenobjekte zur Laufzeit (env 0):")
     print(f"  {'Objekt':<24}{'welt':<26}{'rel. zum Ursprung':<26}erwartet (env-lokal, Config)")
-    expect = {"table": "(0.5, 0.0, 0.435)", "block_0": "(0.34, -0.15, 0.915)",
-              "block_1": "(0.36, 0.0, 0.915)", "block_2": "(0.34, 0.15, 0.915)",
+    expect = {"table": "(0.5, 0.0, 0.435)", "block_0": "(0.34, -0.15, 0.895)",
+              "block_1": "(0.36, 0.0, 0.895)", "block_2": "(0.34, 0.15, 0.895)",
               "robot_root": "(0, 0, ~0.85)"}
     for name, p in pts.items():
         rel = p - origins[0]

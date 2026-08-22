@@ -129,10 +129,15 @@ class G1Dex3BlockstackSceneCfg(InteractiveSceneCfg):
     table: RigidObjectCfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/table",
         spawn=sim_utils.CuboidCfg(
-            # Tisch 0.87 m hoch (Oberfläche z=0.87). Cubes sitzen auf der Oberfläche (Zentrum z=0.915,
-            # Oberkante z=0.94 — durch leichte Erhöhung der block_z_surface erreicht, nicht des Tisches).
+            # Tisch 0.87 m hoch (Oberfläche z=0.87). Ein 5-cm-Würfel ruht darauf mit dem
+            # Mittelpunkt auf z=0.895, Oberkante 0.92.
             # Tisch war testweise auf 0.89 angehoben, das blockierte aber die Roboterarme im
             # Closed-Loop: Modell versucht zu z≈0.915 zu greifen, Tisch (0.89) steckte die Hände fest.
+            # Danach stand block_z_surface auf 0.915, um die Oberkante auf 0.94 zu heben, ohne den
+            # Tisch anzuheben. Das erreicht sein Ziel nicht: die Würfel fallen die zwei Zentimeter
+            # und ruhen doch auf 0.895 (nachgemessen 2026-08-22 mit `server_rl_run.sh cams`).
+            # Übrig blieb nur der Fall beim Reset — und eine um 2 cm falsche Ebene für jede
+            # Rückprojektion Bild → Tisch. Seit 2026-08-22 spawnen die Würfel dort, wo sie ruhen.
             size=(0.8, 0.6, 0.87),
             rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
             mass_props=sim_utils.MassPropertiesCfg(mass=50.0),
@@ -156,7 +161,7 @@ class G1Dex3BlockstackSceneCfg(InteractiveSceneCfg):
             ),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.1, 0.1)),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.34, -0.15, 0.915)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.34, -0.15, 0.895)),
     )
 
     block_1: RigidObjectCfg = RigidObjectCfg(
@@ -171,7 +176,7 @@ class G1Dex3BlockstackSceneCfg(InteractiveSceneCfg):
             ),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.1, 0.6, 0.1)),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.36, 0.0, 0.915)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.36, 0.0, 0.895)),
     )
 
     block_2: RigidObjectCfg = RigidObjectCfg(
@@ -188,7 +193,7 @@ class G1Dex3BlockstackSceneCfg(InteractiveSceneCfg):
             # nicht blau). Angleichung an die Trainingsverteilung für den eingefrorenen Vision-Encoder.
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.85, 0.70, 0.10)),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.34, 0.15, 0.915)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.34, 0.15, 0.895)),
     )
 
     # Schwarzes Stapel-Band (Landmarke wie im Dataset — dort wird auf einen kleinen
@@ -419,7 +424,7 @@ class G1Dex3BlockstackEnvCfg(DirectRLEnvCfg):
     # y≈±0.19, z≈0.92). x/y eng um den Greifraum, z = neue Tischoberfläche (0.87) + halbe Würfelhöhe.
     block_x_range: tuple[float, float] = (0.30, 0.40)
     block_y_range: tuple[float, float] = (-0.20, 0.20)
-    block_z_surface: float = 0.915    # Tischoberfläche 0.89 + halbe Würfel-Höhe (0.025)
+    block_z_surface: float = 0.895    # Tischoberfläche 0.87 + halbe Würfel-Höhe (0.025)
 
     # Erfolgsparameter
     stack_xy_tol: float = 0.03  # max. horizontaler Versatz zwischen Würfel-Mittelpunkten

@@ -166,6 +166,11 @@ class G1Dex3CameraCfg:
         # Bildmitte — die reale Kamera sitzt also auf der Mittellinie. Das `d435_link` ist
         # der Montageflansch eines Moduls, nicht der Mittelpunkt zwischen zwei Bildsensoren.
         # x und z bleiben beim URDF-Wert, die sind eindeutig.
+        # ACHTUNG: 0.915 ist hier KEINE Würfelhöhe, sondern der Blickzielpunkt, der den
+        # Nickwinkel festlegt. Genau diese Pose wurde am 2026-08-22 gegen gerenderte Bilder
+        # mit bekannter Grundwahrheit geprüft (Restfehler 0,30 / 0,22 cm je Kopfkamera).
+        # Sie darf NICHT mitgezogen werden, wenn die Würfelebene korrigiert wird — die
+        # Ebene steht in Z_CUBE_CENTER, hier steht die Kamera.
         high_target_x, high_target_z = 0.34, 0.915
         left_high_eye  = (0.0537,  0.025, 1.3239)   # halbe Stereobasis links der Mittellinie
         right_high_eye = (0.0537, -0.025, 1.3239)   # halbe Stereobasis rechts der Mittellinie

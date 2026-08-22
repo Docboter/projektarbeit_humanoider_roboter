@@ -40,7 +40,7 @@ DEFAULT_VIDEO_TEMPLATE = (
 )
 DEFAULT_DATA_TEMPLATE = "data/chunk-{episode_chunk:03d}/episode_{episode_index:06d}.parquet"
 DEFAULT_CUBE_EDGE_M = 0.05
-DEFAULT_CUBE_CENTER_Z_M = 0.915
+DEFAULT_CUBE_CENTER_Z_M = 0.895
 
 
 def read_info(root: Path) -> dict[str, Any]:

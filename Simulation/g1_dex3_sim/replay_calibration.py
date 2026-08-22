@@ -15,15 +15,17 @@ from extract_block_layout import CUBE_COLORS, HSV_WINDOWS, color_mask, largest_b
 # dieselben Grenzen erfüllen wie später die rekonstruierte Würfelpose. Vorher standen die
 # Zahlen doppelt und WEIT auseinander (Anker z 0,82–1,05 gegen Würfelmitte 0,915), was im
 # Abnahmelauf 2026-08-22 zehn Anker durchließ, die 3,5–9,9 cm über der Würfeloberseite lagen.
-CUBE_CENTER_Z_M = 0.915
+# Ruhelage, nicht Spawnhöhe: Tischplatte 0,870 + halbe Kantenlänge. Siehe Z_CUBE_CENTER
+# in extract_block_layout.py und die Messung vom 2026-08-22.
+CUBE_CENTER_Z_M = 0.895
 CUBE_EDGE_M = 0.05
-TABLE_TOP_Z_M = CUBE_CENTER_Z_M - CUBE_EDGE_M / 2.0      # 0.890
-CUBE_TOP_Z_M = CUBE_CENTER_Z_M + CUBE_EDGE_M / 2.0       # 0.940
+TABLE_TOP_Z_M = CUBE_CENTER_Z_M - CUBE_EDGE_M / 2.0      # 0.870
+CUBE_TOP_Z_M = CUBE_CENTER_Z_M + CUBE_EDGE_M / 2.0       # 0.920
 CUBE_WORKSPACE_X_M = (0.25, 0.45)
 CUBE_WORKSPACE_Y_M = (-0.25, 0.25)
 # Fingerkuppen-Schwerpunkt beim Griff an einem RUHENDEN Würfel: unterhalb der Tischplatte
 # unmöglich, oberhalb der Würfeloberseite nur mit halber Kantenlänge Toleranz.
-FINGERTIP_Z_WINDOW_M = (TABLE_TOP_Z_M - 0.01, CUBE_TOP_Z_M + CUBE_EDGE_M / 2.0)  # 0.880–0.965
+FINGERTIP_Z_WINDOW_M = (TABLE_TOP_Z_M - 0.01, CUBE_TOP_Z_M + CUBE_EDGE_M / 2.0)  # 0.860–0.945
 
 
 def action_sha256(actions: np.ndarray) -> str:

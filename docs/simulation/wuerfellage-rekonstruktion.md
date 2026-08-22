@@ -75,8 +75,8 @@ Ein Anker wird nur akzeptiert, wenn:
 - ihre Schließung mindestens 2 mm stärker als die andere Hand ist;
 - die drei echten Fingerkuppen verfügbar sind;
 - ihr Schwerpunkt in demselben Arbeitsraum liegt, den später auch die rekonstruierte Würfelpose
-  erfüllen muss (x = 0,25–0,45 m, y = −0,25–0,25 m), und in z = 0,880–0,965 m, also am ruhenden
-  Würfel (Tischplatte 0,890 m, Würfeloberseite 0,940 m, je eine halbe Kantenlänge Toleranz);
+  erfüllen muss (x = 0,25–0,45 m, y = −0,25–0,25 m), und in z = 0,860–0,945 m, also am ruhenden
+  Würfel (Tischplatte 0,870 m, Würfeloberseite 0,920 m, je eine halbe Kantenlänge Toleranz);
 - beide Kameras einen ausreichend ähnlichen Bewegungsbeginn und stabile Vorher-Pixel liefern.
 
 Der Anker besteht aus Episode, Farbe, Onset, Hand, den beiden Pixelmessungen und dem Median der
