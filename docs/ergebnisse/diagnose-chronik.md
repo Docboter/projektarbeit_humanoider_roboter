@@ -42,6 +42,7 @@ Für den **aktuellen Projektstatus** siehe
 | 31 | Meilenstein-Leiter im Einsatz: erste messbare Würfel-Anhebung im Closed Loop (0,22–1,03 cm) ([Lauf 31](#lauf-31-runs2026081203-die-leiter-im-einsatz--und-zwei-neue-zahlen)) |
 | 32 | `span`-Gate entschieden: Median-Verhältnis 1,00 auf echten Bildern — Domain-Gap (a1) bestätigt, (a2) ausgeschlossen ([Lauf 32](#lauf-32-runs2026081301-das-span-gate-ist-entschieden--a1)) |
 | 33/34 | `TUNE_VISUAL`-Checkpoint im Closed Loop: Fingerspanne 27,6 % (statt 20,5 %), `lifted` bleibt 0/10 ([Läufe 33/34](#läufe-3334-runs2026081403-runs2026081404-der-tune_visual-checkpoint-im-closed-loop)) |
+| 35–37 | Würfellage-Rekonstruktion v4 zweimal abgelehnt; Kameramodell dagegen auf 0,3 cm bestätigt, Würfelebene lag 2 cm zu hoch ([Läufe 35–37](#läufe-3537-runs2026082201-03-die-würfellage-kommt-aus-dem-bild-nicht-aus-der-hand)) |
 
 ---
 
@@ -1665,3 +1666,46 @@ weiterhin keinen Startpunkt.
 > (Pfad, `run_id`, `global_step`, Gewichtsgrößen) in `results.json` — bei diesen beiden Läufen
 > fehlt es noch, ihre Identität ist über die Logzeile `Checkpoint: …` belegt.
 
+
+
+---
+
+### Läufe 35–37 (`runs/20260822/01`–`03`): Die Würfellage kommt aus dem Bild, nicht aus der Hand
+
+Vollständige Auswertung mit allen Zahlen:
+[wuerfellage-rekonstruktion-lauf35-befund.md](../simulation/wuerfellage-rekonstruktion-lauf35-befund.md).
+Hier nur, was für spätere Läufe zählt.
+
+**Lauf 35** — erster Abnahmelauf von `replay-calibrate` (v4, 40 Episoden): 10 Anker, alle Gates
+gefallen. Ursachen: `track_colors` mittelte über die ganze Farbmaske statt über den größten Blob
+(Gelb löste im Median bei Frame 18 einen Bewegungsbeginn aus, bevor der Roboter den Würfel
+berührt), und der Anker lag 4–11 cm neben dem Würfel.
+
+**Lauf 36** — nach der Blob-Korrektur: die Zeitmessung ist repariert (Grün-Onset-Median 216 → 588,
+Kameradifferenz 50 → 2 Frames), die Ankerausbeute fällt trotzdem auf 3. Der Grund beendet das
+Verfahren: **bei allen 60 erkannten Schließintervallen ist die Hand am Ende noch rund 10 cm offen**
+(Median 0,108 m), bei 5 cm Würfelkante. Was als Griff detektiert wird, ist ein Zucken einer weit
+offenen Hand. Das deckt sich mit dem `scan`-Lauf vom 2026-08-17, wo bei 101 von 116 Griffen die
+engste Kuppenöffnung über 6 cm lag. **Die Fingeröffnung taugt für diese Hand nicht als
+Greifdetektor** — weder im alten Pfad noch in v4.
+
+**Lauf 37** — `cams` + `layoutcheck` gegen gerenderte Bilder mit bekannter Grundwahrheit. Das
+Pinhole-Kameramodell trifft die Würfellage auf **0,29 cm** (`cam_left_high`) und **0,40 cm**
+(`cam_right_high`). Eine Suche über Brennweite (45–100°), Blickziel und Kamerahöhe findet keine
+bessere Anpassung — das Modell braucht keine Korrektur.
+
+#### Zwei Konsequenzen für alle folgenden Läufe
+
+1. **`block_z_surface` ist von 0,915 auf 0,895 korrigiert** (Commit `564b2ea`). Der Tisch ist 0,87 m
+   hoch, ein 5-cm-Würfel ruht also auf 0,895. Die 0,915 waren eine bewusste Erhöhung, um die
+   Würfeloberkante ohne Tischanhebung auf 0,94 zu bringen — sie erreichte ihr Ziel nie, weil die
+   Würfel die zwei Zentimeter fielen und doch auf 0,895 landeten. **Die Ruhelage ändert sich
+   nicht**, nur der Fall beim Reset entfällt. Erfolgskriterien rechnen mit Höhendifferenzen und
+   verschieben sich nicht. Wer Läufe vor und nach `564b2ea` vergleicht, sollte die ersten
+   Physikschritte nach dem Reset im Blick behalten.
+2. **Die falsche Ebene kostete rund 1 cm** in jeder Rückprojektion Bild → Tisch: Restfehler 1,11 cm
+   statt 0,29 cm, mit einem systematischen Versatz von −1 cm in x. Ältere Zahlen aus
+   `extract_block_layout` sind entsprechend zu lesen.
+
+Der Blickzielpunkt in `camera_geometry.py` behält seine 0,915. Das ist ein Kameraparameter, keine
+Würfelhöhe — genau diese Pose ist geprüft, und sie darf bei einer Ebenenkorrektur nicht mitwandern.
