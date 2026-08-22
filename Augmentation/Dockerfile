@@ -161,6 +161,7 @@ ENV DATA_DIR=/data \
     AUGMENT_EDGE_THRESHOLD=medium \
     AUGMENT_MODEL_VARIANT=edge \
     AUGMENT_NUM_STEPS=35 \
+    AUGMENT_DISABLE_GUARDRAILS=1 \
     AUGMENT_STRICT_FRAME_CHECK=1 \
     AUGMENT_OUT_DIR=/data/augmentation/g1_dex3_cosmos_augmented \
     AUGMENT_HF_REPO="" \
@@ -169,7 +170,7 @@ ENV DATA_DIR=/data \
     AUGMENT_OVERWRITE=0 \
     SHELL_ON_ERROR=0
 
-# Entrypoint orchestriert Download → Control-Videos → Specs → Cosmos-Inferenz → Datensatz
+# Entrypoint orchestriert Download → Specs → Cosmos-Inferenz → Datensatz
 # autonom. Beim Aufruf mit Argumenten (z. B. `docker run … bash`) wird das Argument
 # stattdessen direkt ausgeführt — Entrypoint-Skript reicht durch.
 WORKDIR /app/cosmos-transfer2.5

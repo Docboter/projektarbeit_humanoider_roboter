@@ -47,6 +47,14 @@ Cosmos-Transfer2.5-2B ist ein *gated* HuggingFace-Modell. Vor dem ersten Lauf:
 Der Entrypoint prüft das beim Containerstart und bricht mit einer klaren Fehlermeldung ab,
 statt nach Stunden Inferenz mit einem kryptischen 403 zu scheitern.
 
+**NVIDIAs Content-Safety-Guardrail ist standardmäßig aus** (`AUGMENT_DISABLE_GUARDRAILS=1`)
+— für diese interne Pipeline (eigene, bereits abgenommene Robotervideos) unnötig, und das
+Guardrail-Modell (`nvidia/Cosmos-Guardrail1`) ist ein **zweites, separat gated** HF-Repo mit
+eigener Lizenz-Zustimmung. Wer die Guardrails trotzdem will (`AUGMENT_DISABLE_GUARDRAILS=0`),
+muss zusätzlich `https://huggingface.co/nvidia/Cosmos-Guardrail1` akzeptieren — der
+Entrypoint prüft das aktuell **nicht** vorab, der Fehler kommt dann erst mitten in der
+Inferenz.
+
 ## 3. Build
 
 ```bash
@@ -94,6 +102,7 @@ erhalten — siehe `Augmentation/setup_and_augment_DockerHub-pull.sh --help`).
 | `AUGMENT_EDGE_THRESHOLD` | `medium` | `very_low`/`low`/`medium`/`high`/`very_high` — steuert Cosmos' eigene on-the-fly-Kantenerkennung (niedriger = mehr erkannte Kanten inkl. Rauschen) |
 | `AUGMENT_MODEL_VARIANT` | `edge` | Cosmos-Modellwahl laut `cosmos_transfer2/config.py::MODEL_CHECKPOINTS`: `depth`/`edge`/`seg`/`vis` immer verfügbar. `edge/distilled` (schneller, `AUGMENT_NUM_STEPS=4` statt `35`) existiert nur mit `COSMOS_EXPERIMENTAL_CHECKPOINTS=1` — wird automatisch gesetzt, wenn der Name "distilled" enthält. `depth/distilled` existiert **nicht** (nur edge hat eine distillierte Variante) |
 | `AUGMENT_NUM_STEPS` | `35` | Diffusions-Schritte — Cosmos' eigener Default fürs Vollmodell. Bei `edge/distilled` reichen 4 |
+| `AUGMENT_DISABLE_GUARDRAILS` | `1` | NVIDIAs Content-Safety-Filter aus — spart ein zweites, separat gated HF-Repo (`nvidia/Cosmos-Guardrail1`). `0` = an, braucht dann dessen Lizenz-Zustimmung zusätzlich (§2) |
 | `AUGMENT_STRICT_FRAME_CHECK` | `1` | `1` = Episode bei Frame-/FPS-Abweichung verwerfen; `0` = trimmen (nur bei Frame-Überschuss möglich) |
 | `AUGMENT_OUT_DIR` | `$DATA_DIR/augmentation/g1_dex3_cosmos_augmented` | Ziel-Datensatz (LeRobot v2.1) |
 | `AUGMENT_HF_REPO` | `""` | Falls gesetzt: Upload nach Fertigstellung |

@@ -37,6 +37,8 @@
 #                            automatisch, wenn der Name "distilled" enthaelt)
 #   AUGMENT_NUM_STEPS        (default 35, Cosmos' eigener Standard fuer das Vollmodell —
 #                            bei "edge/distilled" reichen 4)
+#   AUGMENT_DISABLE_GUARDRAILS (default 1) — NVIDIAs Content-Safety-Filter aus (laedt sonst
+#                            ein zweites, separat gated HF-Repo: nvidia/Cosmos-Guardrail1)
 #   AUGMENT_STRICT_FRAME_CHECK (default 1)
 #   AUGMENT_OUT_DIR          (default $DATA_DIR/augmentation/g1_dex3_cosmos_augmented)
 #   AUGMENT_HF_REPO          (default "")   — falls gesetzt: Upload nach dem Zusammenbau
@@ -98,6 +100,7 @@ AUGMENT_VARIANTS="${AUGMENT_VARIANTS:-1}"
 AUGMENT_EDGE_THRESHOLD="${AUGMENT_EDGE_THRESHOLD:-medium}"
 AUGMENT_MODEL_VARIANT="${AUGMENT_MODEL_VARIANT:-edge}"
 AUGMENT_NUM_STEPS="${AUGMENT_NUM_STEPS:-35}"
+AUGMENT_DISABLE_GUARDRAILS="${AUGMENT_DISABLE_GUARDRAILS:-1}"
 AUGMENT_STRICT_FRAME_CHECK="${AUGMENT_STRICT_FRAME_CHECK:-1}"
 AUGMENT_OUT_DIR="${AUGMENT_OUT_DIR:-$DATA_DIR/augmentation/g1_dex3_cosmos_augmented}"
 AUGMENT_HF_REPO="${AUGMENT_HF_REPO:-}"
@@ -107,8 +110,8 @@ AUGMENT_OVERWRITE="${AUGMENT_OVERWRITE:-0}"
 
 export NUM_GPU SOURCE_DATASET_REPO AUGMENT_TRAIN_RATIO AUGMENT_EPISODE_LIMIT \
        AUGMENT_EPISODE_IDS AUGMENT_CAMERAS AUGMENT_VARIANTS AUGMENT_EDGE_THRESHOLD \
-       AUGMENT_MODEL_VARIANT AUGMENT_NUM_STEPS AUGMENT_STRICT_FRAME_CHECK AUGMENT_OUT_DIR \
-       AUGMENT_OVERWRITE
+       AUGMENT_MODEL_VARIANT AUGMENT_NUM_STEPS AUGMENT_DISABLE_GUARDRAILS \
+       AUGMENT_STRICT_FRAME_CHECK AUGMENT_OUT_DIR AUGMENT_OVERWRITE
 
 DATASET_DIR="$DATA_DIR/unitreerobotics/G1_Dex3_BlockStacking_Dataset"
 SPECS_DIR="$DATA_DIR/augmentation/specs"
@@ -126,6 +129,7 @@ printf "    %-24s %s\n" "AUGMENT_CAMERAS"          "$AUGMENT_CAMERAS"
 printf "    %-24s %s\n" "AUGMENT_VARIANTS"         "$AUGMENT_VARIANTS"
 printf "    %-24s %s\n" "AUGMENT_EDGE_THRESHOLD"   "$AUGMENT_EDGE_THRESHOLD"
 printf "    %-24s %s\n" "AUGMENT_MODEL_VARIANT"    "$AUGMENT_MODEL_VARIANT"
+printf "    %-24s %s\n" "AUGMENT_DISABLE_GUARDRAILS" "$AUGMENT_DISABLE_GUARDRAILS"
 printf "    %-24s %s\n" "AUGMENT_OUT_DIR"          "$AUGMENT_OUT_DIR"
 echo ""
 

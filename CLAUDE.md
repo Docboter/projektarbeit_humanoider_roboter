@@ -195,6 +195,7 @@ needed (see [co-training.md](docs/training/co-training.md)).
 | `AUGMENT_CAMERAS` | all 4 policy cameras | Subset for cheap/visual-QA runs; all 4 required for COTRAIN-usable episodes |
 | `AUGMENT_TRAIN_RATIO` | `0.8` | Must match `TRAIN_SPLIT_RATIO` in the Training image — replicated formula, same contract as `lib_split.sh` |
 | `AUGMENT_MODEL_VARIANT` | `edge` | Cosmos generates the edge (Canny) control on-the-fly, no separate control-video step; `edge/distilled` is faster but needs `COSMOS_EXPERIMENTAL_CHECKPOINTS=1` (set automatically) |
+| `AUGMENT_DISABLE_GUARDRAILS` | `1` | Skips NVIDIA's content-safety filter — avoids a second, separately gated HF repo (`nvidia/Cosmos-Guardrail1`) not needed for internal training-data augmentation |
 | `AUGMENT_HF_REPO` | *(empty)* | If set, uploads the finished dataset after assembly |
 
 ### Build the image
@@ -359,7 +360,7 @@ repo root
 │   └── scripts/                        # COPIED into image at /scripts/
 │       ├── entrypoint.sh               # Download → control videos → specs → Cosmos → dataset
 │       ├── download_source_dataset.sh  # Reuses Training's dataset repo + vendored v3→v2.1 converter
-│       ├── build_controlnet_specs.py   # Episode/camera/variant → Canny-edge control video + spec JSON
+│       ├── build_controlnet_specs.py   # Episode/camera/variant → Cosmos spec JSON (edge control on-the-fly)
 │       ├── run_inference.sh            # Thin wrapper around cosmos-transfer2.5's examples/inference.py
 │       └── assemble_dataset.py         # Cosmos output → COTRAIN_DATASET_PATH-compatible LeRobot v2.1 dataset
 ├── Simulation/                         # Closed-loop sim eval

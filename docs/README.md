@@ -143,7 +143,7 @@ Diese Sammlung speist das gleichnamige Kapitel der Projektarbeit.
 │   ├── setup_and_augment_DockerHub-pull.sh  # Host-Launcher (Dauerbetrieb, wie Training/)
 │   └── scripts/                # In das Image kopiert (→ /scripts)
 │       ├── entrypoint.sh       # Download → Control-Videos → Specs → Cosmos-Inferenz → Datensatz
-│       ├── build_controlnet_specs.py  # Episode/Kamera/Variante → Canny-Edge-Control + Spec-JSON
+│       ├── build_controlnet_specs.py  # Episode/Kamera/Variante → Cosmos-Spec-JSON (Edge-Control on-the-fly)
 │       └── assemble_dataset.py # Cosmos-Rohvideos → COTRAIN_DATASET_PATH-kompatibler Datensatz
 ├── Simulation/                # Sim-Client-Code, Dockerfiles, Build-Tools
 │   ├── Dockerfile             # KISSKI: schlanker Isaac-Lab-Sim-Client

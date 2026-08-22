@@ -3,14 +3,14 @@
 # setup_and_augment_DockerHub-pull.sh
 #
 # Schlankes Host-Skript: zieht das Image von Docker Hub und startet den autonomen
-# Container-Entrypoint. Alle eigentliche Arbeit (Download, Control-Videos, Cosmos-Inferenz,
+# Container-Entrypoint. Alle eigentliche Arbeit (Download, Cosmos-Inferenz,
 # Datensatz-Zusammenbau) passiert IM Container — dasselbe Prinzip wie
 # Training/setup_and_train_DockerHub-pull.sh.
 #
 # Konzept: KEIN persistenter Storage auf dem Host.
 #   * Kein `-v`-Mount nach /data
 #   * Kein `--rm` — der Container bleibt nach `stop` bestehen
-#   * Daten, Control-Videos und der fertige Datensatz leben im Container-Filesystem
+#   * Daten und der fertige Datensatz leben im Container-Filesystem
 #   * Bei `--destroy` (oder docker rm) ist alles weg
 #
 # Verwendung:
@@ -31,6 +31,7 @@
 #   AUGMENT_VARIANTS         (default 1)
 #   AUGMENT_EDGE_THRESHOLD   (default medium) — very_low/low/medium/high/very_high
 #   AUGMENT_MODEL_VARIANT    (default edge) — "edge/distilled" braucht COSMOS_EXPERIMENTAL_CHECKPOINTS
+#   AUGMENT_DISABLE_GUARDRAILS (default 1) — NVIDIAs Content-Safety-Filter aus (separat gated Repo)
 #   AUGMENT_HF_REPO          (optional)      — Upload-Ziel nach dem Zusammenbau
 #   SKIP_INFERENCE           (optional)      — nur Specs generieren, dann stoppen
 #   CONTAINER_NAME            (default groot-augment)
@@ -218,7 +219,8 @@ else
     printf "    %-25s %s\n" "CONTAINER_NAME" "$CONTAINER_NAME"
     for _v in NUM_GPU SOURCE_DATASET_REPO AUGMENT_TRAIN_RATIO AUGMENT_EPISODE_LIMIT \
               AUGMENT_EPISODE_IDS AUGMENT_CAMERAS AUGMENT_VARIANTS AUGMENT_PROMPT_TEMPLATE \
-              AUGMENT_EDGE_THRESHOLD AUGMENT_MODEL_VARIANT AUGMENT_NUM_STEPS AUGMENT_STRICT_FRAME_CHECK \
+              AUGMENT_EDGE_THRESHOLD AUGMENT_MODEL_VARIANT AUGMENT_NUM_STEPS AUGMENT_DISABLE_GUARDRAILS \
+              AUGMENT_STRICT_FRAME_CHECK \
               AUGMENT_OUT_DIR AUGMENT_HF_REPO SKIP_DOWNLOAD SKIP_CONVERT SKIP_INFERENCE \
               SKIP_ASSEMBLE AUGMENT_OVERWRITE SHELL_ON_ERROR; do
         [[ -n "${!_v:-}" ]] && printf "    %-25s %s\n" "$_v" "${!_v}"
@@ -228,7 +230,8 @@ else
     run_args+=("-e" "HF_TOKEN=$HF_TOKEN")
     for _v in NUM_GPU SOURCE_DATASET_REPO AUGMENT_TRAIN_RATIO AUGMENT_EPISODE_LIMIT \
               AUGMENT_EPISODE_IDS AUGMENT_CAMERAS AUGMENT_VARIANTS AUGMENT_PROMPT_TEMPLATE \
-              AUGMENT_EDGE_THRESHOLD AUGMENT_MODEL_VARIANT AUGMENT_NUM_STEPS AUGMENT_STRICT_FRAME_CHECK \
+              AUGMENT_EDGE_THRESHOLD AUGMENT_MODEL_VARIANT AUGMENT_NUM_STEPS AUGMENT_DISABLE_GUARDRAILS \
+              AUGMENT_STRICT_FRAME_CHECK \
               AUGMENT_OUT_DIR AUGMENT_HF_REPO SKIP_DOWNLOAD SKIP_CONVERT SKIP_INFERENCE \
               SKIP_ASSEMBLE AUGMENT_OVERWRITE SHELL_ON_ERROR DATA_DIR HF_HOME; do
         [[ -n "${!_v:-}" ]] && run_args+=("-e" "$_v=${!_v}")
