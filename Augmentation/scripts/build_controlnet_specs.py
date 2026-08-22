@@ -22,10 +22,7 @@ import json
 import os
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
-
-import cv2
 
 # Kleine Rotationsliste fuer Domain-Randomization-Prompts, falls AUGMENT_VARIANTS > 1 und
 # AUGMENT_PROMPT_TEMPLATE keinen eigenen {variant}-Platzhalter fuellt. Erster konkreter
@@ -62,43 +59,32 @@ def select_episodes(total_episodes: int, train_ratio: float, limit: int, explici
     return sorted({int(i * step) for i in range(limit)})
 
 
+# Canny-Schwellwerte, normiert auf ffmpegs 0..1-Skala (0.392=100/255, 0.784=200/255) —
+# dieselben Werte, die vorher an cv2.Canny(gray, 100, 200) gingen.
+_CANNY_LOW = "0.392"
+_CANNY_HIGH = "0.784"
+
+
 def generate_edge_control(source_video: Path, out_video: Path) -> None:
-    """Erzeugt ein Edge-Control-Video per Canny — ein Kanal, auf 3 Kanaele repliziert,
-    anschliessend per ffmpeg nach h264/yuv420p re-encodiert (gleiche Codec-Konvention wie
-    die Original-Videos im Datensatz)."""
-    cap = cv2.VideoCapture(str(source_video))
-    if not cap.isOpened():
-        raise RuntimeError(f"Konnte Quellvideo nicht oeffnen: {source_video}")
-    fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
-    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    """Erzeugt ein Edge-Control-Video per ffmpegs edgedetect-Filter (mode=canny).
 
+    BEWUSST kein OpenCV/cv2 hier (fruehere Version): opencv-python-headless bringt ein
+    stark abgespecktes, eigenes ffmpeg-Backend mit, das AV1-Quellvideos nicht decodieren
+    konnte (LeRobot-Datensaetze liegen oft AV1-kodiert vor) — cv2.VideoCapture lieferte
+    dann still null Frames statt eines Fehlers. Das system-installierte `ffmpeg` (apt,
+    Ubuntu 24.04) decodiert UND encodiert hier in einem Schritt, also haengt die
+    Codec-Unterstuetzung nur noch von EINER, vollstaendigeren ffmpeg-Installation ab."""
     out_video.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory() as tmp:
-        raw_path = Path(tmp) / "raw.mp4"
-        writer = cv2.VideoWriter(str(raw_path), cv2.VideoWriter_fourcc(*"mp4v"), fps, (width, height))
-        try:
-            while True:
-                ok, frame = cap.read()
-                if not ok:
-                    break
-                gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                edges = cv2.Canny(gray, 100, 200)
-                edges_bgr = cv2.cvtColor(edges, cv2.COLOR_GRAY2BGR)
-                writer.write(edges_bgr)
-        finally:
-            writer.release()
-            cap.release()
-
-        subprocess.run(
-            [
-                "ffmpeg", "-y", "-loglevel", "error",
-                "-i", str(raw_path),
-                "-c:v", "libx264", "-pix_fmt", "yuv420p",
-                str(out_video),
-            ],
-            check=True,
-        )
+    subprocess.run(
+        [
+            "ffmpeg", "-y", "-loglevel", "error",
+            "-i", str(source_video),
+            "-vf", f"format=gray,edgedetect=low={_CANNY_LOW}:high={_CANNY_HIGH}:mode=canny,format=yuv420p",
+            "-c:v", "libx264",
+            str(out_video),
+        ],
+        check=True,
+    )
 
 
 def build_spec(

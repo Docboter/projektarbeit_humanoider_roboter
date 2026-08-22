@@ -114,17 +114,19 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 ENV PATH="/app/cosmos-transfer2.5/.venv/bin:${PATH}"
 
 # Zweite, schlanke venv fürs Datensatz-Tooling — bewusst getrennt von Cosmos' gepinntem
-# Torch/Diffusers-Stack, damit unsere Deps (opencv fürs Canny-Edge-Control, pandas/pyarrow für
-# den vendorten v3→v2.1-Konverter, huggingface_hub für Down-/Upload) dessen Wheels nicht
+# Torch/Diffusers-Stack, damit unsere Deps (pandas/pyarrow für den vendorten
+# v3→v2.1-Konverter, huggingface_hub für Down-/Upload) dessen Wheels nicht
 # durcheinanderbringen. `uv venv --python` lädt die Python-Version bei Bedarf selbst nach —
-# kein zusätzliches System-Python-Paket nötig.
+# kein zusätzliches System-Python-Paket nötig. KEIN opencv-python-headless (frühere
+# Version): dessen mitgeliefertes ffmpeg-Backend konnte AV1-Quellvideos nicht decodieren —
+# Edge-Control-Videos entstehen jetzt per System-`ffmpeg` (edgedetect-Filter, s.
+# build_controlnet_specs.py), das oben bereits per apt installiert ist.
 RUN uv venv --python 3.11 /opt/venv-tools \
     && uv pip install --python /opt/venv-tools/bin/python \
         "huggingface_hub[cli]==0.34.*" \
         pandas \
         pyarrow \
         jsonlines==4.0.0 \
-        opencv-python-headless \
         numpy \
         tqdm
 ENV TOOLS_PYTHON=/opt/venv-tools/bin/python
