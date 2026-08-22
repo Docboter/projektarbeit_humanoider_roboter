@@ -7,9 +7,14 @@ import pytest
 import replay_calibration
 
 from replay_calibration import (
+    CUBE_CENTER_Z_M,
+    CUBE_TOP_Z_M,
+    FINGERTIP_Z_WINDOW_M,
+    TABLE_TOP_Z_M,
     apply_homography,
     build_calibration,
     combine_camera_estimates,
+    coverage_defects,
     deterministic_episode_split,
     episode_diagnostic_pixels,
     find_motion_onset,
@@ -162,6 +167,32 @@ def test_calibration_uses_episode_holdout_and_passes_exact_mapping() -> None:
     assert result["valid"], result["failures"]
     assert set(result["fit_episodes"]).isdisjoint(result["holdout_episodes"])
     assert result["quality"]["camera_disagreement_p90_m"] < 1e-8
+
+
+def test_coverage_accepts_a_spread_anchor_set() -> None:
+    assert coverage_defects(np.asarray([a["world_xy_m"] for a in _anchors()])) == []
+
+
+def test_coverage_flags_two_clusters_that_pass_the_span_gate() -> None:
+    """Der Abnahmelauf 2026-08-22: zwei Griffwolken, 17 cm x und 34 cm y Spannweite."""
+    left = np.column_stack((np.linspace(0.33, 0.50, 5), np.full(5, 0.18)))
+    right = np.column_stack((np.linspace(0.33, 0.50, 5), np.full(5, -0.09)))
+    points = np.vstack((left, right))
+    assert np.ptp(points[:, 0]) >= 0.12 and np.ptp(points[:, 1]) >= 0.12
+    assert any("geklumpt" in defect for defect in coverage_defects(points))
+
+
+def test_coverage_flags_near_collinear_anchors() -> None:
+    points = np.column_stack((np.linspace(0.25, 0.45, 12), np.linspace(-0.2, 0.2, 12)))
+    assert any("kollinear" in defect for defect in coverage_defects(points))
+
+
+def test_fingertip_window_excludes_a_hand_above_the_cube() -> None:
+    """Neun von zehn Ankern des Abnahmelaufs lagen 3,5-9,9 cm über der Würfeloberseite."""
+    low, high = FINGERTIP_Z_WINDOW_M
+    assert low < CUBE_CENTER_Z_M < high
+    assert not (low <= CUBE_TOP_Z_M + 0.035 <= high)
+    assert not (low <= TABLE_TOP_Z_M - 0.02 <= high)
 
 
 def test_old_cv_scale_calibration_is_rejected() -> None:

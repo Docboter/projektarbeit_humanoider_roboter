@@ -114,6 +114,13 @@ Bewegung, keine Ebene.
 
 ## 5. Empfohlene Reihenfolge
 
+> **Stand 2026-08-22:** Punkt 1–4 sind umgesetzt (`track_colors`, `pick_anchor`,
+> gemeinsame Arbeitsraum-Konstanten in `replay_calibration.py`, `coverage_defects`).
+> Lokal verifiziert sind nur die beiden Gates — gegen die aufgezeichneten Anker dieses
+> Laufs meldet `coverage_defects` „Hauptachse geklumpt (66 %)", und das neue
+> Fingerkuppenfenster verwirft 9 der 10 Anker. Die Wirkung von Punkt 1 und 2 auf die
+> Ankerausbeute lässt sich nur auf dem Server messen: `replay-calibrate` erneut fahren.
+
 1. **`track_colors` auf den größten Blob umstellen** (Konsistenz mit dem Messpfad).
    Billigste Änderung mit der größten Wirkung: sie adressiert die 67 Onset-Konflikte
    und die 33 Gelb-Fehlauslösungen zugleich.

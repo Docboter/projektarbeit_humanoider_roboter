@@ -63,17 +63,20 @@ erscheinen, aber nicht als Kalibrierungsanker verwendet werden.
 ### 2.2 Sparse Direct-State-FK
 
 Rund um den visuellen Onset werden Schließintervalle im aufgezeichneten Gelenkzustand gesucht. Nur
-deren Anfangs- und Endzustände sowie die Zustände bei Onset −2, Onset und Onset +2 werden direkt
-in
-Isaac gesetzt. Es findet kein Action-Replay statt.
+deren Anfangs- und Endzustände sowie drei Zustände um das **Ende der Schließbewegung** (dessen
+Frame ±2, nach oben auf den Onset begrenzt) werden direkt in Isaac gesetzt. Es findet kein
+Action-Replay statt. Der Ankerzeitpunkt ist bewusst das Schließende und nicht der Onset: im
+Abnahmelauf 2026-08-22 lagen dazwischen neun bis achtzehn Frames, in denen die Hand den Würfel
+bereits anhob — alle zehn damals akzeptierten Anker waren dadurch nach vorne und oben versetzt.
 
 Ein Anker wird nur akzeptiert, wenn:
 
 - eine Hand mindestens 6 mm schließt;
 - ihre Schließung mindestens 2 mm stärker als die andere Hand ist;
 - die drei echten Fingerkuppen verfügbar sind;
-- ihr Schwerpunkt im Arbeitsraum x = 0,20–0,50 m, y = −0,30–0,30 m und
-  z = 0,82–1,05 m liegt;
+- ihr Schwerpunkt in demselben Arbeitsraum liegt, den später auch die rekonstruierte Würfelpose
+  erfüllen muss (x = 0,25–0,45 m, y = −0,25–0,25 m), und in z = 0,880–0,965 m, also am ruhenden
+  Würfel (Tischplatte 0,890 m, Würfeloberseite 0,940 m, je eine halbe Kantenlänge Toleranz);
 - beide Kameras einen ausreichend ähnlichen Bewegungsbeginn und stabile Vorher-Pixel liefern.
 
 Der Anker besteht aus Episode, Farbe, Onset, Hand, den beiden Pixelmessungen und dem Median der
@@ -93,6 +96,7 @@ vollständigen Episoden: 80 % Fit, 20 % Holdout, deterministisch mit Seed 17.
 | Fit-Anker / Fit-Episoden | mindestens 24 / 8 |
 | Holdout-Anker / Holdout-Episoden | mindestens 6 / 3 |
 | Arbeitsraumabdeckung je Kamera | mindestens 12 cm in x und y |
+| Ankerverteilung je Kamera | Nebenachsenstreuung ≥ 3 cm; größte Lücke je Hauptachse ≤ 40 % der Spannweite (ab 8 Ankern) |
 | Holdout-Fehler je Kamera | Median ≤ 1,5 cm, p90 ≤ 3 cm |
 | Differenz der Kameraschätzungen im Holdout | Median ≤ 2 cm, p90 ≤ 3 cm |
 

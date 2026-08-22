@@ -43,6 +43,7 @@ from reconstruct_cube_poses import (  # noqa: E402
     CUBE_COLORS, HEAD_CAMS, data_path, read_info, select_episodes, video_path,
 )
 from replay_calibration import (  # noqa: E402
+    CUBE_WORKSPACE_X_M, CUBE_WORKSPACE_Y_M, FINGERTIP_Z_WINDOW_M,
     action_sha256, find_motion_onset, select_unique_closing_hand,
     stationary_camera_measurements, track_colors,
 )
@@ -115,7 +116,7 @@ def evaluate_hand(env, states: np.ndarray, onset: int, hand: int) -> dict | None
     return best
 
 
-def pick_anchor(env, states: np.ndarray, onset: int) -> tuple[dict | None, list[dict]]:
+def pick_anchor(env, states: np.ndarray, onset: int) -> tuple[dict | None, list[dict], str]:
     measurements = [evaluate_hand(env, states, onset, hand) for hand in range(2)]
     diagnostics = [
         item or {"reason": "keine koordinierte Schließbewegung"}
@@ -125,18 +126,34 @@ def pick_anchor(env, states: np.ndarray, onset: int) -> tuple[dict | None, list[
         [item["finger_closure_m"] if item is not None else None for item in measurements]
     )
     if hand is None:
-        return None, diagnostics
+        return None, diagnostics, "keine eindeutige physische Handschließung"
     event = measurements[hand]
+    # Gemessen wird am ENDE der Schließbewegung, nicht am Bewegungsbeginn. Zwischen beiden
+    # lagen im Abnahmelauf 2026-08-22 neun bis achtzehn Frames, in denen die Hand den Würfel
+    # bereits anhebt: alle zehn damals akzeptierten Anker waren dadurch nach vorne und oben
+    # versetzt (neun davon 3,5–9,9 cm über der Würfeloberseite, im Mittel 11,5 cm weiter
+    # vorne als die unabhängige Rückprojektion desselben Würfelpixels). Der Anker soll den
+    # Würfel in seiner RUHELAGE treffen, also im letzten Moment vor dem Anheben.
+    reference = min(int(event["end_frame"]), onset)
+    frames = sorted({
+        max(0, min(len(states) - 1, onset, reference + offset)) for offset in (-2, 0, 2)
+    })
     centers = []
-    for frame in sorted(set(max(0, min(len(states) - 1, onset + offset)) for offset in (-2, 0, 2))):
+    for frame in frames:
         set_robot_state(env, states[frame])
         _, center = hand_measurement(env, hand)
         centers.append(center)
     center = np.median(np.asarray(centers), axis=0)
-    if not (0.20 <= center[0] <= 0.50 and -0.30 <= center[1] <= 0.30 and 0.82 <= center[2] <= 1.05):
-        return None, diagnostics
-    return {**event, "hand": "left" if hand == 0 else "right",
-            "fingertip_centroid_m": center.tolist()}, diagnostics
+    if not (CUBE_WORKSPACE_X_M[0] <= center[0] <= CUBE_WORKSPACE_X_M[1]
+            and CUBE_WORKSPACE_Y_M[0] <= center[1] <= CUBE_WORKSPACE_Y_M[1]
+            and FINGERTIP_Z_WINDOW_M[0] <= center[2] <= FINGERTIP_Z_WINDOW_M[1]):
+        return None, diagnostics, (
+            "Fingerkuppen liegen nicht an einem ruhenden Würfel: "
+            f"({center[0]:.3f}, {center[1]:.3f}, {center[2]:.3f}) m"
+        )
+    return ({**event, "hand": "left" if hand == 0 else "right",
+             "measurement_frames": frames,
+             "fingertip_centroid_m": center.tolist()}, diagnostics, "")
 
 
 def save_detection_overlay(frame: np.ndarray, measurement: dict, color: str, path: Path) -> None:
@@ -227,10 +244,10 @@ def main() -> int:
                 if len(pixels) != 2:
                     record["reason"] = "keine stabilen Top-Face-Messungen in beiden Kameras"
                     continue
-                event, hand_diagnostics = pick_anchor(env, states, onset)
+                event, hand_diagnostics, anchor_reason = pick_anchor(env, states, onset)
                 record["hand_diagnostics"] = hand_diagnostics
                 if event is None:
-                    record["reason"] = "keine eindeutige physische Handschließung"
+                    record["reason"] = anchor_reason
                     continue
                 anchor = {"episode": episode, "color": color, "frame": onset,
                           "hand": event["hand"], "world_xy_m": event["fingertip_centroid_m"][:2],

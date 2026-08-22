@@ -50,7 +50,10 @@ Kalibrierungsauswahl ist absichtlich unabhängig von `REPLAY_NUM_EPISODES`,
 
 Der Schritt besteht aus zwei Phasen:
 
-1. `collect_replay_anchors.py` verfolgt die Farbzentren beider Kopfkameras in halber Auflösung.
+1. `collect_replay_anchors.py` verfolgt in halber Auflösung den **größten zusammenhängenden
+   Farbblob** beider Kopfkameras — nicht den Schwerpunkt der ganzen Farbmaske, der im
+   Abnahmelauf 2026-08-22 an Streupixeln hing und bei Gelb 33 von 40 Onsets fälschlich bis
+   Frame 30 auslöste.
    Ein Bewegungsbeginn gilt nach mindestens fünf aufeinanderfolgenden Frames mit mindestens 8 px
    Abstand zur frühen Basisposition. Die beiden Kamera-Onsets dürfen höchstens zwölf Frames
    auseinanderliegen.
@@ -59,7 +62,9 @@ Der Schritt besteht aus zwei Phasen:
    eindeutige
    Hand mit mindestens 6 mm Schließung und 2 mm Vorsprung gegenüber der anderen Hand liefern. Der
    Anker verbindet dann die stabilen Pixel vor dem Bewegungsbeginn mit dem Median der
-   Fingerkuppenpositionen bei Onset −2, Onset und Onset +2.
+   Fingerkuppenpositionen am **Ende der Schließbewegung** (dessen Frame ±2, nie nach dem Onset).
+   Am Onset selbst wäre zu spät: dazwischen liegen typischerweise neun bis achtzehn Frames, in
+   denen die Hand den Würfel schon anhebt.
 
 Aus den akzeptierten Ankern wird je Kopfkamera eine RANSAC-Homographie
 `pixel_to_table_xy` gelernt. Vollständige Episoden werden deterministisch mit Seed 17 in 80 % Fit
@@ -71,6 +76,9 @@ erfüllt sind:
 - mindestens 24 Fit-Anker aus mindestens acht Fit-Episoden;
 - mindestens sechs Holdout-Anker aus mindestens drei Holdout-Episoden;
 - je Kamera mindestens vier Fit-Anker und mindestens 12 cm Abdeckung in x und y;
+- je Kamera keine entartete Ankerverteilung: Streuung entlang der Nebenachse mindestens 3 cm,
+  und ab acht Ankern darf entlang keiner Hauptachse eine einzelne Lücke mehr als 40 % der
+  Spannweite ausmachen (Spannweite allein ließ zwei getrennte Griffwolken passieren);
 - je Kamera Holdout-Fehler höchstens 1,5 cm Median und 3 cm p90;
 - Differenz der beiden Kameraschätzungen höchstens 2 cm Median und 3 cm p90.
 

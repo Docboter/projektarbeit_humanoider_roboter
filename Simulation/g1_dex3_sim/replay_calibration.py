@@ -10,6 +10,21 @@ import numpy as np
 
 from extract_block_layout import CUBE_COLORS, HSV_WINDOWS, color_mask, largest_blob, rgb_to_hsv
 
+# ── Würfelgeometrie und Arbeitsbereich ────────────────────────────────────────
+# Eine Quelle für alle Stufen: der Anker behauptet „hier lag der Würfel", also muss er
+# dieselben Grenzen erfüllen wie später die rekonstruierte Würfelpose. Vorher standen die
+# Zahlen doppelt und WEIT auseinander (Anker z 0,82–1,05 gegen Würfelmitte 0,915), was im
+# Abnahmelauf 2026-08-22 zehn Anker durchließ, die 3,5–9,9 cm über der Würfeloberseite lagen.
+CUBE_CENTER_Z_M = 0.915
+CUBE_EDGE_M = 0.05
+TABLE_TOP_Z_M = CUBE_CENTER_Z_M - CUBE_EDGE_M / 2.0      # 0.890
+CUBE_TOP_Z_M = CUBE_CENTER_Z_M + CUBE_EDGE_M / 2.0       # 0.940
+CUBE_WORKSPACE_X_M = (0.25, 0.45)
+CUBE_WORKSPACE_Y_M = (-0.25, 0.25)
+# Fingerkuppen-Schwerpunkt beim Griff an einem RUHENDEN Würfel: unterhalb der Tischplatte
+# unmöglich, oberhalb der Würfeloberseite nur mit halber Kantenlänge Toleranz.
+FINGERTIP_Z_WINDOW_M = (TABLE_TOP_Z_M - 0.01, CUBE_TOP_Z_M + CUBE_EDGE_M / 2.0)  # 0.880–0.965
+
 
 def action_sha256(actions: np.ndarray) -> str:
     """Return a stable hash of the unchanged float32 action tensor."""
@@ -108,7 +123,17 @@ def best_top_face_detection(
 
 
 def track_colors(path, min_area: int = 80) -> dict[str, list[list[float] | None]]:
-    """Track the color centroids cheaply; this is used only for motion timing."""
+    """Track the largest color blob per frame; this is used only for motion timing.
+
+    Der Schwerpunkt der GANZEN Farbmaske wäre billiger, ist aber unbrauchbar: die Maske
+    enthält neben dem Würfel regelmäßig Streupixel (Abnahmelauf 2026-08-22, Episode 0,
+    ``cam_left_high``: rot 4 Komponenten / 47 % Würfel, gruen 27 / 64 %, gelb 16 / 64 %).
+    Bei Gelb lag der Gesamtschwerpunkt 14 px neben dem Blobschwerpunkt — mehr als die
+    8-px-Schwelle von ``find_motion_onset``. Folge: 33 von 40 Gelb-Onsets feuerten bis
+    Frame 30, also bevor der Roboter den Würfel überhaupt berührt, und Gelb lieferte
+    keinen einzigen Anker. Der Messpfad (``top_face_blob``) benutzt ohnehin
+    ``largest_blob``; hier dieselbe Quelle zu nehmen ist die eigentliche Korrektur.
+    """
     import imageio.v2 as imageio
 
     scale = 2
@@ -124,11 +149,10 @@ def track_colors(path, min_area: int = 80) -> dict[str, list[list[float] | None]
                 for low, high in window["h"]:
                     hue_mask |= (hue >= low) & (hue <= high)
                 mask = hue_mask & (saturation >= window["s"]) & (value >= window["v"])
-                ys, xs = np.nonzero(mask)
+                blob = largest_blob(mask, min_area=reduced_min_area)
                 tracks[color].append(
-                    None
-                    if len(xs) < reduced_min_area
-                    else [float(xs.mean() * scale), float(ys.mean() * scale)]
+                    None if blob is None
+                    else [float(blob["u"] * scale), float(blob["v"] * scale)]
                 )
     return tracks
 
@@ -313,6 +337,46 @@ def fit_homography_ransac(
     return fit_homography(src[best], dst[best]), best
 
 
+def coverage_defects(
+    points: np.ndarray, *, min_minor_rms_m: float = 0.03,
+    max_gap_fraction: float = 0.4, min_samples_for_gap: int = 8,
+) -> list[str]:
+    """Entartete Ankerverteilungen, die die reine Spannweite nicht sieht.
+
+    Spannweite ist kein Abdeckungsmaß. Im Abnahmelauf 2026-08-22 lagen alle zehn Anker in
+    zwei Klumpen (Griffe der linken gegen die der rechten Hand). Die Spannweite betrug
+    17 cm in x und 34 cm in y und bestand das 12-cm-Gate mühelos — entlang der Hauptachse
+    war aber eine einzige Lücke 66 % der Spannweite. Eine Homographie, die nur zwei
+    Punktwolken verbindet, ist zwischen ihnen unbestimmt.
+    """
+    data = np.asarray(points, dtype=float)
+    if len(data) < 4:
+        return []
+    centered = data - data.mean(axis=0)
+    _, singular, axes = np.linalg.svd(centered, full_matrices=False)
+    rms = singular / np.sqrt(len(data))
+    defects = []
+    if rms[-1] < min_minor_rms_m:
+        defects.append(
+            f"Anker fast kollinear (Nebenachse {100 * rms[-1]:.1f} cm Streuung, "
+            f"mindestens {100 * min_minor_rms_m:.0f} cm nötig)"
+        )
+    if len(data) >= min_samples_for_gap:
+        for index, axis in enumerate(axes):
+            projected = np.sort(centered @ axis)
+            span = float(projected[-1] - projected[0])
+            if span <= 0.0:
+                continue
+            gap = float(np.max(np.diff(projected)))
+            if gap / span > max_gap_fraction:
+                defects.append(
+                    f"{'Haupt' if index == 0 else 'Neben'}achse geklumpt "
+                    f"(größte Lücke {100 * gap / span:.0f} % der Spannweite, "
+                    f"höchstens {100 * max_gap_fraction:.0f} % erlaubt)"
+                )
+    return defects
+
+
 def build_calibration(
     anchors: list[dict[str, Any]], episodes: list[int], *, holdout_ratio: float = 0.2,
     seed: int = 17, cameras: tuple[str, ...] = ("cam_left_high", "cam_right_high"),
@@ -342,6 +406,8 @@ def build_calibration(
         dst = np.asarray([a["world_xy_m"] for a in usable_fit])
         if np.ptp(dst[:, 0]) < 0.12 or np.ptp(dst[:, 1]) < 0.12:
             failures.append(f"{camera}: Arbeitsraumabdeckung unter 12 cm")
+        for issue in coverage_defects(dst):
+            failures.append(f"{camera}: {issue}")
         try:
             matrix, inliers = fit_homography_ransac(src, dst, seed=seed)
         except ValueError as exc:
@@ -573,6 +639,7 @@ def combine_camera_estimates(
         if top_face_xy is None:
             return None, None, "Einzelkamera-Fallback hat keine Top-Face-only Position"
         xy = np.asarray(top_face_xy, dtype=float)
-    if not (0.25 <= xy[0] <= 0.45 and -0.25 <= xy[1] <= 0.25):
+    if not (CUBE_WORKSPACE_X_M[0] <= xy[0] <= CUBE_WORKSPACE_X_M[1]
+            and CUBE_WORKSPACE_Y_M[0] <= xy[1] <= CUBE_WORKSPACE_Y_M[1]):
         return None, disagreement, "Position außerhalb des Würfel-Arbeitsbereichs"
     return xy, disagreement, ""
