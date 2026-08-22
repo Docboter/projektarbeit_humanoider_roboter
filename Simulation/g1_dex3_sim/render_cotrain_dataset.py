@@ -1011,7 +1011,8 @@ def main():
     print(f"  Train-Grenze: 0:{int(int(src_info['total_episodes']) * args.train_ratio)} "
           f"von {src_info['total_episodes']} (Test-Episoden bleiben ungerendert)")
     print(f"  Längste Ep.: {max_len} Frames → episode_length_s entsprechend gesetzt")
-    cube_mode = "zufällig (ABLATION)" if args.no_place_cubes else "an den Greifpunkten"
+    cube_mode = ("keine (ABLATION)" if args.no_place_cubes
+                 else "aus dem Bild-Layout (einzige Quelle; sonst wird die Episode verworfen)")
     print(f"  Würfel:      {cube_mode}")
     if args.stop_at_grasp:
         win = f"letzte {args.grasp_window} Frames vor dem Griff" if args.grasp_window \
