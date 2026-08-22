@@ -500,62 +500,50 @@ def stash_cubes(env) -> None:
         block.write_root_velocity_to_sim(torch.zeros((1, 6), device=env.device))
 
 
-def place_cubes(env, grasp: list[dict], rng: np.random.Generator,
-                layout: list | None = None) -> tuple[list[list[float]], list[str]]:
-    """Würfel auslegen — nach Vorrang: Bild-Layout, dann Greifpunkt, dann zufällig.
+def place_cubes(env, layout: list | None = None
+                ) -> tuple[list[list[float]], list[str]] | None:
+    """Würfel dorthin setzen, wo sie im REALBILD lagen — oder die Episode auslassen.
 
-    **Das Bild-Layout ist die einzige Quelle, die wirklich weiß, wo die Würfel lagen**
-    (``extract_block_layout.py``: Farbblob im Realbild → Strahl auf die Würfelebene). Der
-    Greifpunkt aus ``scan.json`` ist nur ein Notnagel und ein schlechter: er ist das Minimum
-    der Fingeröffnung über die ganze Episode, und weil die Hand beim Pick-and-Place vom
-    Zugreifen bis zum Ablegen geschlossen bleibt, liegt dieses Minimum irgendwo auf dem
-    Transportweg — 48 von 116 Griffen des Laufs vom 2026-08-17 jenseits von 60 % der
-    Episode. Der Würfel landete dann fern vom echten Pick, und der Arm griff ins Leere.
+    Einzige Quelle ist das Bild-Layout aus ``extract_block_layout.py`` (Farbblob im
+    Realbild → Strahl auf die Würfelebene). Bis 2026-08-22 gab es zwei stille
+    Rückfallebenen, und beide setzten den Würfel nachweislich falsch:
 
-    Nur x/y kommen aus der Quelle, die Höhe ist immer die Tischauflage.
+    * Der Greifpunkt aus ``scan.json`` ist das Minimum der Fingeröffnung über die ganze
+      Episode. Weil die Hand beim Pick-and-Place vom Zugreifen bis zum Ablegen geschlossen
+      bleibt, liegt dieses Minimum irgendwo auf dem Transportweg — 48 von 116 Griffen des
+      Laufs vom 2026-08-17 jenseits von 60 % der Episode. Zudem ist die Fingeröffnung für
+      diese Hand gar kein Greifdetektor: bei 101 von 116 Griffen blieb die engste Öffnung
+      über 6 cm, bei 5 cm Würfelkante.
+    * Die Zufallsplatzierung erfindet eine Lage, die mit den Realaktionen nichts zu tun hat.
+
+    Beides erzeugt Trainingsbilder, auf denen der Arm an einem Würfel vorbeigreift, der dort
+    nie lag — der teuerste Fehler, den ein Co-Training-Datensatz machen kann, weil er wie
+    gültige Aufsicht aussieht. Der Layout-Lauf vom 2026-08-22 findet in 60 von 60 Episoden
+    alle drei Würfel; ein Rückfall ist also auch praktisch nicht nötig.
+
+    Rückgabe ``None`` heißt: keine vollständige Lage bekannt, Episode überspringen.
+    Nur x/y kommen aus dem Layout, die Höhe ist immer die Tischauflage.
     """
     z = float(env.cfg.block_z_surface)
     origin = env.scene.env_origins[0].cpu().numpy()
-    placed: list[np.ndarray] = []
-    record: list[list[float]] = []
-    source: list[str] = []
+    positions: list[np.ndarray] = []
 
-    for i, block in enumerate(env.blocks):
-        pos, src = None, "random"
-        if layout and i < len(layout) and layout[i]:
-            x, y = float(layout[i][0]), float(layout[i][1])
-            if 0.15 <= x <= 0.70 and -0.35 <= y <= 0.35:
-                pos, src = np.array([x, y, z], dtype=np.float32), "layout"
-            else:
-                print(f"      Würfel {i}: Layout-Punkt ({x:.2f}, {y:.2f}) außerhalb des "
-                      f"Tischs — verworfen.", flush=True)
-        if pos is None and i < len(grasp) and grasp[i].get("ok"):
-            x, y = grasp[i]["xy"]
-            # Plausibilitätsfenster um den Tisch: alles weiter draußen ist ein Ausreißer
-            # der Kuppen-Rekonstruktion, kein Greifpunkt.
-            if 0.20 <= x <= 0.60 and -0.40 <= y <= 0.40:
-                pos, src = np.array([x, y, z], dtype=np.float32), "grasp"
-            else:
-                grasp[i]["ok"] = False
-                grasp[i]["reason"] = f"Greifpunkt außerhalb des Tischs ({x:.2f}, {y:.2f})"
+    for i, _block in enumerate(env.blocks):
+        if not (layout and i < len(layout) and layout[i]):
+            print(f"      Würfel {i}: keine Lage im Bild-Layout — Episode wird ausgelassen.",
+                  flush=True)
+            return None
+        x, y = float(layout[i][0]), float(layout[i][1])
+        if not (0.15 <= x <= 0.70 and -0.35 <= y <= 0.35):
+            print(f"      Würfel {i}: Layout-Punkt ({x:.2f}, {y:.2f}) außerhalb des Tischs "
+                  f"— Episode wird ausgelassen.", flush=True)
+            return None
+        positions.append(np.array([x, y, z], dtype=np.float32))
 
-        if pos is None:
-            # Kein Greifpunkt → zufällig im konfigurierten Band, aber mit Abstand zu den
-            # bereits gesetzten Würfeln (zwei 5-cm-Würfel im selben Punkt schießen
-            # auseinander, s. _reset_idx).
-            for _ in range(50):
-                cand = np.array([rng.uniform(*env.cfg.block_x_range),
-                                 rng.uniform(*env.cfg.block_y_range), z], dtype=np.float32)
-                if all(np.linalg.norm(cand[:2] - p[:2]) > 0.08 for p in placed):
-                    pos = cand
-                    break
-            if pos is None:
-                pos = np.array([env.cfg.block_x_range[0], env.cfg.block_y_range[0], z],
-                               dtype=np.float32)
-
-        placed.append(pos)
+    record, source = [], []
+    for block, pos in zip(env.blocks, positions):
         record.append([round(float(v), 4) for v in pos])
-        source.append(src)
+        source.append("layout")
         world = torch.tensor([[float(pos[0] + origin[0]), float(pos[1] + origin[1]),
                                float(pos[2]), 1.0, 0.0, 0.0, 0.0]],
                              device=env.device, dtype=torch.float32)
@@ -875,7 +863,6 @@ def run_render(env_builder, src_root: Path, src_info: dict, episodes: list[int],
     fps = float(src_info.get("fps", 30.0))
     tasks = read_source_tasks(src_root)
     src_lengths = read_source_lengths(src_root)
-    rng = np.random.default_rng(0)
     env = None
     index_offset = sum(int(r.get("length", 0)) for r in manifest["episodes"].values()
                        if r.get("status") == "ok")
@@ -895,12 +882,12 @@ def run_render(env_builder, src_root: Path, src_info: dict, episodes: list[int],
                 print(f"{head}: liegt schon vor — übersprungen.", flush=True)
                 continue
 
-        if not info and not args.no_place_cubes and str(ep_idx) not in layout:
-            # Weder Scan-Eintrag noch Layout: die Wuerfel landen zufaellig, das
-            # Bild-Aktions-Paar ist visuell entkoppelt. Laut, nicht still — meist steht ein
-            # anderes RENDER_EPISODES dahinter als beim Scan bzw. beim Layout.
-            print(f"{head}: WARNUNG — weder Scan-Eintrag noch Layout, Würfel liegen "
-                  f"zufällig. Mit denselben Episoden nachholen.", flush=True)
+        if not args.no_place_cubes and str(ep_idx) not in layout:
+            # Ohne Layout gibt es seit 2026-08-22 keine Platzierung mehr — place_cubes
+            # verwirft die Episode. Meist steht ein anderes RENDER_EPISODES dahinter als
+            # beim Layout-Lauf.
+            print(f"{head}: kein Layout-Eintrag — Episode wird verworfen. Mit denselben "
+                  f"Episoden 'server_rl_run.sh layout' nachholen.", flush=True)
         err = info.get("arm_tracking_error_rad")
         if err is not None and err > args.tracking_error_max:
             print(f"{head}: VERWORFEN — Arm-Tracking {err:.3f} rad > "
@@ -931,8 +918,14 @@ def run_render(env_builder, src_root: Path, src_info: dict, episodes: list[int],
         env.reset()
         cubes, cube_src = None, None
         if not args.no_place_cubes:
-            cubes, cube_src = place_cubes(env, info.get("hands", []), rng,
-                                          layout=layout.get(str(ep_idx), {}).get("cubes"))
+            placement = place_cubes(env, layout=layout.get(str(ep_idx), {}).get("cubes"))
+            if placement is None:
+                print(f"{head}: VERWORFEN — keine vollständige Würfellage im Bild-Layout. "
+                      f"Fehlt sie für viele Episoden, zuerst 'server_rl_run.sh layout' "
+                      f"mit denselben Episoden nachfahren.", flush=True)
+                manifest["episodes"][str(ep_idx)] = {"status": "rejected_layout"}
+                continue
+            cubes, cube_src = placement
         set_robot_to_state(env, state[0])
         for _ in range(args.settle_steps):
             env.step(torch.tensor(state[0], dtype=torch.float32,

@@ -61,9 +61,12 @@ Die beiden Stufen heute:
 
 1. **`scan`** — Episode abspielen, Kameras auf ein Zehntel der Auflösung. Liefert je Episode
    den Arm-Tracking-Fehler und je Hand einen Greifpunkt aus der Fingerkinematik → `scan.json`.
-   Der Greifpunkt ist seit 2026-08-17 nur noch **Notnagel** für die Würfelplatzierung: er
-   liegt bei ~der Hälfte der Griffe auf dem Transportweg statt am Pick (§ 3.2a). Die
-   maßgebliche Würfellage kommt aus den **Realbildern** — § 3.0 (`layout`,
+   Der Greifpunkt platziert seit 2026-08-22 **keine Würfel mehr**: er liegt bei ~der Hälfte
+   der Griffe auf dem Transportweg statt am Pick (§ 3.2a), und die Fingeröffnung ist für
+   diese Hand überhaupt kein Greifdetektor (bei 101 von 116 Griffen bleibt die engste
+   Öffnung über 6 cm, bei 5 cm Würfelkante). Aus `scan.json` kommt nur noch der
+   Arm-Tracking-Fehler. Die Würfellage kommt ausschließlich aus den **Realbildern** — § 3.0
+   (`layout`,
    [wuerfellage-rekonstruktion.md](../simulation/wuerfellage-rekonstruktion.md)). Die
    ursprüngliche Greifpunkt-Begründung ist in [../historie.md](../historie.md) dokumentiert.
 2. **`render`** — dieselben Episoden mit den Würfeln an den Layout-Positionen (x/y aus dem
@@ -83,11 +86,19 @@ Die beiden Stufen heute:
 
 ### 3.0 Zuerst die Würfellage aus den Realbildern — `layout` (seit 2026-08-17)
 
-**Das ist der wichtigste Schritt, und er war zuerst nicht da.** Ohne ihn platziert der
-Renderer die Würfel am Greifpunkt aus `scan.json`, und der ist falsch — siehe § 3.2a.
+**Das ist der wichtigste Schritt, und er war zuerst nicht da.** Seit 2026-08-22 ist er die
+einzige Quelle: fehlt für eine Episode die Lage auch nur eines Würfels, verwirft `render` die
+Episode (`status: rejected_layout`), statt sie mit einem Greifpunkt oder einer Zufallslage zu
+füllen. Beide Rückfallebenen erzeugten Bilder, auf denen der Arm an einem Würfel vorbeigreift,
+der dort nie lag — und das sieht aus wie gültige Aufsicht.
+
+Der Verzicht kostet praktisch nichts: der Layout-Lauf vom 2026-08-22 findet in **60 von 60
+Episoden alle drei Würfel**, die beiden Kopfkameras sind sich im Median auf 1,17 cm einig
+(max 2,31 cm), und das Kameramodell selbst trifft auf 0,3 cm
+([Läufe 35–37](../ergebnisse/diagnose-chronik.md)).
 
 ```bash
-HF_TOKEN=hf_... RENDER_EPISODES=60 ./Simulation/server_rl_run.sh layout
+RENDER_EPISODES=60 LAYOUT_OVERWRITE=1 ./Simulation/server_rl_run.sh layout
 ```
 
 > **Verfahren, Koordinatentransformation und offene Punkte im Detail:**
