@@ -22,12 +22,19 @@ Es gibt zwei Wege, damit Robotervideos zu augmentieren:
    **Bewusst nicht gewählt** — der Maskierungs-Schritt ist zusätzlicher Scope, den dieses
    Projekt (noch) nicht braucht.
 
-**Konkret erzeugt dieser Container die Kontrollsignale selbst**, per klassischer
-Canny-Kantenerkennung (`AUGMENT_MODEL_VARIANT=edge/distilled`, Default) — kein zusätzliches
-ML-Modell, deterministisch, läuft in der schlanken Tools-venv ohne GPU. Eine
-Depth-Variante (`AUGMENT_MODEL_VARIANT=depth`) ist über Cosmos' eigene
-`video-depth-anything`-Abhängigkeit denkbar, aber in diesem Container **nicht implementiert**
-— offener Punkt, siehe §6.
+**Kein eigener Kontrollsignal-Schritt nötig** (frühere Version: erst cv2/Canny, dann
+ffmpeg — beides an AV1-kodierten Quellvideos gescheitert, siehe §7 Historie): Cosmos-
+Transfer2.5 erzeugt die Kantenerkennung selbst on-the-fly aus dem Quellvideo
+(`cosmos_transfer2/config.py::EdgeConfig`: *"If None, edge is generated on-the-fly from
+input video using CannyEdge Model"*), gesteuert über `AUGMENT_EDGE_THRESHOLD`
+(`very_low`/`low`/`medium`/`high`/`very_high`, Default `medium`). Das Standardmodell ist
+`AUGMENT_MODEL_VARIANT=edge` (immer verfügbar). Eine distillierte, schnellere Variante
+(`edge/distilled`, `AUGMENT_NUM_STEPS=4` statt `35`) existiert, ist aber im Cosmos-Repo
+hinter einem experimentellen Flag versteckt (`COSMOS_EXPERIMENTAL_CHECKPOINTS`) — wird
+automatisch gesetzt, sobald `AUGMENT_MODEL_VARIANT` "distilled" enthält (siehe
+`run_inference.sh`). Eine Depth-Variante (`AUGMENT_MODEL_VARIANT=depth`) ist als Basis-
+Modell ebenfalls verfügbar, aber in diesem Container **nicht als Standardpfad getestet**
+— offener Punkt, siehe §7.
 
 ## 2. Voraussetzung — Lizenz manuell akzeptieren (einmalig, außerhalb des Containers)
 
@@ -83,9 +90,10 @@ erhalten — siehe `Augmentation/setup_and_augment_DockerHub-pull.sh --help`).
 | `AUGMENT_EPISODE_IDS` | `""` | Explizite, leerzeichengetrennte Indizes — überschreibt das Limit; bricht hart ab bei Index `>= n_train` |
 | `AUGMENT_CAMERAS` | alle 4 Policy-Kameras | Teilmenge für billige/visuelle QS-Läufe; alle 4 nötig, damit eine Episode COTRAIN-nutzbar wird |
 | `AUGMENT_VARIANTS` | `1` | Anzahl stilvariierter Kopien pro Quell-Episode/Kamera, je eine eigene Ausgabe-Episode |
-| `AUGMENT_PROMPT_TEMPLATE` | eingebautes generisches Template | Erster konkreter Formulierungs-Durchgang — offener Punkt (§6) |
-| `AUGMENT_MODEL_VARIANT` | `edge/distilled` | Cosmos-Modell+Modalität (`edge`, `depth`, `depth/distilled` ebenfalls gültig — depth hier nicht implementiert) |
-| `AUGMENT_NUM_STEPS` | `4` | Passend zum distillierten Modell |
+| `AUGMENT_PROMPT_TEMPLATE` | eingebautes generisches Template | Erster konkreter Formulierungs-Durchgang — offener Punkt (§7) |
+| `AUGMENT_EDGE_THRESHOLD` | `medium` | `very_low`/`low`/`medium`/`high`/`very_high` — steuert Cosmos' eigene on-the-fly-Kantenerkennung (niedriger = mehr erkannte Kanten inkl. Rauschen) |
+| `AUGMENT_MODEL_VARIANT` | `edge` | Cosmos-Modellwahl laut `cosmos_transfer2/config.py::MODEL_CHECKPOINTS`: `depth`/`edge`/`seg`/`vis` immer verfügbar. `edge/distilled` (schneller, `AUGMENT_NUM_STEPS=4` statt `35`) existiert nur mit `COSMOS_EXPERIMENTAL_CHECKPOINTS=1` — wird automatisch gesetzt, wenn der Name "distilled" enthält. `depth/distilled` existiert **nicht** (nur edge hat eine distillierte Variante) |
+| `AUGMENT_NUM_STEPS` | `35` | Diffusions-Schritte — Cosmos' eigener Default fürs Vollmodell. Bei `edge/distilled` reichen 4 |
 | `AUGMENT_STRICT_FRAME_CHECK` | `1` | `1` = Episode bei Frame-/FPS-Abweichung verwerfen; `0` = trimmen (nur bei Frame-Überschuss möglich) |
 | `AUGMENT_OUT_DIR` | `$DATA_DIR/augmentation/g1_dex3_cosmos_augmented` | Ziel-Datensatz (LeRobot v2.1) |
 | `AUGMENT_HF_REPO` | `""` | Falls gesetzt: Upload nach Fertigstellung |
@@ -119,7 +127,10 @@ gilt unverändert (`mix* = F_augmentiert / (F_augmentiert + F_echt)`), aber die 
    deutlich kleiner sein — vor dem ersten vollen Lauf `df -h` prüfen.
 2. **„Parquet unverändert kopieren" setzt exakte Frame-/FPS-Erhaltung durch Cosmos voraus.**
    `AUGMENT_STRICT_FRAME_CHECK` + `ffprobe`-Vergleich in `assemble_dataset.py` ist das
-   Sicherheitsnetz — am ersten echten Output verifizieren.
+   Sicherheitsnetz — am ersten echten Output verifizieren. Konkreter Verdächtiger laut
+   `cosmos_transfer2/config.py`: Cosmos verarbeitet lange Videos in Chunks von
+   `num_video_frames_per_chunk=93` Frames mit `num_conditional_frames` Überlappung —
+   Rundungseffekte an Chunk-Grenzen könnten die Gesamt-Framezahl leicht verschieben.
 3. **Inferenzkosten pro Episode/Kamera bei ~65 GB VRAM unbekannt** — `AUGMENT_EPISODE_LIMIT`
    (Default `2`) ist der eingebaute Knopf für billige erste Läufe.
 4. **`AUGMENT_PROMPT_TEMPLATE`-Formulierung ist ein erster Entwurf**, nicht validiert. Die
@@ -134,8 +145,10 @@ gilt unverändert (`mix* = F_augmentiert / (F_augmentiert + F_echt)`), aber die 
 7. **Auflösung/FPS/Codec-Kompatibilität der Quellvideos mit Cosmos' Erwartung ist unbestätigt**
    — vor dem ersten vollen Lauf gegen `assets/robot_example/` im cosmos-transfer2.5-Repo
    gegenprüfen.
-8. **Depth-Kontrollsignal nicht implementiert** — nur die Canny-Edge-Variante ist gebaut
-   (siehe §1).
+8. **`AUGMENT_MODEL_VARIANT=depth` ist als Cosmos-Basismodell verfügbar, aber in diesem
+   Container nicht als Standardpfad getestet** — nur `edge` lief bisher real durch. Depth
+   sollte laut Config genauso on-the-fly funktionieren (`VideoDepthAnything`), aber noch
+   nicht verifiziert.
 9. **Dockerfile-Übernahme aus cosmos-transfer2.5s eigenem Dockerfile ist eine Transkription,
    kein automatischer Abgleich** — bei zukünftigen `COSMOS_COMMIT`-Updates (`update_image.sh
    --update-commit`) ggf. `git show <sha>:Dockerfile` im cosmos-transfer2.5-Repo gegenprüfen,
@@ -148,6 +161,15 @@ gilt unverändert (`mix* = F_augmentiert / (F_augmentiert + F_echt)`), aber die 
     `v1.5.0` ist der letzte Tag mit `.python-version=3.10` und funktioniert. **Nach jedem
     `--update-commit` den Build verifizieren** — Tags sind kein Garant gegen dieselbe
     Inkonsistenz, `update_image.sh` verfolgt nur die neueste *Tag*-Version, nicht main.
+11. **Historie — eigener Control-Video-Schritt entfernt (2026-08-23).** Die ursprüngliche
+    Version generierte Edge-Kontrollvideos selbst: erst per `cv2.Canny` (scheiterte an
+    AV1-kodierten Quellvideos — `opencv-python-headless`s mitgeliefertes ffmpeg-Backend
+    konnte sie nicht decodieren, lieferte aber still null Frames statt eines Fehlers), dann
+    per System-`ffmpeg`/`edgedetect`-Filter (technisch funktionsfähig, aber unnötig
+    komplex). Beim Debuggen des zweiten `--model`-Fehlers stellte sich heraus, dass
+    `cosmos_transfer2/config.py::EdgeConfig` Kantenerkennung schon eingebaut hat
+    ("generated on-the-fly ... using CannyEdge Model") — der ganze eigene Schritt entfällt
+    seither, gesteuert nur noch über `AUGMENT_EDGE_THRESHOLD`.
 
 ## 8. Nachgelagerte QS (Follow-up, nicht Teil dieses Durchgangs)
 

@@ -29,7 +29,8 @@
 #   AUGMENT_EPISODE_LIMIT    (default 2)     — 0 = alle Train-Episoden
 #   AUGMENT_CAMERAS          (default alle 4 Policy-Kameras)
 #   AUGMENT_VARIANTS         (default 1)
-#   AUGMENT_MODEL_VARIANT    (default edge/distilled)
+#   AUGMENT_EDGE_THRESHOLD   (default medium) — very_low/low/medium/high/very_high
+#   AUGMENT_MODEL_VARIANT    (default edge) — "edge/distilled" braucht COSMOS_EXPERIMENTAL_CHECKPOINTS
 #   AUGMENT_HF_REPO          (optional)      — Upload-Ziel nach dem Zusammenbau
 #   SKIP_INFERENCE           (optional)      — nur Specs generieren, dann stoppen
 #   CONTAINER_NAME            (default groot-augment)
@@ -217,7 +218,7 @@ else
     printf "    %-25s %s\n" "CONTAINER_NAME" "$CONTAINER_NAME"
     for _v in NUM_GPU SOURCE_DATASET_REPO AUGMENT_TRAIN_RATIO AUGMENT_EPISODE_LIMIT \
               AUGMENT_EPISODE_IDS AUGMENT_CAMERAS AUGMENT_VARIANTS AUGMENT_PROMPT_TEMPLATE \
-              AUGMENT_MODEL_VARIANT AUGMENT_NUM_STEPS AUGMENT_STRICT_FRAME_CHECK \
+              AUGMENT_EDGE_THRESHOLD AUGMENT_MODEL_VARIANT AUGMENT_NUM_STEPS AUGMENT_STRICT_FRAME_CHECK \
               AUGMENT_OUT_DIR AUGMENT_HF_REPO SKIP_DOWNLOAD SKIP_CONVERT SKIP_INFERENCE \
               SKIP_ASSEMBLE AUGMENT_OVERWRITE SHELL_ON_ERROR; do
         [[ -n "${!_v:-}" ]] && printf "    %-25s %s\n" "$_v" "${!_v}"
@@ -227,7 +228,7 @@ else
     run_args+=("-e" "HF_TOKEN=$HF_TOKEN")
     for _v in NUM_GPU SOURCE_DATASET_REPO AUGMENT_TRAIN_RATIO AUGMENT_EPISODE_LIMIT \
               AUGMENT_EPISODE_IDS AUGMENT_CAMERAS AUGMENT_VARIANTS AUGMENT_PROMPT_TEMPLATE \
-              AUGMENT_MODEL_VARIANT AUGMENT_NUM_STEPS AUGMENT_STRICT_FRAME_CHECK \
+              AUGMENT_EDGE_THRESHOLD AUGMENT_MODEL_VARIANT AUGMENT_NUM_STEPS AUGMENT_STRICT_FRAME_CHECK \
               AUGMENT_OUT_DIR AUGMENT_HF_REPO SKIP_DOWNLOAD SKIP_CONVERT SKIP_INFERENCE \
               SKIP_ASSEMBLE AUGMENT_OVERWRITE SHELL_ON_ERROR DATA_DIR HF_HOME; do
         [[ -n "${!_v:-}" ]] && run_args+=("-e" "$_v=${!_v}")

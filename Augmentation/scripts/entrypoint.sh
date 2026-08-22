@@ -1,15 +1,16 @@
 #!/usr/bin/env bash
-# TL;DR: Container-Entrypoint des Augmentierungs-Images: Download → Controls → Specs → Cosmos → Datensatz.
+# TL;DR: Container-Entrypoint des Augmentierungs-Images: Download → Specs → Cosmos → Datensatz.
 # entrypoint.sh — Container-Entrypoint für den eigenen Docker-Server (Dauerbetrieb).
 #
 # Laeuft beim Containerstart komplett autonom durch:
 #   1. GPU + HF-Token + Cosmos-Lizenz pruefen
 #   2. Echten Trainingsdatensatz nach /data herunterladen + v3.0→v2.1 konvertieren
 #      (falls noch nicht vorhanden)
-#   3. Edge-Control-Videos generieren (Canny, klassische Bildverarbeitung)
-#   4. Cosmos-Transfer2.5-Specs bauen (nur Train-Split-Episoden, siehe AUGMENT_TRAIN_RATIO)
-#   5. Cosmos-Transfer2.5-Inferenz pro Episode/Kamera/Variante fahren
-#   6. Ergebnis zu einem COTRAIN_DATASET_PATH-kompatiblen LeRobot-v2.1-Datensatz zusammenbauen
+#   3. Cosmos-Transfer2.5-Specs bauen (nur Train-Split-Episoden, siehe AUGMENT_TRAIN_RATIO) —
+#      OHNE eigenen Control-Video-Schritt: Cosmos erzeugt die Edge-Kontrolle selbst
+#      on-the-fly aus dem Quellvideo (AUGMENT_EDGE_THRESHOLD steuert die Empfindlichkeit)
+#   4. Cosmos-Transfer2.5-Inferenz pro Episode/Kamera/Variante fahren
+#   5. Ergebnis zu einem COTRAIN_DATASET_PATH-kompatiblen LeRobot-v2.1-Datensatz zusammenbauen
 #
 # Steuerung ueber Env-Vars — vollstaendige Referenz: docs/augmentation/anleitung.md
 #   HF_TOKEN                (Pflicht) HuggingFace-Token mit Zugriff auf den Datensatz UND das
@@ -29,8 +30,13 @@
 #   AUGMENT_EPISODE_IDS      (default "")   — explizite Liste, ueberschreibt das Limit
 #   AUGMENT_CAMERAS          (default alle 4 Policy-Kameras)
 #   AUGMENT_VARIANTS         (default 1)
-#   AUGMENT_MODEL_VARIANT    (default edge/distilled)
-#   AUGMENT_NUM_STEPS        (default 4)
+#   AUGMENT_EDGE_THRESHOLD   (default medium) — very_low/low/medium/high/very_high, steuert
+#                            Cosmos' eigene on-the-fly-Kantenerkennung
+#   AUGMENT_MODEL_VARIANT    (default edge) — "edge/distilled" braucht zusaetzlich
+#                            COSMOS_EXPERIMENTAL_CHECKPOINTS=1 (run_inference.sh setzt das
+#                            automatisch, wenn der Name "distilled" enthaelt)
+#   AUGMENT_NUM_STEPS        (default 35, Cosmos' eigener Standard fuer das Vollmodell —
+#                            bei "edge/distilled" reichen 4)
 #   AUGMENT_STRICT_FRAME_CHECK (default 1)
 #   AUGMENT_OUT_DIR          (default $DATA_DIR/augmentation/g1_dex3_cosmos_augmented)
 #   AUGMENT_HF_REPO          (default "")   — falls gesetzt: Upload nach dem Zusammenbau
@@ -89,8 +95,9 @@ AUGMENT_EPISODE_LIMIT="${AUGMENT_EPISODE_LIMIT:-2}"
 AUGMENT_EPISODE_IDS="${AUGMENT_EPISODE_IDS:-}"
 AUGMENT_CAMERAS="${AUGMENT_CAMERAS:-cam_left_high,cam_right_high,cam_left_wrist,cam_right_wrist}"
 AUGMENT_VARIANTS="${AUGMENT_VARIANTS:-1}"
-AUGMENT_MODEL_VARIANT="${AUGMENT_MODEL_VARIANT:-edge/distilled}"
-AUGMENT_NUM_STEPS="${AUGMENT_NUM_STEPS:-4}"
+AUGMENT_EDGE_THRESHOLD="${AUGMENT_EDGE_THRESHOLD:-medium}"
+AUGMENT_MODEL_VARIANT="${AUGMENT_MODEL_VARIANT:-edge}"
+AUGMENT_NUM_STEPS="${AUGMENT_NUM_STEPS:-35}"
 AUGMENT_STRICT_FRAME_CHECK="${AUGMENT_STRICT_FRAME_CHECK:-1}"
 AUGMENT_OUT_DIR="${AUGMENT_OUT_DIR:-$DATA_DIR/augmentation/g1_dex3_cosmos_augmented}"
 AUGMENT_HF_REPO="${AUGMENT_HF_REPO:-}"
@@ -99,12 +106,12 @@ SKIP_ASSEMBLE="${SKIP_ASSEMBLE:-0}"
 AUGMENT_OVERWRITE="${AUGMENT_OVERWRITE:-0}"
 
 export NUM_GPU SOURCE_DATASET_REPO AUGMENT_TRAIN_RATIO AUGMENT_EPISODE_LIMIT \
-       AUGMENT_EPISODE_IDS AUGMENT_CAMERAS AUGMENT_VARIANTS AUGMENT_MODEL_VARIANT \
-       AUGMENT_NUM_STEPS AUGMENT_STRICT_FRAME_CHECK AUGMENT_OUT_DIR AUGMENT_OVERWRITE
+       AUGMENT_EPISODE_IDS AUGMENT_CAMERAS AUGMENT_VARIANTS AUGMENT_EDGE_THRESHOLD \
+       AUGMENT_MODEL_VARIANT AUGMENT_NUM_STEPS AUGMENT_STRICT_FRAME_CHECK AUGMENT_OUT_DIR \
+       AUGMENT_OVERWRITE
 
 DATASET_DIR="$DATA_DIR/unitreerobotics/G1_Dex3_BlockStacking_Dataset"
 SPECS_DIR="$DATA_DIR/augmentation/specs"
-CONTROLS_DIR="$DATA_DIR/augmentation/controls"
 RAW_OUTPUT_DIR="$DATA_DIR/augmentation/raw_output"
 WORK_LIST="$SPECS_DIR/work_list.json"
 
@@ -117,6 +124,7 @@ printf "    %-24s %s\n" "AUGMENT_EPISODE_LIMIT"    "$AUGMENT_EPISODE_LIMIT"
 printf "    %-24s %s\n" "AUGMENT_EPISODE_IDS"      "${AUGMENT_EPISODE_IDS:-<keine>}"
 printf "    %-24s %s\n" "AUGMENT_CAMERAS"          "$AUGMENT_CAMERAS"
 printf "    %-24s %s\n" "AUGMENT_VARIANTS"         "$AUGMENT_VARIANTS"
+printf "    %-24s %s\n" "AUGMENT_EDGE_THRESHOLD"   "$AUGMENT_EDGE_THRESHOLD"
 printf "    %-24s %s\n" "AUGMENT_MODEL_VARIANT"    "$AUGMENT_MODEL_VARIANT"
 printf "    %-24s %s\n" "AUGMENT_OUT_DIR"          "$AUGMENT_OUT_DIR"
 echo ""
@@ -184,12 +192,13 @@ fi
 ok "Datensatz bereit: $DATASET_DIR"
 echo ""
 
-# ── Schritt 2/4 — Edge-Control-Videos + Specs ──────────────────────────────────
-log "Schritt 2/4 — Control-Videos + Cosmos-Specs generieren"
-mkdir -p "$SPECS_DIR" "$CONTROLS_DIR" "$RAW_OUTPUT_DIR"
+# ── Schritt 2/4 — Cosmos-Specs generieren ──────────────────────────────────────
+# Kein eigener Control-Video-Schritt: Cosmos erzeugt die Edge-Kontrolle selbst on-the-fly
+# aus dem Quellvideo (AUGMENT_EDGE_THRESHOLD), siehe Kommentar in build_controlnet_specs.py.
+log "Schritt 2/4 — Cosmos-Specs generieren"
+mkdir -p "$SPECS_DIR" "$RAW_OUTPUT_DIR"
 "$TOOLS_PYTHON" /scripts/build_controlnet_specs.py \
     --dataset-dir "$DATASET_DIR" \
-    --controls-dir "$CONTROLS_DIR" \
     --specs-dir "$SPECS_DIR" \
     --raw-output-dir "$RAW_OUTPUT_DIR" \
     --work-list "$WORK_LIST"

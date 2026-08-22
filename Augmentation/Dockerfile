@@ -118,9 +118,10 @@ ENV PATH="/app/cosmos-transfer2.5/.venv/bin:${PATH}"
 # v3→v2.1-Konverter, huggingface_hub für Down-/Upload) dessen Wheels nicht
 # durcheinanderbringen. `uv venv --python` lädt die Python-Version bei Bedarf selbst nach —
 # kein zusätzliches System-Python-Paket nötig. KEIN opencv-python-headless (frühere
-# Version): dessen mitgeliefertes ffmpeg-Backend konnte AV1-Quellvideos nicht decodieren —
-# Edge-Control-Videos entstehen jetzt per System-`ffmpeg` (edgedetect-Filter, s.
-# build_controlnet_specs.py), das oben bereits per apt installiert ist.
+# Version): dessen mitgeliefertes ffmpeg-Backend konnte AV1-Quellvideos nicht decodieren.
+# Mittlerweile auch kein eigener Control-Video-Schritt mehr noetig — cosmos_transfer2/
+# config.py::EdgeConfig erzeugt die Kantenerkennung selbst on-the-fly aus dem Quellvideo
+# (siehe build_controlnet_specs.py).
 RUN uv venv --python 3.11 /opt/venv-tools \
     && uv pip install --python /opt/venv-tools/bin/python \
         "huggingface_hub[cli]==0.34.*" \
@@ -139,7 +140,7 @@ COPY --from=groot-convert-src /groot-src/examples/G1_DEX3/modality_4cam.json /ap
 # ACHTUNG — KEIN Host-Volume: /data liegt im Container-Filesystem und ist die einzige
 # Wahrheit. `docker run --rm` bzw. `docker rm` löscht Daten unwiderruflich (siehe
 # Training/Dockerfile für die ausführliche Begründung — hier gilt dieselbe Regel).
-RUN mkdir -p /data/unitreerobotics /data/hf_cache /data/augmentation/controls \
+RUN mkdir -p /data/unitreerobotics /data/hf_cache \
              /data/augmentation/specs /data/augmentation/raw_output /data/logs
 
 COPY --chmod=755 scripts/ /scripts/
@@ -157,8 +158,9 @@ ENV DATA_DIR=/data \
     AUGMENT_EPISODE_IDS="" \
     AUGMENT_CAMERAS=cam_left_high,cam_right_high,cam_left_wrist,cam_right_wrist \
     AUGMENT_VARIANTS=1 \
-    AUGMENT_MODEL_VARIANT=edge/distilled \
-    AUGMENT_NUM_STEPS=4 \
+    AUGMENT_EDGE_THRESHOLD=medium \
+    AUGMENT_MODEL_VARIANT=edge \
+    AUGMENT_NUM_STEPS=35 \
     AUGMENT_STRICT_FRAME_CHECK=1 \
     AUGMENT_OUT_DIR=/data/augmentation/g1_dex3_cosmos_augmented \
     AUGMENT_HF_REPO="" \

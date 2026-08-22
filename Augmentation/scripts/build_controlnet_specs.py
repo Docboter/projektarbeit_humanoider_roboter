@@ -1,12 +1,18 @@
 #!/usr/bin/env python3
-# TL;DR: Erzeugt Edge-Control-Videos (Canny) + Cosmos-Transfer2.5-Spec-JSONs für die Trainings-Episoden.
+# TL;DR: Erzeugt Cosmos-Transfer2.5-Spec-JSONs für die Trainings-Episoden (Edge-Control on-the-fly).
 """build_controlnet_specs.py — laeuft im Container (venv-tools), aufgerufen von entrypoint.sh.
 
-Waehlt Episoden aus den TRAIN-Split-Grenzen des echten Datensatzes (siehe select_episodes()),
-erzeugt pro (Episode, Kamera, Variante) ein Edge-Control-Video (klassisches Canny, keine
-zusaetzliche ML-Abhaengigkeit) und eine Cosmos-Transfer2.5-Spec-JSON gemaess dem in
-docs/inference.md dokumentierten Schema. Schreibt zusaetzlich work_list.json, das
-entrypoint.sh fuer die Inferenz-Schleife und assemble_dataset.py fuer den Datensatz-Bau nutzt.
+Waehlt Episoden aus den TRAIN-Split-Grenzen des echten Datensatzes (siehe select_episodes())
+und schreibt pro (Episode, Kamera, Variante) eine Cosmos-Transfer2.5-Spec-JSON. Schreibt
+zusaetzlich work_list.json, das entrypoint.sh fuer die Inferenz-Schleife und
+assemble_dataset.py fuer den Datensatz-Bau nutzt.
+
+KEIN eigener Control-Video-Generierungsschritt (fruehere Version: erst cv2/Canny, dann
+ffmpeg/edgedetect) — cosmos_transfer2/config.py::EdgeConfig dokumentiert selbst: "If None,
+edge is generated on-the-fly from input video using CannyEdge Model". Ein Spec ohne
+"control_path" im "edge"-Block laesst Cosmos die Kantenerkennung selbst uebernehmen
+(gesteuert ueber "preset_edge_threshold": very_low/low/medium/high/very_high) — das macht
+die eigene, gerade zweimal gebrochene ffmpeg/cv2-Pipeline ueberfluessig.
 
 WICHTIG — dupliziertes Split-Grenzformel-Kontrakt (kein gemeinsames Artefakt, siehe
 Training/scripts/lib_split.sh und Simulation/g1_dex3_sim/render_cotrain_dataset.py):
@@ -20,7 +26,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import subprocess
 import sys
 from pathlib import Path
 
@@ -39,6 +44,9 @@ DEFAULT_PROMPT_TEMPLATE = (
     "blocks on a table, {style}. Keep the robot's shape, proportions and motion "
     "exactly as shown; only change lighting, background and surface texture."
 )
+
+# cosmos_transfer2/config.py: Threshold = Literal["very_low", "low", "medium", "high", "very_high"]
+VALID_EDGE_THRESHOLDS = {"very_low", "low", "medium", "high", "very_high"}
 
 
 def select_episodes(total_episodes: int, train_ratio: float, limit: int, explicit_ids: list[int]) -> list[int]:
@@ -59,40 +67,12 @@ def select_episodes(total_episodes: int, train_ratio: float, limit: int, explici
     return sorted({int(i * step) for i in range(limit)})
 
 
-# Canny-Schwellwerte, normiert auf ffmpegs 0..1-Skala (0.392=100/255, 0.784=200/255) —
-# dieselben Werte, die vorher an cv2.Canny(gray, 100, 200) gingen.
-_CANNY_LOW = "0.392"
-_CANNY_HIGH = "0.784"
-
-
-def generate_edge_control(source_video: Path, out_video: Path) -> None:
-    """Erzeugt ein Edge-Control-Video per ffmpegs edgedetect-Filter (mode=canny).
-
-    BEWUSST kein OpenCV/cv2 hier (fruehere Version): opencv-python-headless bringt ein
-    stark abgespecktes, eigenes ffmpeg-Backend mit, das AV1-Quellvideos nicht decodieren
-    konnte (LeRobot-Datensaetze liegen oft AV1-kodiert vor) — cv2.VideoCapture lieferte
-    dann still null Frames statt eines Fehlers. Das system-installierte `ffmpeg` (apt,
-    Ubuntu 24.04) decodiert UND encodiert hier in einem Schritt, also haengt die
-    Codec-Unterstuetzung nur noch von EINER, vollstaendigeren ffmpeg-Installation ab."""
-    out_video.parent.mkdir(parents=True, exist_ok=True)
-    subprocess.run(
-        [
-            "ffmpeg", "-y", "-loglevel", "error",
-            "-i", str(source_video),
-            "-vf", f"format=gray,edgedetect=low={_CANNY_LOW}:high={_CANNY_HIGH}:mode=canny,format=yuv420p",
-            "-c:v", "libx264",
-            str(out_video),
-        ],
-        check=True,
-    )
-
-
 def build_spec(
     name: str,
     video_path: Path,
-    control_path: Path,
     prompt_path: Path,
     num_steps: int,
+    edge_threshold: str,
 ) -> dict:
     return {
         "name": name,
@@ -101,8 +81,8 @@ def build_spec(
         "guidance": 3,
         "num_steps": num_steps,
         "edge": {
-            "control_path": str(control_path),
             "control_weight": 1.0,
+            "preset_edge_threshold": edge_threshold,
         },
     }
 
@@ -110,7 +90,6 @@ def build_spec(
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset-dir", required=True, type=Path)
-    parser.add_argument("--controls-dir", required=True, type=Path)
     parser.add_argument("--specs-dir", required=True, type=Path)
     parser.add_argument("--raw-output-dir", required=True, type=Path)
     parser.add_argument("--work-list", required=True, type=Path)
@@ -124,8 +103,14 @@ def main() -> None:
         "AUGMENT_CAMERAS", "cam_left_high,cam_right_high,cam_left_wrist,cam_right_wrist"
     ).split(",") if c.strip()]
     variants = int(os.environ.get("AUGMENT_VARIANTS", "1"))
-    num_steps = int(os.environ.get("AUGMENT_NUM_STEPS", "4"))
+    num_steps = int(os.environ.get("AUGMENT_NUM_STEPS", "35"))
     prompt_template = os.environ.get("AUGMENT_PROMPT_TEMPLATE", "").strip() or DEFAULT_PROMPT_TEMPLATE
+    edge_threshold = os.environ.get("AUGMENT_EDGE_THRESHOLD", "medium").strip()
+    if edge_threshold not in VALID_EDGE_THRESHOLDS:
+        raise SystemExit(
+            f"AUGMENT_EDGE_THRESHOLD={edge_threshold!r} ungueltig — muss eines von "
+            f"{sorted(VALID_EDGE_THRESHOLDS)} sein."
+        )
 
     info = json.loads((args.dataset_dir / "meta" / "info.json").read_text())
     total_episodes = int(info["total_episodes"])
@@ -139,7 +124,6 @@ def main() -> None:
     )
 
     args.specs_dir.mkdir(parents=True, exist_ok=True)
-    args.controls_dir.mkdir(parents=True, exist_ok=True)
     args.raw_output_dir.mkdir(parents=True, exist_ok=True)
 
     work_items = []
@@ -153,10 +137,6 @@ def main() -> None:
                 print(f"WARNUNG: Quellvideo fehlt, uebersprungen: {source_video}", file=sys.stderr)
                 continue
 
-            control_path = args.controls_dir / "edge" / f"episode_{ep:06d}_{cam}.mp4"
-            if not control_path.exists():
-                generate_edge_control(source_video, control_path)
-
             for variant in range(variants):
                 style = DEFAULT_STYLE_DESCRIPTORS[variant % len(DEFAULT_STYLE_DESCRIPTORS)]
                 prompt_text = prompt_template.format(style=style) if "{style}" in prompt_template else prompt_template
@@ -165,7 +145,7 @@ def main() -> None:
                 prompt_path = args.specs_dir / f"{name}.prompt.txt"
                 prompt_path.write_text(prompt_text)
 
-                spec = build_spec(name, source_video, control_path, prompt_path, num_steps)
+                spec = build_spec(name, source_video, prompt_path, num_steps, edge_threshold)
                 spec_path = args.specs_dir / f"{name}.json"
                 spec_path.write_text(json.dumps(spec, indent=2))
 

@@ -194,7 +194,7 @@ needed (see [co-training.md](docs/training/co-training.md)).
 | `AUGMENT_EPISODE_LIMIT` | `2` | Cap for cheap first runs; `0` = all train-split episodes |
 | `AUGMENT_CAMERAS` | all 4 policy cameras | Subset for cheap/visual-QA runs; all 4 required for COTRAIN-usable episodes |
 | `AUGMENT_TRAIN_RATIO` | `0.8` | Must match `TRAIN_SPLIT_RATIO` in the Training image — replicated formula, same contract as `lib_split.sh` |
-| `AUGMENT_MODEL_VARIANT` | `edge/distilled` | Only the edge (Canny) control path is implemented; depth is documented as a future option |
+| `AUGMENT_MODEL_VARIANT` | `edge` | Cosmos generates the edge (Canny) control on-the-fly, no separate control-video step; `edge/distilled` is faster but needs `COSMOS_EXPERIMENTAL_CHECKPOINTS=1` (set automatically) |
 | `AUGMENT_HF_REPO` | *(empty)* | If set, uploads the finished dataset after assembly |
 
 ### Build the image
