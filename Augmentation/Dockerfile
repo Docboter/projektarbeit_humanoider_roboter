@@ -39,13 +39,17 @@ RUN git clone https://github.com/nvidia-cosmos/cosmos-transfer2.5.git /cosmos-tr
 # ── Stage 2: GR00T-Fork — NUR der v3→v2.1-Konverter + kanonische modality.json ───────────
 # Sparse Checkout: kein uv sync, kein git-lfs, kein Torch/flash-attn aus diesem Fork — wir
 # brauchen nur den Konverter, nicht das komplette Trainings-Setup.
+# KEIN --depth 1: der gepinnte Commit ist ein aelterer, bewusst fixierter Stand (nicht
+# zwingend der aktuelle Branch-Tip) — ein flacher Klon haette dessen Baum gar nicht erst
+# ("fatal: unable to read tree"). Training/Dockerfile klont denselben Fork aus demselben
+# Grund ohne Tiefenlimit.
 # ACHTUNG: GROOT_FORK_COMMIT muss mit dem Pin in Training/Dockerfile Schritt halten (dort:
 # git -C /app/Groot-1.6 checkout <sha>), sonst driftet die hier kopierte modality_4cam.json
 # von der, die Training tatsächlich verwendet — und der COTRAIN-Gleichheitscheck
 # (run_finetuning_cotrain.sh, cmp -s meta/modality.json) schlägt später fehl.
 FROM alpine/git:latest AS groot-convert-src
 ARG GROOT_FORK_COMMIT=9508b498cb60c0048a8a3ce562b518b53f3d0bcf
-RUN git clone --no-checkout --depth 1 --branch luca/g1-dex3 \
+RUN git clone --no-checkout --branch luca/g1-dex3 \
         https://github.com/lucam06/Isaac-GR00T.git /groot-src \
     && git -C /groot-src sparse-checkout init --cone \
     && git -C /groot-src sparse-checkout set scripts/lerobot_conversion examples/G1_DEX3 \
