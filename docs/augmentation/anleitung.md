@@ -140,6 +140,14 @@ gilt unverändert (`mix* = F_augmentiert / (F_augmentiert + F_echt)`), aber die 
    kein automatischer Abgleich** — bei zukünftigen `COSMOS_COMMIT`-Updates (`update_image.sh
    --update-commit`) ggf. `git show <sha>:Dockerfile` im cosmos-transfer2.5-Repo gegenprüfen,
    ob sich Basis-Image/System-Pakete geändert haben.
+10. **`COSMOS_COMMIT` ist bewusst auf Tag `v1.5.0` gepinnt, nicht auf den neuesten Tag
+    (`v1.5.4`) oder main-HEAD.** Beim ersten echten Build (2026-08-22) brach `just install
+    cu128` mit `flash-attn ... doesn't have a source distribution or wheel for the current
+    platform` ab: main/`v1.5.4` haben `.python-version` von 3.10 auf 3.13 angehoben, der
+    custom flash-attn-Wheel-Index (`cu128_torch27`) liefert aber weiterhin nur `cp310`.
+    `v1.5.0` ist der letzte Tag mit `.python-version=3.10` und funktioniert. **Nach jedem
+    `--update-commit` den Build verifizieren** — Tags sind kein Garant gegen dieselbe
+    Inkonsistenz, `update_image.sh` verfolgt nur die neueste *Tag*-Version, nicht main.
 
 ## 8. Nachgelagerte QS (Follow-up, nicht Teil dieses Durchgangs)
 

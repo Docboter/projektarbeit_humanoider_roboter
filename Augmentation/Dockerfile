@@ -28,11 +28,20 @@
 
 # ── Stage 1: cosmos-transfer2.5-Quellcode, gepinnter Commit ─────────────────────────────
 # Reiner Clone-Helper, landet NICHT im finalen Image. Commit aktualisieren:
-# ./update_image.sh --update-commit (sucht den Pin per `grep 'checkout [0-9a-f]{40}'`
-# in der Nähe der cosmos-transfer2.5-URL — die Zeile darf den Commit also nicht in eine
-# ARG-Variable ohne sichtbaren Default auslagern).
+# ./update_image.sh --update-commit (sucht den Pin per `grep '^ARG COSMOS_COMMIT=[0-9a-f]{40}'`
+# — die ARG-Zeile muss den Commit deshalb als sichtbaren Default tragen, nicht nur die
+# RUN-Zeile referenzieren).
+#
+# GEPINNT AUF DEN TAG v1.5.0, NICHT auf main-HEAD: main (und Tag v1.5.4) haben
+# .python-version von 3.10 auf 3.13 angehoben, aber der custom flash-attn-Wheel-Index
+# (cu128_torch27, v1.2.0 in pyproject.toml) liefert bislang NUR cp310-Wheels — `just
+# install cu128` bricht dort mit "doesn't have a source distribution or wheel for the
+# current platform" ab. v1.5.0 ist der letzte Tag vor dem Python-Bump und noch stimmig
+# (verifiziert: .python-version=3.10, examples/inference.py + assets/robot_example/
+# unverändert vorhanden). update_image.sh verfolgt deshalb bewusst die neueste TAG-Version,
+# nicht main's beweglichen HEAD (sonst holt --update-commit dieselbe Inkonsistenz zurück).
 FROM alpine/git:latest AS cosmos-src
-ARG COSMOS_COMMIT=2ff49d0717af02057ae79bc75c00fbff9da1b4e7
+ARG COSMOS_COMMIT=41fb49f9e9fdf3025731d4bf60142e7c6093006e
 RUN git clone https://github.com/nvidia-cosmos/cosmos-transfer2.5.git /cosmos-transfer2.5 \
     && git -C /cosmos-transfer2.5 checkout "$COSMOS_COMMIT"
 

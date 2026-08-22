@@ -4,17 +4,24 @@
 #
 # Bringt das Docker-Image auf den neuesten Stand:
 #
-#   1. Neuesten Commit von cosmos-transfer2.5 ermitteln
-#   2. Dockerfile aktualisieren (falls --update-commit gesetzt und Commit neuer)
+#   1. Neuesten TAG von cosmos-transfer2.5 ermitteln (bewusst kein Branch-HEAD, s. u.)
+#   2. Dockerfile aktualisieren (falls --update-commit gesetzt und Tag neuer)
 #   3. Image bauen (docker build)
 #   4. Nach Docker Hub pushen
 #
 # Verwendung:
 #   ./update_image.sh                    # Build + Push (aktueller Dockerfile-Stand)
-#   ./update_image.sh --update-commit    # Neuesten cosmos-transfer2.5-Commit eintragen + bauen
+#   ./update_image.sh --update-commit    # Neuesten cosmos-transfer2.5-Tag eintragen + bauen
 #   ./update_image.sh --no-cache         # Build ohne Docker-Cache
 #   ./update_image.sh --skip-push        # Nur bauen, nicht pushen
 #   ./update_image.sh --dry-run          # Befehle anzeigen, nichts ausfuehren
+#
+# WARUM TAGS STATT main-HEAD: main hat .python-version zwischenzeitlich von 3.10 auf 3.13
+# angehoben, waehrend der custom flash-attn-Wheel-Index (cu128_torch27) noch nur cp310
+# liefert — `just install cu128` schlaegt dort mit "doesn't have a source distribution or
+# wheel for the current platform" fehl. Der aktuell gepinnte Commit ist Tag v1.5.0 (letzter
+# Tag vor dem Python-Bump). Tags sind kein Garant gegen sowas (Tag v1.5.4 hat denselben
+# Bump schon mitgemacht) — nach --update-commit den Build TROTZDEM verifizieren.
 #
 # ACHTUNG: aktualisiert NUR den cosmos-transfer2.5-Commit-Pin. Der zweite Pin im Dockerfile
 # (GROOT_FORK_COMMIT, fuer den vendorten v3->v2.1-Konverter) muss manuell mit dem Pin in
@@ -25,9 +32,9 @@
 #   git (im PATH)
 #
 # Umgebungsvariablen (optional, vor dem Aufruf setzen):
-#   DOCKER_IMAGE   (default: lucam03/projekt-humanoider-roboter-augmentation)
-#   COSMOS_REPO    (default: https://github.com/nvidia-cosmos/cosmos-transfer2.5.git)
-#   COSMOS_BRANCH  (default: main)
+#   DOCKER_IMAGE     (default: lucam03/projekt-humanoider-roboter-augmentation)
+#   COSMOS_REPO      (default: https://github.com/nvidia-cosmos/cosmos-transfer2.5.git)
+#   COSMOS_TAG_GLOB  (default: v*)
 
 set -euo pipefail
 
@@ -87,7 +94,7 @@ invoke_cmd() {
 # ── Konfiguration ────────────────────────────────────────────────────────────
 DOCKER_IMAGE="${DOCKER_IMAGE:-lucam03/projekt-humanoider-roboter-augmentation}"
 COSMOS_REPO="${COSMOS_REPO:-https://github.com/nvidia-cosmos/cosmos-transfer2.5.git}"
-COSMOS_BRANCH="${COSMOS_BRANCH:-main}"
+COSMOS_TAG_GLOB="${COSMOS_TAG_GLOB:-v*}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DOCKERFILE="$SCRIPT_DIR/Dockerfile"
@@ -138,31 +145,41 @@ echo ""
 # ══════════════════════════════════════════════════════════════════════════════
 log "Schritt 2/4 — cosmos-transfer2.5-Commit pruefen"
 
-# Grep auf die zwei Zeilen NACH der cosmos-transfer2.5-URL beschraenkt, damit nicht
-# versehentlich der zweite Pin (GROOT_FORK_COMMIT) erwischt wird.
-CURRENT_COMMIT="$(grep -A2 'nvidia-cosmos/cosmos-transfer2.5.git' "$DOCKERFILE" | grep -oE 'checkout "?[0-9a-f]{40}"?' | head -n1 | grep -oE '[0-9a-f]{40}')"
+# Direkt an der ARG-Zeile extrahieren, nicht am `checkout`-Aufruf: die RUN-Zeile
+# referenziert nur "$COSMOS_COMMIT" (eine Variable), der tatsaechliche 40-Zeichen-Hex
+# steht im ARG-Default. Name ist eindeutig genug, um GROOT_FORK_COMMIT nicht zu treffen.
+CURRENT_COMMIT="$(grep -oE '^ARG COSMOS_COMMIT=[0-9a-f]{40}' "$DOCKERFILE" | grep -oE '[0-9a-f]{40}')"
 
 if [[ -z "$CURRENT_COMMIT" ]]; then
     warn "Kein gepinnter cosmos-transfer2.5-Commit im Dockerfile gefunden — ueberspringe Commit-Check."
 else
     ok "Aktuell gepinnter Commit: ${CURRENT_COMMIT:0:12}..."
 
-    LATEST_COMMIT="$(git ls-remote "$COSMOS_REPO" "refs/heads/$COSMOS_BRANCH" 2>/dev/null | awk '{print $1}' | head -n1 || true)"
+    # Bewusst der neueste TAG (nicht main's beweglicher HEAD): main hat .python-version
+    # zwischenzeitlich von 3.10 auf 3.13 angehoben, waehrend der custom flash-attn-Wheel-
+    # Index noch nur cp310 liefert — ein main-Commit kann jederzeit wieder in genau diese
+    # Inkonsistenz laufen. Tags sind kein Garant gegen sowas (s. v1.5.4), aber naeher an
+    # einem getesteten Release-Stand. Nach --update-commit den Build TROTZDEM verifizieren.
+    LATEST_TAG_LINE="$(git ls-remote --tags --sort=-v:refname "$COSMOS_REPO" "$COSMOS_TAG_GLOB" 2>/dev/null | head -n1)"
+    LATEST_COMMIT="$(awk '{print $1}' <<<"$LATEST_TAG_LINE")"
+    LATEST_TAG="$(awk '{print $2}' <<<"$LATEST_TAG_LINE" | sed 's#refs/tags/##')"
 
     if [[ -z "$LATEST_COMMIT" ]]; then
-        warn "Konnte Remote-Commit nicht ermitteln (kein Netzwerk oder Repo nicht erreichbar?)."
+        warn "Konnte Remote-Tag nicht ermitteln (kein Netzwerk, kein Tag passend zu '$COSMOS_TAG_GLOB', oder Repo nicht erreichbar?)."
     elif [[ "$LATEST_COMMIT" == "$CURRENT_COMMIT" ]]; then
-        ok "Dockerfile ist bereits auf dem neuesten Stand (${LATEST_COMMIT:0:12}...)."
+        ok "Dockerfile ist bereits auf dem neuesten Tag ($LATEST_TAG, ${LATEST_COMMIT:0:12}...)."
     else
-        warn "Neuer Commit verfuegbar!"
+        warn "Neuerer Tag verfuegbar: $LATEST_TAG"
         warn "  Aktuell: ${CURRENT_COMMIT:0:12}..."
-        warn "  Neu:     ${LATEST_COMMIT:0:12}..."
+        warn "  Neu:     ${LATEST_COMMIT:0:12}... ($LATEST_TAG)"
 
         if [[ $UPDATE_COMMIT -eq 1 ]]; then
             log "Aktualisiere Dockerfile (--update-commit) ..."
             if [[ $DRY_RUN -eq 0 ]]; then
                 sed -i "s/$CURRENT_COMMIT/$LATEST_COMMIT/g" "$DOCKERFILE"
-                ok "Dockerfile aktualisiert: $CURRENT_COMMIT -> $LATEST_COMMIT"
+                ok "Dockerfile aktualisiert: $CURRENT_COMMIT -> $LATEST_COMMIT ($LATEST_TAG)"
+                warn "Build danach UNBEDINGT verifizieren — ein neuerer Tag kann eigene,"
+                warn "neue Inkompatibilitaeten mitbringen (siehe Kommentar im Dockerfile)."
             else
                 echo "${C_YELLOW}[dry-run] Ersetze '$CURRENT_COMMIT' -> '$LATEST_COMMIT' in Dockerfile${C_RESET}"
             fi
