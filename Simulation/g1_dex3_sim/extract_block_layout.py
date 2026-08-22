@@ -186,6 +186,110 @@ def largest_blob(mask: np.ndarray, min_area: int = 120) -> dict | None:
     }
 
 
+def track_colors(path, min_area: int = 80) -> dict[str, list[list[float] | None]]:
+    """Track the largest color blob per frame; this is used only for motion timing.
+
+    Der Schwerpunkt der GANZEN Farbmaske wäre billiger, ist aber unbrauchbar: die Maske
+    enthält neben dem Würfel regelmäßig Streupixel (Abnahmelauf 2026-08-22, Episode 0,
+    ``cam_left_high``: rot 4 Komponenten / 47 % Würfel, gruen 27 / 64 %, gelb 16 / 64 %).
+    Bei Gelb lag der Gesamtschwerpunkt 14 px neben dem Blobschwerpunkt — mehr als die
+    8-px-Schwelle von ``find_motion_onset``. Folge: 33 von 40 Gelb-Onsets feuerten bis
+    Frame 30, also bevor der Roboter den Würfel überhaupt berührt, und Gelb lieferte
+    keinen einzigen Anker. Der Messpfad (``top_face_blob``) benutzt ohnehin
+    ``largest_blob``; hier dieselbe Quelle zu nehmen ist die eigentliche Korrektur.
+    """
+    import imageio.v2 as imageio
+
+    scale = 2
+    reduced_min_area = max(20, min_area // (scale * scale))
+    tracks = {color: [] for color in CUBE_COLORS}
+    with imageio.get_reader(str(path), format="FFMPEG") as reader:
+        for frame in reader:
+            rgb = np.asarray(frame, dtype=np.uint8)[::scale, ::scale, :3]
+            hue, saturation, value = rgb_to_hsv(rgb)
+            for color in CUBE_COLORS:
+                window = HSV_WINDOWS[color]
+                hue_mask = np.zeros(hue.shape, dtype=bool)
+                for low, high in window["h"]:
+                    hue_mask |= (hue >= low) & (hue <= high)
+                mask = hue_mask & (saturation >= window["s"]) & (value >= window["v"])
+                blob = largest_blob(mask, min_area=reduced_min_area)
+                tracks[color].append(
+                    None if blob is None
+                    else [float(blob["u"] * scale), float(blob["v"] * scale)]
+                )
+    return tracks
+
+
+def find_motion_onset(
+    track: list[list[float] | None], threshold_px: float = 8.0, stable_frames: int = 5
+) -> int | None:
+    """Return the first run that stays displaced from the first ten valid samples."""
+    valid = [(index, point) for index, point in enumerate(track[:30]) if point is not None]
+    if len(valid) < 10:
+        return None
+    baseline = np.median(np.asarray([point for _, point in valid[:10]], dtype=float), axis=0)
+    search_start = valid[9][0] + 1
+    run = 0
+    for index, point in enumerate(track[search_start:], search_start):
+        moved = point is not None and np.linalg.norm(np.asarray(point) - baseline) >= threshold_px
+        run = run + 1 if moved else 0
+        if run >= stable_frames:
+            return index - stable_frames + 1
+    return None
+
+MOTION_ONSET_TOLERANCE_FRAMES = 12
+
+
+def episode_motion_onsets(root: Path, ep: int, cams: list[str], min_area: int = 80,
+                          tolerance: int = MOTION_ONSET_TOLERANCE_FRAMES) -> dict:
+    """Ab welchem Frame sich jeder Würfel im Realvideo bewegt.
+
+    Das ist die Grenze, bis zu der ein gerendertes Bild zur echten Aktion passt: davor liegt
+    der Würfel dort, wo ihn das Layout hinsetzt, danach hat ihn die reale Hand bewegt,
+    während der simulierte liegen bleibt.
+
+    Bis 2026-08-22 kam diese Grenze aus ``scan.json`` (``close_step``, das Minimum der
+    Fingeröffnung). Dieser Detektor funktioniert für die DEX3 nicht — bei 101 von 116
+    Griffen bleibt die engste Kuppenöffnung über 6 cm bei 5 cm Würfelkante —, und er lag in
+    Episode 0 achtundzwanzig Frames zu spät, also 21 % der Episode falsch beschriftet.
+
+    Eine Farbe zählt nur, wenn **beide** Kopfkameras einen Bewegungsbeginn finden und
+    höchstens ``tolerance`` Frames auseinanderliegen. Ohne diese Prüfung schlagen einzelne
+    Fehlauslösungen durch: in Episode 0 meldet Grün 10 gegen 194 und Gelb 165 gegen 244,
+    beide unbrauchbar, während Rot mit 108/107 trägt.
+    """
+    tracks = {}
+    for cam in cams:
+        video = root / VIDEO_TEMPLATE.format(
+            episode_chunk=ep // CHUNK_SIZE,
+            video_key=f"observation.images.{cam}", episode_index=ep)
+        if video.exists():
+            tracks[cam] = track_colors(video, min_area=min_area)
+
+    per_color: dict[str, int] = {}
+    rejected: dict[str, str] = {}
+    for color in CUBE_COLORS:
+        found = {}
+        for cam, track in tracks.items():
+            onset = find_motion_onset(track[color])
+            if onset is not None:
+                found[cam] = int(onset)
+        if not tracks or len(found) < len(tracks):
+            rejected[color] = "Bewegungsbeginn fehlt in einer Kopfkamera"
+            continue
+        spread = max(found.values()) - min(found.values())
+        if spread > tolerance:
+            rejected[color] = f"Kopfkameras uneins um {spread} Frames"
+            continue
+        per_color[color] = int(round(float(np.median(list(found.values())))))
+
+    return {"per_color": per_color,
+            "first": min(per_color.values()) if per_color else None,
+            "rejected": rejected,
+            "tolerance_frames": int(tolerance)}
+
+
 # ---------------------------------------------------------------------------
 # Rückprojektion
 # ---------------------------------------------------------------------------
@@ -374,9 +478,14 @@ def run_extract(args) -> int:
             if len(arr) > 1:
                 spread.append(float(np.linalg.norm(arr[0] - arr[1])))
 
+        onsets = ({"per_color": {}, "first": None, "rejected": {}, "tolerance_frames": 0}
+                  if args.no_motion_onset
+                  else episode_motion_onsets(root, ep, cams, min_area=args.min_area))
         layout["episodes"][str(ep)] = {
             "frame": args.frame,
             "cubes": cubes,
+            # Fenstergrenze für den Renderer, siehe episode_motion_onsets.
+            "motion_onset": onsets,
             "per_camera": per_cam,
             # Der Abgleich beider Kameras prüft die Detektion, NICHT das Kameramodell:
             # bei 4,7 cm Stereobasis auf 0,5 m verschiebt ein Modellfehler beide Strahlen
@@ -385,7 +494,12 @@ def run_extract(args) -> int:
             "camera_spread_cm": [round(s * 100, 2) for s in spread],
         }
         n_ok = sum(1 for c in cubes if c)
-        print(f"{head}: {n_ok}/3 Würfel"
+        first = onsets["first"]
+        onset_txt = (f", Bewegung ab Frame {first} ({len(onsets['per_color'])}/3 Farben)"
+                     if first is not None
+                     else (", KEIN belastbarer Bewegungsbeginn" if not args.no_motion_onset
+                           else ""))
+        print(f"{head}: {n_ok}/3 Würfel{onset_txt}"
               + (f", Kameras uneins um {max(spread) * 100:.1f} cm" if spread else ""),
               flush=True)
         out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -442,6 +556,10 @@ def main() -> int:
     e.add_argument("--train-ratio", type=float, default=0.8)
     e.add_argument("--cameras", default="cam_left_high,cam_right_high")
     e.add_argument("--overwrite", action="store_true")
+    e.add_argument("--no-motion-onset", action="store_true",
+                   help="Bewegungsbeginn NICHT bestimmen. Spart Zeit (sonst wird jedes Video "
+                        "einmal in halber Auflösung dekodiert, grob 4 s je Video und Kamera), "
+                        "aber render_cotrain_dataset.py kann dann kein Fenster setzen.")
 
     args = ap.parse_args()
     if CAMERA_CFG.width != 640 or CAMERA_CFG.height != 480:

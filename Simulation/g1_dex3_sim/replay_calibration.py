@@ -8,7 +8,13 @@ from typing import Any
 
 import numpy as np
 
-from extract_block_layout import CUBE_COLORS, HSV_WINDOWS, color_mask, largest_blob, rgb_to_hsv
+# track_colors/find_motion_onset liegen in extract_block_layout, weil sie dort ohne
+# Zirkelbezug auch von der Layout-Extraktion benutzt werden können. Hier weiterexportiert,
+# damit bestehende Importe aus replay_calibration unverändert funktionieren.
+from extract_block_layout import (  # noqa: F401
+    CUBE_COLORS, HSV_WINDOWS, color_mask, find_motion_onset, largest_blob, rgb_to_hsv,
+    track_colors,
+)
 
 # ── Würfelgeometrie und Arbeitsbereich ────────────────────────────────────────
 # Eine Quelle für alle Stufen: der Anker behauptet „hier lag der Würfel", also muss er
@@ -122,59 +128,6 @@ def best_top_face_detection(
         ),
     )
     return best
-
-
-def track_colors(path, min_area: int = 80) -> dict[str, list[list[float] | None]]:
-    """Track the largest color blob per frame; this is used only for motion timing.
-
-    Der Schwerpunkt der GANZEN Farbmaske wäre billiger, ist aber unbrauchbar: die Maske
-    enthält neben dem Würfel regelmäßig Streupixel (Abnahmelauf 2026-08-22, Episode 0,
-    ``cam_left_high``: rot 4 Komponenten / 47 % Würfel, gruen 27 / 64 %, gelb 16 / 64 %).
-    Bei Gelb lag der Gesamtschwerpunkt 14 px neben dem Blobschwerpunkt — mehr als die
-    8-px-Schwelle von ``find_motion_onset``. Folge: 33 von 40 Gelb-Onsets feuerten bis
-    Frame 30, also bevor der Roboter den Würfel überhaupt berührt, und Gelb lieferte
-    keinen einzigen Anker. Der Messpfad (``top_face_blob``) benutzt ohnehin
-    ``largest_blob``; hier dieselbe Quelle zu nehmen ist die eigentliche Korrektur.
-    """
-    import imageio.v2 as imageio
-
-    scale = 2
-    reduced_min_area = max(20, min_area // (scale * scale))
-    tracks = {color: [] for color in CUBE_COLORS}
-    with imageio.get_reader(str(path), format="FFMPEG") as reader:
-        for frame in reader:
-            rgb = np.asarray(frame, dtype=np.uint8)[::scale, ::scale, :3]
-            hue, saturation, value = rgb_to_hsv(rgb)
-            for color in CUBE_COLORS:
-                window = HSV_WINDOWS[color]
-                hue_mask = np.zeros(hue.shape, dtype=bool)
-                for low, high in window["h"]:
-                    hue_mask |= (hue >= low) & (hue <= high)
-                mask = hue_mask & (saturation >= window["s"]) & (value >= window["v"])
-                blob = largest_blob(mask, min_area=reduced_min_area)
-                tracks[color].append(
-                    None if blob is None
-                    else [float(blob["u"] * scale), float(blob["v"] * scale)]
-                )
-    return tracks
-
-
-def find_motion_onset(
-    track: list[list[float] | None], threshold_px: float = 8.0, stable_frames: int = 5
-) -> int | None:
-    """Return the first run that stays displaced from the first ten valid samples."""
-    valid = [(index, point) for index, point in enumerate(track[:30]) if point is not None]
-    if len(valid) < 10:
-        return None
-    baseline = np.median(np.asarray([point for _, point in valid[:10]], dtype=float), axis=0)
-    search_start = valid[9][0] + 1
-    run = 0
-    for index, point in enumerate(track[search_start:], search_start):
-        moved = point is not None and np.linalg.norm(np.asarray(point) - baseline) >= threshold_px
-        run = run + 1 if moved else 0
-        if run >= stable_frames:
-            return index - stable_frames + 1
-    return None
 
 
 def stable_top_face_measurement(

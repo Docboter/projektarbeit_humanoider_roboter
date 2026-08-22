@@ -104,24 +104,27 @@ parser.add_argument("--max-frames-per-episode", type=int, default=0,
 parser.add_argument("--layout", type=str, default="",
                     help="layout.json aus extract_block_layout.py — Würfelpositionen, die "
                          "aus dem REALBILD gelesen wurden (Farbblob → Strahl auf die "
-                         "Würfelebene). Das ist die richtige Quelle; der Greifpunkt aus "
-                         "scan.json ist nur der Notnagel und liegt bei knapp der Hälfte der "
-                         "Griffe auf dem Transportweg statt am Pick.")
+                         "Würfelebene) UND je Episode der Bewegungsbeginn, der das "
+                         "Renderfenster begrenzt. Ohne Eintrag wird die Episode verworfen — "
+                         "geraten wird nicht.")
 parser.add_argument("--stop-at-grasp", action="store_true",
-                    help="Nur bis zum ersten Zugreifen rendern (Fensterende = kleinstes "
-                         "close_step aus scan.json). Bis dorthin liegt der Würfel dort, wo "
-                         "der Arm hinfährt; danach entscheidet die Kontaktphysik über seine "
-                         "Lage und das Bild zeigt etwas anderes, als die Aktion beschreibt. "
-                         "Solche Paare sind FALSCH beschriftet, nicht bloß unscharf.")
+                    help="Nur bis zur ersten Würfelbewegung rendern (Fensterende = "
+                         "motion_onset.first aus layout.json). Bis dorthin liegt der Würfel "
+                         "dort, wo ihn das Layout hinsetzt; danach hat die reale Hand ihn "
+                         "mitgenommen, der simulierte bleibt liegen, und das Bild zeigt etwas "
+                         "anderes, als die Aktion beschreibt. Solche Paare sind FALSCH "
+                         "beschriftet, nicht bloß unscharf.")
 parser.add_argument("--grasp-window", type=int, default=0,
-                    help="Mit --stop-at-grasp: nur die letzten N Frames vor dem Griff "
+                    help="Mit --stop-at-grasp: nur die letzten N Frames vor der "
+                         "Würfelbewegung "
                          "rendern (0 = ab Frame 0). Schneidet den Leerlauf-Kopf langer "
                          "Aufnahmen weg und vereinheitlicht das Gewicht der Episoden — "
                          "sonst stellt eine 6791-Frame-Episode ein Sechstel des Satzes.")
 parser.add_argument("--min-window", type=int, default=60,
                     help="Mit --stop-at-grasp: Episoden mit kürzerem Fenster überspringen. "
-                         "Ein Griff in den ersten Frames ist keine Greifbewegung, sondern "
-                         "eine Hand, die schon geschlossen startet.")
+                         "Bewegt sich ein Würfel schon in den ersten Frames, ist das keine "
+                         "Greifbewegung, sondern eine Fehlauslösung oder eine bereits "
+                         "gestörte Szene.")
 parser.add_argument("--asset-path", type=str, default="",
                     help="G1+Dex3 USD-Asset (leer = cfg-Default)")
 parser.add_argument("--tracking-error-max", type=float, default=0.15,
@@ -143,8 +146,13 @@ args = parser.parse_args()
 
 if args.stop_at_grasp and args.no_place_cubes:
     raise SystemExit(
-        "--stop-at-grasp braucht die Greifpunkte aus scan.json, --no-place-cubes wirft sie "
-        "gerade weg. Beides zusammen ergäbe ein Fenster ohne Inhalt."
+        "--stop-at-grasp schneidet das Fenster an der Würfelbewegung, --no-place-cubes setzt "
+        "gar keine Würfel. Beides zusammen ergäbe ein Fenster ohne Inhalt."
+    )
+if args.stop_at_grasp and not args.layout:
+    raise SystemExit(
+        "--stop-at-grasp braucht --layout: das Fensterende (motion_onset) steht in "
+        "layout.json. Erst extract_block_layout.py fahren."
     )
 if args.grasp_window > 0 and not args.stop_at_grasp:
     raise SystemExit("--grasp-window wirkt nur mit --stop-at-grasp (das Fensterende fehlt sonst).")
@@ -707,28 +715,35 @@ def finalize_meta(out: Path, src_info: dict, tasks: dict[int, str], manifest: di
 # Stufen
 # ---------------------------------------------------------------------------
 
-def episode_window(info: dict, n_src: int) -> tuple[int, int, str]:
+def episode_window(layout_entry: dict | None, n_src: int) -> tuple[int, int, str]:
     """Welcher Frame-Bereich gerendert wird — und warum. Rückgabe ``(start, stop, Grund)``.
 
-    Ohne ``--stop-at-grasp`` die ganze Episode. Mit dem Flag endet das Fenster am
-    **frühesten** Griff beider Hände, nicht am spätesten: sobald eine Hand zugreift, ist
-    ihr Würfel der Physik überlassen — und er ist auch in der Kamera der anderen Hand zu
-    sehen. Das späteste close_step zu nehmen hieße, für die eine Hand konsistente Frames mit
-    für die andere schon falschen zu erkaufen.
+    Ohne ``--stop-at-grasp`` die ganze Episode. Mit dem Flag endet das Fenster, sobald sich
+    der **erste** Würfel im Realvideo bewegt: ab da hat die reale Hand ihn mitgenommen,
+    während der simulierte liegen bleibt, und das Bild beschreibt nicht mehr die Aktion. Den
+    frühesten Würfel zu nehmen und nicht den spätesten ist Absicht — ein bewegter Würfel ist
+    in beiden Kopfkameras zu sehen, also verdirbt er auch die Frames der anderen Hand.
+
+    Die Grenze kommt aus ``layout.json`` (``motion_onset.first``, gemessen von
+    ``extract_block_layout.episode_motion_onsets``). Bis 2026-08-22 stand hier das
+    ``close_step`` aus ``scan.json``, das Minimum der Fingeröffnung. Das war zweimal falsch:
+    der Detektor greift für die DEX3 nicht (101 von 116 Griffen schließen nie unter 6 cm bei
+    5 cm Würfelkante), und wo er etwas fand, lag es zu spät — in Episode 0 achtundzwanzig
+    Frames, also 21 % der Episode falsch beschriftet.
 
     ``start == stop`` heißt „diese Episode liefert kein brauchbares Fenster".
     """
     if not args.stop_at_grasp:
         return 0, n_src, "ganze Episode"
-    closes = [int(h["close_step"]) for h in info.get("hands", [])
-              if h.get("ok") and h.get("close_step") is not None]
-    if not closes:
-        return 0, 0, "kein Greifpunkt im Scan"
-    stop = min(min(closes), n_src)
+    onset = (layout_entry or {}).get("motion_onset", {}).get("first")
+    if onset is None:
+        return 0, 0, ("kein belastbarer Bewegungsbeginn im Layout "
+                      "(beide Kopfkameras müssen sich einig sein)")
+    stop = min(int(onset), n_src)
     start = max(0, stop - args.grasp_window) if args.grasp_window > 0 else 0
     if stop - start < args.min_window:
         return start, start, f"Fenster {stop - start} < {args.min_window} Frames"
-    return start, stop, f"Frames {start}–{stop}, Griff bei {stop}"
+    return start, stop, f"Frames {start}–{stop}, Würfel bewegt sich ab {stop}"
 
 
 def expected_length(src_lengths: dict[int, int], ep_idx: int, info: dict | None = None) -> int:
@@ -826,21 +841,16 @@ def run_render(env_builder, src_root: Path, src_info: dict, episodes: list[int],
     scan = {"episodes": {}}
     if scan_path.exists():
         scan = json.loads(scan_path.read_text())
-    elif args.stop_at_grasp:
-        raise SystemExit(
-            f"{scan_path} fehlt, --stop-at-grasp braucht daraus aber das close_step, um das "
-            "Fenster zu schneiden. Erst `--stage scan` fahren."
-        )
     elif not args.no_place_cubes and not args.layout:
         raise SystemExit(
-            f"{scan_path} fehlt und kein --layout — dann lägen die Würfel zufällig und die "
-            "Bild-Aktions-Paare wären visuell entkoppelt. Empfohlen ist --layout "
-            "(extract_block_layout.py); --no-place-cubes erzwingt die Entkopplung als Ablation."
+            f"{scan_path} fehlt und kein --layout — ohne Layout weiß der Renderer weder, wo "
+            "die Würfel lagen, noch bis zu welchem Frame das Bild zur Aktion passt. Erst "
+            "extract_block_layout.py fahren; --no-place-cubes erzwingt die Entkopplung als "
+            "Ablation."
         )
 
-    # Bild-Layout: die einzige Quelle, die weiß, wo die Würfel wirklich lagen. Fehlt es,
-    # fällt place_cubes auf den Greifpunkt zurück — laut, weil das der Modus ist, in dem der
-    # Arm ins Leere greift.
+    # Bild-Layout: die einzige Quelle, die weiß, wo die Würfel lagen UND ab wann sie sich
+    # bewegen. Ohne Eintrag verwirft der Renderer die Episode, statt zu raten.
     layout: dict = {}
     if args.layout:
         lp = Path(args.layout)
@@ -849,9 +859,8 @@ def run_render(env_builder, src_root: Path, src_info: dict, episodes: list[int],
         layout = json.loads(lp.read_text()).get("episodes", {})
         print(f"[render] Layout aus {lp}: {len(layout)} Episoden.", flush=True)
     else:
-        print("[render] WARNUNG: kein --layout. Die Würfel landen am Greifpunkt aus "
-              "scan.json, und der liegt bei knapp der Hälfte der Griffe auf dem "
-              "Transportweg statt am Pick.", flush=True)
+        print("[render] WARNUNG: kein --layout — nur mit --no-place-cubes sinnvoll "
+              "(Ablation ohne Würfel).", flush=True)
 
     manifest_path = out / "render_manifest.json"
     manifest = {"episodes": {}, "frame_width": 640, "frame_height": 480,
@@ -901,7 +910,7 @@ def run_render(env_builder, src_root: Path, src_info: dict, episodes: list[int],
             actions, state = actions[:args.max_frames_per_episode], \
                 state[:args.max_frames_per_episode]
 
-        start, stop, why = episode_window(info, actions.shape[0])
+        start, stop, why = episode_window(layout.get(str(ep_idx)), actions.shape[0])
         if stop - start <= 0:
             print(f"{head}: ÜBERSPRUNGEN — {why}.", flush=True)
             manifest["episodes"][str(ep_idx)] = {"status": "skipped_window", "reason": why}
@@ -1015,10 +1024,11 @@ def main():
                  else "aus dem Bild-Layout (einzige Quelle; sonst wird die Episode verworfen)")
     print(f"  Würfel:      {cube_mode}")
     if args.stop_at_grasp:
-        win = f"letzte {args.grasp_window} Frames vor dem Griff" if args.grasp_window \
-            else "Frame 0 bis zum Griff"
+        win = (f"letzte {args.grasp_window} Frames vor der Würfelbewegung"
+               if args.grasp_window else "Frame 0 bis zur ersten Würfelbewegung")
         print(f"  Fenster:     {win}, mind. {args.min_window} Frames "
-              f"(ab dem Griff wäre das Bild-Aktions-Paar falsch beschriftet)")
+              f"(Quelle: motion_onset aus layout.json; ab da wäre das Bild-Aktions-Paar "
+              f"falsch beschriftet)")
     else:
         print("  Fenster:     ganze Episode — Frames AB dem Griff sind falsch beschriftet, "
               "solange kein Attach existiert (--stop-at-grasp)")

@@ -230,9 +230,18 @@ Damit sind Frames **vor** dem Griff brauchbar (der Würfel liegt dort, wo der Ar
 und Frames **ab** dem Griff **falsch beschriftet** (Bild: Würfel auf dem Tisch, Aktion:
 Würfel transportieren). Falsch beschriftete Paare sind schlimmer als fehlende.
 
-`RENDER_STOP_AT_GRASP=1` (Default) schneidet jede Episode am **frühesten** `close_step`
-beider Hände ab — nicht am spätesten: sobald eine Hand zugreift, ist ihr Würfel der Physik
-überlassen, und er ist auch in der Kamera der anderen Hand sichtbar.
+`RENDER_STOP_AT_GRASP=1` (Default) schneidet jede Episode an der **ersten Würfelbewegung**
+ab — nicht am spätesten Würfel: ein bewegter Würfel ist in beiden Kopfkameras zu sehen, also
+verdirbt er auch die Frames der anderen Hand.
+
+> **Seit 2026-08-22 kommt diese Grenze aus `layout.json` (`motion_onset`), nicht mehr aus
+> `close_step`.** Der alte Weg war zweimal falsch. Erstens greift der Detektor für diese Hand
+> nicht: bei 101 von 116 Griffen bleibt die engste Kuppenöffnung über 6 cm bei 5 cm
+> Würfelkante. Zweitens lag er, wo er etwas fand, zu spät — in Episode 0 endete das Fenster
+> bei Frame 136, während sich der rote Würfel real ab Frame 108 bewegt: **28 Frames, 21 % der
+> Episode, falsch beschriftet**. Der Bewegungsbeginn misst direkt, was das Fenster braucht,
+> und wird nur gezählt, wenn beide Kopfkameras sich auf 12 Frames einig sind. Episoden ohne
+> einen einzigen belastbaren Onset werden verworfen (`skipped_window`).
 
 `RENDER_GRASP_WINDOW=N` rendert nur die letzten N Frames davor. Das schneidet den
 Leerlauf-Kopf langer Aufnahmen weg und vereinheitlicht das Gewicht der Episoden — ohne das

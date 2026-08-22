@@ -1162,6 +1162,7 @@ do_layout() {
   local extra=""
   [[ -n "${LAYOUT_BIAS:-}" ]] && extra+=" --bias ${LAYOUT_BIAS}"
   [[ "${LAYOUT_OVERWRITE:-0}" == "1" ]] && extra+=" --overwrite"
+  [[ "${LAYOUT_NO_MOTION_ONSET:-0}" == "1" ]] && extra+=" --no-motion-onset"
 
   if ! docker exec "$CONTAINER" test -f "$SIM_DIR/extract_block_layout.py"; then
     err "extract_block_layout.py fehlt unter $SIM_DIR — auf dem Server:  git pull"
@@ -1169,6 +1170,10 @@ do_layout() {
   fi
 
   log "Wuerfellage aus den Realbildern lesen: $eps Episoden, Ziel $out"
+  log "  Dazu je Episode der Bewegungsbeginn (Fenstergrenze fuer 'render'). Der kostet"
+  log "  Zeit: jedes Video wird einmal in halber Aufloesung dekodiert, grob 4 s je Video"
+  log "  und Kamera. Abschalten mit LAYOUT_NO_MOTION_ONSET=1 (dann kann 'render' aber"
+  log "  kein Fenster setzen)."
   log "  Markierte Kontrollbilder: $HOST_DATA_DIR/${dbg#/data/}"
   docker exec -w "$SIM_DIR" "$CONTAINER" bash -lc "
     unset VIRTUAL_ENV
@@ -1392,21 +1397,26 @@ do_render() {
   [[ "${RENDER_MAX_FRAMES:-0}" != "0" ]] && extra+=" --max-frames-per-episode ${RENDER_MAX_FRAMES}"
   [[ "${RENDER_OVERWRITE:-0}" == "1" ]] && extra+=" --overwrite"
   [[ -n "${RENDER_EPISODE_IDS:-}" ]] && extra+=" --episode-ids ${RENDER_EPISODE_IDS}"
-  # Nur bis zum Griff rendern. Ab dem Griff entscheidet die Kontaktphysik ueber die
-  # Wuerfellage, und die greift im Replay meist nicht — das Bild zeigt dann etwas anderes,
+  # Nur bis zur ersten Wuerfelbewegung rendern. Ab da hat die reale Hand den Wuerfel
+  # mitgenommen, waehrend der simulierte liegen bleibt — das Bild zeigt dann etwas anderes,
   # als die Aktion beschreibt. Default AN, weil die Alternative falsch beschriftete Paare
   # sind; RENDER_STOP_AT_GRASP=0 stellt das alte Verhalten wieder her.
-  # Wuerfellage aus dem Realbild. Default ist Pflicht, nicht Angebot: ohne Layout landen die
-  # Wuerfel am Greifpunkt aus scan.json, und der liegt bei knapp der Haelfte der Griffe auf
-  # dem Transportweg statt am Pick. RENDER_LAYOUT=none erzwingt den alten Weg.
+  # Die Fenstergrenze kam bis 2026-08-22 aus scan.json (close_step, Minimum der
+  # Fingeroeffnung). Das war zweimal falsch: der Detektor greift fuer die DEX3 nicht (101
+  # von 116 Griffen schliessen nie unter 6 cm bei 5 cm Wuerfelkante), und wo er etwas fand,
+  # lag es zu spaet — in Episode 0 achtundzwanzig Frames, also 21 % falsch beschriftet.
+  # Seither steht die Grenze als motion_onset in layout.json, gemessen am Realvideo.
+  # Damit braucht 'render' das Layout doppelt: fuer die Wuerfellage UND fuer das Fenster.
+  # RENDER_LAYOUT=none geht deshalb nur noch mit RENDER_STOP_AT_GRASP=0.
   local layout="${RENDER_LAYOUT:-/data/cotrain/layout.json}"
   if [[ "$layout" == "none" ]]; then
-    warn "RENDER_LAYOUT=none — Wuerfel kommen vom Greifpunkt aus scan.json."
-    warn "  Das ist der Modus, in dem der Arm ins Leere greift. Nur fuer Vergleichslaeufe."
+    warn "RENDER_LAYOUT=none — ohne Layout kennt der Renderer weder die Wuerfellage noch"
+    warn "  die Fenstergrenze. Nur mit RENDER_STOP_AT_GRASP=0 und als Ablation sinnvoll."
   elif docker exec "$CONTAINER" test -f "$layout"; then
     extra+=" --layout ${layout}"
   else
     err "Layout fehlt: $layout"
+    err "  Es liefert beides: Wuerfellage und Fenstergrenze (motion_onset)."
     err "  Erst:  RENDER_EPISODES=${eps} ./Simulation/server_rl_run.sh layout"
     err "  Bewusst ohne Layout rendern:  RENDER_LAYOUT=none"
     return 1
@@ -1707,12 +1717,13 @@ Aktionen:
               SPAN_TRAJ_IDS (Default "0 1 2 3 4"), SPAN_AUTO_FETCH=0 schaltet das Holen ab.
   layout      Wuerfellage aus den REALBILDERN lesen -> layout.json. Farbblob (rot/gruen/gelb)
               im ersten Frame, Strahl durch den Schwerpunkt auf die Wuerfelebene. Braucht
-              keine GPU, Minuten statt Stunden. Das ist die richtige Quelle fuer 'render':
-              der Greifpunkt aus scan.json ist das Minimum der Fingeroeffnung ueber die ganze
-              Episode und liegt bei knapp der Haelfte der Griffe auf dem Transportweg statt
-              am Pick — dort greift der Arm dann ins Leere.
+              keine GPU. Liefert 'render' BEIDES: die Wuerfellage und den Bewegungsbeginn je
+              Episode, an dem das Renderfenster endet. Beides ersetzt den Greifpunkt aus
+              scan.json, der fuer die DEX3 nicht funktioniert (101 von 116 Griffen schliessen
+              nie unter 6 cm bei 5 cm Wuerfelkante).
               LAYOUT_OUT (/data/cotrain/layout.json), RENDER_EPISODES (60),
-              LAYOUT_DEBUG_DIR, LAYOUT_BIAS ("dx dy" in Metern), LAYOUT_OVERWRITE=1.
+              LAYOUT_DEBUG_DIR, LAYOUT_BIAS ("dx dy" in Metern), LAYOUT_OVERWRITE=1,
+              LAYOUT_NO_MOTION_ONSET=1 (Bewegungsbeginn weglassen, spart die Videodekodierung).
   layoutcheck Kameramodell gegen ein GERENDERTES Bild pruefen, bevor 'layout' geglaubt wird.
               In Lauf 13 lagen konfigurierte Pose und cam.data 95,6° auseinander und drei
               Laeufe waren umsonst. LAYOUTCHECK_FRAME (Bild im Container),
