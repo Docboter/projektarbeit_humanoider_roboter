@@ -996,9 +996,9 @@ def run_render(env_builder, src_root: Path, src_info: dict, episodes: list[int],
         manifest_path.write_text(json.dumps(manifest, indent=2))
         note = ""
         if cons:
-            d = [h["dist_cm"] for h in cons["hands"] if h]
+            d = [h["dist_end_cm"] for h in cons["hands"] if h]
             if d:
-                note = f", Kuppen↔Würfel beim Griff {min(d):.1f} cm"
+                note = f", Kuppen↔Würfel am Fensterende {min(d):.1f} cm"
         print(f"{head}: geschrieben (Tracking {arm_err:.3f} rad{note}).", flush=True)
 
     finalize_meta(out, src_info, tasks, manifest, fps)

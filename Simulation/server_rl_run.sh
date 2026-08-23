@@ -1765,7 +1765,7 @@ Aktionen:
               zeigt etwas anderes, als die Aktion beschreibt. RENDER_GRASP_WINDOW (0 =
               ab Frame 0) rendert nur die letzten N Frames davor, RENDER_MIN_WINDOW (60)
               ueberspringt zu kurze Fenster. Das Manifest bekommt je Episode ein
-              consistency-Feld (Abstand Kuppen<->Wuerfel beim Griff) und der Lauf am Ende
+              consistency-Feld (Abstand Kuppen<->Wuerfel am Fensterende) und der Lauf am Ende
               eine Zusammenfassung daraus — das ist die QA-Zahl, nicht scan.json:ok.
   rl          Echter RL-Lauf (Vordergrund). Checkpoints unter $HOST_DATA_DIR/g1_dex3_rl/.
   latency     Reine Policy-Latenz (ms je Action-Chunk), in-process ohne Sim und ohne ZMQ.
