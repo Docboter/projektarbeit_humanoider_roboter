@@ -3,22 +3,29 @@
 
 WOZU
 ────
-Der Render-Lauf vom 2026-08-23 zeigt einen konstanten Widerspruch: über alle Frames und
-beide Hände kommt keine Fingerkuppe je näher als **10 cm** an den Würfel, den das
-Bild-Layout gesetzt hat — obwohl sich der reale Würfel am Fensterende nachweislich bewegt,
-die reale Hand ihn also hält. Dieselben rund 10 cm zeigten schon die v4-Pick-Anker (4–11 cm)
-und die Pinhole-Gegenprobe (11,5 cm). Genau eines von beiden ist falsch:
+Der Render-Lauf vom 2026-08-23 zeigt einen konstanten Widerspruch: keine Fingerkuppe kommt
+dem Würfel, den das Bild-Layout gesetzt hat, je näher als **10 cm** — obwohl sich der reale
+Würfel nachweislich bewegt, die reale Hand ihn also hält. Genau eines von beiden ist falsch:
 
   (a) die Würfellage aus dem Realbild — also die Kamerapose für REALE Bilder. In der
       Simulation ist das Modell gegen Grundwahrheit auf 0,3 cm bestätigt (Lauf 37), für
-      Realbilder ist es unbewiesen: die Pose wurde aus Datensatzframes rekonstruiert.
-  (b) die Handposition aus dem aufgezeichneten Zustand — FK, Basispose, oder die im
-      28-dim-State FEHLENDEN Hüftgelenke. 13° Rumpfneigung reichen für 10 cm.
+      Realbilder war es unbewiesen: die Pose wurde aus Datensatzframes rekonstruiert.
+  (b) die Handposition aus dem aufgezeichneten Zustand — FK, Basispose, der Messpunkt, oder
+      die im 28-dim-State FEHLENDEN Hüftgelenke. 13° Rumpfneigung reichen für 10 cm.
+
+STAND (Lauf 44, `runs/20260824/11`): **(a) ist weitgehend entlastet.** Am nächsten Punkt der
+Episode fallen dx und dy auf +3,1 bzw. +1,0 cm mit wechselndem Vorzeichen — der waagerechte
+Versatz am Bewegungsbeginn war der Transport, nicht die Kamera. Übrig bleibt ein reiner
+HÖHENversatz von +7,0 cm (Streuung 1,6, nie unter +3,8) über beide Hände und alle Episoden.
+Eine Konstante, kein Verhalten. Läge die Würfelebene falsch, wanderte der rückprojizierte
+Punkt am ~45°-Strahl um ähnlich viel WAAGERECHT — das ist ausgeschlossen. Der Versatz sitzt
+also auf der Roboterseite: Basishöhe, Rumpfneigung oder Messpunkt.
 
 Das Werkzeug setzt den Roboter auf den aufgezeichneten Zustand und projiziert mit dem
 Kameramodell ins REALE Bild desselben Frames: die Fingerkuppen
 (``get_contact_points_w``), die Kette vom Becken zum Handgelenk und die Würfel aus
-``layout.json``.
+``layout.json``. Dazu zwei Zahlenblöcke: die Vorzeichen-Probe der Handgelenke und das
+Anflugprofil über die ganze Episode.
 
 WIE ES ZU LESEN IST
 ───────────────────
@@ -26,16 +33,16 @@ Die **Würfelmarken sagen nichts aus**. Das Layout hat den Würfelpixel mit gena
 Modell auf die Tischebene rückprojiziert; ihn damit zurückzuprojizieren trifft immer, per
 Konstruktion. (Eine frühere Fassung dieses Kommentars behauptete das Gegenteil.)
 
-Aussagekräftig ist allein, wo die Roboter-Marken gegenüber dem realen Roboter im Bild
-liegen — sie verbinden die FK, die vom Kameramodell unabhängig ist, mit dem Modell:
+Aussagekräftig sind die Zahlen des Anflugprofils und die Roboter-Marken gegenüber dem realen
+Roboter im Bild — sie verbinden die FK, die vom Kameramodell unabhängig ist, mit dem Modell:
 
   * Becken sitzt richtig, der Fehler wächst die Kette hinunter zur Hand
         →  Arm-FK oder Gelenkzuordnung.
   * schon das Becken versetzt, alle Marken gleichsinnig daneben
         →  Kamerapose relativ zum Roboter.
-
-Beides sind Eigenschaften des Robotermodells. Erst diese Unterscheidung sagt, ob die
-Würfellage aus dem Realbild überhaupt in Frage steht.
+  * ``Kuppen einzeln``: umschließen sie die Würfelmitte in z (Vorzeichen gemischt), greift
+    die Hand wirklich. Liegen alle drei darüber, ist die Hand zu hoch ODER der Messpunkt
+    sitzt nicht auf der Kuppe — Letzteres war in Lauf 28 schon einmal die Ursache.
 
 VERWENDUNG
     ./Simulation/server_rl_run.sh tipcheck
@@ -264,7 +271,12 @@ def approach_profile(env: G1Dex3BlockstackEnv, states: np.ndarray,
                 if hand not in best or dist < best[hand][0]:
                     best[hand] = (dist, {
                         "dist_cm": round(dist * 100, 1), "frame": frame, "cube": color,
-                        "versatz_cm": [round(float(v) * 100, 1) for v in delta]})
+                        "versatz_cm": [round(float(v) * 100, 1) for v in delta],
+                        # Kuppen EINZELN, relativ zur Wuerfelmitte. Haelt die Hand den Wuerfel,
+                        # muessen sie ihn in z umschliessen — liegen alle drei darueber, ist
+                        # entweder die Hand zu hoch oder der Messpunkt falsch (siehe Lauf 28).
+                        "kuppen_dz_cm": [round(float(t[2] - target[2]) * 100, 1)
+                                         for t in tips[offset : offset + 3]]})
     return {hand: record for hand, (_, record) in best.items()}
 
 
@@ -425,8 +437,17 @@ def main() -> int:
                 parts.append(f"{label} {a['dist_cm']:.1f} cm @f{a['frame']:04d} "
                              f"({a['cube']}, dx{dx:+.1f} dy{dy:+.1f} dz{dz:+.1f})")
             print("      naechster Punkt der EPISODE: " + " | ".join(parts), flush=True)
-            print("        sinkt gegen 0 => der Versatz oben war der Hub;"
-                  " bleibt er stehen => Kamerapose oder FK.", flush=True)
+            tip_parts = []
+            for hand, label in (("left", "links"), ("right", "rechts")):
+                a = approach.get(hand)
+                if a and a.get("kuppen_dz_cm"):
+                    tip_parts.append(f"{label} " + "/".join(
+                        f"{v:+.1f}" for v in a["kuppen_dz_cm"]))
+            if tip_parts:
+                print("        Kuppen einzeln ueber der Wuerfelmitte (cm): "
+                      + " | ".join(tip_parts), flush=True)
+                print("        umschliessen (+/-) => Griff; alle positiv => Hand zu hoch"
+                      " oder Messpunkt falsch.", flush=True)
 
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "tipcheck.json").write_text(

@@ -43,7 +43,7 @@ Für den **aktuellen Projektstatus** siehe
 | 32 | `span`-Gate entschieden: Median-Verhältnis 1,00 auf echten Bildern — Domain-Gap (a1) bestätigt, (a2) ausgeschlossen ([Lauf 32](#lauf-32-runs2026081301-das-span-gate-ist-entschieden--a1)) |
 | 33/34 | `TUNE_VISUAL`-Checkpoint im Closed Loop: Fingerspanne 27,6 % (statt 20,5 %), `lifted` bleibt 0/10 ([Läufe 33/34](#läufe-3334-runs2026081403-runs2026081404-der-tune_visual-checkpoint-im-closed-loop)) |
 | 35–37 | Würfellage-Rekonstruktion v4 zweimal abgelehnt; Kameramodell dagegen auf 0,3 cm bestätigt, Würfelebene lag 2 cm zu hoch ([Läufe 35–37](#läufe-3537-runs2026082201-03-die-würfellage-kommt-aus-dem-bild-nicht-aus-der-hand)) |
-| 38–43 | Die vier Fingergrundgelenke standen in **jedem** Lauf still: der „Sign-Convention-Fix" drehte sie aus ihrer Gelenkgrenze, wo sie geklemmt wurden ([Läufe 38–43](#läufe-3843-runs2026082302-runs2026082405-09-die-fingergrundgelenke-standen-still)) |
+| 38–44 | Die vier Fingergrundgelenke standen in **jedem** Lauf still: der „Sign-Convention-Fix" drehte sie aus ihrer Gelenkgrenze, wo sie geklemmt wurden ([Läufe 38–44](#läufe-3844-runs2026082302-runs2026082405-11-die-fingergrundgelenke-standen-still)) |
 
 ---
 
@@ -1713,7 +1713,7 @@ Würfelhöhe — genau diese Pose ist geprüft, und sie darf bei einer Ebenenkor
 
 ---
 
-### Läufe 38–43 (`runs/20260823/02`, `runs/20260824/05`–`09`): Die Fingergrundgelenke standen still
+### Läufe 38–44 (`runs/20260823/02`, `runs/20260824/05`–`11`): Die Fingergrundgelenke standen still
 
 **Lauf 38** (`render`, `runs/20260823/02`) lieferte erstmals einen vollständigen Co-Training-Datensatz —
 und einen Widerspruch, der sich nicht mehr auf die Würfellage schieben ließ: über alle Frames und beide
@@ -1782,27 +1782,41 @@ diesem Vorbehalt neu zu lesen.
 
 #### Was damit nicht erklärt ist
 
-Rund **10 cm** Abstand bleiben zwischen der jetzt schließenden rechten Hand und der Würfellage aus dem
-Bild. Die Vorzeichenkorrektur nimmt etwa 3 cm davon. Nach Komponenten zerlegt (Lauf 43,
-`runs/20260824/09`) ist der Rest überwiegend **vertikal** und über die drei Episoden erstaunlich
-konsistent:
+Rund **10 cm** Abstand bleiben zwischen der jetzt schließenden Hand und der Würfellage aus dem Bild; die
+Vorzeichenkorrektur nimmt etwa 3 cm davon. Diesen Rest zerlegen die Läufe 43–44.
 
-| Episode | dx | dy | dz | Betrag |
-|---|---|---|---|---|
-| 0 | +7,7 | −3,8 | +5,9 | 10,4 cm |
-| 4 | +3,5 | −4,6 | +9,9 | 11,5 cm |
-| 8 | +4,1 | +1,8 | +8,3 | 9,4 cm |
-| **Mittel** | +5,1 | −2,2 | **+8,0** | Streuung dz 1,7 cm |
+Der Messpunkt war zunächst der Bewegungsbeginn — der eine Frame, an dem der Würfel anfängt, sich zu
+bewegen. `layout.json` nennt aber seine **Ruhelage**: bis der Detektor anschlägt, hat die Hand ihn längst
+transportiert, und der Versatz misst den Transport statt eines Fehlers. `tipcheck` fährt deshalb seit
+Lauf 44 ein **Anflugprofil** über die ganze Episode (`--approach-stride`, kein Renderdurchgang, nur ein
+`sim.forward()` je Frame) und meldet je Hand den nächsten Punkt mit Frame, Würfel und Versatzvektor.
 
-Die Hand steht also acht Zentimeter **über** der Würfellage. Dafür gibt es eine harmlose Erklärung, die
-zuerst auszuschließen ist: `layout.json` nennt die **Ruhelage** des Würfels, gemessen wird aber am
-**Bewegungsbeginn** — dort kann die Hand ihn längst angehoben haben, und die Zahl misst nur den Hub.
-`tipcheck` fährt deshalb seit Lauf 43 zusätzlich ein **Anflugprofil** über die ganze Episode
-(`--approach-stride`, ohne Renderdurchgang) und meldet den nächsten Punkt samt Frame und
-Versatzvektor. Geht der gegen null, war es der Hub; bleibt er stehen, sitzt der Fehler in der
-Kamerapose für reale Bilder oder in der FK — dort sind die im 28-dim-State fehlenden Hüft-/Waist-Gelenke
-der nächste Kandidat, 13° Rumpfneigung reichen für 10 cm.
+Der Vergleich über acht Episoden und beide Hände (n = 16) entscheidet:
+
+| | am Bewegungsbeginn | am nächsten Punkt |
+|---|---|---|
+| dx | +7,2 (Streuung 4,0) | **+3,1 — Vorzeichen wechselnd** |
+| dy | +2,1 (Streuung 8,6) | +1,0 — Vorzeichen wechselnd |
+| dz | +14,1 (Streuung 5,0) | **+7,0 (Streuung 1,6) — nie unter +3,8** |
+
+**Die waagerechte Übereinstimmung ist damit hergestellt, und (a) — die Kamerapose für reale Bilder — ist
+weitgehend entlastet.** Übrig bleibt ein reiner Höhenversatz: die Fingerkuppen kommen der Würfelmitte im
+Mittel nur auf 7 cm nahe, mit 1,6 cm Streuung über beide Hände und alle Episoden. Das ist eine
+Konstante, kein Verhalten — ein Hub wäre variabel und erreichte irgendwo die Null.
+
+Auch die **Würfelebene** scheidet damit als Erklärung aus (Schluss, nicht Messung): läge sie 7 cm
+falsch, wanderte der rückprojizierte Punkt entlang des ~45°-Kamerastrahls um ähnlich viel **waagerecht**
+— genau das ist ausgeschlossen. Der Versatz sitzt auf der Roboterseite. Kandidaten, nach Prüfaufwand:
+
+1. **Der Messpunkt.** 7 cm liegt in der Größenordnung einer Fingerlänge, und „der Messpunkt war zum
+   dritten Mal falsch" ist in dieser Chronik bereits Lauf 28. `tipcheck` meldet dafür seit Lauf 44 die
+   drei Kuppen **einzeln** relativ zur Würfelmitte: umschließen sie den Würfel in z, greift die Hand
+   wirklich; liegen alle drei darüber, ist die Hand zu hoch oder der Messkörper sitzt falsch.
+2. **Die Basishöhe** `pos=(0.0, 0.0, 0.85)` gegen die Tischhöhe 0,87.
+3. **Die im 28-dim-State fehlenden Hüft-/Waist-Gelenke** — die verschieben allerdings vorwiegend
+   waagerecht (13° Neigung ≈ 13 cm nach vorn, aber nur ~1,5 cm nach unten) und passen deshalb schlecht
+   zu einem rein vertikalen Versatz.
 
 Die früher notierte Einschätzung „die Handgelenk-Marken sitzen auf den realen Handgelenken, also stimmt
-die Kamerapose" war Augenmaß an einem Bildausschnitt — 10 cm entsprechen dort 60–80 px und sind damit
-**nicht** ausgeschlossen.
+die Kamerapose" war Augenmaß an einem Bildausschnitt und trug nichts; dass (a) jetzt entlastet ist,
+steht auf den Zahlen oben, nicht auf jenem Eindruck.
