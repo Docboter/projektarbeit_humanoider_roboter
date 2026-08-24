@@ -344,7 +344,8 @@ def play_episode(env, actions: np.ndarray, collect_images: bool, writers=None,
                  track_blocks: bool = False):
     """Eine Episode abspielen.
 
-    Rückgabe: erreichte States, mittlerer Arm-Tracking-Fehler, Fingeröffnung je Step,
+    Rückgabe: erreichte States, Tracking-Fehler (Arm gemittelt, Hand je Step), Fingeröffnung
+    je Step,
     Kuppen-Schwerpunkt je Step, Würfelposen je Step (nur mit ``track_blocks``, sonst None)
     und die tatsächliche Bildgröße (H, W) — Letztere gemessen statt angenommen, damit
     info.json nicht behauptet, was der Renderer nicht geliefert hat.
@@ -356,6 +357,10 @@ def play_episode(env, actions: np.ndarray, collect_images: bool, writers=None,
     block_trace = (np.full((n, len(env.blocks), 3), np.nan, dtype=np.float32)
                    if track_blocks else None)
     arm_err = np.zeros(n, dtype=np.float32)
+    # Handfehler je Step und je Hand. Der Arm wird gemittelt, die Hand NICHT: entscheidend
+    # ist der Greifmoment am Fensterende, und ein Mittel ueber die ganze Episode verduennt
+    # ihn mit den Frames, in denen die Hand frei in der Luft steht und muehelos folgt.
+    hand_err = np.zeros((n, 2), dtype=np.float32)
     frame_hw: tuple[int, int] | None = None
 
     for i in range(n):
@@ -365,6 +370,8 @@ def play_episode(env, actions: np.ndarray, collect_images: bool, writers=None,
         joint_pos = obs["joint_pos"][0].cpu().numpy()
         achieved[i] = joint_pos
         arm_err[i] = float(np.abs(joint_pos[:14] - actions[i][:14]).mean())
+        hand_err[i, 0] = float(np.abs(joint_pos[14:21] - actions[i][14:21]).mean())
+        hand_err[i, 1] = float(np.abs(joint_pos[21:28] - actions[i][21:28]).mean())
 
         hands = hand_spreads_and_centroids(env)
         if hands is not None:
@@ -382,7 +389,8 @@ def play_episode(env, actions: np.ndarray, collect_images: bool, writers=None,
         if i % 200 == 0:
             print(f"      … Frame {i}/{n}", flush=True)
 
-    return achieved, float(arm_err.mean()), spread_trace, centroid_trace, block_trace, frame_hw
+    return (achieved, float(arm_err.mean()), hand_err, spread_trace, centroid_trace,
+            block_trace, frame_hw)
 
 
 def find_grasp_points(spread_trace: np.ndarray, centroid_trace: np.ndarray,
@@ -881,7 +889,8 @@ def run_scan(env_builder, src_root: Path, src_info: dict, episodes: list[int],
 
         print(f"[scan] ({k}/{len(episodes)}) Episode {ep_idx}: {actions.shape[0]} Frames",
               flush=True)
-        _, arm_err, spread, centroid, _, _ = play_episode(env, actions, collect_images=False)
+        _, arm_err, _, spread, centroid, _, _ = play_episode(
+            env, actions, collect_images=False)
         grasp = find_grasp_points(spread, centroid)
         scan["episodes"][str(ep_idx)] = {
             "length": int(actions.shape[0]),
@@ -1032,7 +1041,8 @@ def run_render(env_builder, src_root: Path, src_info: dict, episodes: list[int],
               f"aus {cube_src}", flush=True)
         writers = open_writers(videos, fps)
         try:
-            achieved, arm_err, spread, centroid, block_trace, frame_hw = play_episode(
+            (achieved, arm_err, hand_err, spread, centroid, block_trace,
+             frame_hw) = play_episode(
                 env, actions, collect_images=True, writers=writers,
                 track_blocks=not args.no_place_cubes)
         finally:
@@ -1040,6 +1050,13 @@ def run_render(env_builder, src_root: Path, src_info: dict, episodes: list[int],
                 w.close()
         if frame_hw:
             manifest["frame_height"], manifest["frame_width"] = frame_hw
+
+        # Handfehler AM GREIFMOMENT (letzte 20 Frames des Fensters, dort schliesst die Hand
+        # um den Wuerfel). Trennt zwei Ursachen, die im Video gleich aussehen: folgen die
+        # Finger ihren Sollwinkeln nicht, fehlt Kraft (stiffness/effort_limit) — folgen sie
+        # und die Hand steht trotzdem seitlich am Wuerfel, stimmt die Handorientierung nicht.
+        grip = hand_err[-min(20, len(hand_err)):]
+        hand_err_end = [round(float(grip[:, h].mean()), 3) for h in range(2)]
 
         if arm_err > args.tracking_error_max:
             # Erst hier messbar, wenn kein Scan-Eintrag vorlag. Dateien wieder entfernen,
@@ -1063,6 +1080,7 @@ def run_render(env_builder, src_root: Path, src_info: dict, episodes: list[int],
             "task": tasks.get(task_index, "stack the blocks"),
             "task_index": task_index,
             "arm_tracking_error_rad": round(arm_err, 4),
+            "hand_tracking_error_rad_end": hand_err_end,
             "cubes_xyz": cubes,
             "cube_source": cube_src,
             "grasp_points": info.get("hands"),
@@ -1074,7 +1092,9 @@ def run_render(env_builder, src_root: Path, src_info: dict, episodes: list[int],
             d = [h["dist_end_cm"] for h in cons["hands"] if h]
             if d:
                 note = f", Kuppen↔Würfel am Fensterende {min(d):.1f} cm"
-        print(f"{head}: geschrieben (Tracking {arm_err:.3f} rad{note}).", flush=True)
+        print(f"{head}: geschrieben (Tracking Arm {arm_err:.3f} rad, Hand am Greifmoment "
+              f"links {hand_err_end[0]:.3f} / rechts {hand_err_end[1]:.3f} rad{note}).",
+              flush=True)
 
     finalize_meta(out, src_info, tasks, manifest, fps)
     summarize_consistency(manifest)
