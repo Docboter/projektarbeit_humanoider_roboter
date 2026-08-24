@@ -104,16 +104,35 @@ HAND_COLOR = {"left": (80, 160, 255), "right": (255, 140, 0)}
 CHAIN_COLOR = (255, 0, 255)
 
 
-def set_robot_state(env: G1Dex3BlockstackEnv, state: np.ndarray) -> None:
+# Vorzeichen-Varianten fuer die 14 Handdimensionen (links 14–20, rechts 21–27).
+# Der Kommentar an _SIGN_FLIP_IDX begruendet die Spiegelung nur fuer die LINKE Hand
+# ("USD: links negativ = schliessen, rechts positiv = schliessen", Datensatz positiv =
+# schliessen), gespiegelt werden aber beide Seiten. Statt darueber zu streiten, wird hier
+# gemessen: die richtige Variante muss am Greifframe eine Kuppenoeffnung nahe der
+# Wuerfelkante liefern, nicht die knapp 11 cm einer offenen Hand.
+SIGN_VARIANTS: dict[str, list[int]] = {
+    "aktuell": [17, 19, 24, 26],
+    "ohne": [],
+    "nur_links_0": [17, 19],
+    "nur_rechts_0": [24, 26],
+    "alle_finger": list(range(14, 28)),
+    "alle_links": list(range(14, 21)),
+    "alle_rechts": list(range(21, 28)),
+}
+
+
+def set_robot_state(env: G1Dex3BlockstackEnv, state: np.ndarray,
+                    flip_idx: list[int] | None = None) -> None:
     """Aufgezeichneten 28-DoF-Zustand direkt setzen. Kopie aus collect_replay_anchors.py.
 
     Bewusst dupliziert statt importiert: jedes Isaac-Skript startet seine eigene App, ein
-    Import zöge die fremde ``AppLauncher``-Initialisierung mit.
+    Import zöge die fremde ``AppLauncher``-Initialisierung mit. ``flip_idx`` überschreibt
+    die Vorzeichenspiegelung der Env, damit Varianten vergleichbar werden.
     """
     if env._joint_ids is None:
         env._joint_ids = env._build_joint_id_mapping()
     q = np.asarray(state, dtype=np.float32).copy()
-    q[env._SIGN_FLIP_IDX] *= -1
+    q[env._SIGN_FLIP_IDX if flip_idx is None else flip_idx] *= -1
     full = env.robot.data.joint_pos.clone()
     for policy_index, isaac_index in enumerate(env._joint_ids):
         full[:, isaac_index] = float(q[policy_index])
@@ -153,6 +172,32 @@ def fingertips_env_local(env: G1Dex3BlockstackEnv) -> np.ndarray:
             f"Sechs echte Fingerkuppen benötigt; frame={env._reach_frame}, shape={tips.shape}"
         )
     return tips - env.scene.env_origins[0].detach().cpu().numpy()
+
+
+def hand_spread_and_center(tips: np.ndarray, offset: int) -> tuple[float, np.ndarray]:
+    """Mittlerer paarweiser Kuppenabstand und Schwerpunkt einer Hand — wie grasp_pose_support."""
+    points = tips[offset : offset + 3]
+    spread = float(np.linalg.norm(points[[0, 0, 1]] - points[[1, 2, 2]], axis=1).mean())
+    return spread, points.mean(axis=0)
+
+
+def sign_sweep(env: G1Dex3BlockstackEnv, state: np.ndarray,
+               cubes: list) -> list[dict]:
+    """Je Vorzeichenvariante die Kuppenoeffnung und den Abstand zum naechsten Wuerfel."""
+    targets = [np.array([c[0], c[1], CUBE_CENTER_Z_M]) for c in cubes if c]
+    rows = []
+    for name, flip in SIGN_VARIANTS.items():
+        set_robot_state(env, state, flip_idx=flip)
+        tips = fingertips_env_local(env)
+        row = {"variante": name, "flip": flip}
+        for hand, offset in (("left", 0), ("right", 3)):
+            spread, center = hand_spread_and_center(tips, offset)
+            row[f"{hand}_spread_cm"] = round(spread * 100, 1)
+            row[f"{hand}_dist_cm"] = (
+                round(min(float(np.linalg.norm(t - center)) for t in targets) * 100, 1)
+                if targets else None)
+        rows.append(row)
+    return rows
 
 
 def real_frame(root: Path, info: dict, episode: int, camera: str, index: int) -> np.ndarray:
@@ -243,10 +288,12 @@ def main() -> int:
             pd.read_parquet(data_path(root, info, episode))["observation.state"].to_numpy()
         ).astype(np.float32)
         frame_index = int(min(frame_index, len(states) - 1))
+        cubes = record.get("cubes") or []
+        sweep = sign_sweep(env, states[frame_index], cubes)
+        # Zuletzt die produktive Variante setzen, damit Bilder und Zahlen sie zeigen.
         set_robot_state(env, states[frame_index])
         tips = fingertips_env_local(env)
         chain = chain_env_local(env)
-        cubes = record.get("cubes") or []
 
         # Abstand jeder Handmitte zum nächsten Würfel — dieselbe Größe wie im Renderbericht.
         distances = {}
@@ -274,11 +321,18 @@ def main() -> int:
                         "right_cube": right[0] if right else None,
                         "fingertips_env_local_m": tips.round(4).tolist(),
                         "chain_env_local_m": {k: v.round(4).tolist() for k, v in chain.items()},
+                        "sign_sweep": sweep,
                         "cubes_xy_m": cubes})
         parts = [f"links {left[1] * 100:.1f} cm ({left[0]})" if left else "links —",
                  f"rechts {right[1] * 100:.1f} cm ({right[0]})" if right else "rechts —"]
         print(f"{head}: Frame {frame_index}, Handmitte→nächster Würfel: "
               + ", ".join(parts), flush=True)
+        print(f"      {'Variante':<14}{'links Öffn.':>12}{'links Δ':>10}"
+              f"{'rechts Öffn.':>13}{'rechts Δ':>10}   (cm; Würfelkante 5,0)", flush=True)
+        for row in sweep:
+            print(f"      {row['variante']:<14}{row['left_spread_cm']:>12}"
+                  f"{row['left_dist_cm']:>10}{row['right_spread_cm']:>13}"
+                  f"{row['right_dist_cm']:>10}", flush=True)
 
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "tipcheck.json").write_text(
