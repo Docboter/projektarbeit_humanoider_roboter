@@ -32,9 +32,12 @@ verschieben sich bei einem Kamerafehler gemeinsam, bei einem FK-Fehler gegeneina
 VERWENDUNG
     ./Simulation/server_rl_run.sh tipcheck
 oder direkt im Container:
-    $ISAAC_PY project_fingertips_check.py --headless \\
+    $ISAAC_PY project_fingertips_check.py --headless --enable_cameras \\
         --dataset-path /data/unitreerobotics/G1_Dex3_BlockStacking_Dataset \\
         --layout /data/cotrain/layout.json --out-dir /data/cotrain/tipcheck
+
+``--enable_cameras`` ist Pflicht, obwohl hier nichts gerendert wird: die Env legt die
+Policy-Kameras beim Aufbau an, und Isaac Lab bricht ohne das Flag beim Szenenaufbau ab.
 
 Der Prüfframe ist standardmäßig der Bewegungsbeginn aus ``layout.json`` — der Moment, in dem
 die Hand den Würfel nachweislich hält. ``--frame N`` prüft stattdessen einen festen Frame.
@@ -46,6 +49,8 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
+import traceback
 from pathlib import Path
 
 from isaaclab.app import AppLauncher
@@ -241,7 +246,15 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    exit_code = 1
     try:
-        raise SystemExit(main())
-    finally:
-        simulation_app.close()
+        exit_code = main()
+    except BaseException:
+        # simulation_app.close() beendet den Prozess hart. Ohne dieses ausdrueckliche
+        # Ausgeben verschwindet jeder Fehler spurlos — genau daran scheiterte der erste
+        # tipcheck-Lauf am 2026-08-24: kein Traceback, nur "ohne Erfolgsmarker beendet".
+        traceback.print_exc()
+        sys.stdout.flush()
+        sys.stderr.flush()
+    simulation_app.close()
+    raise SystemExit(exit_code)
