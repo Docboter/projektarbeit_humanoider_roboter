@@ -95,17 +95,17 @@ DATASET_INIT_STATE = [
     -0.05662,  0.31445,  0.12487, -0.28736,  0.20897,  0.13095, -0.09767,  # left_arm
     -0.40259, -0.34180, -0.01584,  0.17989,  0.00290, -0.09826,  0.29865,  # right_arm
     # left_dex3 [thumb0,thumb1,thumb2, middle0,middle1, index0,index1]
-    # middle_0/index_0: negiert (USD-Achse invertiert vs. Dataset-Konvention, s.u.)
-    -0.59676,  1.01160,  0.05485, -0.169,   -0.01227, -0.163,   -0.01201,
+    -0.59676,  1.01160,  0.05485,  0.169,   -0.01227,  0.163,   -0.01201,
     # right_dex3 [thumb0,thumb1,thumb2, index0,index1, middle0,middle1]
-    # index_0/middle_0: negiert (s.u.)
-    -0.70991, -1.01463, -0.21031,  0.171,    0.01391,  0.142,    0.03354,
+    -0.70991, -1.01463, -0.21031, -0.171,    0.01391, -0.142,    0.03354,
 ]
-# middle_0/index_0 beider Hände: USD-Achse invertiert vs. Dataset.
-# Dataset: links middle_0/index_0 positiv = schließen; USD: [-1.571, 0], d.h. negativ = schließen.
-# Rechts umgekehrt: Dataset negativ = schließen, USD [0, 1.571] positiv = schließen.
-# Fix: _pre_physics_step negiert diese 4 Aktionen (Policy-Indices 17, 19, 24, 26)
-# und die Init-Pose wurde entsprechend mit negiertem Dataset-Wert gesetzt.
+# Alle 28 Werte sind der ROHE Dataset-Zustand — keine Umrechnung. Bis 2026-08-24 standen hier
+# für middle_0/index_0 beider Hände negierte Werte, passend zu _SIGN_FLIP_IDX. Beides war
+# falsch: der Datensatz ist bereits seitenweise in USD-Konvention aufgezeichnet (links negativ
+# = schließen, rechts positiv = schließen), die Spiegelung drehte die Gelenke aus ihrer Grenze
+# heraus, wo sie geklemmt wurden. Begründung und Messung stehen an _SIGN_FLIP_IDX in
+# g1_dex3_blockstack_env.py. Der leichte Überstand über die Null (links +0,169/+0,163, rechts
+# -0,171/-0,142) ist im Datensatz echt und wird von _widen_finger_joint_limits abgedeckt.
 
 # ---------------------------------------------------------------------------
 # Articulation-Konfiguration

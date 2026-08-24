@@ -43,6 +43,7 @@ Für den **aktuellen Projektstatus** siehe
 | 32 | `span`-Gate entschieden: Median-Verhältnis 1,00 auf echten Bildern — Domain-Gap (a1) bestätigt, (a2) ausgeschlossen ([Lauf 32](#lauf-32-runs2026081301-das-span-gate-ist-entschieden--a1)) |
 | 33/34 | `TUNE_VISUAL`-Checkpoint im Closed Loop: Fingerspanne 27,6 % (statt 20,5 %), `lifted` bleibt 0/10 ([Läufe 33/34](#läufe-3334-runs2026081403-runs2026081404-der-tune_visual-checkpoint-im-closed-loop)) |
 | 35–37 | Würfellage-Rekonstruktion v4 zweimal abgelehnt; Kameramodell dagegen auf 0,3 cm bestätigt, Würfelebene lag 2 cm zu hoch ([Läufe 35–37](#läufe-3537-runs2026082201-03-die-würfellage-kommt-aus-dem-bild-nicht-aus-der-hand)) |
+| 38–41 | Die vier Fingergrundgelenke standen in **jedem** Lauf still: der „Sign-Convention-Fix" drehte sie aus ihrer Gelenkgrenze, wo sie geklemmt wurden ([Läufe 38–41](#läufe-3841-runs2026082302-runs2026082405-07-die-fingergrundgelenke-standen-still)) |
 
 ---
 
@@ -1709,3 +1710,77 @@ bessere Anpassung — das Modell braucht keine Korrektur.
 
 Der Blickzielpunkt in `camera_geometry.py` behält seine 0,915. Das ist ein Kameraparameter, keine
 Würfelhöhe — genau diese Pose ist geprüft, und sie darf bei einer Ebenenkorrektur nicht mitwandern.
+
+---
+
+### Läufe 38–41 (`runs/20260823/02`, `runs/20260824/05`–`07`): Die Fingergrundgelenke standen still
+
+**Lauf 38** (`render`, `runs/20260823/02`) lieferte erstmals einen vollständigen Co-Training-Datensatz —
+und einen Widerspruch, der sich nicht mehr auf die Würfellage schieben ließ: über alle Frames und beide
+Hände kam **keine Fingerkuppe je näher als 10 cm** an den Würfel, den das Bild-Layout gesetzt hatte.
+Der reale Würfel bewegt sich am Fensterende nachweislich, die reale Hand hält ihn also. Entweder war die
+Würfellage falsch — oder die Handposition aus dem aufgezeichneten Zustand.
+
+**Läufe 39–40** (`tipcheck`, `runs/20260824/05`, `/06`) trennen das mit
+[`project_fingertips_check.py`](../../Simulation/g1_dex3_sim/project_fingertips_check.py): der Roboter
+wird auf den aufgezeichneten Zustand gesetzt, dann werden Fingerkuppen, Kette Becken→Handgelenk und
+Layout-Würfel ins **reale** Bild desselben Frames projiziert. Lauf 40 ergänzte eine Vorzeichen-Probe über
+sieben Spiegelungsvarianten. Ergebnis am Greifframe dreier Episoden, bei 5 cm Würfelkante:
+
+| Variante | rechte Kuppenöffnung | Abstand zum Würfel |
+|---|---|---|
+| damals aktiv (`[17, 19, 24, 26]`) | 8,0 / 12,2 / 10,8 cm | 13,5 / 17,5 / 12,3 cm |
+| ohne rechte Spiegelung | 5,1 / 7,3 / 8,7 cm | 10,4 / 11,5 / 9,4 cm |
+
+**Lauf 41** (`runs/20260824/07`) misst zusätzlich je Handdimension die aufgezeichnete Spannweite gegen die
+Gelenkgrenze — und kippt damit auch die verbliebene linke Spiegelung. Die `_1`-Beugegelenke sind der
+Kronzeuge: sie wurden **nie** gespiegelt und passen trotzdem beide exakt in ihre Grenzen.
+
+| Gelenk | Datensatz (ganzer Korpus) | Grenze |
+|---|---|---|
+| `left_hand_index_1` | −2,083 … −0,008 | −2,13 … 0,05 |
+| `right_hand_index_1` | 0,010 … 2,085 | −0,05 … 2,14 |
+| `left_hand_index_0` | −1,089 … 0,267 | −1,571 … 0,0 |
+| `right_hand_index_0` | −0,199 … 1,646 | 0,0 … 1,571 |
+
+Der Datensatz ist also bereits **seitenweise in USD-Konvention** aufgezeichnet: links negativ =
+schließen, rechts positiv = schließen. Die Annahme „Datensatz: positiv = schließen", auf der der
+Sign-Convention-Fix von §14.2 der [Umsetzungsnotizen](../simulation/umsetzungsnotizen.md) beruhte, ist
+falsch. Gespiegelt wurden die Werte damit aus ihrer Grenze heraus, wo `set_joint_position_target` sie auf
+0 klemmt: **das Gelenk bewegte sich überhaupt nicht.** In Episode 0 klemmten auf den linken `_0`-Gelenken
+550 bzw. 587 von 1173 Frames.
+
+#### Tragweite
+
+`_SIGN_FLIP_IDX` wirkt in `_get_observations` **und** `_pre_physics_step` — die Politik sah verdrehte
+Fingerwinkel und ihre Aktionen wurden aus der Grenze gedreht. Das hebt sich nicht auf. Betroffen ist
+damit **jeder bisherige Lauf**: Eval, `grasp`, RL, Replay, Co-Training. Alle Greifzahlen dieser Chronik
+sind mit vier stillstehenden Fingergrundgelenken entstanden.
+
+Das erklärt die Kette rückwärts: Hand schließt nie → bei 101 von 116 Griffen bleibt die engste
+Kuppenöffnung über 6 cm (`scan`, 2026-08-17) → die v4-Greifanker sind unbrauchbar (Lauf 36) → der darauf
+gebaute `close_step`-Detektor misst Rauschen. Auch Lauf 26 („Griff scheitert auch ganz ohne Modell",
+`max_cube_lift_cm` 0,0) und Lauf 30 („Politik kommandiert nur 19 % der Demo-Fingerspanne") sind unter
+diesem Vorbehalt neu zu lesen.
+
+#### Was geändert wurde
+
+- `_SIGN_FLIP_IDX = []` — keine Spiegelung, auf keiner Seite.
+- `DATASET_INIT_STATE`: alle 28 Startwerte roh aus dem Datensatz, keine Umrechnung mehr.
+- `_widen_finger_joint_limits`: die vier `_0`-Gelenke sind wieder aufgenommen. Beide Hände fahren real
+  ~0,2 rad über die Nulllinie in die Gegenrichtung, rechts `index_0` zusätzlich über 1,571 hinaus — die
+  USD-Grenze endet dort auf beiden Seiten exakt an der Null. Neue Grenzen = Union(USD, Datensatz-Min/Max)
+  + ~0,05 rad, wie bei den `_1`-Gelenken. Maßgeblich ist `observation.state` (was das Gelenk erreicht
+  **hat**), nicht `action`: kommandiert wurde stellenweise deutlich mehr (`left_index_0` bis −1,762 gegen
+  −1,089 erreicht), das hat auch die reale Hand nicht ausgefahren.
+- `_widen_finger_joint_limits` schreibt anschließend die Startwerte der vier `_0`-Gelenke aus der Config
+  zurück: Isaac liest `init_state` beim Spawn, also **bevor** die Weitung greift.
+
+#### Was damit nicht erklärt ist
+
+Rund **10 cm** Abstand bleiben zwischen der jetzt schließenden rechten Hand und der Würfellage aus dem
+Bild. Die Vorzeichenkorrektur nimmt etwa 3 cm davon. Die früher notierte Einschätzung „die
+Handgelenk-Marken sitzen auf den realen Handgelenken, also stimmt die Kamerapose" war Augenmaß an einem
+Bildausschnitt — 10 cm entsprechen dort 60–80 px und sind damit **nicht** ausgeschlossen. Offen bleiben
+als Kandidaten die Kamerapose für reale Bilder und die im 28-dim-State fehlenden Hüft-/Waist-Gelenke
+(13° Rumpfneigung reichen für 10 cm).

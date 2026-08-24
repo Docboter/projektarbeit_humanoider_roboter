@@ -750,6 +750,11 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
         Ohne Weitung würde der Sim volle Greif-Kommandos der Policy an der Grenze abklemmen →
         Finger schließen nicht ganz. Werte = Union(USD-Limit, Dataset-Min/Max) + ~0,05 rad Marge.
         Kein Vorzeichen-Flip (Richtung stimmt) — nur Reichweite.
+
+        Maßgeblich ist `observation.state`, also was das echte Gelenk erreicht HAT. Die
+        kommandierten `action`-Werte gehen stellenweise deutlich weiter (left_index_0 bis
+        -1,762 gegen -1,089 erreicht); die hat auch die reale Hand nicht ausgefahren, ein
+        Klemmen dort bildet die Hardware ab statt sie zu verfälschen.
         """
         finger_limits = {
             # left hand (_1 joints: Vorzeichen korrekt, nur Reichweite erweitern)
@@ -760,8 +765,14 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
             "right_hand_thumb_1_joint": (-1.11, 0.66),
             "right_hand_index_1_joint": (-0.05, 2.14),
             "right_hand_middle_1_joint": (-0.05, 2.14),
-            # _0 joints (middle_0, index_0): Vorzeichen-Fix via _SIGN_FLIP_IDX →
-            # nach Negation fallen Werte in die Original-USD-Limits, kein Weiten nötig.
+            # _0 joints (index_0, middle_0). Die USD-Grenze endet hier auf beiden Seiten
+            # exakt an der Null (links [-1.571, 0], rechts [0, 1.571]), der echte Datensatz
+            # fährt aber ~0,2 rad in die Gegenrichtung darüber hinaus, und rechts index_0
+            # zusätzlich über 1,571. Beides wurde bis 2026-08-24 auf 0 bzw. 1,571 geklemmt.
+            "left_hand_middle_0_joint": (-1.571, 0.25),   # Datensatz [-1.394, 0.195]
+            "left_hand_index_0_joint": (-1.571, 0.32),    # Datensatz [-1.089, 0.267]
+            "right_hand_index_0_joint": (-0.25, 1.70),    # Datensatz [-0.199, 1.646]
+            "right_hand_middle_0_joint": (-0.25, 1.571),  # Datensatz [-0.178, 1.454]
         }
         names = list(finger_limits.keys())
         joint_ids, _ = self.robot.find_joints(names, preserve_order=True)
@@ -772,8 +783,21 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
         self.robot.write_joint_position_limit_to_sim(
             limits, joint_ids=joint_ids, warn_limit_violation=False
         )
+
+        # Die Startpose der _0-Gelenke liegt außerhalb der ORIGINAL-USD-Grenzen (links
+        # +0,169/+0,163, rechts -0,171/-0,142). Isaac liest `init_state` beim Spawn, also
+        # bevor diese Weitung greift — hätte es dabei geklemmt, stünde die Home-Pose auf 0.
+        # Deshalb die Sollwerte aus der Config zurückschreiben. Passt sie schon, ist es ein
+        # No-op; `_reset_idx` liest genau dieses `default_joint_pos`.
+        init_pos = self.cfg.robot.init_state.joint_pos
+        restored = [n for n in names if n in init_pos]
+        for name in restored:
+            self.robot.data.default_joint_pos[:, joint_ids[names.index(name)]] = float(
+                init_pos[name])
+
         print(f"[Env] Dex3-Finger-Gelenkgrenzen an Dataset-Range geweitet "
-              f"({len(joint_ids)} Gelenke).", flush=True)
+              f"({len(joint_ids)} Gelenke, {len(restored)} Startwerte zurückgeschrieben).",
+              flush=True)
 
     # ------------------------------------------------------------------
     # Visual Domain Randomization
@@ -962,9 +986,11 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
         if self._joint_ids is None:
             self._joint_ids = self._build_joint_id_mapping()
         joint_pos = self.robot.data.joint_pos[:, self._joint_ids].clone()
-        # USD→Dataset-Konvention: proximale Fingergelenke mit invertierter Achse negieren,
-        # damit das Modell Beobachtungen in derselben Konvention sieht wie die Trainingsdaten.
-        joint_pos[:, self._SIGN_FLIP_IDX] *= -1
+        # USD→Dataset-Konvention: Gelenke mit invertierter Achse negieren, damit das Modell
+        # Beobachtungen in derselben Konvention sieht wie die Trainingsdaten. Seit 2026-08-24
+        # ist die Liste leer — der Datensatz ist bereits seitenweise in USD-Konvention.
+        if self._SIGN_FLIP_IDX:
+            joint_pos[:, self._SIGN_FLIP_IDX] *= -1
         obs["joint_pos"] = joint_pos
 
         # Kamerabilder
@@ -993,25 +1019,32 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
     # Actions
     # ------------------------------------------------------------------
 
-    # Policy-Indices der proximalen Fingergelenke mit invertierter Achsenkonvention.
-    # Dataset+ = schließen; USD: links negativ = schließen, rechts positiv = schließen.
-    # → Nur LINKS muss gespiegelt werden (17=l_mid0, 19=l_idx0); rechts stimmt schon.
+    # Policy-Indices, deren Vorzeichen gespiegelt werden muss: KEINE.
     #
-    # Bis 2026-08-24 standen hier zusätzlich 24 und 26, obwohl der Kommentar darüber genau
-    # das Gegenteil begründet. Die USD-Grenzen belegen es: die _0-Gelenke sind exakt
-    # gespiegelt — links [-1.571, 0.000], rechts [0.000, 1.571]. Ein positiver Datensatzwert
-    # wurde rechts negiert und lag damit UNTER der Untergrenze 0, wurde also auf 0 geklemmt:
-    # die rechten Fingergrundgelenke haben sich nie bewegt, die Hand schloss nie.
-    # Zusätzlich gemessen mit `server_rl_run.sh tipcheck` (Vorzeichen-Probe über
-    # drei Episoden, jeweils am Frame, an dem sich der gegriffene Würfel real zu bewegen
-    # beginnt): die mittlere Kuppenöffnung der greifenden rechten Hand fällt ohne die
-    # Spiegelung von 8,0 / 12,2 / 10,8 cm auf 5,1 / 7,3 / 8,7 cm — bei 5 cm Würfelkante —
-    # und der Abstand zum Würfel von 13,5 / 17,5 / 12,3 cm auf 10,4 / 11,5 / 9,4 cm.
+    # Die Annahme war "Datensatz: positiv = schließen, USD: links negativ = schließen, rechts
+    # positiv = schließen", also müsse eine Seite gespiegelt werden. Sie ist falsch. Der
+    # Datensatz ist bereits SEITENWEISE in der USD-Konvention aufgezeichnet. Die
+    # _1-Beugegelenke zeigen es: sie wurden nie gespiegelt und passen trotzdem beide exakt in
+    # ihre Grenzen (meta/stats.json, ganzer Datensatz):
+    #     left_hand_index_1   [-2.083, -0.008]   Grenze [-2.13,  0.05]
+    #     right_hand_index_1  [ 0.010,  2.085]   Grenze [-0.05,  2.14]
+    # Die _0-Gelenke folgen derselben Konvention — links negativ, rechts positiv:
+    #     left_hand_index_0   [-1.089,  0.267]   Grenze [-1.571, 0.0]
+    #     right_hand_index_0  [-0.199,  1.646]   Grenze [ 0.0,   1.571]
     #
-    # Die LINKE Spiegelung bleibt: in allen drei Messframes griff die rechte Hand, die linken
-    # Zahlen gehören zu einer offenen Hand und belegen nichts. Sie steht damit weiter nur auf
-    # dem Kommentar oben und einem schwachen Konsistenzsignal (9,2/9,1/8,8 gegen 10,5/9,2/9,6).
-    _SIGN_FLIP_IDX: list[int] = [17, 19]
+    # Eine Spiegelung dreht diese Werte aus ihrer Grenze heraus, wo `set_joint_position_target`
+    # sie auf 0 klemmt — das Gelenk bewegt sich dann überhaupt nicht mehr. Genau das geschah
+    # bis 2026-08-24 mit BEIDEN Händen ([17, 19, 24, 26]) und danach noch mit der linken
+    # ([17, 19]). Gemessen mit `server_rl_run.sh tipcheck`: in Episode 0 klemmten auf den
+    # linken _0-Gelenken 550 bzw. 587 von 1173 Frames.
+    #
+    # Die Liste wirkt in `_get_observations` UND `_pre_physics_step`, also in jedem Lauf: Eval,
+    # Grasp, RL, Replay, Co-Training. Die Policy sah verdrehte Beobachtungen und ihre Aktionen
+    # wurden aus der Grenze gedreht — das hebt sich nicht auf, das Gelenk stand einfach.
+    # Der schmale Überstand über die Nulllinie hinaus (beide Hände fahren ~0,2 rad in die
+    # Gegenrichtung) ist echt und wird jetzt von `_widen_finger_joint_limits` abgedeckt,
+    # nicht mehr weggespiegelt.
+    _SIGN_FLIP_IDX: list[int] = []
 
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
         """
@@ -1031,10 +1064,10 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
         if self._joint_ids is None:
             self._joint_ids = self._build_joint_id_mapping()
 
-        # Vorzeichen-Fix: proximale Finger-Joints (middle_0, index_0) haben invertierte
-        # USD-Achse. Negation mappt Dataset-Konvention → USD-Konvention.
+        # Dataset-Konvention → USD-Konvention. Seit 2026-08-24 leer, siehe _SIGN_FLIP_IDX.
         actions = actions.clone()
-        actions[:, self._SIGN_FLIP_IDX] *= -1
+        if self._SIGN_FLIP_IDX:
+            actions[:, self._SIGN_FLIP_IDX] *= -1
 
         # actions sind bereits absolute Gelenkpositionen (alle 28 Dims) in
         # Policy-Reihenfolge → in Isaac-interne Joint-Reihenfolge umschreiben

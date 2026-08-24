@@ -105,16 +105,17 @@ CHAIN_COLOR = (255, 0, 255)
 
 
 # Vorzeichen-Varianten fuer die 14 Handdimensionen (links 14–20, rechts 21–27).
-# Der Kommentar an _SIGN_FLIP_IDX begruendet die Spiegelung nur fuer die LINKE Hand
-# ("USD: links negativ = schliessen, rechts positiv = schliessen", Datensatz positiv =
-# schliessen), gespiegelt werden aber beide Seiten. Statt darueber zu streiten, wird hier
-# gemessen: die richtige Variante muss am Greifframe eine Kuppenoeffnung nahe der
-# Wuerfelkante liefern, nicht die knapp 11 cm einer offenen Hand.
+# Gemessen statt begruendet: die richtige Variante muss am Greifframe eine Kuppenoeffnung
+# nahe der Wuerfelkante liefern, nicht die knapp 11 cm einer offenen Hand. Die Probe setzt
+# die Gelenke mit ``write_joint_state_to_sim`` und umgeht damit die Grenzen — welche Variante
+# im geschlossenen Regelkreis ueberhaupt ankommt, sagt erst ``hand_joint_ranges``.
+# "aktuell" wird zur Laufzeit aus ``env._SIGN_FLIP_IDX`` gebaut, damit die Zeile nicht
+# stillschweigend veraltet, sobald die Konstante sich aendert.
 SIGN_VARIANTS: dict[str, list[int]] = {
-    "aktuell": [17, 19, 24, 26],
     "ohne": [],
     "nur_links_0": [17, 19],
     "nur_rechts_0": [24, 26],
+    "beide_0": [17, 19, 24, 26],
     "alle_finger": list(range(14, 28)),
     "alle_links": list(range(14, 21)),
     "alle_rechts": list(range(21, 28)),
@@ -214,8 +215,10 @@ def sign_sweep(env: G1Dex3BlockstackEnv, state: np.ndarray,
                cubes: list) -> list[dict]:
     """Je Vorzeichenvariante die Kuppenoeffnung und den Abstand zum naechsten Wuerfel."""
     targets = [np.array([c[0], c[1], CUBE_CENTER_Z_M]) for c in cubes if c]
+    variants = {"aktuell": list(env._SIGN_FLIP_IDX)}
+    variants.update({n: f for n, f in SIGN_VARIANTS.items() if f != variants["aktuell"]})
     rows = []
-    for name, flip in SIGN_VARIANTS.items():
+    for name, flip in variants.items():
         set_robot_state(env, state, flip_idx=flip)
         tips = fingertips_env_local(env)
         row = {"variante": name, "flip": flip}
