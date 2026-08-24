@@ -166,8 +166,21 @@ def annotate(frame: np.ndarray, cam: PinholeCamera, tips: np.ndarray,
 def main() -> int:
     root = Path(args.dataset_path)
     info = read_info(root)
-    episodes = select_episodes(info, args)
     layout = json.loads(Path(args.layout).read_text(encoding="utf-8")).get("episodes", {})
+    if args.episode_ids:
+        episodes = select_episodes(info, args)
+    else:
+        # Ohne ausdrueckliche Auswahl aus dem LAYOUT waehlen, nicht fortlaufend: der
+        # Layout-Lauf streut seine Episoden ueber den Trainingsbereich (linspace, also
+        # 0, 4, 8, …), fortlaufende Nummern treffen ihn fast nie. Testepisoden koennen
+        # dabei nicht auftauchen, die sperrt bereits extract_block_layout.
+        episodes = [e for e in sorted(int(k) for k in layout)
+                    if e >= int(args.start_episode)][: int(args.num_episodes)]
+        if not episodes:
+            raise SystemExit(
+                f"{args.layout} enthaelt keine Episode ab {args.start_episode}. "
+                "Erst 'server_rl_run.sh layout' fahren oder --episode-ids setzen."
+            )
     out_dir = Path(args.out_dir)
     cams = {name: PinholeCamera.from_cfg(name) for name in HEAD_CAMS}
 
