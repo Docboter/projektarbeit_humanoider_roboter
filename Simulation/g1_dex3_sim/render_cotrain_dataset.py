@@ -101,6 +101,13 @@ parser.add_argument("--train-ratio", type=float, default=0.8,
                          "gerendert — sonst wäre die Validierungs-MSE kontaminiert.")
 parser.add_argument("--max-frames-per-episode", type=int, default=0,
                     help="0 = ganze Episode. >0 kürzt (Rauchtest).")
+parser.add_argument("--cube-source", choices=("layout", "grasp"), default="layout",
+                    help="layout = Wuerfel an die Lage aus dem Realbild (Standard); "
+                         "grasp = den gegriffenen Wuerfel zusaetzlich auf den Kuppen-"
+                         "Schwerpunkt der Hand ziehen, damit der Griff im Bild aufgeht")
+parser.add_argument("--max-anchor-shift", type=float, default=0.08,
+                    help="Wieviel der Greifanker hoechstens von der Bild-Lage abweichen darf "
+                         "(m). Darueber wird die Episode verworfen statt geraten")
 parser.add_argument("--layout", type=str, default="",
                     help="layout.json aus extract_block_layout.py — Würfelpositionen, die "
                          "aus dem REALBILD gelesen wurden (Farbblob → Strahl auf die "
@@ -521,7 +528,57 @@ def stash_cubes(env) -> None:
         block.write_root_velocity_to_sim(torch.zeros((1, 6), device=env.device))
 
 
-def place_cubes(env, layout: list | None = None
+def grasp_anchor(env, states: np.ndarray, layout: list, until: int,
+                 max_shift_m: float) -> dict | None:
+    """Wo die HAND den Würfel greift — als Korrektur zur Lage aus dem Bild.
+
+    Warum überhaupt: für Co-Training zählt nicht, ob der Würfel dort steht, wo er im
+    Realbild lag, sondern ob er dort steht, wo die Hand ihn greift. Sonst zeigt das
+    gerenderte Bild einen Griff, der danebengeht — als Aufsicht schlimmer als gar keine.
+    Nach den Geometriekorrekturen vom 2026-08-24 bleiben zwischen Kuppen und Bild-Lage rund
+    4,5 cm; bei 5 cm Würfelkante reicht das zum Anstoßen, nicht zum Greifen (Lauf 53).
+
+    Gesucht wird der Frame VOR ``until`` (dem Bewegungsbeginn), an dem eine Handmitte einem
+    Layout-Würfel am nächsten kommt — davor gilt dessen Ruhelage, danach trägt die Hand ihn
+    bereits. Der Kuppen-Schwerpunkt dort ist der Anker.
+
+    Nicht zu verwechseln mit dem alten ``find_grasp_points``: das nahm das Minimum der
+    FINGERÖFFNUNG über die GANZE Episode und landete damit auf dem Transportweg.
+
+    ``None`` heißt: kein Anker verwendbar — entweder gibt es keine Kuppen-Daten, oder der
+    Anker liegt weiter als ``max_shift_m`` von der Bild-Lage entfernt. Der zweite Fall ist
+    die Plausibilitätsschranke: zwei unabhängige Quellen, die weit auseinanderliegen,
+    bezeugen einander nicht.
+    """
+    targets = [(i, np.asarray(xy[:2], dtype=np.float64))
+               for i, xy in enumerate(layout or []) if xy]
+    if not targets:
+        return None
+    best = None
+    for frame in range(0, min(int(until) + 1, len(states)), 2):
+        set_robot_to_state(env, states[frame])
+        env.sim.forward()
+        env.robot.update(float(env.cfg.sim.dt))
+        sc = hand_spreads_and_centroids(env)
+        if sc is None:
+            continue
+        _, centroids = sc
+        for hand in range(2):
+            for block, xy in targets:
+                dist = float(np.linalg.norm(centroids[hand][:2] - xy))
+                if best is None or dist < best["dist_m"]:
+                    best = {"dist_m": dist, "frame": frame, "hand": hand, "block": block,
+                            "xy": [float(centroids[hand][0]), float(centroids[hand][1])]}
+    if best is None:
+        return None
+    if best["dist_m"] > max_shift_m:
+        print(f"      Greifanker {best['dist_m'] * 100:.1f} cm von der Bild-Lage entfernt "
+              f"(Grenze {max_shift_m * 100:.0f} cm) — Episode wird ausgelassen.", flush=True)
+        return None
+    return best
+
+
+def place_cubes(env, layout: list | None = None, anchor: dict | None = None
                 ) -> tuple[list[list[float]], list[str]] | None:
     """Würfel dorthin setzen, wo sie im REALBILD lagen — oder die Episode auslassen.
 
@@ -542,8 +599,12 @@ def place_cubes(env, layout: list | None = None
     gültige Aufsicht aussieht. Der Layout-Lauf vom 2026-08-22 findet in 60 von 60 Episoden
     alle drei Würfel; ein Rückfall ist also auch praktisch nicht nötig.
 
+    ``anchor`` (aus ``grasp_anchor``) verschiebt GENAU EINEN Würfel — den gegriffenen —
+    auf den Kuppen-Schwerpunkt der Hand. Die übrigen bleiben auf ihrer Bild-Lage: nur
+    einer wird angefasst, für die anderen ist das Bild die bessere Quelle.
+
     Rückgabe ``None`` heißt: keine vollständige Lage bekannt, Episode überspringen.
-    Nur x/y kommen aus dem Layout, die Höhe ist immer die Tischauflage.
+    Nur x/y kommen aus Layout bzw. Anker, die Höhe ist immer die Tischauflage.
     """
     z = float(env.cfg.block_z_surface)
     origin = env.scene.env_origins[0].cpu().numpy()
@@ -559,12 +620,14 @@ def place_cubes(env, layout: list | None = None
             print(f"      Würfel {i}: Layout-Punkt ({x:.2f}, {y:.2f}) außerhalb des Tischs "
                   f"— Episode wird ausgelassen.", flush=True)
             return None
+        if anchor and anchor["block"] == i:
+            x, y = float(anchor["xy"][0]), float(anchor["xy"][1])
         positions.append(np.array([x, y, z], dtype=np.float32))
 
     record, source = [], []
-    for block, pos in zip(env.blocks, positions):
+    for i, (block, pos) in enumerate(zip(env.blocks, positions)):
         record.append([round(float(v), 4) for v in pos])
-        source.append("layout")
+        source.append("greifanker" if anchor and anchor["block"] == i else "layout")
         world = torch.tensor([[float(pos[0] + origin[0]), float(pos[1] + origin[1]),
                                float(pos[2]), 1.0, 0.0, 0.0, 0.0]],
                              device=env.device, dtype=torch.float32)
@@ -940,7 +1003,19 @@ def run_render(env_builder, src_root: Path, src_info: dict, episodes: list[int],
         env.reset()
         cubes, cube_src = None, None
         if not args.no_place_cubes:
-            placement = place_cubes(env, layout=layout.get(str(ep_idx), {}).get("cubes"))
+            entry_cubes = layout.get(str(ep_idx), {}).get("cubes")
+            anchor = None
+            if args.cube_source == "grasp" and entry_cubes:
+                # Das Fenster endet per Konstruktion am Bewegungsbeginn (episode_window),
+                # `state` ist bereits darauf geschnitten — sein letzter Frame IST der Onset.
+                anchor = grasp_anchor(env, state, entry_cubes, len(state) - 1,
+                                      float(args.max_anchor_shift))
+                if anchor:
+                    print(f"      Greifanker: Hand {'links' if anchor['hand'] == 0 else 'rechts'}"
+                          f", Wuerfel {anchor['block']}, Frame {anchor['frame']}, "
+                          f"{anchor['dist_m'] * 100:.1f} cm von der Bild-Lage.", flush=True)
+                env.reset()
+            placement = place_cubes(env, layout=entry_cubes, anchor=anchor)
             if placement is None:
                 print(f"{head}: VERWORFEN — keine vollständige Würfellage im Bild-Layout. "
                       f"Fehlt sie für viele Episoden, zuerst 'server_rl_run.sh layout' "

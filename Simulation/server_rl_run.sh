@@ -1504,6 +1504,13 @@ do_render() {
   local extra=""
   [[ "${RENDER_MAX_FRAMES:-0}" != "0" ]] && extra+=" --max-frames-per-episode ${RENDER_MAX_FRAMES}"
   [[ "${RENDER_OVERWRITE:-0}" == "1" ]] && extra+=" --overwrite"
+  # RENDER_CUBE_SOURCE=grasp zieht den gegriffenen Wuerfel auf den Kuppen-Schwerpunkt der
+  # Hand, statt ihn allein auf die Lage aus dem Realbild zu setzen. Grund: fuer Co-Training
+  # zaehlt, dass der Griff im gerenderten Bild aufgeht — nicht, dass der Wuerfel exakt dort
+  # steht, wo er real lag. RENDER_MAX_ANCHOR_SHIFT ist die Plausibilitaetsschranke (m).
+  [[ -n "${RENDER_CUBE_SOURCE:-}" ]] && extra+=" --cube-source ${RENDER_CUBE_SOURCE}"
+  [[ -n "${RENDER_MAX_ANCHOR_SHIFT:-}" ]] \
+    && extra+=" --max-anchor-shift ${RENDER_MAX_ANCHOR_SHIFT}"
   [[ -n "${RENDER_EPISODE_IDS:-}" ]] && extra+=" --episode-ids ${RENDER_EPISODE_IDS}"
   # Nur bis zur ersten Wuerfelbewegung rendern. Ab da hat die reale Hand den Wuerfel
   # mitgenommen, waehrend der simulierte liegen bleibt — das Bild zeigt dann etwas anderes,
