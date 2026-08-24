@@ -181,6 +181,35 @@ def hand_spread_and_center(tips: np.ndarray, offset: int) -> tuple[float, np.nda
     return spread, points.mean(axis=0)
 
 
+def hand_joint_ranges(env: G1Dex3BlockstackEnv, states: np.ndarray) -> list[dict]:
+    """Aufgezeichnete Spannweite je Handdimension gegen die Gelenkgrenzen der Sim.
+
+    Die Vorzeichen-Probe setzt die Gelenke mit ``write_joint_state_to_sim`` und umgeht damit
+    die Grenzen. Im geschlossenen Regelkreis wirkt dagegen ``set_joint_position_target``, das
+    klemmt. Ein Wert ausserhalb der Grenze bewegt das Gelenk dort also nicht — genau so wurde
+    die rechte Hand bis 2026-08-24 stillgelegt. Deshalb hier beides nebeneinander.
+    """
+    if env._joint_ids is None:
+        env._joint_ids = env._build_joint_id_mapping()
+    names = list(env.robot.data.joint_names)
+    lower = env.robot.data.joint_pos_limits[0, :, 0].detach().cpu().numpy()
+    upper = env.robot.data.joint_pos_limits[0, :, 1].detach().cpu().numpy()
+    rows = []
+    for dim in range(14, 28):
+        isaac = env._joint_ids[dim]
+        recorded = states[:, dim]
+        sign = -1.0 if dim in env._SIGN_FLIP_IDX else 1.0
+        sent = sign * recorded
+        rows.append({
+            "dim": dim, "joint": names[isaac], "gespiegelt": sign < 0,
+            "aufgezeichnet": [round(float(recorded.min()), 3), round(float(recorded.max()), 3)],
+            "gesendet": [round(float(sent.min()), 3), round(float(sent.max()), 3)],
+            "grenze": [round(float(lower[isaac]), 3), round(float(upper[isaac]), 3)],
+            "geklemmt_frames": int(((sent < lower[isaac]) | (sent > upper[isaac])).sum()),
+        })
+    return rows
+
+
 def sign_sweep(env: G1Dex3BlockstackEnv, state: np.ndarray,
                cubes: list) -> list[dict]:
     """Je Vorzeichenvariante die Kuppenoeffnung und den Abstand zum naechsten Wuerfel."""
@@ -289,6 +318,7 @@ def main() -> int:
         ).astype(np.float32)
         frame_index = int(min(frame_index, len(states) - 1))
         cubes = record.get("cubes") or []
+        ranges = hand_joint_ranges(env, states)
         sweep = sign_sweep(env, states[frame_index], cubes)
         # Zuletzt die produktive Variante setzen, damit Bilder und Zahlen sie zeigen.
         set_robot_state(env, states[frame_index])
@@ -322,6 +352,7 @@ def main() -> int:
                         "fingertips_env_local_m": tips.round(4).tolist(),
                         "chain_env_local_m": {k: v.round(4).tolist() for k, v in chain.items()},
                         "sign_sweep": sweep,
+                        "hand_joint_ranges": ranges,
                         "cubes_xy_m": cubes})
         parts = [f"links {left[1] * 100:.1f} cm ({left[0]})" if left else "links —",
                  f"rechts {right[1] * 100:.1f} cm ({right[0]})" if right else "rechts —"]
@@ -333,6 +364,16 @@ def main() -> int:
             print(f"      {row['variante']:<14}{row['left_spread_cm']:>12}"
                   f"{row['left_dist_cm']:>10}{row['right_spread_cm']:>13}"
                   f"{row['right_dist_cm']:>10}", flush=True)
+        clamped = [r for r in ranges if r["geklemmt_frames"]]
+        if clamped:
+            print("      GEKLEMMTE Handgelenke (gesendeter Wert ausserhalb der Grenze):",
+                  flush=True)
+            for r in clamped:
+                print(f"        dim {r['dim']:>2} {r['joint']:<26} gesendet {r['gesendet']} "
+                      f"Grenze {r['grenze']}  {r['geklemmt_frames']}/{len(states)} Frames",
+                      flush=True)
+        else:
+            print("      keine Handdimension wird geklemmt.", flush=True)
 
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "tipcheck.json").write_text(

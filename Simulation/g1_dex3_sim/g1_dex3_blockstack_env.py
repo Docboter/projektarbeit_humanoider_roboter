@@ -995,8 +995,23 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
 
     # Policy-Indices der proximalen Fingergelenke mit invertierter Achsenkonvention.
     # Dataset+ = schließen; USD: links negativ = schließen, rechts positiv = schließen.
-    # → Vorzeichen vor Übergabe ans Sim flippen (17=l_mid0, 19=l_idx0, 24=r_idx0, 26=r_mid0).
-    _SIGN_FLIP_IDX: list[int] = [17, 19, 24, 26]
+    # → Nur LINKS muss gespiegelt werden (17=l_mid0, 19=l_idx0); rechts stimmt schon.
+    #
+    # Bis 2026-08-24 standen hier zusätzlich 24 und 26, obwohl der Kommentar darüber genau
+    # das Gegenteil begründet. Die USD-Grenzen belegen es: die _0-Gelenke sind exakt
+    # gespiegelt — links [-1.571, 0.000], rechts [0.000, 1.571]. Ein positiver Datensatzwert
+    # wurde rechts negiert und lag damit UNTER der Untergrenze 0, wurde also auf 0 geklemmt:
+    # die rechten Fingergrundgelenke haben sich nie bewegt, die Hand schloss nie.
+    # Zusätzlich gemessen mit `server_rl_run.sh tipcheck` (Vorzeichen-Probe über
+    # drei Episoden, jeweils am Frame, an dem sich der gegriffene Würfel real zu bewegen
+    # beginnt): die mittlere Kuppenöffnung der greifenden rechten Hand fällt ohne die
+    # Spiegelung von 8,0 / 12,2 / 10,8 cm auf 5,1 / 7,3 / 8,7 cm — bei 5 cm Würfelkante —
+    # und der Abstand zum Würfel von 13,5 / 17,5 / 12,3 cm auf 10,4 / 11,5 / 9,4 cm.
+    #
+    # Die LINKE Spiegelung bleibt: in allen drei Messframes griff die rechte Hand, die linken
+    # Zahlen gehören zu einer offenen Hand und belegen nichts. Sie steht damit weiter nur auf
+    # dem Kommentar oben und einem schwachen Konsistenzsignal (9,2/9,1/8,8 gegen 10,5/9,2/9,6).
+    _SIGN_FLIP_IDX: list[int] = [17, 19]
 
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
         """
