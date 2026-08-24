@@ -1398,6 +1398,8 @@ do_tipcheck() {
   local extra=""
   [[ -n "${TIPCHECK_EPISODE_IDS:-}" ]] && extra+=" --episode-ids ${TIPCHECK_EPISODE_IDS}"
   [[ -n "${TIPCHECK_FRAME:-}" ]] && extra+=" --frame ${TIPCHECK_FRAME}"
+  [[ -n "${TIPCHECK_APPROACH_STRIDE:-}" ]] \
+    && extra+=" --approach-stride ${TIPCHECK_APPROACH_STRIDE}"
 
   if ! docker exec "$CONTAINER" test -f "$layout"; then
     err "Layout fehlt: $layout — es liefert Wuerfellage und Pruefframe (motion_onset)."

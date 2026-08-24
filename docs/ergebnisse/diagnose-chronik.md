@@ -43,7 +43,7 @@ Für den **aktuellen Projektstatus** siehe
 | 32 | `span`-Gate entschieden: Median-Verhältnis 1,00 auf echten Bildern — Domain-Gap (a1) bestätigt, (a2) ausgeschlossen ([Lauf 32](#lauf-32-runs2026081301-das-span-gate-ist-entschieden--a1)) |
 | 33/34 | `TUNE_VISUAL`-Checkpoint im Closed Loop: Fingerspanne 27,6 % (statt 20,5 %), `lifted` bleibt 0/10 ([Läufe 33/34](#läufe-3334-runs2026081403-runs2026081404-der-tune_visual-checkpoint-im-closed-loop)) |
 | 35–37 | Würfellage-Rekonstruktion v4 zweimal abgelehnt; Kameramodell dagegen auf 0,3 cm bestätigt, Würfelebene lag 2 cm zu hoch ([Läufe 35–37](#läufe-3537-runs2026082201-03-die-würfellage-kommt-aus-dem-bild-nicht-aus-der-hand)) |
-| 38–42 | Die vier Fingergrundgelenke standen in **jedem** Lauf still: der „Sign-Convention-Fix" drehte sie aus ihrer Gelenkgrenze, wo sie geklemmt wurden ([Läufe 38–42](#läufe-3842-runs2026082302-runs2026082405-08-die-fingergrundgelenke-standen-still)) |
+| 38–43 | Die vier Fingergrundgelenke standen in **jedem** Lauf still: der „Sign-Convention-Fix" drehte sie aus ihrer Gelenkgrenze, wo sie geklemmt wurden ([Läufe 38–43](#läufe-3843-runs2026082302-runs2026082405-09-die-fingergrundgelenke-standen-still)) |
 
 ---
 
@@ -1713,7 +1713,7 @@ Würfelhöhe — genau diese Pose ist geprüft, und sie darf bei einer Ebenenkor
 
 ---
 
-### Läufe 38–42 (`runs/20260823/02`, `runs/20260824/05`–`08`): Die Fingergrundgelenke standen still
+### Läufe 38–43 (`runs/20260823/02`, `runs/20260824/05`–`09`): Die Fingergrundgelenke standen still
 
 **Lauf 38** (`render`, `runs/20260823/02`) lieferte erstmals einen vollständigen Co-Training-Datensatz —
 und einen Widerspruch, der sich nicht mehr auf die Würfellage schieben ließ: über alle Frames und beide
@@ -1783,8 +1783,26 @@ diesem Vorbehalt neu zu lesen.
 #### Was damit nicht erklärt ist
 
 Rund **10 cm** Abstand bleiben zwischen der jetzt schließenden rechten Hand und der Würfellage aus dem
-Bild. Die Vorzeichenkorrektur nimmt etwa 3 cm davon. Die früher notierte Einschätzung „die
-Handgelenk-Marken sitzen auf den realen Handgelenken, also stimmt die Kamerapose" war Augenmaß an einem
-Bildausschnitt — 10 cm entsprechen dort 60–80 px und sind damit **nicht** ausgeschlossen. Offen bleiben
-als Kandidaten die Kamerapose für reale Bilder und die im 28-dim-State fehlenden Hüft-/Waist-Gelenke
-(13° Rumpfneigung reichen für 10 cm).
+Bild. Die Vorzeichenkorrektur nimmt etwa 3 cm davon. Nach Komponenten zerlegt (Lauf 43,
+`runs/20260824/09`) ist der Rest überwiegend **vertikal** und über die drei Episoden erstaunlich
+konsistent:
+
+| Episode | dx | dy | dz | Betrag |
+|---|---|---|---|---|
+| 0 | +7,7 | −3,8 | +5,9 | 10,4 cm |
+| 4 | +3,5 | −4,6 | +9,9 | 11,5 cm |
+| 8 | +4,1 | +1,8 | +8,3 | 9,4 cm |
+| **Mittel** | +5,1 | −2,2 | **+8,0** | Streuung dz 1,7 cm |
+
+Die Hand steht also acht Zentimeter **über** der Würfellage. Dafür gibt es eine harmlose Erklärung, die
+zuerst auszuschließen ist: `layout.json` nennt die **Ruhelage** des Würfels, gemessen wird aber am
+**Bewegungsbeginn** — dort kann die Hand ihn längst angehoben haben, und die Zahl misst nur den Hub.
+`tipcheck` fährt deshalb seit Lauf 43 zusätzlich ein **Anflugprofil** über die ganze Episode
+(`--approach-stride`, ohne Renderdurchgang) und meldet den nächsten Punkt samt Frame und
+Versatzvektor. Geht der gegen null, war es der Hub; bleibt er stehen, sitzt der Fehler in der
+Kamerapose für reale Bilder oder in der FK — dort sind die im 28-dim-State fehlenden Hüft-/Waist-Gelenke
+der nächste Kandidat, 13° Rumpfneigung reichen für 10 cm.
+
+Die früher notierte Einschätzung „die Handgelenk-Marken sitzen auf den realen Handgelenken, also stimmt
+die Kamerapose" war Augenmaß an einem Bildausschnitt — 10 cm entsprechen dort 60–80 px und sind damit
+**nicht** ausgeschlossen.

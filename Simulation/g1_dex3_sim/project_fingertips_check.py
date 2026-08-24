@@ -74,6 +74,9 @@ parser.add_argument("--episode-ids", type=int, nargs="*", default=None)
 parser.add_argument("--train-ratio", type=float, default=0.8)
 parser.add_argument("--frame", type=int, default=-1,
                     help="-1 = Bewegungsbeginn aus layout.json (empfohlen), sonst fester Frame")
+parser.add_argument("--approach-stride", type=int, default=2,
+                    help="Schrittweite fuer das Anflugprofil ueber die ganze Episode; "
+                         "0 schaltet es ab (spart Zeit, kostet die Hub-Unterscheidung)")
 AppLauncher.add_app_launcher_args(parser)
 args = parser.parse_args()
 
@@ -232,6 +235,39 @@ def sign_sweep(env: G1Dex3BlockstackEnv, state: np.ndarray,
     return rows
 
 
+def approach_profile(env: G1Dex3BlockstackEnv, states: np.ndarray,
+                     cubes: list, stride: int) -> dict:
+    """Ueber die GANZE Episode: wann kommt jede Hand einem Wuerfel am naechsten?
+
+    Der Bewegungsbeginn ist der Moment, in dem sich der Wuerfel real zu bewegen ANFAENGT —
+    dort kann die Hand ihn bereits angehoben haben, waehrend ``layout.json`` seine RUHELAGE
+    nennt. Ein Hoehenversatz an diesem einen Frame misst dann nur den Hub, keinen Fehler.
+    Das Minimum ueber die Episode trennt beides: geht es gegen null, war es der Hub; bleibt
+    es stehen, sitzt der Fehler in der Kamerapose oder der FK.
+
+    Kostet keinen Renderdurchgang — nur ``sim.forward()`` je Frame. ``stride`` <= 0 schaltet
+    die Messung ab.
+    """
+    targets = [(color, np.array([cubes[i][0], cubes[i][1], CUBE_CENTER_Z_M]))
+               for i, color in enumerate(CUBE_COLORS) if i < len(cubes) and cubes[i]]
+    if not targets or stride <= 0:
+        return {}
+    best: dict[str, tuple[float, dict]] = {}
+    for frame in range(0, len(states), stride):
+        set_robot_state(env, states[frame])
+        tips = fingertips_env_local(env)
+        for hand, offset in (("left", 0), ("right", 3)):
+            center = tips[offset : offset + 3].mean(axis=0)
+            for color, target in targets:
+                delta = center - target
+                dist = float(np.linalg.norm(delta))
+                if hand not in best or dist < best[hand][0]:
+                    best[hand] = (dist, {
+                        "dist_cm": round(dist * 100, 1), "frame": frame, "cube": color,
+                        "versatz_cm": [round(float(v) * 100, 1) for v in delta]})
+    return {hand: record for hand, (_, record) in best.items()}
+
+
 def real_frame(root: Path, info: dict, episode: int, camera: str, index: int) -> np.ndarray:
     path = video_path(root, info, episode, camera)
     with imageio.get_reader(str(path), format="FFMPEG") as reader:
@@ -322,6 +358,7 @@ def main() -> int:
         frame_index = int(min(frame_index, len(states) - 1))
         cubes = record.get("cubes") or []
         ranges = hand_joint_ranges(env, states)
+        approach = approach_profile(env, states, cubes, int(args.approach_stride))
         sweep = sign_sweep(env, states[frame_index], cubes)
         # Zuletzt die produktive Variante setzen, damit Bilder und Zahlen sie zeigen.
         set_robot_state(env, states[frame_index])
@@ -356,6 +393,7 @@ def main() -> int:
                         "chain_env_local_m": {k: v.round(4).tolist() for k, v in chain.items()},
                         "sign_sweep": sweep,
                         "hand_joint_ranges": ranges,
+                        "approach": approach,
                         "cubes_xy_m": cubes})
         parts = [f"links {left[1] * 100:.1f} cm ({left[0]})" if left else "links —",
                  f"rechts {right[1] * 100:.1f} cm ({right[0]})" if right else "rechts —"]
@@ -377,6 +415,18 @@ def main() -> int:
                       flush=True)
         else:
             print("      keine Handdimension wird geklemmt.", flush=True)
+        if approach:
+            parts = []
+            for hand, label in (("left", "links"), ("right", "rechts")):
+                a = approach.get(hand)
+                if not a:
+                    continue
+                dx, dy, dz = a["versatz_cm"]
+                parts.append(f"{label} {a['dist_cm']:.1f} cm @f{a['frame']:04d} "
+                             f"({a['cube']}, dx{dx:+.1f} dy{dy:+.1f} dz{dz:+.1f})")
+            print("      naechster Punkt der EPISODE: " + " | ".join(parts), flush=True)
+            print("        sinkt gegen 0 => der Versatz oben war der Hub;"
+                  " bleibt er stehen => Kamerapose oder FK.", flush=True)
 
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "tipcheck.json").write_text(
