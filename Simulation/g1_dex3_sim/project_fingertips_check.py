@@ -166,7 +166,7 @@ def annotate(frame: np.ndarray, cam: PinholeCamera, tips: np.ndarray,
 def main() -> int:
     root = Path(args.dataset_path)
     info = read_info(root)
-    episodes = select_episodes(root, args)
+    episodes = select_episodes(info, args)
     layout = json.loads(Path(args.layout).read_text(encoding="utf-8")).get("episodes", {})
     out_dir = Path(args.out_dir)
     cams = {name: PinholeCamera.from_cfg(name) for name in HEAD_CAMS}
