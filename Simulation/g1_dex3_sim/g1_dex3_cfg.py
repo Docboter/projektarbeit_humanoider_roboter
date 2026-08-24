@@ -181,12 +181,11 @@ G1_DEX3_CFG = ArticulationCfg(
         # Die Kamerapose wandert NICHT mit: sie steht statisch in camera_geometry.py und ist
         # gegen Grundwahrheit auf 0,3 cm geprueft.
         #
-        # ROBOT_BASE_X ist der offene Rest: nach der Hoehenkorrektur bleibt dx = +5,7 cm bei
-        # dy = 0 (Lauf 49). Anders als dz ist der Wert nicht starr (Streuung 3,8, Spanne -2,7
-        # bis +10,4) — er kann auch aus der Greifrichtung stammen, weil der Kuppenschwerpunkt
-        # je nach Anfahrt vor oder hinter der Wuerfelmitte liegt. Deshalb Default 0.0 und ein
-        # Testschalter, keine stille Korrektur.
-        pos=(float(os.environ.get("ROBOT_BASE_X", "0.0")), 0.0,
+        # ROBOT_BASE_X: -0.057 ist ebenfalls gemessen. Nach der Hoehenkorrektur blieb dx =
+        # +5,7 cm; mit -0,057 faellt es auf +1,5 (Lauf 51). Traegt wird die Korrektur nicht vom
+        # Mittelwert, sondern von der Streuung: die faellt auf JEDER Achse (dx 3,8 -> 2,2, dy
+        # 3,7 -> 3,4, dz unveraendert 2,0). Eine blosse Verschiebung taete das nicht.
+        pos=(float(os.environ.get("ROBOT_BASE_X", "-0.057")), 0.0,
              float(os.environ.get("ROBOT_BASE_Z", "0.764"))),
         # Startpose 1:1 aus dem Dataset (Frame 0) — Hände greifen bereits Richtung Tisch,
         # statt der früheren generischen Ruhepose. Die vier _0-Gelenke sind hier auf die

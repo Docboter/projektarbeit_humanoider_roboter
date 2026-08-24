@@ -1873,3 +1873,30 @@ Chronik betreffen.
 **Offen bleibt dx = +5,7 cm** (Streuung 3,8) bei dy = 0 — ein Versatz nach vorn, deutlich kleiner als
 der behobene und mit größerer relativer Streuung. Nächster Kandidat, jetzt ohne den vertikalen Anteil,
 der ihn bisher überdeckte.
+
+#### Läufe 49–51: auch die Basis in x — die Rekonstruktion steht
+
+Der erste x-Test lief mit falschem Vorzeichen (`+0.057`) und trieb dx von +5,7 auf +9,6. Die Richtung
+ergibt sich aus derselben Regel wie bei der Höhe: dx = Hand − Würfel = +5,7 heißt, der Roboter steht zu
+weit **vorn**, muss also zurück. Mit `ROBOT_BASE_X=-0.057`:
+
+| | (0, 0,85) Ausgang | (0, 0,764) | (−0,057, 0,764) |
+|---|---|---|---|
+| dx | +6,1 ± 4,0 | +5,7 ± 3,8 | **+1,5 ± 2,2** |
+| dy | −0,2 ± 3,9 | −0,8 ± 3,7 | **−0,1 ± 3,4** |
+| dz | +8,6 ± 2,1 | +1,0 ± 2,0 | **+0,9 ± 2,0** |
+| Betrag | 11,9 | 7,6 | **4,5 ± 1,7** |
+
+Getragen wird die x-Korrektur nicht vom Mittelwert, sondern von der **Streuung**: die fällt auf jeder
+Achse. Eine bloße Verschiebung täte das nicht — sie verschöbe den Mittelwert und ließe die Streuung
+stehen. Bei 5 cm Würfelkante bedeutet |d| = 4,5 cm, dass die Hand am Würfel ist.
+
+Beim x-Test ist allerdings der Anflugpunkt kein stabiler Vergleichspunkt: im Fehlversuch mit `+0.057`
+wanderten dy und dz mit (−0,8 → +2,9 bzw. +1,0 → +3,5), obwohl nur x verschoben wurde — das Minimum
+sprang auf andere Frames. Beim z-Test war der Effekt groß genug, um dasselbe Minimum zu halten (dz fiel
+exakt 1:1, dx und dy blieben unberührt). Für kleine Verschiebungen ist die Methode also unscharf.
+
+**Damit ist die Würfellage-Rekonstruktion belastbar.** `pos=(-0.057, 0.0, 0.764)` ist der neue Default,
+`ROBOT_BASE_X` / `ROBOT_BASE_Z` stellen die alten Werte wieder her. Der Weg dahin führte über drei
+unabhängige Geometriefehler — die Vorzeichenspiegelung der Fingergrundgelenke, die Beckenhöhe und die
+Basis in x —, die alle zusammen die rund 12 cm ergaben, an denen das Verfahren zuvor scheiterte.
