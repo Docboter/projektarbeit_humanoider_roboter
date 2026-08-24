@@ -1813,3 +1813,34 @@ Rumpfneigung vorwiegend waagerecht verschiebt (13° ≈ 13 cm nach vorn, aber nu
 
 Die früher notierte Einschätzung „die Handgelenk-Marken sitzen auf den realen Handgelenken, also stimmt
 die Kamerapose" war Augenmaß an einem Bildausschnitt und trägt ebenfalls nichts.
+
+#### Lauf 47 (`runs/20260824/13`): die erste belastbare Messung des Versatzes
+
+Mit der Fenstergrenze vor dem Onset, handelnde Hand, acht Episoden:
+
+| | Mittel | Streuung | Spanne |
+|---|---|---|---|
+| dx | +6,1 | 4,0 | −2,5 … +10,4 |
+| dy | **−0,2** | 3,9 | zentriert auf null |
+| dz | **+8,6** | 2,1 | +5,9 … +13,3 |
+
+**Sechs der acht Minima liegen direkt an der Fenstergrenze** — die Hand nähert sich monoton bis zum
+Bewegungsbeginn und wird dort abgeschnitten. Näher kommt sie bis dahin nicht, und ab dem Onset bewegt
+sich der Würfel, die Hand muss ihn also halten. Der Versatz ist echt, kein Zeitartefakt. Er liegt bei
+dy = 0 sauber in der x-z-Ebene.
+
+Zur **Rumpfneigung** ist eine frühere Rechnung dieser Chronik zu korrigieren: „13° ≈ 13 cm nach vorn,
+nur 1,5 cm nach unten" rechnete mit dem Hebel Waist→Schulter. Maßgeblich ist Waist→**Hand**, und die
+steht beim Greifen fast waagerecht nach vorn ab (r ≈ 0,34 m). Ein Pitch dreht sie damit vorwiegend
+**vertikal**: 8,6 cm entsprächen 14,5° Vorneigung bei nur ~1 cm horizontal. Rumpfneigung war also
+verfrüht ausgeschlossen.
+
+Getrennt werden Neigung und Basishöhe über die Signatur: ein Pitch skaliert dz mit der Handreichweite,
+eine falsche Basishöhe nicht. Gemessen: **r = −0,27** zwischen dz und Hand-x — kein positiver
+Zusammenhang, also kein Pitch-Signal, sondern ein konstanter Versatz. Bei n = 8 und nur 14 cm
+Reichweitenspreizung ist das ein Indiz, keine Entscheidung.
+
+Für den Ein-Parameter-Test ist die Beckenhöhe jetzt über `ROBOT_BASE_Z` einstellbar (Default 0,85, wie
+bisher). Die Kamerapose wandert dabei ausdrücklich **nicht** mit: sie steht statisch in
+`camera_geometry.py` und ist gegen Grundwahrheit auf 0,3 cm geprüft. Sinkt dz bei `ROBOT_BASE_Z=0.764`
+gegen null, ohne dx zu verschlechtern, ist die Ursache gefunden.

@@ -20,6 +20,8 @@ Voraussetzung:
 
 from __future__ import annotations
 
+import os
+
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
@@ -166,7 +168,12 @@ G1_DEX3_CFG = ArticulationCfg(
         ),
     ),
     init_state=ArticulationCfg.InitialStateCfg(
-        pos=(0.0, 0.0, 0.85),
+        # Beckenhoehe. 0.85 ist ein gesetzter Wert, nicht gemessen — und tipcheck misst gegen
+        # die Wuerfellage aus dem Realbild einen Hoehenversatz von +8,6 cm (Streuung 2,1) bei
+        # dy = 0 (Lauf 47). ROBOT_BASE_Z erlaubt den Ein-Parameter-Test, ohne die Kamerapose
+        # anzufassen: die steht statisch in camera_geometry.py und ist gegen Grundwahrheit auf
+        # 0,3 cm geprueft, darf hier also gerade NICHT mitwandern.
+        pos=(0.0, 0.0, float(os.environ.get("ROBOT_BASE_Z", "0.85"))),
         # Startpose 1:1 aus dem Dataset (Frame 0) — Hände greifen bereits Richtung Tisch,
         # statt der früheren generischen Ruhepose. Die vier _0-Gelenke sind hier auf die
         # Original-USD-Grenze gekappt, siehe SPAWN_JOINT_POS oben.

@@ -1407,7 +1407,8 @@ do_tipcheck() {
     return 1
   fi
   log "Fingerkuppen ins Realbild projizieren: $eps Episoden, Ziel $out"
-  docker exec -w "$SIM_DIR" -e "DR_ENABLED=0" "$CONTAINER" env -u VIRTUAL_ENV \
+  docker exec -w "$SIM_DIR" -e "DR_ENABLED=0" -e "ROBOT_BASE_Z=${ROBOT_BASE_Z:-0.85}" \
+    "$CONTAINER" env -u VIRTUAL_ENV \
     "$ISAAC_PY" "$SIM_DIR/project_fingertips_check.py" --headless --enable_cameras \
       --dataset-path "$ds" --layout "$layout" --out-dir "$out" \
       --asset-path "$ASSET_PATH" --num-episodes "$eps" $extra \
