@@ -198,6 +198,14 @@ gilt unverändert (`mix* = F_augmentiert / (F_augmentiert + F_echt)`), aber die 
     **drittes** gated Repo aus einer noch unentdeckten Ecke auftaucht, sieht der Fehler
     wieder aus wie „Access denied. This repository requires approval." mitten in der
     Inferenz statt beim Preflight — dann dort ergänzen.
+13. **Historie — `HF_TOKEN` als Umgebungsvariable reichte nicht für `uvx hf download`
+    (2026-08-24).** Trotz bestandenem Lizenz-Preflight (übergibt `token=` explizit an die
+    `huggingface_hub`-Python-API) schlug `uvx 'hf>=1.3.5' download ...`
+    (`checkpoint_db.py`) weiter mit „Access denied" fehl — zwei unterschiedliche
+    Auth-Pfade. Fix: `entrypoint.sh` loggt den Token jetzt einmalig explizit per
+    `uvx 'hf>=1.3.5' auth login --token "$HF_TOKEN"` ein, bevor irgendein Download
+    versucht wird — das persistiert ihn nach `$HF_HOME/token`, wo jede später frisch
+    gestartete `uvx hf …`-Instanz ihn zuverlässig findet.
 
 ## 8. Nachgelagerte QS (Follow-up, nicht Teil dieses Durchgangs)
 

@@ -155,6 +155,18 @@ export HUGGING_FACE_HUB_TOKEN="$HF_TOKEN"
 export HF_TOKEN
 ok "HF_TOKEN gesetzt (${#HF_TOKEN} Zeichen)"
 
+# cosmos-transfer2.5 laedt Checkpoints ueber `uvx 'hf>=1.3.5' download ...`
+# (checkpoint_db.py) — dieser Weg verlaesst sich primaer auf den LOKAL GESPEICHERTEN
+# Login-Token (siehe `hf auth login`), nicht zuverlaessig auf die automatische
+# HF_TOKEN-Erkennung ueber Umgebungsvariablen. Beobachtet 2026-08-24: der Python-seitige
+# Lizenz-Preflight unten funktioniert (uebergibt token= explizit), aber `uvx hf download`
+# schlug trotzdem mit "Access denied" fehl. Fix: Token EINMALIG explizit einloggen, damit
+# er in $HF_HOME/token landet und jede spaetere `uvx hf ...`-Instanz (jedes Mal eine frische
+# Umgebung) ihn zuverlaessig findet.
+log "HF-Token bei 'hf' CLI einloggen (fuer uvx-basierte Checkpoint-Downloads)"
+uvx 'hf>=1.3.5' auth login --token "$HF_TOKEN"
+ok "Bei HuggingFace eingeloggt"
+
 # Lieber HIER scheitern als nach Stunden Inferenz mit einem kryptischen 403 mitten im Lauf:
 # die "NVIDIA Open Model License Agreement" muss VORHER manuell auf JEDER der folgenden
 # HF-Modellseiten akzeptiert werden — das kann kein Skript automatisieren. cosmos-transfer2.5
