@@ -1384,6 +1384,39 @@ do_replay_render() {
   echo "  Renderberichte: $HOST_DATA_DIR/${reports#/data/}"
 }
 
+# Trennt die beiden Erklaerungen fuer den 10-cm-Widerspruch aus dem Render-Lauf:
+# entweder steht die reale Kamera anders als die simulierte, oder die FK/Basispose stimmt
+# nicht (im 28-dim-State fehlen die Hueftgelenke). Setzt den Roboter auf den aufgezeichneten
+# Zustand und projiziert die echten Fingerkuppen ins REALE Bild desselben Frames.
+do_tipcheck() {
+  ensure_asset_local || return 1
+  local ds="${SPAN_DATASET:-/data/unitreerobotics/G1_Dex3_BlockStacking_Dataset}"
+  ensure_dataset "$ds" || return 1
+  local layout="${RENDER_LAYOUT:-/data/cotrain/layout.json}"
+  local out="${TIPCHECK_OUT:-/data/cotrain/tipcheck}"
+  local eps="${TIPCHECK_EPISODES:-4}"
+  local extra=""
+  [[ -n "${TIPCHECK_EPISODE_IDS:-}" ]] && extra+=" --episode-ids ${TIPCHECK_EPISODE_IDS}"
+  [[ -n "${TIPCHECK_FRAME:-}" ]] && extra+=" --frame ${TIPCHECK_FRAME}"
+
+  if ! docker exec "$CONTAINER" test -f "$layout"; then
+    err "Layout fehlt: $layout — es liefert Wuerfellage und Pruefframe (motion_onset)."
+    err "  Erst:  RENDER_EPISODES=60 ./Simulation/server_rl_run.sh layout"
+    return 1
+  fi
+  log "Fingerkuppen ins Realbild projizieren: $eps Episoden, Ziel $out"
+  docker exec -w "$SIM_DIR" -e "DR_ENABLED=0" "$CONTAINER" env -u VIRTUAL_ENV \
+    "$ISAAC_PY" "$SIM_DIR/project_fingertips_check.py" --headless \
+      --dataset-path "$ds" --layout "$layout" --out-dir "$out" \
+      --asset-path "$ASSET_PATH" --num-episodes "$eps" $extra \
+    2>&1 | tee /dev/stderr | grep -c "\[tipcheck\] fertig" >/dev/null \
+    || { err "tipcheck ohne Erfolgsmarker beendet (Ausgabe oben)."; return 1; }
+  ok "Bilder: $HOST_DATA_DIR/${out#/data/}"
+  echo "  Handmarken auf den realen Haenden        -> Kamera und FK stimmen."
+  echo "  Hand- UND Wuerfelmarken gleichsinnig weg -> Kamerapose fuer Realbilder."
+  echo "  nur die Handmarken weg                   -> FK bzw. fehlende Hueftgelenke."
+}
+
 do_render() {
   ensure_checkpoint
   ensure_black_hands
@@ -1729,6 +1762,12 @@ Aktionen:
               Laeufe waren umsonst. LAYOUTCHECK_FRAME (Bild im Container),
               LAYOUTCHECK_EXPECT (bekannte Wuerfelpositionen als JSON, aus
               render_manifest.json -> cubes_xyz), LAYOUTCHECK_CAM (cam_left_high).
+  tipcheck    Fingerkuppen aus der FK ins REALBILD projizieren. Beantwortet, warum im
+              Render-Lauf keine Kuppe je naeher als 10 cm an den Wuerfel kommt, obwohl die
+              reale Hand ihn haelt: liegt es an der Kamerapose fuer Realbilder oder an der
+              FK (im 28-dim-State fehlen die Hueftgelenke). Braucht layout.json.
+              TIPCHECK_EPISODES (4), TIPCHECK_EPISODE_IDS, TIPCHECK_FRAME (Default:
+              Bewegungsbeginn aus layout.json), TIPCHECK_OUT (/data/cotrain/tipcheck).
   replay-prepare  Vollständigen Real-Datensatz holen/konvertieren und Schema, vier Kameras,
               30 Hz sowie 28-DoF-State/Actions prüfen. Stellt das lokale G1+DEX3-Asset
               bereit und lädt keine Modellgewichte.
@@ -1878,7 +1917,7 @@ ACTION="${1:-help}"
 # 'shell' bleibt ungespiegelt (interaktives -it verträgt die Pipe nicht), 'help'/'clean'
 # haben nichts zu protokollieren.
 case "$ACTION" in
-  preflight|setup|check|cams|gap|eval|grasp|span|rl|livecheck|latency|optimize|render|view|webview|layout|layoutcheck|replay-prepare|replay-calibrate|replay-poses|replay-render) start_logging "$ACTION" ;;
+  preflight|setup|check|cams|gap|eval|grasp|span|rl|livecheck|latency|optimize|render|view|webview|layout|layoutcheck|tipcheck|replay-prepare|replay-calibrate|replay-poses|replay-render) start_logging "$ACTION" ;;
 esac
 case "$ACTION" in
   preflight)  do_preflight ;;
@@ -1897,6 +1936,7 @@ case "$ACTION" in
   replay-calibrate) do_replay_calibrate ;;
   replay-poses) do_replay_poses ;;
   replay-render) do_replay_render ;;
+  tipcheck)   do_tipcheck ;;
   render)     do_render ;;
   latency)    do_latency ;;
   optimize)   do_optimize "${2:-all}" ;;
