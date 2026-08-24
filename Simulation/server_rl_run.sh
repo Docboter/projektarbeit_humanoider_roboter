@@ -58,8 +58,12 @@
 #   RL_HOST_DATA_DIR ($HOME/groot-rl-data — s. HOST-KONFIGURATION oben), RL_IMAGE, RL_CONTAINER,
 #   RL_GPUS ("device=1,0" — beide Karten; erste trägt Rendering+Training, zweite nur
 #            das eingefrorene Referenzmodell), RL_REF_DEVICE (auto|same|cuda:N),
-#   RL_EXEC_GPU (leer — Container-Index der Karte fuer EINEN Lauf, wirkt auch am schon
-#                laufenden Container; mit RL_GPUS="device=1,0" ist 0=physische GPU 1),
+#   RL_EXEC_GPU (leer = automatisch die Karte mit dem meisten freien Speicher; sonst
+#                Container-Index, wirkt auch am schon laufenden Container. Die Runtime
+#                sortiert nach Host-Index, Container-N ist also die physische GPU N —
+#                unabhaengig von der Reihenfolge in RL_GPUS. `rl` ist von der Automatik
+#                ausgenommen, dort braucht der Trainer beide Karten),
+#   RL_EXEC_GPU_AUTO (1 — auf 0 setzen, um die automatische Wahl abzuschalten),
 #   HF_TOKEN, HF_CHECKPOINT_REPO (luca-mue/groot-g1dex3-checkpoint),
 #   RL_NUM_ENVS, RL_ITERATIONS, RL_ROLLOUT_STEPS, RL_LR, RL_KL_COEF, RL_CLIP,
 #   RL_MINIBATCH_SIZE, RL_FPO_MC_SAMPLES, RL_EPOCHS_PER_ITER (Speicher-Stellschrauben),
@@ -116,10 +120,13 @@ CONTAINER="${RL_CONTAINER:-groot-rl}"
 # gehört in .env.local, nicht hierher (bis 2026-08 stand hier fest /home/lmuecke/project/
 # data/RL — auf jedem anderen Rechner ein "Permission denied" beim ersten mkdir).
 HOST_DATA_DIR="${RL_HOST_DATA_DIR:-$HOME/groot-rl-data}"
-# Beide Karten, ABER in dieser Reihenfolge: die zuerst genannte wird im Container zu
-# cuda:0 und traegt Rendering + Policy + Optimizer; die zweite bekommt nur das
-# eingefrorene Referenzmodell (~6-7 GB, nur no_grad). Physische GPU 1 steht vorn, weil
-# dort am 2026-08-08 mehr frei war (llama-server: 41 GB auf GPU 0, 37 GB auf GPU 1).
+# Beide Karten. ACHTUNG — die Reihenfolge hier steuert NICHT, welche im Container cuda:0
+# wird: die NVIDIA-Container-Runtime sortiert nach Host-Index, cuda:0 ist also stets die
+# niedrigere physische GPU. Am 2026-08-25 nachgewiesen (RL_EXEC_GPU=1 -> physische GPU 1).
+# Die frueher hier notierte Absicht, ueber die Reihenfolge die traegende Karte zu waehlen,
+# ging damit ins Leere; wer eine bestimmte Karte will, nennt NUR sie ("device=1") oder
+# setzt RL_EXEC_GPU. cuda:0 traegt Rendering + Policy + Optimizer, cuda:1 nur das
+# eingefrorene Referenzmodell (~6-7 GB, nur no_grad).
 # → Vor einem langen Lauf `nvidia-smi` prüfen und ggf. auf "device=0,1" drehen.
 # Einzelkarte: RL_GPUS='"device=0"' — das Referenzmodell rückt dann automatisch mit auf.
 GPUS="${RL_GPUS:-\"device=1,0\"}"
@@ -135,7 +142,58 @@ SHM_SIZE="${RL_SHM_SIZE:-16g}"
 # Leer lassen = unveraendert; RL braucht beide Karten (Referenzmodell auf der zweiten) und
 # sollte NICHT eingeschraenkt werden.
 GPU_ENV=()
-[[ -n "${RL_EXEC_GPU:-}" ]] && GPU_ENV=(-e "CUDA_VISIBLE_DEVICES=$RL_EXEC_GPU")
+
+# Container-Index -> physische GPU, aufsteigend SORTIERT. Das ist keine Kosmetik: die
+# NVIDIA-Container-Runtime ordnet die Geraete nach Host-Index, NICHT nach der Reihenfolge in
+# `--gpus`. Mit RL_GPUS="device=1,0" ist Container-0 also die physische GPU 0 und Container-1
+# die physische GPU 1 — nicht umgekehrt. Am 2026-08-25 auf dem Server nachgewiesen:
+# RL_EXEC_GPU=1 landete auf der physischen GPU 1.
+#
+# Quelle des Mappings ist der LAUFENDE Container, denn `--gpus` galt beim Anlegen und $GPUS
+# kann seither abweichen; sonst $GPUS als Rueckfall.
+container_device_ids() {
+  local ids
+  ids=$(docker inspect "$CONTAINER" \
+        --format '{{range .HostConfig.DeviceRequests}}{{range .DeviceIDs}}{{.}} {{end}}{{end}}' \
+        2>/dev/null)
+  [[ -z "${ids// }" ]] && ids=$(sed 's/[^0-9,]//g' <<<"$GPUS" | tr ',' ' ')
+  tr ' ' '\n' <<<"$ids" | grep -E '^[0-9]+$' | sort -n | tr '\n' ' '
+}
+
+# Container-Index der Karte mit dem meisten freien Speicher. Leer, wenn sich das nicht
+# ermitteln laesst (kein nvidia-smi, kein Mapping) — dann bleibt alles wie bisher.
+auto_pick_gpu() {
+  command -v nvidia-smi >/dev/null 2>&1 || return 0
+  local ids free best_idx="" best_free=-1 i=0 host
+  ids=$(container_device_ids); [[ -z "${ids// }" ]] && return 0
+  free=$(nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits 2>/dev/null) || return 0
+  for host in $ids; do
+    local mib
+    mib=$(sed -n "$((host + 1))p" <<<"$free")
+    [[ "$mib" =~ ^[0-9]+$ ]] || { i=$((i + 1)); continue; }
+    if (( mib > best_free )); then best_free=$mib; best_idx=$i; fi
+    i=$((i + 1))
+  done
+  [[ -n "$best_idx" ]] && printf '%s %s' "$best_idx" "$best_free"
+}
+
+# Karte festlegen. RL_EXEC_GPU schlaegt alles; sonst automatisch die freieste. `rl` wird
+# ausgenommen: der Trainer legt das eingefrorene Referenzmodell auf die ZWEITE Karte und
+# zoege es sonst mit auf die erste (~6-7 GB). RL_EXEC_GPU_AUTO=0 schaltet die Automatik ab.
+select_gpu() {
+  if [[ -n "${RL_EXEC_GPU:-}" ]]; then
+    GPU_ENV=(-e "CUDA_VISIBLE_DEVICES=$RL_EXEC_GPU")
+    return 0
+  fi
+  [[ "${RL_EXEC_GPU_AUTO:-1}" == "0" ]] && return 0
+  local picked idx mib
+  picked=$(auto_pick_gpu) || return 0
+  [[ -z "$picked" ]] && return 0
+  read -r idx mib <<<"$picked"
+  GPU_ENV=(-e "CUDA_VISIBLE_DEVICES=$idx")
+  echo "  GPU: Container-Index $idx (physisch $(cut -d" " -f$((idx + 1)) <<<"$(container_device_ids)"))," \
+       "$((mib / 1024)) GiB frei — automatisch gewaehlt, RL_EXEC_GPU ueberschreibt." >&2
+}
 
 HF_CHECKPOINT_REPO="${HF_CHECKPOINT_REPO:-luca-mue/groot-g1dex3-checkpoint}"
 CHECKPOINT_PATH="${CHECKPOINT_PATH:-/data/checkpoints/groot-g1dex3-checkpoint}"
@@ -1935,6 +1993,10 @@ ACTION="${1:-help}"
 # haben nichts zu protokollieren.
 case "$ACTION" in
   preflight|setup|check|cams|gap|eval|grasp|span|rl|livecheck|latency|optimize|render|view|webview|layout|layoutcheck|tipcheck|replay-prepare|replay-calibrate|replay-poses|replay-render) start_logging "$ACTION" ;;
+esac
+case "$ACTION" in
+  rl|shell|help|clean|webview) ;;
+  *) select_gpu ;;
 esac
 case "$ACTION" in
   preflight)  do_preflight ;;
