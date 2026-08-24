@@ -13,13 +13,15 @@ Würfel nachweislich bewegt, die reale Hand ihn also hält. Genau eines von beid
   (b) die Handposition aus dem aufgezeichneten Zustand — FK, Basispose, der Messpunkt, oder
       die im 28-dim-State FEHLENDEN Hüftgelenke. 13° Rumpfneigung reichen für 10 cm.
 
-STAND (Lauf 44, `runs/20260824/11`): **(a) ist weitgehend entlastet.** Am nächsten Punkt der
-Episode fallen dx und dy auf +3,1 bzw. +1,0 cm mit wechselndem Vorzeichen — der waagerechte
-Versatz am Bewegungsbeginn war der Transport, nicht die Kamera. Übrig bleibt ein reiner
-HÖHENversatz von +7,0 cm (Streuung 1,6, nie unter +3,8) über beide Hände und alle Episoden.
-Eine Konstante, kein Verhalten. Läge die Würfelebene falsch, wanderte der rückprojizierte
-Punkt am ~45°-Strahl um ähnlich viel WAAGERECHT — das ist ausgeschlossen. Der Versatz sitzt
-also auf der Roboterseite: Basishöhe, Rumpfneigung oder Messpunkt.
+STAND: Am Bewegungsbeginn allein ist der Versatz nicht zu deuten — dort traegt die Hand den
+Wuerfel schon, waehrend ``layout.json`` seine RUHELAGE nennt. Deshalb sucht das Anflugprofil
+den naechsten Punkt im Fenster DAVOR, wo die Ruhelage noch gilt.
+
+Lauf 45 (`runs/20260824/12`) lief noch ohne diese Grenze und ist entsprechend zu lesen: seine
+Minima lagen samt und sonders NACH dem Onset (bis f816 von ~1000), die Zahlen dort messen den
+Transport. Belastbar aus ihm ist nur, was nicht vom Wuerfelort abhaengt: alle 48 Kuppenwerte
+lagen ueber der Wuerfelmitte, und die Kuppenspreizung betrug 5,1 cm bei 5 cm Wuerfelkante —
+die Hand ist also sauber geschlossen, und der Messkoerper sitzt plausibel auf den Kuppen.
 
 Das Werkzeug setzt den Roboter auf den aufgezeichneten Zustand und projiziert mit dem
 Kameramodell ins REALE Bild desselben Frames: die Fingerkuppen
@@ -243,7 +245,7 @@ def sign_sweep(env: G1Dex3BlockstackEnv, state: np.ndarray,
 
 
 def approach_profile(env: G1Dex3BlockstackEnv, states: np.ndarray,
-                     cubes: list, stride: int) -> dict:
+                     cubes: list, stride: int, until: int) -> dict:
     """Ueber die GANZE Episode: wann kommt jede Hand einem Wuerfel am naechsten?
 
     Der Bewegungsbeginn ist der Moment, in dem sich der Wuerfel real zu bewegen ANFAENGT —
@@ -251,6 +253,12 @@ def approach_profile(env: G1Dex3BlockstackEnv, states: np.ndarray,
     nennt. Ein Hoehenversatz an diesem einen Frame misst dann nur den Hub, keinen Fehler.
     Das Minimum ueber die Episode trennt beides: geht es gegen null, war es der Hub; bleibt
     es stehen, sitzt der Fehler in der Kamerapose oder der FK.
+
+    ``until`` begrenzt die Suche auf das Fenster VOR dem Bewegungsbeginn. Das ist keine
+    Feinheit, sondern Bedingung: ``layout.json`` nennt die RUHELAGE des Wuerfels, und die gilt
+    nur, solange er sich nicht bewegt. Ohne die Grenze landet das Minimum regelmaessig weit
+    nach dem Onset (Lauf 45: f816 von ~1000) und misst dann genau den Transport, den die
+    Messung ausschliessen soll.
 
     Kostet keinen Renderdurchgang — nur ``sim.forward()`` je Frame. ``stride`` <= 0 schaltet
     die Messung ab.
@@ -260,7 +268,7 @@ def approach_profile(env: G1Dex3BlockstackEnv, states: np.ndarray,
     if not targets or stride <= 0:
         return {}
     best: dict[str, tuple[float, dict]] = {}
-    for frame in range(0, len(states), stride):
+    for frame in range(0, min(int(until) + 1, len(states)), stride):
         set_robot_state(env, states[frame])
         tips = fingertips_env_local(env)
         for hand, offset in (("left", 0), ("right", 3)):
@@ -370,7 +378,7 @@ def main() -> int:
         frame_index = int(min(frame_index, len(states) - 1))
         cubes = record.get("cubes") or []
         ranges = hand_joint_ranges(env, states)
-        approach = approach_profile(env, states, cubes, int(args.approach_stride))
+        approach = approach_profile(env, states, cubes, int(args.approach_stride), frame_index)
         sweep = sign_sweep(env, states[frame_index], cubes)
         # Zuletzt die produktive Variante setzen, damit Bilder und Zahlen sie zeigen.
         set_robot_state(env, states[frame_index])
@@ -436,7 +444,8 @@ def main() -> int:
                 dx, dy, dz = a["versatz_cm"]
                 parts.append(f"{label} {a['dist_cm']:.1f} cm @f{a['frame']:04d} "
                              f"({a['cube']}, dx{dx:+.1f} dy{dy:+.1f} dz{dz:+.1f})")
-            print("      naechster Punkt der EPISODE: " + " | ".join(parts), flush=True)
+            print(f"      naechster Punkt VOR Frame {frame_index}: "
+                  + " | ".join(parts), flush=True)
             tip_parts = []
             for hand, label in (("left", "links"), ("right", "rechts")):
                 a = approach.get(hand)
