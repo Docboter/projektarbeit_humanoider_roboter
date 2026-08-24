@@ -180,6 +180,19 @@ ok "Bei HuggingFace eingeloggt"
 # unentdeckten Ecke des Modells auftaucht, bricht der Lauf mit genau dieser Fehlerform
 # ("Access denied. This repository requires approval.") wieder mitten in der Inferenz ab —
 # dann hier ergaenzen.
+#
+# WICHTIG (entdeckt 2026-08-24): model_info() prueft nur Metadaten-Zugriff, NICHT
+# Datei-Download-Zugriff — es liefert fuer ein gated Repo auch dann Erfolg, wenn der
+# Account die Lizenz nie akzeptiert hat (Modellkarten-Metadaten sind oeffentlich lesbar,
+# die eigentlichen Gewichts-Dateien nicht). Dieser Preflight kann DAHER faelschlich
+# "OK" melden, obwohl der spaetere Datei-Download mit "Access denied. This repository
+# requires approval." abbricht. Tatsaechliche Ursache in diesem Fall: die Lizenz war auf
+# huggingface.co/<repo> nie erfolgreich akzeptiert (z. B. unter einem anderen Account als
+# dem, der den Token besitzt — mit dem Token-Account einloggen und den "Agree and access
+# repository"-Button auf der Modellseite pruefen/klicken). Zusaetzlich moeglich, aber
+# seltener: ein "fine-grained" Token ohne das jeweilige Repo in seiner Freigabeliste.
+# Direkter Test, unabhaengig vom Preflight: `curl -sI -H "Authorization: Bearer $HF_TOKEN"
+# https://huggingface.co/<repo>/resolve/main/<eine_datei>` — 302/200 = Zugriff da, 403 = nicht.
 log "Cosmos-Lizenzen pruefen (nvidia/Cosmos-Transfer2.5-2B, nvidia/Cosmos-Predict2.5-2B)"
 if ! "$TOOLS_PYTHON" - <<'PYEOF'
 import os

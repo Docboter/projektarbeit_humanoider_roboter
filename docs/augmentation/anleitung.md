@@ -67,6 +67,16 @@ muss zusätzlich `https://huggingface.co/nvidia/Cosmos-Guardrail1` akzeptieren �
 Entrypoint prüft das aktuell **nicht** vorab, der Fehler kommt dann erst mitten in der
 Inferenz.
 
+**Token-Typ beachten (entdeckt 2026-08-24):** Der Lizenz-Preflight im Entrypoint prüft nur
+Metadaten-Zugriff (`model_info()`), nicht Datei-Download-Zugriff. Ein **fine-grained**
+HF-Token mit Repo-Einschränkung kann den Preflight bestehen und trotzdem beim eigentlichen
+Checkpoint-Download mit „Access denied. This repository requires approval." abbrechen, wenn
+das jeweilige Repo nicht in der Freigabeliste des Tokens steht. Zwei Optionen:
+- Fine-grained Token: `nvidia/Cosmos-Transfer2.5-2B`, `nvidia/Cosmos-Predict2.5-2B` (und den
+  Dataset-Repo) explizit in dessen Repo-Liste eintragen (huggingface.co/settings/tokens).
+- Oder einfacher: einen **Classic-Token mit Read-Rolle** verwenden (kein Repo-Scoping) —
+  empfohlen, da Cosmos jederzeit ein weiteres gated Repo nachladen kann.
+
 ## 3. Build
 
 ```bash
@@ -206,6 +216,23 @@ gilt unverändert (`mix* = F_augmentiert / (F_augmentiert + F_echt)`), aber die 
     `uvx 'hf>=1.3.5' auth login --token "$HF_TOKEN"` ein, bevor irgendein Download
     versucht wird — das persistiert ihn nach `$HF_HOME/token`, wo jede später frisch
     gestartete `uvx hf …`-Instanz ihn zuverlässig findet.
+14. **Historie — Preflight meldete fälschlich „OK", obwohl die Lizenz nie akzeptiert war
+    (2026-08-24).** Nach Fix #13 trat derselbe „Access denied"-Fehler beim
+    `Cosmos-Predict2.5-2B`-Download erneut auf, obwohl der Lizenz-Preflight (§2) bestand.
+    Ursache: `model_info()` prüft nur Metadaten-Zugriff — Modellkarten sind bei gated
+    Repos öffentlich lesbar, das täuscht Erfolg vor. Die tatsächliche Ursache war, dass
+    die Lizenz für `nvidia/Cosmos-Predict2.5-2B` nie erfolgreich akzeptiert worden war.
+    Direkter Test (unabhängig vom Preflight, prüft echten Datei-Zugriff):
+    ```
+    curl -sI -H "Authorization: Bearer $HF_TOKEN" \
+      https://huggingface.co/<repo>/resolve/main/<eine_datei_aus_dem_repo> | head -1
+    ```
+    `403` mit Body-Meldung „you are not in the authorized list" (`curl -s ... | head -c
+    1000` ohne `-I`) → Lizenz auf der Modellseite akzeptieren, **eingeloggt mit dem Account,
+    dem der Token gehört** (Stolperstein: Token in einem Account erzeugt, Lizenz aber
+    versehentlich in einem anderen akzeptiert). `302`/`200` → Zugriff da. Ein
+    **fine-grained** Token ohne das Repo in seiner Freigabeliste kann denselben
+    „Access denied"-Fehler erzeugen, war in diesem Fall aber nicht die Ursache.
 
 ## 8. Nachgelagerte QS (Follow-up, nicht Teil dieses Durchgangs)
 
