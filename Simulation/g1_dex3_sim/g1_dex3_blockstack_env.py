@@ -36,6 +36,7 @@ from isaaclab.utils.math import quat_apply, quat_from_euler_xyz, sample_uniform
 from g1_dex3_cfg import (
     ALL_JOINTS_ORDERED,
     CAMERA_CFG,
+    DATASET_INIT_STATE,
     G1_DEX3_CFG,
     LEFT_ARM_JOINTS,
     LEFT_DEX3_JOINTS,
@@ -785,18 +786,19 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
         )
 
         # Die Startpose der _0-Gelenke liegt außerhalb der ORIGINAL-USD-Grenzen (links
-        # +0,169/+0,163, rechts -0,171/-0,142). Isaac liest `init_state` beim Spawn, also
-        # bevor diese Weitung greift — hätte es dabei geklemmt, stünde die Home-Pose auf 0.
-        # Deshalb die Sollwerte aus der Config zurückschreiben. Passt sie schon, ist es ein
-        # No-op; `_reset_idx` liest genau dieses `default_joint_pos`.
-        init_pos = self.cfg.robot.init_state.joint_pos
-        restored = [n for n in names if n in init_pos]
+        # +0,169/+0,163, rechts -0,171/-0,142). Isaac prüft `init_state` beim Spawn dagegen und
+        # bricht mit ValueError ab, lange bevor diese Weitung greift — deshalb spawnt der
+        # Roboter mit gekappten Werten (SPAWN_JOINT_POS). Jetzt, wo die Grenzen weit genug sind,
+        # kommen die echten Datensatzwerte zurück; `_reset_idx` liest genau dieses
+        # `default_joint_pos`, der gekappte Zustand lebt also nur bis zum ersten Reset.
+        dataset_pos = dict(zip(ALL_JOINTS_ORDERED, DATASET_INIT_STATE))
+        restored = [n for n in names if n in dataset_pos]
         for name in restored:
             self.robot.data.default_joint_pos[:, joint_ids[names.index(name)]] = float(
-                init_pos[name])
+                dataset_pos[name])
 
         print(f"[Env] Dex3-Finger-Gelenkgrenzen an Dataset-Range geweitet "
-              f"({len(joint_ids)} Gelenke, {len(restored)} Startwerte zurückgeschrieben).",
+              f"({len(joint_ids)} Gelenke, {len(restored)} Startwerte zurückgesetzt).",
               flush=True)
 
     # ------------------------------------------------------------------

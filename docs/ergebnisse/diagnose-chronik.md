@@ -43,7 +43,7 @@ Für den **aktuellen Projektstatus** siehe
 | 32 | `span`-Gate entschieden: Median-Verhältnis 1,00 auf echten Bildern — Domain-Gap (a1) bestätigt, (a2) ausgeschlossen ([Lauf 32](#lauf-32-runs2026081301-das-span-gate-ist-entschieden--a1)) |
 | 33/34 | `TUNE_VISUAL`-Checkpoint im Closed Loop: Fingerspanne 27,6 % (statt 20,5 %), `lifted` bleibt 0/10 ([Läufe 33/34](#läufe-3334-runs2026081403-runs2026081404-der-tune_visual-checkpoint-im-closed-loop)) |
 | 35–37 | Würfellage-Rekonstruktion v4 zweimal abgelehnt; Kameramodell dagegen auf 0,3 cm bestätigt, Würfelebene lag 2 cm zu hoch ([Läufe 35–37](#läufe-3537-runs2026082201-03-die-würfellage-kommt-aus-dem-bild-nicht-aus-der-hand)) |
-| 38–41 | Die vier Fingergrundgelenke standen in **jedem** Lauf still: der „Sign-Convention-Fix" drehte sie aus ihrer Gelenkgrenze, wo sie geklemmt wurden ([Läufe 38–41](#läufe-3841-runs2026082302-runs2026082405-07-die-fingergrundgelenke-standen-still)) |
+| 38–42 | Die vier Fingergrundgelenke standen in **jedem** Lauf still: der „Sign-Convention-Fix" drehte sie aus ihrer Gelenkgrenze, wo sie geklemmt wurden ([Läufe 38–42](#läufe-3842-runs2026082302-runs2026082405-08-die-fingergrundgelenke-standen-still)) |
 
 ---
 
@@ -1713,7 +1713,7 @@ Würfelhöhe — genau diese Pose ist geprüft, und sie darf bei einer Ebenenkor
 
 ---
 
-### Läufe 38–41 (`runs/20260823/02`, `runs/20260824/05`–`07`): Die Fingergrundgelenke standen still
+### Läufe 38–42 (`runs/20260823/02`, `runs/20260824/05`–`08`): Die Fingergrundgelenke standen still
 
 **Lauf 38** (`render`, `runs/20260823/02`) lieferte erstmals einen vollständigen Co-Training-Datensatz —
 und einen Widerspruch, der sich nicht mehr auf die Würfellage schieben ließ: über alle Frames und beide
@@ -1773,8 +1773,12 @@ diesem Vorbehalt neu zu lesen.
   + ~0,05 rad, wie bei den `_1`-Gelenken. Maßgeblich ist `observation.state` (was das Gelenk erreicht
   **hat**), nicht `action`: kommandiert wurde stellenweise deutlich mehr (`left_index_0` bis −1,762 gegen
   −1,089 erreicht), das hat auch die reale Hand nicht ausgefahren.
-- `_widen_finger_joint_limits` schreibt anschließend die Startwerte der vier `_0`-Gelenke aus der Config
-  zurück: Isaac liest `init_state` beim Spawn, also **bevor** die Weitung greift.
+- Die Weitung kommt zu spät für den Spawn (Lauf 42, `runs/20260824/08`): Isaac Lab prüft `init_state`
+  gegen die **Original**-USD-Grenzen und wirft dort einen `ValueError` — noch in `super().__init__()`,
+  lange bevor `_widen_finger_joint_limits` laufen kann. Es klemmt also nicht still, es bricht ab.
+  Deshalb spawnt der Roboter jetzt mit auf die Grenze gekappten Werten (`SPAWN_JOINT_POS`, rein aus
+  `DATASET_INIT_STATE` abgeleitet); die echten Werte schreibt `_widen_finger_joint_limits` direkt danach
+  in `default_joint_pos`, aus dem `_reset_idx` liest. Der gekappte Zustand lebt bis zum ersten Reset.
 
 #### Was damit nicht erklärt ist
 

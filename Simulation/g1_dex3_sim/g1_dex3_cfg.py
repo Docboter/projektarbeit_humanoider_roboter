@@ -99,6 +99,7 @@ DATASET_INIT_STATE = [
     # right_dex3 [thumb0,thumb1,thumb2, index0,index1, middle0,middle1]
     -0.70991, -1.01463, -0.21031, -0.171,    0.01391, -0.142,    0.03354,
 ]
+
 # Alle 28 Werte sind der ROHE Dataset-Zustand — keine Umrechnung. Bis 2026-08-24 standen hier
 # für middle_0/index_0 beider Hände negierte Werte, passend zu _SIGN_FLIP_IDX. Beides war
 # falsch: der Datensatz ist bereits seitenweise in USD-Konvention aufgezeichnet (links negativ
@@ -106,6 +107,33 @@ DATASET_INIT_STATE = [
 # heraus, wo sie geklemmt wurden. Begründung und Messung stehen an _SIGN_FLIP_IDX in
 # g1_dex3_blockstack_env.py. Der leichte Überstand über die Null (links +0,169/+0,163, rechts
 # -0,171/-0,142) ist im Datensatz echt und wird von _widen_finger_joint_limits abgedeckt.
+
+# Original-USD-Grenzen der vier _0-Gelenke. Sie enden auf beiden Seiten exakt an der Null,
+# und genau dort steht der Überstand aus dem Datensatz.
+USD_SPAWN_LIMITS = {
+    "left_hand_middle_0_joint": (-1.571, 0.0),
+    "left_hand_index_0_joint": (-1.571, 0.0),
+    "right_hand_index_0_joint": (0.0, 1.571),
+    "right_hand_middle_0_joint": (0.0, 1.571),
+}
+
+
+def _spawn_safe(joint: str, value: float) -> float:
+    """Startwert auf die Original-USD-Grenze kappen. Ohne Eintrag unverändert."""
+    low, high = USD_SPAWN_LIMITS.get(joint, (value, value))
+    return min(max(value, low), high)
+
+
+# Isaac Lab prüft `init_state` beim Spawn gegen die ORIGINAL-USD-Grenzen und wirft dort einen
+# ValueError ("default positions out of the limits") — noch in `super().__init__()`, also lange
+# bevor `_widen_finger_joint_limits` die Grenzen weiten kann. Deshalb spawnt der Roboter mit
+# gekappten Werten; die echten Datensatzwerte schreibt `_widen_finger_joint_limits` unmittelbar
+# danach in `default_joint_pos` zurück, und von dort liest `_reset_idx`. Der gekappte Zustand
+# lebt also nur bis zum ersten Reset. Einzige Wahrheit bleibt DATASET_INIT_STATE.
+SPAWN_JOINT_POS = {
+    joint: _spawn_safe(joint, value)
+    for joint, value in zip(ALL_JOINTS_ORDERED, DATASET_INIT_STATE)
+}
 
 # ---------------------------------------------------------------------------
 # Articulation-Konfiguration
@@ -140,8 +168,9 @@ G1_DEX3_CFG = ArticulationCfg(
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(0.0, 0.0, 0.85),
         # Startpose 1:1 aus dem Dataset (Frame 0) — Hände greifen bereits Richtung Tisch,
-        # statt der früheren generischen Ruhepose. Siehe DATASET_INIT_STATE oben.
-        joint_pos=dict(zip(ALL_JOINTS_ORDERED, DATASET_INIT_STATE)),
+        # statt der früheren generischen Ruhepose. Die vier _0-Gelenke sind hier auf die
+        # Original-USD-Grenze gekappt, siehe SPAWN_JOINT_POS oben.
+        joint_pos=SPAWN_JOINT_POS,
         joint_vel={".*": 0.0},
     ),
     actuators={
