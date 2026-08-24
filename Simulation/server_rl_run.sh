@@ -58,6 +58,8 @@
 #   RL_HOST_DATA_DIR ($HOME/groot-rl-data — s. HOST-KONFIGURATION oben), RL_IMAGE, RL_CONTAINER,
 #   RL_GPUS ("device=1,0" — beide Karten; erste trägt Rendering+Training, zweite nur
 #            das eingefrorene Referenzmodell), RL_REF_DEVICE (auto|same|cuda:N),
+#   RL_EXEC_GPU (leer — Container-Index der Karte fuer EINEN Lauf, wirkt auch am schon
+#                laufenden Container; mit RL_GPUS="device=1,0" ist 0=physische GPU 1),
 #   HF_TOKEN, HF_CHECKPOINT_REPO (luca-mue/groot-g1dex3-checkpoint),
 #   RL_NUM_ENVS, RL_ITERATIONS, RL_ROLLOUT_STEPS, RL_LR, RL_KL_COEF, RL_CLIP,
 #   RL_MINIBATCH_SIZE, RL_FPO_MC_SAMPLES, RL_EPOCHS_PER_ITER (Speicher-Stellschrauben),
@@ -122,6 +124,18 @@ HOST_DATA_DIR="${RL_HOST_DATA_DIR:-$HOME/groot-rl-data}"
 # Einzelkarte: RL_GPUS='"device=0"' — das Referenzmodell rückt dann automatisch mit auf.
 GPUS="${RL_GPUS:-\"device=1,0\"}"
 SHM_SIZE="${RL_SHM_SIZE:-16g}"
+
+# Welche der im Container sichtbaren Karten ein einzelner Lauf benutzt. `--gpus` wirkt NUR
+# beim Anlegen des Containers (s. u.) — an einem laufenden Container laesst sich das Mapping
+# nicht mehr aendern. CUDA_VISIBLE_DEVICES beim `docker exec` geht dagegen jederzeit.
+#
+# ACHTUNG bei der Nummerierung: die Werte sind CONTAINER-Indizes, nicht Host-Indizes. Mit dem
+# Default RL_GPUS="device=1,0" ist Container-0 die physische GPU 1 und Container-1 die
+# physische GPU 0. Um auf der jeweils anderen Karte zu rechnen also RL_EXEC_GPU=1.
+# Leer lassen = unveraendert; RL braucht beide Karten (Referenzmodell auf der zweiten) und
+# sollte NICHT eingeschraenkt werden.
+GPU_ENV=()
+[[ -n "${RL_EXEC_GPU:-}" ]] && GPU_ENV=(-e "CUDA_VISIBLE_DEVICES=$RL_EXEC_GPU")
 
 HF_CHECKPOINT_REPO="${HF_CHECKPOINT_REPO:-luca-mue/groot-g1dex3-checkpoint}"
 CHECKPOINT_PATH="${CHECKPOINT_PATH:-/data/checkpoints/groot-g1dex3-checkpoint}"
@@ -712,7 +726,7 @@ do_check() {
   # Viewport steht dann allerdings nur kurz, bis der Aufbau geprueft ist.
   live_view_env
   livestream_docker_env
-  out=$(docker exec -w "$SIM_DIR" "${LIVE_ENV[@]}" "${LS_ENV[@]}" \
+  out=$(docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" "${LIVE_ENV[@]}" "${LS_ENV[@]}" \
         -e "RL_REF_DEVICE=${RL_REF_DEVICE:-auto}" "$CONTAINER" bash -lc "
     unset VIRTUAL_ENV
     '$ISAAC_PY' '$SIM_DIR/rl_finetune.py' \
@@ -914,7 +928,7 @@ do_cams() {
       "aa=${RL_AA_MODE:-<Isaac-Default>}, dome=${RL_DOME_INTENSITY:-2000}," \
       "sweep=${RL_DOME_SWEEP:-<aus>}, DR=${DR_ENABLED:-1}," \
       "cam=${RL_CAMERA_CLASS:-tiled}) → $HOST_DATA_DIR/cam_dump/"
-  docker exec -w "$SIM_DIR" \
+  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" \
     -e "RL_AA_MODE=${RL_AA_MODE:-}" \
     -e "RL_DOME_INTENSITY=${RL_DOME_INTENSITY:-2000}" \
     -e "RL_DOME_SWEEP=${RL_DOME_SWEEP:-}" \
@@ -960,7 +974,7 @@ do_grasp() {
   if livestream_active; then
     livestream_banner "$(host_addr)"
   fi
-  docker exec -w "$SIM_DIR" \
+  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" \
     -e "DR_ENABLED=${DR_ENABLED:-0}" \
     -e "RL_GROUND_COLOR=${RL_GROUND_COLOR:-}" \
     -e "SCENE_CAM=${SCENE_CAM:-1}" \
@@ -1175,7 +1189,7 @@ do_layout() {
   log "  und Kamera. Abschalten mit LAYOUT_NO_MOTION_ONSET=1 (dann kann 'render' aber"
   log "  kein Fenster setzen)."
   log "  Markierte Kontrollbilder: $HOST_DATA_DIR/${dbg#/data/}"
-  docker exec -w "$SIM_DIR" "$CONTAINER" bash -lc "
+  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" "$CONTAINER" bash -lc "
     unset VIRTUAL_ENV
     '$ISAAC_PY' '$SIM_DIR/extract_block_layout.py' extract \
         --dataset-path '$ds' \
@@ -1205,7 +1219,7 @@ do_layoutcheck() {
   local dbg="${LAYOUT_DEBUG_DIR:-/data/cotrain/layout_debug}"
 
   log "Kameramodell gegen gerendertes Bild pruefen: $frame ($cam)"
-  docker exec -w "$SIM_DIR" "$CONTAINER" bash -lc "
+  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" "$CONTAINER" bash -lc "
     unset VIRTUAL_ENV
     '$ISAAC_PY' '$SIM_DIR/extract_block_layout.py' detect '$frame' \
         --camera '$cam' --expect '$expect' --debug-dir '$dbg'" || return 1
@@ -1256,7 +1270,7 @@ do_replay_prepare() {
   replay_selection_args || return 1
 
   log "Prüfe Replay-Quelldatensatz: $ds"
-  docker exec -w "$SIM_DIR" "$CONTAINER" env -u VIRTUAL_ENV \
+  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" "$CONTAINER" env -u VIRTUAL_ENV \
     "$ISAAC_PY" "$SIM_DIR/reconstruct_cube_poses.py" inspect \
       --dataset-path "$ds" "${REPLAY_SELECTION_ARGS[@]}" \
     2>&1 | tee /dev/stderr | grep -c "\[replay-prepare\] fertig" >/dev/null \
@@ -1289,14 +1303,14 @@ do_replay_calibrate() {
   local calibration_selection=( --num-episodes "$count" --start-episode 0 )
 
   log "Sammle Pick-Anker aus Realvideos und wenigen direkten FK-Zuständen."
-  docker exec -w "$SIM_DIR" -e "DR_ENABLED=0" "$CONTAINER" env -u VIRTUAL_ENV \
+  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" -e "DR_ENABLED=0" "$CONTAINER" env -u VIRTUAL_ENV \
     "$ISAAC_PY" "$SIM_DIR/collect_replay_anchors.py" --headless --enable_cameras \
       --dataset-path "$ds" --out "$anchors" --debug-dir "$debug" \
       --asset-path "$ASSET_PATH" "${calibration_selection[@]}" \
     2>&1 | tee /dev/stderr | grep -c "\[replay-anchor-collection\]" >/dev/null \
     || { err "Sammeln der Replay-Anker fehlgeschlagen (Ausgabe oben)."; return 1; }
   log "Fitte Homographien und prüfe getrennte Holdout-Episoden."
-  docker exec -w "$SIM_DIR" "$CONTAINER" env -u VIRTUAL_ENV \
+  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" "$CONTAINER" env -u VIRTUAL_ENV \
     "$ISAAC_PY" "$SIM_DIR/reconstruct_cube_poses.py" calibrate \
       --dataset-path "$ds" --anchors "$anchors" --out "$calibration" --debug-dir "$debug" \
       --holdout-ratio "$ratio" --seed "$seed" "${calibration_selection[@]}" \
@@ -1327,7 +1341,7 @@ do_replay_poses() {
     return 1
   fi
   log "Bestimme einmalige Würfel-Startposen für maximal ${REPLAY_NUM_EPISODES:-10} Episoden."
-  docker exec -w "$SIM_DIR" "$CONTAINER" env -u VIRTUAL_ENV \
+  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" "$CONTAINER" env -u VIRTUAL_ENV \
     "$ISAAC_PY" "$SIM_DIR/reconstruct_cube_poses.py" poses \
       --dataset-path "$ds" --calibration "$calibration" --out "$poses" \
       --debug-dir "$debug" "${overwrite[@]}" "${REPLAY_SELECTION_ARGS[@]}" \
@@ -1368,7 +1382,7 @@ do_replay_render() {
     return 1
   fi
   log "Rendere maximal ${REPLAY_NUM_EPISODES:-10} physikbasierte Replay-Episoden nach $out."
-  docker exec -w "$SIM_DIR" -e "DR_ENABLED=${DR_ENABLED:-0}" "$CONTAINER" \
+  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" -e "DR_ENABLED=${DR_ENABLED:-0}" "$CONTAINER" \
     env -u VIRTUAL_ENV "$ISAAC_PY" "$SIM_DIR/run_dataset_replay_videos.py" \
       --headless --enable_cameras --dataset-path "$ds" --poses "$poses" \
       --out-dir "$out" --output-mode "$mode" --dataset-out "$dataset_out" \
@@ -1407,7 +1421,7 @@ do_tipcheck() {
     return 1
   fi
   log "Fingerkuppen ins Realbild projizieren: $eps Episoden, Ziel $out"
-  docker exec -w "$SIM_DIR" -e "DR_ENABLED=0" ${ROBOT_BASE_Z:+-e "ROBOT_BASE_Z=$ROBOT_BASE_Z"} ${ROBOT_BASE_X:+-e "ROBOT_BASE_X=$ROBOT_BASE_X"} \
+  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" -e "DR_ENABLED=0" ${ROBOT_BASE_Z:+-e "ROBOT_BASE_Z=$ROBOT_BASE_Z"} ${ROBOT_BASE_X:+-e "ROBOT_BASE_X=$ROBOT_BASE_X"} \
     "$CONTAINER" env -u VIRTUAL_ENV \
     "$ISAAC_PY" "$SIM_DIR/project_fingertips_check.py" --headless --enable_cameras \
       --dataset-path "$ds" --layout "$layout" --out-dir "$out" \
@@ -1478,7 +1492,7 @@ do_render() {
     [[ "$stage" == "both" || "$stage" == "$st" ]] || continue
     log "Stufe '$st' — Datensatz $ds, Ziel $out, $eps Episoden."
     [[ "$st" == "render" ]] && log "  Das dauert. Bei Verbindungsabbruch: Lauf in tmux/screen legen."
-    docker exec -w "$SIM_DIR" \
+    docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" \
       -e "DR_ENABLED=${DR_ENABLED:-1}" \
       -e "RL_GROUND_COLOR=${RL_GROUND_COLOR:-}" \
       -e "RL_AA_MODE=${RL_AA_MODE:-}" \
@@ -1579,7 +1593,7 @@ do_view() {
     log "  Live-Ansicht → http://$(host_addr):$LIVE_VIEW_PORT/"
   fi
 
-  docker exec -w "$SIM_DIR" \
+  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" \
     "${LIVE_ENV[@]}" "${LS_ENV[@]}" \
     -e "DR_ENABLED=$dr" \
     -e "SCENE_CAM=$scene_cam" \
