@@ -13,10 +13,11 @@
 #   5. Ergebnis zu einem COTRAIN_DATASET_PATH-kompatiblen LeRobot-v2.1-Datensatz zusammenbauen
 #
 # Steuerung ueber Env-Vars — vollstaendige Referenz: docs/augmentation/anleitung.md
-#   HF_TOKEN                (Pflicht) HuggingFace-Token mit Zugriff auf den Datensatz UND das
-#                            gated Modell nvidia/Cosmos-Transfer2.5-2B (Lizenz muss VORHER
-#                            manuell auf huggingface.co/nvidia/Cosmos-Transfer2.5-2B akzeptiert
-#                            werden — das kann dieses Skript nicht automatisieren)
+#   HF_TOKEN                (Pflicht) HuggingFace-Token mit Zugriff auf den Datensatz UND die
+#                            gated Modelle nvidia/Cosmos-Transfer2.5-2B UND
+#                            nvidia/Cosmos-Predict2.5-2B (Lizenz muss VORHER manuell auf BEIDEN
+#                            HF-Modellseiten akzeptiert werden — das kann dieses Skript nicht
+#                            automatisieren)
 #   HF_HOME                 (default /data/hf_cache) Cosmos-Checkpoint-Cache
 #   DATA_DIR                (default /data)
 #   NUM_GPU                 (default 1) — Cosmos' eigener Variablenname (torchrun --nproc_per_node),
@@ -155,9 +156,19 @@ export HF_TOKEN
 ok "HF_TOKEN gesetzt (${#HF_TOKEN} Zeichen)"
 
 # Lieber HIER scheitern als nach Stunden Inferenz mit einem kryptischen 403 mitten im Lauf:
-# die "NVIDIA Open Model License Agreement" muss VORHER manuell auf der HF-Modellseite
-# akzeptiert werden — das kann kein Skript automatisieren.
-log "Cosmos-Transfer2.5-Lizenz pruefen (huggingface.co/nvidia/Cosmos-Transfer2.5-2B)"
+# die "NVIDIA Open Model License Agreement" muss VORHER manuell auf JEDER der folgenden
+# HF-Modellseiten akzeptiert werden — das kann kein Skript automatisieren. cosmos-transfer2.5
+# laedt zur Laufzeit MEHRERE separat gated Repos nach (per HF-Gating gilt Zustimmung nur
+# pro Repo, nicht projektweit) — bislang zwei entdeckt:
+#   1. nvidia/Cosmos-Transfer2.5-2B — die eigentlichen Modellgewichte
+#   2. nvidia/Cosmos-Predict2.5-2B  — geteilte Basiskomponenten (u. a. Wan2.1-VAE/Tokenizer),
+#      Absturz kam beim ersten echten Inferenzlauf (2026-08-24), erst dort sichtbar geworden
+# nvidia/Cosmos-Guardrail1 wird bewusst NICHT geprueft — AUGMENT_DISABLE_GUARDRAILS=1
+# (Default) laedt es gar nicht erst. Falls doch ein WEITERES gated Repo aus einer noch
+# unentdeckten Ecke des Modells auftaucht, bricht der Lauf mit genau dieser Fehlerform
+# ("Access denied. This repository requires approval.") wieder mitten in der Inferenz ab —
+# dann hier ergaenzen.
+log "Cosmos-Lizenzen pruefen (nvidia/Cosmos-Transfer2.5-2B, nvidia/Cosmos-Predict2.5-2B)"
 if ! "$TOOLS_PYTHON" - <<'PYEOF'
 import os
 import sys
@@ -165,15 +176,23 @@ import sys
 from huggingface_hub import HfApi
 from huggingface_hub.utils import GatedRepoError, HfHubHTTPError
 
-try:
-    HfApi().model_info("nvidia/Cosmos-Transfer2.5-2B", token=os.environ["HF_TOKEN"])
-except (GatedRepoError, HfHubHTTPError) as exc:
-    print(f"Lizenz-Check fehlgeschlagen: {exc}", file=sys.stderr)
+REQUIRED_REPOS = ["nvidia/Cosmos-Transfer2.5-2B", "nvidia/Cosmos-Predict2.5-2B"]
+
+token = os.environ["HF_TOKEN"]
+failed = []
+for repo in REQUIRED_REPOS:
+    try:
+        HfApi().model_info(repo, token=token)
+    except (GatedRepoError, HfHubHTTPError) as exc:
+        print(f"Lizenz-Check fehlgeschlagen fuer {repo}: {exc}", file=sys.stderr)
+        failed.append(repo)
+
+if failed:
     sys.exit(1)
 PYEOF
 then
-    err "Kein Zugriff auf nvidia/Cosmos-Transfer2.5-2B."
-    err "  1. https://huggingface.co/nvidia/Cosmos-Transfer2.5-2B oeffnen"
+    err "Kein Zugriff auf mindestens eines der benoetigten gated HF-Repos (siehe oben)."
+    err "  1. Fuer JEDES oben gemeldete Repo die HF-Seite oeffnen (huggingface.co/<repo>)"
     err "  2. 'NVIDIA Open Model License Agreement' akzeptieren (einmalig, mit demselben"
     err "     HF-Account, dessen Token hier als HF_TOKEN gesetzt ist)"
     err "  3. Container neu starten"

@@ -23,8 +23,9 @@
 #
 # Umgebungsvariablen (vollstaendige Referenz: docs/augmentation/anleitung.md):
 #   HF_TOKEN                 (Pflicht)  HuggingFace-Token — braucht Zugriff auf den Datensatz
-#                             UND das gated Modell nvidia/Cosmos-Transfer2.5-2B (Lizenz vorher
-#                             manuell auf der HF-Modellseite akzeptieren)
+#                             UND die gated Modelle nvidia/Cosmos-Transfer2.5-2B UND
+#                             nvidia/Cosmos-Predict2.5-2B (Lizenz vorher manuell auf BEIDEN
+#                             HF-Modellseiten akzeptieren)
 #   NUM_GPU                  (default 1)
 #   AUGMENT_EPISODE_LIMIT    (default 2)     — 0 = alle Train-Episoden
 #   AUGMENT_CAMERAS          (default alle 4 Policy-Kameras)
@@ -185,8 +186,9 @@ if ! $INTERACTIVE; then
         exit 1
     fi
     ok "HF_TOKEN gesetzt"
-    warn "Lizenz fuer nvidia/Cosmos-Transfer2.5-2B vorher akzeptiert?"
-    warn "  https://huggingface.co/nvidia/Cosmos-Transfer2.5-2B — der Container prueft das"
+    warn "Lizenzen fuer nvidia/Cosmos-Transfer2.5-2B UND nvidia/Cosmos-Predict2.5-2B vorher akzeptiert?"
+    warn "  https://huggingface.co/nvidia/Cosmos-Transfer2.5-2B"
+    warn "  https://huggingface.co/nvidia/Cosmos-Predict2.5-2B — der Container prueft beide"
     warn "  selbst und bricht mit klarer Meldung ab, falls nicht."
 fi
 echo ""

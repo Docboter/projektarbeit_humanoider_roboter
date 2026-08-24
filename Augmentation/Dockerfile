@@ -22,9 +22,11 @@
 #     projekt-humanoider-roboter-augmentation bash
 #
 # Voraussetzung, die dieses Dockerfile NICHT automatisieren kann: die "NVIDIA Open Model
-# License Agreement" muss einmalig manuell auf huggingface.co/nvidia/Cosmos-Transfer2.5-2B
-# akzeptiert werden — der Entrypoint prüft das beim Start und bricht mit einer klaren
-# Fehlermeldung ab, statt mitten im Lauf mit einem kryptischen 403 zu scheitern.
+# License Agreement" muss einmalig manuell auf ZWEI HF-Modellseiten akzeptiert werden —
+# huggingface.co/nvidia/Cosmos-Transfer2.5-2B UND huggingface.co/nvidia/Cosmos-Predict2.5-2B
+# (Letzteres liefert geteilte Basiskomponenten wie den Wan2.1-VAE/Tokenizer, wurde erst beim
+# ersten echten Inferenzlauf sichtbar) — der Entrypoint prüft beide beim Start und bricht mit
+# einer klaren Fehlermeldung ab, statt mitten im Lauf mit einem kryptischen 403 zu scheitern.
 
 # ── Stage 1: cosmos-transfer2.5-Quellcode, gepinnter Commit ─────────────────────────────
 # Reiner Clone-Helper, landet NICHT im finalen Image. Commit aktualisieren:

@@ -182,8 +182,9 @@ Canny-edge control) into domain-randomized copies — same robot motion, differe
 lighting/background/texture. Runs on a dedicated own server (long-lived container, no
 `--rm`/`-v`, same model as Training/), needs an A100/H100-class GPU (~65 GB VRAM). Requires
 manually accepting the "NVIDIA Open Model License Agreement" once on
-`huggingface.co/nvidia/Cosmos-Transfer2.5-2B` before the first run. Output is a LeRobot v2.1
-dataset with byte-identical `modality.json` to the real dataset — feed it straight into
+`huggingface.co/nvidia/Cosmos-Transfer2.5-2B` AND `huggingface.co/nvidia/Cosmos-Predict2.5-2B`
+(the latter provides shared components like the Wan2.1 VAE/tokenizer) before the first run.
+Output is a LeRobot v2.1 dataset with byte-identical `modality.json` to the real dataset — feed it straight into
 `USE_COTRAIN=1 COTRAIN_DATASET_PATH=...` in the Training image, no training-side changes
 needed (see [co-training.md](docs/training/co-training.md)).
 

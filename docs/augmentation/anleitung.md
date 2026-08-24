@@ -36,16 +36,28 @@ automatisch gesetzt, sobald `AUGMENT_MODEL_VARIANT` "distilled" enthält (siehe
 Modell ebenfalls verfügbar, aber in diesem Container **nicht als Standardpfad getestet**
 — offener Punkt, siehe §7.
 
-## 2. Voraussetzung — Lizenz manuell akzeptieren (einmalig, außerhalb des Containers)
+## 2. Voraussetzung — Lizenzen manuell akzeptieren (einmalig, außerhalb des Containers)
 
-Cosmos-Transfer2.5-2B ist ein *gated* HuggingFace-Modell. Vor dem ersten Lauf:
+cosmos-transfer2.5 lädt zur Laufzeit **mehrere separat gated** HuggingFace-Repos nach — HF-
+Gating gilt pro Repo, nicht projektweit, auch wenn es überall dieselbe „NVIDIA Open Model
+License Agreement" ist. Bislang bekannt (Stand 2026-08-24, beim echten Durchlauf entdeckt):
 
-1. https://huggingface.co/nvidia/Cosmos-Transfer2.5-2B öffnen
+| Repo | Wofür |
+|---|---|
+| `nvidia/Cosmos-Transfer2.5-2B` | Die eigentlichen Modellgewichte (`edge`, `depth`, …) |
+| `nvidia/Cosmos-Predict2.5-2B` | Geteilte Basiskomponenten (u. a. Wan2.1-VAE/Tokenizer) — schlug erst beim ersten echten Inferenzlauf zu, nicht beim Build oder bei den ersten Schritten |
+
+Vor dem ersten Lauf, für **jedes** der beiden Repos:
+
+1. Modellseite öffnen (Tabelle oben)
 2. Mit dem HF-Account einloggen, dessen Token als `HF_TOKEN` verwendet wird
 3. „NVIDIA Open Model License Agreement" akzeptieren
 
-Der Entrypoint prüft das beim Containerstart und bricht mit einer klaren Fehlermeldung ab,
-statt nach Stunden Inferenz mit einem kryptischen 403 zu scheitern.
+Der Entrypoint prüft beide beim Containerstart und bricht mit einer klaren Fehlermeldung ab,
+statt nach Stunden Inferenz mit einem kryptischen 403 zu scheitern — **aber nur für genau
+diese zwei Repos**. Taucht ein drittes, noch unentdecktes gated Repo aus einer anderen Ecke
+des Modells auf, sieht der Fehler wieder aus wie „Access denied. This repository requires
+approval." mitten in der Inferenz, nicht beim Preflight-Check.
 
 **NVIDIAs Content-Safety-Guardrail ist standardmäßig aus** (`AUGMENT_DISABLE_GUARDRAILS=1`)
 — für diese interne Pipeline (eigene, bereits abgenommene Robotervideos) unnötig, und das
@@ -179,6 +191,13 @@ gilt unverändert (`mix* = F_augmentiert / (F_augmentiert + F_echt)`), aber die 
     `cosmos_transfer2/config.py::EdgeConfig` Kantenerkennung schon eingebaut hat
     ("generated on-the-fly ... using CannyEdge Model") — der ganze eigene Schritt entfällt
     seither, gesteuert nur noch über `AUGMENT_EDGE_THRESHOLD`.
+12. **Historie — zwei separat gated HF-Repos statt einem entdeckt (2026-08-24).** Der erste
+    echte Inferenzlauf brach zunächst bei `nvidia/Cosmos-Guardrail1` ab (Fix: Guardrails per
+    Default aus, §2), danach bei `nvidia/Cosmos-Predict2.5-2B` (geteilte Basiskomponenten,
+    Fix: Preflight-Check in `entrypoint.sh` prüft jetzt beide Repos vorab). Falls ein
+    **drittes** gated Repo aus einer noch unentdeckten Ecke auftaucht, sieht der Fehler
+    wieder aus wie „Access denied. This repository requires approval." mitten in der
+    Inferenz statt beim Preflight — dann dort ergänzen.
 
 ## 8. Nachgelagerte QS (Follow-up, nicht Teil dieses Durchgangs)
 
