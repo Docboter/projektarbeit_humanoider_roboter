@@ -15,19 +15,27 @@ und die Pinhole-Gegenprobe (11,5 cm). Genau eines von beiden ist falsch:
   (b) die Handposition aus dem aufgezeichneten Zustand — FK, Basispose, oder die im
       28-dim-State FEHLENDEN Hüftgelenke. 13° Rumpfneigung reichen für 10 cm.
 
-Dieses Werkzeug trennt beide Fälle in einem Bild. Es setzt den Roboter auf den
-aufgezeichneten Zustand, liest die echten Fingerkuppen (``get_contact_points_w``) und
-projiziert sie mit demselben Kameramodell ins REALE Kamerabild desselben Frames. Dazu die
-Würfel aus ``layout.json``.
+Das Werkzeug setzt den Roboter auf den aufgezeichneten Zustand und projiziert mit dem
+Kameramodell ins REALE Bild desselben Frames: die Fingerkuppen
+(``get_contact_points_w``), die Kette vom Becken zum Handgelenk und die Würfel aus
+``layout.json``.
 
-  * Kreuze liegen auf den realen Händen  →  Kamera UND FK stimmen. Dann kann der Fehler nur
-    in der Würfellage stecken, obwohl sie in der Sim geprüft ist — und das hieße, dass die
-    reale Kamera anders steht als die simulierte.
-  * Kreuze liegen daneben  →  Kamera oder FK. Die Richtung des Versatzes sagt, welches:
-    ein Kamerafehler verschiebt Hände UND Würfel gleichsinnig, ein FK-Fehler nur die Hände.
+WIE ES ZU LESEN IST
+───────────────────
+Die **Würfelmarken sagen nichts aus**. Das Layout hat den Würfelpixel mit genau diesem
+Modell auf die Tischebene rückprojiziert; ihn damit zurückzuprojizieren trifft immer, per
+Konstruktion. (Eine frühere Fassung dieses Kommentars behauptete das Gegenteil.)
 
-Der zweite Punkt ist der eigentliche Wert: Würfelmarken und Handmarken im selben Bild
-verschieben sich bei einem Kamerafehler gemeinsam, bei einem FK-Fehler gegeneinander.
+Aussagekräftig ist allein, wo die Roboter-Marken gegenüber dem realen Roboter im Bild
+liegen — sie verbinden die FK, die vom Kameramodell unabhängig ist, mit dem Modell:
+
+  * Becken sitzt richtig, der Fehler wächst die Kette hinunter zur Hand
+        →  Arm-FK oder Gelenkzuordnung.
+  * schon das Becken versetzt, alle Marken gleichsinnig daneben
+        →  Kamerapose relativ zum Roboter.
+
+Beides sind Eigenschaften des Robotermodells. Erst diese Unterscheidung sagt, ob die
+Würfellage aus dem Realbild überhaupt in Frage steht.
 
 VERWENDUNG
     ./Simulation/server_rl_run.sh tipcheck
@@ -93,6 +101,7 @@ from replay_calibration import CUBE_CENTER_Z_M  # noqa: E402
 
 DRAW_COLOR = {"rot": (255, 60, 60), "gruen": (60, 220, 60), "gelb": (255, 220, 40)}
 HAND_COLOR = {"left": (80, 160, 255), "right": (255, 140, 0)}
+CHAIN_COLOR = (255, 0, 255)
 
 
 def set_robot_state(env: G1Dex3BlockstackEnv, state: np.ndarray) -> None:
@@ -112,6 +121,28 @@ def set_robot_state(env: G1Dex3BlockstackEnv, state: np.ndarray) -> None:
     env.robot.set_joint_position_target(full)
     env.sim.forward()
     env.robot.update(float(env.cfg.sim.dt))
+
+
+# Kette vom Rumpf zur Hand. Sie ist der eigentliche Trenner: liegt das Becken im Realbild
+# richtig und wandert der Fehler erst die Kette hinunter, steckt er in der Arm-FK bzw. der
+# Gelenkzuordnung. Ist schon das Becken versetzt, ist die Kamerapose relativ zum Roboter
+# falsch — dann verschieben sich alle Marken gemeinsam. Nur diese Unterscheidung beantwortet,
+# ob die Wuerfellage aus dem Realbild ueberhaupt in Frage steht.
+CHAIN_LINKS = (
+    "pelvis", "waist_yaw_link", "waist_roll_link", "torso_link",
+    "left_shoulder_pitch_link", "left_elbow_link", "left_wrist_yaw_link",
+    "right_shoulder_pitch_link", "right_elbow_link", "right_wrist_yaw_link",
+)
+
+
+def chain_env_local(env: G1Dex3BlockstackEnv) -> dict[str, np.ndarray]:
+    """Weltpositionen der vorhandenen Kettenglieder, env-lokal. Fehlende werden ausgelassen."""
+    data = env.robot.data
+    names = list(getattr(data, "body_names", []) or [])
+    positions = data.body_pos_w[0].detach().cpu().numpy()
+    origin = env.scene.env_origins[0].detach().cpu().numpy()
+    return {name: positions[names.index(name)] - origin
+            for name in CHAIN_LINKS if name in names}
 
 
 def fingertips_env_local(env: G1Dex3BlockstackEnv) -> np.ndarray:
@@ -143,8 +174,8 @@ def marker(draw: ImageDraw.ImageDraw, uv, color, label: str, size: int = 7) -> N
 
 
 def annotate(frame: np.ndarray, cam: PinholeCamera, tips: np.ndarray,
-             cubes: list, path: Path) -> None:
-    """Handmarken und Würfelmarken in dasselbe Realbild zeichnen."""
+             cubes: list, chain: dict[str, np.ndarray], path: Path) -> None:
+    """Ketten-, Hand- und Würfelmarken in dasselbe Realbild zeichnen."""
     image = Image.fromarray(frame)
     draw = ImageDraw.Draw(image)
     for i, color in enumerate(CUBE_COLORS):
@@ -159,6 +190,8 @@ def annotate(frame: np.ndarray, cam: PinholeCamera, tips: np.ndarray,
             marker(draw, uv, HAND_COLOR[hand], f"{hand[0].upper()}{k}", size=5)
         marker(draw, cam.project(tips[offset : offset + 3].mean(axis=0)),
                HAND_COLOR[hand], f"{hand}-Mitte", size=9)
+    for name, position in chain.items():
+        marker(draw, cam.project(position), CHAIN_COLOR, name.replace("_link", ""), size=6)
     path.parent.mkdir(parents=True, exist_ok=True)
     image.save(path)
 
@@ -212,6 +245,7 @@ def main() -> int:
         frame_index = int(min(frame_index, len(states) - 1))
         set_robot_state(env, states[frame_index])
         tips = fingertips_env_local(env)
+        chain = chain_env_local(env)
         cubes = record.get("cubes") or []
 
         # Abstand jeder Handmitte zum nächsten Würfel — dieselbe Größe wie im Renderbericht.
@@ -230,7 +264,7 @@ def main() -> int:
 
         for name, cam in cams.items():
             annotate(real_frame(root, info, episode, name, frame_index), cam, tips, cubes,
-                     out_dir / f"ep{episode:06d}_{name}_f{frame_index:04d}.png")
+                     chain, out_dir / f"ep{episode:06d}_{name}_f{frame_index:04d}.png")
 
         left, right = distances["left"], distances["right"]
         summary.append({"episode": episode, "frame": frame_index,
@@ -239,6 +273,7 @@ def main() -> int:
                         "right_cm": round(right[1] * 100, 1) if right else None,
                         "right_cube": right[0] if right else None,
                         "fingertips_env_local_m": tips.round(4).tolist(),
+                        "chain_env_local_m": {k: v.round(4).tolist() for k, v in chain.items()},
                         "cubes_xy_m": cubes})
         parts = [f"links {left[1] * 100:.1f} cm ({left[0]})" if left else "links —",
                  f"rechts {right[1] * 100:.1f} cm ({right[0]})" if right else "rechts —"]
@@ -251,9 +286,11 @@ def main() -> int:
                     "cube_plane_z_m": CUBE_CENTER_Z_M, "episodes": summary}, indent=2),
         encoding="utf-8")
     print(f"[tipcheck] Bilder und tipcheck.json in {out_dir}")
-    print("[tipcheck] Lesart: Handmarken auf den realen Händen => Kamera und FK stimmen.")
-    print("[tipcheck]         Hand- UND Würfelmarken gleichsinnig daneben => Kamerapose.")
-    print("[tipcheck]         nur die Handmarken daneben => FK bzw. fehlende Hüftgelenke.")
+    print("[tipcheck] Lesart — die WÜRFELmarken sagen nichts aus: das Layout hat den Pixel")
+    print("[tipcheck]   mit demselben Modell rückprojiziert, das ihn hier zurückprojiziert.")
+    print("[tipcheck]   Entscheidend ist die magenta Kette gegen den realen Roboter:")
+    print("[tipcheck]     Becken sitzt richtig, Fehler wächst zur Hand  => Arm-FK/Gelenke.")
+    print("[tipcheck]     schon das Becken versetzt, alles gleichsinnig => Kamerapose.")
     print("[tipcheck] fertig.", flush=True)
     return 0
 
