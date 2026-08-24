@@ -168,12 +168,19 @@ G1_DEX3_CFG = ArticulationCfg(
         ),
     ),
     init_state=ArticulationCfg.InitialStateCfg(
-        # Beckenhoehe. 0.85 ist ein gesetzter Wert, nicht gemessen — und tipcheck misst gegen
-        # die Wuerfellage aus dem Realbild einen Hoehenversatz von +8,6 cm (Streuung 2,1) bei
-        # dy = 0 (Lauf 47). ROBOT_BASE_Z erlaubt den Ein-Parameter-Test, ohne die Kamerapose
-        # anzufassen: die steht statisch in camera_geometry.py und ist gegen Grundwahrheit auf
-        # 0,3 cm geprueft, darf hier also gerade NICHT mitwandern.
-        pos=(0.0, 0.0, float(os.environ.get("ROBOT_BASE_Z", "0.85"))),
+        # Beckenhoehe, gemessen statt gesetzt. Die frueheren 0.85 waren ein Ansatz ohne Quelle
+        # und stellten den Roboter 8,6 cm zu hoch an den Tisch. Nachgewiesen mit `tipcheck`
+        # (Laeufe 47/48): der Versatz zwischen Fingerkuppen und der Wuerfellage aus dem Realbild
+        # betrug dz = +8,6 cm (Streuung 2,1) bei dy = 0; mit 0.764 faellt er auf +1,0 cm, ohne
+        # dx (+6,1 -> +5,7) oder dy zu veraendern — ein reiner z-Shift, 1:1, also ein starrer
+        # Versatz. Erst dabei umschliessen die Kuppen den Wuerfel ueberhaupt (vorher lagen alle
+        # 48 Messwerte darueber). Der Wert passt zur Beckenhoehe des stehenden G1 (~0,76 m).
+        #
+        # TRAGWEITE: aendert die Reichweite zum Tisch in JEDEM Lauf. Greifzahlen von vor dieser
+        # Korrektur sind nicht direkt vergleichbar. ROBOT_BASE_Z stellt den alten Wert wieder her.
+        # Die Kamerapose wandert NICHT mit: sie steht statisch in camera_geometry.py und ist
+        # gegen Grundwahrheit auf 0,3 cm geprueft.
+        pos=(0.0, 0.0, float(os.environ.get("ROBOT_BASE_Z", "0.764"))),
         # Startpose 1:1 aus dem Dataset (Frame 0) — Hände greifen bereits Richtung Tisch,
         # statt der früheren generischen Ruhepose. Die vier _0-Gelenke sind hier auf die
         # Original-USD-Grenze gekappt, siehe SPAWN_JOINT_POS oben.

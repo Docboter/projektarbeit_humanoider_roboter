@@ -1844,3 +1844,32 @@ Für den Ein-Parameter-Test ist die Beckenhöhe jetzt über `ROBOT_BASE_Z` einst
 bisher). Die Kamerapose wandert dabei ausdrücklich **nicht** mit: sie steht statisch in
 `camera_geometry.py` und ist gegen Grundwahrheit auf 0,3 cm geprüft. Sinkt dz bei `ROBOT_BASE_Z=0.764`
 gegen null, ohne dx zu verschlechtern, ist die Ursache gefunden.
+
+#### Lauf 48 (`runs/20260824/15`): die Beckenhöhe war es
+
+`ROBOT_BASE_Z=0.764` gegen die Referenz 0,85, gleiche acht Episoden:
+
+| | 0,85 (Lauf 47) | 0,764 (Lauf 48) |
+|---|---|---|
+| dx | +6,1 | +5,7 |
+| dy | −0,2 | −0,8 |
+| **dz** | **+8,6** | **+1,0** |
+| Betrag | 11,9 | 7,6 |
+
+Der Höhenversatz verschwindet **1:1 mit der eingestellten Absenkung**, dx und dy bleiben unberührt —
+genau die Signatur eines starren Versatzes. Und erst jetzt **umschließen die Fingerkuppen den Würfel**:
+rechte Hand −0,9/−4,0/−3,3 bzw. +1,3/+0,0/−2,0, also gemischte Vorzeichen im Bereich ±3 cm um die
+Würfelmitte, bei 5 cm Kante mithin im Würfel. In Lauf 47 lagen alle 48 Messwerte darüber.
+
+Der Wert ist auch unabhängig plausibel: die Beckenhöhe des stehenden G1 liegt bei ~0,76 m. Die 0,85
+waren ein Ansatz ohne Quelle. `pos=(0.0, 0.0, 0.764)` ist jetzt der Default, `ROBOT_BASE_Z` stellt den
+alten Wert wieder her.
+
+**Tragweite:** die Reichweite zum Tisch ändert sich in **jedem** Lauf — Eval, Grasp, RL, Replay,
+Co-Training. Greifzahlen von vor dieser Korrektur sind nicht direkt vergleichbar. Zusammen mit
+`_SIGN_FLIP_IDX` (Läufe 38–44) sind das zwei Geometriefehler, die jede bisherige Greifmessung dieser
+Chronik betreffen.
+
+**Offen bleibt dx = +5,7 cm** (Streuung 3,8) bei dy = 0 — ein Versatz nach vorn, deutlich kleiner als
+der behobene und mit größerer relativer Streuung. Nächster Kandidat, jetzt ohne den vertikalen Anteil,
+der ihn bisher überdeckte.
