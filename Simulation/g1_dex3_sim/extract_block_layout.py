@@ -759,6 +759,27 @@ def select_episodes(root: Path, args) -> list[int]:
     return sorted({int(round(i)) for i in np.linspace(0, n_train - 1, n)})
 
 
+def header_mismatch(existing: dict, wanted: dict) -> str:
+    """Was an einer vorhandenen layout.json nicht zum laufenden Aufruf passt (leer = passt).
+
+    Verglichen wird nur, was die MESSUNG verändert: Bias, Würfelebene, Kameraliste und
+    Quelldatensatz. Ein Eintrag, der mit anderem Bias entstanden ist, sieht in der Datei
+    genauso aus wie einer mit dem aktuellen — die Datei würde also stillschweigend
+    unvergleichbar.
+    """
+    reasons = []
+    if existing.get("bias_cm") is not None and existing["bias_cm"] != wanted["bias_cm"]:
+        reasons.append(f"Bias {existing['bias_cm']} statt {wanted['bias_cm']} cm")
+    if existing.get("z_plane") is not None and existing["z_plane"] != wanted["z_plane"]:
+        reasons.append(f"Würfelebene {existing['z_plane']} statt {wanted['z_plane']}")
+    if existing.get("cameras") and existing["cameras"] != wanted["cameras"]:
+        reasons.append(f"Kameras {existing['cameras']} statt {wanted['cameras']}")
+    if (existing.get("source_dataset")
+            and existing["source_dataset"] != wanted["source_dataset"]):
+        reasons.append(f"Datensatz {existing['source_dataset']}")
+    return ", ".join(reasons)
+
+
 def run_extract(args) -> int:
     root = Path(args.dataset_path)
     episodes = select_episodes(root, args)
@@ -766,12 +787,26 @@ def run_extract(args) -> int:
     models = {c: PinholeCamera.from_cfg(c) for c in cams}
 
     out_path = Path(args.out)
-    layout = {"episodes": {}, "cameras": cams, "bias_cm": [args.bias[0] * 100,
-                                                           args.bias[1] * 100],
+    layout = {"episodes": {}, "cameras": cams, "bias_cm": [round(args.bias[0] * 100, 4),
+                                                           round(args.bias[1] * 100, 4)],
               "z_plane": Z_CUBE_CENTER, "source_dataset": str(root)}
-    if out_path.exists() and not args.overwrite:
-        layout = json.loads(out_path.read_text())
-        layout.setdefault("episodes", {})
+    # Bestehende Datei IMMER laden. Bis 2026-08-25 fing --overwrite mit einem leeren Dict
+    # an; zusammen mit --episode-ids blieben danach nur die neu gerechneten Episoden übrig
+    # und der Rest war weg — samt der teuren Bewegungsbeginne. Gemeint war --overwrite nie
+    # so: die Wiederholungssperre steht eine Ebene tiefer, je Episode. Für den bewussten
+    # Neuanfang gibt es --fresh.
+    if out_path.exists() and not args.fresh:
+        old = json.loads(out_path.read_text())
+        clash = header_mismatch(old, layout)
+        if clash:
+            print(f"[layout] {out_path} passt nicht zu diesem Lauf: {clash}\n"
+                  f"[layout] Alte und neue Einträge zu mischen ergäbe eine Datei, in der "
+                  f"nicht mehr steht, wie welcher Würfel gemessen wurde.\n"
+                  f"[layout] Entweder --fresh (verwirft die Datei) oder ein anderes --out.",
+                  flush=True)
+            return 1
+        old.setdefault("episodes", {})
+        layout = old
 
     for k, ep in enumerate(episodes, 1):
         head = f"[layout] ({k}/{len(episodes)}) Episode {ep}"
@@ -817,9 +852,16 @@ def run_extract(args) -> int:
             else:
                 yaws.append(None)
 
-        onsets = ({"per_color": {}, "first": None, "rejected": {}, "tolerance_frames": 0}
-                  if args.no_motion_onset
-                  else episode_motion_onsets(root, ep, cams, min_area=args.min_area))
+        if not args.no_motion_onset:
+            onsets = episode_motion_onsets(root, ep, cams, min_area=args.min_area)
+        else:
+            # Einen bereits gemessenen Bewegungsbeginn NICHT wegwerfen. Er kostet je
+            # Episode und Kamera rund vier Sekunden Videodekodierung, und --no-motion-onset
+            # heißt „nicht messen", nicht „löschen". Ohne diesen Zweig macht ein schneller
+            # Teillauf die Datei für `render` unbrauchbar, ohne es zu sagen.
+            keep = layout["episodes"].get(str(ep), {}).get("motion_onset")
+            onsets = keep if keep and keep.get("first") is not None else {
+                "per_color": {}, "first": None, "rejected": {}, "tolerance_frames": 0}
         layout["episodes"][str(ep)] = {
             "frame": args.frame,
             "cubes": cubes,
@@ -840,8 +882,10 @@ def run_extract(args) -> int:
             "camera_yaw_spread_deg": [round(d, 2) for d in yaw_spread],
         }
         n_ok = sum(1 for c in cubes if c)
-        first = onsets["first"]
-        onset_txt = (f", Bewegung ab Frame {first} ({len(onsets['per_color'])}/3 Farben)"
+        # .get statt [], weil ein ÜBERNOMMENER Bewegungsbeginn aus einer älteren Datei
+        # stammt und deren Form nicht von diesem Lauf bestimmt wird.
+        first = onsets.get("first")
+        onset_txt = (f", Bewegung ab Frame {first} ({len(onsets.get('per_color', {}))}/3 Farben)"
                      if first is not None
                      else (", KEIN belastbarer Bewegungsbeginn" if not args.no_motion_onset
                            else ""))
@@ -930,7 +974,12 @@ def main() -> int:
     e.add_argument("--episode-ids", type=int, nargs="*", default=None)
     e.add_argument("--train-ratio", type=float, default=0.8)
     e.add_argument("--cameras", default="cam_left_high,cam_right_high")
-    e.add_argument("--overwrite", action="store_true")
+    e.add_argument("--overwrite", action="store_true",
+                   help="Gewählte Episoden neu rechnen, auch wenn sie schon in der Datei "
+                        "stehen. Die übrigen Einträge bleiben erhalten.")
+    e.add_argument("--fresh", action="store_true",
+                   help="Vorhandene Datei verwerfen und bei null anfangen. Nötig, wenn "
+                        "sich Bias, Würfelebene oder Kameraliste geändert haben.")
     e.add_argument("--no-motion-onset", action="store_true",
                    help="Bewegungsbeginn NICHT bestimmen. Spart Zeit (sonst wird jedes Video "
                         "einmal in halber Auflösung dekodiert, grob 4 s je Video und Kamera), "

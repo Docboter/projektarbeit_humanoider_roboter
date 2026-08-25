@@ -1234,6 +1234,8 @@ do_layout() {
   local extra=""
   [[ -n "${LAYOUT_BIAS:-}" ]] && extra+=" --bias ${LAYOUT_BIAS}"
   [[ "${LAYOUT_OVERWRITE:-0}" == "1" ]] && extra+=" --overwrite"
+  [[ "${LAYOUT_FRESH:-0}" == "1" ]] && extra+=" --fresh"
+  [[ -n "${LAYOUT_EPISODE_IDS:-}" ]] && extra+=" --episode-ids ${LAYOUT_EPISODE_IDS}"
   [[ "${LAYOUT_NO_MOTION_ONSET:-0}" == "1" ]] && extra+=" --no-motion-onset"
   [[ -n "${LAYOUT_YAW_TOLERANCE:-}" ]] && extra+=" --yaw-tolerance ${LAYOUT_YAW_TOLERANCE}"
   [[ -n "${LAYOUT_MIN_SQUARENESS:-}" ]] && extra+=" --min-squareness ${LAYOUT_MIN_SQUARENESS}"
@@ -1868,6 +1870,11 @@ Aktionen:
               gemessen", nicht "liegt gerade"; dann rendert 'render' mit 0°.
               LAYOUT_YAW_TOLERANCE (8°, erlaubte Uneinigkeit beider Kameras),
               LAYOUT_MIN_SQUARENESS (1,25, verlangte Diagonale/Kante der Deckflaeche).
+              LAYOUT_EPISODE_IDS="8 12" rechnet nur diese Episoden — fuer einen Probelauf,
+              zusammen mit LAYOUT_NO_MOTION_ONSET=1 und einem eigenen LAYOUT_OUT.
+              LAYOUT_OVERWRITE=1 rechnet die GEWAEHLTEN Episoden neu und laesst die uebrigen
+              Eintraege stehen; LAYOUT_FRESH=1 verwirft die Datei ganz (noetig, wenn sich
+              LAYOUT_BIAS oder die Wuerfelebene geaendert haben).
   layoutcheck Kameramodell gegen ein GERENDERTES Bild pruefen, bevor 'layout' geglaubt wird.
               In Lauf 13 lagen konfigurierte Pose und cam.data 95,6° auseinander und drei
               Laeufe waren umsonst. LAYOUTCHECK_FRAME (Bild im Container),

@@ -290,6 +290,34 @@ quer zu einer Fläche. Er wird bewusst **nicht** als Ersatz für einen verworfen
 eingesetzt — das wäre genau die stille Rückfallebene, die `place_cubes` aus gutem Grund verloren
 hat. Erst wenn beide Zahlen über viele Episoden zusammenfallen, ist die Annahme belegt.
 
+### 7.5 Probelauf statt Vollauslauf
+
+Ein `layout`-Lauf über 60 Episoden dekodiert für den Bewegungsbeginn jedes Video einmal ganz —
+rund 4 s je Video und Kamera, also etwa acht Minuten allein dafür. Für die Frage „kommt ein
+Gierwinkel heraus?" reicht eine Handvoll Episoden in einer **eigenen** Ausgabedatei:
+
+```bash
+LAYOUT_OUT=/data/cotrain/layout_yawprobe.json \
+LAYOUT_EPISODE_IDS="0 1 2 8 12" \
+LAYOUT_NO_MOTION_ONSET=1 \
+./Simulation/server_rl_run.sh layout
+```
+
+Zwei Fallen lagen dabei im Weg, beide seit 2026-08-25 entschärft und durch
+`test_layout_file_merge.py` festgehalten:
+
+- **`--overwrite` fing mit einer leeren Datei an.** Zusammen mit `--episode-ids` blieben danach
+  nur die neu gerechneten Episoden übrig, die übrigen 55 waren weg — samt ihrer teuer
+  gemessenen Bewegungsbeginne, und die Datei sah hinterher gültig aus. `--overwrite` rechnet
+  jetzt nur die gewählten Episoden neu; für den bewussten Neuanfang gibt es `--fresh`.
+- **`--no-motion-onset` löschte einen vorhandenen Bewegungsbeginn.** Es heißt „nicht messen",
+  nicht „löschen" — ein schneller Teillauf machte die Datei sonst stillschweigend
+  renderuntauglich. Vorhandene Werte bleiben jetzt stehen.
+
+Zusätzlich lehnt `extract` es ab, Einträge zu mischen, die mit anderem `--bias`, anderer
+Würfelebene oder anderen Kameras entstanden sind: in der Datei wären sie nicht mehr
+unterscheidbar.
+
 ## 8. Artefakte und Befehle
 
 | Artefakt | Inhalt |
