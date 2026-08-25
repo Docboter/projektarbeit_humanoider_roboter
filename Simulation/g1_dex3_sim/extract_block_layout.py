@@ -919,6 +919,92 @@ def run_extract(args) -> int:
 
 
 # ---------------------------------------------------------------------------
+# Modus: report
+# ---------------------------------------------------------------------------
+
+def run_report(args) -> int:
+    """Sagen, WORAN der Gierwinkel scheitert — aus einer fertigen layout.json.
+
+    Der Ertrag allein („7 % durch das Tor") nennt keinen Hebel. Die Diagnosefelder aus
+    ``locate_cubes`` tun es, und sie stehen bereits in der Datei; ein zweiter Lauf ist
+    dafür nicht nötig. Gelesen wird ausschließlich ``per_camera`` — also das, was auf den
+    VIDEOFRAMES gerechnet wurde, nicht die markierten Debug-PNGs.
+
+    Lesart der Aufschlüsselung: scheitern die meisten Würfel an der Formprobe, ist die
+    Deckfläche im Bild kein Quadrat (Farbmaske oder Deckflächenschnitt). Scheitern sie an
+    der Uneinigkeit, sehen beide Kameras zwar je ein Quadrat, aber verschiedene — dann ist
+    der Winkel selbst verrauscht und mehr Pixel helfen, nicht andere Schwellen.
+    """
+    layout = json.loads(Path(args.layout).read_text())
+    episodes = layout.get("episodes", {})
+    if not episodes:
+        print(f"[report] {args.layout} enthält keine Episoden.")
+        return 1
+
+    fields = ("fill", "top_px", "top_width_cm", "top_squareness", "yaw_coherence")
+    per_field: dict[str, list[float]] = {f: [] for f in fields}
+    per_colour: dict[str, list[float]] = {c: [] for c in CUBE_COLORS}
+    disagree, total, no_yaw, fail_square, fail_agree, passed = [], 0, 0, 0, 0, 0
+
+    for rec in episodes.values():
+        cams = rec.get("per_camera") or {}
+        for i, colour in enumerate(CUBE_COLORS):
+            found = [cams[c][i] for c in cams
+                     if cams.get(c) and i < len(cams[c]) and cams[c][i]]
+            if not found:
+                continue
+            total += 1
+            for f in fields:
+                per_field[f].extend(r[f] for r in found if r.get(f) is not None)
+            per_colour[colour].extend(r["fill"] for r in found if r.get("fill") is not None)
+            turned = [r for r in found if r.get("yaw_deg") is not None]
+            if len(turned) < 2:
+                no_yaw += 1
+                continue
+            gap = max(yaw_delta_deg(a["yaw_deg"], b["yaw_deg"]) for a in turned for b in turned)
+            disagree.append(gap)
+            square_ok = all(r.get("top_squareness", 0.0) >= args.min_squareness
+                            for r in turned)
+            if square_ok and gap <= args.yaw_tolerance:
+                passed += 1
+            elif not square_ok:
+                fail_square += 1
+            else:
+                fail_agree += 1
+
+    def line(name: str, values: list[float], target: str = "") -> str:
+        if not values:
+            return f"  {name:16s} —"
+        a = np.array(values, dtype=float)
+        return (f"  {name:16s} Median {np.median(a):7.2f}   p10 {np.percentile(a, 10):7.2f}"
+                f"   p90 {np.percentile(a, 90):7.2f}   n={len(a):4d}  {target}")
+
+    print(f"[report] {args.layout}: {len(episodes)} Episoden, {total} Würfel mit Detektion\n")
+    print("Blob- und Deckflächendiagnose (je Kamera gerechnet, auf Videoframes):")
+    targets = {"fill": "Soll nahe 1 = geschlossene Maske",
+               "top_px": "Deckfläche in Pixeln",
+               "top_width_cm": "Soll ~5,0 (Würfelkante)",
+               "top_squareness": "Soll ~1,41 (Diagonale/Kante)",
+               "yaw_coherence": "1 = sauber 4-zählig"}
+    for f in fields:
+        print(line(f, per_field[f], targets[f]))
+    print("\nMaskenfüllung je Farbe:")
+    for colour in CUBE_COLORS:
+        print(line(colour, per_colour[colour]))
+    print()
+    print(line("|links−rechts|", disagree, "Grad, Uneinigkeit beider Kameras"))
+    print(f"\nTor (Formprobe ≥ {args.min_squareness:.2f}, einig ≤ {args.yaw_tolerance:.0f}°):")
+    print(f"  durchgelassen              {passed:4d} / {total}")
+    print(f"  an der Formprobe gescheitert  {fail_square:4d}   → Deckfläche ist kein Quadrat: "
+          f"Farbmaske oder Deckflächenschnitt")
+    print(f"  an der Uneinigkeit gescheitert {fail_agree:4d}   → beide sehen ein Quadrat, "
+          f"aber verschiedene: Winkel verrauscht")
+    print(f"  ohne zwei Messungen           {no_yaw:4d}   → Deckfläche zu klein oder "
+          f"nicht gefunden")
+    return 0
+
+
+# ---------------------------------------------------------------------------
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[1],
@@ -960,6 +1046,11 @@ def main() -> int:
                         '(render_manifest.json → cubes_yaw_deg). Dieselbe Abnahme wie '
                         '--expect, nur für die Drehung.')
 
+    r = sub.add_parser("report", parents=[yaw_opts],
+                       help="Aus einer fertigen layout.json ablesen, woran der Gierwinkel "
+                            "scheitert")
+    r.add_argument("layout")
+
     sub.add_parser("selftest", parents=[yaw_opts],
                    help="Gierwinkel-Schätzer gegen synthetische Grundwahrheit prüfen "
                         "— ohne Isaac, ohne Datensatz").set_defaults(
@@ -986,10 +1077,10 @@ def main() -> int:
                         "aber render_cotrain_dataset.py kann dann kein Fenster setzen.")
 
     args = ap.parse_args()
-    if CAMERA_CFG.width != 640 or CAMERA_CFG.height != 480:
+    if args.mode != "report" and (CAMERA_CFG.width != 640 or CAMERA_CFG.height != 480):
         print(f"[warn] Kamerakonfiguration steht auf {CAMERA_CFG.width}×{CAMERA_CFG.height}.")
     return {"detect": run_detect, "extract": run_extract,
-            "selftest": run_selftest}[args.mode](args)
+            "selftest": run_selftest, "report": run_report}[args.mode](args)
 
 
 if __name__ == "__main__":

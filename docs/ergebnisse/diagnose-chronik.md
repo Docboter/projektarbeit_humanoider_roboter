@@ -45,7 +45,7 @@ Für den **aktuellen Projektstatus** siehe
 | 35–37 | Würfellage-Rekonstruktion v4 zweimal abgelehnt; Kameramodell dagegen auf 0,3 cm bestätigt, Würfelebene lag 2 cm zu hoch ([Läufe 35–37](#läufe-3537-runs2026082201-03-die-würfellage-kommt-aus-dem-bild-nicht-aus-der-hand)) |
 | 38–46 | Die vier Fingergrundgelenke standen in **jedem** Lauf still: der „Sign-Convention-Fix" drehte sie aus ihrer Gelenkgrenze, wo sie geklemmt wurden ([Läufe 38–46](#läufe-3846-runs2026082302-runs2026082405-12-die-fingergrundgelenke-standen-still)) |
 | 47–51 | Drei unabhängige Geometriefehler ergaben zusammen ~12 cm: Vorzeichen, Beckenhöhe 0,85→0,764, Basis x 0→−0,057. Restabstand 4,5 cm ([Läufe 49–51](#läufe-4951-auch-die-basis-in-x--die-rekonstruktion-steht)) |
-| 52 | Der **Gierwinkel** der Würfel wurde nie rekonstruiert — Sim stellte sie immer achsparallel. Schätzer gebaut und abgenommen; auf Realbildern greifen nur 9 %, weil die Farbmaske zu 44 % gefüllt ist ([Lauf 52](#lauf-52-der-gierwinkel-fehlte-in-jedem-lauf)) |
+| 52 | Der **Gierwinkel** der Würfel wurde nie rekonstruiert — Sim stellte sie immer achsparallel. Schätzer gebaut und synthetisch abgenommen; auf echten Frames greifen 7 %, Ursache offen. Die Begründung stützte sich zunächst auf annotierte Debug-PNGs und ist zurückgezogen ([Lauf 52](#lauf-52-der-gierwinkel-fehlte-in-jedem-lauf)) |
 
 ---
 
@@ -1917,24 +1917,36 @@ Die Größenordnung deckelt sich allerdings selbst: mehr als ±45° kann der Feh
 4-Zähligkeit nicht sein, das sind rund 1 cm je Kontaktseite. Die 6,8 cm Restabstand aus Lauf 20
 erklärt das **nicht** allein.
 
-**Der erste Messversuch war falsch, und zwar überzeugend falsch.** `top_face_blob` berechnet seit
-jeher eine Min-Area-Box über die Deckfläche (`axis_uv`). Auf die 120 Realframes vom 2026-08-22
-angewandt ergab sie: Median-Schräglage 0°, und linke gegen rechte Kamera in 99 von 120 Fällen unter
-5° einig — beides sah nach einer sauberen Messung aus. Der Blick auf die Rohwinkel zeigte dann
-**101 von 120 exakt bei 0,0°**: die Deckflächenmaske ist nur 15×18 px groß, auf diesem Raster
-gewinnt die achsparallele Box, und die Kamera-Einigkeit war nur die gemeinsame Rasterbindung.
+**Zurückgezogen — die Begründung dieser Änderung stützte sich auf eine ungültige Messung.** Ich
+hatte den Vorgänger `top_face_blob` (Min-Area-Box im Pixelraum, `axis_uv`) auf die PNGs in
+`runs/20260822/01/calibration_report/` losgelassen und daraus abgeleitet, er raste in 101 von 120
+Fällen auf exakt 0,0° ein, die Farbmaske sei nur zu 44 % gefüllt und pro Farbe 99,5 / 39,8 / 58,3 %.
 
-Ursache dafür war nicht die Auflösung: der volle Farbblob misst 46 px, das Kameramodell sagt 41,6 px
-vorher. `top_face_blob` schneidet ihn mit einem 70-%-Helligkeitsquantil auf ein Glanzlicht herunter.
+Diese Dateien sind **annotierte Debug-Ausgaben, keine Datensatz-Frames**. Nachweis: 336 Pixel exakt
+(255,255,255) als geschlossener Rechteckrahmen und 76 Pixel exakt (255,0,0) — reines gesättigtes Rot
+kommt in einem Foto nicht vor. Der eingezeichnete Farbring ist damit der hellste gesättigte Bereich
+des Blobs, und der Deckflächenschnitt (hellste 30 %) griff **den Marker statt der Würfeloberseite**;
+der weiße Rahmen zerschneidet zusätzlich die Farbmaske. Alle Zahlen aus dieser Quelle sind hinfällig,
+einschließlich der beiden Nachbesserungsversuche daran (Otsu-Schwelle, Löcher füllen).
 
-Das Verfahren, das funktioniert: Deckflächenpixel **erst zurückprojizieren** (auf der eigenen Ebene
+Ungültig heißt hier nicht „das Gegenteil stimmt": ob `axis_uv` auf echten Frames einrastet, ist
+damit schlicht **ungemessen**. Das Argument bleibt geometrisch plausibel — eine Min-Area-Box über
+eine binarisierte Kleinmaske bevorzugt die Bildachsen, und sie misst die perspektivische Verzerrung
+mit —, aber es hat keinen Beleg mehr hinter sich.
+
+**Was die Messung überlebt:** die synthetische Abnahme rendert ihre eigenen Bilder und ist unberührt.
+Und der Probelauf auf dem Server (Episoden 0, 1, 2, 8, 12) ging über die echten Videos: **1 von 15
+Würfeln durch das Tor (7 %)**, dieser eine bei **30,0°** Schräglage. Der Ertrag ist damit belegt, die
+*Ursache* dafür nicht — sie war es nie.
+
+Das Verfahren selbst: Deckflächenpixel **erst zurückprojizieren** (auf der eigenen Ebene
 ist die Fläche wieder ein Quadrat), dann das **4. Winkelmoment** — die Harmonische, die zur
 4-Zähligkeit gehört. Kein Raster zum Einrasten. Dazu zwei Tore: die **Formprobe**
 (Diagonale/Kante, ideal √2) und die **Einigkeit beider Kameras**.
 
-| | Fehler Median | p90 | Ausreißer > 20° |
+| synthetisch, alle Rauschstufen | Fehler Median | p90 | Ausreißer > 20° |
 |---|---|---|---|
-| ohne Tore, alle Rauschstufen | 3,15° | 26,3° | — |
+| ohne Tore | 3,15° | 26,3° | — |
 | mit Formprobe ≥ 1,25 und Einigkeit ≤ 8° | **0,12°** | **1,68°** | 1 von 160 |
 
 Zwei Zwischenschritte waren Fehlgriffe und stehen hier, damit sie nicht wiederholt werden. Die
@@ -1944,14 +1956,12 @@ und dann rettet keine Auswahlregel. Und die Breite als **Perzentilspanne** (5.�
 die Unterscheidung: quer zur Diagonale ist die Projektion dreieckig verteilt, quer zur Kante
 gleichverteilt, das Verhältnis fällt von 1,41 auf 1,08. Es muss die volle Spannweite sein.
 
-**Auf den Realbildern passieren nur 11 von 120 Würfeln das Tor (9 %).** Der Grund steht in derselben
-Messung: die Farbmaske ist im Median zu **44 %** gefüllt, die Deckfläche kommt als 2,1–2,5 cm
-breites Bruchstück an statt als 5-cm-Quadrat. Nach Farben: rot 99,5 %, grün 39,8 % (Sättigungs-
-schwelle), gelb 58,3 % (Farbton). Die Löcher verziehen Schwerpunkt **und** Winkel — die HSV-Fenster
-sind damit der nächste Hebel, gehören aber hinter eine eigene `detect --expect`-Abnahme, weil sie
-auch die kalibrierte x/y-Lage verschieben.
+**Auf echten Frames passiert 1 von 15 Würfeln das Tor (7 %, Probelauf über fünf Episoden).** Warum
+so wenige, ist offen. `locate_cubes` legt die Diagnosefelder je Kamera in `layout.json` ab
+(`fill`, `top_px`, `top_width_cm`, `top_squareness`, `yaw_coherence`); die Antwort steht dort und
+muss aus dem Probelauf gelesen werden, nicht aus Debug-PNGs.
 
-Bis dahin bleibt `cubes_yaw_deg` für 91 % der Würfel `null`, und der Renderer verhält sich für sie
+Bis dahin bleibt `cubes_yaw_deg` für die übrigen Würfel `null`, und der Renderer verhält sich für sie
 wie bisher. `null` heißt „nicht belastbar gemessen", nicht „liegt gerade" — der Unterschied steht im
 Code, weil er sonst beim nächsten Lesen verlorengeht.
 

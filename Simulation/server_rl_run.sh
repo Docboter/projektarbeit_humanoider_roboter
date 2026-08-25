@@ -1245,7 +1245,11 @@ do_layout() {
     return 1
   fi
 
-  log "Wuerfellage aus den Realbildern lesen: $eps Episoden, Ziel $out"
+  # Bei LAYOUT_EPISODE_IDS zaehlt die Liste, nicht RENDER_EPISODES — sonst meldet der
+  # Probelauf "60 Episoden" und rechnet fuenf.
+  local scope="$eps Episoden"
+  [[ -n "${LAYOUT_EPISODE_IDS:-}" ]] && scope="Episoden ${LAYOUT_EPISODE_IDS}"
+  log "Wuerfellage aus den Realbildern lesen: $scope, Ziel $out"
   log "  Dazu je Episode der Bewegungsbeginn (Fenstergrenze fuer 'render'). Der kostet"
   log "  Zeit: jedes Video wird einmal in halber Aufloesung dekodiert, grob 4 s je Video"
   log "  und Kamera. Abschalten mit LAYOUT_NO_MOTION_ONSET=1 (dann kann 'render' aber"
@@ -1297,6 +1301,25 @@ do_layoutcheck() {
   echo "  Gierwinkel mitpruefen: LAYOUTCHECK_EXPECT_YAW='[0,20,40]' (render_manifest.json"
   echo "  -> cubes_yaw_deg). Ohne Datensatz und ohne Isaac geht auch die synthetische"
   echo "  Abnahme:  ./Simulation/server_rl_run.sh yawcheck"
+}
+
+# Aus einer fertigen layout.json ablesen, WORAN der Gierwinkel scheitert. Der Ertrag allein
+# ("7 % durch das Tor") nennt keinen Hebel; die Diagnosefelder tun es und stehen schon in der
+# Datei. Liest ausschliesslich per_camera, also die Zahlen von den VIDEOFRAMES — nicht die
+# markierten Debug-PNGs, auf denen der eingezeichnete Marker als Deckflaeche durchgeht.
+do_layoutreport() {
+  ensure_container
+  local layout="${LAYOUT_OUT:-/data/cotrain/layout.json}"
+  local extra=""
+  [[ -n "${LAYOUT_YAW_TOLERANCE:-}" ]] && extra+=" --yaw-tolerance ${LAYOUT_YAW_TOLERANCE}"
+  [[ -n "${LAYOUT_MIN_SQUARENESS:-}" ]] && extra+=" --min-squareness ${LAYOUT_MIN_SQUARENESS}"
+  if ! docker exec "$CONTAINER" test -f "$layout"; then
+    err "Layout fehlt: $layout — LAYOUT_OUT setzen oder erst 'layout' laufen lassen."
+    return 1
+  fi
+  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" "$CONTAINER" bash -lc "
+    unset VIRTUAL_ENV
+    '$ISAAC_PY' '$SIM_DIR/extract_block_layout.py' report '$layout' $extra" || return 1
 }
 
 # Gierwinkel-Schaetzer gegen SYNTHETISCHE Grundwahrheit. Braucht weder Datensatz noch
@@ -1882,6 +1905,13 @@ Aktionen:
               render_manifest.json -> cubes_xyz), LAYOUTCHECK_CAM (cam_left_high),
               LAYOUTCHECK_EXPECT_YAW (bekannte Gierwinkel als JSON, z. B. "[0,20,40]",
               aus render_manifest.json -> cubes_yaw_deg).
+  layoutreport Aus einer fertigen layout.json ablesen, WORAN der Gierwinkel scheitert:
+              Maskenfuellung, Deckflaechengroesse und -breite, Formprobe, Kohaerenz und die
+              Uneinigkeit beider Kameras — und die Aufschluesselung, welches Tor zuschlaegt.
+              Formprobe zu klein -> Farbmaske oder Deckflaechenschnitt. Kameras uneins ->
+              der Winkel selbst ist verrauscht. Braucht keinen neuen Lauf, keine GPU.
+              LAYOUT_OUT (/data/cotrain/layout.json), LAYOUT_YAW_TOLERANCE,
+              LAYOUT_MIN_SQUARENESS.
   yawcheck    Abnahme des GIERWINKEL-Schaetzers gegen synthetische Wuerfel bekannter Drehung.
               Braucht weder Datensatz noch Isaac noch GPU. Der Schaetzer misst die Deckflaeche
               nach der Rueckprojektion ueber ihr 4. Winkelmoment; die Vorgaenger-Variante mass
@@ -2044,7 +2074,7 @@ ACTION="${1:-help}"
 # 'shell' bleibt ungespiegelt (interaktives -it verträgt die Pipe nicht), 'help'/'clean'
 # haben nichts zu protokollieren.
 case "$ACTION" in
-  preflight|setup|check|cams|gap|eval|grasp|span|rl|livecheck|latency|optimize|render|view|webview|layout|layoutcheck|yawcheck|tipcheck|replay-prepare|replay-calibrate|replay-poses|replay-render) start_logging "$ACTION" ;;
+  preflight|setup|check|cams|gap|eval|grasp|span|rl|livecheck|latency|optimize|render|view|webview|layout|layoutcheck|layoutreport|yawcheck|tipcheck|replay-prepare|replay-calibrate|replay-poses|replay-render) start_logging "$ACTION" ;;
 esac
 case "$ACTION" in
   rl|shell|help|clean|webview) ;;
@@ -2063,6 +2093,7 @@ case "$ACTION" in
   span)       do_span ;;
   layout)     do_layout ;;
   yawcheck)   do_yawcheck ;;
+  layoutreport) do_layoutreport ;;
   layoutcheck) do_layoutcheck ;;
   replay-prepare) do_replay_prepare ;;
   replay-calibrate) do_replay_calibrate ;;

@@ -140,3 +140,61 @@ def test_quaternion_is_a_pure_z_rotation_of_unit_length() -> None:
 def test_zero_yaw_is_the_identity_quaternion() -> None:
     """Der Rückfall muss exakt das alte Verhalten sein, nicht beinahe."""
     assert load_yaw_to_quat()(0.0) == (1.0, 0.0, 0.0, 0.0)
+
+
+# ── Diagnosebericht ─────────────────────────────────────────────────────────
+
+def layout_with(records_per_episode: list[list[dict | None]], tmp_path) -> str:
+    """Minimale layout.json mit genau einem (roten) Würfel je Episode."""
+    import json
+    episodes = {
+        str(i): {"cubes": [[0.35, 0.0], None, None],
+                 "per_camera": {"cam_left_high": [recs[0], None, None],
+                                "cam_right_high": [recs[1], None, None]}}
+        for i, recs in enumerate(records_per_episode)}
+    out = tmp_path / "layout.json"
+    out.write_text(json.dumps({"episodes": episodes}))
+    return str(out)
+
+
+def report_counts(path: str, capsys) -> dict[str, int]:
+    import argparse
+
+    from extract_block_layout import run_report
+    assert run_report(argparse.Namespace(layout=path, yaw_tolerance=8.0,
+                                         min_squareness=1.25)) == 0
+    out = capsys.readouterr().out
+    keys = {"durchgelassen": "pass", "an der Formprobe": "square",
+            "an der Uneinigkeit": "agree", "ohne zwei Messungen": "none"}
+    counts = {}
+    for line in out.splitlines():
+        for needle, key in keys.items():
+            if line.strip().startswith(needle):
+                counts[key] = int(next(t for t in line.split() if t.isdigit()))
+    return counts
+
+
+def rec(yaw: float, squareness: float = 1.41) -> dict:
+    return {"color": "rot", "xy": [0.35, 0.0], "yaw_deg": yaw,
+            "top_squareness": squareness, "top_px": 400, "fill": 0.9,
+            "top_width_cm": 5.0, "yaw_coherence": 0.5}
+
+
+def test_report_blames_the_shape_check_when_the_face_is_not_square(tmp_path, capsys) -> None:
+    path = layout_with([[rec(20.0, 1.05), rec(20.0, 1.05)]], tmp_path)
+    assert report_counts(path, capsys)["square"] == 1
+
+
+def test_report_blames_disagreement_when_both_faces_are_square(tmp_path, capsys) -> None:
+    path = layout_with([[rec(20.0), rec(50.0)]], tmp_path)
+    assert report_counts(path, capsys)["agree"] == 1
+
+
+def test_report_counts_a_cube_without_two_measurements_separately(tmp_path, capsys) -> None:
+    path = layout_with([[rec(20.0), {"color": "rot", "xy": [0.35, 0.0]}]], tmp_path)
+    assert report_counts(path, capsys)["none"] == 1
+
+
+def test_report_counts_a_good_cube_as_passed(tmp_path, capsys) -> None:
+    path = layout_with([[rec(20.0), rec(22.0)]], tmp_path)
+    assert report_counts(path, capsys)["pass"] == 1

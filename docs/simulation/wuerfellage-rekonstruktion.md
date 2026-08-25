@@ -210,19 +210,23 @@ gerenderte Bild zeigt ihn bei 0°, und das Paar lehrt eine Zuordnung von Aussehe
 die es nicht gibt. Für den Griff kommt hinzu: über die Fläche ist ein 5-cm-Würfel 5,0 cm breit,
 über die Diagonale 7,1 cm — steht er falsch, trifft die Hand eine Ecke statt einer Fläche.
 
-### 7.1 Warum der naheliegende Weg nicht funktioniert
+### 7.1 Warum der naheliegende Weg nicht taugt
 
 `replay_calibration.top_face_blob` berechnet seit jeher eine Min-Area-Box über die Deckfläche und
-legt ihre Achse als `axis_uv` ab. Als Orientierung ist sie unbrauchbar, gemessen an den 120
-Realframes vom 2026-08-22:
+legt ihre Achse als `axis_uv` ab. Als Würfelorientierung ist sie aus zwei geometrischen Gründen
+untauglich:
 
-- **Sie rastet auf das Pixelraster ein.** 101 von 120 Messungen kamen auf exakt 0,0°. Die
-  Deckflächenmaske ist nur 15×18 px groß, und auf einem so groben Raster gewinnt die
-  achsparallele Box.
 - **Sie misst im Bild**, also mitsamt der perspektivischen Verzerrung der Deckfläche.
+- **Sie arbeitet auf einer binarisierten Kleinmaske.** Eine Min-Area-Box bevorzugt dort die
+  Bildachsen, weil das Pixelraster selbst achsparallel ist.
 
-Die Falle ist heimtückisch, weil das Ergebnis gut aussieht: linke und rechte Kamera stimmten in
-99 von 120 Fällen auf 5° überein — sie waren nur beide an dasselbe Raster gebunden.
+> **Warnung zur Beweislage.** Beim ersten Anlauf hatte ich das an den PNGs in
+> `runs/20260822/01/calibration_report/` „gemessen" (101 von 120 exakt 0,0°). Diese Dateien sind
+> **annotierte Debug-Ausgaben**: 336 Pixel exakt (255,255,255) bilden einen Rechteckrahmen, 76 Pixel
+> sind exakt (255,0,0). Der eingezeichnete Farbring ist damit der hellste gesättigte Bereich, und
+> der Deckflächenschnitt griff den **Marker** statt der Würfeloberseite. Ob `axis_uv` auf echten
+> Frames einrastet, ist folglich ungemessen — die beiden Punkte oben stehen auf Geometrie, nicht auf
+> Daten. Wer hier Zahlen braucht, nimmt Videoframes über `detect`, nicht die Debug-PNGs.
 
 ### 7.2 Das Verfahren
 
@@ -260,8 +264,10 @@ Blobwahl und Deckflächenschnitt, nicht nur über die Formel. 18 Winkel × 5 Ort
 | 0,03 | 11 % | 1,17° | 1,57° | 0/10 |
 | 0,05 | 4 % | — | — | zu wenige für ein Urteil |
 
-Ohne die beiden Tore liegt derselbe Datensatz bei Median 3,15° / p90 26,3°. Das Tor kauft die
-Genauigkeit also mit Ertrag, und das ist die richtige Richtung: ein geratener Winkel dreht den
+Ohne die beiden Tore liegt derselbe Datensatz bei Median 3,15° / p90 26,3°. Diese Abnahme rendert
+ihre eigenen Bilder und ist deshalb von der Debug-PNG-Verwechslung in §7.1 unberührt — sie belegt
+aber auch nur den Schätzer, nicht das Verhalten auf Realbildern. Das Tor kauft die Genauigkeit mit
+Ertrag, und das ist die richtige Richtung: ein geratener Winkel dreht den
 Würfel unter einer Realaktion weg, die für eine andere Lage aufgenommen wurde.
 
 Die Abnahme gegen den **echten Renderer** ist `detect --expect-yaw` mit `cubes_yaw_deg` aus
@@ -270,19 +276,21 @@ teilt sich mit dem Schätzer die Kameraannahme und kann sie deshalb nicht prüfe
 
 ### 7.4 Was heute noch fehlt
 
-Auf den echten Frames passieren **11 von 120 Würfeln** das Tor (9 %). Der Grund steht in derselben
-Messung: die **Farbmaske ist im Median nur zu 44 % gefüllt**. Die Deckfläche kommt dadurch als
-2,1–2,5 cm breites Bruchstück an statt als 5-cm-Quadrat, und die Formprobe liegt im Median bei
-1,21 statt 1,41. Nach Farben aufgeschlüsselt (Episode 0, `cam_left_high`): rot 99,5 % der
-Bounding-Box, grün 39,8 %, gelb 58,3 % — bei grün ist die Sättigungsschwelle der Engpass, bei
-gelb der Farbton.
+Probelauf vom 2026-08-25 über die echten Videos der Episoden 0, 1, 2, 8 und 12: **1 von 15 Würfeln**
+passiert das Tor (7 %), dieser eine bei **30,0°** — also eine echte Schräglage, kein Rundungsrest.
+Alle drei Würfel werden in allen fünf Episoden gefunden, die Kameras sind sich in der *Position* auf
+1,75 cm (Median) einig. Es scheitert ausschließlich am Winkel.
 
-Die Löcher verziehen **beides**, Schwerpunkt und Winkel. Die HSV-Fenster in `HSV_WINDOWS` zu
-weiten ist damit der nächste Hebel — er würde aber auch die kalibrierte x/y-Lage verschieben und
-gehört deshalb hinter eine eigene `detect --expect`-Abnahme, nicht in diese Änderung.
+**Warum, ist offen.** `locate_cubes` legt die Diagnose je Kamera in `layout.json` unter `per_camera`
+ab — `fill` (Füllgrad der Bounding-Box), `top_px`, `top_width_cm` (Soll ~5), `top_squareness`
+(Soll ~1,41) und `yaw_coherence`. Welche dieser Zahlen wegläuft, sagt, wo der Hebel liegt: eine
+kleine `top_width_cm` bei guter `fill` heißt Deckflächenschnitt, eine kleine `fill` heißt Farbmaske.
 
-Bis dahin verhält sich der Renderer für 91 % der Würfel wie bisher: `cubes_yaw_deg` ist `null`,
-und `null` heißt „nicht belastbar gemessen", **nicht** „liegt gerade".
+Nicht aus den Debug-PNGs lesen — siehe die Warnung in §7.1. Die Zahlen stehen in `layout.json`,
+gerechnet auf den Videoframes.
+
+Bis das geklärt ist, verhält sich der Renderer für die übrigen Würfel wie bisher: `cubes_yaw_deg`
+ist `null`, und `null` heißt „nicht belastbar gemessen", **nicht** „liegt gerade".
 
 Unabhängige Gegenprobe: `grasp_anchor` berichtet den **Greifachsen-Winkel** aus der FK (Daumen →
 Mitte von Zeige- und Mittelfinger, mod 90°) neben dem Bildwinkel. Wer greift, legt die Greifachse
