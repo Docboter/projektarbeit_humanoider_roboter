@@ -44,12 +44,29 @@ sich wie folgt zusammenfassen:
     Real$\to$Sim-Abstand anschließend unter die Real$\to$Real-Referenz
     (\cref{sec:neukalibrierung}); als dominante Gap-Ursache erwies sich die
     Materialfarbe (Albedo), nicht die Beleuchtung.
+  \item \textbf{Verhaltensbeleg statt bloßer Bildähnlichkeit.} Das
+    \texttt{span}-Gate (\cref{sec:span-gate}) trennte die beiden verbliebenen
+    Erklärungen: Dieselbe Politik kommandiert auf \emph{echten} Bildern die
+    volle Greifbewegung (Verhältnis~1,00), in der Simulation nur ein Fünftel.
+    Die Politik hat das Greifen also gelernt und ruft es nur bei synthetischer
+    Beobachtung nicht ab.
+  \item \textbf{Checkpoint-Auswahl war messbar falsch.} Der dritte Lauf, der
+    erste mit echter Testmenge, zeigte eine U-Kurve des Validierungsfehlers:
+    Der letzte Checkpoint ist um 25\,\% schlechter als der beste
+    (\cref{sec:lauf3}). Overfitting ist damit im Projekt erstmals gemessen
+    statt vermutet.
   \item \textbf{RL-Pipeline implementiert, Lernwirkung offen.} Das als
     Konzept gestartete RL-Fine-Tuning wurde als FPO-Trainer umgesetzt und
     absolvierte eine vollständige Trainingsiteration auf institutseigener
-    Blackwell-Hardware (\cref{sec:rl-stand}). Sein produktiver Einsatz ist
-    durch einen zum Redaktionsschluss offenen Greif-Physik-Befund der
-    migrierten Simulation blockiert (\cref{sec:grasp-befund}).
+    Blackwell-Hardware (\cref{sec:rl-stand}). Der zwischenzeitlich vermutete
+    Greif-Physik-Blocker ist ausgeräumt (\cref{sec:grasp-befund}); vor einem
+    produktiven Lauf steht nun das Co-Training (\cref{sec:cotrain}).
+  \item \textbf{Ein widerrufener Fix als methodische Warnung.} Eine früher als
+    Korrektur verbuchte Vorzeichen-Spiegelung der Fingergelenke erwies sich
+    zuletzt als selbst fehlerhaft; sie ließ die Hand in allen bisherigen
+    Sim-Läufen unvollständig schließen (\cref{sec:vorzeichen-widerruf}). Die
+    simulationsseitigen Greifzahlen dieser Arbeit stehen dadurch unter einem
+    ausdrücklichen Vorbehalt (\cref{sec:vorbehalt-greifzahlen}).
 \end{itemize}
 
 Der wichtigste Beitrag dieser Arbeit ist somit weniger eine hohe Erfolgsrate als
@@ -61,13 +78,22 @@ Roboter-Rollouts zu belegen.
 \section{Ausblick}
 \label{sec:ausblick}
 
-\paragraph{Greif-Physik klären.}
-Der unmittelbarste nächste Schritt ist der platzierungsunabhängige Greif-Test
-(\cref{sec:grasp-befund}): Er entscheidet, ob die ausbleibende Würfel-Anhebung
-unter Isaac~Sim~6.0 an der Test-Platzierung oder an den Kontaktparametern der
-migrierten Simulation liegt. Von seinem Ausgang hängen sowohl die
-Interpretierbarkeit der Closed-Loop-Erfolgsrate als auch der produktive
-RL-Einsatz ab.
+\paragraph{Messungen mit korrigierter Geometrie wiederholen.}
+Der unmittelbarste nächste Schritt folgt aus dem Widerruf des Vorzeichen-Fixes
+(\cref{sec:vorzeichen-widerruf}): Die simulationsseitigen Greifgrößen --
+Erfolgsrate, Fingerspanne, Meilenstein-Leiter -- sind mit korrigierter
+Hand- und Basisgeometrie neu zu erheben. Erst danach existiert ein belastbarer
+Nullpunkt, gegen den sich Co-Training und RL überhaupt messen lassen, und erst
+danach lässt sich beziffern, welcher Anteil des Sim-Versagens tatsächlich auf
+den visuellen Domain-Gap entfällt (\cref{sec:vorbehalt-greifzahlen}).
+
+\paragraph{Co-Training durchführen.}
+Die Werkzeugkette für das Training auf echten \emph{und} gerenderten Bildern
+steht vollständig (\cref{sec:cotrain}); der Lauf selbst steht aus. Er ist der
+inhaltlich nächste Schritt, weil er als einziger die in
+\cref{sec:frozen-vs-tuned} formulierte Bedingung erfüllt -- der Vision-Encoder
+sieht während des Trainings tatsächlich Simulationsbilder. Der gerenderte
+Datensatz ist dafür mit der korrigierten Geometrie neu zu erzeugen.
 
 \paragraph{Domain-Gap weiter schließen.}
 Visual Matching hat sich als wirksam erwiesen: Kamera-Neukalibrierung und
@@ -77,16 +103,18 @@ ist der nächste Hebel ein Mittrainieren des Vision-Encoders
 (\texttt{TUNE\_VISUAL}) -- allerdings nur \emph{mit} Simulations- oder
 \acs{dr}-variierten Bildern: Auf reinen Realdaten schließt es den Gap nicht,
 sondern verschlechterte das Verhalten bis zum Politik-Kollaps, wie der zweite
-Lauf empirisch zeigte (\cref{sec:vision-lauf,sec:frozen-vs-tuned}).
+Lauf empirisch zeigte (\cref{sec:vision-lauf,sec:frozen-vs-tuned}). Genau diese
+Bedingung erfüllt das Co-Training aus \cref{sec:cotrain}, dessen Werkzeugkette
+bereitsteht.
 
 \paragraph{Reinforcement-Learning-Fine-Tuning produktiv machen.}
 Wie in \cref{sec:rl-weiterfuehrend} ausgeführt, adressiert RL die \ac{bc}-Schwäche
 an der Wurzel und löst den Domain-Gap konzeptionell auf, da in derselben Sim
 trainiert und evaluiert wird. Die ursprünglich kritische GPU-Frage ist durch den
 institutseigenen Blackwell-Server beantwortet, die FPO-Pipeline implementiert
-und end-to-end validiert (\cref{sec:rl-stand}). Nach Klärung der Greif-Physik
-stehen der erste produktive Lauf, der Nachweis der Lernwirkung und das
-Hyperparameter-Tuning an.
+und end-to-end validiert (\cref{sec:rl-stand}). Nach dem Co-Training und den
+wiederholten Basismessungen stehen der erste produktive Lauf, der Nachweis der
+Lernwirkung und das Hyperparameter-Tuning an.
 
 \paragraph{Lokomotion.}
 Mit der entkoppelten Architektur (\cref{sec:loco-pfade}) lässt sich der bislang

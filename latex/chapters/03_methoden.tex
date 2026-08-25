@@ -96,6 +96,10 @@ findet sich in \doc{docs/training/env-vars.md}.
     \texttt{NUM\_GPUS}          & \texttt{1} & GPUs (aktiviert \texttt{torchrun}) \\
     \texttt{LEARNING\_RATE}     & \texttt{1e-4} & Lernrate \\
     \texttt{TUNE\_VISUAL}       & \texttt{0} & Vision-Encoder mittrainieren \\
+    \texttt{USE\_AUGMENTATION}  & \texttt{1} & Bild-Augmentierung (Color-Jitter) \\
+    \texttt{TRAIN\_TEST\_SPLIT} & \texttt{0} & 80/20-Split aktivieren \\
+    \texttt{USE\_COTRAIN}       & \texttt{0} & Co-Training auf echten \emph{und}
+      gerenderten Bildern (\cref{sec:cotrain}) \\
     \texttt{SKIP\_*}            & \texttt{0} & einzelne Phasen überspringen
       (\texttt{DOWNLOAD}, \texttt{CONVERT}, \texttt{TRAIN}) \\
     \bottomrule
@@ -104,6 +108,29 @@ findet sich in \doc{docs/training/env-vars.md}.
     Liste: \doc{docs/training/env-vars.md}.}
   \label{tab:env-curated}
 \end{table}
+
+\paragraph{Bedienbarkeit als Reproduzierbarkeitsproblem.}
+Die Konfiguration über Umgebungsvariablen erkauft ihre Flexibilität mit einer
+wachsenden Bedienoberfläche: Im Projektverlauf verteilte sich dieselbe
+Parameterliste auf vier Orte -- den Vorgabewert im Skript, dessen
+Hilfetext, die Tabelle in der Dokumentation und die Projektübersicht. Solche
+Kopien laufen erfahrungsgemäß auseinander, und eine Anleitung, die einen
+falschen Vorgabewert nennt, beschädigt genau die Reproduzierbarkeit, um derer
+willen die Infrastruktur gebaut wurde.
+
+Die Abhilfe war, die Parameter \emph{einmal} deklarativ zu beschreiben und
+alles Weitere daraus abzuleiten: Aus derselben Spezifikation speisen sich ein
+geführtes Auswahlmenü für die Bedienung am Terminal, der Hilfetext und eine
+Prüfung, die Abweichungen zwischen Spezifikation, Skript und Dokumentation
+meldet. Ergänzt wird dies durch einen einzigen Einstiegspunkt, der zunächst
+nach der Domäne (Simulation, Training, Cluster) fragt und dann an den
+zuständigen Starter übergibt. Zugleich wurden die verbliebenen
+maschinengebundenen Pfade entfernt: Der Simulationsserver liest seine
+lokalen Einstellungen aus einer nicht versionierten Konfigurationsdatei, die
+Cluster-Skripte leiten sämtliche Pfade aus einer einzigen Variablen ab. Damit
+läuft das Repository ohne Anpassung auf einer fremden Maschine -- die
+praktische Voraussetzung dafür, dass die hier berichteten Läufe von Dritten
+wiederholt werden können (\doc{docs/portabilitaet.md}).
 
 \section{Datensatz, Konvertierung und Train/Test-Split}
 \label{sec:datensatz}
@@ -126,7 +153,7 @@ Kennzahlen zusammen.
     \midrule
     Format (Quelle / Ziel)     & LeRobot v3.0 $\to$ v2.1 \\
     Episoden (gesamt)          & 301 \\
-    Episoden (Training / Test) & 241 / 60 (80/20-Split) \\
+    Episoden (Training / Test) & 240 / 61 (80/20-Split) \\
     Bilder gesamt              & 281\,196 \\
     Kameras                    & 4 $\times$ RGB ($640\times480$\,px) \\
     Aufzeichnungsrate          & \qty{30}{\fps} \\
@@ -154,8 +181,11 @@ bei bereits konvertierten Daten übersprungen werden.
 
 \paragraph{Train/Test-Split.}
 Um eine objektive Bewertung zu ermöglichen, wurde ein \textbf{reproduzierbarer
-80/20-Split} konzipiert: die ersten 241~Episoden (Index 0--240) als Trainings-,
-die letzten 60 (Index 241--300) als Testmenge. Bewusst wurde \emph{nicht} zufällig
+80/20-Split} konzipiert: die ersten 240~Episoden (Index 0--239) als Trainings-,
+die letzten 61 (Index 240--300) als Testmenge.\footnote{Die Grenze liegt bei~240,
+nicht bei~241: Die Split-Logik rechnet $n_{\text{train}} = \lfloor 301 \cdot 0{,}8
+\rfloor = 240$. Der erste reale Split-Lauf (\cref{sec:lauf3}) protokolliert
+entsprechend \texttt{split\_range: "240:301"}.} Bewusst wurde \emph{nicht} zufällig
 gesplittet, sondern entlang des natürlichen Episodenindex -- das garantiert
 Reproduzierbarkeit ohne Seed-Abhängigkeit. Das Vorgehen und seine
 Einschränkungen (ein niedriger Action-Loss auf der Testmenge ist nur ein
@@ -219,6 +249,16 @@ wurde in der Einzel-GPU-Konfiguration durchgeführt.
   \caption{Trainings-Hyperparameter der beiden Konfigurationen.}
   \label{tab:hparams}
 \end{table}
+
+\paragraph{Bild-Augmentierung.}
+Standardmäßig aktiv ist eine Augmentierung der Trainingsbilder (im Wesentlichen
+Color-Jitter in Helligkeit, Kontrast, Sättigung und Farbton). Sie ist die
+abgeschwächte Form der in \cref{sec:domain-gap-grundlagen} genannten
+\acf{dr}: Sie variiert das Erscheinungsbild der realen Bilder, ersetzt aber
+nicht das Sehen \emph{echter} Simulationsbilder. Ihre Rolle im Projekt ist
+dadurch begrenzt, aber nicht unerheblich -- der dritte Lauf
+(\cref{sec:lauf3}) ist der erste, der sie zusammen mit dem mittrainierten
+Vision-Encoder einsetzt, und unterscheidet sich genau darin vom zweiten.
 
 Die Lernrate des Vier-GPU-Laufs ist mit $\sqrt{4}$ skaliert ($1\text{e-}4 \cdot
 \sqrt{4} = 2\text{e-}4$), um dem vierfach größeren Batch Rechnung zu tragen. Eine
@@ -284,6 +324,19 @@ Aktion wird auf gehaltenen echten Trajektorien gemessen, ohne Regelkreis und
 damit ohne Domain-Gap. Ein absoluter Schwellwert für \enquote{gut} existiert
 nicht; die Metrik dient dem relativen Vergleich von Checkpoints.
 
+\paragraph{Checkpoint-Auswahl durch nachgelagerten Sweep.}
+Aus der fehlenden Validierung während des Trainings folgt ein eigener
+Arbeitsschritt. Die Einschränkung ist dabei nicht bloß Konfiguration, sondern
+\emph{strukturell}: Der verwendete Fork erzwingt \texttt{eval\_strategy="no"}
+per Assertion, die vorhandenen Konfigurationsfelder für eine Open-Loop-Eval
+während des Trainings werden nie ausgelesen. Die Auswahl des besten Checkpoints
+muss daher \emph{nach} dem Lauf erfolgen. Dafür misst
+\doc{Training/scripts/checkpoint\_sweep.py} den Open-Loop-\ac{mse} \emph{jedes}
+gespeicherten Checkpoints auf den zurückgehaltenen Testepisoden und wählt das
+Minimum. Dieser Schritt ersetzt die zuvor mangels Alternative geübte Praxis,
+schlicht den letzten Checkpoint zu nehmen -- eine Praxis, die sich im Nachhinein
+als falsch erwies (\cref{sec:lauf3}).
+
 \paragraph{Closed-Loop-Sim-Eval.}
 Für die geschlossene Schleife wurde eine Isaac-Lab-Umgebung mit Roboter, Tisch,
 Würfeln und fünf Kameras aufgebaut. Architektonisch sind zwei Prozesse über
@@ -329,6 +382,18 @@ Isaac~Sim: gebündeltes Python~3.11). Die vollständige Bedienung beschreibt
   \doc{docs/simulation/umsetzungsnotizen.md}.
 \end{warningbox}
 
+\paragraph{Inferenz-Durchsatz.}
+Da jede Episode viele hundert Modellaufrufe erfordert, wurde die Inferenzseite
+gesondert vermessen und optimiert: Der Flow-Matching-Aktionskopf lässt sich in
+ein GPU-spezifisches Laufzeitformat übersetzen, und das Rendern der Kameras
+lässt sich auf den Takt der Politikaufrufe synchronisieren, statt jedes
+Simulationsbild zu rendern. Methodisch bemerkenswert ist dabei die Trennung der
+Messgrößen: Die reine \emph{Politik}-Latenz wird ohne Simulation und ohne
+Netzwerktransport bestimmt und ist damit die einzige Durchsatzgröße dieser
+Arbeit, die auch auf realer Hardware gilt -- das Rendern, das in der Simulation
+den Löwenanteil der Laufzeit ausmacht, entfällt dort ersatzlos.
+Details: \doc{docs/simulation/inferenz-optimierung.md}.
+
 \paragraph{Referenz-Eval zur Pipeline-Validierung.}
 Ergänzend zu den beiden internen Evaluationsgleisen wurde eine \emph{externe}
 Kontrolle vorgesehen: Das un-feinabgestimmte Basismodell wird auf einer
@@ -343,4 +408,4 @@ Als unterer Vergleichswert war eine Baseline mit dem \emph{un}-feinabgestimmten
 Modell auf dem Standard-G1-Embodiment vorgesehen. Da dieses Embodiment auf
 Ganzkörper-Loko-Manipulation mit nur einer Kamera ausgelegt ist und stark
 außerhalb der Verteilung der Tabletop-Szene liegt, ist hier eine Erfolgsrate
-nahe~$0\,\%$ zu erwarten (\doc{docs/ergebnisse/baseline-unitree-g1.md}).
+nahe~$0\,\%$ zu erwarten (\doc{docs/simulation/baseline-eval.md}).

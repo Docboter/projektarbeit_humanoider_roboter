@@ -26,13 +26,23 @@ Diagnose: Die Inferenz-Pipeline reproduzierte einen unabhängigen, publizierten
 Benchmark (RoboCasa GR-1: 47,7\,\% gemessen vs.\ 47,8\,\% erwartet) und ist
 damit als Fehlerquelle ausgeschlossen; Kamera-Neukalibrierung und
 Albedo-Korrekturen senkten den mittleren Domain-Gap unter die
-Real-zu-Real-Referenz. Ergänzend wurde eine FPO-basierte
-Reinforcement-Learning-Pipeline implementiert und end-to-end auf eigener
-Hardware validiert; ihr Lernnachweis steht noch aus, blockiert durch einen
-offenen Befund zur Greif-Physik der migrierten Simulation. Die Arbeit schließt
-mit einer methodischen Empfehlung (Open-Loop-Eval und reale Rollouts statt
-Closed-Loop-Sim als Benchmark) sowie einem Ausblick auf Lokomotion und den
-produktiven RL-Einsatz.
+Real-zu-Real-Referenz. Den direktesten Beleg lieferte ein Vergleich der
+kommandierten Fingerspanne: Dieselbe Politik führt auf \emph{echten} Bildern
+die volle Greifbewegung aus, in der Simulation nur ein Fünftel davon -- die
+Politik hat das Greifen also gelernt und ruft es nur bei synthetischer
+Beobachtung nicht ab. Ein dritter Trainingslauf mit zurückgehaltener Testmenge
+zeigte zudem, dass die bis dahin blinde Checkpoint-Auswahl systematisch falsch
+war: Der letzte Checkpoint ist um 25\,\% schlechter als der beste. Ergänzend
+wurden eine FPO-basierte Reinforcement-Learning-Pipeline sowie eine
+Werkzeugkette für Co-Training auf gerenderten Bildern implementiert; der
+jeweilige Lernnachweis steht aus. Eine abschließende geometrische
+Rekonstruktion der Simulationsszene deckte drei unabhängige Fehler auf --
+darunter eine zuvor als Korrektur verbuchte Vorzeichen-Spiegelung, die die Hand
+in allen bisherigen Simulationsläufen unvollständig schließen ließ; die
+simulationsseitigen Greifzahlen stehen dadurch unter ausdrücklichem Vorbehalt.
+Die Arbeit schließt mit einer methodischen Empfehlung (Open-Loop-Eval und reale
+Rollouts statt Closed-Loop-Sim als Benchmark) sowie einem Ausblick auf
+Co-Training, den produktiven RL-Einsatz und Lokomotion.
 
 \bigskip
 \noindent\textbf{Schlüsselwörter:}
@@ -70,13 +80,23 @@ encoder and does not constitute a verdict on model quality. Follow-up work
 corroborated this diagnosis: the inference pipeline reproduced an independent,
 published benchmark (RoboCasa GR-1: 47.7\,\% measured vs.\ 47.8\,\% expected),
 ruling it out as an error source, and camera recalibration together with albedo
-corrections reduced the mean domain gap below the real-to-real reference. In
-addition, an FPO-based reinforcement-learning pipeline was implemented and
-validated end-to-end on local hardware; evidence of actual learning is still
-pending, blocked by an open grasp-physics finding in the migrated simulation.
-The work concludes with a methodological recommendation (open-loop evaluation
-and real-world rollouts rather than closed-loop simulation as a benchmark) and
-an outlook on locomotion and productive RL deployment.
+corrections reduced the mean domain gap below the real-to-real reference. The
+most direct evidence came from comparing the commanded finger span: on
+\emph{real} images the same policy performs the full grasping motion, but only
+one fifth of it in simulation -- the policy has therefore learned to grasp and
+simply fails to invoke it under synthetic observation. A third training run
+with a genuinely held-out test set further showed that the previously blind
+checkpoint selection was systematically wrong: the final checkpoint is 25\,\%
+worse than the best one. In addition, an FPO-based reinforcement-learning
+pipeline and a tool chain for co-training on rendered images were implemented;
+evidence of actual learning is pending for both. A concluding geometric
+reconstruction of the simulation scene uncovered three independent errors --
+among them a sign inversion previously recorded as a fix, which left the hand
+unable to close fully in every simulation run to date; the simulation-side
+grasping figures are therefore reported with an explicit caveat. The work
+concludes with a methodological recommendation (open-loop evaluation and
+real-world rollouts rather than closed-loop simulation as a benchmark) and an
+outlook on co-training, productive RL deployment, and locomotion.
 
 \bigskip
 \noindent\textbf{Keywords:}

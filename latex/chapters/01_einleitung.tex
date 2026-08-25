@@ -81,15 +81,21 @@ Die Ziele dieser Arbeit sind:
   \item \textbf{Analyse} der beobachteten Diskrepanz zwischen sauberer
     Trainingskonvergenz und ausbleibendem Aufgabenerfolg, mit Rückführung auf den
     visuellen Domain-Gap.
-  \item \textbf{Konzeption} der weiterführenden Schritte (Lokomotion,
-    Reinforcement-Learning-Fine-Tuning), die über den Projektrahmen hinausweisen.
+  \item \textbf{Konzeption und teilweise Umsetzung} der weiterführenden Schritte
+    (Co-Training auf gerenderten Bildern, Reinforcement-Learning-Fine-Tuning,
+    Lokomotion), die über den Projektrahmen hinausweisen.
 \end{enumerate}
 
 \paragraph{Abgrenzung.}
-Nicht Gegenstand dieser Arbeit sind der Einsatz auf der \emph{physischen}
-G1-Hardware (eine Sim-to-Real-Übertragung steht aus) sowie die Implementierung
-des Reinforcement-Learning- und Lokomotions-Strangs; beide werden in
-\cref{chap:weiterfuehrend} konzeptionell ausgearbeitet, aber nicht umgesetzt.
+Nicht Gegenstand dieser Arbeit ist der Einsatz auf der \emph{physischen}
+G1-Hardware; eine Sim-to-Real-Übertragung steht aus. Von den weiterführenden
+Strängen in \cref{chap:weiterfuehrend} bleibt die \textbf{Lokomotion} rein
+konzeptionell -- sie wurde recherchiert, aber nicht implementiert. Das
+\textbf{Co-Training} auf gerenderten Bildern und das
+\textbf{Rein\-force\-ment-Learning-Fine-Tuning} gingen über den Konzeptstatus
+hinaus: Beide sind implementiert, das RL-Fine-Tuning lief end-to-end auf
+eigener Hardware durch. Ein produktiver Trainingslauf und damit der Nachweis
+einer \emph{Lernwirkung} steht für beide noch aus.
 
 \section{Verhältnis zur Projektdokumentation}
 \label{sec:doku-verhaeltnis}

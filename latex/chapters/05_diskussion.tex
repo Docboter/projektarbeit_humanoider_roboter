@@ -34,6 +34,18 @@ stark abweichender Eingang in das gesamte Vision-Language-Embedding -- die in
 ihr Übriges, bis die Politik in den beobachteten \enquote{eingefrorenen} Zustand
 kollabiert.
 
+Den Schritt von der \emph{Bildähnlichkeit} zur \emph{Verhaltensfolge} leistet
+das \texttt{span}-Gate (\cref{sec:span-gate}). Es beantwortet die Frage, die
+eine Embedding-Distanz allein offenlässt: ob der gemessene Bildunterschied
+tatsächlich das Verhalten ändert. Dieselbe Politik kommandiert auf echten
+Datensatzbildern die volle Greifbewegung (Verhältnis~1,00), in der Simulation
+nur ein Fünftel davon. Damit ist die naheliegendste Gegenhypothese -- die
+Politik habe das Greifen schlicht nie gelernt -- ausgeschlossen, und zwar
+durch eine Messung, deren beide Seiten von derselben Politik stammen und sich
+allein in der Beobachtung unterscheiden. Der in
+\cref{sec:vorbehalt-greifzahlen} formulierte Vorbehalt schränkt dabei die
+simulationsseitige Hälfte dieser Messung ein, nicht die reale.
+
 \begin{infobox}[Die richtige Metrik für dieses Modell]
   NVIDIAs offizielle Checkpoint-Evaluation ist nicht die Closed-Loop-Sim, sondern
   der \textbf{Open-Loop-Action-\ac{mse} auf gehaltenen echten Trajektorien}
@@ -120,10 +132,10 @@ absolut/relativ-Umsetzung der Aktionen. Sie sind nicht die Fehlerursache.
 \section{Messartefakte und ihre Lehren}
 \label{sec:messartefakte}
 
-Die Diagnose-Serien vom August~2026 (\cref{sec:neukalibrierung,sec:grasp-befund})
-förderten über die Sachbefunde hinaus zwei wiederkehrende
-\emph{Messartefakt-Muster} zutage, die für simulationsgestützte
-Robotik-Evaluationen verallgemeinerbar sind:
+Die Diagnose-Serien vom August~2026
+(\cref{sec:neukalibrierung,sec:grasp-befund,sec:geometrie}) förderten über die
+Sachbefunde hinaus vier wiederkehrende \emph{Messartefakt-Muster} zutage, die
+für simulationsgestützte Robotik-Evaluationen verallgemeinerbar sind:
 
 \begin{description}
   \item[Zirkuläre Prüfgrößen.] Der Kamera-Orientierungsfehler
@@ -146,6 +158,23 @@ Robotik-Evaluationen verallgemeinerbar sind:
     Messartefakt der Handwurzel-Referenz. Bei einem Würfel von 5~cm
     Kantenlänge entscheidet die Wahl des Referenzpunkts über das Vorzeichen
     des Ergebnisses.
+  \item[Stille Sättigung statt Fehlermeldung.] Der widerrufene
+    Vorzeichen-Fix (\cref{sec:vorzeichen-widerruf}) blieb monatelang
+    unentdeckt, weil die Simulation Gelenkziele außerhalb ihrer Grenzen nicht
+    zurückweist, sondern stumm auf den Grenzwert klemmt. Aus Sicht jeder
+    darüberliegenden Auswertung lieferte das System weiterhin plausible
+    Zahlen -- ein stillstehendes Gelenk ist von einem Gelenk, das seine
+    Zielposition erreicht hat, im Protokoll nicht zu unterscheiden. Wo ein
+    Stellglied sättigen kann, muss der Sättigungszustand selbst protokolliert
+    werden, sonst wird ein Defekt als Messwert gelesen.
+  \item[Prüfdaten sind nicht Nutzdaten.] Die ursprüngliche Begründung für den
+    Wechsel des Gierwinkel-Schätzers (\cref{sec:gierwinkel}) musste
+    zurückgezogen werden: Sie war auf \emph{annotierten Debug-Bildern} statt
+    auf echten Datensatzbildern erhoben worden und maß damit die eingezeichneten
+    Hilfslinien mit. Aufgefallen ist das an exakt gesättigten Farbwerten
+    ($255,0,0$ und $255,255,255$), wie sie in Fotografien nicht vorkommen.
+    Auffällig \enquote{saubere} Werte sind daher weniger ein Qualitätsindiz als
+    ein Anlass zu prüfen, ob überhaupt die richtigen Daten gemessen wurden.
 \end{description}
 
 Beide Muster teilen eine Konsequenz: Quantitative Diagnostik ist nur so
@@ -158,6 +187,53 @@ Körper-Frames messen und jeden Messwert mit seinem Bezugsrahmen protokollieren
 \section{Limitierungen}
 \label{sec:limitierungen}
 
+\subsection{Vorbehalt gegen alle simulationsseitigen Greifzahlen}
+\label{sec:vorbehalt-greifzahlen}
+
+Die gewichtigste Einschränkung dieser Arbeit ergab sich erst ganz am Ende und
+betrifft rückwirkend einen Großteil ihrer Messwerte. Wie in
+\cref{sec:vorzeichen-widerruf} geschildert, war die für die Fingergrundgelenke
+vorgenommene Vorzeichen-Spiegelung selbst fehlerhaft: Sie drehte vier Gelenke
+aus ihrem zulässigen Bereich, wo die Simulation sie stumm auf den Grenzwert
+klemmte. Da die Spiegelung sowohl auf die \emph{Beobachtung} als auch auf die
+\emph{Aktion} wirkte, betraf sie jeden Laufmodus. Konkret heißt das: Sämtliche
+in dieser Arbeit berichteten simulationsseitigen Greifgrößen -- die
+Erfolgsrate~$0/20$, die Fingerspannen von 19\,\%, 20,5\,\% und 27,6\,\% -- sind
+mit einer Hand entstanden, die sich nicht vollständig schließen konnte.
+
+Für die Belastbarkeit der Argumentation ist entscheidend, sauber zu trennen,
+was dieser Vorbehalt berührt und was nicht:
+
+\begin{description}
+  \item[Nicht betroffen.] Die SigLIP-Messung des Domain-Gaps
+    (\cref{sec:domain-gap-ergebnis,sec:neukalibrierung}) ist rein bildbasiert
+    und kennt keine Gelenkkonventionen; sie belegt unabhängig, dass ein
+    visueller Abstand besteht. Ebenso unberührt ist die externe
+    Pipeline-Validierung (\cref{sec:robocasa}), die auf einem anderen
+    Embodiment in einem anderen Simulator läuft und die DEX3-Hand gar nicht
+    verwendet. Auch die \emph{reale} Seite des \texttt{span}-Gates
+    (Verhältnis~1,00) ist sauber: Sie wird open-loop auf echten Bildern ohne
+    jede Simulationsbeteiligung erhoben.
+  \item[Betroffen.] Alle in der Simulation erhobenen Greif- und
+    Fingerspannenwerte. Für sie existiert seit dem Widerruf eine
+    \emph{konkurrierende Erklärung}: Die Politik sah in der Simulation nicht
+    nur fremde Bilder, sondern zusätzlich einen verfälschten propriozeptiven
+    Zustand -- und beides kann eine zu geringe kommandierte Fingerspanne
+    erzeugen.
+\end{description}
+
+Die qualitative Kernaussage der Arbeit übersteht das: Dass die Politik das
+Greifen \emph{gelernt} hat, zeigt die unbelastete reale Seite des
+\texttt{span}-Gates, und dass ein erheblicher visueller Abstand \emph{besteht},
+zeigt die unbelastete SigLIP-Messung. Was der Vorbehalt schwächt, ist die
+\emph{Alleinzuschreibung} des Sim-Versagens an den visuellen Domain-Gap: Ein
+propriozeptiver Beobachtungsfehler steht nun als zweite, nicht abgetrennte
+Ursache daneben. Die saubere Konsequenz wäre, die simulationsseitigen
+Messungen mit korrigierter Geometrie zu wiederholen; das war zum
+Redaktionsschluss nicht mehr möglich. Bis dahin sind die genannten Prozentwerte
+als \emph{obere Schranken für das Ausmaß des visuellen Effekts} zu lesen, nicht
+als dessen Messung.
+
 \subsection{Datenmenge und Datenqualität}
 Mit~$\approx$~301~Demonstrationen liegt der Datensatz am unteren Rand des für
 \ac{vla}-Fine-Tuning Üblichen (typischerweise 500--2000). In Kombination mit
@@ -167,21 +243,38 @@ Open-Loop-Vorhersage verrauscht -- ein Hinweis auf grenzwertige Datenqualität
 oder -menge gerade für die feinmotorischen DEX3-Gelenke.
 
 \subsection{Fehlende Validierung und blinde Checkpoint-Auswahl}
-Da während des Trainings nicht validiert wurde (\texttt{eval\_strategy="no"}),
-fehlte ein Signal zur Auswahl des besten Checkpoints; Schritt~175\,000 wurde
-mangels Alternative genommen, obwohl die Loss-Kurve bereits ab~$\approx$~100\,000
-plateaut. Der zusätzlich aufgedeckte inaktive Train/Test-Split
-(\cref{sec:split-befund}) bedeutet, dass für diesen Lauf keine sauber gehaltene
-Testmenge existiert.
+Da während des Trainings nicht validiert wurde, fehlte ein Signal zur Auswahl
+des besten Checkpoints; Schritt~175\,000 wurde mangels Alternative genommen,
+obwohl die Loss-Kurve bereits ab~$\approx$~100\,000 plateaut. Der zusätzlich
+aufgedeckte inaktive Train/Test-Split (\cref{sec:split-befund}) bedeutet, dass
+für diesen Lauf keine sauber gehaltene Testmenge existiert. Die Einschränkung
+ist dabei nicht selbst verschuldet, sondern strukturell: Der verwendete Fork
+erzwingt \texttt{eval\_strategy="no"} per Assertion.
+
+Diese Limitierung ist inzwischen \emph{quantifiziert} und behoben. Der dritte
+Lauf (\cref{sec:lauf3}) verfügte über eine echte Testmenge, und der
+nachgelagerte Checkpoint-Sweep zeigte eine U-Kurve: Der letzte Checkpoint ist
+um 25\,\% schlechter als der beste. Damit ist das Overfitting im Projekt
+erstmals gemessen statt vermutet -- und rückwirkend belegt, dass die Läufe~1
+und~2 mit hoher Wahrscheinlichkeit den falschen Checkpoint ausgewertet haben.
+Wie stark dieser Effekt die Closed-Loop-Befunde beeinflusst hat, lässt sich
+nicht mehr rekonstruieren; die Richtung ist jedoch klar, und für künftige Läufe
+ist die Auswahl durch den Sweep methodisch abgesichert.
 
 \subsection{Abhängigkeit von der Simulator-Version}
 Der Wechsel von Isaac~Sim~4.x auf~6.0 (\cref{sec:neukalibrierung}) zeigte, dass
 zentrale Validierungsergebnisse an die Simulator-Version gebunden sind: Die im
 Juni belegte Greif-Physik (2,8~cm Hubhöhe im Replay) ließ sich nach der
-Migration zunächst nicht reproduzieren (\cref{sec:grasp-befund}); die Ursache
-war zum Redaktionsschluss ungeklärt. Simulationsgestützte Befunde sollten daher
-stets mit der Simulator-Version ausgewiesen und nach Versionswechseln erneut
-geprüft werden.
+Migration zunächst nicht reproduzieren (\cref{sec:grasp-befund}). Die Klärung
+ergab am Ende \emph{Entwarnung} für den Simulator -- mit korrekt platziertem
+Würfel hebt auch Isaac~Sim~6.0 an (7,9~cm) --, kostete aber mehrere Wochen
+Diagnose. Der eigentliche Fehler lag nicht in der neuen Version, sondern in der
+Szenengeometrie (\cref{sec:geometrie}). Genau das ist die verallgemeinerbare
+Lehre: Ein Versionswechsel verschiebt die Aufmerksamkeit auf den Simulator und
+verdeckt damit Fehler, die schon vorher bestanden. Simulationsgestützte Befunde
+sollten stets mit der Simulator-Version ausgewiesen und nach Versionswechseln
+erneut geprüft werden -- die Prüfung sollte jedoch die Szene einschließen, nicht
+nur den Simulator.
 
 \subsection{Sim-to-Real-Transfer}
 Die Evaluation fand ausschließlich in Simulation statt. Der entscheidende Test --

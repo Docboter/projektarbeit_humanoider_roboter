@@ -3,18 +3,23 @@
 \chapter{Weiterführende Arbeiten}
 \label{chap:weiterfuehrend}
 
-Zwei Stränge weisen über den umgesetzten Projektkern hinaus: die Aktivierung der
-\textbf{Lokomotion} (der Roboter soll sich bewegen, nicht nur greifen) und das
-\textbf{Reinforcement-Learning-Fine-Tuning} der Politik (als Antwort auf die in
-\cref{chap:diskussion} diagnostizierte \ac{bc}-Schwäche). Die Lokomotion wurde
-\emph{recherchiert und konzipiert, aber nicht implementiert}. Das
-RL-Fine-Tuning ging im Projektverlauf über den Konzeptstatus hinaus: Die
-FPO-basierte Trainings-Pipeline wurde implementiert und lief am 08.08.2026
-erstmals vollständig auf eigener Hardware durch (\cref{sec:rl-stand}); ihre
-\emph{Lernwirkung} ist noch unbelegt und derzeit durch den Greif-Physik-Befund
-aus \cref{sec:grasp-befund} blockiert. Beide Arbeiten sind ausführlich in der
-Projektdokumentation hinterlegt
-(\doc{docs/weiterfuehrend/lokomotion-recherche.md} bzw.\
+Drei Stränge weisen über den umgesetzten Projektkern hinaus: die Aktivierung der
+\textbf{Lokomotion} (der Roboter soll sich bewegen, nicht nur greifen), das
+\textbf{Co-Training auf echten und gerenderten Bildern} (als direkte Antwort auf
+den Domain-Gap-Befund) und das \textbf{Reinforcement-Learning-Fine-Tuning} der
+Politik (als Antwort auf die in \cref{chap:diskussion} diagnostizierte
+\ac{bc}-Schwäche).
+
+Ihr Umsetzungsstand ist unterschiedlich. Die Lokomotion wurde \emph{recherchiert
+und konzipiert, aber nicht implementiert}. Das Co-Training ist als
+\emph{Werkzeugkette vollständig gebaut} -- Renderer, Datensatzformat und
+Trainings-Launcher stehen --, der Trainingslauf selbst steht jedoch noch aus.
+Das RL-Fine-Tuning ging am weitesten: Die FPO-basierte Trainings-Pipeline wurde
+implementiert und lief am 08.08.2026 erstmals vollständig auf eigener Hardware
+durch (\cref{sec:rl-stand}); ihre \emph{Lernwirkung} ist noch unbelegt. Alle
+drei Arbeiten sind ausführlich in der Projektdokumentation hinterlegt
+(\doc{docs/weiterfuehrend/lokomotion-recherche.md},
+\doc{docs/training/co-training.md} bzw.\
 \doc{docs/weiterfuehrend/reinforcement-learning-plan.md}); dieses Kapitel fasst
 Argumentation, Entscheidungswege und Umsetzungsstand zusammen.
 
@@ -138,6 +143,61 @@ internen Lauf-Controller die Balance, während \texttt{arm\_sdk} die von GR00T
 berechneten Arm- und Hand-Targets aufspielt -- ohne dass GR00T je ein Bein
 ansteuert.
 
+\section{Co-Training auf echten und gerenderten Bildern}
+\label{sec:cotrain}
+
+\subsection{Warum dieser Schritt folgt}
+
+Die Diskussion in \cref{sec:frozen-vs-tuned} endete mit einer präzisen Bedingung:
+Das Mittrainieren des Vision-Encoders hilft gegen den Domain-Gap nur dann, wenn
+der Encoder während des Trainings tatsächlich Simulationsbilder sieht. Genau
+diese Bedingung war in den Läufen~2 und~3 nicht erfüllt -- beide trainierten
+ausschließlich auf Realbildern, und Lauf~2 kollabierte entsprechend.
+
+Der zweite Hebel, das Angleichen der Sim-Optik an die Realbilder (Visual
+Matching im Sinne von SIMPLER), wurde in \cref{sec:neukalibrierung}
+ausgeschöpft: Kamera-Neukalibrierung und Albedo-Korrekturen senkten den
+mittleren Abstand unter die Real-zu-Real-Referenz, die kritische
+Handgelenkkamera verfehlte das Zielkriterium jedoch knapp und ließ sich mit
+Beleuchtung nicht weiter verbessern. Damit bleibt der dritte Weg: die
+Simulationsbilder \emph{in den Trainingssatz aufnehmen}.
+
+\subsection{Verfahren}
+
+Der Renderer \doc{Simulation/g1\_dex3\_sim/render\_cotrain\_dataset.py} spielt die
+\emph{echten} Datensatz-Aktionen in der Simulation ab und zeichnet dabei die vier
+Policy-Kameras in der kalibrierten Auflösung auf. Das Ergebnis ist ein
+LeRobot-Datensatz aus Paaren von \emph{simuliertem Bild} und \emph{realer
+Aktion}. Das anschließende Training mischt beide Quellen in einem einstellbaren
+Verhältnis (empfohlen: ein Viertel gerenderte Samples). Der Encoder sieht damit
+erstmals beide Bildverteilungen und kann Merkmale lernen, die in beiden gelten
+-- statt sich, wie in Lauf~2, noch stärker auf das reale Erscheinungsbild zu
+spezialisieren. Die zurückgehaltenen Testepisoden werden dabei nie gerendert,
+damit der Split intakt bleibt.
+
+\begin{warningbox}[Warum die Szenengeometrie vorher stimmen musste]
+  Dieses Verfahren steht und fällt mit der Korrektheit der Simulationsszene: Ein
+  an falscher Stelle gerenderter Würfel erzeugt ein Bild-Aktions-Paar, das dem
+  Modell etwas Falsches beibringt -- die Aktion greift dann dort zu, wo im Bild
+  kein Würfel liegt. Genau deshalb war die geometrische Rekonstruktion aus
+  \cref{sec:geometrie} kein Nebenschauplatz, sondern die Voraussetzung dieses
+  Schritts. Aus demselben Grund folgt aus dem Widerruf des Vorzeichen-Fixes
+  (\cref{sec:vorzeichen-widerruf}), dass ein vor dieser Korrektur erzeugter
+  gerenderter Datensatz \emph{neu erzeugt} werden muss: Er zeigt Hände, die sich
+  nicht vollständig schließen.
+\end{warningbox}
+
+\subsection{Stand}
+
+Die Werkzeugkette ist vollständig: Würfellage-Rekonstruktion, Renderer,
+Datensatz-Konvertierung und ein eigener Trainings-Launcher mit eigenem
+Namensraum stehen bereit und sind in \doc{docs/training/co-training.md}
+dokumentiert. Der Renderer wurde mehrfach ausgeführt und dabei iterativ
+verbessert. Der \emph{Trainingslauf} auf dem gemischten Datensatz steht zum
+Redaktionsschluss noch aus; er ist nach heutigem Stand der nächste inhaltliche
+Schritt des Projekts und zugleich die Voraussetzung für einen aussagekräftigen
+RL-Lauf (\cref{sec:rl-stand}).
+
 \section{Reinforcement-Learning-Fine-Tuning}
 \label{sec:rl-weiterfuehrend}
 
@@ -240,11 +300,20 @@ $\to$ Checkpoint -- fehlerfrei auf dem Blackwell-Server unter Isaac~Sim~6.0
 
 Damit ist die \emph{Machbarkeit} der Pipeline belegt, nicht ihre
 \emph{Lernwirkung}: Ob die Erfolgsrate über viele Iterationen steigt, ist
-offen -- und derzeit auch nicht messbar, denn der in \cref{sec:grasp-befund}
-beschriebene Greif-Physik-Befund entzieht sowohl dem binären als auch dem
-geformten Reward das Lernsignal, solange in der Simulation kein Würfel
-angehoben werden kann. Die Klärung dieses Befunds ist damit die unmittelbare
-Voraussetzung für den ersten produktiven RL-Lauf; danach stehen
+weiterhin offen.
+
+Der zwischenzeitlich als Blocker geführte Greif-Physik-Befund ist dabei
+\emph{ausgeräumt}: Die Simulation kann einen korrekt platzierten Würfel halten
+und anheben (\cref{sec:grasp-befund}), das Reward-Signal ist physikalisch
+erreichbar. An seine Stelle sind zwei andere Voraussetzungen getreten. Erstens
+muss die Politik überhaupt einen hinreichenden Griff kommandieren, damit der
+geformte Reward einen Gradienten liefert -- bei einer Fingerspanne von rund
+einem Viertel der Demonstration wird der Stapel-Term praktisch nie erreicht.
+Genau hier setzt das Co-Training aus \cref{sec:cotrain} an, das deshalb dem
+RL-Lauf vorausgehen sollte. Zweitens sind die simulationsseitigen Messungen
+nach den Geometriekorrekturen aus \cref{sec:geometrie} zu wiederholen, damit
+der RL-Lauf einen belastbaren Nullpunkt hat, gegen den sich eine Verbesserung
+überhaupt zeigen ließe (\cref{sec:vorbehalt-greifzahlen}). Erst danach stehen
 Hyperparameter-Tuning und ein Durchsatz-Benchmark (Render-FPS bei produktiver
 Umgebungszahl) an.
 
@@ -254,7 +323,9 @@ Umgebungszahl) an.
   in der sie evaluiert wird -- Trainings- und Testverteilung fallen zusammen, der
   Distribution-Shift verschwindet, und der Reward erzwingt aktives Handeln statt
   Einfrieren. RL ist damit nicht nur eine Leistungssteigerung, sondern eine
-  konzeptionell passende Antwort auf den zentralen Befund dieser Arbeit --
-  vorausgesetzt, die Simulation lässt den Aufgabenerfolg physikalisch zu
-  (\cref{sec:grasp-befund}).
+  konzeptionell passende Antwort auf den zentralen Befund dieser Arbeit. Dass
+  die Simulation den Aufgabenerfolg physikalisch zulässt, ist inzwischen
+  belegt (\cref{sec:grasp-befund}); was noch fehlt, ist eine Politik, die in
+  der Simulation weit genug zugreift, um dem Reward überhaupt einen
+  Ansatzpunkt zu geben (\cref{sec:cotrain}).
 \end{tipbox}

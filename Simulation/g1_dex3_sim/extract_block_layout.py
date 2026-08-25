@@ -370,7 +370,12 @@ def top_face_mask(rgb: np.ndarray, mask: np.ndarray, bbox: list[int],
 
 def yaw_from_top_face(cam: PinholeCamera, uv: np.ndarray,
                       z_top: float = Z_CUBE_TOP) -> tuple[float, float] | None:
-    """Gierwinkel aus den Pixeln der Deckfläche → (Grad in [0,90), Güte, Breite, Alternative).
+    """Gierwinkel aus den Pixeln der Deckfläche.
+
+    Rückgabe: (Grad in [0,90), Güte, Kantenbreite in m, Formprobe, Schwerpunkt auf der
+    Deckflächenebene). Der Schwerpunkt gehört dazu, weil er auf einer ANDEREN Ebene liegt
+    als das ``xy`` aus ``locate_cubes`` (Mittelpunktsebene): wer das Quadrat zum Ansehen
+    zeichnet, muss den hier nehmen, sonst sitzt es 2,5 cm höhenversetzt daneben.
 
     Zwei Entscheidungen, und beide sind der Grund, warum es überhaupt funktioniert:
 
@@ -394,7 +399,8 @@ def yaw_from_top_face(cam: PinholeCamera, uv: np.ndarray,
     p = p[np.isfinite(p).all(axis=-1)]
     if len(p) < 12:
         return None
-    d = (p[:, 0] - p[:, 0].mean()) + 1j * (p[:, 1] - p[:, 1].mean())
+    centre = (float(p[:, 0].mean()), float(p[:, 1].mean()))
+    d = (p[:, 0] - centre[0]) + 1j * (p[:, 1] - centre[1])
     m = np.sum(d ** 4)
     scale = np.sum(np.abs(d) ** 4)
     if scale < 1e-12:
@@ -417,7 +423,7 @@ def yaw_from_top_face(cam: PinholeCamera, uv: np.ndarray,
         yaw = (yaw + 45.0) % 90.0
         w_edge, w_diag = w_diag, w_edge
     squareness = float(w_diag / w_edge) if w_edge > 1e-9 else 0.0
-    return float(yaw), float(np.abs(m) / scale), float(w_edge), squareness
+    return float(yaw), float(np.abs(m) / scale), float(w_edge), squareness, centre
 
 
 def _extent_across(d: np.ndarray, yaw_deg: float) -> float:
@@ -542,9 +548,12 @@ def measure_yaw(rgb: np.ndarray, mask: np.ndarray, blob: dict, cam: PinholeCamer
     if got is None:
         return {"yaw_deg": None, "top_px": int(sel.sum()),
                 "yaw_note": "Rückprojektion entartet"}
-    yaw, coherence, width_m, squareness = got
+    yaw, coherence, width_m, squareness, centre = got
     return {"yaw_deg": round(yaw, 2), "yaw_coherence": round(coherence, 3),
             "top_px": int(sel.sum()),
+            # Schwerpunkt der Deckfläche auf ihrer eigenen Ebene. Nur für die Zeichnung —
+            # die Würfellage bleibt `xy`, das gegen Grundwahrheit kalibriert ist.
+            "top_xy": [round(centre[0], 4), round(centre[1], 4)],
             # Breite quer zur Kante — beim 5-cm-Würfel ~5 cm. Deutlich weniger heißt,
             # dass die Deckflächenmaske nur ein Bruchstück erwischt hat.
             "top_width_cm": round(width_m * 100, 2),
@@ -759,8 +768,13 @@ def draw_markers(rgb: np.ndarray, found: list[dict | None],
         u, v = int(round(f["u"])), int(round(f["v"]))
         img[max(0, v - 9):v + 10, max(0, u - 1):u + 2] = (255, 255, 255)
         img[max(0, v - 1):v + 2, max(0, u - 9):u + 10] = (255, 255, 255)
-        if cam is not None and f.get("yaw_deg") is not None and "xy" in f:
-            draw_yaw_square(img, cam, f["xy"], f["yaw_deg"])
+        if cam is not None and f.get("yaw_deg") is not None:
+            # top_xy, nicht xy: das Quadrat liegt auf der Deckflächenebene, `xy` beschreibt
+            # die Mittelpunktsebene. Mit `xy` gezeichnet sass es sichtbar oben-links daneben
+            # und die Sichtprüfung war nicht zu gebrauchen (Lauf 2026-08-25).
+            centre = f.get("top_xy") or f.get("xy")
+            if centre:
+                draw_yaw_square(img, cam, centre, f["yaw_deg"])
     if expect_uv is not None:
         for uv in np.atleast_2d(expect_uv):
             if not np.all(np.isfinite(uv)):

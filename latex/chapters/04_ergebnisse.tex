@@ -3,18 +3,29 @@
 \chapter{Durchführung und Ergebnisse}
 \label{chap:ergebnisse}
 
-Dieses Kapitel schildert die Durchführung in der Reihenfolge, in der sie
-stattfand, und stellt die jeweils gewonnenen Ergebnisse vor. Der rote Faden ist
-die fortschreitende Diagnose: Das Training selbst war erfolgreich, doch die
-Closed-Loop-Evaluation offenbarte ein Verhalten, das erst durch eine Kette
-gezielter Tests auf seine eigentliche Ursache -- den visuellen Domain-Gap --
-zurückgeführt werden konnte. Den Abschluss bilden drei nachgelagerte
-Arbeitsschritte (Juli/August 2026): die \emph{externe} Validierung der
-Inferenz-Pipeline anhand einer Referenzaufgabe mit publiziertem Sollwert
-(\cref{sec:robocasa}), die Neukalibrierung der simulierten Kameras mit
-anschließender Neumessung des Domain-Gaps (\cref{sec:neukalibrierung}) sowie ein
-dabei aufgedeckter, zum Redaktionsschluss noch offener Befund zur Greif-Physik
-der Simulation (\cref{sec:grasp-befund}).
+Dieses Kapitel schildert die Durchführung und stellt die jeweils gewonnenen
+Ergebnisse vor. Der rote Faden ist die fortschreitende Diagnose: Das Training
+selbst war erfolgreich, doch die Closed-Loop-Evaluation offenbarte ein
+Verhalten, das erst durch eine Kette gezielter Tests auf seine eigentliche
+Ursache -- den visuellen Domain-Gap -- zurückgeführt werden konnte.
+
+Die Darstellung folgt im Wesentlichen dem zeitlichen Ablauf, fasst jedoch die
+drei Trainingsläufe zusammen, weil sie nur im direkten Vergleich lesbar sind:
+den Grundlauf mit eingefrorenem Encoder (\cref{sec:trainingsverlauf}), die
+Gegenprobe mit mittrainiertem Vision-Encoder (\cref{sec:vision-lauf}) und den
+dritten Lauf, der als erster über eine echte, zurückgehaltene Testmenge verfügt
+und die bis dahin blinde Checkpoint-Auswahl korrigiert (\cref{sec:lauf3}).
+
+Es folgen die nachgelagerten Arbeitsschritte aus Juli und August~2026: die
+\emph{externe} Validierung der Inferenz-Pipeline anhand einer Referenzaufgabe
+mit publiziertem Sollwert (\cref{sec:robocasa}), die Neukalibrierung der
+simulierten Kameras mit anschließender Neumessung des Domain-Gaps
+(\cref{sec:neukalibrierung}), die Klärung eines zwischenzeitlich offenen
+Befunds zur Greif-Physik (\cref{sec:grasp-befund}), die entscheidende
+Gegenprobe über die kommandierte Fingerspanne (\cref{sec:span-gate}) und
+schließlich die geometrische Rekonstruktion der Simulationsszene
+(\cref{sec:geometrie}), die mehrere bis dahin unbemerkte Fehler aufdeckte --
+darunter einen, der eine zuvor als Korrektur verbuchte Maßnahme widerruft.
 
 \section{Trainingsverlauf}
 \label{sec:trainingsverlauf}
@@ -78,7 +89,7 @@ einer Aufwärmphase von etwa 8750~Schritten.
     Ordinate). Stützpunkte: gleitender Mittelwert (MA$\pm$5) der vollständigen
     W\&B-History des abgeschlossenen Laufs (17\,500 geloggte Schritte; Rohdaten
     in \doc{docs/ergebnisse/wandb-run-charts.html}, Einordnung in
-    \doc{docs/ergebnisse/wandb-run-auswertung.md}). Ab etwa
+    \doc{docs/ergebnisse/lauf1-zwischenstand.md}). Ab etwa
     100\,000--120\,000~Schritten flacht die Kurve faktisch ab; der Endwert liegt
     geglättet bei~$\approx$~0,008.}
   \label{fig:loss-curve}
@@ -91,7 +102,9 @@ einer Aufwärmphase von etwa 8750~Schritten.
   Flow-Matching-Loss misst die Nachahmungsgüte, \emph{nicht} den Aufgabenerfolg.
   Mangels Validierung während des Trainings (\texttt{eval\_strategy="no"}) gab es
   zudem kein Signal zur Checkpoint-Auswahl -- Schritt~175\,000 wurde mangels
-  Alternative gewählt. Die im Doc dokumentierten Endwerte schwanken je nach
+  Alternative gewählt. Dass diese Notlösung nicht nur unbelegt, sondern
+  systematisch \emph{falsch} ist, zeigte erst der dritte Lauf
+  (\cref{sec:lauf3}). Die im Doc dokumentierten Endwerte schwanken je nach
   Glättungsbasis (geglättet~$\approx$~0,008 vs.\ W\&B-Tool-Endwert~0,102 bei
   Minimum~0,066); für die Aussage \enquote{konvergiert} ist das unerheblich.
 \end{infobox}
@@ -109,7 +122,7 @@ dokumentiert.
 Bei der Auswertung des Laufs zeigte sich, dass der in \cref{sec:datensatz}
 beschriebene 80/20-Split im durchgeführten Training \textbf{noch nicht aktiv}
 war: Die \texttt{info.json} wies weiterhin \texttt{"splits": \{"train":
-"0:301"\}} aus, sodass alle 301~Episoden -- inklusive der 60~vorgesehenen
+"0:301"\}} aus, sodass alle 301~Episoden -- inklusive der 61~vorgesehenen
 Test-Episoden -- mittrainiert wurden. Bestätigt wird dies durch die im Log
 ausgewiesene Gesamtschrittzahl, die zum vollen Datensatz passt. Konsequenz: Für
 diesen Checkpoint existiert keine echte, ungesehene Testmenge; eine spätere
@@ -219,10 +232,12 @@ Arbeitsschritt. Die wichtigsten Korrekturen (vollständig in
     perfektes Modell hätte nie greifen können. Tischoberseite und
     Würfeloberkante wurden so angepasst, dass die Würfel am tiefsten erreichbaren
     Handpunkt liegen.
-  \item \textbf{Vorzeichenkonvention.} Vier Fingergelenke (Policy-Indizes 17, 19,
-    24, 26) hatten im USD-Asset invertierte Achsen; ohne Korrektur öffnete die
-    Hand, wo sie schließen sollte. Sowohl Aktionen als auch Beobachtungen wurden
-    für diese Indizes negiert.
+  \item \textbf{Vorzeichenkonvention (später widerrufen).} Vier Fingergelenke
+    (Policy-Indizes 17, 19, 24, 26) schienen im USD-Asset invertierte Achsen zu
+    haben; sowohl Aktionen als auch Beobachtungen wurden für diese Indizes
+    negiert. Diese Korrektur erwies sich im August~2026 als \emph{selbst
+    fehlerhaft} und wurde zurückgenommen -- mit erheblicher Tragweite für alle
+    zwischenzeitlich erhobenen Greifzahlen (\cref{sec:vorzeichen-widerruf}).
   \item \textbf{Aktuatorik und Reibung.} Finger-Steifigkeit
     ($20\!\to\!60$), Kraftgrenze ($5\!\to\!20$\,N\,m) und Würfelreibung
     (statisch $0{,}5\!\to\!3{,}0$) wurden erhöht, damit der 50-g-Würfel
@@ -361,6 +376,72 @@ des ersten Laufs.
   damit empirisch bestätigt.
 \end{infobox}
 
+\section{Dritter Lauf: erste echte Validierung und die Checkpoint-U-Kurve}
+\label{sec:lauf3}
+
+Die beiden bisherigen Läufe teilten zwei methodische Schwächen: Es gab keine
+zurückgehaltene Testmenge (\cref{sec:split-befund}), und der auszuwertende
+Checkpoint wurde mangels Signal schlicht als \emph{letzter} genommen. Ein
+dritter Lauf (\texttt{g1\_dex3\_blockstacking\_vision\_v2}, W\&B-Run-ID
+\texttt{tp1nc699}) behob beides und kombinierte erstmals alle drei bis dahin
+einzeln erprobten Zutaten: mittrainierter Vision-Encoder, Bild-Augmentierung
+(Color-Jitter) und \emph{aktiver} 80/20-Split. Er ist damit der erste Lauf des
+Projekts, dessen Zahlen auf Episoden beruhen, die das Modell nie gesehen hat.
+
+Auf den 61~zurückgehaltenen Episoden wurde anschließend der in
+\cref{sec:eval-methodik} beschriebene Checkpoint-Sweep gefahren. Sein Ergebnis
+ist der wichtigste methodische Befund dieses Laufs: Der Validierungsfehler
+folgt keiner monoton fallenden, sondern einer \textbf{U-Kurve}
+(\cref{tab:ckpt-sweep}).
+
+\begin{table}[htb]
+  \centering
+  \begin{tabularx}{\linewidth}{Xrr}
+    \toprule
+    \textbf{Checkpoint (Step)} & \textbf{Validierungs-\ac{mse}} & \textbf{Trainings-Loss} \\
+    \midrule
+    5\,000            & 0,01335 & --- \\
+    30\,000 (Minimum) & \textbf{0,00716} & 0,0131 \\
+    44\,000 (letzter) & 0,00898 & 0,0073 \\
+    \midrule
+    \textbf{Differenz 30\,000 $\to$ 44\,000} & \textbf{$+25\,\%$} & $-44\,\%$ \\
+    \bottomrule
+  \end{tabularx}
+  \caption{Checkpoint-Sweep des dritten Laufs auf den 61~zurückgehaltenen
+    Testepisoden. Während der \emph{Trainings}-Loss über die letzten
+    14\,000~Schritte weiter um 44\,\% fällt, steigt der \emph{Validierungs}-Fehler
+    um 25\,\% -- klassisches Overfitting, im Projekt hier erstmals gemessen statt
+    vermutet. Quelle: \doc{docs/ergebnisse/lauf3-vision-split-auswertung.md}.}
+  \label{tab:ckpt-sweep}
+\end{table}
+
+Die Auseinanderentwicklung beider Kurven ist der eigentliche Punkt: Ein Betrachter,
+der nur den Trainings-Loss sieht, hätte den letzten Checkpoint für den besten
+gehalten -- er ist tatsächlich um ein Viertel schlechter. Damit ist rückwirkend
+belegt, dass Lauf~1 und Lauf~2 ihren auszuwertenden Checkpoint blind und
+vermutlich falsch gewählt haben. Für die Praxis folgt daraus, dass jenseits
+von~$\approx$~30\,000~Schritten in dieser Konfiguration Rechenzeit verschenkt ist.
+
+\begin{warningbox}[Statistischer Vorbehalt]
+  Der Sweep ruht auf nur \textbf{sechs} Episoden à 300~Schritten. Gegen die
+  benachbarten Checkpoints 20\,000, 25\,000 und 35\,000 ist Step~30\,000
+  \emph{nicht} signifikant besser ($t \le 1{,}0$); selbst der Vergleich
+  30\,000~gegen~44\,000 ist mit $t = 1{,}45$ lediglich ein Trend und wird
+  überdies fast vollständig von einer einzelnen Episode getragen. Die
+  \emph{Richtung} des Befunds -- ein Minimum vor dem Ende -- ist belastbar, die
+  exakte Lage des Optimums ist es nicht.
+\end{warningbox}
+
+Der so ausgewählte Checkpoint~30\,000 wurde anschließend im geschlossenen
+Regelkreis vermessen (10~Episoden à \qty{40}{\second}). Das Ergebnis ist
+zweischneidig und in \cref{sec:span-gate} eingeordnet: Die kommandierte
+\textbf{Fingerspanne stieg von 20,5\,\% auf 27,6\,\%} der in den Demonstrationen
+gezeigten Spanne -- eine vollständige Trennung beider Verteilungen
+($p = 3{,}3\cdot10^{-4}$) und damit der erste \emph{messbare} Beleg, dass der
+Vision-Pfad überhaupt wirkt. Angehoben wurde dennoch kein einziger Würfel
+($\texttt{lifted} = 0/10$). Der Vision-Pfad wirkt also nachweislich, reicht für
+sich genommen aber nicht aus.
+
 \section{Externe Validierung der Inferenz-Pipeline}
 \label{sec:robocasa}
 
@@ -454,17 +535,17 @@ von~0,427 auf~0,356, verfehlt das vorab festgelegte Zielkriterium ($<0{,}35$)
 jedoch knapp. Nach der zuvor festgelegten Entscheidungsregel wurde daraufhin
 kein weiterer Albedo-Versuch unternommen; der nächste logische Schritt -- ein
 \texttt{TUNE\_VISUAL}-Training \emph{mit} Simulationsbildern -- wurde jedoch
-zurückgestellt, bis der folgende Befund geklärt ist.
+zurückgestellt, bis der im Folgenden geschilderte Greif-Befund geklärt war.
 
-\section{Offener Befund: Greif-Physik unter Isaac Sim 6.0}
+\section{Greif-Physik unter Isaac Sim 6.0: vom offenen Befund zur Auflösung}
 \label{sec:grasp-befund}
 
 Mit neu kalibrierten Kameras sollte die Closed-Loop-Erfolgsrate erneut gemessen
 werden, um einen belastbaren Nullpunkt für das RL-Fine-Tuning
 (\cref{sec:rl-stand}) zu erhalten. Die Messung ergab erneut keinen Erfolg --
-diesmal jedoch mit einem qualitativ anderen Bild, das eine eigene
-Diagnose-Kette auslöste (vollständig dokumentiert in
-\doc{docs/weiterfuehrend/rl-anleitung.md}):
+diesmal jedoch mit einem qualitativ anderen Bild, das eine eigene, über zwei
+Wochen laufende Diagnose-Kette auslöste (vollständig protokolliert in
+\doc{docs/ergebnisse/diagnose-chronik.md}):
 
 \begin{itemize}
   \item \textbf{Die Hand erreicht den Würfel.} Mit korrekt an den Fingerkuppen
@@ -475,28 +556,209 @@ Diagnose-Kette auslöste (vollständig dokumentiert in
     (echte Datensatz-Aktionen, kein Policy-Server) durchfahren die
     Fingergelenke die volle kommandierte Spannweite (2,09~rad kommandiert,
     2,10~rad erreicht) -- keine Gelenkgrenze blockiert die Greifbewegung.
-  \item \textbf{Dennoch wird kein Würfel angehoben.} Die maximale Hubhöhe
-    beträgt in allen August-Tests \textbf{0,0~cm} -- auch dann, wenn die
-    Würfel direkt an die geschätzten Greifpunkte der aufgezeichneten
-    Trajektorie gesetzt werden. Alle drei Würfel werden angefasst und
-    weggeschoben, keiner angehoben.
+  \item \textbf{Zunächst wurde dennoch kein Würfel angehoben.} Die maximale
+    Hubhöhe betrug in den ersten August-Tests \textbf{0,0~cm} -- auch dann,
+    wenn die Würfel direkt an die geschätzten Greifpunkte der aufgezeichneten
+    Trajektorie gesetzt wurden.
 \end{itemize}
 
-Damit steht der Juni-Befund \enquote{Greifen validiert} (2,8~cm Hubhöhe unter
-Isaac~Sim~4.x, \cref{sec:kalibrierung}) unter Isaac~Sim~6.0 in Frage. Zwei
-Erklärungen sind zum Redaktionsschluss nicht getrennt: (a)~die
-\emph{Platzierung} des Tests -- die Würfelpositionen sind geschätzt, da der
-Datensatz keine Objektposen speichert -- oder (b)~die \emph{Kontakt-Physik}
-der migrierten Simulation hält den Würfel nicht. Ein platzierungsunabhängiger
-Test, der den Würfel im Moment des Zugreifens konstruktionsbedingt korrekt
-zwischen die Fingerkuppen setzt, ist implementiert, stand zum
-Redaktionsschluss aber noch aus.
+\paragraph{Auflösung.}
+Der zum damaligen Zwischenstand noch ausstehende platzierungsunabhängige Test
+wurde durchgeführt: Er setzt den Würfel im Moment des Zugreifens
+konstruktionsbedingt korrekt zwischen die Fingerkuppen und trennt so die beiden
+konkurrierenden Erklärungen -- fehlerhafte \emph{Platzierung} gegen defekte
+\emph{Kontakt-Physik}. Das Ergebnis fiel eindeutig zugunsten der Platzierung
+aus: Mit korrekt gesetztem Würfel erreichte die linke Hand eine maximale
+Hubhöhe von \textbf{7,9~cm}. Die Kontakt-Physik der migrierten Simulation ist
+damit \emph{nicht} defekt; der Juni-Befund \enquote{Greifen validiert}
+(\cref{sec:kalibrierung}) gilt auch unter Isaac~Sim~6.0.
 
-\begin{warningbox}[Konsequenz für RL und Erfolgsraten-Messung]
-  Solange in der Simulation kein Würfel angehoben werden kann, liefert weder
-  das binäre Erfolgssignal noch die Stapel-/Höhen-Terme des geformten Rewards
-  ein Lernsignal -- ein RL-Lauf würde ausgeführt, ohne lernen zu können
-  (\cref{sec:rl-stand}). Auch die gemessene Closed-Loop-Erfolgsrate ist in
-  diesem Zustand kein Befund über den Checkpoint. Die Klärung der Greif-Physik
-  ist damit der kritische Pfad aller weiteren simulationsbasierten Arbeiten.
+\begin{infobox}[Der Blocker verschiebt sich]
+  Damit wandert die Ursache des Null-Resultats eine Stufe weiter: Die
+  Simulation \emph{kann} einen Würfel halten und anheben. Dass sie es unter
+  Führung der Politik nicht tut, liegt folglich daran, dass die Politik keinen
+  hinreichenden Griff kommandiert -- nicht daran, dass die Physik ihn nicht
+  ausführen könnte. Genau diese Frage isoliert der im nächsten Abschnitt
+  beschriebene Test.
+\end{infobox}
+
+\section{Die entscheidende Gegenprobe: das \texttt{span}-Gate}
+\label{sec:span-gate}
+
+An dieser Stelle stand die Arbeit vor zwei verbliebenen, sich gegenseitig
+ausschließenden Erklärungen für das Null-Resultat:
+
+\begin{description}
+  \item[(a) Domain-Gap.] Die Politik \emph{kann} greifen, erkennt aber die
+    simulierten Bilder nicht und kommandiert deshalb keinen Griff.
+  \item[(b) Griff nie gelernt.] Die Politik hat das Greifen im Training
+    gar nicht erworben; die Sim-Bilder wären dann irrelevant.
+\end{description}
+
+Beide Hypothesen sagen dasselbe Sim-Verhalten voraus und lassen sich in der
+Simulation daher nicht trennen. Die Entscheidung fiel deshalb über eine
+vorregistrierte Messgröße, die \textbf{kommandierte Fingerspanne}: Wie weit
+öffnet und schließt die Politik die Finger, gemessen relativ zu der in den
+Demonstrationen gezeigten Spanne von 2,094~rad? Diese Größe wird zweimal
+erhoben -- einmal mit simulierten, einmal mit \emph{echten} Datensatzbildern als
+Eingang. Da beide Male dieselbe Politik dieselbe Größe kommandiert, unterscheidet
+sich allein die Beobachtung.
+
+\begin{table}[htb]
+  \centering
+  \begin{tabularx}{\linewidth}{Xrl}
+    \toprule
+    \textbf{Bildquelle} & \textbf{Fingerspanne} & \textbf{Anteil an der Demo-Spanne} \\
+    \midrule
+    Simulation (Closed Loop, alter Checkpoint) & 0,43~rad  & 20,5\,\% \\
+    Simulation (Closed Loop, \texttt{TUNE\_VISUAL}) & 0,577~rad & 27,6\,\% \\
+    \midrule
+    \textbf{Echte Datensatzbilder} & \textbf{$\approx$~2,09~rad} & \textbf{100\,\% (Verhältnis 1,00)} \\
+    \bottomrule
+  \end{tabularx}
+  \caption{Das \texttt{span}-Gate: kommandierte Fingerspanne derselben Politik
+    bei simulierten gegenüber echten Bildern (Medianwerte). Auf echten Bildern
+    kommandiert die Politik die \emph{volle} Greifbewegung, in der Simulation
+    nur ein Fünftel bis gut ein Viertel davon. Quelle:
+    \doc{docs/ergebnisse/diagnose-chronik.md}.}
+  \label{tab:span-gate}
+\end{table}
+
+Das Ergebnis (\cref{tab:span-gate}) ist unzweideutig: Auf echten
+Datensatzbildern kommandiert die Politik die volle Greifbewegung
+(Median-Verhältnis \textbf{1,00}, Einzeltrajektorien 0,837--1,011), in der
+Simulation dagegen nur \textbf{19--20,5\,\%}. Damit ist Hypothese~(b)
+ausgeschlossen: \emph{Die Politik hat das Greifen gelernt.} Sie ruft es nur
+dann nicht ab, wenn sie synthetische Bilder sieht. Dieser Test ist der
+direkteste Beleg des Domain-Gaps, den die Arbeit erbringt -- er misst nicht die
+Ähnlichkeit von Bildern (wie die SigLIP-Distanz aus
+\cref{sec:domain-gap-ergebnis}), sondern die \emph{Verhaltensfolge} des
+Bildunterschieds an derselben Politik.
+
+\section{Geometrische Rekonstruktion der Szene}
+\label{sec:geometrie}
+
+Die verbliebene Lücke betraf die Simulationsszene selbst: Der Datensatz
+speichert \emph{keine} Objektposen, sodass die Würfelpositionen bis dahin
+geschätzt waren. Für das geplante Co-Training (\cref{sec:rl-stand}), das reale
+Aktionen mit gerenderten Bildern paart, ist eine korrekte Szene jedoch
+Voraussetzung -- ein an falscher Stelle gerenderter Würfel erzeugt ein falsches
+Bild-Aktions-Paar. Eine Serie von Diagnoseläufen (August~2026) rekonstruierte
+die Szene daher aus den Bilddaten und förderte dabei mehrere unabhängige
+Geometriefehler zutage.
+
+\subsection{Würfellage aus dem realen Bild}
+\label{sec:wuerfellage}
+
+Das bis dahin genutzte Verfahren leitete die Würfelposition aus der
+\emph{Kinematik} ab: Es suchte den Moment minimaler Fingeröffnung und nahm an,
+dort werde gegriffen. Dieses Kriterium erwies sich als untauglich -- eine
+Pick-and-Place-Bewegung hält die Hand über eine breite Phase geschlossen, sodass
+das Minimum in rund der Hälfte der Fälle auf den Transportweg fiel und der Arm
+dort \enquote{leere Luft} griff.
+
+An seine Stelle trat eine rein \emph{bildbasierte} Rekonstruktion
+(\doc{Simulation/g1\_dex3\_sim/extract\_block\_layout.py}): Farbsegmentierung des
+Würfels im ersten realen Bild, Rückprojektion des Blob-Schwerpunkts entlang des
+Kamerastrahls auf die bekannte Würfelebene, Mittelung über beide Kopfkameras.
+Gegen Grundwahrheit geprüft trifft dieses Pinhole-Modell die Würfellage auf
+\textbf{0,29~cm} (\texttt{cam\_left\_high}) bzw.\ \textbf{0,40~cm}
+(\texttt{cam\_right\_high}) -- rund eine Größenordnung genauer als das zuvor
+erprobte, deutlich aufwendigere Homographie-Verfahren (4--11~cm).
+
+\subsection{Drei unabhängige Geometriefehler}
+\label{sec:vorzeichen-widerruf}
+
+Die so gewonnene, nun belastbare Referenz machte sichtbar, dass der Roboter
+selbst falsch in der Szene stand. Ein Diagnosewerkzeug, das die
+vorwärtskinematisch berechneten Fingerkuppen in das reale Kamerabild
+projiziert, zeigte, dass keine Fingerkuppe je näher als 10~cm an einen Würfel
+geriet. Die Ursache waren drei voneinander unabhängige Fehler
+(\cref{tab:geometriefehler}), die sich zu rund 12~cm addierten.
+
+\begin{table}[htb]
+  \centering
+  \begin{tabularx}{\linewidth}{lllX}
+    \toprule
+    \textbf{Größe} & \textbf{Alt} & \textbf{Neu} & \textbf{Begründung} \\
+    \midrule
+    Vorzeichen der vier
+    Fingergrundgelenke
+      & gespiegelt & \emph{keine} Spiegelung
+      & Der Datensatz ist bereits seitenweise in USD-Konvention
+        aufgezeichnet; die Spiegelung drehte die Gelenke aus ihrer Grenze
+        heraus, wo sie stumm geklemmt wurden. \\
+    Beckenhöhe & \qty{0.85}{\meter} & \qty{0.764}{\meter}
+      & Der alte Wert war ein Ansatz ohne Quelle; der neue ist der gemessene
+        G1-Wert. Der Höhenversatz Hand$\to$Würfel fiel dadurch von
+        $+$8,6~cm auf $+$1,0~cm. \\
+    Basis-$x$ & \qty{0}{\meter} & \qty{-0.057}{\meter}
+      & Der Roboter stand 5,7~cm zu weit vorn. \\
+    \midrule
+    \textbf{Restabstand Fingerkuppe$\to$Würfel} & 11,9~cm & \textbf{4,5 $\pm$ 1,7~cm} & \\
+    \bottomrule
+  \end{tabularx}
+  \caption{Die drei unabhängigen Geometriefehler und ihre Korrektur.
+    Quelle: \doc{docs/ergebnisse/diagnose-chronik.md}.}
+  \label{tab:geometriefehler}
+\end{table}
+
+\begin{warningbox}[Der Vorzeichen-Fix war selbst der Fehler]
+  Der schwerwiegendste der drei Punkte ist der erste, weil er eine in
+  \cref{sec:kalibrierung} als \emph{Korrektur} beschriebene Maßnahme widerruft.
+  Die Annahme, Datensatz und USD-Asset benutzten für die Fingergrundgelenke
+  entgegengesetzte Vorzeichen, war falsch: Der Datensatz ist bereits seitenweise
+  in der USD-Konvention aufgezeichnet (links negativ~$=$~schließen, rechts
+  positiv~$=$~schließen). Die gut gemeinte Spiegelung drehte die vier Gelenke
+  daher \emph{aus} ihrem zulässigen Bereich heraus, wo die Simulation sie still
+  auf den Grenzwert klemmte -- in Episode~0 über rund die Hälfte aller Bilder.
+  Praktisch heißt das: \textbf{Die Hand hat sich in keinem der bis dahin
+  gefahrenen Läufe vollständig geschlossen.} Die Spiegelung wirkte in
+  Beobachtung \emph{und} Aktion und damit in jedem Laufmodus -- Eval, Replay,
+  Greif-Test, RL und Co-Training-Rendering. Welche Folgen das für die Belastbarkeit
+  der Sim-Greifzahlen hat, diskutiert \cref{sec:vorbehalt-greifzahlen}.
 \end{warningbox}
+
+\subsection{Der Gierwinkel der Würfel}
+\label{sec:gierwinkel}
+
+Ein letzter Befund betrifft die Ausrichtung der Würfel. Die Simulation setzte
+sie bis dahin ausnahmslos \textbf{achsparallel} (Gierwinkel~0°). Ob das den
+realen Aufbau trifft, war nie geprüft worden, da der Datensatz auch die
+Orientierung nicht speichert.
+
+Ein aus dem Bild geschätzter Gierwinkel schloss diese Lücke: Die Deckfläche des
+Würfels wird über eine \emph{gemessene} Helligkeitsschwelle (Otsu) isoliert, auf
+ihre Ebene zurückprojiziert und der Winkel aus dem vierten Winkelmoment
+bestimmt -- jener Harmonischen, die zur vierzähligen Symmetrie eines Quadrats
+passt. Auf synthetischen Würfeln erreicht der Schätzer einen Medianfehler
+von~0,12°. Ein Vollauslauf über 60~Episoden lieferte für 110 der 180~Würfel
+(61\,\%) einen abgesicherten Winkel:
+
+\begin{table}[htb]
+  \centering
+  \begin{tabular}{lrr}
+    \toprule
+    \textbf{Kennzahl} & \textbf{Gemessen} & \textbf{Gleichverteilung 0--45°} \\
+    \midrule
+    Median & 22,8° & 22,5° \\
+    p90    & 40,7° & 40,5° \\
+    Maximum& 44,7° & 45,0° \\
+    \bottomrule
+  \end{tabular}
+  \caption{Gierwinkel der Würfel im realen Datensatz (60~Episoden,
+    110/180~Würfel mit abgesichertem Winkel). Die Verteilung ist von einer
+    Gleichverteilung über 0--45° praktisch nicht zu unterscheiden -- die
+    Annahme achsparalleler Würfel ist damit widerlegt. Quelle:
+    \doc{docs/ergebnisse/diagnose-chronik.md}.}
+  \label{tab:gierwinkel}
+\end{table}
+
+Die gemessene Verteilung (\cref{tab:gierwinkel}) ist von einer Gleichverteilung
+über 0--45° praktisch nicht zu unterscheiden. Reale Würfel liegen also in
+beliebiger Drehung, während die Simulation sie stets achsparallel stellte --
+eine weitere, bis dahin unbemerkte Abweichung zwischen Trainings- und
+Simulationsverteilung. Ob die Simulation daraufhin auf zufällige Gierwinkel
+umgestellt wird, ist zum Redaktionsschluss bewusst offen: Die Änderung wäre
+sachlich richtig, bräche aber die Vergleichbarkeit mit sämtlichen bis dahin
+gefahrenen Diagnoseläufen.
