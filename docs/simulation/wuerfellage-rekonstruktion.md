@@ -1,10 +1,5 @@
 # Würfellage aus den Realbildern — Verfahren, Koordinaten, offene Punkte
 
-> **TL;DR:** Übergabe-Doku zur Würfellage-Rekonstruktion: wie die Position der drei Würfel aus
-> realen Trainingsbildern per Farbsegmentierung und Kamerastrahl in Sim-Koordinaten überführt
-> wird, inklusive der beiden gescheiterten Vorgängerverfahren. Für alle, die den
-> Co-Training-Renderer weiterbauen; der Abnahme-Test gegen den Renderer steht noch aus.
-
 **Stand:** 2026-08-17 · Verfahren gebaut und lokal geprüft, **Abnahme-Test gegen den Renderer
 offen** · Vorgeschichte: [co-training.md](../training/co-training.md) §3.0/§3.2a
 
@@ -115,377 +110,197 @@ Helligkeitswert.
 
 | Würfel | Env-Objekt | Farbton H | S ≥ | V ≥ |
 |---|---|---|---|---|
-| rot | `block_0` | < 15° oder > 345° | 0,40 | 0,18 |
-| grün | `block_1` | 75°–175° | 0,28 | 0,15 |
-| gelb | `block_2` | 35°–70° | 0,35 | 0,28 |
+| 0,00 | 99 % | 0,08° | 0,32° | 0/89 |
+| 0,01 | 99 % | 0,08° | 0,27° | 0/89 |
+| 0,02 | 99 % | 0,07° | 0,27° | 0/89 |
+| 0,03 | 100 % | 0,07° | 0,28° | 0/90 |
+| 0,05 | 100 % | 0,09° | 0,33° | 0/90 |
 
-Die Zuordnung Farbe → `block_i` ist die aus
-[`g1_dex3_blockstack_env.py`](../../Simulation/g1_dex3_sim/g1_dex3_blockstack_env.py); die
-Sim-Farben wurden dort bereits an die Realdaten angeglichen (früher blau statt gelb).
+Die Schranke steht bei p90 ≤ 1,0° und ≤ 1 % Ausreißer je Rauschstufe. Sie war bis zum 2026-08-25 bei
+5° und 2 % — nachgezogen, weil ein Schwellwert, den der Ist-Zustand um das Dreifache unterbietet,
+keine Regression mehr fängt.
 
-Die RGB→HSV-Umrechnung ist in numpy ausgeschrieben statt aus OpenCV geholt — das Werkzeug
-soll auch in einem Container ohne `cv2` laufen.
+Der synthetische Würfel wird **Lambert-schattiert mit schräger Lichtquelle**, nicht mit zwei festen
+Helligkeiten. Das ist keine Kosmetik: bei senkrechtem Licht steht die Deckfläche so weit über jeder
+Seitenfläche, dass sie jede Schwelle trennt — die Abnahme wäre ein Gummistempel. Schräg beleuchtet
+liegt die hellste Seitenfläche bei 0,64 gegen 0,91, und genau dort entscheidet sich der Schnitt.
+Unter dieser Beleuchtung fällt die alte feste Quote auf p90 **36,7°**, die gemessene Schwelle bleibt
+bei 0,20°.
 
-### (b)/(c) Blob und Schwerpunkt
+Diese Abnahme rendert ihre eigenen Bilder und ist deshalb von der Debug-PNG-Verwechslung in §7.1
+unberührt — sie belegt aber auch nur den Schätzer, nicht das Verhalten auf Realbildern. Ohne die
+beiden Tore lag derselbe Aufbau vor dem Schnitt-Fix bei Median 3,15° / p90 26,3°; das Tor kauft
+Genauigkeit mit Ertrag, und das ist die richtige Richtung: ein geratener Winkel dreht den
+Würfel unter einer Realaktion weg, die für eine andere Lage aufgenommen wurde.
 
-Pro Maske die größte zusammenhängende Fläche (4-Nachbarschaft, `scipy.ndimage.label` wenn
-vorhanden, sonst ein eigener Flood-Fill), Mindestfläche 120 px. Deren Pixelschwerpunkt ist
-`(u, v)`.
+Die Abnahme gegen den **echten Renderer** ist `detect --expect-yaw` mit `cubes_yaw_deg` aus
+`render_manifest.json` — dieselbe Rolle, die `--expect` für die Position spielt. Der `selftest`
+teilt sich mit dem Schätzer die Kameraannahme und kann sie deshalb nicht prüfen.
 
-**Achtung, hier sitzt ein bekannter Bias:** Der Blob ist die Silhouette eines schräg von oben
-gesehenen Würfels, also Deckfläche **plus** zugewandte Seitenfläche. Sein Schwerpunkt ist
-damit *nicht* die Projektion des Würfelmittelpunkts, sondern liegt zur Kamera hin verschoben.
-Siehe (e) und §8.2.
+### 7.4 Der Probelauf und was er ergab
 
-### (d) Rückprojektion — siehe §4
+Probelauf vom 2026-08-25 über die echten Videos der Episoden 0, 1, 2, 8 und 12 (`layout` →
+`layoutreport`): **1 von 15 Würfeln** passiert das Tor, dieser eine bei **30,0°** — eine echte
+Schräglage, kein Rundungsrest. Alle drei Würfel werden in allen fünf Episoden gefunden, die Kameras
+sind sich in der *Position* auf 1,75 cm (Median) einig. Es scheiterte ausschließlich am Winkel.
 
-### (e) Bias-Korrektur
+`layoutreport` benennt, woran:
 
-Eine additive Verschiebung `(dx, dy)` in Metern, die auf das Ergebnis der Rückprojektion
-addiert wird (`--bias`, bzw. `LAYOUT_BIAS="dx dy"`). Sie wird **gemessen**, nicht geschätzt:
-`detect --expect` auf einem gerenderten Sim-Bild mit bekannten Würfelpositionen liefert das
-mittlere Residuum, und genau das ist der Bias. Der Rest — die Streuung — bleibt.
-
-### (f) Zwei Kameras
-
-`cam_left_high` und `cam_right_high` liefern je eine Schätzung; gespeichert wird das Mittel,
-die Differenz landet als `camera_spread_cm` im `layout.json`.
-
-> **Wichtig, damit die Zahl nicht falsch gelesen wird:** Die Stereobasis beträgt 4,7 cm bei
-> ~0,50 m Motivabstand. Ein Fehler im **Kameramodell** verschiebt beide Strahlen fast gleich
-> und ist in dieser Differenz praktisch unsichtbar. `camera_spread_cm` prüft die
-> **Detektion**, nicht die Pose. Für die Pose gibt es nur den Abnahme-Test aus §7.
-
----
-
-## 4. Koordinatensysteme und Transformationskette
-
-Das ist der Teil, den man beim Weiterbauen wirklich verstanden haben muss.
-
-### 4.1 Die vier beteiligten Systeme
-
-| System | Achsen / Einheiten | Bemerkung |
+| Größe | gemessen | Soll |
 |---|---|---|
-| **Pixel** | `u` 0…639 nach rechts, `v` 0…479 nach unten | Mitte von Pixel `u` liegt bei `u + 0,5` |
-| **Kamera** | X = Blickachse, Y = **links**, Z = **oben** | Isaac-Lab-`convention="world"` |
-| **Env-lokal** | x nach vorn, y nach links, z nach oben; Ursprung am Env-Prim | Tisch: x 0,10–0,90, y ±0,30, Oberkante z = 0,87 |
-| **Isaac-Welt** | Env-lokal **+** `scene.env_origins[i]` | bei einer einzelnen Env = (0,0,0), wird trotzdem addiert |
+| `fill` (Füllgrad der Bounding-Box) | 0,69 | ~0,7 — mehr kann ein Sechseck nicht |
+| `top_px` | 494 | groß genug |
+| `top_width_cm` | **3,51** | 5,0 |
+| `top_squareness` | **1,17** | 1,41 |
 
-### 4.2 Intrinsics
+und die Aufschlüsselung: **13 von 15 an der Formprobe**, 1 an der Uneinigkeit, 0 mangels Messung.
 
-```
-f_px = focal_length_mm / horizontal_aperture_mm · W
-     = 13,6545 / 20,955 · 640
-     = 417,03 px
-cx, cy = W/2, H/2 = 320, 240
-```
+**Die Farbmaske war es also nicht** — 0,69 ist für eine sechseckige Silhouette in einer rechteckigen
+Bounding-Box praktisch der Bestwert. Es war der Deckflächenschnitt, und die Geometrie sagt den
+Fehler auf zwei Stellen vorher (siehe §7.2: erwartet 1,35, gemessen 1,42). Die Schwelle wird deshalb
+seit dem 2026-08-25 gemessen statt gesetzt.
 
-Isaac Lab leitet die vertikale Apertur aus dem Seitenverhältnis ab, die Pixel sind also
-quadratisch und `f_px` gilt für beide Achsen. Die Brennweite wiederum kommt aus dem
-gewünschten Sichtfeld: `focal = aperture / (2·tan(HFOV/2))` mit HFOV = 75°.
+### 7.5 Der Deckflächenschnitt, auf echten Frames vermessen
 
-### 4.3 Pixel → Kamerastrahl
+`topface` (`server_rl_run.sh topface`) stellt die Schwellenregeln gegeneinander. Die Würfeloberseite
+ist ein 5-cm-Quadrat — „welche Regel trifft sie am besten" ist damit eine Messung und keine Meinung.
+Lauf vom 2026-08-25, dieselben fünf Episoden:
 
-```
-d_rechts = ((u + 0,5) − cx) / f_px
-d_unten  = ((v + 0,5) − cy) / f_px
+| Regel | Breite | Formprobe | \|L−R\| | Deckfläche |
+|---|---|---|---|---|
+| gemessen (Otsu) | **4,94 cm** | 1,21 | **2,8°** | 903 px |
+| q45 | 4,95 cm | 1,17 | 3,8° | 874 px |
+| q55 | 3,84 cm | 1,19 | 3,2° | 701 px |
+| q70 (alt) | 3,51 cm | 1,17 | 10,2° | 494 px |
 
-d_cam = ( 1 , −d_rechts , −d_unten )          # Komponenten entlang (Blick, links, oben)
-```
+Die gemessene Schwelle trifft die Kantenlänge auf 1 % und drückt die Uneinigkeit beider Kameras von
+10,2° auf 2,8°. Zwei unabhängig aufgestellte Kameras, die sich auf 2,8° einig sind, messen mit hoher
+Wahrscheinlichkeit denselben, richtigen Winkel.
 
-**Warum die beiden Minuszeichen.** Im Kameraframe zeigt Y nach *links* und Z nach *oben*.
-Bild-rechts ist damit −Y, Bild-unten ist −Z. Wer diese Vorzeichen vertauscht, bekommt ein in
-beiden Achsen gespiegeltes Layout, das an einer symmetrischen Szene lange plausibel aussieht.
-(Herleitung aus Isaacs Konventionen: `opengl` hat −Z vorwärts und +Y oben, `world` hat +X
-vorwärts und +Z oben; daraus folgt Bild-rechts = +X_gl = −Y_world.)
+**Die Formprobe blieb trotzdem bei 1,21** und warf damit 14 der 15 Würfel weg. Die Eichtabelle, die
+`topface` mitdruckt, entscheidet den Fall — sie senkt die Schwelle schrittweise und zeigt, was mit
+der Uneinigkeit der zusätzlich durchgelassenen Würfel passiert:
 
-### 4.4 Kamerastrahl → Env-Koordinaten
+| Schwelle | behalten | \|L−R\| Median | p90 | max |
+|---|---|---|---|---|
+| 1,25 | 1/15 | 3,7° | 3,7° | 3,7° |
+| 1,20 | 4/15 | 1,1° | 3,0° | 3,7° |
+| 1,10 | 6/15 | 1,8° | 3,3° | 3,7° |
+| 1,00 | **9/15** | 1,6° | 3,0° | **3,7°** |
 
-```
-R = quat_to_matrix(rot)        # Spalten = Kamera-Achsen im Env-Frame
-d = R · d_cam
-```
+Die Uneinigkeit steigt beim Senken **nicht** — ihr Maximum bleibt über alle Stufen exakt 3,7°. Die
+Formprobe trennt auf echten Frames also nichts; sie hat nur 8 von 9 brauchbaren Würfeln weggeworfen.
+Der Grund: 1,25 stammt von scharfkantigen synthetischen Würfeln (dort 1,37–1,38), echte Klötzchen
+liegen mit gerundeten Kanten bei 1,21 (p10 1,06), dazu Bewegungsunschärfe und Maskenrand.
 
-`rot` ist das in `G1Dex3CameraCfg` hinterlegte Quaternion `(w, x, y, z)`, erzeugt von
-`look_at_world_quat(eye, target)`. Für `cam_left_high` konkret:
+Synthetisch bestätigt sich dasselbe: bei intakter Deckfläche kostet die Formprobe fast nichts und
+bringt nichts — mit 1,25 überleben 345 von 375 bei p90 0,20°, ganz ohne sie 373 bei p90 0,27°, beide
+Male **null** Ausreißer über 20°. Sie war gegen den 45°-Umschlag gebaut, und den erzeugten zerfetzte
+Deckflächen, die es mit der gemessenen Helligkeitsschwelle nicht mehr gibt.
 
-```
-eye = (0,0537 ; 0,0250 ; 1,3239)          # d435_link, auf die Mittellinie zentriert
-rot = (0,88701 ; 0 ; 0,46176 ; 0)         # = 55° Neigung nach unten
+**Vorgabe ist deshalb `--min-squareness 1.0`, also aus.** Nach der Umschlagkorrektur ist das
+Verhältnis konstruktionsbedingt ≥ 1; die Zahl bleibt als Diagnose stehen und als Stellschraube für
+den, der einer anderen Optik misstraut. Das einzige Tor ist die Einigkeit beider Kameras — und die
+teilt die Würfel sauber: neun mit ≤ 3,7°, sechs mit > 8°, dazwischen nichts. Auf diesen fünf
+Episoden steigt der Ertrag damit von 1/15 auf **9/15**.
 
-        ⎡  0,5736   0   0,8192 ⎤     Spalte 0 = Blickachse  (nach vorn und unten)
-R   =   ⎢  0        1   0      ⎥     Spalte 1 = links       (= env +y)
-        ⎣ −0,8192   0   0,5736 ⎦     Spalte 2 = oben        (gekippt)
-```
+Solange `cubes_yaw_deg` `null` ist, verhält sich der Renderer für diesen Würfel wie bisher. `null`
+heißt „nicht belastbar gemessen", **nicht** „liegt gerade".
 
-`cam_right_high` ist dieselbe Orientierung, `eye` nur um −0,05 m in y versetzt — die beiden
-Kameras blicken **parallel**, nicht konvergent.
+Unabhängige Gegenprobe: `grasp_anchor` berichtet den **Greifachsen-Winkel** aus der FK (Daumen →
+Mitte von Zeige- und Mittelfinger, mod 90°) neben dem Bildwinkel. Wer greift, legt die Greifachse
+quer zu einer Fläche. Er wird bewusst **nicht** als Ersatz für einen verworfenen Bildwinkel
+eingesetzt — das wäre genau die stille Rückfallebene, die `place_cubes` aus gutem Grund verloren
+hat. Erst wenn beide Zahlen über viele Episoden zusammenfallen, ist die Annahme belegt.
 
-### 4.5 Strahl → Würfelebene
+### 7.6 Der Vollauslauf: die Würfel liegen beliebig
 
-```
-t = (z_ebene − eye_z) / d_z
-P = eye + t · d                               mit z_ebene = 0,915
-```
+60 Episoden, 2026-08-25. Alle drei Würfel in allen 60 Episoden gefunden, Kameras in der Position auf
+1,17 cm (Median) einig, **110 von 180 Würfeln (61 %)** mit belastbarem Gierwinkel.
 
-`0,915` ist `block_z_surface` aus der Env, also die **Mittelpunktshöhe** eines auf dem Tisch
-liegenden Würfels.
+Die Verteilung ist das eigentliche Ergebnis:
 
-> **Kuriosum, das man kennen sollte:** Die Tischoberkante liegt bei z = 0,87, ein 5-cm-Würfel
-> mit Mittelpunkt bei 0,915 hat seine Unterkante also bei 0,89 — er schwebt 2 cm über der
-> Platte. Das ist in der Env so gewollt (der Tisch wurde abgesenkt, weil das Modell nach
-> z ≈ 0,915 greift und die Hände sich bei 0,89 verklemmten). Wer die Ebene ändert, muss beide
-> Werte gemeinsam anfassen.
-
-### 4.6 Bias und Mittelung
-
-```
-P_korr = P + (dx, dy, 0)
-(x, y) = Mittel über die verfügbaren Kameras
-```
-
-### 4.7 Env-Koordinate → gesetzter Würfel
-
-In `place_cubes`:
-
-```
-world = ( x + origin_x , y + origin_y , block_z_surface , 1, 0, 0, 0 )
-block.write_root_pose_to_sim(world)
-block.write_root_velocity_to_sim(0)
-```
-
-Also: nur x/y stammen aus dem Bild, z ist immer die Tischauflage, die Orientierung ist die
-Identität (achsparallel). Danach laufen `--settle-steps` Schritte, bevor aufgezeichnet wird.
-
-### 4.8 Die Rückrichtung — für die Validierung
-
-Projektion eines bekannten Env-Punkts ins Bild:
-
-```
-a = Rᵀ · (P − eye)                            # (a_vor, a_links, a_oben)
-u = cx + f_px · (−a_links / a_vor) − 0,5
-v = cy + f_px · (−a_oben  / a_vor) − 0,5
-```
-
-`PinholeCamera.project` / `.backproject_to_plane` sind exakt invers zueinander (numerisch auf
-< 1 µm geprüft). **Das beweist allerdings nur die Konsistenz des Modells mit sich selbst,
-nicht seine Übereinstimmung mit dem Renderer** — dazu §7.
-
-### 4.9 Auflösungsgrenze
-
-Ein Pixel deckt auf der Würfelebene ab:
-
-| Bildbereich | entspricht x | cm pro Pixel (quer) |
+| | gemessen | Gleichverteilung auf 0…45° |
 |---|---|---|
-| oben (fern) | x ≈ 0,66 | 0,163 |
-| Mitte | x ≈ 0,34 | 0,120 |
-| unten (nah) | x ≈ 0,14 | 0,092 |
+| Median | **22,8°** | 22,5° |
+| p90 | **40,7°** | 40,5° |
+| max | **44,7°** | 45° |
 
-Ein Detektionsfehler von 5 px ist also gut 0,5 cm. Die Genauigkeitsgrenze des Verfahrens
-liegt damit nicht bei der Pixelauflösung, sondern bei den Annahmen aus §5.
+Die Würfel liegen also nicht „meist gerade mit gelegentlichen Ausreißern", sondern in **beliebiger
+Drehung**. Die Sim stellte jeden einzelnen auf 0° — bei einer Gleichverteilung der Punkt mit dem
+größten Erwartungsfehler.
 
----
+Ein verrauschter Schätzer sähe mod 90° allerdings ebenfalls gleichverteilt aus. Zwei Prüfungen
+schließen das aus:
 
-## 5. Die Annahmen — die Liste, die man beim Weiterbauen angreift
+- **Die Kameras sind sich einig.** Die 110 Würfel haben das Einigkeitstor passiert; im Probelauf lag
+  ihre Uneinigkeit bei ≤ 3,7°. Zwei unabhängig aufgestellte Kameras stimmen bei Rauschen nicht
+  überein — Gleichverteilung aus Rauschen wäre je Kamera eine andere.
+- **Das Tor wählt kaum nach Winkel aus.** Synthetisch gemessen liegt der Ertrag bei 0–10°
+  Schräglage bei 97,6 % gegen 100 % darüber (Korrelation +0,32). Zu schwach, um aus einer gehäuften
+  Verteilung eine gleichmäßige zu machen. Auf echten Daten prüft das `layoutreport` nach: es druckt
+  die Verteilung der durchgelassenen Würfel **neben** der aller Einzelmessungen. Decken sie sich,
+  formt das Tor nichts.
 
-| # | Annahme | Status |
-|---|---|---|
-| A1 | Die drei Würfel liegen in Frame 0 auf dem Tisch | solide (Episodenanfang) |
-| A2 | Die Sim-Kamerapose entspricht der realen Kamera | **rekonstruiert, nicht kalibriert** (14 Overlay-Iterationen nach Augenmaß) |
-| A3 | Isaac rendert mit der *konfigurierten* Pose | **ungeprüft für den aktuellen Stand** — genau hier lag der Lauf-13-Bug |
-| A4 | Blob-Schwerpunkt ≈ Projektion des Würfelmittelpunkts | **systematisch falsch**, Größenordnung 1–2 cm; wird als Bias herausgerechnet |
-| A5 | Würfelmittelpunkte liegen auf z = 0,915 | solide, solange sie auf dem Tisch liegen |
-| A6 | Die Farben sind trennbar | geprüft, 3/3 in beiden Kameras |
-| A7 | Kein Würfel ist in Frame 0 verdeckt | **nicht behandelt** — bei Verdeckung fällt der Würfel stumm aus |
+Folge für die Env: `block_yaw_range_deg` sollte für Eval, Replay und RL auf `(0, 90)` stehen, nicht
+auf `(0, 0)`. Der Default bleibt vorerst `(0, 0)`, weil die Umstellung die Vergleichbarkeit mit den
+Läufen 08–52 bricht — das ist eine Entscheidung über den Versuchsaufbau, keine Fehlerbehebung.
 
-A2 und A3 sind die gefährlichen: beide erzeugen einen **globalen Versatz**, der alle Würfel
-gleich verschiebt und deshalb in keiner der bisherigen Proben auffällt.
+Für den Co-Training-Render spielt das keine Rolle: dort kommt der Winkel aus `layout.json`.
+Die 39 % ohne Winkel werden mit 0° gerendert und tragen damit den alten Fehler weiter. Sie
+auszuschließen wäre teuer (alle drei Würfel gemessen: ~0,61³ ≈ 23 % der Episoden); die zielgenauere
+Variante wäre, nur den GEGRIFFENEN Würfel zu verlangen — den kennt `grasp_anchor`.
 
----
+### 7.7 Probelauf statt Vollauslauf
 
-## 6. Was geprüft ist — und was die Probe jeweils beweist
-
-Alles Folgende wurde am 2026-08-17 **lokal** gegen
-[`Simulation/camera_reference/`](../../Simulation/camera_reference/) gemessen, ohne Container.
-
-| Probe | Ergebnis | Was sie beweist |
-|---|---|---|
-| Roundtrip Projektion ↔ Rückprojektion | exakt (< 1 µm) | Modell ist in sich konsistent — **sonst nichts** |
-| Bildaufteilung: Tisch hinten / vorn | 1 % / 97 % der Bildhöhe | passt zur dokumentierten Kalibrierung (5 % / 99 %) |
-| **Skalenprobe am bekannten 5-cm-Würfel** | **5,2 cm quer** (Mittel über 6 Messungen) | **Intrinsics × Kameraabstand stimmen** — eine bekannte Länge geht rein und kommt richtig heraus |
-| Vorhergesagte Kantenlänge im Bild | 41,8 px bei 0,499 m | deckt sich mit den 40–46 px, die 2026-08-08 unabhängig gemessen wurden |
-| Detektion | 3/3 Würfel in beiden Kameras, Kreuze auf den Würfeln | Segmentierung trägt |
-| Beide Kameras einig bis | 1,3–2,5 cm | Detektionsrauschen, **nicht** die Pose (§3f) |
-
-Gemessene Lagen im Referenzframe (env-lokal, in Metern):
-
-| Würfel | `cam_left_high` | `cam_right_high` | Differenz |
-|---|---|---|---|
-| rot | (0,327 ; −0,048) | (0,323 ; −0,068) | 2,0 cm |
-| grün | (0,355 ; +0,131) | (0,346 ; +0,108) | 2,5 cm |
-| gelb | (0,256 ; +0,164) | (0,256 ; +0,151) | 1,3 cm |
-
-### Nebenbefund: das Stapelband
-
-Das schwarze Band ist in der Env mit 12 cm Breite bei (0,35 ; 0,00) konfiguriert — im Code
-ausdrücklich als Näherung markiert. Aus den Realbildern zurückgerechnet ergeben sich
-**7,2 cm bei (0,31 ; +0,06)**. Damit steht erstmals eine Messung gegen die Schätzung. Für die
-Würfellage ist das irrelevant, für den Domain Gap nicht.
-
----
-
-## 7. Der offene Abnahme-Test — bitte zuerst
-
-**Solange dieser Test nicht gelaufen ist, ist das Layout plausibel und unbelegt.**
-
-Alle bisherigen Proben können einen globalen Versatz nicht sehen. Ein solcher Versatz ist in
-diesem Projekt schon einmal teuer geworden: in Lauf 13 (2026-08-08) lagen die konfigurierte
-USD-Pose und `cam.data` **95,6°** auseinander, drei Sim-Läufe waren umsonst, und der
-Fehlschluss lautete damals „einfarbiges Bild ⇒ kein Blickwinkelproblem".
-
-Der Test schickt ein **gerendertes** Sim-Bild mit **bekannten** Würfelpositionen durch
-denselben Detektor:
+Ein `layout`-Lauf über 60 Episoden dekodiert für den Bewegungsbeginn jedes Video einmal ganz —
+rund 4 s je Video und Kamera, also etwa acht Minuten allein dafür. Für die Frage „kommt ein
+Gierwinkel heraus?" reicht eine Handvoll Episoden in einer **eigenen** Ausgabedatei:
 
 ```bash
-D=/home/lmuecke/project/data/RL/cotrain/g1_dex3_rendered
-for EP in 0 12 41; do
-  EXPECT=$(python3 -c "import json;print(json.dumps(json.load(open('$D/render_manifest.json'))['episodes']['$EP']['cubes_xyz']))")
-  LAYOUTCHECK_FRAME=/data/cotrain/g1_dex3_rendered/videos/chunk-000/observation.images.cam_left_high/episode_$(printf %06d $EP).mp4 \
-  LAYOUTCHECK_EXPECT="$EXPECT" ./Simulation/server_rl_run.sh layoutcheck
-done
+LAYOUT_OUT=/data/cotrain/layout_yawprobe.json \
+LAYOUT_EPISODE_IDS="0 1 2 8 12" \
+LAYOUT_NO_MOTION_ONSET=1 \
+./Simulation/server_rl_run.sh layout
 ```
 
-Auswertung:
+Zwei Fallen lagen dabei im Weg, beide seit 2026-08-25 entschärft und durch
+`test_layout_file_merge.py` festgehalten:
 
-- **Mittel** = Bias aus A2 + A3 + A4 zusammen → per `LAYOUT_BIAS="dx dy"` (Meter)
-  herausrechnen.
-- **Streuung** = der Rest, der bleibt. Über ~2 cm trägt das Layout nicht; dann zuerst A4
-  angehen (§8.2), nicht rendern.
-- Die markierten Kontrollbilder unter `LAYOUT_DEBUG_DIR` zeigen sofort, ob die Kreuze
-  überhaupt auf den Würfeln sitzen.
+- **`--overwrite` fing mit einer leeren Datei an.** Zusammen mit `--episode-ids` blieben danach
+  nur die neu gerechneten Episoden übrig, die übrigen 55 waren weg — samt ihrer teuer
+  gemessenen Bewegungsbeginne, und die Datei sah hinterher gültig aus. `--overwrite` rechnet
+  jetzt nur die gewählten Episoden neu; für den bewussten Neuanfang gibt es `--fresh`.
+- **`--no-motion-onset` löschte einen vorhandenen Bewegungsbeginn.** Es heißt „nicht messen",
+  nicht „löschen" — ein schneller Teillauf machte die Datei sonst stillschweigend
+  renderuntauglich. Vorhandene Werte bleiben jetzt stehen.
 
-Ein Vorbehalt zum Test selbst: die Referenzepisoden stammen aus dem alten Lauf, in dem die
-Würfel am Greifpunkt lagen. Steht in Frame 0 eine Hand auf einem Würfel, hat der
-Kontakt-Solver ihn während der `settle-steps` verschoben und das Residuum ist verfälscht.
-Deshalb mehrere Episoden fahren und die Kontrollbilder ansehen, statt einer Zahl zu glauben.
+Zusätzlich lehnt `extract` es ab, Einträge zu mischen, die mit anderem `--bias`, anderer
+Würfelebene oder anderen Kameras entstanden sind: in der Datei wären sie nicht mehr
+unterscheidbar.
 
----
+## 8. Artefakte und Befehle
 
-## 8. Ansatzpunkte zum Weiterbauen — nach Nutzen sortiert
-
-### 8.1 Abnahme-Test fahren und den Bias eintragen
-Siehe §7. Billigster Schritt mit dem größten Erkenntnisgewinn.
-
-### 8.2 Den Schwerpunkts-Bias (A4) direkt beseitigen statt herauszurechnen
-Der Bias hängt vom Blickwinkel ab, ist also über das Bild **nicht konstant** — eine additive
-Korrektur ist nur die erste Ordnung. Zwei bessere Wege:
-
-- **Deckfläche statt Silhouette.** Die Oberseite ist heller als die Seitenflächen; nur sie
-  segmentieren und den Strahl mit z = 0,94 (Würfeloberkante) schneiden. Dann fällt der
-  Seitenflächen-Anteil weg.
-- **Modellanpassung.** Den bekannten 5-cm-Würfel als Box in die Pose einpassen, die die
-  beobachtete Silhouette am besten erklärt (2 Freiheitsgrade x/y, ggf. Gierwinkel als
-  dritter). Aufwendiger, liefert aber nebenbei die **Orientierung**, die derzeit als
-  achsparallel angenommen wird.
-
-### 8.3 Die Kamerapose echt kalibrieren (A2)
-Die aktuelle Pose ist das Ergebnis von 14 Overlay-Iterationen nach Augenmaß. Sauber wäre PnP
-aus bekannten Landmarken. Dafür fehlt bislang die **vermessene reale Tischgeometrie** — der
-Tisch in der Env ist ein Platzhalter (0,8 × 0,6 × 0,87 m), das Stapelband ebenfalls geschätzt
-(und laut §6 um 5 cm zu breit). Ein Zollstock am realen Aufbau ist hier mehr wert als jede
-weitere Iteration am Bild.
-
-### 8.4 Verdeckung behandeln (A7)
-Derzeit: Würfel nicht gefunden → fällt stumm aus, `place_cubes` fällt auf Greifpunkt oder
-Zufall zurück. Besser: den frühesten Frame suchen, in dem alle drei sichtbar sind, und die
-zweite Kamera als Ausweichquelle nutzen (die Struktur `per_camera` in `layout.json` hält das
-bereits vor).
-
-### 8.5 Layout je Frame statt nur Frame 0
-Der eigentliche nächste Schritt für den Renderer. Damit ließe sich
-(a) erkennen, wann ein Würfel angestoßen wurde, und
-(b) das **kinematische Attach** speisen: Würfelpose zwischen `close` und `release` jeden Step
-auf den Kuppen-Schwerpunkt schreiben, bei `release` fallen lassen. Erst das macht Transport-
-und Stapelphasen verwendbar und hebt den nutzbaren Anteil des Materials von ~40 % auf ~100 %.
-Ohne Attach bleibt `--stop-at-grasp` nötig.
-
-### 8.6 Wrist-Kameras einbeziehen
-`PinholeCamera.from_cfg` lässt nur die drei weltfesten Kameras zu. Die Handgelenkskameras
-hängen an einem Link, ihre Weltpose ändert sich mit jeder Roboterpose und kann nur aus der
-laufenden Sim kommen. Für eine Nahaufnahme des Würfels wären sie interessant — dann muss die
-Pose aber pro Frame aus `cam.data` gezogen und der Modellbau umgestellt werden.
-
----
-
-## 9. Was dieses Verfahren *nicht* löst
-
-Die Würfellage ist nur die **Anfangsbedingung**. Ab dem Moment, in dem die Hand zugreift,
-entscheidet die Kontaktphysik über die Würfellage — und die greift im Replay meist nicht
-(§2.2). Die Frames ab dem Griff bleiben deshalb falsch beschriftet, unabhängig davon, wie
-genau das Layout ist. Dafür ist §8.5 zuständig.
-
-Ebenfalls offen: die **Orientierung** der Würfel. Aktuell werden sie achsparallel gesetzt; im
-Realbild sind sie erkennbar verdreht.
-
----
-
-## 10. Dateien, Befehle, Kennzahlen
-
-### Dateien
-
-| Datei | Rolle |
+| Artefakt | Inhalt |
 |---|---|
-| [`camera_geometry.py`](../../Simulation/g1_dex3_sim/camera_geometry.py) | Posen, Intrinsics, `PinholeCamera.project` / `.backproject_to_plane`. **Isaacfrei** — nur deshalb außerhalb des Containers prüfbar |
-| [`extract_block_layout.py`](../../Simulation/g1_dex3_sim/extract_block_layout.py) | `detect` (Blobs, mit `--expect` gegen Grundwahrheit) und `extract` (Datensatz → `layout.json`) |
-| [`g1_dex3_cfg.py`](../../Simulation/g1_dex3_sim/g1_dex3_cfg.py) | exportiert den Kamerateil weiter; für die Env ändert sich nichts |
-| [`render_cotrain_dataset.py`](../../Simulation/g1_dex3_sim/render_cotrain_dataset.py) | `--layout`; `place_cubes` mit Vorrang Layout → Greifpunkt → zufällig |
-| [`server_rl_run.sh`](../../Simulation/server_rl_run.sh) | `layout`, `layoutcheck`, `render` |
-
-### Befehle
+| `replay_anchors.json` | v4-Anker, Ablehnungsgründe, Action-Hashes und Bilddiagnosen |
+| `geometry_calibration.json` | gültige v4-Homographien, Fit/Holdout und Qualitätswerte |
+| `calibration_report.json` | vollständiger Bericht auch bei fehlgeschlagenem Gate |
+| `cube_poses.json` | v4-Anfangsposen der separat ausgewählten Ziel-Episoden |
+| `replay_manifest.json` | v2-Render-, Projektions- und Griffdiagnose |
 
 ```bash
-# lokal, ohne Container — Detektor auf den Referenzframes ansehen
-cd Simulation/g1_dex3_sim
-python3 extract_block_layout.py detect ../camera_reference/dataset_cam_left_high.png \
-        --camera cam_left_high --debug-dir /tmp/dbg
+REPLAY_CALIBRATION_NUM_EPISODES=40 \
+REPLAY_CALIBRATION_HOLDOUT_RATIO=0.2 \
+REPLAY_CALIBRATION_SEED=17 \
+./Simulation/server_rl_run.sh replay-calibrate
 
-# Server: Abnahme-Test (§7), dann Layout, dann Rendern
-LAYOUTCHECK_FRAME=… LAYOUTCHECK_EXPECT=… ./Simulation/server_rl_run.sh layoutcheck
-RENDER_EPISODES=60 LAYOUT_BIAS="dx dy" ./Simulation/server_rl_run.sh layout
-RENDER_LAYOUT=/data/cotrain/layout.json RENDER_GRASP_WINDOW=600 \
-        ./Simulation/server_rl_run.sh render
+REPLAY_EPISODE_IDS="0 12 41" REPLAY_OVERWRITE=1 \
+./Simulation/server_rl_run.sh replay-poses
+
+DR_ENABLED=0 REPLAY_EPISODE_IDS="0 12 41" REPLAY_OVERWRITE=1 \
+./Simulation/server_rl_run.sh replay-render
 ```
 
-### Kennzahlen zum Wiedererkennen
-
-| Größe | Wert |
-|---|---|
-| Auflösung / HFOV | 640 × 480 / 75° |
-| `f_px` | 417,03 |
-| Kamerapose `cam_left_high` | eye (0,0537 ; 0,025 ; 1,3239), 55° geneigt |
-| Stereobasis | 4,7 cm, parallel blickend |
-| Würfelebene `block_z_surface` | 0,915 (Tischoberkante 0,87) |
-| Würfelkante | 5 cm ≙ 41,8 px auf 0,499 m |
-| Auflösung auf der Ebene | 0,09–0,16 cm/px |
-
-### Ausgabeformat `layout.json`
-
-```jsonc
-{
-  "cameras": ["cam_left_high", "cam_right_high"],
-  "bias_cm": [0.0, 0.0],
-  "z_plane": 0.915,
-  "episodes": {
-    "0": {
-      "frame": 0,
-      "cubes": [[0.325, -0.058], [0.351, 0.120], [0.256, 0.158]],  // rot, grün, gelb
-      "per_camera": { "cam_left_high": [ /* … */ ] },
-      "camera_spread_cm": [2.04, 2.47, 1.30]
-    }
-  }
-}
-```
-
-`cubes[i] == null` heißt „Würfel i nicht gefunden" — `place_cubes` fällt dann für genau
-diesen Würfel auf den Greifpunkt bzw. den Zufall zurück, was im `cube_source`-Feld des
-`render_manifest.json` protokolliert wird.
+Die vollständige Bedienung und alle Umgebungsvariablen stehen in
+[replay-videos-aus-realdaten.md](replay-videos-aus-realdaten.md).

@@ -36,8 +36,9 @@
 # HOST-KONFIGURATION (seit 2026-08): Dieses Skript enthält KEINE rechnerspezifischen
 # Pfade mehr. Alles Host-Abhängige kommt aus einer gitignorierten .env.local im
 # Repo-Wurzelverzeichnis (Vorlage: .env.local.example). Ohne sie landet /data unter
-# $HOME/groot-rl-data. Auf dem IKR-Server stellt EINE Zeile den alten Ort wieder her:
-#   echo ': "${RL_HOST_DATA_DIR:=/home/lmuecke/project/data/RL}"' >> .env.local
+# $HOME/groot-rl-data. Auf dem IKR-Server kann ein benutzerunabhängiger Projektpfad
+# gesetzt werden:
+#   echo ': "${RL_HOST_DATA_DIR:=$HOME/project/data/RL}"' >> .env.local
 # Vollständige Anleitung inkl. KISSKI: docs/portabilitaet.md
 #
 # NUTZUNG:
@@ -58,6 +59,12 @@
 #   RL_HOST_DATA_DIR ($HOME/groot-rl-data — s. HOST-KONFIGURATION oben), RL_IMAGE, RL_CONTAINER,
 #   RL_GPUS ("device=1,0" — beide Karten; erste trägt Rendering+Training, zweite nur
 #            das eingefrorene Referenzmodell), RL_REF_DEVICE (auto|same|cuda:N),
+#   RL_EXEC_GPU (leer = automatisch die Karte mit dem meisten freien Speicher; sonst
+#                Container-Index, wirkt auch am schon laufenden Container. Die Runtime
+#                sortiert nach Host-Index, Container-N ist also die physische GPU N —
+#                unabhaengig von der Reihenfolge in RL_GPUS. `rl` ist von der Automatik
+#                ausgenommen, dort braucht der Trainer beide Karten),
+#   RL_EXEC_GPU_AUTO (1 — auf 0 setzen, um die automatische Wahl abzuschalten),
 #   HF_TOKEN, HF_CHECKPOINT_REPO (luca-mue/groot-g1dex3-checkpoint),
 #   RL_NUM_ENVS, RL_ITERATIONS, RL_ROLLOUT_STEPS, RL_LR, RL_KL_COEF, RL_CLIP,
 #   RL_MINIBATCH_SIZE, RL_FPO_MC_SAMPLES, RL_EPOCHS_PER_ITER (Speicher-Stellschrauben),
@@ -116,14 +123,80 @@ CONTAINER="${RL_CONTAINER:-groot-rl}"
 # gehört in .env.local, nicht hierher (bis 2026-08 stand hier fest /home/lmuecke/project/
 # data/RL — auf jedem anderen Rechner ein "Permission denied" beim ersten mkdir).
 HOST_DATA_DIR="${RL_HOST_DATA_DIR:-$HOME/groot-rl-data}"
-# Beide Karten, ABER in dieser Reihenfolge: die zuerst genannte wird im Container zu
-# cuda:0 und traegt Rendering + Policy + Optimizer; die zweite bekommt nur das
-# eingefrorene Referenzmodell (~6-7 GB, nur no_grad). Physische GPU 1 steht vorn, weil
-# dort am 2026-08-08 mehr frei war (llama-server: 41 GB auf GPU 0, 37 GB auf GPU 1).
+# Beide Karten. ACHTUNG — die Reihenfolge hier steuert NICHT, welche im Container cuda:0
+# wird: die NVIDIA-Container-Runtime sortiert nach Host-Index, cuda:0 ist also stets die
+# niedrigere physische GPU. Am 2026-08-25 nachgewiesen (RL_EXEC_GPU=1 -> physische GPU 1).
+# Die frueher hier notierte Absicht, ueber die Reihenfolge die traegende Karte zu waehlen,
+# ging damit ins Leere; wer eine bestimmte Karte will, nennt NUR sie ("device=1") oder
+# setzt RL_EXEC_GPU. cuda:0 traegt Rendering + Policy + Optimizer, cuda:1 nur das
+# eingefrorene Referenzmodell (~6-7 GB, nur no_grad).
 # → Vor einem langen Lauf `nvidia-smi` prüfen und ggf. auf "device=0,1" drehen.
 # Einzelkarte: RL_GPUS='"device=0"' — das Referenzmodell rückt dann automatisch mit auf.
 GPUS="${RL_GPUS:-\"device=1,0\"}"
 SHM_SIZE="${RL_SHM_SIZE:-16g}"
+
+# Welche der im Container sichtbaren Karten ein einzelner Lauf benutzt. `--gpus` wirkt NUR
+# beim Anlegen des Containers (s. u.) — an einem laufenden Container laesst sich das Mapping
+# nicht mehr aendern. CUDA_VISIBLE_DEVICES beim `docker exec` geht dagegen jederzeit.
+#
+# ACHTUNG bei der Nummerierung: die Werte sind CONTAINER-Indizes, nicht Host-Indizes. Mit dem
+# Default RL_GPUS="device=1,0" ist Container-0 die physische GPU 1 und Container-1 die
+# physische GPU 0. Um auf der jeweils anderen Karte zu rechnen also RL_EXEC_GPU=1.
+# Leer lassen = unveraendert; RL braucht beide Karten (Referenzmodell auf der zweiten) und
+# sollte NICHT eingeschraenkt werden.
+GPU_ENV=()
+
+# Container-Index -> physische GPU, aufsteigend SORTIERT. Das ist keine Kosmetik: die
+# NVIDIA-Container-Runtime ordnet die Geraete nach Host-Index, NICHT nach der Reihenfolge in
+# `--gpus`. Mit RL_GPUS="device=1,0" ist Container-0 also die physische GPU 0 und Container-1
+# die physische GPU 1 — nicht umgekehrt. Am 2026-08-25 auf dem Server nachgewiesen:
+# RL_EXEC_GPU=1 landete auf der physischen GPU 1.
+#
+# Quelle des Mappings ist der LAUFENDE Container, denn `--gpus` galt beim Anlegen und $GPUS
+# kann seither abweichen; sonst $GPUS als Rueckfall.
+container_device_ids() {
+  local ids
+  ids=$(docker inspect "$CONTAINER" \
+        --format '{{range .HostConfig.DeviceRequests}}{{range .DeviceIDs}}{{.}} {{end}}{{end}}' \
+        2>/dev/null)
+  [[ -z "${ids// }" ]] && ids=$(sed 's/[^0-9,]//g' <<<"$GPUS" | tr ',' ' ')
+  tr ' ' '\n' <<<"$ids" | grep -E '^[0-9]+$' | sort -n | tr '\n' ' '
+}
+
+# Container-Index der Karte mit dem meisten freien Speicher. Leer, wenn sich das nicht
+# ermitteln laesst (kein nvidia-smi, kein Mapping) — dann bleibt alles wie bisher.
+auto_pick_gpu() {
+  command -v nvidia-smi >/dev/null 2>&1 || return 0
+  local ids free best_idx="" best_free=-1 i=0 host
+  ids=$(container_device_ids); [[ -z "${ids// }" ]] && return 0
+  free=$(nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits 2>/dev/null) || return 0
+  for host in $ids; do
+    local mib
+    mib=$(sed -n "$((host + 1))p" <<<"$free")
+    [[ "$mib" =~ ^[0-9]+$ ]] || { i=$((i + 1)); continue; }
+    if (( mib > best_free )); then best_free=$mib; best_idx=$i; fi
+    i=$((i + 1))
+  done
+  [[ -n "$best_idx" ]] && printf '%s %s' "$best_idx" "$best_free"
+}
+
+# Karte festlegen. RL_EXEC_GPU schlaegt alles; sonst automatisch die freieste. `rl` wird
+# ausgenommen: der Trainer legt das eingefrorene Referenzmodell auf die ZWEITE Karte und
+# zoege es sonst mit auf die erste (~6-7 GB). RL_EXEC_GPU_AUTO=0 schaltet die Automatik ab.
+select_gpu() {
+  if [[ -n "${RL_EXEC_GPU:-}" ]]; then
+    GPU_ENV=(-e "CUDA_VISIBLE_DEVICES=$RL_EXEC_GPU")
+    return 0
+  fi
+  [[ "${RL_EXEC_GPU_AUTO:-1}" == "0" ]] && return 0
+  local picked idx mib
+  picked=$(auto_pick_gpu) || return 0
+  [[ -z "$picked" ]] && return 0
+  read -r idx mib <<<"$picked"
+  GPU_ENV=(-e "CUDA_VISIBLE_DEVICES=$idx")
+  echo "  GPU: Container-Index $idx (physisch $(cut -d" " -f$((idx + 1)) <<<"$(container_device_ids)"))," \
+       "$((mib / 1024)) GiB frei — automatisch gewaehlt, RL_EXEC_GPU ueberschreibt." >&2
+}
 
 HF_CHECKPOINT_REPO="${HF_CHECKPOINT_REPO:-luca-mue/groot-g1dex3-checkpoint}"
 CHECKPOINT_PATH="${CHECKPOINT_PATH:-/data/checkpoints/groot-g1dex3-checkpoint}"
@@ -192,6 +265,7 @@ start_logging() {
   LOG_FILE="$LOG_DIR/$1-$(date +%Y%m%d-%H%M%S).log"
   exec > >(tee -a "$LOG_FILE") 2>&1
   log "Log dieses Aufrufs: $LOG_FILE"
+  log "Host-Datenverzeichnis: $HOST_DATA_DIR  (Container: /data)"
 }
 
 # ── Kleine Helfer ─────────────────────────────────────────────────────────────
@@ -203,6 +277,32 @@ require_hf_token() {
 }
 
 container_state() { docker inspect -f '{{.State.Running}}' "$CONTAINER" 2>/dev/null || echo missing; }
+
+container_data_source() {
+  docker inspect -f '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Source}}{{end}}{{end}}' \
+    "$CONTAINER" 2>/dev/null || true
+}
+
+# Ein langlebiger Container behält seinen ursprünglichen /data-Mount. Wenn später
+# RL_HOST_DATA_DIR geändert wird, würden Logs auf Host A landen, während Datensatz und
+# Ergebnisse im Container weiterhin Host B benutzen. Dieser stille Split ist zu gefährlich.
+validate_container_data_mount() {
+  local actual expected
+  actual="$(container_data_source)"
+  [[ -n "$actual" ]] || { err "Container '$CONTAINER' hat keinen /data-Mount."; return 1; }
+  expected="$(cd "$HOST_DATA_DIR" && pwd -P)"
+  [[ -d "$actual" ]] && actual="$(cd "$actual" && pwd -P)"
+  if [[ "$actual" != "$expected" ]]; then
+    err "Datenpfade widersprechen sich:"
+    err "  laufender Container /data -> $actual"
+    err "  RL_HOST_DATA_DIR erwartet  -> $expected"
+    err "Wenn der bestehende Datenbestand richtig ist, in .env.local setzen:"
+    err "  : \"\${RL_HOST_DATA_DIR:=$actual}\""
+    err "Soll stattdessen der neue Pfad gelten: '$0 clean' und danach erneut aufrufen."
+    err "'clean' entfernt nur den Container, nicht die Datenverzeichnisse."
+    return 1
+  fi
+}
 
 # Ist der Host-Port frei? Reines Bash (kein ss/netstat/lsof im Image-losen Fall nötig).
 port_free() { ! (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null; }
@@ -298,9 +398,13 @@ warn_if_container_stale() {
 ensure_container() {
   local state; state="$(container_state)"
   if [[ "$state" == "true" ]]; then
+    ensure_host_data_dir
+    validate_container_data_mount || return 1
     warn_if_container_stale
     return 0
   elif [[ "$state" == "false" ]]; then
+    ensure_host_data_dir
+    validate_container_data_mount || return 1
     log "Container '$CONTAINER' vorhanden (gestoppt) — starte ihn."
     docker start "$CONTAINER" >/dev/null
     warn_if_container_stale
@@ -769,7 +873,7 @@ do_check() {
   # Viewport steht dann allerdings nur kurz, bis der Aufbau geprueft ist.
   live_view_env
   livestream_docker_env
-  out=$(docker exec -w "$SIM_DIR" "${LIVE_ENV[@]}" "${LS_ENV[@]}" \
+  out=$(docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" "${LIVE_ENV[@]}" "${LS_ENV[@]}" \
         -e "RL_REF_DEVICE=${RL_REF_DEVICE:-auto}" "$CONTAINER" bash -lc "
     unset VIRTUAL_ENV
     '$ISAAC_PY' '$SIM_DIR/rl_finetune.py' \
@@ -971,7 +1075,7 @@ do_cams() {
       "aa=${RL_AA_MODE:-<Isaac-Default>}, dome=${RL_DOME_INTENSITY:-2000}," \
       "sweep=${RL_DOME_SWEEP:-<aus>}, DR=${DR_ENABLED:-1}," \
       "cam=${RL_CAMERA_CLASS:-tiled}) → $HOST_DATA_DIR/cam_dump/"
-  docker exec -w "$SIM_DIR" \
+  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" \
     -e "RL_AA_MODE=${RL_AA_MODE:-}" \
     -e "RL_DOME_INTENSITY=${RL_DOME_INTENSITY:-2000}" \
     -e "RL_DOME_SWEEP=${RL_DOME_SWEEP:-}" \
@@ -1017,7 +1121,7 @@ do_grasp() {
   if livestream_active; then
     livestream_banner "$(host_addr)"
   fi
-  docker exec -w "$SIM_DIR" \
+  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" \
     -e "DR_ENABLED=${DR_ENABLED:-0}" \
     -e "RL_GROUND_COLOR=${RL_GROUND_COLOR:-}" \
     -e "SCENE_CAM=${SCENE_CAM:-1}" \
@@ -1219,15 +1323,28 @@ do_layout() {
   local extra=""
   [[ -n "${LAYOUT_BIAS:-}" ]] && extra+=" --bias ${LAYOUT_BIAS}"
   [[ "${LAYOUT_OVERWRITE:-0}" == "1" ]] && extra+=" --overwrite"
+  [[ "${LAYOUT_FRESH:-0}" == "1" ]] && extra+=" --fresh"
+  [[ -n "${LAYOUT_EPISODE_IDS:-}" ]] && extra+=" --episode-ids ${LAYOUT_EPISODE_IDS}"
+  [[ "${LAYOUT_NO_MOTION_ONSET:-0}" == "1" ]] && extra+=" --no-motion-onset"
+  [[ -n "${LAYOUT_YAW_TOLERANCE:-}" ]] && extra+=" --yaw-tolerance ${LAYOUT_YAW_TOLERANCE}"
+  [[ -n "${LAYOUT_MIN_SQUARENESS:-}" ]] && extra+=" --min-squareness ${LAYOUT_MIN_SQUARENESS}"
 
   if ! docker exec "$CONTAINER" test -f "$SIM_DIR/extract_block_layout.py"; then
     err "extract_block_layout.py fehlt unter $SIM_DIR — auf dem Server:  git pull"
     return 1
   fi
 
-  log "Wuerfellage aus den Realbildern lesen: $eps Episoden, Ziel $out"
+  # Bei LAYOUT_EPISODE_IDS zaehlt die Liste, nicht RENDER_EPISODES — sonst meldet der
+  # Probelauf "60 Episoden" und rechnet fuenf.
+  local scope="$eps Episoden"
+  [[ -n "${LAYOUT_EPISODE_IDS:-}" ]] && scope="Episoden ${LAYOUT_EPISODE_IDS}"
+  log "Wuerfellage aus den Realbildern lesen: $scope, Ziel $out"
+  log "  Dazu je Episode der Bewegungsbeginn (Fenstergrenze fuer 'render'). Der kostet"
+  log "  Zeit: jedes Video wird einmal in halber Aufloesung dekodiert, grob 4 s je Video"
+  log "  und Kamera. Abschalten mit LAYOUT_NO_MOTION_ONSET=1 (dann kann 'render' aber"
+  log "  kein Fenster setzen)."
   log "  Markierte Kontrollbilder: $HOST_DATA_DIR/${dbg#/data/}"
-  docker exec -w "$SIM_DIR" "$CONTAINER" bash -lc "
+  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" "$CONTAINER" bash -lc "
     unset VIRTUAL_ENV
     '$ISAAC_PY' '$SIM_DIR/extract_block_layout.py' extract \
         --dataset-path '$ds' \
@@ -1255,17 +1372,283 @@ do_layoutcheck() {
   local expect="${LAYOUTCHECK_EXPECT:?LAYOUTCHECK_EXPECT='[[x,y,z],[x,y,z],[x,y,z]]' setzen (render_manifest.json -> cubes_xyz)}"
   local cam="${LAYOUTCHECK_CAM:-cam_left_high}"
   local dbg="${LAYOUT_DEBUG_DIR:-/data/cotrain/layout_debug}"
+  # Dieselbe Abnahme fuer den Gierwinkel: render_manifest.json -> cubes_yaw_deg.
+  local yaw_arg=""
+  [[ -n "${LAYOUTCHECK_EXPECT_YAW:-}" ]] && yaw_arg="--expect-yaw '${LAYOUTCHECK_EXPECT_YAW}'"
 
   log "Kameramodell gegen gerendertes Bild pruefen: $frame ($cam)"
-  docker exec -w "$SIM_DIR" "$CONTAINER" bash -lc "
+  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" "$CONTAINER" bash -lc "
     unset VIRTUAL_ENV
     '$ISAAC_PY' '$SIM_DIR/extract_block_layout.py' detect '$frame' \
-        --camera '$cam' --expect '$expect' --debug-dir '$dbg'" || return 1
+        --camera '$cam' --expect '$expect' $yaw_arg --debug-dir '$dbg'" || return 1
   echo
   echo "  Lesart: MITTEL = Bias des Schaetzers (der Blob-Schwerpunkt ist der Schwerpunkt der"
   echo "  sichtbaren Flaechen, nicht die Projektion des Wuerfelmittelpunkts) — per"
   echo "  LAYOUT_BIAS=\"dx dy\" (Meter) in 'layout' herausrechnen. STREUUNG = der Rest, der"
   echo "  bleibt; erst die entscheidet, ob das Layout brauchbar ist."
+  echo
+  echo "  Gierwinkel mitpruefen: LAYOUTCHECK_EXPECT_YAW='[0,20,40]' (render_manifest.json"
+  echo "  -> cubes_yaw_deg). Ohne Datensatz und ohne Isaac geht auch die synthetische"
+  echo "  Abnahme:  ./Simulation/server_rl_run.sh yawcheck"
+}
+
+# Den DECKFLAECHENSCHNITT auf echten Frames vermessen. Es gibt hier eine Grundwahrheit
+# ohne Annotation: die Wuerfeloberseite IST ein 5-cm-Quadrat. Welche Schwellenregel eine
+# zurueckprojizierte Flaeche liefert, die dem am naechsten kommt, ist damit messbar statt
+# Geschmackssache. Bis 2026-08-25 stand dort fest "die hellsten 30 %" — bei 53,6 Grad
+# Blickhoehe macht die Deckflaeche aber 49-58 % der Silhouette aus.
+do_topface() {
+  ensure_container
+  local ds="${SPAN_DATASET:-/data/unitreerobotics/G1_Dex3_BlockStacking_Dataset}"
+  ensure_dataset "$ds" || return 1
+  local eps="${TOPFACE_EPISODES:-5}"
+  local extra=""
+  [[ -n "${LAYOUT_EPISODE_IDS:-}" ]] && extra+=" --episode-ids ${LAYOUT_EPISODE_IDS}"
+  [[ -n "${TOPFACE_RULES:-}" ]] && extra+=" --rules ${TOPFACE_RULES}"
+  [[ -n "${LAYOUT_MIN_SQUARENESS:-}" ]] && extra+=" --min-squareness ${LAYOUT_MIN_SQUARENESS}"
+  [[ -n "${LAYOUT_YAW_TOLERANCE:-}" ]] && extra+=" --yaw-tolerance ${LAYOUT_YAW_TOLERANCE}"
+  log "Deckflaechenschnitt vermessen: $eps Episoden gegen Soll 5,0 cm / Formprobe 1,41"
+  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" "$CONTAINER" bash -lc "
+    unset VIRTUAL_ENV
+    '$ISAAC_PY' '$SIM_DIR/extract_block_layout.py' topface \
+        --dataset-path '$ds' --num-episodes '$eps' $extra" || return 1
+}
+
+# Aus einer fertigen layout.json ablesen, WORAN der Gierwinkel scheitert. Der Ertrag allein
+# ("7 % durch das Tor") nennt keinen Hebel; die Diagnosefelder tun es und stehen schon in der
+# Datei. Liest ausschliesslich per_camera, also die Zahlen von den VIDEOFRAMES — nicht die
+# markierten Debug-PNGs, auf denen der eingezeichnete Marker als Deckflaeche durchgeht.
+do_layoutreport() {
+  ensure_container
+  local layout="${LAYOUT_OUT:-/data/cotrain/layout.json}"
+  local extra=""
+  [[ -n "${LAYOUT_YAW_TOLERANCE:-}" ]] && extra+=" --yaw-tolerance ${LAYOUT_YAW_TOLERANCE}"
+  [[ -n "${LAYOUT_MIN_SQUARENESS:-}" ]] && extra+=" --min-squareness ${LAYOUT_MIN_SQUARENESS}"
+  if ! docker exec "$CONTAINER" test -f "$layout"; then
+    err "Layout fehlt: $layout — LAYOUT_OUT setzen oder erst 'layout' laufen lassen."
+    return 1
+  fi
+  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" "$CONTAINER" bash -lc "
+    unset VIRTUAL_ENV
+    '$ISAAC_PY' '$SIM_DIR/extract_block_layout.py' report '$layout' $extra" || return 1
+}
+
+# Gierwinkel-Schaetzer gegen SYNTHETISCHE Grundwahrheit. Braucht weder Datensatz noch
+# Isaac noch GPU — nur numpy. Der billigste Weg, den Schaetzer nach einer Aenderung
+# nachzupruefen, und der einzige, bei dem der wahre Winkel wirklich bekannt ist.
+do_yawcheck() {
+  ensure_container
+  local extra=""
+  [[ -n "${LAYOUT_YAW_TOLERANCE:-}" ]] && extra+=" --yaw-tolerance ${LAYOUT_YAW_TOLERANCE}"
+  [[ -n "${LAYOUT_MIN_SQUARENESS:-}" ]] && extra+=" --min-squareness ${LAYOUT_MIN_SQUARENESS}"
+  log "Abnahme des Gierwinkel-Schaetzers gegen synthetische Wuerfel bekannter Drehung"
+  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" "$CONTAINER" bash -lc "
+    unset VIRTUAL_ENV
+    '$ISAAC_PY' '$SIM_DIR/extract_block_layout.py' selftest $extra" || return 1
+}
+
+# Gemeinsame, als Bash-Array aufgebaute Episodenauswahl für die neuen Replay-Aktionen.
+# Keine String-Konkatenation: explizite IDs bleiben einzelne, validierte CLI-Argumente.
+replay_selection_args() {
+  local count="${REPLAY_NUM_EPISODES:-10}"
+  local start="${REPLAY_START_EPISODE:-0}"
+  [[ "$count" =~ ^[1-9][0-9]*$ ]] \
+    || { err "REPLAY_NUM_EPISODES muss eine positive Ganzzahl sein: '$count'"; return 1; }
+  [[ "$start" =~ ^[0-9]+$ ]] \
+    || { err "REPLAY_START_EPISODE muss eine nichtnegative Ganzzahl sein: '$start'"; return 1; }
+  REPLAY_SELECTION_ARGS=( --num-episodes "$count" --start-episode "$start" )
+  if [[ -n "${REPLAY_EPISODE_IDS:-}" ]]; then
+    local ids=() id
+    read -r -a ids <<<"$REPLAY_EPISODE_IDS"
+    for id in "${ids[@]}"; do
+      [[ "$id" =~ ^[0-9]+$ ]] \
+        || { err "Ungültige Episode in REPLAY_EPISODE_IDS: '$id'"; return 1; }
+    done
+    REPLAY_SELECTION_ARGS+=( --episode-ids "${ids[@]}" )
+  fi
+}
+
+ensure_replay_script() {
+  local script="$1"
+  if ! docker exec "$CONTAINER" test -f "$SIM_DIR/$script"; then
+    err "$script fehlt unter $SIM_DIR im Container."
+    err "  Das Verzeichnis ist read-only aus dem Repo gemountet; auf dem Server git pull."
+    return 1
+  fi
+}
+
+# Vollständigen v2.1-Quelldatensatz und das lokale G1+DEX3-Asset bereitstellen. Es werden
+# bewusst keine GR00T-Modellgewichte geladen: der Replay benutzt ausschließlich Dataset-Actions.
+do_replay_prepare() {
+  ensure_asset_local || return 1
+  local ds="${REPLAY_DATASET:-/data/unitreerobotics/G1_Dex3_BlockStacking_Dataset}"
+  ensure_dataset "$ds" || return 1
+  ensure_replay_script reconstruct_cube_poses.py || return 1
+  replay_selection_args || return 1
+
+  log "Prüfe Replay-Quelldatensatz: $ds"
+  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" "$CONTAINER" env -u VIRTUAL_ENV \
+    "$ISAAC_PY" "$SIM_DIR/reconstruct_cube_poses.py" inspect \
+      --dataset-path "$ds" "${REPLAY_SELECTION_ARGS[@]}" \
+    2>&1 | tee /dev/stderr | grep -c "\[replay-prepare\] fertig" >/dev/null \
+    || { err "Replay-Datensatzprüfung fehlgeschlagen (Ausgabe oben)."; return 1; }
+  ok "Replay vorbereitet; Asset: $ASSET_PATH"
+}
+
+# Lernt Realbild-Pixel -> Tisch-XY aus visuellen Bewegungsbeginnen und wenigen direkt
+# gesetzten FK-Zuständen. Originalaktionen werden dabei nicht abgespielt.
+do_replay_calibrate() {
+  ensure_container
+  ensure_asset_local || return 1
+  local ds="${REPLAY_DATASET:-/data/unitreerobotics/G1_Dex3_BlockStacking_Dataset}"
+  ensure_dataset "$ds" || return 1
+  ensure_replay_script reconstruct_cube_poses.py || return 1
+  ensure_replay_script collect_replay_anchors.py || return 1
+  local work="${REPLAY_WORK:-/data/cube_replay/work}"
+  local calibration="${REPLAY_CALIBRATION:-$work/geometry_calibration.json}"
+  local debug="${REPLAY_CALIBRATION_DEBUG_DIR:-$work/calibration_report}"
+  local anchors="${REPLAY_CALIBRATION_ANCHORS:-$work/replay_anchors.json}"
+  local count="${REPLAY_CALIBRATION_NUM_EPISODES:-40}"
+  local ratio="${REPLAY_CALIBRATION_HOLDOUT_RATIO:-0.2}"
+  local seed="${REPLAY_CALIBRATION_SEED:-17}"
+  [[ "$count" =~ ^[1-9][0-9]*$ ]] \
+    || { err "REPLAY_CALIBRATION_NUM_EPISODES muss positiv sein: '$count'"; return 1; }
+  [[ "$seed" =~ ^[0-9]+$ ]] \
+    || { err "REPLAY_CALIBRATION_SEED muss nichtnegativ sein: '$seed'"; return 1; }
+  [[ "$ratio" =~ ^0?\.[0-9]+$ && "$ratio" =~ [1-9] ]] \
+    || { err "REPLAY_CALIBRATION_HOLDOUT_RATIO muss >0 und <1 sein: '$ratio'"; return 1; }
+  local calibration_selection=( --num-episodes "$count" --start-episode 0 )
+
+  log "Sammle Pick-Anker aus Realvideos und wenigen direkten FK-Zuständen."
+  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" -e "DR_ENABLED=0" "$CONTAINER" env -u VIRTUAL_ENV \
+    "$ISAAC_PY" "$SIM_DIR/collect_replay_anchors.py" --headless --enable_cameras \
+      --dataset-path "$ds" --out "$anchors" --debug-dir "$debug" \
+      --asset-path "$ASSET_PATH" "${calibration_selection[@]}" \
+    2>&1 | tee /dev/stderr | grep -c "\[replay-anchor-collection\]" >/dev/null \
+    || { err "Sammeln der Replay-Anker fehlgeschlagen (Ausgabe oben)."; return 1; }
+  log "Fitte Homographien und prüfe getrennte Holdout-Episoden."
+  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" "$CONTAINER" env -u VIRTUAL_ENV \
+    "$ISAAC_PY" "$SIM_DIR/reconstruct_cube_poses.py" calibrate \
+      --dataset-path "$ds" --anchors "$anchors" --out "$calibration" --debug-dir "$debug" \
+      --holdout-ratio "$ratio" --seed "$seed" "${calibration_selection[@]}" \
+    2>&1 | tee /dev/stderr | grep -c "\[replay-calibrate\] fertig" >/dev/null \
+    || { err "Replay-Kalibrierung fehlgeschlagen (Ausgabe oben)."; return 1; }
+  ok "Kalibrierung: $HOST_DATA_DIR/${calibration#/data/}"
+  echo "  Kalibrierbericht: $HOST_DATA_DIR/${debug#/data/}"
+}
+
+# Rekonstruiert genau eine Anfangspose je Würfel und Episode. Fehlende Farben führen zum
+# Überspringen der Episode; es gibt keinen Greifpunkt- oder Zufalls-Fallback.
+do_replay_poses() {
+  ensure_container
+  local ds="${REPLAY_DATASET:-/data/unitreerobotics/G1_Dex3_BlockStacking_Dataset}"
+  ensure_dataset "$ds" || return 1
+  ensure_replay_script reconstruct_cube_poses.py || return 1
+  replay_selection_args || return 1
+  local work="${REPLAY_WORK:-/data/cube_replay/work}"
+  local calibration="${REPLAY_CALIBRATION:-$work/geometry_calibration.json}"
+  local poses="${REPLAY_POSES:-$work/cube_poses.json}"
+  local debug="${REPLAY_POSE_DEBUG_DIR:-$work/pose_overlays}"
+  local overwrite=()
+  [[ "${REPLAY_OVERWRITE:-0}" == "1" ]] && overwrite=( --overwrite )
+
+  if ! docker exec "$CONTAINER" test -f "$calibration"; then
+    err "Replay-Kalibrierung fehlt: $calibration"
+    err "  Zuerst: ./Simulation/server_rl_run.sh replay-calibrate"
+    return 1
+  fi
+  log "Bestimme einmalige Würfel-Startposen für maximal ${REPLAY_NUM_EPISODES:-10} Episoden."
+  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" "$CONTAINER" env -u VIRTUAL_ENV \
+    "$ISAAC_PY" "$SIM_DIR/reconstruct_cube_poses.py" poses \
+      --dataset-path "$ds" --calibration "$calibration" --out "$poses" \
+      --debug-dir "$debug" "${overwrite[@]}" "${REPLAY_SELECTION_ARGS[@]}" \
+    2>&1 | tee /dev/stderr | grep -c "\[replay-poses\] fertig" >/dev/null \
+    || { err "Würfelpose-Rekonstruktion fehlgeschlagen (Ausgabe oben)."; return 1; }
+  ok "Würfelposen: $HOST_DATA_DIR/${poses#/data/}"
+  echo "  Kontrollbilder: $HOST_DATA_DIR/${debug#/data/}"
+}
+
+# Spielt die Originalaktionen bei exakt 30 Hz ab und schreibt fünf MP4s je Episode.
+# Die Würfel werden nach env.reset genau einmal gesetzt und danach nie wieder beschrieben.
+do_replay_render() {
+  ensure_asset_local || return 1
+  local ds="${REPLAY_DATASET:-/data/unitreerobotics/G1_Dex3_BlockStacking_Dataset}"
+  ensure_dataset "$ds" || return 1
+  ensure_replay_script run_dataset_replay_videos.py || return 1
+  replay_selection_args || return 1
+  local work="${REPLAY_WORK:-/data/cube_replay/work}"
+  local poses="${REPLAY_POSES:-$work/cube_poses.json}"
+  local out="${REPLAY_OUT:-/data/cube_replay/videos}"
+  local mode="${REPLAY_OUTPUT_MODE:-videos}"
+  local dataset_out="${REPLAY_DATASET_OUT:-/data/cube_replay/dataset}"
+  local reports="${REPLAY_RENDER_REPORT_DIR:-$work/render_reports}"
+  local extra=()
+  [[ "$mode" == "videos" || "$mode" == "dataset" ]] \
+    || { err "REPLAY_OUTPUT_MODE muss videos oder dataset sein: '$mode'"; return 1; }
+  if [[ "$mode" == "dataset" && "${REPLAY_MAX_FRAMES:-0}" != "0" ]]; then
+    err "REPLAY_MAX_FRAMES ist im Dataset-Modus verboten; Techniktest mit videos ausführen."
+    return 1
+  fi
+  [[ "${REPLAY_OVERWRITE:-0}" == "1" ]] && extra+=( --overwrite )
+  [[ "${REPLAY_MAX_FRAMES:-0}" != "0" ]] \
+    && extra+=( --max-frames "${REPLAY_MAX_FRAMES}" )
+
+  if ! docker exec "$CONTAINER" test -f "$poses"; then
+    err "Würfelposen fehlen: $poses"
+    err "  Zuerst: ./Simulation/server_rl_run.sh replay-poses"
+    return 1
+  fi
+  log "Rendere maximal ${REPLAY_NUM_EPISODES:-10} physikbasierte Replay-Episoden nach $out."
+  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" -e "DR_ENABLED=${DR_ENABLED:-0}" "$CONTAINER" \
+    env -u VIRTUAL_ENV "$ISAAC_PY" "$SIM_DIR/run_dataset_replay_videos.py" \
+      --headless --enable_cameras --dataset-path "$ds" --poses "$poses" \
+      --out-dir "$out" --output-mode "$mode" --dataset-out "$dataset_out" \
+      --report-dir "$reports" --asset-path "$ASSET_PATH" \
+      "${extra[@]}" "${REPLAY_SELECTION_ARGS[@]}" \
+    2>&1 | tee /dev/stderr | grep -c "\[replay-render\] fertig" >/dev/null \
+    || { err "Replay-Rendering fehlgeschlagen (Ausgabe oben)."; return 1; }
+  if [[ "$mode" == "dataset" ]]; then
+    ok "Fertiger LeRobot-Datensatz (Host): $HOST_DATA_DIR/${dataset_out#/data/}"
+  else
+    ok "Fertige Rendering-Videos (Host): $HOST_DATA_DIR/${out#/data/}"
+  fi
+  echo "  Renderberichte: $HOST_DATA_DIR/${reports#/data/}"
+}
+
+# Trennt die beiden Erklaerungen fuer den 10-cm-Widerspruch aus dem Render-Lauf:
+# entweder steht die reale Kamera anders als die simulierte, oder die FK/Basispose stimmt
+# nicht (im 28-dim-State fehlen die Hueftgelenke). Setzt den Roboter auf den aufgezeichneten
+# Zustand und projiziert die echten Fingerkuppen ins REALE Bild desselben Frames.
+do_tipcheck() {
+  ensure_asset_local || return 1
+  local ds="${SPAN_DATASET:-/data/unitreerobotics/G1_Dex3_BlockStacking_Dataset}"
+  ensure_dataset "$ds" || return 1
+  local layout="${RENDER_LAYOUT:-/data/cotrain/layout.json}"
+  local out="${TIPCHECK_OUT:-/data/cotrain/tipcheck}"
+  local eps="${TIPCHECK_EPISODES:-4}"
+  local extra=""
+  [[ -n "${TIPCHECK_EPISODE_IDS:-}" ]] && extra+=" --episode-ids ${TIPCHECK_EPISODE_IDS}"
+  [[ -n "${TIPCHECK_FRAME:-}" ]] && extra+=" --frame ${TIPCHECK_FRAME}"
+  [[ -n "${TIPCHECK_APPROACH_STRIDE:-}" ]] \
+    && extra+=" --approach-stride ${TIPCHECK_APPROACH_STRIDE}"
+
+  if ! docker exec "$CONTAINER" test -f "$layout"; then
+    err "Layout fehlt: $layout — es liefert Wuerfellage und Pruefframe (motion_onset)."
+    err "  Erst:  RENDER_EPISODES=60 ./Simulation/server_rl_run.sh layout"
+    return 1
+  fi
+  log "Fingerkuppen ins Realbild projizieren: $eps Episoden, Ziel $out"
+  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" -e "DR_ENABLED=0" ${ROBOT_BASE_Z:+-e "ROBOT_BASE_Z=$ROBOT_BASE_Z"} ${ROBOT_BASE_X:+-e "ROBOT_BASE_X=$ROBOT_BASE_X"} \
+    "$CONTAINER" env -u VIRTUAL_ENV \
+    "$ISAAC_PY" "$SIM_DIR/project_fingertips_check.py" --headless --enable_cameras \
+      --dataset-path "$ds" --layout "$layout" --out-dir "$out" \
+      --asset-path "$ASSET_PATH" --num-episodes "$eps" $extra \
+    2>&1 | tee /dev/stderr | grep -c "\[tipcheck\] fertig" >/dev/null \
+    || { err "tipcheck ohne Erfolgsmarker beendet (Ausgabe oben)."; return 1; }
+  ok "Bilder: $HOST_DATA_DIR/${out#/data/}"
+  echo "  Handmarken auf den realen Haenden        -> Kamera und FK stimmen."
+  echo "  Hand- UND Wuerfelmarken gleichsinnig weg -> Kamerapose fuer Realbilder."
+  echo "  nur die Handmarken weg                   -> FK bzw. fehlende Hueftgelenke."
 }
 
 do_render() {
@@ -1280,22 +1663,34 @@ do_render() {
   local extra=""
   [[ "${RENDER_MAX_FRAMES:-0}" != "0" ]] && extra+=" --max-frames-per-episode ${RENDER_MAX_FRAMES}"
   [[ "${RENDER_OVERWRITE:-0}" == "1" ]] && extra+=" --overwrite"
+  # RENDER_CUBE_SOURCE=grasp zieht den gegriffenen Wuerfel auf den Kuppen-Schwerpunkt der
+  # Hand, statt ihn allein auf die Lage aus dem Realbild zu setzen. Grund: fuer Co-Training
+  # zaehlt, dass der Griff im gerenderten Bild aufgeht — nicht, dass der Wuerfel exakt dort
+  # steht, wo er real lag. RENDER_MAX_ANCHOR_SHIFT ist die Plausibilitaetsschranke (m).
+  [[ -n "${RENDER_CUBE_SOURCE:-}" ]] && extra+=" --cube-source ${RENDER_CUBE_SOURCE}"
+  [[ -n "${RENDER_MAX_ANCHOR_SHIFT:-}" ]] \
+    && extra+=" --max-anchor-shift ${RENDER_MAX_ANCHOR_SHIFT}"
   [[ -n "${RENDER_EPISODE_IDS:-}" ]] && extra+=" --episode-ids ${RENDER_EPISODE_IDS}"
-  # Nur bis zum Griff rendern. Ab dem Griff entscheidet die Kontaktphysik ueber die
-  # Wuerfellage, und die greift im Replay meist nicht — das Bild zeigt dann etwas anderes,
+  # Nur bis zur ersten Wuerfelbewegung rendern. Ab da hat die reale Hand den Wuerfel
+  # mitgenommen, waehrend der simulierte liegen bleibt — das Bild zeigt dann etwas anderes,
   # als die Aktion beschreibt. Default AN, weil die Alternative falsch beschriftete Paare
   # sind; RENDER_STOP_AT_GRASP=0 stellt das alte Verhalten wieder her.
-  # Wuerfellage aus dem Realbild. Default ist Pflicht, nicht Angebot: ohne Layout landen die
-  # Wuerfel am Greifpunkt aus scan.json, und der liegt bei knapp der Haelfte der Griffe auf
-  # dem Transportweg statt am Pick. RENDER_LAYOUT=none erzwingt den alten Weg.
+  # Die Fenstergrenze kam bis 2026-08-22 aus scan.json (close_step, Minimum der
+  # Fingeroeffnung). Das war zweimal falsch: der Detektor greift fuer die DEX3 nicht (101
+  # von 116 Griffen schliessen nie unter 6 cm bei 5 cm Wuerfelkante), und wo er etwas fand,
+  # lag es zu spaet — in Episode 0 achtundzwanzig Frames, also 21 % falsch beschriftet.
+  # Seither steht die Grenze als motion_onset in layout.json, gemessen am Realvideo.
+  # Damit braucht 'render' das Layout doppelt: fuer die Wuerfellage UND fuer das Fenster.
+  # RENDER_LAYOUT=none geht deshalb nur noch mit RENDER_STOP_AT_GRASP=0.
   local layout="${RENDER_LAYOUT:-/data/cotrain/layout.json}"
   if [[ "$layout" == "none" ]]; then
-    warn "RENDER_LAYOUT=none — Wuerfel kommen vom Greifpunkt aus scan.json."
-    warn "  Das ist der Modus, in dem der Arm ins Leere greift. Nur fuer Vergleichslaeufe."
+    warn "RENDER_LAYOUT=none — ohne Layout kennt der Renderer weder die Wuerfellage noch"
+    warn "  die Fenstergrenze. Nur mit RENDER_STOP_AT_GRASP=0 und als Ablation sinnvoll."
   elif docker exec "$CONTAINER" test -f "$layout"; then
     extra+=" --layout ${layout}"
   else
     err "Layout fehlt: $layout"
+    err "  Es liefert beides: Wuerfellage und Fenstergrenze (motion_onset)."
     err "  Erst:  RENDER_EPISODES=${eps} ./Simulation/server_rl_run.sh layout"
     err "  Bewusst ohne Layout rendern:  RENDER_LAYOUT=none"
     return 1
@@ -1321,7 +1716,7 @@ do_render() {
     [[ "$stage" == "both" || "$stage" == "$st" ]] || continue
     log "Stufe '$st' — Datensatz $ds, Ziel $out, $eps Episoden."
     [[ "$st" == "render" ]] && log "  Das dauert. Bei Verbindungsabbruch: Lauf in tmux/screen legen."
-    docker exec -w "$SIM_DIR" \
+    docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" \
       -e "DR_ENABLED=${DR_ENABLED:-1}" \
       -e "RL_GROUND_COLOR=${RL_GROUND_COLOR:-}" \
       -e "RL_AA_MODE=${RL_AA_MODE:-}" \
@@ -1422,7 +1817,7 @@ do_view() {
     log "  Live-Ansicht → http://$(host_addr):$LIVE_VIEW_PORT/"
   fi
 
-  docker exec -w "$SIM_DIR" \
+  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" \
     "${LIVE_ENV[@]}" "${LS_ENV[@]}" \
     -e "DR_ENABLED=$dr" \
     -e "SCENE_CAM=$scene_cam" \
@@ -1596,17 +1991,77 @@ Aktionen:
               SPAN_TRAJ_IDS (Default "0 1 2 3 4"), SPAN_AUTO_FETCH=0 schaltet das Holen ab.
   layout      Wuerfellage aus den REALBILDERN lesen -> layout.json. Farbblob (rot/gruen/gelb)
               im ersten Frame, Strahl durch den Schwerpunkt auf die Wuerfelebene. Braucht
-              keine GPU, Minuten statt Stunden. Das ist die richtige Quelle fuer 'render':
-              der Greifpunkt aus scan.json ist das Minimum der Fingeroeffnung ueber die ganze
-              Episode und liegt bei knapp der Haelfte der Griffe auf dem Transportweg statt
-              am Pick — dort greift der Arm dann ins Leere.
+              keine GPU. Liefert 'render' BEIDES: die Wuerfellage und den Bewegungsbeginn je
+              Episode, an dem das Renderfenster endet. Beides ersetzt den Greifpunkt aus
+              scan.json, der fuer die DEX3 nicht funktioniert (101 von 116 Griffen schliessen
+              nie unter 6 cm bei 5 cm Wuerfelkante).
               LAYOUT_OUT (/data/cotrain/layout.json), RENDER_EPISODES (60),
-              LAYOUT_DEBUG_DIR, LAYOUT_BIAS ("dx dy" in Metern), LAYOUT_OVERWRITE=1.
+              LAYOUT_DEBUG_DIR, LAYOUT_BIAS ("dx dy" in Metern), LAYOUT_OVERWRITE=1,
+              LAYOUT_NO_MOTION_ONSET=1 (Bewegungsbeginn weglassen, spart die Videodekodierung).
+              Liest seit 2026-08-25 ausserdem den GIERWINKEL jedes Wuerfels (cubes_yaw_deg,
+              mod 90°) — im Realdatensatz liegen die Wuerfel schraeg zur Tischkante, die Sim
+              stellte sie bis dahin immer achsparallel. null heisst "nicht belastbar
+              gemessen", nicht "liegt gerade"; dann rendert 'render' mit 0°.
+              LAYOUT_YAW_TOLERANCE (8°, erlaubte Uneinigkeit beider Kameras),
+              LAYOUT_MIN_SQUARENESS (1,25, verlangte Diagonale/Kante der Deckflaeche).
+              LAYOUT_EPISODE_IDS="8 12" rechnet nur diese Episoden — fuer einen Probelauf,
+              zusammen mit LAYOUT_NO_MOTION_ONSET=1 und einem eigenen LAYOUT_OUT.
+              LAYOUT_OVERWRITE=1 rechnet die GEWAEHLTEN Episoden neu und laesst die uebrigen
+              Eintraege stehen; LAYOUT_FRESH=1 verwirft die Datei ganz (noetig, wenn sich
+              LAYOUT_BIAS oder die Wuerfelebene geaendert haben).
   layoutcheck Kameramodell gegen ein GERENDERTES Bild pruefen, bevor 'layout' geglaubt wird.
               In Lauf 13 lagen konfigurierte Pose und cam.data 95,6° auseinander und drei
               Laeufe waren umsonst. LAYOUTCHECK_FRAME (Bild im Container),
               LAYOUTCHECK_EXPECT (bekannte Wuerfelpositionen als JSON, aus
-              render_manifest.json -> cubes_xyz), LAYOUTCHECK_CAM (cam_left_high).
+              render_manifest.json -> cubes_xyz), LAYOUTCHECK_CAM (cam_left_high),
+              LAYOUTCHECK_EXPECT_YAW (bekannte Gierwinkel als JSON, z. B. "[0,20,40]",
+              aus render_manifest.json -> cubes_yaw_deg).
+  layoutreport Aus einer fertigen layout.json ablesen, WORAN der Gierwinkel scheitert:
+              Maskenfuellung, Deckflaechengroesse und -breite, Formprobe, Kohaerenz und die
+              Uneinigkeit beider Kameras — und die Aufschluesselung, welches Tor zuschlaegt.
+              Formprobe zu klein -> Farbmaske oder Deckflaechenschnitt. Kameras uneins ->
+              der Winkel selbst ist verrauscht. Braucht keinen neuen Lauf, keine GPU.
+              LAYOUT_OUT (/data/cotrain/layout.json), LAYOUT_YAW_TOLERANCE,
+              LAYOUT_MIN_SQUARENESS.
+  topface     Den Deckflaechenschnitt auf ECHTEN Frames vermessen. Die Wuerfeloberseite ist
+              ein 5-cm-Quadrat — welche Schwellenregel ihr am naechsten kommt, ist damit
+              messbar (Breite gegen 5,0 cm, Formprobe gegen 1,41). Ersetzt die Wette
+              "welches Perzentil". Braucht keine GPU.
+              TOPFACE_EPISODES (5), LAYOUT_EPISODE_IDS, TOPFACE_RULES ("otsu q50 q70").
+  yawcheck    Abnahme des GIERWINKEL-Schaetzers gegen synthetische Wuerfel bekannter Drehung.
+              Braucht weder Datensatz noch Isaac noch GPU. Der Schaetzer misst die Deckflaeche
+              nach der Rueckprojektion ueber ihr 4. Winkelmoment; die Vorgaenger-Variante mass
+              im Pixelraum und rastete auf die Bildachsen ein (101 von 120 Realframes exakt
+              0,0°). Abnahme 2026-08-25: rauschfrei Median 0,05°, bei realistischem
+              Maskenrauschen Median ~1° fuer die Wuerfel, die das Tor passieren.
+              LAYOUT_YAW_TOLERANCE, LAYOUT_MIN_SQUARENESS.
+  tipcheck    Fingerkuppen aus der FK ins REALBILD projizieren. Beantwortet, warum im
+              Render-Lauf keine Kuppe je naeher als 10 cm an den Wuerfel kommt, obwohl die
+              reale Hand ihn haelt: liegt es an der Kamerapose fuer Realbilder oder an der
+              FK (im 28-dim-State fehlen die Hueftgelenke). Braucht layout.json.
+              TIPCHECK_EPISODES (4), TIPCHECK_EPISODE_IDS, TIPCHECK_FRAME (Default:
+              Bewegungsbeginn aus layout.json), TIPCHECK_OUT (/data/cotrain/tipcheck).
+  replay-prepare  Vollständigen Real-Datensatz holen/konvertieren und Schema, vier Kameras,
+              30 Hz sowie 28-DoF-State/Actions prüfen. Stellt das lokale G1+DEX3-Asset
+              bereit und lädt keine Modellgewichte.
+  replay-calibrate  Aus Bewegungsbeginn, stabilen Top-Face-Pixeln und wenigen direkt
+              gesetzten FK-Zuständen zwei Pixel-zu-Tisch-Homographien lernen. Vollständige
+              Episoden bleiben als Holdout getrennt; Original-Actions werden nicht abgespielt.
+              REPLAY_CALIBRATION_NUM_EPISODES (40),
+              REPLAY_CALIBRATION_HOLDOUT_RATIO (0.2), REPLAY_CALIBRATION_SEED (17).
+  replay-poses  Für maximal REPLAY_NUM_EPISODES (Default 10) die einmalige Anfangspose
+              aller Würfel aus stabilen Realframes und den geprüften Homographien bestimmen.
+              Es gibt keinen Greifpunkt-, Zufalls- oder Alt-Layout-Fallback.
+  replay-render  Originale 28-DoF-Actions bei exakt 30 Hz abspielen. Jeder Würfel wird
+              einmal vor Frame 0 gesetzt und danach ausschließlich von PhysX bewegt.
+              REPLAY_OUTPUT_MODE=videos (Default): fünf MP4s je Episode.
+              REPLAY_OUTPUT_MODE=dataset: trainierbarer LeRobot-v2.1-Datensatz mit vier
+              Policy-Kameras, Sim-State und bytegleich geprüften Original-Actions.
+              REPLAY_NUM_EPISODES (10), REPLAY_START_EPISODE (0), REPLAY_EPISODE_IDS,
+              REPLAY_MAX_FRAMES (0), REPLAY_OVERWRITE (0),
+              REPLAY_OUT (/data/cube_replay/videos),
+              REPLAY_DATASET_OUT (/data/cube_replay/dataset),
+              REPLAY_WORK (/data/cube_replay/work).
   render      Gerenderten Co-Training-Datensatz erzeugen (Schritt 4): echte Dataset-Aktionen
               in der Sim abspielen und dabei die vier Policy-Kameras aufzeichnen. Ergebnis
               ist ein LeRobot-v2.1-Datensatz, den run_finetuning_cotrain.sh dazumischt.
@@ -1622,7 +2077,7 @@ Aktionen:
               zeigt etwas anderes, als die Aktion beschreibt. RENDER_GRASP_WINDOW (0 =
               ab Frame 0) rendert nur die letzten N Frames davor, RENDER_MIN_WINDOW (60)
               ueberspringt zu kurze Fenster. Das Manifest bekommt je Episode ein
-              consistency-Feld (Abstand Kuppen<->Wuerfel beim Griff) und der Lauf am Ende
+              consistency-Feld (Abstand Kuppen<->Wuerfel am Fensterende) und der Lauf am Ende
               eine Zusammenfassung daraus — das ist die QA-Zahl, nicht scan.json:ok.
   rl          Echter RL-Lauf (Vordergrund). Checkpoints unter $HOST_DATA_DIR/g1_dex3_rl/.
   latency     Reine Policy-Latenz (ms je Action-Chunk), in-process ohne Sim und ohne ZMQ.
@@ -1668,6 +2123,12 @@ Beispiele:
   # Schritt 4 — erst der Rauchtest (2 Episoden a 60 Frames), dann der lange Lauf:
   HF_TOKEN=hf_... RENDER_EPISODES=2 RENDER_MAX_FRAMES=60 ./Simulation/server_rl_run.sh render
   HF_TOKEN=hf_... RENDER_EPISODES=60 ./Simulation/server_rl_run.sh render
+  # Physikbasierte Videos aus zunächst höchstens zehn Real-Episoden:
+  HF_TOKEN=hf_... ./Simulation/server_rl_run.sh replay-prepare
+  REPLAY_CALIBRATION_NUM_EPISODES=40 ./Simulation/server_rl_run.sh replay-calibrate
+  REPLAY_NUM_EPISODES=10 ./Simulation/server_rl_run.sh replay-poses
+  DR_ENABLED=0 REPLAY_NUM_EPISODES=10 ./Simulation/server_rl_run.sh replay-render
+  REPLAY_OUTPUT_MODE=dataset REPLAY_NUM_EPISODES=10 ./Simulation/server_rl_run.sh replay-render
   HF_TOKEN=hf_... WANDB_API_KEY=... RL_NUM_ENVS=4 ./Simulation/server_rl_run.sh rl
   # mit Live-Ansicht im Browser + W&B-Video alle 10 Iterationen:
   HF_TOKEN=hf_... WANDB_API_KEY=... LIVE_VIEW=1 RL_WANDB_VIDEO_EVERY=10 \\
@@ -1772,7 +2233,11 @@ fi
 # 'shell' bleibt ungespiegelt (interaktives -it verträgt die Pipe nicht), 'help'/'clean'
 # haben nichts zu protokollieren.
 case "$ACTION" in
-  preflight|setup|check|cams|gap|eval|grasp|span|rl|livecheck|latency|optimize|render|view|webview|layout|layoutcheck) start_logging "$ACTION" ;;
+  preflight|setup|check|cams|gap|eval|grasp|span|rl|livecheck|latency|optimize|render|view|webview|layout|layoutcheck|layoutreport|topface|yawcheck|tipcheck|replay-prepare|replay-calibrate|replay-poses|replay-render) start_logging "$ACTION" ;;
+esac
+case "$ACTION" in
+  rl|shell|help|clean|webview) ;;
+  *) select_gpu ;;
 esac
 
 # Erst JETZT — nach start_logging — die aufgelöste Konfiguration ins Log schreiben.
@@ -1791,7 +2256,15 @@ case "$ACTION" in
   grasp)      do_grasp ;;
   span)       do_span ;;
   layout)     do_layout ;;
+  yawcheck)   do_yawcheck ;;
+  layoutreport) do_layoutreport ;;
+  topface)    do_topface ;;
   layoutcheck) do_layoutcheck ;;
+  replay-prepare) do_replay_prepare ;;
+  replay-calibrate) do_replay_calibrate ;;
+  replay-poses) do_replay_poses ;;
+  replay-render) do_replay_render ;;
+  tipcheck)   do_tipcheck ;;
   render)     do_render ;;
   latency)    do_latency ;;
   optimize)   do_optimize "${2:-all}" ;;

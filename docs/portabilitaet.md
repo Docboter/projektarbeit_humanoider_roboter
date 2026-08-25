@@ -58,14 +58,15 @@ explizit gesetzte Umgebungsvariable   >   .env.local (nur server_rl_run.sh)   > 
 
 ### 2.1 IKR-Server (Docker, `server_rl_run.sh`)
 
-Bisher lag `/data` des Containers auf `/home/lmuecke/project/data/RL`. Ohne Zutun landet es
-jetzt unter `$HOME/groot-rl-data`. **Eine Zeile stellt den alten Zustand her** — auf dem
-Server, im Repo-Wurzelverzeichnis:
+Bisher lag `/data` eines einzelnen Benutzerkontos fest unter
+`/home/lmuecke/project/data/RL`. Ohne Konfiguration landet es jetzt portabel unter
+`$HOME/groot-rl-data`. Auf dem IKR-Server empfiehlt sich der ebenfalls portable
+Projektpfad `$HOME/project/data/RL` — im Repo-Wurzelverzeichnis:
 
 ```bash
 cp .env.local.example .env.local
-echo ': "${RL_HOST_DATA_DIR:=/home/lmuecke/project/data/RL}"'       >> .env.local
-echo ': "${RC_HOST_DATA_DIR:=/home/lmuecke/project/data/RoboCasa}"' >> .env.local
+echo ': "${RL_HOST_DATA_DIR:=$HOME/project/data/RL}"'       >> .env.local
+echo ': "${RC_HOST_DATA_DIR:=$HOME/project/data/RoboCasa}"' >> .env.local
 ```
 
 Die zweite Zeile gilt für [`server_robocasa_ref_run.sh`](../Simulation/server_robocasa_ref_run.sh)
@@ -78,13 +79,11 @@ Prüfen, dass es gegriffen hat (die Ausgabe muss den alten Pfad zeigen):
 grep RL_HOST_DATA_DIR .env.local
 ```
 
-> **Es besteht kein Zeitdruck und es geht nichts verloren.** Der Bind-Mount wird nur beim
-> **Anlegen** des Containers gesetzt; ein bereits existierender `groot-rl` behält seinen alten
-> Mount, egal was hier steht. Ohne `.env.local` würden lediglich die **Host-Logs** nach
-> `$HOME/groot-rl-data/logs` wandern — und ein späteres `clean` + Neuanlegen würde dann
-> tatsächlich auf das neue Verzeichnis zeigen (Checkpoint-Cache und Shader-Cache müssten neu
-> aufgebaut werden). Deshalb: `.env.local` anlegen, *bevor* du auf dem Server das nächste Mal
-> `clean` fährst.
+> Der Bind-Mount wird nur beim **Anlegen** des Containers gesetzt; ein bereits existierender
+> `groot-rl` behält seinen alten Mount. `server_rl_run.sh` vergleicht deshalb den realen
+> `/data`-Mount mit `RL_HOST_DATA_DIR` und bricht bei einer Abweichung ab. Dann entweder
+> `.env.local` auf den bestehenden Datenpfad korrigieren oder den Container mit `clean`
+> neu anlegen. `clean` löscht das Host-Datenverzeichnis nicht.
 
 Praktisch: In dieselbe Datei gehören auch `HF_TOKEN` und `WANDB_API_KEY` — dann entfällt das
 Voranstellen bei jedem Aufruf. Siehe [`.env.local.example`](../.env.local.example).

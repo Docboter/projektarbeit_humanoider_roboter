@@ -489,34 +489,45 @@ Diese Session hat die Greif-Physik der Sim systematisch kalibriert, ausgehend vo
 | `solver_position_iter` | 4 | **8** | Bessere Kontaktauflösung bei Mehrfach-Kontakt (Finger + Würfel) |
 | `solver_velocity_iter` | 0 | **1** | Stabilerere Kontaktdynamik |
 
-### 14.2 Sign-Convention-Fix für proximale Fingergelenke
+### 14.2 Der „Sign-Convention-Fix" war selbst der Fehler (zurückgenommen 2026-08-24)
 
-**Ursache:** `middle_0` und `index_0` beider Hände haben im USD eine **invertierte Achse**
-gegenüber der Dataset-Konvention. Dataset: positiver Wert = schließen (links) / negativer Wert
-= schließen (rechts). USD-Limits: `[-1,571, 0]` links / `[0, 1,571]` rechts → entgegengesetzt.
+> Bis 2026-08-24 stand hier ein Fix, der `middle_0` und `index_0` **beider** Hände negierte
+> (`_SIGN_FLIP_IDX = [17, 19, 24, 26]`), dazu negierte Startwerte in `DATASET_INIT_STATE` und
+> die ausdrückliche Entscheidung, diese vier Gelenke **nicht** zu weiten. Die zugrunde liegende
+> Annahme — „Datensatz: positiv = schließen" — ist falsch. Alles davon ist zurückgenommen.
 
-**Symptom:** Policy sagt „schließen" → Sim bewegt Proximal-Gelenke in Öffnungsrichtung →
-nur Distal-Gelenke (`_1`) griffen, Griff zu schwach für Transport.
+**Was tatsächlich gilt:** Der Datensatz ist bereits **seitenweise in USD-Konvention**
+aufgezeichnet: links negativ = schließen, rechts positiv = schließen. Die `_1`-Beugegelenke
+belegen es — sie wurden nie gespiegelt und passen trotzdem beide exakt in ihre Grenzen
+(`meta/stats.json`, ganzer Datensatz):
 
-**Betroffene Policy-Indices:** 17 (`l_middle_0`), 19 (`l_index_0`), 24 (`r_index_0`), 26 (`r_middle_0`)
+| Gelenk | Datensatz | Grenze |
+|---|---|---|
+| `left_hand_index_1` | −2,083 … −0,008 | −2,13 … 0,05 |
+| `right_hand_index_1` | 0,010 … 2,085 | −0,05 … 2,14 |
+| `left_hand_index_0` | −1,089 … 0,267 | −1,571 … 0,0 |
+| `right_hand_index_0` | −0,199 … 1,646 | 0,0 … 1,571 |
 
-**Fix in `g1_dex3_blockstack_env.py`:**
+**Was die Spiegelung anrichtete:** Sie drehte die `_0`-Werte aus ihrer Grenze heraus.
+`set_joint_position_target` klemmt dort auf 0 — das Gelenk bewegte sich **überhaupt nicht**.
+Nicht „in Öffnungsrichtung", wie die alte Notiz vermutete, sondern gar nicht. Gemessen mit
+`server_rl_run.sh tipcheck` (Episode 0): auf den linken `_0`-Gelenken klemmten 550 bzw. 587
+von 1173 Frames. Die Spiegelung wirkte in `_get_observations` **und** `_pre_physics_step`, also
+in jedem Lauf — Eval, Grasp, RL, Replay, Co-Training.
 
-```python
-# _pre_physics_step: Actions negieren → USD-Konvention
-actions[:, self._SIGN_FLIP_IDX] *= -1   # _SIGN_FLIP_IDX = [17, 19, 24, 26]
+**Symptom über die ganze Kette:** Hand schließt nie → 101/116 Griffen bleiben über 6 cm Öffnung
+→ die v4-Greifanker sind unbrauchbar → der darauf gebaute `close_step`-Detektor misst Rauschen.
 
-# _get_observations: Beobachtungen negieren → Dataset-Konvention für Modell
-joint_pos[:, self._SIGN_FLIP_IDX] *= -1
-```
+**Stand jetzt:**
+- `_SIGN_FLIP_IDX = []` — keine Spiegelung, auf keiner Seite.
+- `DATASET_INIT_STATE`: alle 28 Werte roh aus dem Datensatz, keine Umrechnung.
+- `_widen_finger_joint_limits`: die vier `_0`-Gelenke sind wieder drin. Beide Hände fahren
+  real ~0,2 rad über die Nulllinie in die Gegenrichtung, rechts `index_0` zusätzlich über
+  1,571 hinaus. Grenzen = Union(USD, Datensatz-Min/Max) + ~0,05 rad, wie bei den `_1`-Gelenken.
 
-Ohne den **Observations-Fix** würde das Modell im Closed-Loop falsche Fingerwinkel sehen und
-permanent gegensteuern (Policy-Feedback-Loop mit verdoppeltem Fehler).
-
-**Fix in `g1_dex3_cfg.py`:**
-- `DATASET_INIT_STATE`: negierte Werte für die 4 Joints (Dataset-Wert × −1)
-- `_widen_finger_joint_limits`: diese 4 Joints entfernt — nach dem Flip liegen die Werte
-  bereits im Original-USD-Bereich, kein Weiten nötig
+Maßgeblich ist dabei `observation.state` (was das Gelenk erreicht **hat**), nicht `action`:
+kommandiert wurde stellenweise deutlich mehr (`left_index_0` bis −1,762 gegen −1,089 erreicht),
+das hat auch die reale Hand nicht ausgefahren.
 
 ### 14.3 Würfel-Reibung (`g1_dex3_blockstack_env.py`)
 

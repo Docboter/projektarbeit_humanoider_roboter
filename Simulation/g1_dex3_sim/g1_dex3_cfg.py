@@ -21,6 +21,8 @@ Voraussetzung:
 
 from __future__ import annotations
 
+import os
+
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
@@ -96,17 +98,45 @@ DATASET_INIT_STATE = [
     -0.05662,  0.31445,  0.12487, -0.28736,  0.20897,  0.13095, -0.09767,  # left_arm
     -0.40259, -0.34180, -0.01584,  0.17989,  0.00290, -0.09826,  0.29865,  # right_arm
     # left_dex3 [thumb0,thumb1,thumb2, middle0,middle1, index0,index1]
-    # middle_0/index_0: negiert (USD-Achse invertiert vs. Dataset-Konvention, s.u.)
-    -0.59676,  1.01160,  0.05485, -0.169,   -0.01227, -0.163,   -0.01201,
+    -0.59676,  1.01160,  0.05485,  0.169,   -0.01227,  0.163,   -0.01201,
     # right_dex3 [thumb0,thumb1,thumb2, index0,index1, middle0,middle1]
-    # index_0/middle_0: negiert (s.u.)
-    -0.70991, -1.01463, -0.21031,  0.171,    0.01391,  0.142,    0.03354,
+    -0.70991, -1.01463, -0.21031, -0.171,    0.01391, -0.142,    0.03354,
 ]
-# middle_0/index_0 beider Hände: USD-Achse invertiert vs. Dataset.
-# Dataset: links middle_0/index_0 positiv = schließen; USD: [-1.571, 0], d.h. negativ = schließen.
-# Rechts umgekehrt: Dataset negativ = schließen, USD [0, 1.571] positiv = schließen.
-# Fix: _pre_physics_step negiert diese 4 Aktionen (Policy-Indices 17, 19, 24, 26)
-# und die Init-Pose wurde entsprechend mit negiertem Dataset-Wert gesetzt.
+
+# Alle 28 Werte sind der ROHE Dataset-Zustand — keine Umrechnung. Bis 2026-08-24 standen hier
+# für middle_0/index_0 beider Hände negierte Werte, passend zu _SIGN_FLIP_IDX. Beides war
+# falsch: der Datensatz ist bereits seitenweise in USD-Konvention aufgezeichnet (links negativ
+# = schließen, rechts positiv = schließen), die Spiegelung drehte die Gelenke aus ihrer Grenze
+# heraus, wo sie geklemmt wurden. Begründung und Messung stehen an _SIGN_FLIP_IDX in
+# g1_dex3_blockstack_env.py. Der leichte Überstand über die Null (links +0,169/+0,163, rechts
+# -0,171/-0,142) ist im Datensatz echt und wird von _widen_finger_joint_limits abgedeckt.
+
+# Original-USD-Grenzen der vier _0-Gelenke. Sie enden auf beiden Seiten exakt an der Null,
+# und genau dort steht der Überstand aus dem Datensatz.
+USD_SPAWN_LIMITS = {
+    "left_hand_middle_0_joint": (-1.571, 0.0),
+    "left_hand_index_0_joint": (-1.571, 0.0),
+    "right_hand_index_0_joint": (0.0, 1.571),
+    "right_hand_middle_0_joint": (0.0, 1.571),
+}
+
+
+def _spawn_safe(joint: str, value: float) -> float:
+    """Startwert auf die Original-USD-Grenze kappen. Ohne Eintrag unverändert."""
+    low, high = USD_SPAWN_LIMITS.get(joint, (value, value))
+    return min(max(value, low), high)
+
+
+# Isaac Lab prüft `init_state` beim Spawn gegen die ORIGINAL-USD-Grenzen und wirft dort einen
+# ValueError ("default positions out of the limits") — noch in `super().__init__()`, also lange
+# bevor `_widen_finger_joint_limits` die Grenzen weiten kann. Deshalb spawnt der Roboter mit
+# gekappten Werten; die echten Datensatzwerte schreibt `_widen_finger_joint_limits` unmittelbar
+# danach in `default_joint_pos` zurück, und von dort liest `_reset_idx`. Der gekappte Zustand
+# lebt also nur bis zum ersten Reset. Einzige Wahrheit bleibt DATASET_INIT_STATE.
+SPAWN_JOINT_POS = {
+    joint: _spawn_safe(joint, value)
+    for joint, value in zip(ALL_JOINTS_ORDERED, DATASET_INIT_STATE)
+}
 
 # ---------------------------------------------------------------------------
 # Articulation-Konfiguration
@@ -139,10 +169,29 @@ G1_DEX3_CFG = ArticulationCfg(
         ),
     ),
     init_state=ArticulationCfg.InitialStateCfg(
-        pos=(0.0, 0.0, 0.85),
+        # Beckenhoehe, gemessen statt gesetzt. Die frueheren 0.85 waren ein Ansatz ohne Quelle
+        # und stellten den Roboter 8,6 cm zu hoch an den Tisch. Nachgewiesen mit `tipcheck`
+        # (Laeufe 47/48): der Versatz zwischen Fingerkuppen und der Wuerfellage aus dem Realbild
+        # betrug dz = +8,6 cm (Streuung 2,1) bei dy = 0; mit 0.764 faellt er auf +1,0 cm, ohne
+        # dx (+6,1 -> +5,7) oder dy zu veraendern — ein reiner z-Shift, 1:1, also ein starrer
+        # Versatz. Erst dabei umschliessen die Kuppen den Wuerfel ueberhaupt (vorher lagen alle
+        # 48 Messwerte darueber). Der Wert passt zur Beckenhoehe des stehenden G1 (~0,76 m).
+        #
+        # TRAGWEITE: aendert die Reichweite zum Tisch in JEDEM Lauf. Greifzahlen von vor dieser
+        # Korrektur sind nicht direkt vergleichbar. ROBOT_BASE_Z stellt den alten Wert wieder her.
+        # Die Kamerapose wandert NICHT mit: sie steht statisch in camera_geometry.py und ist
+        # gegen Grundwahrheit auf 0,3 cm geprueft.
+        #
+        # ROBOT_BASE_X: -0.057 ist ebenfalls gemessen. Nach der Hoehenkorrektur blieb dx =
+        # +5,7 cm; mit -0,057 faellt es auf +1,5 (Lauf 51). Traegt wird die Korrektur nicht vom
+        # Mittelwert, sondern von der Streuung: die faellt auf JEDER Achse (dx 3,8 -> 2,2, dy
+        # 3,7 -> 3,4, dz unveraendert 2,0). Eine blosse Verschiebung taete das nicht.
+        pos=(float(os.environ.get("ROBOT_BASE_X", "-0.057")), 0.0,
+             float(os.environ.get("ROBOT_BASE_Z", "0.764"))),
         # Startpose 1:1 aus dem Dataset (Frame 0) — Hände greifen bereits Richtung Tisch,
-        # statt der früheren generischen Ruhepose. Siehe DATASET_INIT_STATE oben.
-        joint_pos=dict(zip(ALL_JOINTS_ORDERED, DATASET_INIT_STATE)),
+        # statt der früheren generischen Ruhepose. Die vier _0-Gelenke sind hier auf die
+        # Original-USD-Grenze gekappt, siehe SPAWN_JOINT_POS oben.
+        joint_pos=SPAWN_JOINT_POS,
         joint_vel={".*": 0.0},
     ),
     actuators={

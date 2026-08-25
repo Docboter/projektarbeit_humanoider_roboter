@@ -102,27 +102,37 @@ parser.add_argument("--train-ratio", type=float, default=0.8,
                          "gerendert — sonst wäre die Validierungs-MSE kontaminiert.")
 parser.add_argument("--max-frames-per-episode", type=int, default=0,
                     help="0 = ganze Episode. >0 kürzt (Rauchtest).")
+parser.add_argument("--cube-source", choices=("layout", "grasp"), default="layout",
+                    help="layout = Wuerfel an die Lage aus dem Realbild (Standard); "
+                         "grasp = den gegriffenen Wuerfel zusaetzlich auf den Kuppen-"
+                         "Schwerpunkt der Hand ziehen, damit der Griff im Bild aufgeht")
+parser.add_argument("--max-anchor-shift", type=float, default=0.08,
+                    help="Wieviel der Greifanker hoechstens von der Bild-Lage abweichen darf "
+                         "(m). Darueber wird die Episode verworfen statt geraten")
 parser.add_argument("--layout", type=str, default="",
                     help="layout.json aus extract_block_layout.py — Würfelpositionen, die "
                          "aus dem REALBILD gelesen wurden (Farbblob → Strahl auf die "
-                         "Würfelebene). Das ist die richtige Quelle; der Greifpunkt aus "
-                         "scan.json ist nur der Notnagel und liegt bei knapp der Hälfte der "
-                         "Griffe auf dem Transportweg statt am Pick.")
+                         "Würfelebene) UND je Episode der Bewegungsbeginn, der das "
+                         "Renderfenster begrenzt. Ohne Eintrag wird die Episode verworfen — "
+                         "geraten wird nicht.")
 parser.add_argument("--stop-at-grasp", action="store_true",
-                    help="Nur bis zum ersten Zugreifen rendern (Fensterende = kleinstes "
-                         "close_step aus scan.json). Bis dorthin liegt der Würfel dort, wo "
-                         "der Arm hinfährt; danach entscheidet die Kontaktphysik über seine "
-                         "Lage und das Bild zeigt etwas anderes, als die Aktion beschreibt. "
-                         "Solche Paare sind FALSCH beschriftet, nicht bloß unscharf.")
+                    help="Nur bis zur ersten Würfelbewegung rendern (Fensterende = "
+                         "motion_onset.first aus layout.json). Bis dorthin liegt der Würfel "
+                         "dort, wo ihn das Layout hinsetzt; danach hat die reale Hand ihn "
+                         "mitgenommen, der simulierte bleibt liegen, und das Bild zeigt etwas "
+                         "anderes, als die Aktion beschreibt. Solche Paare sind FALSCH "
+                         "beschriftet, nicht bloß unscharf.")
 parser.add_argument("--grasp-window", type=int, default=0,
-                    help="Mit --stop-at-grasp: nur die letzten N Frames vor dem Griff "
+                    help="Mit --stop-at-grasp: nur die letzten N Frames vor der "
+                         "Würfelbewegung "
                          "rendern (0 = ab Frame 0). Schneidet den Leerlauf-Kopf langer "
                          "Aufnahmen weg und vereinheitlicht das Gewicht der Episoden — "
                          "sonst stellt eine 6791-Frame-Episode ein Sechstel des Satzes.")
 parser.add_argument("--min-window", type=int, default=60,
                     help="Mit --stop-at-grasp: Episoden mit kürzerem Fenster überspringen. "
-                         "Ein Griff in den ersten Frames ist keine Greifbewegung, sondern "
-                         "eine Hand, die schon geschlossen startet.")
+                         "Bewegt sich ein Würfel schon in den ersten Frames, ist das keine "
+                         "Greifbewegung, sondern eine Fehlauslösung oder eine bereits "
+                         "gestörte Szene.")
 parser.add_argument("--asset-path", type=str, default="",
                     help="G1+Dex3 USD-Asset (leer = cfg-Default)")
 parser.add_argument("--tracking-error-max", type=float, default=0.15,
@@ -144,8 +154,13 @@ args = parser.parse_args()
 
 if args.stop_at_grasp and args.no_place_cubes:
     raise SystemExit(
-        "--stop-at-grasp braucht die Greifpunkte aus scan.json, --no-place-cubes wirft sie "
-        "gerade weg. Beides zusammen ergäbe ein Fenster ohne Inhalt."
+        "--stop-at-grasp schneidet das Fenster an der Würfelbewegung, --no-place-cubes setzt "
+        "gar keine Würfel. Beides zusammen ergäbe ein Fenster ohne Inhalt."
+    )
+if args.stop_at_grasp and not args.layout:
+    raise SystemExit(
+        "--stop-at-grasp braucht --layout: das Fensterende (motion_onset) steht in "
+        "layout.json. Erst extract_block_layout.py fahren."
     )
 if args.grasp_window > 0 and not args.stop_at_grasp:
     raise SystemExit("--grasp-window wirkt nur mit --stop-at-grasp (das Fensterende fehlt sonst).")
@@ -297,12 +312,20 @@ def set_robot_to_state(env, state_row: np.ndarray) -> None:
     env.robot.set_joint_position_target(full)
 
 
-def hand_spreads_and_centroids(env) -> tuple[np.ndarray, np.ndarray] | None:
-    """Je Hand: Fingeröffnung (mittlerer paarweiser Kuppenabstand) und Kuppen-Schwerpunkt.
+def hand_spreads_and_centroids(env) -> tuple[np.ndarray, np.ndarray, np.ndarray] | None:
+    """Je Hand: Fingeröffnung, Kuppen-Schwerpunkt und Greifachsen-Gierwinkel.
 
     Bezugspunkt sind die Fingerkuppen aus dem Env (``get_contact_points_w``), nicht die
     Handfläche — der Versatz bis zur Kuppe war in den Läufen 25–28 die Ursache dreier
-    falscher Schlüsse.
+    falscher Schlüsse. Reihenfolge je Hand ist [Zeigefinger, Mittelfinger, Daumen], siehe
+    ``_REACH_BODY_SETS``.
+
+    Der Gierwinkel ist die Richtung Daumen → Mitte der Gegenfinger, auf die Tischebene
+    projiziert und mod 90° genommen. Er ist die BILDUNABHÄNGIGE Gegenprobe zum Winkel aus
+    ``extract_block_layout.py``: wer einen Würfel greift, legt die Greifachse quer zu einer
+    Fläche, nicht zu einer Ecke. Stimmen beide Zahlen überein, bestätigen sich zwei
+    Verfahren, die nichts miteinander zu tun haben. Er ist kein Ersatz für den Bildwinkel —
+    er belegt nur, ob die Hand zur angenommenen Würfellage passt.
     """
     try:
         tips = env.get_contact_points_w()
@@ -313,11 +336,14 @@ def hand_spreads_and_centroids(env) -> tuple[np.ndarray, np.ndarray] | None:
     tips = tips[0].cpu().numpy()                       # (6,3): 3 links, 3 rechts
     spreads = np.zeros(2, dtype=np.float32)
     centroids = np.zeros((2, 3), dtype=np.float32)
+    yaws = np.zeros(2, dtype=np.float32)
     for h in range(2):
         t3 = tips[3 * h:3 * h + 3]
         spreads[h] = float(np.linalg.norm(t3[[0, 0, 1]] - t3[[1, 2, 2]], axis=-1).mean())
         centroids[h] = t3.mean(axis=0)
-    return spreads, centroids
+        axis = t3[2] - 0.5 * (t3[0] + t3[1])            # Daumen → Mitte Zeige/Mittel
+        yaws[h] = float(np.degrees(np.arctan2(axis[1], axis[0])) % 90.0)
+    return spreads, centroids, yaws
 
 
 def block_positions(env) -> np.ndarray:
@@ -330,7 +356,8 @@ def play_episode(env, actions: np.ndarray, collect_images: bool, writers=None,
                  track_blocks: bool = False):
     """Eine Episode abspielen.
 
-    Rückgabe: erreichte States, mittlerer Arm-Tracking-Fehler, Fingeröffnung je Step,
+    Rückgabe: erreichte States, Tracking-Fehler (Arm gemittelt, Hand je Step), Fingeröffnung
+    je Step,
     Kuppen-Schwerpunkt je Step, Würfelposen je Step (nur mit ``track_blocks``, sonst None)
     und die tatsächliche Bildgröße (H, W) — Letztere gemessen statt angenommen, damit
     info.json nicht behauptet, was der Renderer nicht geliefert hat.
@@ -342,6 +369,10 @@ def play_episode(env, actions: np.ndarray, collect_images: bool, writers=None,
     block_trace = (np.full((n, len(env.blocks), 3), np.nan, dtype=np.float32)
                    if track_blocks else None)
     arm_err = np.zeros(n, dtype=np.float32)
+    # Handfehler je Step und je Hand. Der Arm wird gemittelt, die Hand NICHT: entscheidend
+    # ist der Greifmoment am Fensterende, und ein Mittel ueber die ganze Episode verduennt
+    # ihn mit den Frames, in denen die Hand frei in der Luft steht und muehelos folgt.
+    hand_err = np.zeros((n, 2), dtype=np.float32)
     frame_hw: tuple[int, int] | None = None
 
     for i in range(n):
@@ -351,10 +382,12 @@ def play_episode(env, actions: np.ndarray, collect_images: bool, writers=None,
         joint_pos = obs["joint_pos"][0].cpu().numpy()
         achieved[i] = joint_pos
         arm_err[i] = float(np.abs(joint_pos[:14] - actions[i][:14]).mean())
+        hand_err[i, 0] = float(np.abs(joint_pos[14:21] - actions[i][14:21]).mean())
+        hand_err[i, 1] = float(np.abs(joint_pos[21:28] - actions[i][21:28]).mean())
 
         hands = hand_spreads_and_centroids(env)
         if hands is not None:
-            spread_trace[i], centroid_trace[i] = hands
+            spread_trace[i], centroid_trace[i], _ = hands
         if block_trace is not None:
             block_trace[i] = block_positions(env)
 
@@ -368,7 +401,8 @@ def play_episode(env, actions: np.ndarray, collect_images: bool, writers=None,
         if i % 200 == 0:
             print(f"      … Frame {i}/{n}", flush=True)
 
-    return achieved, float(arm_err.mean()), spread_trace, centroid_trace, block_trace, frame_hw
+    return (achieved, float(arm_err.mean()), hand_err, spread_trace, centroid_trace,
+            block_trace, frame_hw)
 
 
 def find_grasp_points(spread_trace: np.ndarray, centroid_trace: np.ndarray,
@@ -411,38 +445,47 @@ def consistency_report(spread: np.ndarray, centroid: np.ndarray,
 
     Die Frage ist NICHT, ob die Episode die Aufgabe löst — die Aktionen stammen aus einer
     echten Aufnahme, ihr Erfolg ist Eigenschaft des realen Datensatzes und hier nicht
-    messbar. Die Frage ist, ob das gerenderte BILD zeigt, was die Aktion tut. Deshalb je
-    Hand: liegt im Moment des engsten Griffs ein Würfel zwischen den Fingerkuppen? Und je
-    Würfel: bewegt er sich überhaupt, hebt er ab?
+    messbar. Die Frage ist, ob das gerenderte BILD zeigt, was die Aktion tut.
 
-    ``dist_cm`` ist das Kernmaß. Der Würfel wurde per Konstruktion unter den Greifpunkt
-    gelegt, also gehört dort ein kleiner Wert hin. Ein großer Wert heißt: die Hand schließt
-    sich neben dem Würfel, und ab diesem Frame beschreibt die Aktion einen Transport, den
-    das Bild nicht zeigt.
+    Gemessen wird am **letzten Frame des Fensters**. Das ist der Bewegungsbeginn aus
+    ``layout.json``: der Moment, in dem sich der Würfel im Realvideo nachweislich zu bewegen
+    beginnt, also von einer Hand mitgenommen wird. Passt die Kette aus Würfellage,
+    Kameramodell und Roboter-FK zusammen, muss dort eine Fingerkuppe am Würfel stehen.
+
+    Bis 2026-08-22 wurde stattdessen am Minimum der Fingeröffnung gemessen. Das ist für die
+    DEX3 keine sinnvolle Stelle — bei 101 von 116 Griffen bleibt die engste Kuppenöffnung
+    über 6 cm bei 5 cm Würfelkante —, und weil das Minimum innerhalb des Fensters gesucht
+    wird, verschob ein kürzeres (richtigeres) Fenster die Messstelle nach vorne und ließ die
+    Zahl schlechter aussehen, obwohl der Datensatz besser wurde.
+
+    ``dist_end_cm`` ist das Kernmaß, ``dist_min_cm`` die beste Annäherung im Fenster
+    überhaupt. Sind beide groß, beschreibt die Aktion einen Griff, den das Bild nicht zeigt.
     """
     if blocks is None or spread.shape[0] == 0:
         return None
     hands: list[dict | None] = []
     for h in range(2):
-        s = spread[:, h]
-        valid = np.isfinite(s)
-        if valid.sum() < 10:
+        c_all = centroid[:, h]
+        ok = np.all(np.isfinite(c_all), axis=-1) & np.all(np.isfinite(blocks), axis=(1, 2))
+        if ok.sum() < 2:
             hands.append(None)
             continue
-        idx_valid = np.flatnonzero(valid)
-        i_min = int(idx_valid[int(np.argmin(s[valid]))])
-        c, b = centroid[i_min, h], blocks[i_min]
-        if not np.all(np.isfinite(c)) or not np.all(np.isfinite(b)):
-            hands.append(None)
-            continue
-        d3 = np.linalg.norm(b - c, axis=-1)
-        j = int(np.argmin(d3))
+        idx = np.flatnonzero(ok)
+        # (Frames, Würfel) — Abstand jeder Kuppenmitte zu jedem Würfel
+        d = np.linalg.norm(blocks[idx] - c_all[idx][:, None, :], axis=-1)
+        end = int(idx[-1])
+        j_end = int(np.argmin(d[-1]))
+        f_min, j_min = np.unravel_index(int(np.argmin(d)), d.shape)
         hands.append({
-            "close_step": i_min,
-            "spread_cm": round(float(s[i_min]) * 100, 2),
-            "cube": j,
-            "dist_cm": round(float(d3[j]) * 100, 2),
-            "dist_xy_cm": round(float(np.linalg.norm(b[j][:2] - c[:2])) * 100, 2),
+            "end_step": end,
+            "cube": j_end,
+            "dist_end_cm": round(float(d[-1, j_end]) * 100, 2),
+            "dist_end_xy_cm": round(float(np.linalg.norm(
+                blocks[end][j_end][:2] - c_all[end][:2])) * 100, 2),
+            "dist_min_cm": round(float(d[f_min, j_min]) * 100, 2),
+            "dist_min_step": int(idx[f_min]),
+            "spread_end_cm": (round(float(spread[end, h]) * 100, 2)
+                              if np.isfinite(spread[end, h]) else None),
         })
 
     cubes = []
@@ -470,19 +513,23 @@ def summarize_consistency(manifest: dict) -> None:
             if r.get("status") == "ok" and r.get("consistency")]
     if not recs:
         return
-    dists = [h["dist_cm"] for r in recs for h in r["consistency"]["hands"] if h]
+    ends = [h["dist_end_cm"] for r in recs for h in r["consistency"]["hands"] if h]
+    mins = [h["dist_min_cm"] for r in recs for h in r["consistency"]["hands"] if h]
     lifts = [c["lift_cm"] for r in recs for c in r["consistency"]["cubes"] if c]
     moved = [c["moved_cm"] for r in recs for c in r["consistency"]["cubes"] if c]
-    if not dists:
+    if not ends:
         return
-    near = sum(1 for d in dists if d <= 4.0)
+    near = sum(1 for d in ends if d <= 4.0)
     print(f"\n[render] Konsistenz über {len(recs)} Episoden:")
-    print(f"  Abstand Kuppen↔Würfel beim Griff: Median {float(np.median(dists)):.1f} cm, "
-          f"p90 {float(np.percentile(dists, 90)):.1f} cm, "
-          f"≤ 4 cm bei {near}/{len(dists)} Händen")
+    print(f"  Kuppen↔Würfel am Fensterende (Bewegungsbeginn): Median "
+          f"{float(np.median(ends)):.1f} cm, p90 {float(np.percentile(ends, 90)):.1f} cm, "
+          f"≤ 4 cm bei {near}/{len(ends)} Händen")
+    print(f"  beste Annäherung im Fenster: Median {float(np.median(mins)):.1f} cm, "
+          f"min {float(np.min(mins)):.1f} cm")
     print(f"  Würfel bewegt   > 2 cm: {sum(1 for m in moved if m > 2.0)}/{len(moved)}")
     print(f"  Würfel angehoben> 1 cm: {sum(1 for m in lifts if m > 1.0)}/{len(lifts)}")
-    print("  Das misst NICHT Aufgabenerfolg, sondern ob das Bild zur Aktion passt.",
+    print("  Das misst NICHT Aufgabenerfolg, sondern ob das Bild zur Aktion passt: am "
+          "Fensterende bewegt sich der reale Würfel, dort MUSS eine Kuppe an ihm stehen.",
           flush=True)
 
 
@@ -501,69 +548,135 @@ def stash_cubes(env) -> None:
         block.write_root_velocity_to_sim(torch.zeros((1, 6), device=env.device))
 
 
-def place_cubes(env, grasp: list[dict], rng: np.random.Generator,
-                layout: list | None = None) -> tuple[list[list[float]], list[str]]:
-    """Würfel auslegen — nach Vorrang: Bild-Layout, dann Greifpunkt, dann zufällig.
+def grasp_anchor(env, states: np.ndarray, layout: list, until: int,
+                 max_shift_m: float) -> dict | None:
+    """Wo die HAND den Würfel greift — als Korrektur zur Lage aus dem Bild.
 
-    **Das Bild-Layout ist die einzige Quelle, die wirklich weiß, wo die Würfel lagen**
-    (``extract_block_layout.py``: Farbblob im Realbild → Strahl auf die Würfelebene). Der
-    Greifpunkt aus ``scan.json`` ist nur ein Notnagel und ein schlechter: er ist das Minimum
-    der Fingeröffnung über die ganze Episode, und weil die Hand beim Pick-and-Place vom
-    Zugreifen bis zum Ablegen geschlossen bleibt, liegt dieses Minimum irgendwo auf dem
-    Transportweg — 48 von 116 Griffen des Laufs vom 2026-08-17 jenseits von 60 % der
-    Episode. Der Würfel landete dann fern vom echten Pick, und der Arm griff ins Leere.
+    Warum überhaupt: für Co-Training zählt nicht, ob der Würfel dort steht, wo er im
+    Realbild lag, sondern ob er dort steht, wo die Hand ihn greift. Sonst zeigt das
+    gerenderte Bild einen Griff, der danebengeht — als Aufsicht schlimmer als gar keine.
+    Nach den Geometriekorrekturen vom 2026-08-24 bleiben zwischen Kuppen und Bild-Lage rund
+    4,5 cm; bei 5 cm Würfelkante reicht das zum Anstoßen, nicht zum Greifen (Lauf 53).
 
-    Nur x/y kommen aus der Quelle, die Höhe ist immer die Tischauflage.
+    Gesucht wird der Frame VOR ``until`` (dem Bewegungsbeginn), an dem eine Handmitte einem
+    Layout-Würfel am nächsten kommt — davor gilt dessen Ruhelage, danach trägt die Hand ihn
+    bereits. Der Kuppen-Schwerpunkt dort ist der Anker.
+
+    Nicht zu verwechseln mit dem alten ``find_grasp_points``: das nahm das Minimum der
+    FINGERÖFFNUNG über die GANZE Episode und landete damit auf dem Transportweg.
+
+    ``None`` heißt: kein Anker verwendbar — entweder gibt es keine Kuppen-Daten, oder der
+    Anker liegt weiter als ``max_shift_m`` von der Bild-Lage entfernt. Der zweite Fall ist
+    die Plausibilitätsschranke: zwei unabhängige Quellen, die weit auseinanderliegen,
+    bezeugen einander nicht.
+    """
+    targets = [(i, np.asarray(xy[:2], dtype=np.float64))
+               for i, xy in enumerate(layout or []) if xy]
+    if not targets:
+        return None
+    best = None
+    for frame in range(0, min(int(until) + 1, len(states)), 2):
+        set_robot_to_state(env, states[frame])
+        env.sim.forward()
+        env.robot.update(float(env.cfg.sim.dt))
+        sc = hand_spreads_and_centroids(env)
+        if sc is None:
+            continue
+        _, centroids, hand_yaws = sc
+        for hand in range(2):
+            for block, xy in targets:
+                dist = float(np.linalg.norm(centroids[hand][:2] - xy))
+                if best is None or dist < best["dist_m"]:
+                    best = {"dist_m": dist, "frame": frame, "hand": hand, "block": block,
+                            "xy": [float(centroids[hand][0]), float(centroids[hand][1])],
+                            "hand_yaw_deg": round(float(hand_yaws[hand]), 2)}
+    if best is None:
+        return None
+    if best["dist_m"] > max_shift_m:
+        print(f"      Greifanker {best['dist_m'] * 100:.1f} cm von der Bild-Lage entfernt "
+              f"(Grenze {max_shift_m * 100:.0f} cm) — Episode wird ausgelassen.", flush=True)
+        return None
+    return best
+
+
+def yaw_to_quat(yaw_deg: float) -> tuple[float, float, float, float]:
+    """Gierwinkel um z in Grad → Quaternion (w, x, y, z) in Isaacs Reihenfolge."""
+    half = np.radians(float(yaw_deg)) / 2.0
+    return (float(np.cos(half)), 0.0, 0.0, float(np.sin(half)))
+
+
+def place_cubes(env, layout: list | None = None, anchor: dict | None = None,
+                yaws: list | None = None
+                ) -> tuple[list[list[float]], list[str], list[float]] | None:
+    """Würfel dorthin setzen, wo sie im REALBILD lagen — oder die Episode auslassen.
+
+    Einzige Quelle ist das Bild-Layout aus ``extract_block_layout.py`` (Farbblob im
+    Realbild → Strahl auf die Würfelebene). Bis 2026-08-22 gab es zwei stille
+    Rückfallebenen, und beide setzten den Würfel nachweislich falsch:
+
+    * Der Greifpunkt aus ``scan.json`` ist das Minimum der Fingeröffnung über die ganze
+      Episode. Weil die Hand beim Pick-and-Place vom Zugreifen bis zum Ablegen geschlossen
+      bleibt, liegt dieses Minimum irgendwo auf dem Transportweg — 48 von 116 Griffen des
+      Laufs vom 2026-08-17 jenseits von 60 % der Episode. Zudem ist die Fingeröffnung für
+      diese Hand gar kein Greifdetektor: bei 101 von 116 Griffen blieb die engste Öffnung
+      über 6 cm, bei 5 cm Würfelkante.
+    * Die Zufallsplatzierung erfindet eine Lage, die mit den Realaktionen nichts zu tun hat.
+
+    Beides erzeugt Trainingsbilder, auf denen der Arm an einem Würfel vorbeigreift, der dort
+    nie lag — der teuerste Fehler, den ein Co-Training-Datensatz machen kann, weil er wie
+    gültige Aufsicht aussieht. Der Layout-Lauf vom 2026-08-22 findet in 60 von 60 Episoden
+    alle drei Würfel; ein Rückfall ist also auch praktisch nicht nötig.
+
+    ``anchor`` (aus ``grasp_anchor``) verschiebt GENAU EINEN Würfel — den gegriffenen —
+    auf den Kuppen-Schwerpunkt der Hand. Die übrigen bleiben auf ihrer Bild-Lage: nur
+    einer wird angefasst, für die anderen ist das Bild die bessere Quelle.
+
+    ``yaws`` sind die Gierwinkel aus ``layout.json`` (``cubes_yaw_deg``), in Grad und mod
+    90°. ``None`` je Würfel heißt „nicht belastbar gemessen", nicht „liegt gerade" — dann
+    bleibt es bei 0°. Vor dem 2026-08-25 gab es den Wert nicht und jeder Würfel stand
+    achsparallel; im Realdatensatz liegen sie aber schräg zur Tischkante. Ein falsch
+    gedrehter Würfel ist derselbe Fehler wie ein falsch platzierter, nur im Drehfreiheits-
+    grad: die Realaktion greift dann eine Ecke statt einer Fläche (5,0 cm über die Fläche,
+    7,1 cm über die Diagonale), und das Bild-Aktions-Paar lehrt eine Zuordnung, die es
+    nicht gibt.
+
+    Rückgabe ``None`` heißt: keine vollständige Lage bekannt, Episode überspringen.
+    Nur x/y kommen aus Layout bzw. Anker, die Höhe ist immer die Tischauflage.
     """
     z = float(env.cfg.block_z_surface)
     origin = env.scene.env_origins[0].cpu().numpy()
-    placed: list[np.ndarray] = []
-    record: list[list[float]] = []
-    source: list[str] = []
+    positions: list[np.ndarray] = []
 
-    for i, block in enumerate(env.blocks):
-        pos, src = None, "random"
-        if layout and i < len(layout) and layout[i]:
-            x, y = float(layout[i][0]), float(layout[i][1])
-            if 0.15 <= x <= 0.70 and -0.35 <= y <= 0.35:
-                pos, src = np.array([x, y, z], dtype=np.float32), "layout"
-            else:
-                print(f"      Würfel {i}: Layout-Punkt ({x:.2f}, {y:.2f}) außerhalb des "
-                      f"Tischs — verworfen.", flush=True)
-        if pos is None and i < len(grasp) and grasp[i].get("ok"):
-            x, y = grasp[i]["xy"]
-            # Plausibilitätsfenster um den Tisch: alles weiter draußen ist ein Ausreißer
-            # der Kuppen-Rekonstruktion, kein Greifpunkt.
-            if 0.20 <= x <= 0.60 and -0.40 <= y <= 0.40:
-                pos, src = np.array([x, y, z], dtype=np.float32), "grasp"
-            else:
-                grasp[i]["ok"] = False
-                grasp[i]["reason"] = f"Greifpunkt außerhalb des Tischs ({x:.2f}, {y:.2f})"
+    for i, _block in enumerate(env.blocks):
+        if not (layout and i < len(layout) and layout[i]):
+            print(f"      Würfel {i}: keine Lage im Bild-Layout — Episode wird ausgelassen.",
+                  flush=True)
+            return None
+        x, y = float(layout[i][0]), float(layout[i][1])
+        if not (0.15 <= x <= 0.70 and -0.35 <= y <= 0.35):
+            print(f"      Würfel {i}: Layout-Punkt ({x:.2f}, {y:.2f}) außerhalb des Tischs "
+                  f"— Episode wird ausgelassen.", flush=True)
+            return None
+        if anchor and anchor["block"] == i:
+            x, y = float(anchor["xy"][0]), float(anchor["xy"][1])
+        positions.append(np.array([x, y, z], dtype=np.float32))
 
-        if pos is None:
-            # Kein Greifpunkt → zufällig im konfigurierten Band, aber mit Abstand zu den
-            # bereits gesetzten Würfeln (zwei 5-cm-Würfel im selben Punkt schießen
-            # auseinander, s. _reset_idx).
-            for _ in range(50):
-                cand = np.array([rng.uniform(*env.cfg.block_x_range),
-                                 rng.uniform(*env.cfg.block_y_range), z], dtype=np.float32)
-                if all(np.linalg.norm(cand[:2] - p[:2]) > 0.08 for p in placed):
-                    pos = cand
-                    break
-            if pos is None:
-                pos = np.array([env.cfg.block_x_range[0], env.cfg.block_y_range[0], z],
-                               dtype=np.float32)
-
-        placed.append(pos)
+    record, source, used_yaw = [], [], []
+    for i, (block, pos) in enumerate(zip(env.blocks, positions)):
         record.append([round(float(v), 4) for v in pos])
-        source.append(src)
+        source.append("greifanker" if anchor and anchor["block"] == i else "layout")
+        yaw = 0.0
+        if yaws and i < len(yaws) and yaws[i] is not None:
+            yaw = float(yaws[i])
+        used_yaw.append(round(yaw, 2))
+        quat = yaw_to_quat(yaw)
         world = torch.tensor([[float(pos[0] + origin[0]), float(pos[1] + origin[1]),
-                               float(pos[2]), 1.0, 0.0, 0.0, 0.0]],
+                               float(pos[2]), *quat]],
                              device=env.device, dtype=torch.float32)
         block.write_root_pose_to_sim(world)
         block.write_root_velocity_to_sim(torch.zeros((1, 6), device=env.device))
 
-    return record, source
+    return record, source, used_yaw
 
 
 # ---------------------------------------------------------------------------
@@ -720,28 +833,35 @@ def finalize_meta(out: Path, src_info: dict, tasks: dict[int, str], manifest: di
 # Stufen
 # ---------------------------------------------------------------------------
 
-def episode_window(info: dict, n_src: int) -> tuple[int, int, str]:
+def episode_window(layout_entry: dict | None, n_src: int) -> tuple[int, int, str]:
     """Welcher Frame-Bereich gerendert wird — und warum. Rückgabe ``(start, stop, Grund)``.
 
-    Ohne ``--stop-at-grasp`` die ganze Episode. Mit dem Flag endet das Fenster am
-    **frühesten** Griff beider Hände, nicht am spätesten: sobald eine Hand zugreift, ist
-    ihr Würfel der Physik überlassen — und er ist auch in der Kamera der anderen Hand zu
-    sehen. Das späteste close_step zu nehmen hieße, für die eine Hand konsistente Frames mit
-    für die andere schon falschen zu erkaufen.
+    Ohne ``--stop-at-grasp`` die ganze Episode. Mit dem Flag endet das Fenster, sobald sich
+    der **erste** Würfel im Realvideo bewegt: ab da hat die reale Hand ihn mitgenommen,
+    während der simulierte liegen bleibt, und das Bild beschreibt nicht mehr die Aktion. Den
+    frühesten Würfel zu nehmen und nicht den spätesten ist Absicht — ein bewegter Würfel ist
+    in beiden Kopfkameras zu sehen, also verdirbt er auch die Frames der anderen Hand.
+
+    Die Grenze kommt aus ``layout.json`` (``motion_onset.first``, gemessen von
+    ``extract_block_layout.episode_motion_onsets``). Bis 2026-08-22 stand hier das
+    ``close_step`` aus ``scan.json``, das Minimum der Fingeröffnung. Das war zweimal falsch:
+    der Detektor greift für die DEX3 nicht (101 von 116 Griffen schließen nie unter 6 cm bei
+    5 cm Würfelkante), und wo er etwas fand, lag es zu spät — in Episode 0 achtundzwanzig
+    Frames, also 21 % der Episode falsch beschriftet.
 
     ``start == stop`` heißt „diese Episode liefert kein brauchbares Fenster".
     """
     if not args.stop_at_grasp:
         return 0, n_src, "ganze Episode"
-    closes = [int(h["close_step"]) for h in info.get("hands", [])
-              if h.get("ok") and h.get("close_step") is not None]
-    if not closes:
-        return 0, 0, "kein Greifpunkt im Scan"
-    stop = min(min(closes), n_src)
+    onset = (layout_entry or {}).get("motion_onset", {}).get("first")
+    if onset is None:
+        return 0, 0, ("kein belastbarer Bewegungsbeginn im Layout "
+                      "(beide Kopfkameras müssen sich einig sein)")
+    stop = min(int(onset), n_src)
     start = max(0, stop - args.grasp_window) if args.grasp_window > 0 else 0
     if stop - start < args.min_window:
         return start, start, f"Fenster {stop - start} < {args.min_window} Frames"
-    return start, stop, f"Frames {start}–{stop}, Griff bei {stop}"
+    return start, stop, f"Frames {start}–{stop}, Würfel bewegt sich ab {stop}"
 
 
 def expected_length(src_lengths: dict[int, int], ep_idx: int, info: dict | None = None) -> int:
@@ -803,7 +923,8 @@ def run_scan(env_builder, src_root: Path, src_info: dict, episodes: list[int],
 
         print(f"[scan] ({k}/{len(episodes)}) Episode {ep_idx}: {actions.shape[0]} Frames",
               flush=True)
-        _, arm_err, spread, centroid, _, _ = play_episode(env, actions, collect_images=False)
+        _, arm_err, _, spread, centroid, _, _ = play_episode(
+            env, actions, collect_images=False)
         grasp = find_grasp_points(spread, centroid)
         scan["episodes"][str(ep_idx)] = {
             "length": int(actions.shape[0]),
@@ -839,21 +960,16 @@ def run_render(env_builder, src_root: Path, src_info: dict, episodes: list[int],
     scan = {"episodes": {}}
     if scan_path.exists():
         scan = json.loads(scan_path.read_text())
-    elif args.stop_at_grasp:
-        raise SystemExit(
-            f"{scan_path} fehlt, --stop-at-grasp braucht daraus aber das close_step, um das "
-            "Fenster zu schneiden. Erst `--stage scan` fahren."
-        )
     elif not args.no_place_cubes and not args.layout:
         raise SystemExit(
-            f"{scan_path} fehlt und kein --layout — dann lägen die Würfel zufällig und die "
-            "Bild-Aktions-Paare wären visuell entkoppelt. Empfohlen ist --layout "
-            "(extract_block_layout.py); --no-place-cubes erzwingt die Entkopplung als Ablation."
+            f"{scan_path} fehlt und kein --layout — ohne Layout weiß der Renderer weder, wo "
+            "die Würfel lagen, noch bis zu welchem Frame das Bild zur Aktion passt. Erst "
+            "extract_block_layout.py fahren; --no-place-cubes erzwingt die Entkopplung als "
+            "Ablation."
         )
 
-    # Bild-Layout: die einzige Quelle, die weiß, wo die Würfel wirklich lagen. Fehlt es,
-    # fällt place_cubes auf den Greifpunkt zurück — laut, weil das der Modus ist, in dem der
-    # Arm ins Leere greift.
+    # Bild-Layout: die einzige Quelle, die weiß, wo die Würfel lagen UND ab wann sie sich
+    # bewegen. Ohne Eintrag verwirft der Renderer die Episode, statt zu raten.
     layout: dict = {}
     if args.layout:
         lp = Path(args.layout)
@@ -862,9 +978,8 @@ def run_render(env_builder, src_root: Path, src_info: dict, episodes: list[int],
         layout = json.loads(lp.read_text()).get("episodes", {})
         print(f"[render] Layout aus {lp}: {len(layout)} Episoden.", flush=True)
     else:
-        print("[render] WARNUNG: kein --layout. Die Würfel landen am Greifpunkt aus "
-              "scan.json, und der liegt bei knapp der Hälfte der Griffe auf dem "
-              "Transportweg statt am Pick.", flush=True)
+        print("[render] WARNUNG: kein --layout — nur mit --no-place-cubes sinnvoll "
+              "(Ablation ohne Würfel).", flush=True)
 
     manifest_path = out / "render_manifest.json"
     manifest = {"episodes": {}, "frame_width": 640, "frame_height": 480,
@@ -876,7 +991,6 @@ def run_render(env_builder, src_root: Path, src_info: dict, episodes: list[int],
     fps = float(src_info.get("fps", 30.0))
     tasks = read_source_tasks(src_root)
     src_lengths = read_source_lengths(src_root)
-    rng = np.random.default_rng(0)
     env = None
     index_offset = sum(int(r.get("length", 0)) for r in manifest["episodes"].values()
                        if r.get("status") == "ok")
@@ -896,12 +1010,12 @@ def run_render(env_builder, src_root: Path, src_info: dict, episodes: list[int],
                 print(f"{head}: liegt schon vor — übersprungen.", flush=True)
                 continue
 
-        if not info and not args.no_place_cubes and str(ep_idx) not in layout:
-            # Weder Scan-Eintrag noch Layout: die Wuerfel landen zufaellig, das
-            # Bild-Aktions-Paar ist visuell entkoppelt. Laut, nicht still — meist steht ein
-            # anderes RENDER_EPISODES dahinter als beim Scan bzw. beim Layout.
-            print(f"{head}: WARNUNG — weder Scan-Eintrag noch Layout, Würfel liegen "
-                  f"zufällig. Mit denselben Episoden nachholen.", flush=True)
+        if not args.no_place_cubes and str(ep_idx) not in layout:
+            # Ohne Layout gibt es seit 2026-08-22 keine Platzierung mehr — place_cubes
+            # verwirft die Episode. Meist steht ein anderes RENDER_EPISODES dahinter als
+            # beim Layout-Lauf.
+            print(f"{head}: kein Layout-Eintrag — Episode wird verworfen. Mit denselben "
+                  f"Episoden 'server_rl_run.sh layout' nachholen.", flush=True)
         err = info.get("arm_tracking_error_rad")
         if err is not None and err > args.tracking_error_max:
             print(f"{head}: VERWORFEN — Arm-Tracking {err:.3f} rad > "
@@ -915,7 +1029,7 @@ def run_render(env_builder, src_root: Path, src_info: dict, episodes: list[int],
             actions, state = actions[:args.max_frames_per_episode], \
                 state[:args.max_frames_per_episode]
 
-        start, stop, why = episode_window(info, actions.shape[0])
+        start, stop, why = episode_window(layout.get(str(ep_idx)), actions.shape[0])
         if stop - start <= 0:
             print(f"{head}: ÜBERSPRUNGEN — {why}.", flush=True)
             manifest["episodes"][str(ep_idx)] = {"status": "skipped_window", "reason": why}
@@ -930,10 +1044,50 @@ def run_render(env_builder, src_root: Path, src_info: dict, episodes: list[int],
         if env is None:
             env = env_builder()
         env.reset()
-        cubes, cube_src = None, None
+        cubes, cube_src, cube_yaw = None, None, None
         if not args.no_place_cubes:
-            cubes, cube_src = place_cubes(env, info.get("hands", []), rng,
-                                          layout=layout.get(str(ep_idx), {}).get("cubes"))
+            entry = layout.get(str(ep_idx), {})
+            entry_cubes = entry.get("cubes")
+            # Fehlt der Schlüssel, stammt das layout.json von vor dem 2026-08-25: dann gibt
+            # es keine Gierwinkel und jeder Würfel steht achsparallel — wie bisher.
+            entry_yaws = entry.get("cubes_yaw_deg")
+            anchor = None
+            if args.cube_source == "grasp" and entry_cubes:
+                # Das Fenster endet per Konstruktion am Bewegungsbeginn (episode_window),
+                # `state` ist bereits darauf geschnitten — sein letzter Frame IST der Onset.
+                anchor = grasp_anchor(env, state, entry_cubes, len(state) - 1,
+                                      float(args.max_anchor_shift))
+                if anchor:
+                    # Gegenprobe, absichtlich nur als Bericht: der Greifachsen-Winkel wird
+                    # NICHT als Ersatz für einen verworfenen Bildwinkel eingesetzt. Er
+                    # beruht auf der Annahme, dass quer zu einer Fläche gegriffen wurde,
+                    # und die ist unbelegt. place_cubes hat aus genau diesem Grund seine
+                    # stillen Rückfallebenen verloren; hier eine neue einzubauen wäre
+                    # derselbe Fehler. Erst wenn beide Zahlen über viele Episoden
+                    # zusammenfallen, ist die Annahme belegt.
+                    img_yaw = (entry_yaws[anchor["block"]]
+                               if entry_yaws and anchor["block"] < len(entry_yaws) else None)
+                    if img_yaw is not None:
+                        d = abs((float(img_yaw) - anchor["hand_yaw_deg"] + 45.0) % 90.0 - 45.0)
+                        cmp_txt = (f", Bildwinkel {float(img_yaw):.0f}° vs. Greifachse "
+                                   f"{anchor['hand_yaw_deg']:.0f}° (Δ {d:.0f}°)")
+                    else:
+                        cmp_txt = (f", Greifachse {anchor['hand_yaw_deg']:.0f}° "
+                                   f"(kein Bildwinkel zum Vergleich)")
+                    print(f"      Greifanker: Hand {'links' if anchor['hand'] == 0 else 'rechts'}"
+                          f", Wuerfel {anchor['block']}, Frame {anchor['frame']}, "
+                          f"{anchor['dist_m'] * 100:.1f} cm von der Bild-Lage{cmp_txt}.",
+                          flush=True)
+                env.reset()
+            placement = place_cubes(env, layout=entry_cubes, anchor=anchor,
+                                    yaws=entry_yaws)
+            if placement is None:
+                print(f"{head}: VERWORFEN — keine vollständige Würfellage im Bild-Layout. "
+                      f"Fehlt sie für viele Episoden, zuerst 'server_rl_run.sh layout' "
+                      f"mit denselben Episoden nachfahren.", flush=True)
+                manifest["episodes"][str(ep_idx)] = {"status": "rejected_layout"}
+                continue
+            cubes, cube_src, cube_yaw = placement
         set_robot_to_state(env, state[0])
         for _ in range(args.settle_steps):
             env.step(torch.tensor(state[0], dtype=torch.float32,
@@ -943,7 +1097,8 @@ def run_render(env_builder, src_root: Path, src_info: dict, episodes: list[int],
               f"aus {cube_src}", flush=True)
         writers = open_writers(videos, fps)
         try:
-            achieved, arm_err, spread, centroid, block_trace, frame_hw = play_episode(
+            (achieved, arm_err, hand_err, spread, centroid, block_trace,
+             frame_hw) = play_episode(
                 env, actions, collect_images=True, writers=writers,
                 track_blocks=not args.no_place_cubes)
         finally:
@@ -951,6 +1106,13 @@ def run_render(env_builder, src_root: Path, src_info: dict, episodes: list[int],
                 w.close()
         if frame_hw:
             manifest["frame_height"], manifest["frame_width"] = frame_hw
+
+        # Handfehler AM GREIFMOMENT (letzte 20 Frames des Fensters, dort schliesst die Hand
+        # um den Wuerfel). Trennt zwei Ursachen, die im Video gleich aussehen: folgen die
+        # Finger ihren Sollwinkeln nicht, fehlt Kraft (stiffness/effort_limit) — folgen sie
+        # und die Hand steht trotzdem seitlich am Wuerfel, stimmt die Handorientierung nicht.
+        grip = hand_err[-min(20, len(hand_err)):]
+        hand_err_end = [round(float(grip[:, h].mean()), 3) for h in range(2)]
 
         if arm_err > args.tracking_error_max:
             # Erst hier messbar, wenn kein Scan-Eintrag vorlag. Dateien wieder entfernen,
@@ -974,18 +1136,25 @@ def run_render(env_builder, src_root: Path, src_info: dict, episodes: list[int],
             "task": tasks.get(task_index, "stack the blocks"),
             "task_index": task_index,
             "arm_tracking_error_rad": round(arm_err, 4),
+            "hand_tracking_error_rad_end": hand_err_end,
             "cubes_xyz": cubes,
             "cube_source": cube_src,
+            # Grundwahrheit für `extract_block_layout.py detect --expect-yaw`: gegen einen
+            # Frame aus DIESEM Lauf gemessen, ist das die einzige echte Abnahme des
+            # Winkelschätzers am Renderer.
+            "cubes_yaw_deg": cube_yaw,
             "grasp_points": info.get("hands"),
             "consistency": cons,
         }
         manifest_path.write_text(json.dumps(manifest, indent=2))
         note = ""
         if cons:
-            d = [h["dist_cm"] for h in cons["hands"] if h]
+            d = [h["dist_end_cm"] for h in cons["hands"] if h]
             if d:
-                note = f", Kuppen↔Würfel beim Griff {min(d):.1f} cm"
-        print(f"{head}: geschrieben (Tracking {arm_err:.3f} rad{note}).", flush=True)
+                note = f", Kuppen↔Würfel am Fensterende {min(d):.1f} cm"
+        print(f"{head}: geschrieben (Tracking Arm {arm_err:.3f} rad, Hand am Greifmoment "
+              f"links {hand_err_end[0]:.3f} / rechts {hand_err_end[1]:.3f} rad{note}).",
+              flush=True)
 
     finalize_meta(out, src_info, tasks, manifest, fps)
     summarize_consistency(manifest)
@@ -1019,13 +1188,15 @@ def main():
     print(f"  Train-Grenze: 0:{int(int(src_info['total_episodes']) * args.train_ratio)} "
           f"von {src_info['total_episodes']} (Test-Episoden bleiben ungerendert)")
     print(f"  Längste Ep.: {max_len} Frames → episode_length_s entsprechend gesetzt")
-    cube_mode = "zufällig (ABLATION)" if args.no_place_cubes else "an den Greifpunkten"
+    cube_mode = ("keine (ABLATION)" if args.no_place_cubes
+                 else "aus dem Bild-Layout (einzige Quelle; sonst wird die Episode verworfen)")
     print(f"  Würfel:      {cube_mode}")
     if args.stop_at_grasp:
-        win = f"letzte {args.grasp_window} Frames vor dem Griff" if args.grasp_window \
-            else "Frame 0 bis zum Griff"
+        win = (f"letzte {args.grasp_window} Frames vor der Würfelbewegung"
+               if args.grasp_window else "Frame 0 bis zur ersten Würfelbewegung")
         print(f"  Fenster:     {win}, mind. {args.min_window} Frames "
-              f"(ab dem Griff wäre das Bild-Aktions-Paar falsch beschriftet)")
+              f"(Quelle: motion_onset aus layout.json; ab da wäre das Bild-Aktions-Paar "
+              f"falsch beschriftet)")
     else:
         print("  Fenster:     ganze Episode — Frames AB dem Griff sind falsch beschriftet, "
               "solange kein Attach existiert (--stop-at-grasp)")

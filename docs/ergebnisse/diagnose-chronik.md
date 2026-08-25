@@ -47,6 +47,10 @@ Für den **aktuellen Projektstatus** siehe
 | 31 | Meilenstein-Leiter im Einsatz: erste messbare Würfel-Anhebung im Closed Loop (0,22–1,03 cm) ([Lauf 31](#lauf-31-runs2026081203-die-leiter-im-einsatz--und-zwei-neue-zahlen)) |
 | 32 | `span`-Gate entschieden: Median-Verhältnis 1,00 auf echten Bildern — Domain-Gap (a1) bestätigt, (a2) ausgeschlossen ([Lauf 32](#lauf-32-runs2026081301-das-span-gate-ist-entschieden--a1)) |
 | 33/34 | `TUNE_VISUAL`-Checkpoint im Closed Loop: Fingerspanne 27,6 % (statt 20,5 %), `lifted` bleibt 0/10 ([Läufe 33/34](#läufe-3334-runs2026081403-runs2026081404-der-tune_visual-checkpoint-im-closed-loop)) |
+| 35–37 | Würfellage-Rekonstruktion v4 zweimal abgelehnt; Kameramodell dagegen auf 0,3 cm bestätigt, Würfelebene lag 2 cm zu hoch ([Läufe 35–37](#läufe-3537-runs2026082201-03-die-würfellage-kommt-aus-dem-bild-nicht-aus-der-hand)) |
+| 38–46 | Die vier Fingergrundgelenke standen in **jedem** Lauf still: der „Sign-Convention-Fix" drehte sie aus ihrer Gelenkgrenze, wo sie geklemmt wurden ([Läufe 38–46](#läufe-3846-runs2026082302-runs2026082405-12-die-fingergrundgelenke-standen-still)) |
+| 47–51 | Drei unabhängige Geometriefehler ergaben zusammen ~12 cm: Vorzeichen, Beckenhöhe 0,85→0,764, Basis x 0→−0,057. Restabstand 4,5 cm ([Läufe 49–51](#läufe-4951-auch-die-basis-in-x--die-rekonstruktion-steht)) |
+| 52 | Der **Gierwinkel** der Würfel wurde nie rekonstruiert — Sim stellte sie immer achsparallel. Schätzer gebaut; auf echten Frames scheiterten 13/15 am Deckflächenschnitt, der fest die hellsten 30 % nahm statt der 49–58 %, die die Deckfläche ausmacht. Erste Begründung stützte sich auf annotierte Debug-PNGs und ist zurückgezogen ([Lauf 52](#lauf-52-der-gierwinkel-fehlte-in-jedem-lauf)) |
 
 ---
 
@@ -1670,3 +1674,369 @@ weiterhin keinen Startpunkt.
 > (Pfad, `run_id`, `global_step`, Gewichtsgrößen) in `results.json` — bei diesen beiden Läufen
 > fehlt es noch, ihre Identität ist über die Logzeile `Checkpoint: …` belegt.
 
+
+
+---
+
+### Läufe 35–37 (`runs/20260822/01`–`03`): Die Würfellage kommt aus dem Bild, nicht aus der Hand
+
+Vollständige Auswertung mit allen Zahlen:
+[wuerfellage-rekonstruktion-lauf35-befund.md](../simulation/wuerfellage-rekonstruktion-lauf35-befund.md).
+Hier nur, was für spätere Läufe zählt.
+
+**Lauf 35** — erster Abnahmelauf von `replay-calibrate` (v4, 40 Episoden): 10 Anker, alle Gates
+gefallen. Ursachen: `track_colors` mittelte über die ganze Farbmaske statt über den größten Blob
+(Gelb löste im Median bei Frame 18 einen Bewegungsbeginn aus, bevor der Roboter den Würfel
+berührt), und der Anker lag 4–11 cm neben dem Würfel.
+
+**Lauf 36** — nach der Blob-Korrektur: die Zeitmessung ist repariert (Grün-Onset-Median 216 → 588,
+Kameradifferenz 50 → 2 Frames), die Ankerausbeute fällt trotzdem auf 3. Der Grund beendet das
+Verfahren: **bei allen 60 erkannten Schließintervallen ist die Hand am Ende noch rund 10 cm offen**
+(Median 0,108 m), bei 5 cm Würfelkante. Was als Griff detektiert wird, ist ein Zucken einer weit
+offenen Hand. Das deckt sich mit dem `scan`-Lauf vom 2026-08-17, wo bei 101 von 116 Griffen die
+engste Kuppenöffnung über 6 cm lag. **Die Fingeröffnung taugt für diese Hand nicht als
+Greifdetektor** — weder im alten Pfad noch in v4.
+
+**Lauf 37** — `cams` + `layoutcheck` gegen gerenderte Bilder mit bekannter Grundwahrheit. Das
+Pinhole-Kameramodell trifft die Würfellage auf **0,29 cm** (`cam_left_high`) und **0,40 cm**
+(`cam_right_high`). Eine Suche über Brennweite (45–100°), Blickziel und Kamerahöhe findet keine
+bessere Anpassung — das Modell braucht keine Korrektur.
+
+#### Zwei Konsequenzen für alle folgenden Läufe
+
+1. **`block_z_surface` ist von 0,915 auf 0,895 korrigiert** (Commit `564b2ea`). Der Tisch ist 0,87 m
+   hoch, ein 5-cm-Würfel ruht also auf 0,895. Die 0,915 waren eine bewusste Erhöhung, um die
+   Würfeloberkante ohne Tischanhebung auf 0,94 zu bringen — sie erreichte ihr Ziel nie, weil die
+   Würfel die zwei Zentimeter fielen und doch auf 0,895 landeten. **Die Ruhelage ändert sich
+   nicht**, nur der Fall beim Reset entfällt. Erfolgskriterien rechnen mit Höhendifferenzen und
+   verschieben sich nicht. Wer Läufe vor und nach `564b2ea` vergleicht, sollte die ersten
+   Physikschritte nach dem Reset im Blick behalten.
+2. **Die falsche Ebene kostete rund 1 cm** in jeder Rückprojektion Bild → Tisch: Restfehler 1,11 cm
+   statt 0,29 cm, mit einem systematischen Versatz von −1 cm in x. Ältere Zahlen aus
+   `extract_block_layout` sind entsprechend zu lesen.
+
+Der Blickzielpunkt in `camera_geometry.py` behält seine 0,915. Das ist ein Kameraparameter, keine
+Würfelhöhe — genau diese Pose ist geprüft, und sie darf bei einer Ebenenkorrektur nicht mitwandern.
+
+---
+
+### Läufe 38–46 (`runs/20260823/02`, `runs/20260824/05`–`12`): Die Fingergrundgelenke standen still
+
+**Lauf 38** (`render`, `runs/20260823/02`) lieferte erstmals einen vollständigen Co-Training-Datensatz —
+und einen Widerspruch, der sich nicht mehr auf die Würfellage schieben ließ: über alle Frames und beide
+Hände kam **keine Fingerkuppe je näher als 10 cm** an den Würfel, den das Bild-Layout gesetzt hatte.
+Der reale Würfel bewegt sich am Fensterende nachweislich, die reale Hand hält ihn also. Entweder war die
+Würfellage falsch — oder die Handposition aus dem aufgezeichneten Zustand.
+
+**Läufe 39–40** (`tipcheck`, `runs/20260824/05`, `/06`) trennen das mit
+[`project_fingertips_check.py`](../../Simulation/g1_dex3_sim/project_fingertips_check.py): der Roboter
+wird auf den aufgezeichneten Zustand gesetzt, dann werden Fingerkuppen, Kette Becken→Handgelenk und
+Layout-Würfel ins **reale** Bild desselben Frames projiziert. Lauf 40 ergänzte eine Vorzeichen-Probe über
+sieben Spiegelungsvarianten. Ergebnis am Greifframe dreier Episoden, bei 5 cm Würfelkante:
+
+| Variante | rechte Kuppenöffnung | Abstand zum Würfel |
+|---|---|---|
+| damals aktiv (`[17, 19, 24, 26]`) | 8,0 / 12,2 / 10,8 cm | 13,5 / 17,5 / 12,3 cm |
+| ohne rechte Spiegelung | 5,1 / 7,3 / 8,7 cm | 10,4 / 11,5 / 9,4 cm |
+
+**Lauf 41** (`runs/20260824/07`) misst zusätzlich je Handdimension die aufgezeichnete Spannweite gegen die
+Gelenkgrenze — und kippt damit auch die verbliebene linke Spiegelung. Die `_1`-Beugegelenke sind der
+Kronzeuge: sie wurden **nie** gespiegelt und passen trotzdem beide exakt in ihre Grenzen.
+
+| Gelenk | Datensatz (ganzer Korpus) | Grenze |
+|---|---|---|
+| `left_hand_index_1` | −2,083 … −0,008 | −2,13 … 0,05 |
+| `right_hand_index_1` | 0,010 … 2,085 | −0,05 … 2,14 |
+| `left_hand_index_0` | −1,089 … 0,267 | −1,571 … 0,0 |
+| `right_hand_index_0` | −0,199 … 1,646 | 0,0 … 1,571 |
+
+Der Datensatz ist also bereits **seitenweise in USD-Konvention** aufgezeichnet: links negativ =
+schließen, rechts positiv = schließen. Die Annahme „Datensatz: positiv = schließen", auf der der
+Sign-Convention-Fix von §14.2 der [Umsetzungsnotizen](../simulation/umsetzungsnotizen.md) beruhte, ist
+falsch. Gespiegelt wurden die Werte damit aus ihrer Grenze heraus, wo `set_joint_position_target` sie auf
+0 klemmt: **das Gelenk bewegte sich überhaupt nicht.** In Episode 0 klemmten auf den linken `_0`-Gelenken
+550 bzw. 587 von 1173 Frames.
+
+#### Tragweite
+
+`_SIGN_FLIP_IDX` wirkt in `_get_observations` **und** `_pre_physics_step` — die Politik sah verdrehte
+Fingerwinkel und ihre Aktionen wurden aus der Grenze gedreht. Das hebt sich nicht auf. Betroffen ist
+damit **jeder bisherige Lauf**: Eval, `grasp`, RL, Replay, Co-Training. Alle Greifzahlen dieser Chronik
+sind mit vier stillstehenden Fingergrundgelenken entstanden.
+
+Das erklärt die Kette rückwärts: Hand schließt nie → bei 101 von 116 Griffen bleibt die engste
+Kuppenöffnung über 6 cm (`scan`, 2026-08-17) → die v4-Greifanker sind unbrauchbar (Lauf 36) → der darauf
+gebaute `close_step`-Detektor misst Rauschen. Auch Lauf 26 („Griff scheitert auch ganz ohne Modell",
+`max_cube_lift_cm` 0,0) und Lauf 30 („Politik kommandiert nur 19 % der Demo-Fingerspanne") sind unter
+diesem Vorbehalt neu zu lesen.
+
+#### Was geändert wurde
+
+- `_SIGN_FLIP_IDX = []` — keine Spiegelung, auf keiner Seite.
+- `DATASET_INIT_STATE`: alle 28 Startwerte roh aus dem Datensatz, keine Umrechnung mehr.
+- `_widen_finger_joint_limits`: die vier `_0`-Gelenke sind wieder aufgenommen. Beide Hände fahren real
+  ~0,2 rad über die Nulllinie in die Gegenrichtung, rechts `index_0` zusätzlich über 1,571 hinaus — die
+  USD-Grenze endet dort auf beiden Seiten exakt an der Null. Neue Grenzen = Union(USD, Datensatz-Min/Max)
+  + ~0,05 rad, wie bei den `_1`-Gelenken. Maßgeblich ist `observation.state` (was das Gelenk erreicht
+  **hat**), nicht `action`: kommandiert wurde stellenweise deutlich mehr (`left_index_0` bis −1,762 gegen
+  −1,089 erreicht), das hat auch die reale Hand nicht ausgefahren.
+- Die Weitung kommt zu spät für den Spawn (Lauf 42, `runs/20260824/08`): Isaac Lab prüft `init_state`
+  gegen die **Original**-USD-Grenzen und wirft dort einen `ValueError` — noch in `super().__init__()`,
+  lange bevor `_widen_finger_joint_limits` laufen kann. Es klemmt also nicht still, es bricht ab.
+  Deshalb spawnt der Roboter jetzt mit auf die Grenze gekappten Werten (`SPAWN_JOINT_POS`, rein aus
+  `DATASET_INIT_STATE` abgeleitet); die echten Werte schreibt `_widen_finger_joint_limits` direkt danach
+  in `default_joint_pos`, aus dem `_reset_idx` liest. Der gekappte Zustand lebt bis zum ersten Reset.
+
+#### Was damit nicht erklärt ist
+
+Rund **10 cm** Abstand bleiben zwischen der jetzt schließenden Hand und der Würfellage aus dem Bild; die
+Vorzeichenkorrektur nimmt etwa 3 cm davon. Diesen Rest zerlegen die Läufe 43–44.
+
+Der Messpunkt war zunächst der Bewegungsbeginn — der eine Frame, an dem der Würfel anfängt, sich zu
+bewegen. `layout.json` nennt aber seine **Ruhelage**: bis der Detektor anschlägt, hat die Hand ihn längst
+transportiert, und der Versatz misst den Transport statt eines Fehlers. `tipcheck` fährt deshalb seit
+Lauf 44 ein **Anflugprofil** über die ganze Episode (`--approach-stride`, kein Renderdurchgang, nur ein
+`sim.forward()` je Frame) und meldet je Hand den nächsten Punkt mit Frame, Würfel und Versatzvektor.
+
+Der erste Anlauf (Lauf 45, `runs/20260824/12`) suchte das Minimum über die **ganze** Episode und ist
+damit hinfällig: seine Minima lagen samt und sonders NACH dem Bewegungsbeginn, bis f816 von rund 1000
+Frames. Dort trägt die Hand den Würfel längst, verglichen wird aber gegen seine Ruhelage — die Messung
+erfasste genau den Transport, den sie ausschließen sollte. Ein daraus gezogener Zwischenschluss („die
+Kamerapose ist entlastet, übrig bleibt ein reiner Höhenversatz von 7 cm") trägt nicht. Das Anflugprofil
+sucht deshalb seit Lauf 46 nur im Fenster **vor** dem Onset, wo die Ruhelage gilt.
+
+Zwei Befunde aus Lauf 45 bleiben gültig, weil sie nicht vom Würfelort abhängen:
+
+1. **Alle 48 Kuppenwerte liegen über der Würfelmitte**, Minimum +0,7 cm, im Mittel +4 bis +9. Kein
+   einziges Umschließen — die Hand steht in jedem gemessenen Moment über dem Würfel, nie um ihn herum.
+2. **Der Messkörper ist entlastet.** Die Kuppenspreizung beträgt 5,1 cm bei 5 cm Würfelkante. Säßen die
+   Messpunkte am Handgelenk statt auf den Kuppen — die Ursache von Lauf 28 —, lägen sie dichter
+   beieinander. Die Hand ist sauber geschlossen; sie sitzt nur zu hoch.
+
+Offen bleibt damit, wie groß der Höhenversatz im gültigen Fenster wirklich ist und wo er herkommt.
+Kandidaten: die Basishöhe `pos=(0.0, 0.0, 0.85)` gegen die Tischhöhe 0,87, und die im 28-dim-State
+fehlenden Hüft-/Waist-Gelenke — Letztere passen schlecht zu einem rein vertikalen Versatz, weil eine
+Rumpfneigung vorwiegend waagerecht verschiebt (13° ≈ 13 cm nach vorn, aber nur ~1,5 cm nach unten).
+
+Die früher notierte Einschätzung „die Handgelenk-Marken sitzen auf den realen Handgelenken, also stimmt
+die Kamerapose" war Augenmaß an einem Bildausschnitt und trägt ebenfalls nichts.
+
+#### Lauf 47 (`runs/20260824/13`): die erste belastbare Messung des Versatzes
+
+Mit der Fenstergrenze vor dem Onset, handelnde Hand, acht Episoden:
+
+| | Mittel | Streuung | Spanne |
+|---|---|---|---|
+| dx | +6,1 | 4,0 | −2,5 … +10,4 |
+| dy | **−0,2** | 3,9 | zentriert auf null |
+| dz | **+8,6** | 2,1 | +5,9 … +13,3 |
+
+**Sechs der acht Minima liegen direkt an der Fenstergrenze** — die Hand nähert sich monoton bis zum
+Bewegungsbeginn und wird dort abgeschnitten. Näher kommt sie bis dahin nicht, und ab dem Onset bewegt
+sich der Würfel, die Hand muss ihn also halten. Der Versatz ist echt, kein Zeitartefakt. Er liegt bei
+dy = 0 sauber in der x-z-Ebene.
+
+Zur **Rumpfneigung** ist eine frühere Rechnung dieser Chronik zu korrigieren: „13° ≈ 13 cm nach vorn,
+nur 1,5 cm nach unten" rechnete mit dem Hebel Waist→Schulter. Maßgeblich ist Waist→**Hand**, und die
+steht beim Greifen fast waagerecht nach vorn ab (r ≈ 0,34 m). Ein Pitch dreht sie damit vorwiegend
+**vertikal**: 8,6 cm entsprächen 14,5° Vorneigung bei nur ~1 cm horizontal. Rumpfneigung war also
+verfrüht ausgeschlossen.
+
+Getrennt werden Neigung und Basishöhe über die Signatur: ein Pitch skaliert dz mit der Handreichweite,
+eine falsche Basishöhe nicht. Gemessen: **r = −0,27** zwischen dz und Hand-x — kein positiver
+Zusammenhang, also kein Pitch-Signal, sondern ein konstanter Versatz. Bei n = 8 und nur 14 cm
+Reichweitenspreizung ist das ein Indiz, keine Entscheidung.
+
+Für den Ein-Parameter-Test ist die Beckenhöhe jetzt über `ROBOT_BASE_Z` einstellbar (Default 0,85, wie
+bisher). Die Kamerapose wandert dabei ausdrücklich **nicht** mit: sie steht statisch in
+`camera_geometry.py` und ist gegen Grundwahrheit auf 0,3 cm geprüft. Sinkt dz bei `ROBOT_BASE_Z=0.764`
+gegen null, ohne dx zu verschlechtern, ist die Ursache gefunden.
+
+#### Lauf 48 (`runs/20260824/15`): die Beckenhöhe war es
+
+`ROBOT_BASE_Z=0.764` gegen die Referenz 0,85, gleiche acht Episoden:
+
+| | 0,85 (Lauf 47) | 0,764 (Lauf 48) |
+|---|---|---|
+| dx | +6,1 | +5,7 |
+| dy | −0,2 | −0,8 |
+| **dz** | **+8,6** | **+1,0** |
+| Betrag | 11,9 | 7,6 |
+
+Der Höhenversatz verschwindet **1:1 mit der eingestellten Absenkung**, dx und dy bleiben unberührt —
+genau die Signatur eines starren Versatzes. Und erst jetzt **umschließen die Fingerkuppen den Würfel**:
+rechte Hand −0,9/−4,0/−3,3 bzw. +1,3/+0,0/−2,0, also gemischte Vorzeichen im Bereich ±3 cm um die
+Würfelmitte, bei 5 cm Kante mithin im Würfel. In Lauf 47 lagen alle 48 Messwerte darüber.
+
+Der Wert ist auch unabhängig plausibel: die Beckenhöhe des stehenden G1 liegt bei ~0,76 m. Die 0,85
+waren ein Ansatz ohne Quelle. `pos=(0.0, 0.0, 0.764)` ist jetzt der Default, `ROBOT_BASE_Z` stellt den
+alten Wert wieder her.
+
+**Tragweite:** die Reichweite zum Tisch ändert sich in **jedem** Lauf — Eval, Grasp, RL, Replay,
+Co-Training. Greifzahlen von vor dieser Korrektur sind nicht direkt vergleichbar. Zusammen mit
+`_SIGN_FLIP_IDX` (Läufe 38–44) sind das zwei Geometriefehler, die jede bisherige Greifmessung dieser
+Chronik betreffen.
+
+**Offen bleibt dx = +5,7 cm** (Streuung 3,8) bei dy = 0 — ein Versatz nach vorn, deutlich kleiner als
+der behobene und mit größerer relativer Streuung. Nächster Kandidat, jetzt ohne den vertikalen Anteil,
+der ihn bisher überdeckte.
+
+#### Läufe 49–51: auch die Basis in x — die Rekonstruktion steht
+
+Der erste x-Test lief mit falschem Vorzeichen (`+0.057`) und trieb dx von +5,7 auf +9,6. Die Richtung
+ergibt sich aus derselben Regel wie bei der Höhe: dx = Hand − Würfel = +5,7 heißt, der Roboter steht zu
+weit **vorn**, muss also zurück. Mit `ROBOT_BASE_X=-0.057`:
+
+| | (0, 0,85) Ausgang | (0, 0,764) | (−0,057, 0,764) |
+|---|---|---|---|
+| dx | +6,1 ± 4,0 | +5,7 ± 3,8 | **+1,5 ± 2,2** |
+| dy | −0,2 ± 3,9 | −0,8 ± 3,7 | **−0,1 ± 3,4** |
+| dz | +8,6 ± 2,1 | +1,0 ± 2,0 | **+0,9 ± 2,0** |
+| Betrag | 11,9 | 7,6 | **4,5 ± 1,7** |
+
+Getragen wird die x-Korrektur nicht vom Mittelwert, sondern von der **Streuung**: die fällt auf jeder
+Achse. Eine bloße Verschiebung täte das nicht — sie verschöbe den Mittelwert und ließe die Streuung
+stehen. Bei 5 cm Würfelkante bedeutet |d| = 4,5 cm, dass die Hand am Würfel ist.
+
+Beim x-Test ist allerdings der Anflugpunkt kein stabiler Vergleichspunkt: im Fehlversuch mit `+0.057`
+wanderten dy und dz mit (−0,8 → +2,9 bzw. +1,0 → +3,5), obwohl nur x verschoben wurde — das Minimum
+sprang auf andere Frames. Beim z-Test war der Effekt groß genug, um dasselbe Minimum zu halten (dz fiel
+exakt 1:1, dx und dy blieben unberührt). Für kleine Verschiebungen ist die Methode also unscharf.
+
+**Damit ist die Würfellage-Rekonstruktion belastbar.** `pos=(-0.057, 0.0, 0.764)` ist der neue Default,
+`ROBOT_BASE_X` / `ROBOT_BASE_Z` stellen die alten Werte wieder her. Der Weg dahin führte über drei
+unabhängige Geometriefehler — die Vorzeichenspiegelung der Fingergrundgelenke, die Beckenhöhe und die
+Basis in x —, die alle zusammen die rund 12 cm ergaben, an denen das Verfahren zuvor scheiterte.
+
+#### Lauf 52: der Gierwinkel fehlte in jedem Lauf
+
+Die Würfel liegen im Realdatensatz teils schräg zur Tischkante. Die Sim stellte sie ausnahmslos
+achsparallel: `place_cubes` schrieb ein festes Identitäts-Quaternion, `_reset_idx` ebenso. Das
+betrifft nicht nur den Co-Training-Render, sondern **jeden** Sim-Lauf — Eval, Replay, RL.
+
+Für das Co-Training ist das derselbe Fehler wie eine falsche Position, nur im Drehfreiheitsgrad: das
+Paar ist (Sim-Bild, **Real**-Aktion), und die Realaktion richtete die Hand nach einem Würfel bei ψ
+aus, während das Bild ihn bei 0° zeigt. Für den Griff kommt hinzu, dass ein 5-cm-Würfel über die
+Fläche 5,0 cm misst und über die Diagonale 7,1 cm — bei falscher Drehung trifft die Hand eine Ecke.
+Die Größenordnung deckelt sich allerdings selbst: mehr als ±45° kann der Fehler wegen der
+4-Zähligkeit nicht sein, das sind rund 1 cm je Kontaktseite. Die 6,8 cm Restabstand aus Lauf 20
+erklärt das **nicht** allein.
+
+**Zurückgezogen — die Begründung dieser Änderung stützte sich auf eine ungültige Messung.** Ich
+hatte den Vorgänger `top_face_blob` (Min-Area-Box im Pixelraum, `axis_uv`) auf die PNGs in
+`runs/20260822/01/calibration_report/` losgelassen und daraus abgeleitet, er raste in 101 von 120
+Fällen auf exakt 0,0° ein, die Farbmaske sei nur zu 44 % gefüllt und pro Farbe 99,5 / 39,8 / 58,3 %.
+
+Diese Dateien sind **annotierte Debug-Ausgaben, keine Datensatz-Frames**. Nachweis: 336 Pixel exakt
+(255,255,255) als geschlossener Rechteckrahmen und 76 Pixel exakt (255,0,0) — reines gesättigtes Rot
+kommt in einem Foto nicht vor. Der eingezeichnete Farbring ist damit der hellste gesättigte Bereich
+des Blobs, und der Deckflächenschnitt (hellste 30 %) griff **den Marker statt der Würfeloberseite**;
+der weiße Rahmen zerschneidet zusätzlich die Farbmaske. Alle Zahlen aus dieser Quelle sind hinfällig,
+einschließlich der beiden Nachbesserungsversuche daran (Otsu-Schwelle, Löcher füllen).
+
+Ungültig heißt hier nicht „das Gegenteil stimmt": ob `axis_uv` auf echten Frames einrastet, ist
+damit schlicht **ungemessen**. Das Argument bleibt geometrisch plausibel — eine Min-Area-Box über
+eine binarisierte Kleinmaske bevorzugt die Bildachsen, und sie misst die perspektivische Verzerrung
+mit —, aber es hat keinen Beleg mehr hinter sich.
+
+**Was die Messung überlebt:** die synthetische Abnahme rendert ihre eigenen Bilder und ist unberührt.
+Und der Probelauf auf dem Server (Episoden 0, 1, 2, 8, 12) ging über die echten Videos: **1 von 15
+Würfeln durch das Tor (7 %)**, dieser eine bei **30,0°** Schräglage. Der Ertrag ist damit belegt, die
+*Ursache* dafür nicht — sie war es nie.
+
+Das Verfahren selbst: Deckflächenpixel **erst zurückprojizieren** (auf der eigenen Ebene
+ist die Fläche wieder ein Quadrat), dann das **4. Winkelmoment** — die Harmonische, die zur
+4-Zähligkeit gehört. Kein Raster zum Einrasten. Dazu zwei Tore: die **Formprobe**
+(Diagonale/Kante, ideal √2) und die **Einigkeit beider Kameras**.
+
+| synthetisch, alle Rauschstufen | Fehler Median | p90 | Ausreißer > 20° |
+|---|---|---|---|
+| ohne Tore | 3,15° | 26,3° | — |
+| mit Formprobe ≥ 1,25 und Einigkeit ≤ 8° | **0,12°** | **1,68°** | 1 von 160 |
+
+Zwei Zwischenschritte waren Fehlgriffe und stehen hier, damit sie nicht wiederholt werden. Die
+Breite als **Auswahlkriterium** statt als Prüfmerkmal zu nehmen machte es schlechter (Ausreißerquote
+0 % → 5,2 % bei σ=0,01) — der 45°-Umschlag entsteht, wenn die Punktwolke gar kein Quadrat mehr ist,
+und dann rettet keine Auswahlregel. Und die Breite als **Perzentilspanne** (5.–95.) zu messen tötet
+die Unterscheidung: quer zur Diagonale ist die Projektion dreieckig verteilt, quer zur Kante
+gleichverteilt, das Verhältnis fällt von 1,41 auf 1,08. Es muss die volle Spannweite sein.
+
+**Auf echten Frames passiert 1 von 15 Würfeln das Tor (7 %, Probelauf über fünf Episoden).**
+`layoutreport` benennt die Ursache, und es ist nicht die, die ich vermutet hatte: `fill` liegt bei
+**0,69** — für eine sechseckige Silhouette in einer rechteckigen Bounding-Box praktisch der
+Bestwert. Die Farbmaske ist in Ordnung. Weggelaufen sind `top_width_cm` (**3,51** statt 5,0) und
+`top_squareness` (**1,17** statt 1,41), und **13 von 15** scheitern an der Formprobe.
+
+Schuld ist der Deckflächenschnitt, genauer seine **feste Quote**: er nahm die hellsten 30 % des
+Blobs. Bei 53,6° Blickhöhe macht die Deckfläche aber 49–58 % der Silhouette aus — die Quote nahm
+gut die Hälfte davon. Die Geometrie sagt die Verkürzung auf zwei Stellen vorher: erwartet linear
+1,35, gemessen 5,0/3,51 = **1,42**.
+
+Die Schwelle kommt jetzt aus der Helligkeitsverteilung selbst (Otsu). Eine Zahl durch eine andere zu
+ersetzen wäre dieselbe Wette gewesen, deshalb misst `topface` auf echten Frames nach — die
+Würfeloberseite IST ein 5-cm-Quadrat, also ist „welche Regel trifft sie" eine Messung. Ergebnis über
+dieselben fünf Episoden:
+
+| Regel | Breite (Soll 5,0) | Formprobe | \|L−R\| | Deckfläche |
+|---|---|---|---|---|
+| gemessen (Otsu) | **4,94 cm** | 1,21 | **2,8°** | 903 px |
+| q55 | 3,84 cm | 1,19 | 3,2° | 701 px |
+| q70 (alt) | 3,51 cm | 1,17 | 10,2° | 494 px |
+
+Die Kantenlänge stimmt jetzt auf 1 %, und die Uneinigkeit beider Kameras fällt von 10,2° auf 2,8°.
+
+**Die Formprobe blieb trotzdem bei 1,21 und warf 14 der 15 Würfel weg.** Die Eichtabelle entscheidet
+den Fall:
+
+| Schwelle | behalten | \|L−R\| Median | p90 | max |
+|---|---|---|---|---|
+| 1,25 | 1/15 | 3,7° | 3,7° | 3,7° |
+| 1,20 | 4/15 | 1,1° | 3,0° | 3,7° |
+| 1,10 | 6/15 | 1,8° | 3,3° | 3,7° |
+| 1,00 | **9/15** | 1,6° | 3,0° | **3,7°** |
+
+Die Uneinigkeit steigt beim Senken nicht — ihr Maximum bleibt über alle Stufen exakt 3,7°. Die
+Formprobe trennt auf echten Frames nichts; sie hat 8 von 9 brauchbaren Würfeln weggeworfen. 1,25
+stammt von scharfkantigen synthetischen Würfeln (1,37), echte Klötzchen liegen mit gerundeten Kanten
+bei 1,21 (p10 1,06). Synthetisch bestätigt sich dasselbe: mit 1,25 überleben 345 von 375 bei p90
+0,20°, ohne sie 373 bei p90 0,27°, beide Male **null** Ausreißer über 20°. Sie war gegen den
+45°-Umschlag gebaut, und den erzeugten zerfetzte Deckflächen — die es mit der gemessenen
+Helligkeitsschwelle nicht mehr gibt.
+
+Vorgabe ist deshalb `--min-squareness 1.0`, also aus; die Zahl bleibt als Diagnose. Einziges Tor ist
+die Einigkeit beider Kameras, und die teilt sauber: neun Würfel mit ≤ 3,7°, sechs mit > 8°,
+dazwischen nichts. **Ertrag auf diesen fünf Episoden: 1/15 → 9/15.** Die Abnahmeschranke wurde
+gleichzeitig von p90 5° / 2 % Ausreißer auf 1° / 1 % nachgezogen — ein Schwellwert, den der
+Ist-Zustand um das Dreifache unterbietet, fängt keine Regression mehr.
+
+Dabei fiel auf, dass die synthetische Abnahme selbst zu leicht war: sie gab Deck- und Seitenflächen
+zwei feste Helligkeiten, und diesen Sprung trennt jede Schwelle. Der Würfel wird jetzt
+Lambert-schattiert mit **schräger** Lichtquelle, sodass die hellste Seitenfläche bei 0,64 gegen 0,91
+liegt. Unter dieser Beleuchtung fällt die alte feste Quote auf p90 **36,7°**, die gemessene Schwelle
+bleibt bei 0,20° — und die Abnahme insgesamt geht von 4–100 % Ertrag je nach Rauschen auf stabile
+92–94 % bei p90 ≤ 0,25°. Eine Abnahme, die alles bestehen lässt, prüft nichts; ein Test hält jetzt
+fest, dass die Seitenfläche dicht an der Deckfläche liegen muss.
+
+Bis der Wechsel auf echten Frames gemessen ist, bleibt `cubes_yaw_deg` für die übrigen Würfel
+`null`, und der Renderer verhält sich für sie wie bisher. `null` heißt „nicht belastbar gemessen", nicht „liegt gerade" — der Unterschied steht im
+Code, weil er sonst beim nächsten Lesen verlorengeht.
+
+Neu zur Prüfung: `server_rl_run.sh yawcheck` (synthetische Abnahme, ohne Isaac und ohne Datensatz)
+und `LAYOUTCHECK_EXPECT_YAW` für die Abnahme gegen den echten Renderer. Details in
+[wuerfellage-rekonstruktion.md §7](../simulation/wuerfellage-rekonstruktion.md#7-gierwinkel-um-die-eigene-z-achse).
+
+**Vollauslauf über 60 Episoden (2026-08-25):** 60/60 mit allen drei Würfeln, Kameras in der Position
+auf 1,17 cm einig, **110 von 180 Würfeln (61 %)** mit Gierwinkel. Die Schräglage gegen die Tischkante
+hat Median **22,8°**, p90 40,7°, max 44,7° — eine Gleichverteilung auf 0…45° hätte 22,5 / 40,5 / 45.
+Die Würfel liegen also in beliebiger Drehung, und die Sim stellte jeden auf 0°, den Punkt mit dem
+größten Erwartungsfehler.
+
+Dass das kein Schätzerrauschen ist (das sähe mod 90° ebenfalls gleichverteilt aus), stützt sich auf
+zwei Prüfungen: die 110 Würfel haben das Einigkeitstor passiert — zwei unabhängig aufgestellte
+Kameras stimmen bei Rauschen nicht überein —, und das Tor wählt kaum nach Winkel aus (synthetisch
+97,6 % Ertrag bei 0–10° gegen 100 % darüber). `layoutreport` druckt die Verteilung der
+durchgelassenen Würfel jetzt neben der aller Einzelmessungen, damit eine Auswahlverzerrung auf echten
+Daten sichtbar würde.
+
+Offene Entscheidung: `block_yaw_range_deg` für Eval/Replay/RL auf `(0, 90)` zu stellen wäre nach
+dieser Messung richtig, bricht aber die Vergleichbarkeit mit den Läufen 08–52.

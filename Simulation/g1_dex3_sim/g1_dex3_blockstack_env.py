@@ -37,6 +37,7 @@ from isaaclab.utils.math import quat_apply, quat_from_euler_xyz, sample_uniform
 from g1_dex3_cfg import (
     ALL_JOINTS_ORDERED,
     CAMERA_CFG,
+    DATASET_INIT_STATE,
     G1_DEX3_CFG,
     LEFT_ARM_JOINTS,
     LEFT_DEX3_JOINTS,
@@ -130,10 +131,15 @@ class G1Dex3BlockstackSceneCfg(InteractiveSceneCfg):
     table: RigidObjectCfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/table",
         spawn=sim_utils.CuboidCfg(
-            # Tisch 0.87 m hoch (Oberfläche z=0.87). Cubes sitzen auf der Oberfläche (Zentrum z=0.915,
-            # Oberkante z=0.94 — durch leichte Erhöhung der block_z_surface erreicht, nicht des Tisches).
+            # Tisch 0.87 m hoch (Oberfläche z=0.87). Ein 5-cm-Würfel ruht darauf mit dem
+            # Mittelpunkt auf z=0.895, Oberkante 0.92.
             # Tisch war testweise auf 0.89 angehoben, das blockierte aber die Roboterarme im
             # Closed-Loop: Modell versucht zu z≈0.915 zu greifen, Tisch (0.89) steckte die Hände fest.
+            # Danach stand block_z_surface auf 0.915, um die Oberkante auf 0.94 zu heben, ohne den
+            # Tisch anzuheben. Das erreicht sein Ziel nicht: die Würfel fallen die zwei Zentimeter
+            # und ruhen doch auf 0.895 (nachgemessen 2026-08-22 mit `server_rl_run.sh cams`).
+            # Übrig blieb nur der Fall beim Reset — und eine um 2 cm falsche Ebene für jede
+            # Rückprojektion Bild → Tisch. Seit 2026-08-22 spawnen die Würfel dort, wo sie ruhen.
             size=(0.8, 0.6, 0.87),
             rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
             mass_props=sim_utils.MassPropertiesCfg(mass=50.0),
@@ -157,7 +163,7 @@ class G1Dex3BlockstackSceneCfg(InteractiveSceneCfg):
             ),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.1, 0.1)),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.34, -0.15, 0.915)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.34, -0.15, 0.895)),
     )
 
     block_1: RigidObjectCfg = RigidObjectCfg(
@@ -172,7 +178,7 @@ class G1Dex3BlockstackSceneCfg(InteractiveSceneCfg):
             ),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.1, 0.6, 0.1)),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.36, 0.0, 0.915)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.36, 0.0, 0.895)),
     )
 
     block_2: RigidObjectCfg = RigidObjectCfg(
@@ -189,7 +195,7 @@ class G1Dex3BlockstackSceneCfg(InteractiveSceneCfg):
             # nicht blau). Angleichung an die Trainingsverteilung für den eingefrorenen Vision-Encoder.
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.85, 0.70, 0.10)),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.34, 0.15, 0.915)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.34, 0.15, 0.895)),
     )
 
     # Schwarzes Stapel-Band (Landmarke wie im Dataset — dort wird auf einen kleinen
@@ -420,12 +426,22 @@ class G1Dex3BlockstackEnvCfg(DirectRLEnvCfg):
     # y≈±0.19, z≈0.92). x/y eng um den Greifraum, z = neue Tischoberfläche (0.87) + halbe Würfelhöhe.
     block_x_range: tuple[float, float] = (0.30, 0.40)
     block_y_range: tuple[float, float] = (-0.20, 0.20)
-    block_z_surface: float = 0.915    # Tischoberfläche 0.89 + halbe Würfel-Höhe (0.025)
+    block_z_surface: float = 0.895    # Tischoberfläche 0.87 + halbe Würfel-Höhe (0.025)
+    # Gierwinkel der Würfel beim Reset, in GRAD. Bis zum 2026-08-25 standen sie fest
+    # achsparallel; im Realdatensatz liegen sie schräg zur Tischkante (gemessen am
+    # 2026-08-25 über 40 Episoden, Median 10°, p90 36° — Zahl noch maskenlimitiert,
+    # siehe extract_block_layout.py). Der Default bleibt 0/0, damit sich an laufenden
+    # Vergleichen nichts still ändert; (0, 90) macht die Streuung an.
+    # Bei einem 4-zähligen Würfel deckt 0…90° bereits alle Lagen ab.
+    block_yaw_range_deg: tuple[float, float] = (0.0, 0.0)
 
     # Erfolgsparameter
     stack_xy_tol: float = 0.03  # max. horizontaler Versatz zwischen Würfel-Mittelpunkten
     stack_height_min: float = 0.08  # Mindesthöhe des Turms (2 × 0.05 m - Toleranz)
     stack_vel_max: float = 0.05  # max. Geschwindigkeit für "stabil gestapelt"
+    # Dataset-Replays müssen auch nach einem erfolgreichen Zwischenzustand bis zum Ende
+    # der Originalepisode weiterlaufen. Der Default bleibt für Eval/RL unverändert.
+    terminate_on_success: bool = True
 
     # Task-Beschreibung (geht ans Language-Modell)
     task_description: str = "stack the blocks"
@@ -743,6 +759,11 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
         Ohne Weitung würde der Sim volle Greif-Kommandos der Policy an der Grenze abklemmen →
         Finger schließen nicht ganz. Werte = Union(USD-Limit, Dataset-Min/Max) + ~0,05 rad Marge.
         Kein Vorzeichen-Flip (Richtung stimmt) — nur Reichweite.
+
+        Maßgeblich ist `observation.state`, also was das echte Gelenk erreicht HAT. Die
+        kommandierten `action`-Werte gehen stellenweise deutlich weiter (left_index_0 bis
+        -1,762 gegen -1,089 erreicht); die hat auch die reale Hand nicht ausgefahren, ein
+        Klemmen dort bildet die Hardware ab statt sie zu verfälschen.
         """
         finger_limits = {
             # left hand (_1 joints: Vorzeichen korrekt, nur Reichweite erweitern)
@@ -753,8 +774,14 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
             "right_hand_thumb_1_joint": (-1.11, 0.66),
             "right_hand_index_1_joint": (-0.05, 2.14),
             "right_hand_middle_1_joint": (-0.05, 2.14),
-            # _0 joints (middle_0, index_0): Vorzeichen-Fix via _SIGN_FLIP_IDX →
-            # nach Negation fallen Werte in die Original-USD-Limits, kein Weiten nötig.
+            # _0 joints (index_0, middle_0). Die USD-Grenze endet hier auf beiden Seiten
+            # exakt an der Null (links [-1.571, 0], rechts [0, 1.571]), der echte Datensatz
+            # fährt aber ~0,2 rad in die Gegenrichtung darüber hinaus, und rechts index_0
+            # zusätzlich über 1,571. Beides wurde bis 2026-08-24 auf 0 bzw. 1,571 geklemmt.
+            "left_hand_middle_0_joint": (-1.571, 0.25),   # Datensatz [-1.394, 0.195]
+            "left_hand_index_0_joint": (-1.571, 0.32),    # Datensatz [-1.089, 0.267]
+            "right_hand_index_0_joint": (-0.25, 1.70),    # Datensatz [-0.199, 1.646]
+            "right_hand_middle_0_joint": (-0.25, 1.571),  # Datensatz [-0.178, 1.454]
         }
         names = list(finger_limits.keys())
         joint_ids, _ = self.robot.find_joints(names, preserve_order=True)
@@ -765,8 +792,22 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
         self.robot.write_joint_position_limit_to_sim(
             limits, joint_ids=joint_ids, warn_limit_violation=False
         )
+
+        # Die Startpose der _0-Gelenke liegt außerhalb der ORIGINAL-USD-Grenzen (links
+        # +0,169/+0,163, rechts -0,171/-0,142). Isaac prüft `init_state` beim Spawn dagegen und
+        # bricht mit ValueError ab, lange bevor diese Weitung greift — deshalb spawnt der
+        # Roboter mit gekappten Werten (SPAWN_JOINT_POS). Jetzt, wo die Grenzen weit genug sind,
+        # kommen die echten Datensatzwerte zurück; `_reset_idx` liest genau dieses
+        # `default_joint_pos`, der gekappte Zustand lebt also nur bis zum ersten Reset.
+        dataset_pos = dict(zip(ALL_JOINTS_ORDERED, DATASET_INIT_STATE))
+        restored = [n for n in names if n in dataset_pos]
+        for name in restored:
+            self.robot.data.default_joint_pos[:, joint_ids[names.index(name)]] = float(
+                dataset_pos[name])
+
         print(f"[Env] Dex3-Finger-Gelenkgrenzen an Dataset-Range geweitet "
-              f"({len(joint_ids)} Gelenke).", flush=True)
+              f"({len(joint_ids)} Gelenke, {len(restored)} Startwerte zurückgesetzt).",
+              flush=True)
 
     # ------------------------------------------------------------------
     # Visual Domain Randomization
@@ -930,8 +971,12 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
             )
             block_pos[:, 2] = self.cfg.block_z_surface
             block_pos += env_offset
+            lo, hi = self.cfg.block_yaw_range_deg
+            half = torch.deg2rad(sample_uniform(
+                float(lo), float(hi), (len(env_ids),), device=self.device)) / 2.0
             block_quat = torch.zeros(len(env_ids), 4, device=self.device)
-            block_quat[:, 0] = 1.0  # Identity-Quaternion (w=1)
+            block_quat[:, 0] = torch.cos(half)   # Drehung um z: (cos φ/2, 0, 0, sin φ/2)
+            block_quat[:, 3] = torch.sin(half)
             block.write_root_pose_to_sim(
                 torch.cat([block_pos, block_quat], dim=-1), env_ids=env_ids
             )
@@ -955,9 +1000,11 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
         if self._joint_ids is None:
             self._joint_ids = self._build_joint_id_mapping()
         joint_pos = self.robot.data.joint_pos[:, self._joint_ids].clone()
-        # USD→Dataset-Konvention: proximale Fingergelenke mit invertierter Achse negieren,
-        # damit das Modell Beobachtungen in derselben Konvention sieht wie die Trainingsdaten.
-        joint_pos[:, self._SIGN_FLIP_IDX] *= -1
+        # USD→Dataset-Konvention: Gelenke mit invertierter Achse negieren, damit das Modell
+        # Beobachtungen in derselben Konvention sieht wie die Trainingsdaten. Seit 2026-08-24
+        # ist die Liste leer — der Datensatz ist bereits seitenweise in USD-Konvention.
+        if self._SIGN_FLIP_IDX:
+            joint_pos[:, self._SIGN_FLIP_IDX] *= -1
         obs["joint_pos"] = joint_pos
 
         # Kamerabilder
@@ -986,10 +1033,32 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
     # Actions
     # ------------------------------------------------------------------
 
-    # Policy-Indices der proximalen Fingergelenke mit invertierter Achsenkonvention.
-    # Dataset+ = schließen; USD: links negativ = schließen, rechts positiv = schließen.
-    # → Vorzeichen vor Übergabe ans Sim flippen (17=l_mid0, 19=l_idx0, 24=r_idx0, 26=r_mid0).
-    _SIGN_FLIP_IDX: list[int] = [17, 19, 24, 26]
+    # Policy-Indices, deren Vorzeichen gespiegelt werden muss: KEINE.
+    #
+    # Die Annahme war "Datensatz: positiv = schließen, USD: links negativ = schließen, rechts
+    # positiv = schließen", also müsse eine Seite gespiegelt werden. Sie ist falsch. Der
+    # Datensatz ist bereits SEITENWEISE in der USD-Konvention aufgezeichnet. Die
+    # _1-Beugegelenke zeigen es: sie wurden nie gespiegelt und passen trotzdem beide exakt in
+    # ihre Grenzen (meta/stats.json, ganzer Datensatz):
+    #     left_hand_index_1   [-2.083, -0.008]   Grenze [-2.13,  0.05]
+    #     right_hand_index_1  [ 0.010,  2.085]   Grenze [-0.05,  2.14]
+    # Die _0-Gelenke folgen derselben Konvention — links negativ, rechts positiv:
+    #     left_hand_index_0   [-1.089,  0.267]   Grenze [-1.571, 0.0]
+    #     right_hand_index_0  [-0.199,  1.646]   Grenze [ 0.0,   1.571]
+    #
+    # Eine Spiegelung dreht diese Werte aus ihrer Grenze heraus, wo `set_joint_position_target`
+    # sie auf 0 klemmt — das Gelenk bewegt sich dann überhaupt nicht mehr. Genau das geschah
+    # bis 2026-08-24 mit BEIDEN Händen ([17, 19, 24, 26]) und danach noch mit der linken
+    # ([17, 19]). Gemessen mit `server_rl_run.sh tipcheck`: in Episode 0 klemmten auf den
+    # linken _0-Gelenken 550 bzw. 587 von 1173 Frames.
+    #
+    # Die Liste wirkt in `_get_observations` UND `_pre_physics_step`, also in jedem Lauf: Eval,
+    # Grasp, RL, Replay, Co-Training. Die Policy sah verdrehte Beobachtungen und ihre Aktionen
+    # wurden aus der Grenze gedreht — das hebt sich nicht auf, das Gelenk stand einfach.
+    # Der schmale Überstand über die Nulllinie hinaus (beide Hände fahren ~0,2 rad in die
+    # Gegenrichtung) ist echt und wird jetzt von `_widen_finger_joint_limits` abgedeckt,
+    # nicht mehr weggespiegelt.
+    _SIGN_FLIP_IDX: list[int] = []
 
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
         """
@@ -1009,10 +1078,10 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
         if self._joint_ids is None:
             self._joint_ids = self._build_joint_id_mapping()
 
-        # Vorzeichen-Fix: proximale Finger-Joints (middle_0, index_0) haben invertierte
-        # USD-Achse. Negation mappt Dataset-Konvention → USD-Konvention.
+        # Dataset-Konvention → USD-Konvention. Seit 2026-08-24 leer, siehe _SIGN_FLIP_IDX.
         actions = actions.clone()
-        actions[:, self._SIGN_FLIP_IDX] *= -1
+        if self._SIGN_FLIP_IDX:
+            actions[:, self._SIGN_FLIP_IDX] *= -1
 
         # actions sind bereits absolute Gelenkpositionen (alle 28 Dims) in
         # Policy-Reihenfolge → in Isaac-interne Joint-Reihenfolge umschreiben
@@ -1188,7 +1257,9 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
 
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
         self._episode_step += 1
-        terminated = self._check_success()
+        terminated = self._check_success() if self.cfg.terminate_on_success else torch.zeros(
+            self.num_envs, dtype=torch.bool, device=self.device
+        )
         time_out = self._episode_step >= int(self.cfg.episode_length_s * self.cfg.policy_hz)
         return terminated, time_out
 
