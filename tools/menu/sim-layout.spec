@@ -19,5 +19,25 @@ param LAYOUT_OVERWRITE bool 0 advanced "Vorhandene layout.json ueberschreiben"
 param LAYOUT_DEBUG_DIR path "/data/cotrain/layout_debug" advanced \
   "Debug-Bilder ablegen" \
   "Leer = keine. Sonst landen die Blob-Masken dort — der schnellste Weg zu sehen, warum ein Wuerfel nicht gefunden wurde."
+param LAYOUT_EPISODE_IDS str "" advanced \
+  "Nur diese Episoden" \
+  "Durch Leerzeichen getrennt, z. B. '0 1 2 8 12'. Leer = fortlaufend ab 0. Schlaegt die Anzahl oben." \
+  --default-from "extract_block_layout.py --episode-ids (None)"
+param LAYOUT_NO_MOTION_ONSET bool 0 advanced \
+  "Bewegungsbeginn NICHT messen" \
+  "Spart die Videodekodierung (rund 4 s je Video und Kamera), aber 'render' kann dann kein Fenster setzen. Fuer einen Probelauf zusammen mit einer eigenen Ausgabedatei."
+param LAYOUT_FRESH bool 0 expert \
+  "Vorhandene Datei verwerfen" \
+  "Noetig, wenn sich Bias, Wuerfelebene oder Kameraliste geaendert haben — sonst stuenden in einer Datei Eintraege, die nicht mehr vergleichbar sind. Ueberschreiben allein rechnet nur die gewaehlten Episoden neu."
+group "Gierwinkel"
+param LAYOUT_YAW_TOLERANCE float 8.0 advanced \
+  "Erlaubte Uneinigkeit beider Kameras (Grad)" \
+  "Das einzige wirksame Tor fuer den Gierwinkel. Was es nicht passiert, bekommt keinen Winkel und wird spaeter mit 0 Grad gerendert." \
+  --default-from "extract_block_layout.py --yaw-tolerance"
+param LAYOUT_MIN_SQUARENESS float 1.0 expert \
+  "Verlangte Diagonale/Kante der Deckflaeche" \
+  "1,0 = aus. Auf echten Frames trennt die Formprobe nichts (Messung 2026-08-25), sie kostete nur 8 von 9 brauchbaren Wuerfeln." \
+  --default-from "extract_block_layout.py --min-squareness"
+group "Umfang"
 param LAYOUT_BIAS str "" expert "Korrektur 'dx dy' in Metern" \
   --default-from "extract_block_layout.py --bias"

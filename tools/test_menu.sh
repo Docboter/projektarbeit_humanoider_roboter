@@ -140,8 +140,12 @@ chki "15  Positionsargument (optimize <phase>) wird erfragt" \
      'tty_run "$SIM optimize" "t|build|b" | grep -q "optimize build"'
 echo ""
 echo "Schachtelung — Gruppenebene bei langen Listen, flach bei kurzen:"
-chki "15a sim wird geschachtelt (19 Aktionen in 7 Gruppen)" \
-     'tty_run "$SIM" "a" | grep -q "alle 19 Aktionen"'
+# Die Zahl ist absichtlich hart eingetragen: sie faellt auf, wenn eine Aktion ohne Spec
+# dazukommt (die taucht im Menue nicht auf) oder eine Spec ohne Aktion. Beim Merge des
+# Wuerfel-Zweigs am 2026-08-25 war genau das passiert — vier Aktionen ohne Spec, und
+# Pruefung 23 schlug an, waehrend diese hier noch gruen blieb.
+chki "15a sim wird geschachtelt (23 Aktionen in 7 Gruppen)" \
+     'tty_run "$SIM" "a" | grep -q "alle 23 Aktionen"'
 chki "15b KISSKI bleibt flach (nur 4 Aktionen)" \
      '! tty_run "./Training/kisski_menu.sh --dry-run" "a" | grep -q "alle 4 Aktionen"'
 chki "15c MENU_NEST=1 erzwingt die Gruppenebene auch dort" \

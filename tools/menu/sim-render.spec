@@ -27,6 +27,20 @@ param RENDER_LAYOUT path "/data/cotrain/layout.json" basic \
   "layout.json aus der Aktion 'layout'" \
   "PFLICHT. 'none' erzwingt den alten Greifpunkt-Weg — nur als Vergleichslauf sinnvoll, denn dort greift der Arm bei knapp der Haelfte der Episoden ins Leere."
 
+param RENDER_CUBE_SOURCE choice layout advanced \
+  "Woher die Wuerfellage kommt" \
+  "'grasp' zieht zusaetzlich den GEGRIFFENEN Wuerfel auf den Kuppen-Schwerpunkt der Hand, damit der Griff im Bild aufgeht. Die uebrigen bleiben auf ihrer Bild-Lage." \
+  --options "layout:nur aus dem Realbild;grasp:gegriffenen Wuerfel zusaetzlich ankern" \
+  --default-from "render_cotrain_dataset.py --cube-source"
+param RENDER_MAX_ANCHOR_SHIFT float 0.08 expert \
+  "Groesste erlaubte Ankerverschiebung (m)" \
+  "Darueber wird die Episode verworfen statt geraten. Zwei Quellen, die weit auseinanderliegen, bezeugen einander nicht." \
+  --default-from "render_cotrain_dataset.py --max-anchor-shift"
+param RENDER_IGNORE_YAW bool 0 expert \
+  "Gierwinkel ignorieren, alle Wuerfel achsparallel" \
+  "Nur fuer den A/B-Vergleich: derselbe Episodensatz einmal mit und einmal ohne Drehung. Ohne ihn ist nicht zu trennen, ob eine Verbesserung vom Winkel kommt oder von der Episodenauswahl." \
+  --default-from "render_cotrain_dataset.py --ignore-yaw"
+
 group "Schnitt"
 param RENDER_STOP_AT_GRASP bool 1 advanced \
   "Jede Episode am ersten Zugreifen abschneiden" \
