@@ -370,7 +370,45 @@ quer zu einer Fläche. Er wird bewusst **nicht** als Ersatz für einen verworfen
 eingesetzt — das wäre genau die stille Rückfallebene, die `place_cubes` aus gutem Grund verloren
 hat. Erst wenn beide Zahlen über viele Episoden zusammenfallen, ist die Annahme belegt.
 
-### 7.6 Probelauf statt Vollauslauf
+### 7.6 Der Vollauslauf: die Würfel liegen beliebig
+
+60 Episoden, 2026-08-25. Alle drei Würfel in allen 60 Episoden gefunden, Kameras in der Position auf
+1,17 cm (Median) einig, **110 von 180 Würfeln (61 %)** mit belastbarem Gierwinkel.
+
+Die Verteilung ist das eigentliche Ergebnis:
+
+| | gemessen | Gleichverteilung auf 0…45° |
+|---|---|---|
+| Median | **22,8°** | 22,5° |
+| p90 | **40,7°** | 40,5° |
+| max | **44,7°** | 45° |
+
+Die Würfel liegen also nicht „meist gerade mit gelegentlichen Ausreißern", sondern in **beliebiger
+Drehung**. Die Sim stellte jeden einzelnen auf 0° — bei einer Gleichverteilung der Punkt mit dem
+größten Erwartungsfehler.
+
+Ein verrauschter Schätzer sähe mod 90° allerdings ebenfalls gleichverteilt aus. Zwei Prüfungen
+schließen das aus:
+
+- **Die Kameras sind sich einig.** Die 110 Würfel haben das Einigkeitstor passiert; im Probelauf lag
+  ihre Uneinigkeit bei ≤ 3,7°. Zwei unabhängig aufgestellte Kameras stimmen bei Rauschen nicht
+  überein — Gleichverteilung aus Rauschen wäre je Kamera eine andere.
+- **Das Tor wählt kaum nach Winkel aus.** Synthetisch gemessen liegt der Ertrag bei 0–10°
+  Schräglage bei 97,6 % gegen 100 % darüber (Korrelation +0,32). Zu schwach, um aus einer gehäuften
+  Verteilung eine gleichmäßige zu machen. Auf echten Daten prüft das `layoutreport` nach: es druckt
+  die Verteilung der durchgelassenen Würfel **neben** der aller Einzelmessungen. Decken sie sich,
+  formt das Tor nichts.
+
+Folge für die Env: `block_yaw_range_deg` sollte für Eval, Replay und RL auf `(0, 90)` stehen, nicht
+auf `(0, 0)`. Der Default bleibt vorerst `(0, 0)`, weil die Umstellung die Vergleichbarkeit mit den
+Läufen 08–52 bricht — das ist eine Entscheidung über den Versuchsaufbau, keine Fehlerbehebung.
+
+Für den Co-Training-Render spielt das keine Rolle: dort kommt der Winkel aus `layout.json`.
+Die 39 % ohne Winkel werden mit 0° gerendert und tragen damit den alten Fehler weiter. Sie
+auszuschließen wäre teuer (alle drei Würfel gemessen: ~0,61³ ≈ 23 % der Episoden); die zielgenauere
+Variante wäre, nur den GEGRIFFENEN Würfel zu verlangen — den kennt `grasp_anchor`.
+
+### 7.7 Probelauf statt Vollauslauf
 
 Ein `layout`-Lauf über 60 Episoden dekodiert für den Bewegungsbeginn jedes Video einmal ganz —
 rund 4 s je Video und Kamera, also etwa acht Minuten allein dafür. Für die Frage „kommt ein

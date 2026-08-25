@@ -2019,3 +2019,19 @@ Code, weil er sonst beim nächsten Lesen verlorengeht.
 Neu zur Prüfung: `server_rl_run.sh yawcheck` (synthetische Abnahme, ohne Isaac und ohne Datensatz)
 und `LAYOUTCHECK_EXPECT_YAW` für die Abnahme gegen den echten Renderer. Details in
 [wuerfellage-rekonstruktion.md §7](../simulation/wuerfellage-rekonstruktion.md#7-gierwinkel-um-die-eigene-z-achse).
+
+**Vollauslauf über 60 Episoden (2026-08-25):** 60/60 mit allen drei Würfeln, Kameras in der Position
+auf 1,17 cm einig, **110 von 180 Würfeln (61 %)** mit Gierwinkel. Die Schräglage gegen die Tischkante
+hat Median **22,8°**, p90 40,7°, max 44,7° — eine Gleichverteilung auf 0…45° hätte 22,5 / 40,5 / 45.
+Die Würfel liegen also in beliebiger Drehung, und die Sim stellte jeden auf 0°, den Punkt mit dem
+größten Erwartungsfehler.
+
+Dass das kein Schätzerrauschen ist (das sähe mod 90° ebenfalls gleichverteilt aus), stützt sich auf
+zwei Prüfungen: die 110 Würfel haben das Einigkeitstor passiert — zwei unabhängig aufgestellte
+Kameras stimmen bei Rauschen nicht überein —, und das Tor wählt kaum nach Winkel aus (synthetisch
+97,6 % Ertrag bei 0–10° gegen 100 % darüber). `layoutreport` druckt die Verteilung der
+durchgelassenen Würfel jetzt neben der aller Einzelmessungen, damit eine Auswahlverzerrung auf echten
+Daten sichtbar würde.
+
+Offene Entscheidung: `block_yaw_range_deg` für Eval/Replay/RL auf `(0, 90)` zu stellen wäre nach
+dieser Messung richtig, bricht aber die Vergleichbarkeit mit den Läufen 08–52.

@@ -1146,6 +1146,8 @@ def run_report(args) -> int:
     per_field: dict[str, list[float]] = {f: [] for f in fields}
     per_colour: dict[str, list[float]] = {c: [] for c in CUBE_COLORS}
     disagree, total, no_yaw, fail_square, fail_agree, passed = [], 0, 0, 0, 0, 0
+    all_yaw: list[float] = []
+    accepted_yaw: list[float] = []
 
     for rec in episodes.values():
         cams = rec.get("per_camera") or {}
@@ -1159,6 +1161,7 @@ def run_report(args) -> int:
                 per_field[f].extend(r[f] for r in found if r.get(f) is not None)
             per_colour[colour].extend(r["fill"] for r in found if r.get("fill") is not None)
             turned = [r for r in found if r.get("yaw_deg") is not None]
+            all_yaw.extend(r["yaw_deg"] for r in turned)
             if len(turned) < 2:
                 no_yaw += 1
                 continue
@@ -1168,6 +1171,7 @@ def run_report(args) -> int:
                             for r in turned)
             if square_ok and gap <= args.yaw_tolerance:
                 passed += 1
+                accepted_yaw.append(mean_yaw_deg([r["yaw_deg"] for r in turned]))
             elif not square_ok:
                 fail_square += 1
             else:
@@ -1202,6 +1206,26 @@ def run_report(args) -> int:
           f"aber verschiedene: Winkel verrauscht")
     print(f"  ohne zwei Messungen           {no_yaw:4d}   → Deckfläche zu klein oder "
           f"nicht gefunden")
+
+    # Verteilung der Schräglage — und zwar zweimal. Die durchgelassenen Würfel allein
+    # könnten eine Auswahl sein: fällt das Tor bevorzugt bei bestimmten Winkeln zu, sieht
+    # die Verteilung anders aus als die Wirklichkeit. Also daneben ALLE Einzelmessungen,
+    # ungetort. Decken sich beide, formt das Tor die Verteilung nicht.
+    if not (all_yaw or accepted_yaw):
+        return 0
+    print("\nSchräglage gegen die Tischkante, gefaltet auf 0…45° "
+          "(gleichverteilt wären Median 22,5° und p90 40,5°):")
+    for label, values in (("durchgelassen", accepted_yaw),
+                          ("alle Einzelmessungen", all_yaw)):
+        if not values:
+            continue
+        a = np.abs(np.where(np.array(values) > 45.0, np.array(values) - 90.0, values))
+        hist, edges = np.histogram(a, bins=[0, 9, 18, 27, 36, 45.001])
+        bars = "  ".join(f"{lo:2.0f}–{hi:2.0f}°:{c:4d}"
+                         for c, lo, hi in zip(hist, edges[:-1], edges[1:]))
+        print(f"  {label:22s} n={len(a):4d}  Median {np.median(a):5.1f}°  "
+              f"p90 {np.percentile(a, 90):5.1f}°")
+        print(f"  {'':22s} {bars}")
     return 0
 
 
