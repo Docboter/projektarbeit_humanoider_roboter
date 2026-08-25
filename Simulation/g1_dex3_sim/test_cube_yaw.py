@@ -258,3 +258,23 @@ def test_the_synthetic_cube_does_not_hand_the_estimator_a_free_split() -> None:
     top = lit(np.array([0.0, 0.0, 1.0]))
     side = max(lit(np.array(n)) for n in ([1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0]))
     assert side / top > 0.6, (top, side)
+
+
+def test_default_gate_accepts_a_real_world_rounded_cube() -> None:
+    """Echte Klötzchen erreichen die Formprobe eines scharfkantigen Würfels nie.
+
+    Auf den Realframes liegt sie bei 1,21 (p10 1,06) statt 1,37, weil die Kanten gerundet
+    sind. Mit der alten Vorgabe 1,25 überlebte 1 von 15 Würfeln, mit 1,00 sind es 9 — und
+    die Uneinigkeit beider Kameras stieg dabei nicht (Maximum über alle Stufen 3,7°).
+    """
+    rounded = [{"yaw_deg": 30.0, "top_squareness": 1.21},
+               {"yaw_deg": 32.0, "top_squareness": 1.06}]
+    assert accept_yaw(rounded, tolerance_deg=8.0, min_squareness=1.0)
+    assert not accept_yaw(rounded, tolerance_deg=8.0, min_squareness=1.25)
+
+
+def test_disagreeing_cameras_are_still_rejected_with_the_shape_check_off() -> None:
+    """Die Einigkeit ist jetzt das einzige Tor — sie muss allein tragen."""
+    apart = [{"yaw_deg": 10.0, "top_squareness": 1.40},
+             {"yaw_deg": 35.0, "top_squareness": 1.40}]
+    assert not accept_yaw(apart, tolerance_deg=8.0, min_squareness=1.0)

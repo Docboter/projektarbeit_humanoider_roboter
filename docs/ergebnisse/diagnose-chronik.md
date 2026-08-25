@@ -1980,14 +1980,29 @@ dieselben fünf Episoden:
 
 Die Kantenlänge stimmt jetzt auf 1 %, und die Uneinigkeit beider Kameras fällt von 10,2° auf 2,8°.
 
-**Die Formprobe bleibt trotzdem bei 1,21 und wirft 14 der 15 Würfel weg.** Der Verdacht liegt auf der
-Schwelle, nicht auf den Winkeln: 1,25 stammt aus synthetischen Bildern mit scharfkantigem Würfel
-(dort 1,37). Echte Klötzchen sind an den Kanten gerundet, dazu Bewegungsunschärfe und Maskenrand.
-Synthetisch nachgemessen trägt die Formprobe bei intakter Deckfläche ohnehin nichts mehr bei: ganz
-abgeschaltet bleiben es **0 Ausreißer über 375 Würfel**, Median 0,08°, p90 0,27°. Sie war gegen den
-45°-Umschlag gebaut, und der kam von zerfetzten Deckflächen. `topface` druckt jetzt eine Eichtabelle
-mit, die die Schwelle schrittweise senkt und zeigt, was dabei mit der Uneinigkeit der zusätzlich
-durchgelassenen Würfel passiert — das entscheidet, ob sie fallen darf.
+**Die Formprobe blieb trotzdem bei 1,21 und warf 14 der 15 Würfel weg.** Die Eichtabelle entscheidet
+den Fall:
+
+| Schwelle | behalten | \|L−R\| Median | p90 | max |
+|---|---|---|---|---|
+| 1,25 | 1/15 | 3,7° | 3,7° | 3,7° |
+| 1,20 | 4/15 | 1,1° | 3,0° | 3,7° |
+| 1,10 | 6/15 | 1,8° | 3,3° | 3,7° |
+| 1,00 | **9/15** | 1,6° | 3,0° | **3,7°** |
+
+Die Uneinigkeit steigt beim Senken nicht — ihr Maximum bleibt über alle Stufen exakt 3,7°. Die
+Formprobe trennt auf echten Frames nichts; sie hat 8 von 9 brauchbaren Würfeln weggeworfen. 1,25
+stammt von scharfkantigen synthetischen Würfeln (1,37), echte Klötzchen liegen mit gerundeten Kanten
+bei 1,21 (p10 1,06). Synthetisch bestätigt sich dasselbe: mit 1,25 überleben 345 von 375 bei p90
+0,20°, ohne sie 373 bei p90 0,27°, beide Male **null** Ausreißer über 20°. Sie war gegen den
+45°-Umschlag gebaut, und den erzeugten zerfetzte Deckflächen — die es mit der gemessenen
+Helligkeitsschwelle nicht mehr gibt.
+
+Vorgabe ist deshalb `--min-squareness 1.0`, also aus; die Zahl bleibt als Diagnose. Einziges Tor ist
+die Einigkeit beider Kameras, und die teilt sauber: neun Würfel mit ≤ 3,7°, sechs mit > 8°,
+dazwischen nichts. **Ertrag auf diesen fünf Episoden: 1/15 → 9/15.** Die Abnahmeschranke wurde
+gleichzeitig von p90 5° / 2 % Ausreißer auf 1° / 1 % nachgezogen — ein Schwellwert, den der
+Ist-Zustand um das Dreifache unterbietet, fängt keine Regression mehr.
 
 Dabei fiel auf, dass die synthetische Abnahme selbst zu leicht war: sie gab Deck- und Seitenflächen
 zwei feste Helligkeiten, und diesen Sprung trennt jede Schwelle. Der Würfel wird jetzt

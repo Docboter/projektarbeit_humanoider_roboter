@@ -426,18 +426,31 @@ def _extent_across(d: np.ndarray, yaw_deg: float) -> float:
 
 
 def accept_yaw(records: list[dict], tolerance_deg: float, min_squareness: float) -> bool:
-    """Ist der Gierwinkel dieses Würfels belastbar? Zwei Tore, beide gemessen begründet.
+    """Ist der Gierwinkel dieses Würfels belastbar?
 
-    1. **Formprobe** je Kamera. Diagonale/Kante muss nahe √2 liegen; nahe 1 heißt, dass die
-       Deckflächenmaske kein Quadrat mehr ist und die Kantenrichtung nicht existiert.
-    2. **Beide Kameras einig.** Ihre Fehler sind weitgehend unabhängig — sie sehen den
-       Würfel aus verschiedenen Richtungen, und die Verschmierung durch Seitenflächen zeigt
-       jeweils anderswohin. Ein selbstbewusst falscher Wert überlebt das selten.
+    Entscheidend ist, dass **beide Kameras dasselbe messen**. Ihre Fehler sind weitgehend
+    unabhängig: sie sehen den Würfel aus verschiedenen Richtungen, und die Verschmierung
+    durch Seitenflächen zeigt jeweils anderswohin. Ein selbstbewusst falscher Wert überlebt
+    das selten. Der Rest bekommt KEINEN Winkel — 0° ist ein ehrlicher Rückfall, ein
+    geratener nicht.
 
-    Abnahme vom 2026-08-25 (synthetisch, 450 Würfel über fünf Rauschstufen bis σ=0,05):
-    ohne Tore Median 3,15° / p90 26,3°; mit Formprobe 1,25 und Toleranz 8° bleiben 36 %
-    der Würfel übrig, und für die gilt Median 0,12° / p90 1,68°, ein Ausreißer auf 160.
-    Der Rest bekommt KEINEN Winkel — 0° ist ein ehrlicher Rückfall, ein geratener nicht.
+    Die **Formprobe** (Diagonale/Kante der zurückprojizierten Deckfläche) ist per Vorgabe
+    kein Tor mehr, sondern nur noch eine berichtete Zahl. Sie war gegen den 45°-Umschlag
+    gebaut, und den erzeugten zerfetzte Deckflächen — mit der gemessenen Helligkeitsschwelle
+    (``top_face_mask``) gibt es die nicht mehr. Zwei Messungen vom 2026-08-25:
+
+    * **Synthetisch** (375 Würfel, fünf Rauschstufen bis σ=0,05): mit Formprobe 1,25 bleiben
+      345 übrig bei Median 0,07° / p90 0,20°, ganz ohne sie 373 bei Median 0,08° / p90 0,27°.
+      Beide Male **null** Ausreißer über 20°. Sie kauft also fast nichts.
+    * **Auf echten Frames** (15 Würfel, fünf Episoden) kostet sie viel: bei 1,25 überlebt
+      1 Würfel, bei 1,00 sind es 9 — und die Uneinigkeit beider Kameras steigt dabei nicht,
+      ihr Maximum bleibt über alle Stufen 3,7°. Sie trennt dort schlicht nichts. Grund: der
+      Schwellenwert stammt von scharfkantigen synthetischen Würfeln (Formprobe 1,37), echte
+      Klötzchen liegen mit gerundeten Kanten bei 1,21 (p10 1,06).
+
+    ``min_squareness=1.0`` heißt „aus": nach der Umschlagkorrektur in ``yaw_from_top_face``
+    ist das Verhältnis konstruktionsbedingt ≥ 1. Höher setzen kann, wer eine Kamera ohne
+    Partner hat oder einem Datensatz mit anderer Optik misstraut.
     """
     if len(records) < 2:
         return False
@@ -534,7 +547,9 @@ def measure_yaw(rgb: np.ndarray, mask: np.ndarray, blob: dict, cam: PinholeCamer
             # Breite quer zur Kante — beim 5-cm-Würfel ~5 cm. Deutlich weniger heißt,
             # dass die Deckflächenmaske nur ein Bruchstück erwischt hat.
             "top_width_cm": round(width_m * 100, 2),
-            # Diagonale/Kante. Ideal √2 = 1,41; nahe 1 heißt „kein Quadrat, kein Winkel".
+            # Diagonale/Kante. Ideal √2 = 1,41; auf echten Würfeln mit gerundeten Kanten
+            # liegt sie bei ~1,21. Berichtete Diagnose, per Vorgabe kein Tor — siehe
+            # accept_yaw.
             "top_squareness": round(squareness, 3)}
 
 
@@ -1214,9 +1229,11 @@ def main() -> int:
     yaw_opts.add_argument("--yaw-tolerance", type=float, default=8.0,
                           help="Wieviel Grad die beiden Kameras beim Gierwinkel "
                                "auseinanderliegen dürfen (Default 8)")
-    yaw_opts.add_argument("--min-squareness", type=float, default=1.25,
-                          help="Verlangte Diagonale/Kante der Deckfläche. Ideal √2=1,41, "
-                               "nahe 1 heißt 'kein Quadrat' (Default 1,25)")
+    yaw_opts.add_argument("--min-squareness", type=float, default=1.0,
+                          help="Verlangte Diagonale/Kante der Deckfläche. Ideal √2=1,41. "
+                               "Default 1,0 = aus: auf echten Frames trennt die Formprobe "
+                               "nichts (Messung 2026-08-25), sie kostete nur 8 von 9 "
+                               "brauchbaren Würfeln. Die Einigkeit beider Kameras tort.")
 
     d = sub.add_parser("detect", parents=[common, yaw_opts],
                        help="Blobs in gegebenen Bildern; mit --expect gegen Grundwahrheit")
@@ -1252,7 +1269,7 @@ def main() -> int:
                    help="Gierwinkel-Schätzer gegen synthetische Grundwahrheit prüfen "
                         "— ohne Isaac, ohne Datensatz").set_defaults(
         seed=0, step=5.0, noise=[0.0, 0.01, 0.02, 0.03, 0.05], min_area=120,
-        tolerance=5.0, max_gross=0.02)
+        tolerance=1.0, max_gross=0.01)
 
     e = sub.add_parser("extract", parents=[common, yaw_opts],
                        help="Realbilder eines Datensatzes → layout.json")

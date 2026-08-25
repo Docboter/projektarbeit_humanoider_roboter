@@ -267,11 +267,15 @@ Blobwahl und Deckflächenschnitt, nicht nur über die Formel. 18 Winkel × 5 Ort
 
 | Maskenrauschen | Tor behält | Fehler Median | p90 | Ausreißer > 20° |
 |---|---|---|---|---|
-| 0,00 | 92 % | 0,07° | 0,19° | 0/83 |
-| 0,01 | 93 % | 0,07° | 0,22° | 0/84 |
-| 0,02 | 94 % | 0,07° | 0,24° | 0/85 |
-| 0,03 | 94 % | 0,07° | 0,21° | 0/85 |
-| 0,05 | 94 % | 0,09° | 0,25° | 0/85 |
+| 0,00 | 99 % | 0,08° | 0,32° | 0/89 |
+| 0,01 | 99 % | 0,08° | 0,27° | 0/89 |
+| 0,02 | 99 % | 0,07° | 0,27° | 0/89 |
+| 0,03 | 100 % | 0,07° | 0,28° | 0/90 |
+| 0,05 | 100 % | 0,09° | 0,33° | 0/90 |
+
+Die Schranke steht bei p90 ≤ 1,0° und ≤ 1 % Ausreißer je Rauschstufe. Sie war bis zum 2026-08-25 bei
+5° und 2 % — nachgezogen, weil ein Schwellwert, den der Ist-Zustand um das Dreifache unterbietet,
+keine Regression mehr fängt.
 
 Der synthetische Würfel wird **Lambert-schattiert mit schräger Lichtquelle**, nicht mit zwei festen
 Helligkeiten. Das ist keine Kosmetik: bei senkrechtem Licht steht die Deckfläche so weit über jeder
@@ -330,21 +334,32 @@ Die gemessene Schwelle trifft die Kantenlänge auf 1 % und drückt die Uneinigke
 10,2° auf 2,8°. Zwei unabhängig aufgestellte Kameras, die sich auf 2,8° einig sind, messen mit hoher
 Wahrscheinlichkeit denselben, richtigen Winkel.
 
-**Die Formprobe bleibt trotzdem bei 1,21** und wirft damit 14 der 15 Würfel weg. Das ist der Verdacht
-auf eine falsch geeichte Schwelle, nicht auf schlechte Winkel: 1,25 stammt aus synthetischen Bildern
-mit scharfkantigem Würfel (dort 1,37–1,38). Echte Klötzchen haben gerundete Kanten, dazu kommen
-Bewegungsunschärfe und Maskenrand — die Formprobe liegt real systematisch tiefer, ohne dass der
-Winkel schlechter wäre.
+**Die Formprobe blieb trotzdem bei 1,21** und warf damit 14 der 15 Würfel weg. Die Eichtabelle, die
+`topface` mitdruckt, entscheidet den Fall — sie senkt die Schwelle schrittweise und zeigt, was mit
+der Uneinigkeit der zusätzlich durchgelassenen Würfel passiert:
 
-Synthetisch gemessen trägt die Formprobe bei intakter Deckfläche ohnehin **nichts** mehr bei: ganz
-abgeschaltet bleiben es 0 Ausreißer über 375 Würfel, Median 0,08°, p90 0,27°. Sie war gegen den
-45°-Umschlag gebaut, und der entstand aus zerfetzten Deckflächen. Das Einigkeitstor allein leistet
-die Arbeit.
+| Schwelle | behalten | \|L−R\| Median | p90 | max |
+|---|---|---|---|---|
+| 1,25 | 1/15 | 3,7° | 3,7° | 3,7° |
+| 1,20 | 4/15 | 1,1° | 3,0° | 3,7° |
+| 1,10 | 6/15 | 1,8° | 3,3° | 3,7° |
+| 1,00 | **9/15** | 1,6° | 3,0° | **3,7°** |
 
-Ob die Schwelle fallen darf, entscheidet die Eichtabelle, die `topface` mitdruckt: sie senkt die
-Formprobe schrittweise und zeigt, was mit der Uneinigkeit der zusätzlich durchgelassenen Würfel
-passiert. Bleibt sie klein, war die Schwelle zu hoch. Springt sie, trennt die Formprobe wirklich
-etwas und muss bleiben.
+Die Uneinigkeit steigt beim Senken **nicht** — ihr Maximum bleibt über alle Stufen exakt 3,7°. Die
+Formprobe trennt auf echten Frames also nichts; sie hat nur 8 von 9 brauchbaren Würfeln weggeworfen.
+Der Grund: 1,25 stammt von scharfkantigen synthetischen Würfeln (dort 1,37–1,38), echte Klötzchen
+liegen mit gerundeten Kanten bei 1,21 (p10 1,06), dazu Bewegungsunschärfe und Maskenrand.
+
+Synthetisch bestätigt sich dasselbe: bei intakter Deckfläche kostet die Formprobe fast nichts und
+bringt nichts — mit 1,25 überleben 345 von 375 bei p90 0,20°, ganz ohne sie 373 bei p90 0,27°, beide
+Male **null** Ausreißer über 20°. Sie war gegen den 45°-Umschlag gebaut, und den erzeugten zerfetzte
+Deckflächen, die es mit der gemessenen Helligkeitsschwelle nicht mehr gibt.
+
+**Vorgabe ist deshalb `--min-squareness 1.0`, also aus.** Nach der Umschlagkorrektur ist das
+Verhältnis konstruktionsbedingt ≥ 1; die Zahl bleibt als Diagnose stehen und als Stellschraube für
+den, der einer anderen Optik misstraut. Das einzige Tor ist die Einigkeit beider Kameras — und die
+teilt die Würfel sauber: neun mit ≤ 3,7°, sechs mit > 8°, dazwischen nichts. Auf diesen fünf
+Episoden steigt der Ertrag damit von 1/15 auf **9/15**.
 
 Solange `cubes_yaw_deg` `null` ist, verhält sich der Renderer für diesen Würfel wie bisher. `null`
 heißt „nicht belastbar gemessen", **nicht** „liegt gerade".
