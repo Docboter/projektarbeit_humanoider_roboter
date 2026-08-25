@@ -1064,11 +1064,43 @@ def run_topface(args) -> int:
         score = abs(square - np.sqrt(2.0))
         if best is None or score < best[1]:
             best = (name, score, through, len(pairs[name]))
-    if best:
-        print(f"\nNächeste an einem echten Quadrat: {best[0]} "
-              f"({best[2]}/{best[3]} durch das Tor).")
-        print("Formprobe entscheidet, nicht der Ertrag: eine Regel, die mehr durchlässt, aber "
-              "weiter von √2 entfernt liegt, lässt schlechtere Winkel durch.")
+    if not best:
+        return 0
+    print(f"\nNächste an einem echten Quadrat: {best[0]} ({best[2]}/{best[3]} durch das Tor).")
+    print("Die Breite entscheidet, nicht der Ertrag: eine Regel, die die Deckfläche verkürzt,")
+    print("misst einen Winkel an einem Bruchstück.")
+
+    # Eichung der Formprobe an echten Würfeln. Ihre Schwelle stammt aus synthetischen
+    # Bildern mit scharfkantigem Würfel; echte Klötzchen haben gerundete Kanten, und
+    # Bewegungsunschärfe und Maskenrand tun ihr Übriges — die Formprobe liegt real
+    # systematisch tiefer, ohne dass der Winkel schlechter wäre. Ob das so ist, sagt die
+    # Uneinigkeit beider Kameras: sie ist der einzige Fehlerzeiger, den es auf Realbildern
+    # ohne Annotation gibt. Bleibt sie beim Senken der Schwelle klein, war die Schwelle
+    # zu hoch und nicht der Würfel zu schief.
+    recs = got[best[0]]
+    pair = pairs[best[0]]
+    if not pair:
+        return 0
+    sq = np.array([r["top_squareness"] for r in recs], dtype=float)
+    print(f"\nFormprobe der Regel {best[0]} auf echten Würfeln: p10 {np.percentile(sq, 10):.2f}"
+          f"   Median {np.median(sq):.2f}   p90 {np.percentile(sq, 90):.2f}"
+          f"   (synthetisch scharfkantig: ~1,37)")
+    print(f"\nWas kostet es, die Formprobe zu senken? Einigkeit ≤ {args.yaw_tolerance:.0f}° "
+          f"bleibt gesetzt.")
+    print(f"{'Schwelle':>9} {'behalten':>10} {'|L−R| Median':>13} {'p90':>7} {'max':>7}")
+    for thr in (1.35, 1.30, 1.25, 1.20, 1.15, 1.10, 1.05, 1.00):
+        kept = [(a, b) for a, b in pair
+                if min(a["top_squareness"], b["top_squareness"]) >= thr]
+        gaps = np.array([yaw_delta_deg(a["yaw_deg"], b["yaw_deg"]) for a, b in kept])
+        inside = gaps[gaps <= args.yaw_tolerance]
+        if inside.size == 0:
+            print(f"{thr:9.2f} {0:5d}/{len(pair):<4d} {'—':>13}")
+            continue
+        print(f"{thr:9.2f} {inside.size:5d}/{len(pair):<4d} {np.median(inside):13.1f} "
+              f"{np.percentile(inside, 90):7.1f} {inside.max():7.1f}")
+    print("\nLesart: bleibt |L−R| beim Senken klein, sind die zusätzlich durchgelassenen")
+    print("Würfel genauso gut gemessen — dann war die Schwelle zu hoch. Springt sie hoch,")
+    print("trennt die Formprobe wirklich etwas und muss bleiben.")
     return 0
 
 

@@ -1969,7 +1969,25 @@ gut die Hälfte davon. Die Geometrie sagt die Verkürzung auf zwei Stellen vorhe
 
 Die Schwelle kommt jetzt aus der Helligkeitsverteilung selbst (Otsu). Eine Zahl durch eine andere zu
 ersetzen wäre dieselbe Wette gewesen, deshalb misst `topface` auf echten Frames nach — die
-Würfeloberseite IST ein 5-cm-Quadrat, also ist „welche Regel trifft sie" eine Messung.
+Würfeloberseite IST ein 5-cm-Quadrat, also ist „welche Regel trifft sie" eine Messung. Ergebnis über
+dieselben fünf Episoden:
+
+| Regel | Breite (Soll 5,0) | Formprobe | \|L−R\| | Deckfläche |
+|---|---|---|---|---|
+| gemessen (Otsu) | **4,94 cm** | 1,21 | **2,8°** | 903 px |
+| q55 | 3,84 cm | 1,19 | 3,2° | 701 px |
+| q70 (alt) | 3,51 cm | 1,17 | 10,2° | 494 px |
+
+Die Kantenlänge stimmt jetzt auf 1 %, und die Uneinigkeit beider Kameras fällt von 10,2° auf 2,8°.
+
+**Die Formprobe bleibt trotzdem bei 1,21 und wirft 14 der 15 Würfel weg.** Der Verdacht liegt auf der
+Schwelle, nicht auf den Winkeln: 1,25 stammt aus synthetischen Bildern mit scharfkantigem Würfel
+(dort 1,37). Echte Klötzchen sind an den Kanten gerundet, dazu Bewegungsunschärfe und Maskenrand.
+Synthetisch nachgemessen trägt die Formprobe bei intakter Deckfläche ohnehin nichts mehr bei: ganz
+abgeschaltet bleiben es **0 Ausreißer über 375 Würfel**, Median 0,08°, p90 0,27°. Sie war gegen den
+45°-Umschlag gebaut, und der kam von zerfetzten Deckflächen. `topface` druckt jetzt eine Eichtabelle
+mit, die die Schwelle schrittweise senkt und zeigt, was dabei mit der Uneinigkeit der zusätzlich
+durchgelassenen Würfel passiert — das entscheidet, ob sie fallen darf.
 
 Dabei fiel auf, dass die synthetische Abnahme selbst zu leicht war: sie gab Deck- und Seitenflächen
 zwei feste Helligkeiten, und diesen Sprung trennt jede Schwelle. Der Würfel wird jetzt

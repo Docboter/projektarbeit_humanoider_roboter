@@ -313,13 +313,38 @@ Bounding-Box praktisch der Bestwert. Es war der Deckflächenschnitt, und die Geo
 Fehler auf zwei Stellen vorher (siehe §7.2: erwartet 1,35, gemessen 1,42). Die Schwelle wird deshalb
 seit dem 2026-08-25 gemessen statt gesetzt.
 
-Was der Wechsel auf echten Frames bringt, ist noch **nicht** gemessen. Dafür gibt es `topface`: die
-Würfeloberseite ist ein 5-cm-Quadrat, also ist „welche Regel trifft sie am besten" eine Messung und
-keine Meinung.
+### 7.5 Der Deckflächenschnitt, auf echten Frames vermessen
 
-```bash
-LAYOUT_EPISODE_IDS="0 1 2 8 12" ./Simulation/server_rl_run.sh topface
-```
+`topface` (`server_rl_run.sh topface`) stellt die Schwellenregeln gegeneinander. Die Würfeloberseite
+ist ein 5-cm-Quadrat — „welche Regel trifft sie am besten" ist damit eine Messung und keine Meinung.
+Lauf vom 2026-08-25, dieselben fünf Episoden:
+
+| Regel | Breite | Formprobe | \|L−R\| | Deckfläche |
+|---|---|---|---|---|
+| gemessen (Otsu) | **4,94 cm** | 1,21 | **2,8°** | 903 px |
+| q45 | 4,95 cm | 1,17 | 3,8° | 874 px |
+| q55 | 3,84 cm | 1,19 | 3,2° | 701 px |
+| q70 (alt) | 3,51 cm | 1,17 | 10,2° | 494 px |
+
+Die gemessene Schwelle trifft die Kantenlänge auf 1 % und drückt die Uneinigkeit beider Kameras von
+10,2° auf 2,8°. Zwei unabhängig aufgestellte Kameras, die sich auf 2,8° einig sind, messen mit hoher
+Wahrscheinlichkeit denselben, richtigen Winkel.
+
+**Die Formprobe bleibt trotzdem bei 1,21** und wirft damit 14 der 15 Würfel weg. Das ist der Verdacht
+auf eine falsch geeichte Schwelle, nicht auf schlechte Winkel: 1,25 stammt aus synthetischen Bildern
+mit scharfkantigem Würfel (dort 1,37–1,38). Echte Klötzchen haben gerundete Kanten, dazu kommen
+Bewegungsunschärfe und Maskenrand — die Formprobe liegt real systematisch tiefer, ohne dass der
+Winkel schlechter wäre.
+
+Synthetisch gemessen trägt die Formprobe bei intakter Deckfläche ohnehin **nichts** mehr bei: ganz
+abgeschaltet bleiben es 0 Ausreißer über 375 Würfel, Median 0,08°, p90 0,27°. Sie war gegen den
+45°-Umschlag gebaut, und der entstand aus zerfetzten Deckflächen. Das Einigkeitstor allein leistet
+die Arbeit.
+
+Ob die Schwelle fallen darf, entscheidet die Eichtabelle, die `topface` mitdruckt: sie senkt die
+Formprobe schrittweise und zeigt, was mit der Uneinigkeit der zusätzlich durchgelassenen Würfel
+passiert. Bleibt sie klein, war die Schwelle zu hoch. Springt sie, trennt die Formprobe wirklich
+etwas und muss bleiben.
 
 Solange `cubes_yaw_deg` `null` ist, verhält sich der Renderer für diesen Würfel wie bisher. `null`
 heißt „nicht belastbar gemessen", **nicht** „liegt gerade".
@@ -330,7 +355,7 @@ quer zu einer Fläche. Er wird bewusst **nicht** als Ersatz für einen verworfen
 eingesetzt — das wäre genau die stille Rückfallebene, die `place_cubes` aus gutem Grund verloren
 hat. Erst wenn beide Zahlen über viele Episoden zusammenfallen, ist die Annahme belegt.
 
-### 7.5 Probelauf statt Vollauslauf
+### 7.6 Probelauf statt Vollauslauf
 
 Ein `layout`-Lauf über 60 Episoden dekodiert für den Bewegungsbeginn jedes Video einmal ganz —
 rund 4 s je Video und Kamera, also etwa acht Minuten allein dafür. Für die Frage „kommt ein
