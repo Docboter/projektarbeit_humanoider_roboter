@@ -45,7 +45,7 @@ Für den **aktuellen Projektstatus** siehe
 | 35–37 | Würfellage-Rekonstruktion v4 zweimal abgelehnt; Kameramodell dagegen auf 0,3 cm bestätigt, Würfelebene lag 2 cm zu hoch ([Läufe 35–37](#läufe-3537-runs2026082201-03-die-würfellage-kommt-aus-dem-bild-nicht-aus-der-hand)) |
 | 38–46 | Die vier Fingergrundgelenke standen in **jedem** Lauf still: der „Sign-Convention-Fix" drehte sie aus ihrer Gelenkgrenze, wo sie geklemmt wurden ([Läufe 38–46](#läufe-3846-runs2026082302-runs2026082405-12-die-fingergrundgelenke-standen-still)) |
 | 47–51 | Drei unabhängige Geometriefehler ergaben zusammen ~12 cm: Vorzeichen, Beckenhöhe 0,85→0,764, Basis x 0→−0,057. Restabstand 4,5 cm ([Läufe 49–51](#läufe-4951-auch-die-basis-in-x--die-rekonstruktion-steht)) |
-| 52 | Der **Gierwinkel** der Würfel wurde nie rekonstruiert — Sim stellte sie immer achsparallel. Schätzer gebaut und synthetisch abgenommen; auf echten Frames greifen 7 %, Ursache offen. Die Begründung stützte sich zunächst auf annotierte Debug-PNGs und ist zurückgezogen ([Lauf 52](#lauf-52-der-gierwinkel-fehlte-in-jedem-lauf)) |
+| 52 | Der **Gierwinkel** der Würfel wurde nie rekonstruiert — Sim stellte sie immer achsparallel. Schätzer gebaut; auf echten Frames scheiterten 13/15 am Deckflächenschnitt, der fest die hellsten 30 % nahm statt der 49–58 %, die die Deckfläche ausmacht. Erste Begründung stützte sich auf annotierte Debug-PNGs und ist zurückgezogen ([Lauf 52](#lauf-52-der-gierwinkel-fehlte-in-jedem-lauf)) |
 
 ---
 
@@ -1956,13 +1956,31 @@ und dann rettet keine Auswahlregel. Und die Breite als **Perzentilspanne** (5.�
 die Unterscheidung: quer zur Diagonale ist die Projektion dreieckig verteilt, quer zur Kante
 gleichverteilt, das Verhältnis fällt von 1,41 auf 1,08. Es muss die volle Spannweite sein.
 
-**Auf echten Frames passiert 1 von 15 Würfeln das Tor (7 %, Probelauf über fünf Episoden).** Warum
-so wenige, ist offen. `locate_cubes` legt die Diagnosefelder je Kamera in `layout.json` ab
-(`fill`, `top_px`, `top_width_cm`, `top_squareness`, `yaw_coherence`); die Antwort steht dort und
-muss aus dem Probelauf gelesen werden, nicht aus Debug-PNGs.
+**Auf echten Frames passiert 1 von 15 Würfeln das Tor (7 %, Probelauf über fünf Episoden).**
+`layoutreport` benennt die Ursache, und es ist nicht die, die ich vermutet hatte: `fill` liegt bei
+**0,69** — für eine sechseckige Silhouette in einer rechteckigen Bounding-Box praktisch der
+Bestwert. Die Farbmaske ist in Ordnung. Weggelaufen sind `top_width_cm` (**3,51** statt 5,0) und
+`top_squareness` (**1,17** statt 1,41), und **13 von 15** scheitern an der Formprobe.
 
-Bis dahin bleibt `cubes_yaw_deg` für die übrigen Würfel `null`, und der Renderer verhält sich für sie
-wie bisher. `null` heißt „nicht belastbar gemessen", nicht „liegt gerade" — der Unterschied steht im
+Schuld ist der Deckflächenschnitt, genauer seine **feste Quote**: er nahm die hellsten 30 % des
+Blobs. Bei 53,6° Blickhöhe macht die Deckfläche aber 49–58 % der Silhouette aus — die Quote nahm
+gut die Hälfte davon. Die Geometrie sagt die Verkürzung auf zwei Stellen vorher: erwartet linear
+1,35, gemessen 5,0/3,51 = **1,42**.
+
+Die Schwelle kommt jetzt aus der Helligkeitsverteilung selbst (Otsu). Eine Zahl durch eine andere zu
+ersetzen wäre dieselbe Wette gewesen, deshalb misst `topface` auf echten Frames nach — die
+Würfeloberseite IST ein 5-cm-Quadrat, also ist „welche Regel trifft sie" eine Messung.
+
+Dabei fiel auf, dass die synthetische Abnahme selbst zu leicht war: sie gab Deck- und Seitenflächen
+zwei feste Helligkeiten, und diesen Sprung trennt jede Schwelle. Der Würfel wird jetzt
+Lambert-schattiert mit **schräger** Lichtquelle, sodass die hellste Seitenfläche bei 0,64 gegen 0,91
+liegt. Unter dieser Beleuchtung fällt die alte feste Quote auf p90 **36,7°**, die gemessene Schwelle
+bleibt bei 0,20° — und die Abnahme insgesamt geht von 4–100 % Ertrag je nach Rauschen auf stabile
+92–94 % bei p90 ≤ 0,25°. Eine Abnahme, die alles bestehen lässt, prüft nichts; ein Test hält jetzt
+fest, dass die Seitenfläche dicht an der Deckfläche liegen muss.
+
+Bis der Wechsel auf echten Frames gemessen ist, bleibt `cubes_yaw_deg` für die übrigen Würfel
+`null`, und der Renderer verhält sich für sie wie bisher. `null` heißt „nicht belastbar gemessen", nicht „liegt gerade" — der Unterschied steht im
 Code, weil er sonst beim nächsten Lesen verlorengeht.
 
 Neu zur Prüfung: `server_rl_run.sh yawcheck` (synthetische Abnahme, ohne Isaac und ohne Datensatz)

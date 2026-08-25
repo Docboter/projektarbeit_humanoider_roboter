@@ -238,6 +238,15 @@ untauglich:
    genau dieser Harmonischen: `Σ (dx + i·dy)^4` hat die Phase 4·ψ. Jedes Pixel geht mit stetigem
    Gewicht ein, es gibt kein Raster zum Einrasten.
 
+Davor steht der **Deckflächenschnitt**, und der war bis zum 2026-08-25 der eigentliche Engpass. Nur
+die Deckfläche liegt auf `Z_CUBE_TOP`; Seitenflächen-Pixel dorthin zurückzuprojizieren zieht sie zu
+einem Schweif von der Kamera weg. Getrennt wurde über die Helligkeit — aber mit einer **festen
+Quote**, dem 70. Perzentil, also „die hellsten 30 %". Bei 53,6° Blickhöhe macht die Deckfläche je
+nach Gierwinkel 49–58 % der Silhouette aus; die Quote nahm damit gut die Hälfte davon. Vorhergesagte
+Verkürzung linear 1,35, im Probelauf gemessen 1,42 (3,51 cm statt 5,0). Die Schwelle kommt jetzt aus
+der Helligkeitsverteilung selbst (Otsu). Eine Zahl durch eine andere zu ersetzen wäre dieselbe
+Wette gewesen — `topface` misst deshalb nach (§7.3).
+
 Dazu zwei Prüfmerkmale, weil die Phase allein nicht sagt, ob die Punktwolke überhaupt ein Quadrat
 ist. **Formprobe** = Diagonale/Kante der zurückprojizierten Fläche; ideal √2 = 1,41, nahe 1 heißt
 „keine Kantenrichtung vorhanden". Ist sie kleiner als 1, ist die Phase um 45° umgeschlagen und
@@ -258,39 +267,62 @@ Blobwahl und Deckflächenschnitt, nicht nur über die Formel. 18 Winkel × 5 Ort
 
 | Maskenrauschen | Tor behält | Fehler Median | p90 | Ausreißer > 20° |
 |---|---|---|---|---|
-| 0,00 | 100 % | 0,05° | 0,14° | 0/90 |
-| 0,01 | 42 % | 0,82° | 2,64° | 0/38 |
-| 0,02 | 20 % | 0,87° | 2,40° | 0/18 |
-| 0,03 | 11 % | 1,17° | 1,57° | 0/10 |
-| 0,05 | 4 % | — | — | zu wenige für ein Urteil |
+| 0,00 | 92 % | 0,07° | 0,19° | 0/83 |
+| 0,01 | 93 % | 0,07° | 0,22° | 0/84 |
+| 0,02 | 94 % | 0,07° | 0,24° | 0/85 |
+| 0,03 | 94 % | 0,07° | 0,21° | 0/85 |
+| 0,05 | 94 % | 0,09° | 0,25° | 0/85 |
 
-Ohne die beiden Tore liegt derselbe Datensatz bei Median 3,15° / p90 26,3°. Diese Abnahme rendert
-ihre eigenen Bilder und ist deshalb von der Debug-PNG-Verwechslung in §7.1 unberührt — sie belegt
-aber auch nur den Schätzer, nicht das Verhalten auf Realbildern. Das Tor kauft die Genauigkeit mit
-Ertrag, und das ist die richtige Richtung: ein geratener Winkel dreht den
+Der synthetische Würfel wird **Lambert-schattiert mit schräger Lichtquelle**, nicht mit zwei festen
+Helligkeiten. Das ist keine Kosmetik: bei senkrechtem Licht steht die Deckfläche so weit über jeder
+Seitenfläche, dass sie jede Schwelle trennt — die Abnahme wäre ein Gummistempel. Schräg beleuchtet
+liegt die hellste Seitenfläche bei 0,64 gegen 0,91, und genau dort entscheidet sich der Schnitt.
+Unter dieser Beleuchtung fällt die alte feste Quote auf p90 **36,7°**, die gemessene Schwelle bleibt
+bei 0,20°.
+
+Diese Abnahme rendert ihre eigenen Bilder und ist deshalb von der Debug-PNG-Verwechslung in §7.1
+unberührt — sie belegt aber auch nur den Schätzer, nicht das Verhalten auf Realbildern. Ohne die
+beiden Tore lag derselbe Aufbau vor dem Schnitt-Fix bei Median 3,15° / p90 26,3°; das Tor kauft
+Genauigkeit mit Ertrag, und das ist die richtige Richtung: ein geratener Winkel dreht den
 Würfel unter einer Realaktion weg, die für eine andere Lage aufgenommen wurde.
 
 Die Abnahme gegen den **echten Renderer** ist `detect --expect-yaw` mit `cubes_yaw_deg` aus
 `render_manifest.json` — dieselbe Rolle, die `--expect` für die Position spielt. Der `selftest`
 teilt sich mit dem Schätzer die Kameraannahme und kann sie deshalb nicht prüfen.
 
-### 7.4 Was heute noch fehlt
+### 7.4 Der Probelauf und was er ergab
 
-Probelauf vom 2026-08-25 über die echten Videos der Episoden 0, 1, 2, 8 und 12: **1 von 15 Würfeln**
-passiert das Tor (7 %), dieser eine bei **30,0°** — also eine echte Schräglage, kein Rundungsrest.
-Alle drei Würfel werden in allen fünf Episoden gefunden, die Kameras sind sich in der *Position* auf
-1,75 cm (Median) einig. Es scheitert ausschließlich am Winkel.
+Probelauf vom 2026-08-25 über die echten Videos der Episoden 0, 1, 2, 8 und 12 (`layout` →
+`layoutreport`): **1 von 15 Würfeln** passiert das Tor, dieser eine bei **30,0°** — eine echte
+Schräglage, kein Rundungsrest. Alle drei Würfel werden in allen fünf Episoden gefunden, die Kameras
+sind sich in der *Position* auf 1,75 cm (Median) einig. Es scheiterte ausschließlich am Winkel.
 
-**Warum, ist offen.** `locate_cubes` legt die Diagnose je Kamera in `layout.json` unter `per_camera`
-ab — `fill` (Füllgrad der Bounding-Box), `top_px`, `top_width_cm` (Soll ~5), `top_squareness`
-(Soll ~1,41) und `yaw_coherence`. Welche dieser Zahlen wegläuft, sagt, wo der Hebel liegt: eine
-kleine `top_width_cm` bei guter `fill` heißt Deckflächenschnitt, eine kleine `fill` heißt Farbmaske.
+`layoutreport` benennt, woran:
 
-Nicht aus den Debug-PNGs lesen — siehe die Warnung in §7.1. Die Zahlen stehen in `layout.json`,
-gerechnet auf den Videoframes.
+| Größe | gemessen | Soll |
+|---|---|---|
+| `fill` (Füllgrad der Bounding-Box) | 0,69 | ~0,7 — mehr kann ein Sechseck nicht |
+| `top_px` | 494 | groß genug |
+| `top_width_cm` | **3,51** | 5,0 |
+| `top_squareness` | **1,17** | 1,41 |
 
-Bis das geklärt ist, verhält sich der Renderer für die übrigen Würfel wie bisher: `cubes_yaw_deg`
-ist `null`, und `null` heißt „nicht belastbar gemessen", **nicht** „liegt gerade".
+und die Aufschlüsselung: **13 von 15 an der Formprobe**, 1 an der Uneinigkeit, 0 mangels Messung.
+
+**Die Farbmaske war es also nicht** — 0,69 ist für eine sechseckige Silhouette in einer rechteckigen
+Bounding-Box praktisch der Bestwert. Es war der Deckflächenschnitt, und die Geometrie sagt den
+Fehler auf zwei Stellen vorher (siehe §7.2: erwartet 1,35, gemessen 1,42). Die Schwelle wird deshalb
+seit dem 2026-08-25 gemessen statt gesetzt.
+
+Was der Wechsel auf echten Frames bringt, ist noch **nicht** gemessen. Dafür gibt es `topface`: die
+Würfeloberseite ist ein 5-cm-Quadrat, also ist „welche Regel trifft sie am besten" eine Messung und
+keine Meinung.
+
+```bash
+LAYOUT_EPISODE_IDS="0 1 2 8 12" ./Simulation/server_rl_run.sh topface
+```
+
+Solange `cubes_yaw_deg` `null` ist, verhält sich der Renderer für diesen Würfel wie bisher. `null`
+heißt „nicht belastbar gemessen", **nicht** „liegt gerade".
 
 Unabhängige Gegenprobe: `grasp_anchor` berichtet den **Greifachsen-Winkel** aus der FK (Daumen →
 Mitte von Zeige- und Mittelfinger, mod 90°) neben dem Bildwinkel. Wer greift, legt die Greifachse

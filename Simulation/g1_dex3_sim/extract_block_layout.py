@@ -312,14 +312,48 @@ def episode_motion_onsets(root: Path, ep: int, cams: list[str], min_area: int = 
 # Gierwinkel der Würfel um die eigene z-Achse
 # ---------------------------------------------------------------------------
 
+def otsu_threshold(values: np.ndarray, bins: int = 64) -> float:
+    """Schwelle zwischen zwei Helligkeitsgipfeln, aus den Daten statt aus einer Quote.
+
+    Maximiert die Varianz ZWISCHEN den beiden Klassen — das Standardverfahren für genau
+    diese Aufgabe. Gibt es nur einen Gipfel, landet die Schwelle irgendwo in dessen Flanke;
+    der Aufrufer muss das Ergebnis also weiterhin prüfen (``top_squareness``).
+    """
+    v = np.asarray(values, dtype=float).ravel()
+    lo, hi = float(v.min()), float(v.max())
+    if hi - lo < 1e-9:
+        return lo
+    hist, edges = np.histogram(v, bins=bins, range=(lo, hi + 1e-9))
+    centers = edges[:-1] + np.diff(edges) / 2.0
+    w = np.cumsum(hist).astype(float)
+    mu = np.cumsum(hist * centers)
+    total, mu_total = w[-1], mu[-1]
+    with np.errstate(divide="ignore", invalid="ignore"):
+        p = w / total
+        between = (mu_total * p - mu) ** 2 / (p * (1.0 - p))
+    if not np.isfinite(between).any():
+        return float(np.median(v))
+    return float(edges[int(np.nanargmax(between)) + 1])
+
+
 def top_face_mask(rgb: np.ndarray, mask: np.ndarray, bbox: list[int],
-                  quantile: float = 70.0) -> np.ndarray | None:
+                  quantile: float | None = None) -> np.ndarray | None:
     """Aus der Farbmaske die helle DECKFLÄCHE herausschneiden.
 
-    Die Seitenflächen liegen im Schatten; ein Helligkeitsquantil innerhalb des Blobs
-    trennt sie zuverlässig ab. Das ist nötig, weil nur die Deckfläche auf ``Z_CUBE_TOP``
-    liegt — Seitenflächen-Pixel auf diese Ebene zurückzuprojizieren zieht sie zu einem
-    Schweif von der Kamera weg und verdirbt jede Winkelmessung.
+    Nötig, weil nur die Deckfläche auf ``Z_CUBE_TOP`` liegt: Seitenflächen-Pixel auf diese
+    Ebene zurückzuprojizieren zieht sie zu einem Schweif von der Kamera weg und verdirbt
+    jede Winkelmessung.
+
+    ``quantile=None`` (Vorgabe) schneidet an einer **gemessenen** Schwelle (Otsu). Bis
+    2026-08-25 stand hier fest das 70.-Perzentil, also „die hellsten 30 %" — eine Quote,
+    die nichts davon weiß, wieviel des Blobs überhaupt Deckfläche ist. Bei 53,6° Blickhöhe
+    macht die Deckfläche je nach Gierwinkel 49–58 % der Silhouette aus; die Quote nahm also
+    gut die Hälfte davon. Vorhergesagte Verkürzung linear 1,35, im Probelauf vom 2026-08-25
+    gemessen 1,42 (3,51 cm statt 5,0) — und 13 von 15 Würfeln fielen an der Formprobe durch.
+
+    Eine Zahl statt der anderen zu setzen wäre dieselbe Wette; deshalb entscheidet die
+    Schwelle die Helligkeitsverteilung selbst, und ``mode topface`` misst nach, ob sie
+    besser trifft als jede feste Quote.
     """
     x0, y0, x1, y1 = bbox
     _, _, value = rgb_to_hsv(rgb)
@@ -327,9 +361,9 @@ def top_face_mask(rgb: np.ndarray, mask: np.ndarray, bbox: list[int],
     vals = value[y0:y1 + 1, x0:x1 + 1][crop]
     if vals.size < 12:
         return None
+    thr = otsu_threshold(vals) if quantile is None else float(np.percentile(vals, quantile))
     bright = np.zeros_like(mask)
-    bright[y0:y1 + 1, x0:x1 + 1] = crop & (
-        value[y0:y1 + 1, x0:x1 + 1] >= float(np.percentile(vals, quantile)))
+    bright[y0:y1 + 1, x0:x1 + 1] = crop & (value[y0:y1 + 1, x0:x1 + 1] >= thr)
     return bright
 
 
@@ -475,7 +509,7 @@ def locate_cubes(rgb: np.ndarray, cam: PinholeCamera, bias_xy=(0.0, 0.0),
 
 
 def measure_yaw(rgb: np.ndarray, mask: np.ndarray, blob: dict, cam: PinholeCamera,
-                min_area: int = 120, quantile: float = 70.0) -> dict:
+                min_area: int = 120, quantile: float | None = None) -> dict:
     """Deckfläche isolieren und ihren Gierwinkel messen — Diagnosefelder inklusive.
 
     Getrennt von ``locate_cubes``, damit die Abnahme (``selftest``) genau diesen Weg
@@ -527,12 +561,28 @@ def _fill_polygon(uu: np.ndarray, vv: np.ndarray, poly: np.ndarray,
     return cov / (supersample * supersample)
 
 
+# Lichtrichtung für den synthetischen Würfel, als Einheitsvektor. BEWUSST schräg: bei
+# senkrechtem Licht ist die Deckfläche viel heller als jede Seitenfläche, und dann trennt
+# sie jede Schwelle. Schräges Licht macht eine Seitenfläche fast so hell wie die Deckfläche
+# — der Fall, an dem sich der Deckflächenschnitt entscheidet, und in einer Werkstatt mit
+# seitlichem Fenster der Normalfall. Ohne ihn wäre die Abnahme ein Gummistempel.
+SYNTH_LIGHT = np.array([0.45, 0.25, 0.86])
+SYNTH_LIGHT = SYNTH_LIGHT / np.linalg.norm(SYNTH_LIGHT)
+SYNTH_AMBIENT = 0.35
+
+
 def synthetic_cube_image(cam: PinholeCamera, center_xy, yaw_deg: float,
-                         noise: float = 0.0, rng=None) -> np.ndarray:
+                         noise: float = 0.0, rng=None, light=None) -> np.ndarray:
     """Ein roter Würfel bekannten Gierwinkels, durch DIESES Kameramodell gerendert.
 
-    Bewusst kein Isaac: die Abnahme soll den Schätzer prüfen, nicht den Renderer. Deck- und
-    Seitenflächen bekommen verschiedene Helligkeit, weil ``top_face_mask`` genau davon lebt;
+    Bewusst kein Isaac: die Abnahme soll den Schätzer prüfen, nicht den Renderer.
+
+    Die Flächenhelligkeit kommt aus einem Lambert-Modell mit schräger Lichtquelle
+    (``SYNTH_LIGHT``), nicht aus zwei festen Werten. Der Unterschied ist der ganze Punkt:
+    mit festem Sprung trennt jede Schwelle Deck- von Seitenfläche, und die Abnahme sagt
+    nichts mehr über den Deckflächenschnitt aus. Bei schrägem Licht liegt die hellste
+    Seitenfläche dicht an der Deckfläche, und genau dort scheitern feste Quoten.
+
     ``noise`` verrauscht die Pixel VOR der Farbmaske und erzeugt so ausgefranste Masken.
     """
     rng = np.random.default_rng(0) if rng is None else rng
@@ -543,10 +593,24 @@ def synthetic_cube_image(cam: PinholeCamera, center_xy, yaw_deg: float,
     top = np.column_stack([base, np.full(4, Z_CUBE_TOP)])
     bottom = np.column_stack([base, np.full(4, Z_CUBE_TOP - CUBE_EDGE_M)])
 
+    lam = SYNTH_LIGHT if light is None else np.asarray(light, dtype=float)
+    lam = lam / np.linalg.norm(lam)
+
+    def shade(normal) -> tuple[float, float, float]:
+        b = SYNTH_AMBIENT + (1.0 - SYNTH_AMBIENT) * max(0.0, float(np.dot(normal, lam)))
+        return (245.0 * b, 22.0 * b, 22.0 * b)
+
     img = np.full((cam.height, cam.width, 3), 250.0)   # weißer Tisch
-    faces = [(np.array([top[i], top[(i + 1) % 4], bottom[(i + 1) % 4], bottom[i]]),
-              (130.0, 15.0, 15.0)) for i in range(4)]
-    faces.append((top, (230.0, 20.0, 20.0)))      # Deckfläche zuletzt: sie liegt oben
+    faces = []
+    for i in range(4):
+        j = (i + 1) % 4
+        edge = top[j] - top[i]
+        outward = np.array([edge[1], -edge[0], 0.0])
+        outward = outward / max(np.linalg.norm(outward), 1e-9)
+        if np.dot(outward, top[i][:3] - np.array([*center_xy, Z_CUBE_TOP])) < 0:
+            outward = -outward
+        faces.append((np.array([top[i], top[j], bottom[j], bottom[i]]), shade(outward)))
+    faces.append((top, shade(np.array([0.0, 0.0, 1.0]))))   # Deckfläche zuletzt
     polys = [(cam.project(corners), colour) for corners, colour in faces]
     # Nur um den Würfel herum rastern. Über das ganze Bild zu laufen kostet bei 25
     # Supersamples je Fläche Sekunden statt Millisekunden — und die Abnahme soll
@@ -919,6 +983,96 @@ def run_extract(args) -> int:
 
 
 # ---------------------------------------------------------------------------
+# Modus: topface
+# ---------------------------------------------------------------------------
+
+TOP_FACE_RULES: tuple[tuple[str, float | None], ...] = (
+    ("otsu", None), ("q40", 40.0), ("q45", 45.0), ("q50", 50.0),
+    ("q55", 55.0), ("q60", 60.0), ("q70", 70.0),
+)
+
+
+def run_topface(args) -> int:
+    """Den Deckflächenschnitt auf ECHTEN Frames gegeneinander messen.
+
+    Die Deckfläche ist das einzige Stück des Würfels, das auf ``Z_CUBE_TOP`` liegt, und wie
+    gut sie herausgeschnitten wird, entscheidet über den Gierwinkel. Es gibt hier eine
+    Grundwahrheit ohne Annotation: die Deckfläche IST ein Quadrat von 5 cm Kante. Also
+    misst dieser Modus, welche Schwellenregel eine zurückprojizierte Fläche liefert, die
+    dem am nächsten kommt — ``top_width_cm`` gegen 5,0 und ``top_squareness`` gegen √2.
+
+    Das ersetzt die Wette „welches Perzentil ist richtig" durch eine Messung. Bis
+    2026-08-25 stand dort fest das 70. — bei 53,6° Blickhöhe macht die Deckfläche aber
+    49–58 % der Silhouette aus, und die Quote nahm 30 %.
+    """
+    root = Path(args.dataset_path)
+    episodes = select_episodes(root, args)
+    cams = [c.strip() for c in args.cameras.split(",") if c.strip()]
+    models = {c: PinholeCamera.from_cfg(c) for c in cams}
+    rules = [(n, q) for n, q in TOP_FACE_RULES if not args.rules or n in args.rules]
+
+    got: dict[str, list[dict]] = {n: [] for n, _ in rules}
+    pairs: dict[str, list[tuple[dict, dict]]] = {n: [] for n, _ in rules}
+    for k, ep in enumerate(episodes, 1):
+        frames = {}
+        for cam_name in cams:
+            video = root / VIDEO_TEMPLATE.format(
+                episode_chunk=ep // CHUNK_SIZE,
+                video_key=f"observation.images.{cam_name}", episode_index=ep)
+            if video.exists():
+                frames[cam_name] = load_video_frame(video, args.frame)
+        if not frames:
+            print(f"[topface] Episode {ep}: keine Videos.", flush=True)
+            continue
+        for name, quantile in rules:
+            for i, colour in enumerate(CUBE_COLORS):
+                seen = []
+                for cam_name, rgb in frames.items():
+                    mask = color_mask(rgb, colour)
+                    blob = largest_blob(mask, min_area=args.min_area)
+                    if blob is None:
+                        continue
+                    rec = measure_yaw(rgb, mask, blob, models[cam_name],
+                                      min_area=args.min_area, quantile=quantile)
+                    if rec.get("yaw_deg") is not None:
+                        got[name].append(rec)
+                        seen.append(rec)
+                if len(seen) == 2:
+                    pairs[name].append((seen[0], seen[1]))
+        print(f"[topface] ({k}/{len(episodes)}) Episode {ep} vermessen.", flush=True)
+
+    print(f"\nDeckflächenschnitt über {len(episodes)} Episoden × {len(CUBE_COLORS)} Würfel "
+          f"× {len(cams)} Kameras")
+    print(f"{'Regel':6} {'Breite cm':>10} {'Formprobe':>10} {'|L−R| °':>9} "
+          f"{'Deckfl. px':>11} {'durchs Tor':>11}")
+    print(f"{'':6} {'(Soll 5,0)':>10} {'(Soll 1,41)':>10}")
+    best = None
+    for name, _ in rules:
+        recs = got[name]
+        if not recs:
+            print(f"{name:6} {'—':>10}")
+            continue
+        width = float(np.median([r["top_width_cm"] for r in recs]))
+        square = float(np.median([r["top_squareness"] for r in recs]))
+        px = int(np.median([r["top_px"] for r in recs]))
+        gaps = [yaw_delta_deg(a["yaw_deg"], b["yaw_deg"]) for a, b in pairs[name]]
+        through = sum(1 for a, b in pairs[name]
+                      if accept_yaw([a, b], args.yaw_tolerance, args.min_squareness))
+        gap_txt = f"{np.median(gaps):9.1f}" if gaps else f"{'—':>9}"
+        print(f"{name:6} {width:10.2f} {square:10.2f} {gap_txt} {px:11d} "
+              f"{through:6d}/{len(pairs[name]):<4d}")
+        score = abs(square - np.sqrt(2.0))
+        if best is None or score < best[1]:
+            best = (name, score, through, len(pairs[name]))
+    if best:
+        print(f"\nNächeste an einem echten Quadrat: {best[0]} "
+              f"({best[2]}/{best[3]} durch das Tor).")
+        print("Formprobe entscheidet, nicht der Ertrag: eine Regel, die mehr durchlässt, aber "
+              "weiter von √2 entfernt liegt, lässt schlechtere Winkel durch.")
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # Modus: report
 # ---------------------------------------------------------------------------
 
@@ -1046,6 +1200,17 @@ def main() -> int:
                         '(render_manifest.json → cubes_yaw_deg). Dieselbe Abnahme wie '
                         '--expect, nur für die Drehung.')
 
+    t = sub.add_parser("topface", parents=[common, yaw_opts],
+                       help="Schwellenregeln für den Deckflächenschnitt auf echten Frames "
+                            "gegeneinander messen")
+    t.add_argument("--dataset-path", required=True)
+    t.add_argument("--num-episodes", type=int, default=5)
+    t.add_argument("--episode-ids", type=int, nargs="*", default=None)
+    t.add_argument("--train-ratio", type=float, default=0.8)
+    t.add_argument("--cameras", default="cam_left_high,cam_right_high")
+    t.add_argument("--rules", nargs="*", default=None,
+                   help=f"Auswahl aus {[n for n, _ in TOP_FACE_RULES]} (Default: alle)")
+
     r = sub.add_parser("report", parents=[yaw_opts],
                        help="Aus einer fertigen layout.json ablesen, woran der Gierwinkel "
                             "scheitert")
@@ -1080,7 +1245,8 @@ def main() -> int:
     if args.mode != "report" and (CAMERA_CFG.width != 640 or CAMERA_CFG.height != 480):
         print(f"[warn] Kamerakonfiguration steht auf {CAMERA_CFG.width}×{CAMERA_CFG.height}.")
     return {"detect": run_detect, "extract": run_extract,
-            "selftest": run_selftest, "report": run_report}[args.mode](args)
+            "selftest": run_selftest, "report": run_report,
+            "topface": run_topface}[args.mode](args)
 
 
 if __name__ == "__main__":

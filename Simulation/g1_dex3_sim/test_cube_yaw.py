@@ -198,3 +198,63 @@ def test_report_counts_a_cube_without_two_measurements_separately(tmp_path, caps
 def test_report_counts_a_good_cube_as_passed(tmp_path, capsys) -> None:
     path = layout_with([[rec(20.0), rec(22.0)]], tmp_path)
     assert report_counts(path, capsys)["pass"] == 1
+
+
+# ── Deckflächenschnitt ──────────────────────────────────────────────────────
+
+def test_otsu_finds_the_valley_between_two_brightness_peaks() -> None:
+    from extract_block_layout import otsu_threshold
+    rng = np.random.default_rng(0)
+    dark, bright = rng.normal(0.35, 0.05, 500), rng.normal(0.85, 0.05, 600)
+    thr = otsu_threshold(np.concatenate([dark, bright]))
+    assert 0.45 < thr < 0.75, thr
+
+
+def test_otsu_survives_a_single_peak_and_a_constant_image() -> None:
+    from extract_block_layout import otsu_threshold
+    flat = np.full(200, 0.5)
+    assert abs(otsu_threshold(flat) - 0.5) < 1e-6
+    one = np.random.default_rng(1).normal(0.6, 0.03, 400)
+    assert one.min() <= otsu_threshold(one) <= one.max()
+
+
+def test_measured_threshold_beats_the_old_fixed_quota_under_oblique_light() -> None:
+    """Der Grund, warum die feste Quote weg ist — und der Riegel dagegen, sie zurückzuholen.
+
+    Bei schrägem Licht liegt die hellste Seitenfläche dicht an der Deckfläche. Die alte
+    Regel „hellste 30 %" schneidet dann mitten in die Deckfläche hinein, die Fläche wird
+    schmaler als 5 cm und die Formprobe bricht ein.
+    """
+    from extract_block_layout import color_mask, largest_blob, measure_yaw
+    cam = PinholeCamera.from_cfg("cam_left_high")
+    scores = {}
+    for name, quantile in (("gemessen", None), ("hellste 30 %", 70.0)):
+        errors, widths = [], []
+        for truth in np.arange(0.0, 90.0, 6.0):
+            rgb = synthetic_cube_image(cam, (0.35, 0.0), truth,
+                                       rng=np.random.default_rng(0))
+            mask = color_mask(rgb, "rot")
+            blob = largest_blob(mask, 120)
+            found = measure_yaw(rgb, mask, blob, cam, quantile=quantile)
+            if found.get("yaw_deg") is None:
+                continue
+            errors.append(yaw_delta_deg(found["yaw_deg"], truth))
+            widths.append(found["top_width_cm"])
+        scores[name] = (float(np.percentile(errors, 90)), float(np.median(widths)))
+    assert scores["gemessen"][0] < 1.0, scores
+    assert scores["gemessen"][0] < scores["hellste 30 %"][0], scores
+    assert abs(scores["gemessen"][1] - 5.0) < 0.5, scores
+
+
+def test_the_synthetic_cube_does_not_hand_the_estimator_a_free_split() -> None:
+    """Eine Abnahme, die jede Schwelle bestehen lässt, prüft nichts.
+
+    Steht die hellste Seitenfläche zu weit unter der Deckfläche, trennt sie jede Quote,
+    und der Test oben wäre wertlos — deshalb hier festgehalten, dass sie dicht liegt.
+    """
+    from extract_block_layout import SYNTH_AMBIENT, SYNTH_LIGHT
+    def lit(normal):
+        return SYNTH_AMBIENT + (1.0 - SYNTH_AMBIENT) * max(0.0, float(np.dot(normal, SYNTH_LIGHT)))
+    top = lit(np.array([0.0, 0.0, 1.0]))
+    side = max(lit(np.array(n)) for n in ([1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0]))
+    assert side / top > 0.6, (top, side)

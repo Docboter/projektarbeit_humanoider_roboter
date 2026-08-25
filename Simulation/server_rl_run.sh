@@ -1303,6 +1303,28 @@ do_layoutcheck() {
   echo "  Abnahme:  ./Simulation/server_rl_run.sh yawcheck"
 }
 
+# Den DECKFLAECHENSCHNITT auf echten Frames vermessen. Es gibt hier eine Grundwahrheit
+# ohne Annotation: die Wuerfeloberseite IST ein 5-cm-Quadrat. Welche Schwellenregel eine
+# zurueckprojizierte Flaeche liefert, die dem am naechsten kommt, ist damit messbar statt
+# Geschmackssache. Bis 2026-08-25 stand dort fest "die hellsten 30 %" — bei 53,6 Grad
+# Blickhoehe macht die Deckflaeche aber 49-58 % der Silhouette aus.
+do_topface() {
+  ensure_container
+  local ds="${SPAN_DATASET:-/data/unitreerobotics/G1_Dex3_BlockStacking_Dataset}"
+  ensure_dataset "$ds" || return 1
+  local eps="${TOPFACE_EPISODES:-5}"
+  local extra=""
+  [[ -n "${LAYOUT_EPISODE_IDS:-}" ]] && extra+=" --episode-ids ${LAYOUT_EPISODE_IDS}"
+  [[ -n "${TOPFACE_RULES:-}" ]] && extra+=" --rules ${TOPFACE_RULES}"
+  [[ -n "${LAYOUT_MIN_SQUARENESS:-}" ]] && extra+=" --min-squareness ${LAYOUT_MIN_SQUARENESS}"
+  [[ -n "${LAYOUT_YAW_TOLERANCE:-}" ]] && extra+=" --yaw-tolerance ${LAYOUT_YAW_TOLERANCE}"
+  log "Deckflaechenschnitt vermessen: $eps Episoden gegen Soll 5,0 cm / Formprobe 1,41"
+  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" "$CONTAINER" bash -lc "
+    unset VIRTUAL_ENV
+    '$ISAAC_PY' '$SIM_DIR/extract_block_layout.py' topface \
+        --dataset-path '$ds' --num-episodes '$eps' $extra" || return 1
+}
+
 # Aus einer fertigen layout.json ablesen, WORAN der Gierwinkel scheitert. Der Ertrag allein
 # ("7 % durch das Tor") nennt keinen Hebel; die Diagnosefelder tun es und stehen schon in der
 # Datei. Liest ausschliesslich per_camera, also die Zahlen von den VIDEOFRAMES — nicht die
@@ -1912,6 +1934,11 @@ Aktionen:
               der Winkel selbst ist verrauscht. Braucht keinen neuen Lauf, keine GPU.
               LAYOUT_OUT (/data/cotrain/layout.json), LAYOUT_YAW_TOLERANCE,
               LAYOUT_MIN_SQUARENESS.
+  topface     Den Deckflaechenschnitt auf ECHTEN Frames vermessen. Die Wuerfeloberseite ist
+              ein 5-cm-Quadrat — welche Schwellenregel ihr am naechsten kommt, ist damit
+              messbar (Breite gegen 5,0 cm, Formprobe gegen 1,41). Ersetzt die Wette
+              "welches Perzentil". Braucht keine GPU.
+              TOPFACE_EPISODES (5), LAYOUT_EPISODE_IDS, TOPFACE_RULES ("otsu q50 q70").
   yawcheck    Abnahme des GIERWINKEL-Schaetzers gegen synthetische Wuerfel bekannter Drehung.
               Braucht weder Datensatz noch Isaac noch GPU. Der Schaetzer misst die Deckflaeche
               nach der Rueckprojektion ueber ihr 4. Winkelmoment; die Vorgaenger-Variante mass
@@ -2074,7 +2101,7 @@ ACTION="${1:-help}"
 # 'shell' bleibt ungespiegelt (interaktives -it verträgt die Pipe nicht), 'help'/'clean'
 # haben nichts zu protokollieren.
 case "$ACTION" in
-  preflight|setup|check|cams|gap|eval|grasp|span|rl|livecheck|latency|optimize|render|view|webview|layout|layoutcheck|layoutreport|yawcheck|tipcheck|replay-prepare|replay-calibrate|replay-poses|replay-render) start_logging "$ACTION" ;;
+  preflight|setup|check|cams|gap|eval|grasp|span|rl|livecheck|latency|optimize|render|view|webview|layout|layoutcheck|layoutreport|topface|yawcheck|tipcheck|replay-prepare|replay-calibrate|replay-poses|replay-render) start_logging "$ACTION" ;;
 esac
 case "$ACTION" in
   rl|shell|help|clean|webview) ;;
@@ -2094,6 +2121,7 @@ case "$ACTION" in
   layout)     do_layout ;;
   yawcheck)   do_yawcheck ;;
   layoutreport) do_layoutreport ;;
+  topface)    do_topface ;;
   layoutcheck) do_layoutcheck ;;
   replay-prepare) do_replay_prepare ;;
   replay-calibrate) do_replay_calibrate ;;
