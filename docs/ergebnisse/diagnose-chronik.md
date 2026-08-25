@@ -44,6 +44,8 @@ Für den **aktuellen Projektstatus** siehe
 | 33/34 | `TUNE_VISUAL`-Checkpoint im Closed Loop: Fingerspanne 27,6 % (statt 20,5 %), `lifted` bleibt 0/10 ([Läufe 33/34](#läufe-3334-runs2026081403-runs2026081404-der-tune_visual-checkpoint-im-closed-loop)) |
 | 35–37 | Würfellage-Rekonstruktion v4 zweimal abgelehnt; Kameramodell dagegen auf 0,3 cm bestätigt, Würfelebene lag 2 cm zu hoch ([Läufe 35–37](#läufe-3537-runs2026082201-03-die-würfellage-kommt-aus-dem-bild-nicht-aus-der-hand)) |
 | 38–46 | Die vier Fingergrundgelenke standen in **jedem** Lauf still: der „Sign-Convention-Fix" drehte sie aus ihrer Gelenkgrenze, wo sie geklemmt wurden ([Läufe 38–46](#läufe-3846-runs2026082302-runs2026082405-12-die-fingergrundgelenke-standen-still)) |
+| 47–51 | Drei unabhängige Geometriefehler ergaben zusammen ~12 cm: Vorzeichen, Beckenhöhe 0,85→0,764, Basis x 0→−0,057. Restabstand 4,5 cm ([Läufe 49–51](#läufe-4951-auch-die-basis-in-x--die-rekonstruktion-steht)) |
+| 52 | Der **Gierwinkel** der Würfel wurde nie rekonstruiert — Sim stellte sie immer achsparallel. Schätzer gebaut und abgenommen; auf Realbildern greifen nur 9 %, weil die Farbmaske zu 44 % gefüllt ist ([Lauf 52](#lauf-52-der-gierwinkel-fehlte-in-jedem-lauf)) |
 
 ---
 
@@ -1900,3 +1902,59 @@ exakt 1:1, dx und dy blieben unberührt). Für kleine Verschiebungen ist die Met
 `ROBOT_BASE_X` / `ROBOT_BASE_Z` stellen die alten Werte wieder her. Der Weg dahin führte über drei
 unabhängige Geometriefehler — die Vorzeichenspiegelung der Fingergrundgelenke, die Beckenhöhe und die
 Basis in x —, die alle zusammen die rund 12 cm ergaben, an denen das Verfahren zuvor scheiterte.
+
+#### Lauf 52: der Gierwinkel fehlte in jedem Lauf
+
+Die Würfel liegen im Realdatensatz teils schräg zur Tischkante. Die Sim stellte sie ausnahmslos
+achsparallel: `place_cubes` schrieb ein festes Identitäts-Quaternion, `_reset_idx` ebenso. Das
+betrifft nicht nur den Co-Training-Render, sondern **jeden** Sim-Lauf — Eval, Replay, RL.
+
+Für das Co-Training ist das derselbe Fehler wie eine falsche Position, nur im Drehfreiheitsgrad: das
+Paar ist (Sim-Bild, **Real**-Aktion), und die Realaktion richtete die Hand nach einem Würfel bei ψ
+aus, während das Bild ihn bei 0° zeigt. Für den Griff kommt hinzu, dass ein 5-cm-Würfel über die
+Fläche 5,0 cm misst und über die Diagonale 7,1 cm — bei falscher Drehung trifft die Hand eine Ecke.
+Die Größenordnung deckelt sich allerdings selbst: mehr als ±45° kann der Fehler wegen der
+4-Zähligkeit nicht sein, das sind rund 1 cm je Kontaktseite. Die 6,8 cm Restabstand aus Lauf 20
+erklärt das **nicht** allein.
+
+**Der erste Messversuch war falsch, und zwar überzeugend falsch.** `top_face_blob` berechnet seit
+jeher eine Min-Area-Box über die Deckfläche (`axis_uv`). Auf die 120 Realframes vom 2026-08-22
+angewandt ergab sie: Median-Schräglage 0°, und linke gegen rechte Kamera in 99 von 120 Fällen unter
+5° einig — beides sah nach einer sauberen Messung aus. Der Blick auf die Rohwinkel zeigte dann
+**101 von 120 exakt bei 0,0°**: die Deckflächenmaske ist nur 15×18 px groß, auf diesem Raster
+gewinnt die achsparallele Box, und die Kamera-Einigkeit war nur die gemeinsame Rasterbindung.
+
+Ursache dafür war nicht die Auflösung: der volle Farbblob misst 46 px, das Kameramodell sagt 41,6 px
+vorher. `top_face_blob` schneidet ihn mit einem 70-%-Helligkeitsquantil auf ein Glanzlicht herunter.
+
+Das Verfahren, das funktioniert: Deckflächenpixel **erst zurückprojizieren** (auf der eigenen Ebene
+ist die Fläche wieder ein Quadrat), dann das **4. Winkelmoment** — die Harmonische, die zur
+4-Zähligkeit gehört. Kein Raster zum Einrasten. Dazu zwei Tore: die **Formprobe**
+(Diagonale/Kante, ideal √2) und die **Einigkeit beider Kameras**.
+
+| | Fehler Median | p90 | Ausreißer > 20° |
+|---|---|---|---|
+| ohne Tore, alle Rauschstufen | 3,15° | 26,3° | — |
+| mit Formprobe ≥ 1,25 und Einigkeit ≤ 8° | **0,12°** | **1,68°** | 1 von 160 |
+
+Zwei Zwischenschritte waren Fehlgriffe und stehen hier, damit sie nicht wiederholt werden. Die
+Breite als **Auswahlkriterium** statt als Prüfmerkmal zu nehmen machte es schlechter (Ausreißerquote
+0 % → 5,2 % bei σ=0,01) — der 45°-Umschlag entsteht, wenn die Punktwolke gar kein Quadrat mehr ist,
+und dann rettet keine Auswahlregel. Und die Breite als **Perzentilspanne** (5.–95.) zu messen tötet
+die Unterscheidung: quer zur Diagonale ist die Projektion dreieckig verteilt, quer zur Kante
+gleichverteilt, das Verhältnis fällt von 1,41 auf 1,08. Es muss die volle Spannweite sein.
+
+**Auf den Realbildern passieren nur 11 von 120 Würfeln das Tor (9 %).** Der Grund steht in derselben
+Messung: die Farbmaske ist im Median zu **44 %** gefüllt, die Deckfläche kommt als 2,1–2,5 cm
+breites Bruchstück an statt als 5-cm-Quadrat. Nach Farben: rot 99,5 %, grün 39,8 % (Sättigungs-
+schwelle), gelb 58,3 % (Farbton). Die Löcher verziehen Schwerpunkt **und** Winkel — die HSV-Fenster
+sind damit der nächste Hebel, gehören aber hinter eine eigene `detect --expect`-Abnahme, weil sie
+auch die kalibrierte x/y-Lage verschieben.
+
+Bis dahin bleibt `cubes_yaw_deg` für 91 % der Würfel `null`, und der Renderer verhält sich für sie
+wie bisher. `null` heißt „nicht belastbar gemessen", nicht „liegt gerade" — der Unterschied steht im
+Code, weil er sonst beim nächsten Lesen verlorengeht.
+
+Neu zur Prüfung: `server_rl_run.sh yawcheck` (synthetische Abnahme, ohne Isaac und ohne Datensatz)
+und `LAYOUTCHECK_EXPECT_YAW` für die Abnahme gegen den echten Renderer. Details in
+[wuerfellage-rekonstruktion.md §7](../simulation/wuerfellage-rekonstruktion.md#7-gierwinkel-um-die-eigene-z-achse).

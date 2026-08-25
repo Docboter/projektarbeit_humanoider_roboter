@@ -1,6 +1,7 @@
 # Würfellage aus den Realbildern
 
-**Stand:** 2026-08-21 · aktuelles Verfahren: `pick_anchored_homography` Version 4
+**Stand:** 2026-08-25 · aktuelles Verfahren: `pick_anchored_homography` Version 4
+· Gierwinkel siehe [§7](#7-gierwinkel-um-die-eigene-z-achse)
 
 Der Realdatensatz enthält Roboterzustände, Aktionen und Videos, aber keine Objektposen. Für einen
 brauchbaren Replay muss der Sim-Würfel dort beginnen, wo er im Realbild lag. Andernfalls greift der
@@ -193,7 +194,103 @@ Oberseiten-Ausdehnung und kombinierte erkannte Würfel pauschal zu 75 % mit eine
 Schritte sind entfernt: Die AABB ist bei Perspektive und Würfelgier kein zuverlässiges
 Längennormal, und ein Greifpunkt ist ohne eindeutige zeitliche Farbzuordnung keine Startpose.
 
-## 7. Artefakte und Befehle
+## 7. Gierwinkel um die eigene z-Achse
+
+**Stand:** 2026-08-25 · gebaut und synthetisch abgenommen · auf Realbildern noch maskenlimitiert
+
+Bis zum 2026-08-25 rekonstruierte keiner der beiden Pfade die Drehung. `place_cubes` schrieb ein
+festes Identitäts-Quaternion, `_reset_idx` ebenso — jeder Würfel stand in jedem Sim-Lauf
+achsparallel zur Tischkante, während er im Realdatensatz oft schräg liegt. §6.4 nannte die
+Würfelgier bereits als Grund, warum die Oberseiten-AABB kein Längennormal ist; geschätzt wurde
+sie trotzdem nie.
+
+Das ist derselbe Fehler wie eine falsche Position, nur im Drehfreiheitsgrad. Das Co-Training-Paar
+ist (Sim-Bild, **Real**-Aktion): die Realaktion richtete die Hand nach einem Würfel bei ψ aus, das
+gerenderte Bild zeigt ihn bei 0°, und das Paar lehrt eine Zuordnung von Aussehen zu Handdrehung,
+die es nicht gibt. Für den Griff kommt hinzu: über die Fläche ist ein 5-cm-Würfel 5,0 cm breit,
+über die Diagonale 7,1 cm — steht er falsch, trifft die Hand eine Ecke statt einer Fläche.
+
+### 7.1 Warum der naheliegende Weg nicht funktioniert
+
+`replay_calibration.top_face_blob` berechnet seit jeher eine Min-Area-Box über die Deckfläche und
+legt ihre Achse als `axis_uv` ab. Als Orientierung ist sie unbrauchbar, gemessen an den 120
+Realframes vom 2026-08-22:
+
+- **Sie rastet auf das Pixelraster ein.** 101 von 120 Messungen kamen auf exakt 0,0°. Die
+  Deckflächenmaske ist nur 15×18 px groß, und auf einem so groben Raster gewinnt die
+  achsparallele Box.
+- **Sie misst im Bild**, also mitsamt der perspektivischen Verzerrung der Deckfläche.
+
+Die Falle ist heimtückisch, weil das Ergebnis gut aussieht: linke und rechte Kamera stimmten in
+99 von 120 Fällen auf 5° überein — sie waren nur beide an dasselbe Raster gebunden.
+
+### 7.2 Das Verfahren
+
+`extract_block_layout.yaw_from_top_face`, zwei Entscheidungen:
+
+1. **Erst zurückprojizieren, dann messen.** Die Deckflächenpixel werden auf `Z_CUBE_TOP` = 0,920
+   geschnitten. Auf ihrer eigenen Ebene ist die Fläche wieder ein echtes Quadrat.
+2. **Das 4. Winkelmoment statt einer Box.** Ein Quadrat ist 4-zählig, seine Richtung steckt in
+   genau dieser Harmonischen: `Σ (dx + i·dy)^4` hat die Phase 4·ψ. Jedes Pixel geht mit stetigem
+   Gewicht ein, es gibt kein Raster zum Einrasten.
+
+Dazu zwei Prüfmerkmale, weil die Phase allein nicht sagt, ob die Punktwolke überhaupt ein Quadrat
+ist. **Formprobe** = Diagonale/Kante der zurückprojizierten Fläche; ideal √2 = 1,41, nahe 1 heißt
+„keine Kantenrichtung vorhanden". Ist sie kleiner als 1, ist die Phase um 45° umgeschlagen und
+wird zurückgedreht. **Zwei-Kamera-Tor**: beide Kopfkameras müssen sich einig sein. Ihre Fehler
+sind weitgehend unabhängig, weil die Verschmierung durch die Seitenflächen jeweils anderswohin
+zeigt.
+
+Wichtig: die Perzentil-Variante der Breite (5.–95.) **zerstört** die Unterscheidung — bei
+gefüllten Flächen liegt das Verhältnis dann bei 1,08 statt 1,41, weil die Projektion quer zur
+Diagonale dreieckig verteilt ist und quer zur Kante gleichverteilt. Es muss die volle Spannweite
+sein.
+
+### 7.3 Abnahme
+
+`extract_block_layout.py selftest` (bzw. `server_rl_run.sh yawcheck`) rendert Würfel bekannter
+Drehung durch dasselbe Kameramodell und misst zurück — über den vollen Weg inklusive Farbmaske,
+Blobwahl und Deckflächenschnitt, nicht nur über die Formel. 18 Winkel × 5 Orte × 2 Kameras:
+
+| Maskenrauschen | Tor behält | Fehler Median | p90 | Ausreißer > 20° |
+|---|---|---|---|---|
+| 0,00 | 100 % | 0,05° | 0,14° | 0/90 |
+| 0,01 | 42 % | 0,82° | 2,64° | 0/38 |
+| 0,02 | 20 % | 0,87° | 2,40° | 0/18 |
+| 0,03 | 11 % | 1,17° | 1,57° | 0/10 |
+| 0,05 | 4 % | — | — | zu wenige für ein Urteil |
+
+Ohne die beiden Tore liegt derselbe Datensatz bei Median 3,15° / p90 26,3°. Das Tor kauft die
+Genauigkeit also mit Ertrag, und das ist die richtige Richtung: ein geratener Winkel dreht den
+Würfel unter einer Realaktion weg, die für eine andere Lage aufgenommen wurde.
+
+Die Abnahme gegen den **echten Renderer** ist `detect --expect-yaw` mit `cubes_yaw_deg` aus
+`render_manifest.json` — dieselbe Rolle, die `--expect` für die Position spielt. Der `selftest`
+teilt sich mit dem Schätzer die Kameraannahme und kann sie deshalb nicht prüfen.
+
+### 7.4 Was heute noch fehlt
+
+Auf den echten Frames passieren **11 von 120 Würfeln** das Tor (9 %). Der Grund steht in derselben
+Messung: die **Farbmaske ist im Median nur zu 44 % gefüllt**. Die Deckfläche kommt dadurch als
+2,1–2,5 cm breites Bruchstück an statt als 5-cm-Quadrat, und die Formprobe liegt im Median bei
+1,21 statt 1,41. Nach Farben aufgeschlüsselt (Episode 0, `cam_left_high`): rot 99,5 % der
+Bounding-Box, grün 39,8 %, gelb 58,3 % — bei grün ist die Sättigungsschwelle der Engpass, bei
+gelb der Farbton.
+
+Die Löcher verziehen **beides**, Schwerpunkt und Winkel. Die HSV-Fenster in `HSV_WINDOWS` zu
+weiten ist damit der nächste Hebel — er würde aber auch die kalibrierte x/y-Lage verschieben und
+gehört deshalb hinter eine eigene `detect --expect`-Abnahme, nicht in diese Änderung.
+
+Bis dahin verhält sich der Renderer für 91 % der Würfel wie bisher: `cubes_yaw_deg` ist `null`,
+und `null` heißt „nicht belastbar gemessen", **nicht** „liegt gerade".
+
+Unabhängige Gegenprobe: `grasp_anchor` berichtet den **Greifachsen-Winkel** aus der FK (Daumen →
+Mitte von Zeige- und Mittelfinger, mod 90°) neben dem Bildwinkel. Wer greift, legt die Greifachse
+quer zu einer Fläche. Er wird bewusst **nicht** als Ersatz für einen verworfenen Bildwinkel
+eingesetzt — das wäre genau die stille Rückfallebene, die `place_cubes` aus gutem Grund verloren
+hat. Erst wenn beide Zahlen über viele Episoden zusammenfallen, ist die Annahme belegt.
+
+## 8. Artefakte und Befehle
 
 | Artefakt | Inhalt |
 |---|---|

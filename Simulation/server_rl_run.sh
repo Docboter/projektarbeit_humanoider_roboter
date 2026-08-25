@@ -1235,6 +1235,8 @@ do_layout() {
   [[ -n "${LAYOUT_BIAS:-}" ]] && extra+=" --bias ${LAYOUT_BIAS}"
   [[ "${LAYOUT_OVERWRITE:-0}" == "1" ]] && extra+=" --overwrite"
   [[ "${LAYOUT_NO_MOTION_ONSET:-0}" == "1" ]] && extra+=" --no-motion-onset"
+  [[ -n "${LAYOUT_YAW_TOLERANCE:-}" ]] && extra+=" --yaw-tolerance ${LAYOUT_YAW_TOLERANCE}"
+  [[ -n "${LAYOUT_MIN_SQUARENESS:-}" ]] && extra+=" --min-squareness ${LAYOUT_MIN_SQUARENESS}"
 
   if ! docker exec "$CONTAINER" test -f "$SIM_DIR/extract_block_layout.py"; then
     err "extract_block_layout.py fehlt unter $SIM_DIR — auf dem Server:  git pull"
@@ -1275,17 +1277,38 @@ do_layoutcheck() {
   local expect="${LAYOUTCHECK_EXPECT:?LAYOUTCHECK_EXPECT='[[x,y,z],[x,y,z],[x,y,z]]' setzen (render_manifest.json -> cubes_xyz)}"
   local cam="${LAYOUTCHECK_CAM:-cam_left_high}"
   local dbg="${LAYOUT_DEBUG_DIR:-/data/cotrain/layout_debug}"
+  # Dieselbe Abnahme fuer den Gierwinkel: render_manifest.json -> cubes_yaw_deg.
+  local yaw_arg=""
+  [[ -n "${LAYOUTCHECK_EXPECT_YAW:-}" ]] && yaw_arg="--expect-yaw '${LAYOUTCHECK_EXPECT_YAW}'"
 
   log "Kameramodell gegen gerendertes Bild pruefen: $frame ($cam)"
   docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" "$CONTAINER" bash -lc "
     unset VIRTUAL_ENV
     '$ISAAC_PY' '$SIM_DIR/extract_block_layout.py' detect '$frame' \
-        --camera '$cam' --expect '$expect' --debug-dir '$dbg'" || return 1
+        --camera '$cam' --expect '$expect' $yaw_arg --debug-dir '$dbg'" || return 1
   echo
   echo "  Lesart: MITTEL = Bias des Schaetzers (der Blob-Schwerpunkt ist der Schwerpunkt der"
   echo "  sichtbaren Flaechen, nicht die Projektion des Wuerfelmittelpunkts) — per"
   echo "  LAYOUT_BIAS=\"dx dy\" (Meter) in 'layout' herausrechnen. STREUUNG = der Rest, der"
   echo "  bleibt; erst die entscheidet, ob das Layout brauchbar ist."
+  echo
+  echo "  Gierwinkel mitpruefen: LAYOUTCHECK_EXPECT_YAW='[0,20,40]' (render_manifest.json"
+  echo "  -> cubes_yaw_deg). Ohne Datensatz und ohne Isaac geht auch die synthetische"
+  echo "  Abnahme:  ./Simulation/server_rl_run.sh yawcheck"
+}
+
+# Gierwinkel-Schaetzer gegen SYNTHETISCHE Grundwahrheit. Braucht weder Datensatz noch
+# Isaac noch GPU — nur numpy. Der billigste Weg, den Schaetzer nach einer Aenderung
+# nachzupruefen, und der einzige, bei dem der wahre Winkel wirklich bekannt ist.
+do_yawcheck() {
+  ensure_container
+  local extra=""
+  [[ -n "${LAYOUT_YAW_TOLERANCE:-}" ]] && extra+=" --yaw-tolerance ${LAYOUT_YAW_TOLERANCE}"
+  [[ -n "${LAYOUT_MIN_SQUARENESS:-}" ]] && extra+=" --min-squareness ${LAYOUT_MIN_SQUARENESS}"
+  log "Abnahme des Gierwinkel-Schaetzers gegen synthetische Wuerfel bekannter Drehung"
+  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" "$CONTAINER" bash -lc "
+    unset VIRTUAL_ENV
+    '$ISAAC_PY' '$SIM_DIR/extract_block_layout.py' selftest $extra" || return 1
 }
 
 # Gemeinsame, als Bash-Array aufgebaute Episodenauswahl für die neuen Replay-Aktionen.
@@ -1839,11 +1862,26 @@ Aktionen:
               LAYOUT_OUT (/data/cotrain/layout.json), RENDER_EPISODES (60),
               LAYOUT_DEBUG_DIR, LAYOUT_BIAS ("dx dy" in Metern), LAYOUT_OVERWRITE=1,
               LAYOUT_NO_MOTION_ONSET=1 (Bewegungsbeginn weglassen, spart die Videodekodierung).
+              Liest seit 2026-08-25 ausserdem den GIERWINKEL jedes Wuerfels (cubes_yaw_deg,
+              mod 90°) — im Realdatensatz liegen die Wuerfel schraeg zur Tischkante, die Sim
+              stellte sie bis dahin immer achsparallel. null heisst "nicht belastbar
+              gemessen", nicht "liegt gerade"; dann rendert 'render' mit 0°.
+              LAYOUT_YAW_TOLERANCE (8°, erlaubte Uneinigkeit beider Kameras),
+              LAYOUT_MIN_SQUARENESS (1,25, verlangte Diagonale/Kante der Deckflaeche).
   layoutcheck Kameramodell gegen ein GERENDERTES Bild pruefen, bevor 'layout' geglaubt wird.
               In Lauf 13 lagen konfigurierte Pose und cam.data 95,6° auseinander und drei
               Laeufe waren umsonst. LAYOUTCHECK_FRAME (Bild im Container),
               LAYOUTCHECK_EXPECT (bekannte Wuerfelpositionen als JSON, aus
-              render_manifest.json -> cubes_xyz), LAYOUTCHECK_CAM (cam_left_high).
+              render_manifest.json -> cubes_xyz), LAYOUTCHECK_CAM (cam_left_high),
+              LAYOUTCHECK_EXPECT_YAW (bekannte Gierwinkel als JSON, z. B. "[0,20,40]",
+              aus render_manifest.json -> cubes_yaw_deg).
+  yawcheck    Abnahme des GIERWINKEL-Schaetzers gegen synthetische Wuerfel bekannter Drehung.
+              Braucht weder Datensatz noch Isaac noch GPU. Der Schaetzer misst die Deckflaeche
+              nach der Rueckprojektion ueber ihr 4. Winkelmoment; die Vorgaenger-Variante mass
+              im Pixelraum und rastete auf die Bildachsen ein (101 von 120 Realframes exakt
+              0,0°). Abnahme 2026-08-25: rauschfrei Median 0,05°, bei realistischem
+              Maskenrauschen Median ~1° fuer die Wuerfel, die das Tor passieren.
+              LAYOUT_YAW_TOLERANCE, LAYOUT_MIN_SQUARENESS.
   tipcheck    Fingerkuppen aus der FK ins REALBILD projizieren. Beantwortet, warum im
               Render-Lauf keine Kuppe je naeher als 10 cm an den Wuerfel kommt, obwohl die
               reale Hand ihn haelt: liegt es an der Kamerapose fuer Realbilder oder an der
@@ -1999,7 +2037,7 @@ ACTION="${1:-help}"
 # 'shell' bleibt ungespiegelt (interaktives -it verträgt die Pipe nicht), 'help'/'clean'
 # haben nichts zu protokollieren.
 case "$ACTION" in
-  preflight|setup|check|cams|gap|eval|grasp|span|rl|livecheck|latency|optimize|render|view|webview|layout|layoutcheck|tipcheck|replay-prepare|replay-calibrate|replay-poses|replay-render) start_logging "$ACTION" ;;
+  preflight|setup|check|cams|gap|eval|grasp|span|rl|livecheck|latency|optimize|render|view|webview|layout|layoutcheck|yawcheck|tipcheck|replay-prepare|replay-calibrate|replay-poses|replay-render) start_logging "$ACTION" ;;
 esac
 case "$ACTION" in
   rl|shell|help|clean|webview) ;;
@@ -2017,6 +2055,7 @@ case "$ACTION" in
   grasp)      do_grasp ;;
   span)       do_span ;;
   layout)     do_layout ;;
+  yawcheck)   do_yawcheck ;;
   layoutcheck) do_layoutcheck ;;
   replay-prepare) do_replay_prepare ;;
   replay-calibrate) do_replay_calibrate ;;

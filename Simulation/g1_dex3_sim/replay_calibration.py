@@ -49,7 +49,20 @@ def file_sha256(path: Path) -> str:
 
 
 def top_face_blob(rgb: np.ndarray, color: str, min_area: int = 80) -> dict | None:
-    """Return the bright upper cube face, falling back to the full color blob."""
+    """Return the bright upper cube face, falling back to the full color blob.
+
+    WARNUNG zu ``axis_uv``: das ist eine Min-Area-Box im PIXELRAUM und KEINE Würfel-
+    orientierung. Zwei Gründe, warum sie als solche nicht taugt — beide gemessen am
+    2026-08-25 auf den 120 Realframes vom 2026-08-22:
+
+    * Sie rastet auf das Pixelraster ein. 101 von 120 Messungen kamen exakt auf 0,0°, weil
+      die Deckflächenmaske nur 15×18 px groß ist und die achsparallele Box dort gewinnt.
+    * Sie misst im Bild, also mitsamt der perspektivischen Verzerrung der Deckfläche.
+
+    Wer den Gierwinkel braucht: ``extract_block_layout.yaw_from_top_face``. Der projiziert
+    erst auf die Deckflächenebene zurück — dort ist die Fläche wieder ein Quadrat — und
+    misst dann das 4. Winkelmoment. ``axis_uv`` bleibt hier nur als Zeichenhilfe.
+    """
     mask = color_mask(rgb, color)
     full = largest_blob(mask, min_area=min_area)
     if full is None:

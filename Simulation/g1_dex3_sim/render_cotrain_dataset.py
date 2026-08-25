@@ -311,12 +311,20 @@ def set_robot_to_state(env, state_row: np.ndarray) -> None:
     env.robot.set_joint_position_target(full)
 
 
-def hand_spreads_and_centroids(env) -> tuple[np.ndarray, np.ndarray] | None:
-    """Je Hand: Fingeröffnung (mittlerer paarweiser Kuppenabstand) und Kuppen-Schwerpunkt.
+def hand_spreads_and_centroids(env) -> tuple[np.ndarray, np.ndarray, np.ndarray] | None:
+    """Je Hand: Fingeröffnung, Kuppen-Schwerpunkt und Greifachsen-Gierwinkel.
 
     Bezugspunkt sind die Fingerkuppen aus dem Env (``get_contact_points_w``), nicht die
     Handfläche — der Versatz bis zur Kuppe war in den Läufen 25–28 die Ursache dreier
-    falscher Schlüsse.
+    falscher Schlüsse. Reihenfolge je Hand ist [Zeigefinger, Mittelfinger, Daumen], siehe
+    ``_REACH_BODY_SETS``.
+
+    Der Gierwinkel ist die Richtung Daumen → Mitte der Gegenfinger, auf die Tischebene
+    projiziert und mod 90° genommen. Er ist die BILDUNABHÄNGIGE Gegenprobe zum Winkel aus
+    ``extract_block_layout.py``: wer einen Würfel greift, legt die Greifachse quer zu einer
+    Fläche, nicht zu einer Ecke. Stimmen beide Zahlen überein, bestätigen sich zwei
+    Verfahren, die nichts miteinander zu tun haben. Er ist kein Ersatz für den Bildwinkel —
+    er belegt nur, ob die Hand zur angenommenen Würfellage passt.
     """
     try:
         tips = env.get_contact_points_w()
@@ -327,11 +335,14 @@ def hand_spreads_and_centroids(env) -> tuple[np.ndarray, np.ndarray] | None:
     tips = tips[0].cpu().numpy()                       # (6,3): 3 links, 3 rechts
     spreads = np.zeros(2, dtype=np.float32)
     centroids = np.zeros((2, 3), dtype=np.float32)
+    yaws = np.zeros(2, dtype=np.float32)
     for h in range(2):
         t3 = tips[3 * h:3 * h + 3]
         spreads[h] = float(np.linalg.norm(t3[[0, 0, 1]] - t3[[1, 2, 2]], axis=-1).mean())
         centroids[h] = t3.mean(axis=0)
-    return spreads, centroids
+        axis = t3[2] - 0.5 * (t3[0] + t3[1])            # Daumen → Mitte Zeige/Mittel
+        yaws[h] = float(np.degrees(np.arctan2(axis[1], axis[0])) % 90.0)
+    return spreads, centroids, yaws
 
 
 def block_positions(env) -> np.ndarray:
@@ -375,7 +386,7 @@ def play_episode(env, actions: np.ndarray, collect_images: bool, writers=None,
 
         hands = hand_spreads_and_centroids(env)
         if hands is not None:
-            spread_trace[i], centroid_trace[i] = hands
+            spread_trace[i], centroid_trace[i], _ = hands
         if block_trace is not None:
             block_trace[i] = block_positions(env)
 
@@ -570,13 +581,14 @@ def grasp_anchor(env, states: np.ndarray, layout: list, until: int,
         sc = hand_spreads_and_centroids(env)
         if sc is None:
             continue
-        _, centroids = sc
+        _, centroids, hand_yaws = sc
         for hand in range(2):
             for block, xy in targets:
                 dist = float(np.linalg.norm(centroids[hand][:2] - xy))
                 if best is None or dist < best["dist_m"]:
                     best = {"dist_m": dist, "frame": frame, "hand": hand, "block": block,
-                            "xy": [float(centroids[hand][0]), float(centroids[hand][1])]}
+                            "xy": [float(centroids[hand][0]), float(centroids[hand][1])],
+                            "hand_yaw_deg": round(float(hand_yaws[hand]), 2)}
     if best is None:
         return None
     if best["dist_m"] > max_shift_m:
@@ -586,8 +598,15 @@ def grasp_anchor(env, states: np.ndarray, layout: list, until: int,
     return best
 
 
-def place_cubes(env, layout: list | None = None, anchor: dict | None = None
-                ) -> tuple[list[list[float]], list[str]] | None:
+def yaw_to_quat(yaw_deg: float) -> tuple[float, float, float, float]:
+    """Gierwinkel um z in Grad → Quaternion (w, x, y, z) in Isaacs Reihenfolge."""
+    half = np.radians(float(yaw_deg)) / 2.0
+    return (float(np.cos(half)), 0.0, 0.0, float(np.sin(half)))
+
+
+def place_cubes(env, layout: list | None = None, anchor: dict | None = None,
+                yaws: list | None = None
+                ) -> tuple[list[list[float]], list[str], list[float]] | None:
     """Würfel dorthin setzen, wo sie im REALBILD lagen — oder die Episode auslassen.
 
     Einzige Quelle ist das Bild-Layout aus ``extract_block_layout.py`` (Farbblob im
@@ -611,6 +630,15 @@ def place_cubes(env, layout: list | None = None, anchor: dict | None = None
     auf den Kuppen-Schwerpunkt der Hand. Die übrigen bleiben auf ihrer Bild-Lage: nur
     einer wird angefasst, für die anderen ist das Bild die bessere Quelle.
 
+    ``yaws`` sind die Gierwinkel aus ``layout.json`` (``cubes_yaw_deg``), in Grad und mod
+    90°. ``None`` je Würfel heißt „nicht belastbar gemessen", nicht „liegt gerade" — dann
+    bleibt es bei 0°. Vor dem 2026-08-25 gab es den Wert nicht und jeder Würfel stand
+    achsparallel; im Realdatensatz liegen sie aber schräg zur Tischkante. Ein falsch
+    gedrehter Würfel ist derselbe Fehler wie ein falsch platzierter, nur im Drehfreiheits-
+    grad: die Realaktion greift dann eine Ecke statt einer Fläche (5,0 cm über die Fläche,
+    7,1 cm über die Diagonale), und das Bild-Aktions-Paar lehrt eine Zuordnung, die es
+    nicht gibt.
+
     Rückgabe ``None`` heißt: keine vollständige Lage bekannt, Episode überspringen.
     Nur x/y kommen aus Layout bzw. Anker, die Höhe ist immer die Tischauflage.
     """
@@ -632,17 +660,22 @@ def place_cubes(env, layout: list | None = None, anchor: dict | None = None
             x, y = float(anchor["xy"][0]), float(anchor["xy"][1])
         positions.append(np.array([x, y, z], dtype=np.float32))
 
-    record, source = [], []
+    record, source, used_yaw = [], [], []
     for i, (block, pos) in enumerate(zip(env.blocks, positions)):
         record.append([round(float(v), 4) for v in pos])
         source.append("greifanker" if anchor and anchor["block"] == i else "layout")
+        yaw = 0.0
+        if yaws and i < len(yaws) and yaws[i] is not None:
+            yaw = float(yaws[i])
+        used_yaw.append(round(yaw, 2))
+        quat = yaw_to_quat(yaw)
         world = torch.tensor([[float(pos[0] + origin[0]), float(pos[1] + origin[1]),
-                               float(pos[2]), 1.0, 0.0, 0.0, 0.0]],
+                               float(pos[2]), *quat]],
                              device=env.device, dtype=torch.float32)
         block.write_root_pose_to_sim(world)
         block.write_root_velocity_to_sim(torch.zeros((1, 6), device=env.device))
 
-    return record, source
+    return record, source, used_yaw
 
 
 # ---------------------------------------------------------------------------
@@ -1010,9 +1043,13 @@ def run_render(env_builder, src_root: Path, src_info: dict, episodes: list[int],
         if env is None:
             env = env_builder()
         env.reset()
-        cubes, cube_src = None, None
+        cubes, cube_src, cube_yaw = None, None, None
         if not args.no_place_cubes:
-            entry_cubes = layout.get(str(ep_idx), {}).get("cubes")
+            entry = layout.get(str(ep_idx), {})
+            entry_cubes = entry.get("cubes")
+            # Fehlt der Schlüssel, stammt das layout.json von vor dem 2026-08-25: dann gibt
+            # es keine Gierwinkel und jeder Würfel steht achsparallel — wie bisher.
+            entry_yaws = entry.get("cubes_yaw_deg")
             anchor = None
             if args.cube_source == "grasp" and entry_cubes:
                 # Das Fenster endet per Konstruktion am Bewegungsbeginn (episode_window),
@@ -1020,18 +1057,36 @@ def run_render(env_builder, src_root: Path, src_info: dict, episodes: list[int],
                 anchor = grasp_anchor(env, state, entry_cubes, len(state) - 1,
                                       float(args.max_anchor_shift))
                 if anchor:
+                    # Gegenprobe, absichtlich nur als Bericht: der Greifachsen-Winkel wird
+                    # NICHT als Ersatz für einen verworfenen Bildwinkel eingesetzt. Er
+                    # beruht auf der Annahme, dass quer zu einer Fläche gegriffen wurde,
+                    # und die ist unbelegt. place_cubes hat aus genau diesem Grund seine
+                    # stillen Rückfallebenen verloren; hier eine neue einzubauen wäre
+                    # derselbe Fehler. Erst wenn beide Zahlen über viele Episoden
+                    # zusammenfallen, ist die Annahme belegt.
+                    img_yaw = (entry_yaws[anchor["block"]]
+                               if entry_yaws and anchor["block"] < len(entry_yaws) else None)
+                    if img_yaw is not None:
+                        d = abs((float(img_yaw) - anchor["hand_yaw_deg"] + 45.0) % 90.0 - 45.0)
+                        cmp_txt = (f", Bildwinkel {float(img_yaw):.0f}° vs. Greifachse "
+                                   f"{anchor['hand_yaw_deg']:.0f}° (Δ {d:.0f}°)")
+                    else:
+                        cmp_txt = (f", Greifachse {anchor['hand_yaw_deg']:.0f}° "
+                                   f"(kein Bildwinkel zum Vergleich)")
                     print(f"      Greifanker: Hand {'links' if anchor['hand'] == 0 else 'rechts'}"
                           f", Wuerfel {anchor['block']}, Frame {anchor['frame']}, "
-                          f"{anchor['dist_m'] * 100:.1f} cm von der Bild-Lage.", flush=True)
+                          f"{anchor['dist_m'] * 100:.1f} cm von der Bild-Lage{cmp_txt}.",
+                          flush=True)
                 env.reset()
-            placement = place_cubes(env, layout=entry_cubes, anchor=anchor)
+            placement = place_cubes(env, layout=entry_cubes, anchor=anchor,
+                                    yaws=entry_yaws)
             if placement is None:
                 print(f"{head}: VERWORFEN — keine vollständige Würfellage im Bild-Layout. "
                       f"Fehlt sie für viele Episoden, zuerst 'server_rl_run.sh layout' "
                       f"mit denselben Episoden nachfahren.", flush=True)
                 manifest["episodes"][str(ep_idx)] = {"status": "rejected_layout"}
                 continue
-            cubes, cube_src = placement
+            cubes, cube_src, cube_yaw = placement
         set_robot_to_state(env, state[0])
         for _ in range(args.settle_steps):
             env.step(torch.tensor(state[0], dtype=torch.float32,
@@ -1083,6 +1138,10 @@ def run_render(env_builder, src_root: Path, src_info: dict, episodes: list[int],
             "hand_tracking_error_rad_end": hand_err_end,
             "cubes_xyz": cubes,
             "cube_source": cube_src,
+            # Grundwahrheit für `extract_block_layout.py detect --expect-yaw`: gegen einen
+            # Frame aus DIESEM Lauf gemessen, ist das die einzige echte Abnahme des
+            # Winkelschätzers am Renderer.
+            "cubes_yaw_deg": cube_yaw,
             "grasp_points": info.get("hands"),
             "consistency": cons,
         }

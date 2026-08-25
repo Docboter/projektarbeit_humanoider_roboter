@@ -426,6 +426,13 @@ class G1Dex3BlockstackEnvCfg(DirectRLEnvCfg):
     block_x_range: tuple[float, float] = (0.30, 0.40)
     block_y_range: tuple[float, float] = (-0.20, 0.20)
     block_z_surface: float = 0.895    # Tischoberfläche 0.87 + halbe Würfel-Höhe (0.025)
+    # Gierwinkel der Würfel beim Reset, in GRAD. Bis zum 2026-08-25 standen sie fest
+    # achsparallel; im Realdatensatz liegen sie schräg zur Tischkante (gemessen am
+    # 2026-08-25 über 40 Episoden, Median 10°, p90 36° — Zahl noch maskenlimitiert,
+    # siehe extract_block_layout.py). Der Default bleibt 0/0, damit sich an laufenden
+    # Vergleichen nichts still ändert; (0, 90) macht die Streuung an.
+    # Bei einem 4-zähligen Würfel deckt 0…90° bereits alle Lagen ab.
+    block_yaw_range_deg: tuple[float, float] = (0.0, 0.0)
 
     # Erfolgsparameter
     stack_xy_tol: float = 0.03  # max. horizontaler Versatz zwischen Würfel-Mittelpunkten
@@ -963,8 +970,12 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
             )
             block_pos[:, 2] = self.cfg.block_z_surface
             block_pos += env_offset
+            lo, hi = self.cfg.block_yaw_range_deg
+            half = torch.deg2rad(sample_uniform(
+                float(lo), float(hi), (len(env_ids),), device=self.device)) / 2.0
             block_quat = torch.zeros(len(env_ids), 4, device=self.device)
-            block_quat[:, 0] = 1.0  # Identity-Quaternion (w=1)
+            block_quat[:, 0] = torch.cos(half)   # Drehung um z: (cos φ/2, 0, 0, sin φ/2)
+            block_quat[:, 3] = torch.sin(half)
             block.write_root_pose_to_sim(
                 torch.cat([block_pos, block_quat], dim=-1), env_ids=env_ids
             )
