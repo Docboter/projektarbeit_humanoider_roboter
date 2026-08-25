@@ -1668,6 +1668,7 @@ do_render() {
   # zaehlt, dass der Griff im gerenderten Bild aufgeht — nicht, dass der Wuerfel exakt dort
   # steht, wo er real lag. RENDER_MAX_ANCHOR_SHIFT ist die Plausibilitaetsschranke (m).
   [[ -n "${RENDER_CUBE_SOURCE:-}" ]] && extra+=" --cube-source ${RENDER_CUBE_SOURCE}"
+  [[ "${RENDER_IGNORE_YAW:-0}" == "1" ]] && extra+=" --ignore-yaw"
   [[ -n "${RENDER_MAX_ANCHOR_SHIFT:-}" ]] \
     && extra+=" --max-anchor-shift ${RENDER_MAX_ANCHOR_SHIFT}"
   [[ -n "${RENDER_EPISODE_IDS:-}" ]] && extra+=" --episode-ids ${RENDER_EPISODE_IDS}"
@@ -2070,6 +2071,10 @@ Aktionen:
               RENDER_STAGE (both|scan|render), RENDER_MAX_FRAMES (0 = ganze Episode),
               RENDER_EPISODE_IDS ("0 4 8"), RENDER_OVERWRITE=1, DR_ENABLED (1).
               Zurueckgehaltene Test-Episoden werden nie gerendert.
+              RENDER_IGNORE_YAW=1 setzt alle Wuerfel achsparallel, obwohl layout.json
+              Gierwinkel enthaelt — der A/B-Vergleich: derselbe Episodensatz einmal mit und
+              einmal ohne Drehung. Ohne ihn ist nicht zu trennen, ob eine Verbesserung vom
+              Winkel kommt oder von der Episodenauswahl.
               RENDER_LAYOUT (/data/cotrain/layout.json) ist PFLICHT — 'layout' zuerst
               fahren. RENDER_LAYOUT=none erzwingt den alten Greifpunkt-Weg (Vergleichslauf).
               RENDER_STOP_AT_GRASP (1) schneidet jede Episode am ersten Zugreifen ab —

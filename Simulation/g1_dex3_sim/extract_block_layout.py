@@ -714,9 +714,43 @@ def run_selftest(args) -> int:
     return 0 if verdict else 1
 
 
+def _draw_line(img: np.ndarray, a, b, colour) -> None:
+    """Linie zwischen zwei Pixelkoordinaten, ohne Zeichenbibliothek."""
+    a, b = np.asarray(a, dtype=float), np.asarray(b, dtype=float)
+    if not (np.all(np.isfinite(a)) and np.all(np.isfinite(b))):
+        return
+    steps = int(max(abs(b[0] - a[0]), abs(b[1] - a[1]))) + 1
+    H, W = img.shape[:2]
+    for t in np.linspace(0.0, 1.0, max(steps, 2)):
+        u, v = a + t * (b - a)
+        ui, vi = int(round(u)), int(round(v))
+        if 0 <= vi < H and 0 <= ui < W:
+            img[vi, ui] = colour
+
+
+def draw_yaw_square(img: np.ndarray, cam: PinholeCamera, xy, yaw_deg: float,
+                    colour=(0, 0, 0)) -> None:
+    """Die GESCHÄTZTE Deckfläche als 5-cm-Quadrat ins Bild zeichnen.
+
+    Die eigentliche Sichtprüfung des Gierwinkels: liegt das Quadrat auf der Würfeloberseite,
+    stimmt der Winkel; steht es schräg dazu, stimmt er nicht. Zwei Kameras, die sich einig
+    sind, belegen nur, dass beide dasselbe messen — nicht, dass es der Würfel ist. Und die
+    FK-Gegenprobe über die Greifachse hat sich am 2026-08-25 als untauglich erwiesen
+    (Δ Median 20° bei 26 Vergleichen, Zufallsniveau).
+    """
+    a = np.radians(float(yaw_deg))
+    rot = np.array([[np.cos(a), -np.sin(a)], [np.sin(a), np.cos(a)]])
+    h = CUBE_EDGE_M / 2.0
+    corners = np.array([[-h, -h], [h, -h], [h, h], [-h, h]]) @ rot.T + np.asarray(xy[:2])
+    uv = cam.project(np.column_stack([corners, np.full(4, Z_CUBE_TOP)]))
+    for i in range(4):
+        _draw_line(img, uv[i], uv[(i + 1) % 4], colour)
+
+
 def draw_markers(rgb: np.ndarray, found: list[dict | None],
-                 expect_uv: np.ndarray | None = None) -> np.ndarray:
-    """Kreuz auf jeden gefundenen Schwerpunkt, Kästchen auf die erwartete Projektion."""
+                 expect_uv: np.ndarray | None = None,
+                 cam: PinholeCamera | None = None) -> np.ndarray:
+    """Kreuz auf jeden Schwerpunkt, Kästchen auf die Erwartung, Quadrat auf den Gierwinkel."""
     img = rgb.copy()
     H, W = img.shape[:2]
     for f in found:
@@ -725,6 +759,8 @@ def draw_markers(rgb: np.ndarray, found: list[dict | None],
         u, v = int(round(f["u"])), int(round(f["v"]))
         img[max(0, v - 9):v + 10, max(0, u - 1):u + 2] = (255, 255, 255)
         img[max(0, v - 1):v + 2, max(0, u - 9):u + 10] = (255, 255, 255)
+        if cam is not None and f.get("yaw_deg") is not None and "xy" in f:
+            draw_yaw_square(img, cam, f["xy"], f["yaw_deg"])
     if expect_uv is not None:
         for uv in np.atleast_2d(expect_uv):
             if not np.all(np.isfinite(uv)):
@@ -796,7 +832,7 @@ def run_detect(args) -> int:
             print(yaw_line)
         if args.debug_dir:
             out = Path(args.debug_dir) / f"{path.stem}_{args.camera}.png"
-            save_png(draw_markers(rgb, found, expect_uv), out)
+            save_png(draw_markers(rgb, found, expect_uv, cam=cam), out)
             print(f"  → {out}")
 
     if residuals:
@@ -905,7 +941,7 @@ def run_extract(args) -> int:
             per_cam[cam_name] = locate_cubes(rgb, models[cam_name], bias_xy=args.bias,
                                              min_area=args.min_area)
             if args.debug_dir:
-                save_png(draw_markers(rgb, per_cam[cam_name]),
+                save_png(draw_markers(rgb, per_cam[cam_name], cam=models[cam_name]),
                          Path(args.debug_dir) / f"ep{ep:06d}_{cam_name}.png")
 
         cubes, spread, yaws, yaw_spread = [], [], [], []

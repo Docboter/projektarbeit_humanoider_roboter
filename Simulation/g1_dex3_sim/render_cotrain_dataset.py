@@ -106,6 +106,12 @@ parser.add_argument("--cube-source", choices=("layout", "grasp"), default="layou
                     help="layout = Wuerfel an die Lage aus dem Realbild (Standard); "
                          "grasp = den gegriffenen Wuerfel zusaetzlich auf den Kuppen-"
                          "Schwerpunkt der Hand ziehen, damit der Griff im Bild aufgeht")
+parser.add_argument("--ignore-yaw", action="store_true",
+                    help="Gierwinkel aus layout.json NICHT verwenden, alle Wuerfel "
+                         "achsparallel setzen. Nur fuer den A/B-Vergleich: derselbe "
+                         "Episodensatz einmal mit und einmal ohne Drehung, sonst ist "
+                         "nicht zu trennen, ob eine Verbesserung vom Winkel kommt "
+                         "oder von der Episodenauswahl")
 parser.add_argument("--max-anchor-shift", type=float, default=0.08,
                     help="Wieviel der Greifanker hoechstens von der Bild-Lage abweichen darf "
                          "(m). Darueber wird die Episode verworfen statt geraten")
@@ -1050,7 +1056,7 @@ def run_render(env_builder, src_root: Path, src_info: dict, episodes: list[int],
             entry_cubes = entry.get("cubes")
             # Fehlt der Schlüssel, stammt das layout.json von vor dem 2026-08-25: dann gibt
             # es keine Gierwinkel und jeder Würfel steht achsparallel — wie bisher.
-            entry_yaws = entry.get("cubes_yaw_deg")
+            entry_yaws = None if args.ignore_yaw else entry.get("cubes_yaw_deg")
             anchor = None
             if args.cube_source == "grasp" and entry_cubes:
                 # Das Fenster endet per Konstruktion am Bewegungsbeginn (episode_window),
