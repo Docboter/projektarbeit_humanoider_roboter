@@ -1,3 +1,4 @@
+# TL;DR: Zeigt die Szene ohne Modell/Checkpoint (Home-Pose); `server_rl_run.sh view`.
 """
 Szene ansehen — die Isaac-Lab-Umgebung OHNE Modell, OHNE Checkpoint, OHNE HF-Gewichte.
 

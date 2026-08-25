@@ -1,5 +1,9 @@
 # HPC-Training auf KISSKI
 
+> **TL;DR:** Anleitung für HPC-Training auf dem KISSKI-Cluster (Apptainer + SLURM statt
+> Docker): SIF-Konvertierung, Pfad-Konfiguration, GPU-Partitionen, Monitoring und
+> Checkpoint-Export. Für lange Trainingsläufe auf A100/H100.
+
 KISSKI ist ein dedizierter GPU-Cluster der GWDG Göttingen. Er läuft **kein Docker**, sondern
 **Apptainer** (früher Singularity) als Container-Runtime und **SLURM** als Job-Scheduler. Das
 bedeutet: kein `docker run`, sondern `sbatch Training/kisski_submit.sh`. Das Docker-Hub-Image
@@ -157,6 +161,14 @@ Pfade und Branch sind über `REPO_DIR`, `GITHUB_BRANCH` und `GROOT_FORK_DIR` üb
 ---
 
 ## Schritt 3 — Tokens setzen und Job einreichen
+
+> **Geführter Weg auf dem Login-Knoten:** `./Training/kisski_menu.sh` fragt Partition,
+> Walltime und die Trainingsparameter ab und baut daraus die `sbatch`-Zeile
+> (`--dry-run` zeigt sie nur an). Es setzt dabei immer `--export=ALL` — ohne das kommen
+> die Variablen wegen `SBATCH_EXPORT=none` **nicht** im Job an, siehe unten. Das Menü ist
+> ein Zusatz: `kisski_submit.sh` bleibt weiterhin allein auf den Cluster kopierbar.
+> Details: [cli-menuefuehrung.md](../weiterfuehrend/cli-menuefuehrung.md)
+
 
 > **WICHTIG — Variablen als Inline-Prefix angeben.** Alle Tokens und Overrides müssen **direkt vor
 > `sbatch` in einer Zeile** stehen (per `\` umgebrochen), **nicht** als getrennte `export`-Zeilen

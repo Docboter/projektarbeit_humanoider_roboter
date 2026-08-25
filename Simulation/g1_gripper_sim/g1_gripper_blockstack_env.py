@@ -1,3 +1,4 @@
+# TL;DR: Isaac-Lab-Env für die stock-G1+Dex1-Baseline, spiegelt g1_dex3_blockstack_env.py.
 """
 Block-Stacking-Umgebung für den **stock Unitree G1 + Dex1-Parallelgreifer**
 (Baseline-Test mit un-finetuntem GR00T-N1.6-3B, Embodiment ``UNITREE_G1``).

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# TL;DR: Im Container: Open-Loop-Eval über alle Checkpoints eines Laufs, wählt den besten aus.
 """checkpoint_sweep.py — Open-Loop-Eval über ALLE Checkpoints eines Laufs.
 
 Beantwortet die Frage, die Lauf 1 und Lauf 2 offen gelassen haben: **welcher

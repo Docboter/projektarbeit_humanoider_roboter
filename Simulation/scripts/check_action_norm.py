@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# TL;DR: Host-Diagnose: prüft die Aktions-Normalisierungs-Statistik eines Checkpoints, ohne GPU.
 """Statischer Check der Aktions-Normalisierungs-Statistiken eines GR00T-Checkpoints.
 
 Wozu

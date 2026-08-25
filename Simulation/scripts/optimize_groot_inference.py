@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# TL;DR: Exportiert/prueft den GR00T-DiT als TensorRT-Engine, laeuft im GR00T-venv im Container.
 """Exportiert und prueft den GR00T-N1.6-DiT fuer TensorRT.
 
 Der Export benutzt eine synthetische Observation im exakten vier-Kamera-Simformat.

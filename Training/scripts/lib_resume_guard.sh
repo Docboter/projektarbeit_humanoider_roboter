@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# TL;DR: Gesourcte Bibliothek — verhindert stilles Fortsetzen eines alten Laufs statt Neu-Training.
 # lib_resume_guard.sh — Schutz gegen stilles Fortsetzen eines alten Laufs.
 #
 # Wird von run_finetuning.sh und run_finetuning_vision.sh gesourct:

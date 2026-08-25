@@ -1,3 +1,4 @@
+# TL;DR: Closed-Loop-Eval: verbindet Sim mit GR00T-Policy-Server per ZMQ; `server_rl_run.sh eval`.
 """
 Closed-Loop-Eval-Runner für GR00T N1.6 auf G1 + Dex3 in Isaac Lab.
 

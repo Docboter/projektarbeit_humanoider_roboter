@@ -1,9 +1,16 @@
 # Basismodell-Fähigkeiten & Referenzaufgabe zur Sim-Validierung
 
+> **TL;DR:** Konzeptdokument zur Frage, was das un-finetunte GR00T-N1.6-Basismodell zero-shot
+> kann und welche Referenzaufgabe sich daraus zur Validierung der eigenen Inferenz-Pipeline
+> ableitet (RoboCasa GR-1, Phase 1). Bedienung:
+> [robocasa-referenz-eval.md](robocasa-referenz-eval.md), Ergebnis:
+> [../ergebnisse/basismodell-referenz-eval.md](../ergebnisse/basismodell-referenz-eval.md);
+> Kurzfazit direkt darunter.
+
 **Stand:** 2026-06-16 · Status-Update 2026-08-18
 **Frage:** Was kann das Basismodell **GR00T N1.6** (`nvidia/GR00T-N1.6-3B`), das wir als Basis für unser Finetuning verwenden, *out-of-the-box* (zero-shot, ohne Finetuning)? Kann es bereits eine Aufgabe im **Closed Loop** lösen? Und können wir eine solche Aufgabe rekonstruieren, um zu prüfen, ob **unsere Entwicklungsumgebung** sie ebenfalls korrekt umsetzt?
 
-> **TL;DR**
+> **Kurzfazit:**
 > - **Ja**, das Basismodell löst Closed-Loop-Manipulationsaufgaben zero-shot — **aber nur für Embodiments, die im vortrainierten Set enthalten sind** (`gr1`, `robocasa_panda_omron`, `unitree_g1`, …), **nicht** für unser `NEW_EMBODIMENT` (G1+DEX3). Für `NEW_EMBODIMENT` existieren keine Basisgewichte; das Basismodell kann unseren DEX3-Block-Stack-Task also prinzipiell nicht zero-shot.
 > - **„Perfekt"** löst das Basismodell *keine* Aufgabe. Die besten dokumentierten Zero-Shot-Zahlen sind **RoboCasa Panda ø 66,2 %** und **RoboCasa GR-1 Tabletop ø 47,6 %** (Einzeltask bis **78,7 %**). Der Validierungs-Maßstab kann daher nicht „100 % Erfolg" sein, sondern **„die publizierte Erfolgsquote innerhalb statistischer Toleranz reproduzieren"**.
 > - **Wichtiger Architektur-Befund:** Diese lösbaren Tasks laufen in **robosuite/MuJoCo** über GR00Ts eigene Eval-Pipeline (`run_gr00t_server.py` + `rollout_policy.py`), **nicht** in unserem **Isaac Lab**. Das trennt die Validierung in zwei klar verschiedene Stufen (siehe Plan).

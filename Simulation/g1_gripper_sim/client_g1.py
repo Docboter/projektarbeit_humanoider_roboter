@@ -1,3 +1,4 @@
+# TL;DR: ZMQ-PolicyClient für UNITREE_G1-Baseline (Dex1-Greifer), spiegelt g1_dex3_sim/client.py.
 """
 GR00T PolicyClient + Observation-Builder für die **UNITREE_G1**-Baseline
 (stock G1 + Dex1-Greifer, un-finetuntes GR00T-N1.6-3B).

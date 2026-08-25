@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# TL;DR: Gesourcte Bibliothek: gemeinsame WebRTC-Livestream-Logik für Entrypoints + server_rl_run.sh.
 # lib_livestream.sh — gemeinsame Logik für die LIVE-Variante („Spur A" des
 # Livestream-Plans): Isaac Sim streamt seinen 3D-Viewport per WebRTC, und auf dem
 # Arbeitsrechner öffnet der native **Isaac Sim WebRTC Streaming Client** die

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# TL;DR: Diagnose: konfigurierte vs. tatsaechlich gerenderte Kamera-Pose; `server_rl_run.sh cams`.
 """Diagnose: KONFIGURIERTE gegen TATSAECHLICH gerenderte Kamera-Pose.
 
 Anlass (2026-08-08): Die Live-Ansicht zeigte fuer `cam_scene` fast nur den hellen

@@ -1,3 +1,4 @@
+# TL;DR: Container-Diagnose: misst Real-vs-Sim-Domain-Gap ueber den eingefrorenen GR00T-ViT.
 """
 Domain-Gap-Quantifizierung: Real- (Teleop-) gegen Sim-Frames durch den eingefrorenen GR00T-ViT.
 

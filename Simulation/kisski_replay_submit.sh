@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# TL;DR: SLURM-Job (KISSKI): Open-Loop-Dataset-Replay-Diagnose, trennt Sim- von Modell-Fehlern.
 # kisski_replay_submit.sh — SLURM-Skript für die OPEN-LOOP-DATASET-REPLAY-Diagnose auf GWDG
 #
 # ⚠️  ACHTUNG — GPU-INKOMPATIBILITÄT (Stand: docs/simulation/umsetzungsnotizen.md):

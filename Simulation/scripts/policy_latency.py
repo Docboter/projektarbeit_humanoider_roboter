@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# TL;DR: Container-Diagnose: misst reine Policy-Latenz pro Action-Chunk, ohne Sim und ohne Server.
 """Reine Policy-Latenz: wie lange braucht GR00T für EINEN Action-Chunk?
 
 Wozu

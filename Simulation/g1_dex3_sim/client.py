@@ -1,3 +1,4 @@
+# TL;DR: ZMQ-PolicyClient für den Sim-Container (kein torch/gr00t); von Eval-Skripten importiert.
 """
 Vendored GR00T PolicyClient für den Isaac-Lab-Sim-Container.
 

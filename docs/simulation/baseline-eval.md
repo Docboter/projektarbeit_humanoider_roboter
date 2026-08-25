@@ -1,5 +1,10 @@
 # Baseline-Closed-Loop-Test — stock Unitree G1 + Dex1-Greifer (UNITREE_G1)
 
+> **TL;DR:** Vergleichs-Baseline zum DEX3-Fine-Tune: Wie gut stapelt das un-finetunte Basismodell
+> `GR00T-N1.6-3B` mit dem stock-G1-Dex1-Greifer (`SIM_MODE=baseline`) denselben
+> Block-Stacking-Task, in einer zur DEX3-Eval parallelen Pipeline? Vorbereitung — erster Lauf
+> steht aus.
+
 Status: Vorbereitung — erster Lauf steht aus (Stand 2026-08-18)
 
 Vergleichs-Baseline zum DEX3-Fine-Tune: Wie gut stapelt das **un-finetunte Basismodell

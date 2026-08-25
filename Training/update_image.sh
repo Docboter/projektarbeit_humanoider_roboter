@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# TL;DR: Host-Werkzeug — baut das Docker-Image neu und pusht es nach Docker Hub.
 # update_image.sh
 #
 # Bringt das Docker-Image lucam03/projekt-humanoider-roboter:latest auf den
@@ -66,7 +67,7 @@ exit_fatal() { err "$*"; exit 1; }
 # ── Hilfe ────────────────────────────────────────────────────────────────────
 if [[ $SHOW_HELP -eq 1 ]]; then
     # Kopfkommentar (Zeilen 3..26) ausgeben, fuehrendes "# " entfernen
-    sed -n '3,26{s/^# \{0,1\}//;p}' "$0"
+    awk 'NR>1 { if (/^#/) { sub(/^# ?/, ""); print; next } exit }' "$0"
     exit 0
 fi
 

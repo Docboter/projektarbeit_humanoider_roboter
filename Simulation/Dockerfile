@@ -1,4 +1,5 @@
 # syntax=docker/dockerfile:1
+# TL;DR: KISSKI-Sim-Client-Image: Isaac Lab + schlanker GR00T-ZMQ-Client (RT-Core-GPU nötig).
 # Sim-Client-Container: Isaac Lab + schlanker GR00T-Client
 #
 # Build (vom Repo-Root):

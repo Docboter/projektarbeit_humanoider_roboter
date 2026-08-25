@@ -1,271 +1,114 @@
-# Würfellage aus den Realbildern
+# Würfellage aus den Realbildern — Verfahren, Koordinaten, offene Punkte
 
-**Stand:** 2026-08-25 · aktuelles Verfahren: `pick_anchored_homography` Version 4
-· Gierwinkel siehe [§7](#7-gierwinkel-um-die-eigene-z-achse)
+**Stand:** 2026-08-17 · Verfahren gebaut und lokal geprüft, **Abnahme-Test gegen den Renderer
+offen** · Vorgeschichte: [co-training.md](../training/co-training.md) §3.0/§3.2a
 
-Der Realdatensatz enthält Roboterzustände, Aktionen und Videos, aber keine Objektposen. Für einen
-brauchbaren Replay muss der Sim-Würfel dort beginnen, wo er im Realbild lag. Andernfalls greift der
-Roboter neben den Würfel und ein daraus erzeugter Co-Training-Datensatz koppelt Bild und Aktion
-falsch.
+Dieses Dokument beschreibt, **wie die Position der drei Würfel aus den realen
+Trainingsaufnahmen bestimmt wird** und **wie die daraus gewonnenen Bildkoordinaten in
+Sim-Koordinaten überführt werden**. Es ist als Übergabe gedacht: die beiden vorherigen
+Anläufe haben das Ziel nicht erreicht, und wer den dritten weiterbaut, sollte wissen, woran
+die ersten beiden gescheitert sind und welche Annahme im aktuellen Verfahren als Nächstes
+angreifbar ist.
 
-Das aktuelle Verfahren lernt die Abbildung von den beiden Kopfkamerabildern nach Tisch-XY aus
-realen Pick-Ereignissen. Es korrigiert weder FOV noch Brennweite aus der scheinbaren Würfelgröße
-und
-verschiebt keine Zielpose nachträglich zu einem Greifpunkt.
+---
 
-## 1. Aktueller Datenfluss
+## 1. Wozu die Würfellage überhaupt gebraucht wird
 
-```text
-40 Kalibrierungsepisoden
-  ├─ Farbtracking beider Kopfkameras → Bewegungsbeginn je Würfel
-  ├─ stabile Top-Face-Pixel strikt vor dem Bewegungsbeginn
-  ├─ wenige observation.state-Zeilen direkt in Isaac setzen → Fingerkuppen-FK
-  ├─ eindeutige Hand + Würfelfarbe → Pick-Anker Pixel ↔ Tisch-XY
-  └─ 80/20-Split ganzer Episoden, Seed 17
-       ├─ RANSAC-Homographie je Kamera auf Fit-Episoden
-       └─ Qualitäts-Gates auf unberührten Holdout-Episoden
+Für das Co-Training (Schritt 4) werden Paare *(Sim-Bild, echte Aktion)* erzeugt: die
+aufgezeichneten Aktionen einer realen Episode werden in Isaac Lab abgespielt und dabei die
+vier Policy-Kameras aufgezeichnet. Der Vision-Encoder soll auf Real- und Sim-Bildern
+dieselbe Aktion produzieren müssen und sich dadurch nicht mehr auf die Oberflächen-Statistik
+der Realbilder verlassen können.
 
-separat gewählte Ziel-Episoden
-  ├─ stabile Würfelpixel vor ihrer ersten Bewegung
-  ├─ Homographie je verfügbarer Kopfkamera
-  ├─ Stereo-Median oder strenger Einzelkamera-Fallback
-  └─ cube_poses.json v4
-       └─ einmalig setzen → ausschließlich PhysX → replay_manifest.json v2
+Das funktioniert nur, wenn das Sim-Bild zeigt, was die Aktion tut. **Der reale Datensatz
+enthält aber keine Objektposen** — nur Roboter-State, Aktionen und Videos. Legt die Env ihre
+Würfel zufällig aus, entstehen Paare, in denen der Arm dorthin greift, wo kein Würfel liegt;
+der Encoder lernt daraus, den Würfel zu *ignorieren*. Das wäre schlimmer als gar nichts.
+
+Die Würfellage muss also aus dem Datensatz **rekonstruiert** werden. Genau darum geht es hier.
+
+---
+
+## 2. Die beiden vorherigen Versuche — und woran sie scheiterten
+
+### 2.1 Versuch 1: Greifpunkt aus der Fingerkinematik (`scan.json`)
+
+**Idee.** Die Episode einmal billig abspielen (Kameras auf 1/10 Auflösung), je Hand den
+Moment der engsten Fingeröffnung suchen und dort den Schwerpunkt der drei Fingerkuppen
+nehmen. Dort muss in der echten Aufnahme ein Würfel gelegen haben. Implementiert in
+`find_grasp_points` / `place_cubes` in
+[`render_cotrain_dataset.py`](../../Simulation/g1_dex3_sim/render_cotrain_dataset.py).
+
+**Warum es nicht trägt.** `np.argmin` sucht das Minimum über die **ganze** Episode. Bei einem
+Pick-and-Place bleibt die Hand vom Zugreifen bis zum Ablegen geschlossen — die Öffnungsspur
+hat ein **breites Tal, keinen Ausschlag**. Wo innerhalb dieses Tals das Minimum liegt,
+entscheidet minimales Nachdrücken, ist also praktisch eine Zufallsstichprobe irgendwo auf dem
+Transportweg. Gemessen am Lauf vom 2026-08-17 (60 Episoden, 116 gültige Griffe):
+
+| `close_step` / Episodenlänge | p10 | p25 | Median | p75 | p90 |
+|---|---|---|---|---|---|
+| | 13 % | 21 % | **50 %** | 78 % | 85 % |
+
+**48 von 116 Griffen liegen jenseits von 60 % der Episode, 21 jenseits von 80 %.** Ein Pick
+kann dort nicht sein.
+
+Zwei weitere Fehler kommen dazu:
+
+- **z wird weggeworfen.** `place_cubes` nimmt nur x/y und setzt z auf die Tischauflage.
+  Schließt die Hand 15 cm über dem Tisch, landet der Würfel 15 cm *unter* den Fingern.
+- **Ein Greifpunkt je Hand.** „Stack three block" braucht zwei bis vier Pick-and-Place-Zyklen.
+  Für jeden Griff außer einem pro Hand liegt kein Würfel — und Würfel 2 wurde ohnehin
+  zufällig „daneben" gelegt.
+
+Beobachtbare Folge: der Arm greift ins Leere, in x, y **und** z.
+
+### 2.2 Versuch 2: Nur bis zum Griff rendern (`--stop-at-grasp`)
+
+**Idee.** Frames ab dem Griff sind falsch beschriftet, weil ab dort die Kontaktphysik über
+die Würfellage entscheidet — und die greift im Replay meist gar nicht: bei **101 von 116
+Griffen** bleibt die engste erreichte Kuppenöffnung über 6 cm, bei 5 cm Würfelkante. Also die
+Episode am frühesten `close_step` abschneiden.
+
+**Warum es nicht reicht.** Es repariert die Beschriftung *nach* dem Griff, sagt aber nichts
+darüber, ob der Würfel an der richtigen Stelle liegt. Liegt er falsch, sind auch die
+Anfahrt-Frames falsch. Der Schnitt ist weiterhin sinnvoll (er bleibt im Renderer), aber er
+war nie der Kern des Problems.
+
+### 2.3 Was beide gemeinsam haben
+
+Beide versuchen, die Würfellage aus der **Roboterbewegung** zu erschließen. Die Bewegung
+enthält diese Information nur indirekt und mehrdeutig. Der Datensatz enthält sie direkt —
+**im Bild**.
+
+---
+
+## 3. Das aktuelle Verfahren
+
+Implementiert in
+[`extract_block_layout.py`](../../Simulation/g1_dex3_sim/extract_block_layout.py) (Detektion,
+Rückprojektion) und [`camera_geometry.py`](../../Simulation/g1_dex3_sim/camera_geometry.py)
+(Kameramodell). Beide brauchen **kein Isaac Lab und keine GPU** — das ist Absicht, siehe §7.
+
+```
+Realvideo Episode n, Frame 0
+   │
+   ├─ (a) HSV-Segmentierung rot / grün / gelb           → binäre Masken
+   ├─ (b) größte zusammenhängende Fläche je Farbe       → Blob
+   ├─ (c) Schwerpunkt des Blobs                         → Pixel (u, v)
+   ├─ (d) Pixel → Kamerastrahl → Schnitt mit z = 0.915  → (x, y) env-lokal
+   ├─ (e) Bias-Korrektur (aus dem Abnahme-Test)         → (x, y) korrigiert
+   └─ (f) Mittel über beide High-Kameras                → layout.json
+                                                             │
+   render_cotrain_dataset.py --layout  →  place_cubes  ←──────┘
 ```
 
-Die Auswahl ist bewusst getrennt:
+### (a) Farbsegmentierung
 
-- `REPLAY_CALIBRATION_NUM_EPISODES=40` wählt ab Episode 0 ausschließlich die
-  Kalibrierungsmenge.
-- `REPLAY_NUM_EPISODES`, `REPLAY_START_EPISODE` und `REPLAY_EPISODE_IDS` wählen ausschließlich
-  die später zu rekonstruierenden und zu rendernden Ziel-Episoden.
+Die drei Würfel sind rot, grün und gelb; der Tisch ist weiß, die Hände sind schwarz, die Arme
+grau. In HSV trennt das sauber: Tisch und Arme scheitern an der Sättigung, die Hände am
+Helligkeitswert.
 
-Eine Ziel-Episode darf auch in den 40 Kalibrierungsepisoden enthalten sein. Der Holdout prüft die
-Generalisierung der Homographie innerhalb der Kalibrierungsmenge; er ist kein Train/Test-Split des
-späteren Replay-Datensatzes.
-
-## 2. Anker aus Bild und sparsamer FK
-
-### 2.1 Bewegungsbeginn und stationäre Bildmessung
-
-`collect_replay_anchors.py` verfolgt rot, grün und gelb in beiden Kopfkameras bei halber
-Auflösung. Die frühe Basisposition ist der Median der ersten zehn gültigen Messungen. Ein
-Bewegungsbeginn wird erst akzeptiert, wenn der Farbmittelpunkt mindestens 8 px verschoben bleibt
-und das für fünf aufeinanderfolgende Frames. Die Onsets der beiden Kameras dürfen höchstens
-zwölf
-Frames auseinanderliegen.
-
-Die Oberseitenmessung verwendet ausschließlich Frames vor dem jeweiligen Kamera-Onset. Sie
-benötigt mindestens fünf räumlich konsistente Messungen; Bildrandtreffer und Messungen mit mehr
-als
-12 px Abstand zum Median werden verworfen. Fehlt ein Onset, können frühe Frames im Bericht
-erscheinen, aber nicht als Kalibrierungsanker verwendet werden.
-
-### 2.2 Sparse Direct-State-FK
-
-Rund um den visuellen Onset werden Schließintervalle im aufgezeichneten Gelenkzustand gesucht. Nur
-deren Anfangs- und Endzustände sowie drei Zustände um das **Ende der Schließbewegung** (dessen
-Frame ±2, nach oben auf den Onset begrenzt) werden direkt in Isaac gesetzt. Es findet kein
-Action-Replay statt. Der Ankerzeitpunkt ist bewusst das Schließende und nicht der Onset: im
-Abnahmelauf 2026-08-22 lagen dazwischen neun bis achtzehn Frames, in denen die Hand den Würfel
-bereits anhob — alle zehn damals akzeptierten Anker waren dadurch nach vorne und oben versetzt.
-
-Ein Anker wird nur akzeptiert, wenn:
-
-- eine Hand mindestens 6 mm schließt;
-- ihre Schließung mindestens 2 mm stärker als die andere Hand ist;
-- die drei echten Fingerkuppen verfügbar sind;
-- ihr Schwerpunkt in demselben Arbeitsraum liegt, den später auch die rekonstruierte Würfelpose
-  erfüllen muss (x = 0,25–0,45 m, y = −0,25–0,25 m), und in z = 0,860–0,945 m, also am ruhenden
-  Würfel (Tischplatte 0,870 m, Würfeloberseite 0,920 m, je eine halbe Kantenlänge Toleranz);
-- beide Kameras einen ausreichend ähnlichen Bewegungsbeginn und stabile Vorher-Pixel liefern.
-
-Der Anker besteht aus Episode, Farbe, Onset, Hand, den beiden Pixelmessungen und dem Median der
-Fingerkuppenpositionen. Originalaktionen werden nur gehasht und nach der Verarbeitung erneut auf
-Unverändertheit geprüft.
-
-## 3. Homographie und Abnahme
-
-Je Kopfkamera wird mit RANSAC eine projektive Abbildung von Pixel `(u, v)` nach env-lokalem
-Tischpunkt `(x, y)` gelernt. Der RANSAC-Inlier-Schwellwert beträgt 2 cm. Der Split erfolgt auf
-vollständigen Episoden: 80 % Fit, 20 % Holdout, deterministisch mit Seed 17.
-
-`geometry_calibration.json` wird nur geschrieben, wenn alle Bedingungen gelten:
-
-| Gate | Grenzwert |
-|---|---:|
-| Fit-Anker / Fit-Episoden | mindestens 24 / 8 |
-| Holdout-Anker / Holdout-Episoden | mindestens 6 / 3 |
-| Arbeitsraumabdeckung je Kamera | mindestens 12 cm in x und y |
-| Ankerverteilung je Kamera | Nebenachsenstreuung ≥ 3 cm; größte Lücke je Hauptachse ≤ 40 % der Spannweite (ab 8 Ankern) |
-| Holdout-Fehler je Kamera | Median ≤ 1,5 cm, p90 ≤ 3 cm |
-| Differenz der Kameraschätzungen im Holdout | Median ≤ 2 cm, p90 ≤ 3 cm |
-
-Das Ergebnis hat `version: 4`, `method: "pick_anchored_homography"` und `valid: true`. Ein
-fehlgeschlagener Lauf schreibt weiterhin den vollständigen `calibration_report.json`, aber keine
-verwendbare Kalibrierungsdatei. Eine eventuell vorhandene ungültig gewordene Ausgabedatei wird
-entfernt.
-
-Die aus einer achsenparallelen Bounding-Box geschätzte 5-cm-Würfelkante ist nur noch Diagnose. Der
-fehlgeschlagene Lauf mit 3,68 cm zeigte, dass Perspektive, Gier und unvollständige Oberseiten diese
-Skalenschätzung verzerren. Sie verändert deshalb ausdrücklich keine Intrinsics und erzeugt keine
-FOV-Korrektur.
-
-## 4. Anfangsposen der Ziel-Episoden
-
-`replay-poses` verfolgt jede Farbe in jeder Ziel-Episode erneut. Es verwendet mindestens fünf
-stabile Messungen vor dem jeweiligen Bewegungsbeginn und wendet die geprüfte Homographie der
-jeweiligen Kamera an.
-
-- Liefern beide Kameras eine Position, wird ihr Median verwendet. Mehr als 3 cm Differenz verwirft
-  den Würfel.
-- Liefert nur eine Kamera eine Position, sind mindestens fünf echte Top-Face-Detektionen nötig.
-  Verwendet wird dann ausschließlich der transformierte Median dieser Top-Face-Pixel, nicht ein
-  Full-Blob-Median.
-- Das Ergebnis muss innerhalb x = 0,25–0,45 m und y = −0,25–0,25 m liegen.
-- Fehlt einer der drei Würfel, erhält die Episode `status: "skipped"` und wird nicht gerendert.
-
-`cube_poses.json` hat `version: 4` und `method: "stationary_top_face_homography"`. Die Höhe bleibt
-fest beim Würfelmittelpunkt z = 0,915 m, die Orientierung vorerst bei Identität. Getrennte
-Kameraschätzungen, verwendete Frames und Detektionsquelle stehen am Block. Die
-`pick_anchor_diagnostics` stehen dagegen einmal im jeweiligen Episode-Eintrag. Auf Dokumentebene
-stehen Quelldatensatz, Kalibrierungspfad und `calibration_sha256`.
-
-Die Position stammt vollständig aus der Homographie. Es gibt keine 75/25-Mischung mit einem
-Fingerkuppenschwerpunkt, keinen Greifpunkt-Fallback und keine Zufallsposition.
-
-## 5. Physikbasierte Validierung
-
-Der Renderer setzt Roboter und Würfel vor Frame 0. Danach gibt es keine weiteren Pose-Schreibungen,
-kein Tracking und kein kinematisches Attach. Jede Bewegung eines Würfels stammt ausschließlich aus
-PhysX unter den unveränderten Originalaktionen.
-
-Vor dem Action-Replay werden die gesetzten Würfel in beiden Kopfkameras gegen ihre erwartete
-Projektion geprüft. Die Abnahme verlangt sechs Messungen sowie höchstens 5 px Median und 10 px
-p90.
-Im Videomodus bleibt eine Abweichung als sichtbare Diagnose erlaubt; im Dataset-Modus wird die
-Episode verworfen.
-
-Während des Replays werden Würfel- und Fingerkuppenpositionen nur gelesen. Das Manifest Version 2
-bewertet den erwarteten ersten Pick aus den Ankerdiagnosen. Erfolg bedeutet: Der erwartete Würfel
-wird nach diesem Pick mindestens 2 cm angehoben und bleibt mindestens fünf aufeinanderfolgende
-Frames über dieser Schwelle. Diese Metrik verändert die Simulation nicht.
-
-Vor dem Rendern werden beide v4-Eingabeartefakte, ihre Methoden, ihr Quelldatensatz und der
-Kalibrierungs-Hash in `cube_poses.json` geprüft. Overwrite umgeht diese Prüfung nicht. Im Manifest
-Version 2 stehen `calibration_sha256` und `poses_sha256` auf oberster Ebene, nicht in den
-Episode-Einträgen. Alte Renderausgaben werden nur fortgesetzt, wenn diese Felder und die
-Griffvalidierung kompatibel sind. Andernfalls sind ein neues Ausgabeverzeichnis oder
-`REPLAY_OVERWRITE=1` erforderlich.
-
-## 6. Historische Ansätze und ihr Befund
-
-Die folgenden Verfahren sind dokumentierte Fehlversuche oder Ablationen, nicht der aktuelle Pfad.
-
-### 6.1 Globales Minimum der Fingeröffnung aus `scan.json`
-
-Das Minimum liegt bei einem Pick-and-Place oft irgendwo im breiten geschlossenen Transportintervall
-statt am Pick. Im Lauf vom 2026-08-17 lagen 48 von 116 erkannten Griffen hinter 60 % der Episode,
-21 sogar hinter 80 %. Zusätzlich wurde z verworfen und nur ein Greifpunkt je Hand erzeugt. Dieser
-Ansatz darf nicht mehr als Würfelposition verwendet werden.
-
-### 6.2 Nur bis zum Griff rendern
-
-`--stop-at-grasp` begrenzt falsche Frames nach dem Griff, rekonstruiert aber keine Anfangsposition.
-Liegt der Würfel falsch, ist bereits die gesamte Anfahrt falsch. Der Schnitt kann für den alten
-Co-Training-Renderer weiterhin eine Sicherheitsmaßnahme sein, gehört aber nicht zum neuen
-physikbasierten Replay.
-
-### 6.3 Blob-Schwerpunkt plus analytisches Pinhole-Modell
-
-Der Schwerpunkt der sichtbaren Silhouette enthält Ober- und Seitenflächen und liegt nicht auf der
-Projektion des Würfelmittelpunkts. Eine additive Bias-Korrektur ist nur lokal gültig. Außerdem
-kann
-ein in sich exakter `project`/`backproject`-Roundtrip einen gemeinsamen Fehler der realen und
-simulierten Kamerapose nicht erkennen.
-
-`camera_geometry.py` bleibt für Projektion, Debugging und Renderer-Abnahme verfügbar. Die
-produktive Pixel-zu-Tisch-Abbildung der Version 4 kommt jedoch aus Holdout-geprüften Pick-Ankern.
-
-### 6.4 Oberseiten-AABB als FOV-Kalibrierung und 75/25-Fusion
-
-Die zwischenzeitliche Version schätzte die Kameraskala aus der größten achsenparallelen
-Oberseiten-Ausdehnung und kombinierte erkannte Würfel pauschal zu 75 % mit einem Greifpunkt. Beide
-Schritte sind entfernt: Die AABB ist bei Perspektive und Würfelgier kein zuverlässiges
-Längennormal, und ein Greifpunkt ist ohne eindeutige zeitliche Farbzuordnung keine Startpose.
-
-## 7. Gierwinkel um die eigene z-Achse
-
-**Stand:** 2026-08-25 · gebaut und synthetisch abgenommen · auf Realbildern noch maskenlimitiert
-
-Bis zum 2026-08-25 rekonstruierte keiner der beiden Pfade die Drehung. `place_cubes` schrieb ein
-festes Identitäts-Quaternion, `_reset_idx` ebenso — jeder Würfel stand in jedem Sim-Lauf
-achsparallel zur Tischkante, während er im Realdatensatz oft schräg liegt. §6.4 nannte die
-Würfelgier bereits als Grund, warum die Oberseiten-AABB kein Längennormal ist; geschätzt wurde
-sie trotzdem nie.
-
-Das ist derselbe Fehler wie eine falsche Position, nur im Drehfreiheitsgrad. Das Co-Training-Paar
-ist (Sim-Bild, **Real**-Aktion): die Realaktion richtete die Hand nach einem Würfel bei ψ aus, das
-gerenderte Bild zeigt ihn bei 0°, und das Paar lehrt eine Zuordnung von Aussehen zu Handdrehung,
-die es nicht gibt. Für den Griff kommt hinzu: über die Fläche ist ein 5-cm-Würfel 5,0 cm breit,
-über die Diagonale 7,1 cm — steht er falsch, trifft die Hand eine Ecke statt einer Fläche.
-
-### 7.1 Warum der naheliegende Weg nicht taugt
-
-`replay_calibration.top_face_blob` berechnet seit jeher eine Min-Area-Box über die Deckfläche und
-legt ihre Achse als `axis_uv` ab. Als Würfelorientierung ist sie aus zwei geometrischen Gründen
-untauglich:
-
-- **Sie misst im Bild**, also mitsamt der perspektivischen Verzerrung der Deckfläche.
-- **Sie arbeitet auf einer binarisierten Kleinmaske.** Eine Min-Area-Box bevorzugt dort die
-  Bildachsen, weil das Pixelraster selbst achsparallel ist.
-
-> **Warnung zur Beweislage.** Beim ersten Anlauf hatte ich das an den PNGs in
-> `runs/20260822/01/calibration_report/` „gemessen" (101 von 120 exakt 0,0°). Diese Dateien sind
-> **annotierte Debug-Ausgaben**: 336 Pixel exakt (255,255,255) bilden einen Rechteckrahmen, 76 Pixel
-> sind exakt (255,0,0). Der eingezeichnete Farbring ist damit der hellste gesättigte Bereich, und
-> der Deckflächenschnitt griff den **Marker** statt der Würfeloberseite. Ob `axis_uv` auf echten
-> Frames einrastet, ist folglich ungemessen — die beiden Punkte oben stehen auf Geometrie, nicht auf
-> Daten. Wer hier Zahlen braucht, nimmt Videoframes über `detect`, nicht die Debug-PNGs.
-
-### 7.2 Das Verfahren
-
-`extract_block_layout.yaw_from_top_face`, zwei Entscheidungen:
-
-1. **Erst zurückprojizieren, dann messen.** Die Deckflächenpixel werden auf `Z_CUBE_TOP` = 0,920
-   geschnitten. Auf ihrer eigenen Ebene ist die Fläche wieder ein echtes Quadrat.
-2. **Das 4. Winkelmoment statt einer Box.** Ein Quadrat ist 4-zählig, seine Richtung steckt in
-   genau dieser Harmonischen: `Σ (dx + i·dy)^4` hat die Phase 4·ψ. Jedes Pixel geht mit stetigem
-   Gewicht ein, es gibt kein Raster zum Einrasten.
-
-Davor steht der **Deckflächenschnitt**, und der war bis zum 2026-08-25 der eigentliche Engpass. Nur
-die Deckfläche liegt auf `Z_CUBE_TOP`; Seitenflächen-Pixel dorthin zurückzuprojizieren zieht sie zu
-einem Schweif von der Kamera weg. Getrennt wurde über die Helligkeit — aber mit einer **festen
-Quote**, dem 70. Perzentil, also „die hellsten 30 %". Bei 53,6° Blickhöhe macht die Deckfläche je
-nach Gierwinkel 49–58 % der Silhouette aus; die Quote nahm damit gut die Hälfte davon. Vorhergesagte
-Verkürzung linear 1,35, im Probelauf gemessen 1,42 (3,51 cm statt 5,0). Die Schwelle kommt jetzt aus
-der Helligkeitsverteilung selbst (Otsu). Eine Zahl durch eine andere zu ersetzen wäre dieselbe
-Wette gewesen — `topface` misst deshalb nach (§7.3).
-
-Dazu zwei Prüfmerkmale, weil die Phase allein nicht sagt, ob die Punktwolke überhaupt ein Quadrat
-ist. **Formprobe** = Diagonale/Kante der zurückprojizierten Fläche; ideal √2 = 1,41, nahe 1 heißt
-„keine Kantenrichtung vorhanden". Ist sie kleiner als 1, ist die Phase um 45° umgeschlagen und
-wird zurückgedreht. **Zwei-Kamera-Tor**: beide Kopfkameras müssen sich einig sein. Ihre Fehler
-sind weitgehend unabhängig, weil die Verschmierung durch die Seitenflächen jeweils anderswohin
-zeigt.
-
-Wichtig: die Perzentil-Variante der Breite (5.–95.) **zerstört** die Unterscheidung — bei
-gefüllten Flächen liegt das Verhältnis dann bei 1,08 statt 1,41, weil die Projektion quer zur
-Diagonale dreieckig verteilt ist und quer zur Kante gleichverteilt. Es muss die volle Spannweite
-sein.
-
-### 7.3 Abnahme
-
-`extract_block_layout.py selftest` (bzw. `server_rl_run.sh yawcheck`) rendert Würfel bekannter
-Drehung durch dasselbe Kameramodell und misst zurück — über den vollen Weg inklusive Farbmaske,
-Blobwahl und Deckflächenschnitt, nicht nur über die Formel. 18 Winkel × 5 Orte × 2 Kameras:
-
-| Maskenrauschen | Tor behält | Fehler Median | p90 | Ausreißer > 20° |
+| Würfel | Env-Objekt | Farbton H | S ≥ | V ≥ |
 |---|---|---|---|---|
 | 0,00 | 99 % | 0,08° | 0,32° | 0/89 |
 | 0,01 | 99 % | 0,08° | 0,27° | 0/89 |

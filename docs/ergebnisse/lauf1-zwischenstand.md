@@ -1,5 +1,10 @@
 # Zwischenstand — erster Trainingsdurchlauf (`g1_dex3_blockstacking_v1`)
 
+> **TL;DR:** Momentaufnahme-Auswertung (Health-Check) des damals noch laufenden ersten Trainings —
+> LR-Schedule, Batch-Size- und Eval-Empfehlungen. Inzwischen überholt durch die Abschluss-Auswertung
+> in [lauf1-auswertung.md](lauf1-auswertung.md); bleibt als Trainings-Snapshot mit interaktiven
+> Kurven erhalten.
+
 **Erstellt:** 2026-06-02 · **Aktualisiert:** 2026-06-03 · **Datenquelle:** W&B-Projekt
 `gr00t-g1-dex3` (Entity `projektarbeit_humanoider_roboter`) · **Run-ID:** `i6n1t613`
 

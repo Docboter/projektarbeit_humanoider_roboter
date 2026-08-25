@@ -1,5 +1,9 @@
 # Auswertung — erster vollständiger Trainingsdurchlauf (`g1_dex3_blockstacking_v1`)
 
+> **TL;DR:** Abschluss-Auswertung des ersten kompletten Trainingslaufs (175.000 Steps, frozen
+> Vision-Encoder): W&B-Metriken, Verhaltens-Evaluation (Closed-Loop, Replay, Open-Loop) und Diagnose
+> des Domain-Gaps. Ausgangsdokument, auf das spätere Läufe verweisen; Kurzfazit in §1.
+
 **Erstellt:** 2026-06-03 · **Run-ID:** `i6n1t613` (W&B-Projekt `gr00t-g1-dex3`, Entity
 `projektarbeit_humanoider_roboter`) · **Modell:** GR00T N1.6 (3,29 Mrd. Parameter),
 Partial-Finetune auf Unitree G1 + DEX3, Task „stack the blocks".

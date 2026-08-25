@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# TL;DR: Läuft im GR00T-venv: liest Pro-Gruppe State/Action-Dimensionen aus Checkpoint-Statistiken.
 """
 Liest die Pro-Gruppe-State-/Action-Dimensionen eines GR00T-Checkpoints für ein
 Embodiment aus den Normalisierungs-Statistiken des Prozessors und schreibt sie

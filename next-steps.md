@@ -1,5 +1,9 @@
 # Nächste Schritte
 
+> **TL;DR:** Offene-Punkte-Liste des Projekts: aktueller Stand der Messkette, priorisierte
+> nächste Schritte und offene Widersprüche zwischen den Ergebnisdokumenten. Bezugspunkt für
+> die Prioritätensetzung, kein Ergebnisbericht selbst.
+
 **Stand:** 2026-08-14 · Grundlage: Ergebnis-Dokumente unter [`docs/ergebnisse/`](docs/ergebnisse/README.md),
 [RL-Plan](docs/weiterfuehrend/reinforcement-learning-plan.md), Trainings-Launcher unter
 [`Training/scripts/`](Training/scripts/).

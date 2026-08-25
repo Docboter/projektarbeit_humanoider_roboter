@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# TL;DR: SLURM-Job-VORLAGE für RL-Fine-tuning (FPO) auf KISSKI — braucht eine RT-Core-GPU-Partition.
 # kisski_rl_submit.sh — SLURM-Job für RL-Fine-tuning (FPO) des GR00T-Action-Heads.
 #
 # ⚠️  VORLAGE / GRUPPE-0-ENTSCHEIDUNG OFFEN ⚠️

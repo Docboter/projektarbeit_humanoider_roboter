@@ -28,6 +28,59 @@ Detailed guides (all prose docs live under [`docs/`](docs/README.md)):
 
 ## Key commands
 
+### Guided menus — `./run.sh` is the one entry point
+
+[`./run.sh`](run.sh) asks which domain and hands over to the matching host launcher,
+which continues with its own menu. The list is grouped by *what*, not *where*:
+**Simulation** runs only on the IKR server (Docker + RT cores), **Training** runs either
+locally or on KISSKI. The cluster cannot do the sim — A100/H100 have no RT cores and the
+jupyter partition's RTX 5000 is Turing, a generation too old — so `kisski-sim` and
+`kisski-rl` are marked `--blocked` in their specs: still listed, greyed, with the reason
+and a pointer to the IKR path. It only picks — it builds
+no `docker run`, sets no training parameter and holds no action list. Domain → launcher
+mapping lives in [`tools/menu/_domains.spec`](tools/menu/_domains.spec), not in the script.
+
+`[←]` (or `[z]`) always steps one level back: action group → group overview → main menu.
+That works because in menu mode the launcher runs as a child process and signals "back"
+with exit code `MENU_RC_BACK` (97); without a menu `run.sh` still `exec`s, so exit codes
+and signals pass through untouched.
+
+```bash
+./run.sh                                      # domain -> action -> parameters
+./run.sh sim eval                             # straight to eval's parameters
+MENU=0 ./run.sh sim eval                      # off — behaves exactly as before
+```
+
+Every host launcher also still walks you through on its own when started without
+arguments and a human is at the terminal. The menu only sets env vars and then runs the
+unmodified path, and it always prints the equivalent one-liner so you can skip it next time.
+
+```bash
+./Simulation/server_rl_run.sh                 # action list + questions
+./Training/setup_and_train_DockerHub-pull.sh  # training parameters, VRAM-aware suggestion
+./Training/kisski_menu.sh --dry-run           # builds the sbatch line (login node only)
+```
+
+Lists are arrow-key navigable; typing the number always works too. A long action list
+(sim: 19 actions) is split into a group level that previews the action names it contains,
+so the `preflight → setup → cams → gap → eval → layout → render → rl` chain stays
+readable; `[*]` switches to the full flat list, `[←]`/`[z]` goes back, `?<nr>` explains a
+whole group. Short lists (train, kisski: 4 actions) stay flat.
+
+Switches: `MENU=0` / `--no-menu` disables the menu, `MENU_ARROWS=0` only the arrow keys,
+`MENU_NEST=0`/`1` forces flat/nested (auto: nest above `MENU_NEST_MIN`=10 actions and 3+
+groups). Nothing ever appears in a container, under SLURM, in CI, or without a TTY — that
+also means the arrow layer stays out of the way whenever `TERM` is `dumb` or unset.
+
+Engine and parameter specs live in [`tools/`](tools/) (host-only, never copied into an
+image); `tools/gen_docs.sh` checks spec defaults against the scripts and the docs, and
+`tools/test_menu.sh` runs the 81-check acceptance suite. Design and deviations:
+[`docs/weiterfuehrend/cli-menuefuehrung.md`](docs/weiterfuehrend/cli-menuefuehrung.md)
+(§13 covers the router, the arrow keys, the group level, the back path, why KISSKI sits under
+Training, why every measuring run now asks which checkpoint it measures — §13.7 — and how the
+menu suggests the checkpoints actually present under `HOST_DATA_DIR/checkpoints/`, so switching
+between two of them is copying a name rather than looking it up — §13.8).
+
 ### Run the full pipeline (download → convert → train)
 
 ```bash
@@ -172,10 +225,22 @@ Config: [`app/Groot-1.6/pyproject.toml`](app/Groot-1.6/pyproject.toml) under `[t
 **Commit messages: English.** Subject and body. This holds regardless of the language of the
 code comments or docs the commit touches — those stay German where they already are.
 
+**TL;DR convention (every doc page and every script).** A Markdown page under `docs/` (plus
+`README.md`, `next-steps.md`) starts with a `> **TL;DR:** …` blockquote directly under its H1:
+1–3 German sentences — what the page is, when to read it, what is *not* here (link). A script
+under `Training/`, `Simulation/`, `tools/` (`.sh`/`.py`/`.ps1`/`.spec`, `Dockerfile*`,
+`docker-compose.yml`) carries `# TL;DR: …` as the first comment line after the shebang
+(line 2 of a Dockerfile, below `# syntax=`). New files follow suit; `tools/check_tldr.sh` fails
+when one is missing and `tools/check_tldr.sh --list` prints the whole overview.
+
 ## Architecture
 
 ```
 repo root
+├── run.sh                              # ★ THE entry point: asks Simulation/Training/KISSKI,
+│                                       #   then execs the matching launcher. Picks only —
+│                                       #   no docker run, no action list. Domain -> launcher
+│                                       #   mapping: tools/menu/_domains.spec
 ├── README.md                           # Slim landing page (overview + quickstart + doc links)
 ├── .env.local.example                  # Template for host-specific config (copy to .env.local,
 │                                       #   gitignored). Read by Simulation/server_rl_run.sh only
@@ -208,11 +273,29 @@ repo root
 │                                       #   every path from ONE KISSKI_PROJECT_DIR and find their SIF
 │                                       #   via KISSKI_SIF_DIR ($HOME/images first). Contains the
 │                                       #   migration checklist for the IKR server and KISSKI
+├── tools/                              # ★ Host-only helpers — NEVER copied into an image,
+│   │                                   #   so changes here never need a rebuild
+│   ├── lib_menu.sh                     # Guided-CLI engine (pure bash, stderr-only UI).
+│   │                                   #   Also holds menu_select (arrow keys, falls back to
+│   │                                   #   number entry) and the domain layer behind run.sh
+│   ├── lib_env_local.sh                # Shared .env.local loader (was duplicated /
+│   │                                   #   missing; the training launchers had none)
+│   ├── gen_docs.sh                     # Drift check: spec default vs. ${VAR:-…} vs. docs
+│   ├── test_menu.sh                    # The §8 acceptance plan, runnable (30 checks)
+│   ├── check_tldr.sh                   # TL;DR convention guard; --list = one-screen overview
+│   ├── menu/_domains.spec              # ★ Domain list for run.sh (launcher, --needs, help text)
+│   └── menu/*.spec                     # Parameter specs — one file per action
 ├── Training/                           # Everything training-related (build, run scripts)
 │   ├── Dockerfile                      # Defines image; ENTRYPOINT = /scripts/entrypoint.sh
 │   │                                   #   build context = Training/ (so COPY scripts/ works)
+│   ├── .dockerignore                   # Keeps the build context at scripts/ — the host
+│   │                                   #   launchers next to it never belong in the image
 │   ├── docker-compose.yml              # Optional (dev convenience; no host volume mounts)
 │   ├── kisski_submit.sh                # SLURM batch script for KISSKI HPC cluster
+│   ├── kisski_menu.sh                  # ★ Login-node helper: asks partition/walltime and
+│   │                                   #   builds the `sbatch --export=ALL …` line.
+│   │                                   #   Standalone on purpose — kisski_submit.sh must
+│   │                                   #   stay scp-able alone, so it gets no tools/ dep
 │   ├── kisski_open_loop_eval.sh        # SLURM job: open-loop checkpoint eval (open_loop_eval.py, no server)
 │   ├── kisski_rl_submit.sh             # SLURM job: RL fine-tuning (FPO) — sim SIF, RT-core GPU guard (TEMPLATE)
 │   ├── update_image.sh                 # Host build/push tool (must sit next to Dockerfile)

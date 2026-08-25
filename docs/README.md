@@ -1,10 +1,19 @@
 # Dokumentation — Übersicht
 
+> **TL;DR:** Globaler Navigations-Hub für die gesamte Projekt-Dokumentation, thematisch nach
+> Training, Simulation, Ergebnisse und Weiterführende Arbeiten sortiert. Hier einsteigen, um
+> die passende Detail-Anleitung zu finden.
+
 Navigations-Hub für die gesamte Projekt-Dokumentation. Das [Projekt-README](../README.md) im
 Repo-Root gibt den Schnellstart; hier liegen die ausführlichen Anleitungen, thematisch sortiert.
 Die Gliederung folgt dem Projektverlauf: **Anleitung → Ergebnis → Ausblick**.
 Veraltete Inhalte werden nicht in den Dokumenten mitgeschleppt, sondern nach
 [historie.md](historie.md) ausgelagert (Changelog-Rohmaterial). *(Struktur-Stand: 2026-08-18)*
+
+> **Konvention — TL;DR zuerst:** Jede Doku-Seite beginnt unter ihrer Überschrift mit einem
+> `> **TL;DR:**`-Block (was ist das, wann lesen, was steht *nicht* hier), jedes Skript unter
+> `Training/`, `Simulation/`, `tools/` mit einer Zeile `# TL;DR: …` nach dem Shebang.
+> `tools/check_tldr.sh` prüft das, `tools/check_tldr.sh --list` druckt alle TL;DRs als Übersicht.
 
 ## Training (Fine-tuning von GR00T N1.6)
 
@@ -67,6 +76,8 @@ Diese Sammlung speist das gleichnamige Kapitel der Projektarbeit.
 | [weiterfuehrend/rl-anleitung.md](weiterfuehrend/rl-anleitung.md) | **RL-Bedienungsanleitung (operativ, schlank)** — Image bauen → BC-Checkpoint → RT-Core-GPU (eigener Docker-Server via `server_rl_run.sh` oder vast.ai) → RL starten → überwachen → Checkpoints sichern; plus Diagnose-Werkzeuge `gap`/`eval`/`grasp`/`span`. Die Lauf-Historie dazu: [ergebnisse/diagnose-chronik.md](ergebnisse/diagnose-chronik.md) |
 | [weiterfuehrend/lokomotion-recherche.md](weiterfuehrend/lokomotion-recherche.md) | **Lokomotions-Recherche** — Warum der Roboter fixiert ist, GR00T-N1.6-Whole-Body-Control (entkoppelt: RL-Beine + IK/VLA-Arme), Unitree-G1-Lokomotions-Stacks, Integrationspfade + Quellen |
 | [weiterfuehrend/livestream-plan.md](weiterfuehrend/livestream-plan.md) | **Livestream-Plan** — **Spur B** (MJPEG-Frame-Stream im Browser, `LIVE_VIEW=1`) ist für den RL-Lauf gebaut; **Spur A** (WebRTC-Echtzeit-Viewport) ist gebaut, aber auf Hardware ungetestet — inzwischen mit zwei Clients: nativer App und **Browser** (`webview`, Port 8210). Bedienung: [simulation/live-ansicht.md](simulation/live-ansicht.md) |
+| [weiterfuehrend/cli-menuefuehrung.md](weiterfuehrend/cli-menuefuehrung.md) | **Geführte CLI-Menüs (umgesetzt 2026-08-20, Router 2026-08-21)** — [`./run.sh`](../run.sh) ist der eine Einstiegspunkt: Domäne wählen, dann führt der jeweilige Launcher weiter. Skriptstart ohne Parameter führt durch die nötigen Werte und erklärt sie. Lange Aktionslisten bekommen eine Gruppenebene mit Vorschau der enthaltenen Aktionen (`[*]` = doch alles auf einen Schirm). `MENU=0` schaltet ab, `MENU_ARROWS=0` nur die Pfeiltasten, `MENU_NEST=0`/`1` die Schachtelung. `[←]`/`[z]` führt aus jeder Ebene zurück bis ins Hauptmenü. Parameter-Specs unter [`tools/menu/`](../tools/menu/) sind die einzige Quelle, `tools/gen_docs.sh` prüft sie gegen Skripte und Doku-Tabellen. §12 hält die Abweichungen vom Plan fest und zwei dabei gefundene Defekte im Trainings-Launcher, §13 den Router, die Pfeiltasten, die Gruppenebene, den Rückweg, die Einordnung von KISSKI unter „Training“ und (§13.7) den Checkpoint als Grundfrage jedes Messlaufs — `CHECKPOINT_PATH` ist der Hebel, `HF_CHECKPOINT_REPO` greift nur, solange der Pfad im Container fehlt |
+| [weiterfuehrend/wiki-migration-plan.md](weiterfuehrend/wiki-migration-plan.md) | **GitHub-Wiki-Migration (Plan)** — ob/wie sich `docs/` ins GitHub-Wiki übertragen lässt (eigenes Git-Repo, Link-Rewriting nötig, kein Auto-Sync); Alternative GitHub Pages/MkDocs. Reine Recherche, nichts umgesetzt |
 
 ## Querschnitt (Training + Simulation)
 
@@ -90,6 +101,11 @@ Diese Sammlung speist das gleichnamige Kapitel der Projektarbeit.
 
 ```
 /
+├── run.sh                     # ★ Der EINE Einstiegspunkt: fragt Simulation/Training/KISSKI
+│                              #   ab und übergibt an den passenden Host-Launcher. Wählt
+│                              #   nur — baut selbst nichts, kennt keine Aktionsliste.
+│                              #   [←] führt aus jeder Ebene zurück bis hierher.
+│                              #   Zuordnung Domäne → Launcher: tools/menu/_domains.spec
 ├── README.md                  # Projekt-Überblick & Schnellstart (Landing)
 ├── CLAUDE.md                  # Anweisungen für Claude Code
 ├── docs/                      # ▶ Diese Dokumentation
@@ -97,7 +113,7 @@ Diese Sammlung speist das gleichnamige Kapitel der Projektarbeit.
 │   ├── training/              # operative Trainings-Doku
 │   ├── simulation/            # operative Sim-Eval-Doku (+ archiv/)
 │   ├── ergebnisse/            # Auswertungen, Messungen, Methodik-Reviews
-│   ├── weiterfuehrend/        # Konzept-/Plan-Docs (RL, Lokomotion, Livestream)
+│   ├── weiterfuehrend/        # Konzept-/Plan-Docs (RL, Lokomotion, Livestream, CLI-Menüführung)
 │   ├── fehlerbehebung.md      # Querschnitt-Fehlerlösungen
 │   ├── portabilitaet.md       # Repo auf anderen Maschinen betreiben
 │   └── historie.md            # ausgelagerte veraltete Inhalte (Changelog-Rohmaterial)
@@ -125,6 +141,9 @@ Diese Sammlung speist das gleichnamige Kapitel der Projektarbeit.
 │   ├── g1_dex3_sim/           # Sim-Code (Env, Cams, Client, Eval, Replay)
 │   ├── camera_reference/      # Dataset-Referenzframes für Kamera-Kalibrierung
 │   └── scripts/               # In das vast.ai-Image kopiert (→ /scripts)
+├── tools/                     # Host-Helfer, nie im Image: Menü-Engine + Specs, gen_docs.sh,
+│                              #   test_menu.sh, check_tldr.sh (TL;DR-Konvention)
+│   └── menu/_domains.spec     #   Domänenliste für run.sh (Launcher, --needs, Erklärtext)
 ├── data/                      # Lokale Assets + Submodule (überwiegend gitignored)
 │   └── unitree_ros/           # Git-Submodul — Unitree-ROS (URDF-Quelle)
 └── app/                       # Git-Submodul, im Image geklont

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# TL;DR: Fasst Baseline- vs. optimierten Policy-Benchmark zu einem Speedup-Report zusammen.
 """Fuegt dem Policy-Benchmark den Closed-Loop-A/B-Durchsatz hinzu."""
 
 from __future__ import annotations

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# TL;DR: Liest Würfellagen aus Realbildern (Blob-Detektion + Rückprojektion) für den Renderer.
 """
 extract_block_layout.py — Würfellage aus dem REALBILD lesen, statt sie aus der Fingerbewegung zu raten.
 

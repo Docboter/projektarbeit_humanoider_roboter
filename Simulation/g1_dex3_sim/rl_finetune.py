@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# TL;DR: FPO-RL-Trainer fuer den GR00T-Action-Head auf Block-Stacking; `server_rl_run.sh rl`.
 """
 RL-Fine-tuning des GR00T-N1.6-Action-Heads auf Block-Stacking (FPO).
 

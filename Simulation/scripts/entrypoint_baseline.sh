@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# TL;DR: Sim-Container-Entrypoint: Baseline-Eval mit un-finetuntem GR00T + stock-G1-Dex1-Greifer.
 # entrypoint_baseline.sh — Sim-Container-Entrypoint für den BASELINE-Test:
 #   un-finetuntes GR00T-N1.6-3B + stock Unitree G1 mit Dex1-Parallelgreifer
 #   (Embodiment UNITREE_G1) auf dem Block-Stacking-Task.

@@ -1,5 +1,9 @@
 # Portabilität — das Repo auf einem fremden Rechner betreiben
 
+> **TL;DR:** Anleitung, um das Repo auf einem fremden Rechner oder KISSKI-Projekt zum Laufen
+> zu bringen: `.env.local` für den Docker-Server, `KISSKI_PROJECT_DIR`/`KISSKI_SIF_DIR` für
+> den Cluster, plus die Migrationsschritte für die bestehenden Maschinen.
+
 **Stand: 2026-08-18.** Bis zu diesem Datum enthielten mehrere Skripte fest verdrahtete
 Pfade auf genau *einen* Rechner bzw. *ein* HPC-Konto. Wer das Repo klonte, lief in
 `Permission denied` oder in Jobs, die gar nicht erst starteten. Dieses Dokument beschreibt
@@ -11,6 +15,17 @@ Pfade auf genau *einen* Rechner bzw. *ein* HPC-Konto. Wer das Repo klonte, lief 
 4. eine **Referenz aller Konfigurationsknöpfe** (§4).
 
 ---
+
+> **Nachtrag 2026-08-20 — `.env.local` gilt jetzt wirklich überall.** Bis zu diesem Datum
+> lasen nur [`server_rl_run.sh`](../Simulation/server_rl_run.sh) und
+> `server_robocasa_ref_run.sh` die Datei; in den Trainings-Launchern fehlte der Block
+> ganz, die unten beschriebene Vorrangregel galt dort also nicht. Ein in `.env.local`
+> hinterlegter `HF_TOKEN` wurde von
+> [`setup_and_train_DockerHub-pull.sh`](../Training/setup_and_train_DockerHub-pull.sh)
+> trotzdem abgefragt. Die Mechanik steckt jetzt einmal in
+> [`tools/lib_env_local.sh`](../tools/lib_env_local.sh) und wird von beiden Seiten
+> gesourct. Aufgefallen beim Umsetzen der
+> [CLI-Menüführung](weiterfuehrend/cli-menuefuehrung.md).
 
 ## 1. Was sich geändert hat
 

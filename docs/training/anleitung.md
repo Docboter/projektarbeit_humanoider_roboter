@@ -1,5 +1,9 @@
 # Anleitung — GR00T N1.6 Fine-tuning
 
+> **TL;DR:** Schritt-für-Schritt-Anleitung zum Starten des GR00T-N1.6-Fine-tunings über die
+> vier Wege (vast.ai, lokal per Skript, lokal per `docker run`, KISSKI) inkl. Speicher-Modell,
+> Daten-retten und FAQ. Erste Anlaufstelle vor dem ersten Trainingsstart.
+
 Diese Anleitung beschreibt Schritt für Schritt, wie du das Fine-tuning von **GR00T N1.6** für den Unitree G1 mit DEX3-Hand startest. Die Umgebung ist als autonomer Docker-Container aufgebaut: **du gibst Env-Vars an, der Container macht den Rest.**
 
 ## Speicher-Modell — wichtig vorab
@@ -13,6 +17,13 @@ Diese Anleitung beschreibt Schritt für Schritt, wie du das Fine-tuning von **GR
 - Vor dem Destroy → Checkpoints exportieren (siehe Abschnitt [Daten retten](#daten-retten)).
 
 ## Vier Wege zum Trainieren
+
+> **Ohne Parameter starten führt durch.** Ruft man eines der Host-Skripte ohne Argumente
+> auf, fragt es die nötigen Werte ab und erklärt sie (`?` bei einer Frage zeigt den
+> Langtext). Am Ende zeigt es den äquivalenten Ein-Zeiler an — beim dritten Mal kommt man
+> also ohne aus. `MENU=0` bzw. `--no-menu` schaltet es ab; im Container, unter SLURM und
+> ohne Terminal erscheint es nie. Die Beispiele unten funktionieren unverändert weiter.
+> Details: [cli-menuefuehrung.md](../weiterfuehrend/cli-menuefuehrung.md)
 
 - **Weg A — vast.ai** (oder andere Cloud-GPU-Anbieter): du brauchst nur das Image und einige Env-Vars
 - **Weg B — Lokales Training mit dem Launcher-Skript**: bequem unter Linux/macOS/WSL2

@@ -1,5 +1,10 @@
 # Closed-Loop-Simulation für G1 + Dex3 in Isaac Lab — Implementierungsplan
 
+> **TL;DR:** Archiviert: ursprünglicher Implementierungsplan für die Closed-Loop-Sim von G1+Dex3
+> in Isaac Lab, durch die tatsächliche Umsetzung überholt. Aktuelle Quelle:
+> [umsetzungsnotizen.md](../umsetzungsnotizen.md) und
+> [vastai-anleitung.md](../vastai-anleitung.md).
+
 > ⚠️ **ARCHIVIERT — Planungsdokument, durch die Umsetzung überholt.**
 > Die konkreten Werte, Schnittstellen und Abnahmekriterien hier entsprechen nicht mehr dem
 > gebauten Stand. **Quelle der Wahrheit sind [umsetzungsnotizen.md §10/§11](../umsetzungsnotizen.md)**

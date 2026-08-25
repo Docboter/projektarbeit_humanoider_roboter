@@ -1,5 +1,9 @@
 # Basismodell-Referenz-Eval — Ergebnis (Pipeline-Validierung)
 
+> **TL;DR:** Ergebnis der Pipeline-Validierung: das un-finetunte GR00T-N1.6-Basismodell zero-shot
+> auf dem RoboCasa-GR-1-Tabletop-Benchmark, um zu prüfen, ob die eigene GR00T-Inferenz-Pipeline
+> NVIDIAs publizierte Erfolgsquoten reproduziert. Befund im Kurzfazit direkt darunter.
+
 **Stand:** 2026-07-19 · **Status:** ✅ Phase 1 validiert — Aggregat-Mittel über 12 Tasks **47,7 % ≈ 47,8 %** erwartet. `full`-Lauf nach ~2 h **manuell** bei 12/24 Tasks gestoppt (Re-Run der restlichen 12 offen).
 
 Ausführung der in [basismodell-referenzaufgabe.md](../simulation/basismodell-referenzaufgabe.md) geplanten
@@ -7,7 +11,7 @@ Ausführung der in [basismodell-referenzaufgabe.md](../simulation/basismodell-re
 **RoboCasa GR-1 Tabletop** Benchmark (robosuite/MuJoCo) laufen lassen und prüfen, ob **unsere GR00T-Inferenz-
 Pipeline** NVIDIAs publizierte Erfolgsquoten reproduziert. Bedienung: [robocasa-referenz-eval.md](../simulation/robocasa-referenz-eval.md).
 
-> **TL;DR:** Unsere Pipeline reproduziert den Goldstandard **präzise**. Über 12 abgeschlossene Tasks (je 100 Ep.)
+> **Kurzfazit:** Unsere Pipeline reproduziert den Goldstandard **präzise**. Über 12 abgeschlossene Tasks (je 100 Ep.)
 > liegt der **gemessene Mittelwert bei 47,7 %** — praktisch identisch mit dem **erwarteten 47,8 %** (publizierter
 > Gesamt-Schnitt über 24 Tasks: 47,6 %). Der Einzeltask-Ausreißer (Top-Task 70 %/74 % statt 78,7 %) mittelt sich als
 > Rauschen heraus. Damit ist die GR00T-Inferenz-Hälfte (Checkpoint-Laden, `--embodiment-tag GR1`, Sim-Policy-Wrapper,

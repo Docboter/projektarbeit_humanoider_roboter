@@ -1,5 +1,10 @@
 # GR00T-N1.6: ONNX/TensorRT und schnelleres Sim-Rendering
 
+> **TL;DR:** Anleitung zur Inferenz-Optimierung: DiT-Aktionskopf per ONNX/TensorRT beschleunigen
+> (`GROOT_INFERENCE_BACKEND`) und Kamerarendering per `CAMERA_RENDER_EVERY_N` auf den Action-Chunk
+> synchronisieren. Für alle, die Latenz und Durchsatz der Closed-Loop-Sim-Eval verbessern wollen;
+> enthält die vollständigen IKR-Server-Kommandos.
+
 Die Optimierung hat zwei getrennte Teile:
 
 1. Der iterative **DiT-Aktionskopf** wird nach ONNX exportiert und als GPU-spezifische

@@ -1,5 +1,9 @@
 # Multi-GPU-Training (bis zu 4× A100)
 
+> **TL;DR:** Warum sich Multi-GPU-Training lohnt und was dafür umgesetzt wurde
+> (torchrun-Launcher, SLURM-Ressourcen, KISSKI-Defaults für 4× A100). Status: umgesetzt,
+> nicht nur geplant.
+
 Status: **umgesetzt** (Launcher + SLURM-Defaults auf 4× A100). Dieses Dokument hält fest, **warum**
 sich Multi-GPU lohnt und **was geändert wurde**. Die KISSKI-Defaults stehen jetzt auf 4× A100
 (`NUM_GPUS=4`, `GLOBAL_BATCH_SIZE=32`, `MAX_STEPS=44000`, `LEARNING_RATE=2e-4`); für 1× A100 genügt

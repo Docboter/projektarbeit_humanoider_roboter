@@ -1,5 +1,9 @@
 # RL-Fine-tuning (FPO) — Schritt-für-Schritt-Anleitung
 
+> **TL;DR:** RL-Bedienungsanleitung (operativ, schlank): Schritt für Schritt vom Image-Bau über den
+> BC-Checkpoint bis zum laufenden RL-Training auf einer RT-Core-GPU, plus die Diagnose-Werkzeuge
+> `gap`/`eval`/`grasp`/`span`. Status und Lauf-Historie im Banner direkt darunter.
+
 Ziel: Den feingetunten GR00T-N1.6-**BC-Checkpoint** per **Reinforcement Learning (FPO)** in der
 Isaac-Lab-Block-Stacking-Sim weiter verfeinern — auf einer **RT-Core-GPU** (L40 / RTX 4090 / A6000
 oder ein eigener Server mit RT-Core-GPU, z. B. RTX PRO 6000 Blackwell). RL trainiert die Policy
@@ -20,6 +24,13 @@ statt nur Aktions-Nachahmung (Hintergrund: [reinforcement-learning-plan.md](rein
 ---
 
 ## Überblick: Was läuft wo
+
+> **Ohne Parameter starten führt durch.** Ruft man eines der Host-Skripte ohne Argumente
+> auf, fragt es die nötigen Werte ab und erklärt sie (`?` bei einer Frage zeigt den
+> Langtext). Am Ende zeigt es den äquivalenten Ein-Zeiler an — beim dritten Mal kommt man
+> also ohne aus. `MENU=0` bzw. `--no-menu` schaltet es ab; im Container, unter SLURM und
+> ohne Terminal erscheint es nie. Die Beispiele unten funktionieren unverändert weiter.
+> Details: [cli-menuefuehrung.md](cli-menuefuehrung.md)
 
 ```
 vast.ai Instanz (L40 48 GB / RTX 4090 24 GB — RT-Cores PFLICHT)
@@ -163,6 +174,41 @@ den Checkpoint nach `CHECKPOINT_PATH` (`/data/checkpoints/<repo-name>`).
 > **`test`-Split** den besten 1–2 BC-Checkpoints filtern und dessen **Closed-Loop-Erfolgsrate als
 > Baseline** messen — RL wird daran gemessen (RL-Plan Gruppe 4/6).
 
+#### Zwischen mehreren Checkpoints umschalten
+
+Ein Checkpoint ist **ein Verzeichnis**. Mehrere liegen einfach nebeneinander unter
+`$RL_HOST_DATA_DIR/checkpoints/` (im Container `/data/checkpoints/`), umgeschaltet wird über
+`CHECKPOINT_PATH`:
+
+```bash
+CHECKPOINT_PATH=/data/checkpoints/vision-v2-30000 \
+NUM_EPISODES=10 EPISODE_LENGTH_S=40 ./Simulation/server_rl_run.sh eval
+```
+
+Im Menü fragt `eval` den Pfad als erstes Feld und **schlägt die tatsächlich vorhandenen
+Checkpoints vor** — den zuletzt geänderten als Vorgabe, die übrigen als Liste darunter. Ein
+Vergleichslauf ist damit Abschreiben statt Suchen.
+
+Einen zweiten Checkpoint danebenlegen — der einfachste Weg ist der Bind-Mount, kein `docker cp`:
+
+```bash
+mkdir -p "$RL_HOST_DATA_DIR/checkpoints/vision-v2-30000"
+rsync -a .../checkpoint-30000/ "$RL_HOST_DATA_DIR/checkpoints/vision-v2-30000/"
+```
+
+Alternativ aus einem anderen HF-Repo, dann **beide** Variablen zusammen:
+`HF_CHECKPOINT_REPO=<user>/<repo> CHECKPOINT_PATH=/data/checkpoints/<name> … setup`.
+Verschiedene Revisionen desselben Repos kann das Skript nicht — `--revision` wird nicht
+durchgereicht.
+
+Drei Dinge, die beim Umschalten zählen:
+
+| | |
+|---|---|
+| **Das USD wandert nicht mit** | `ASSET_PATH` wird zwar aus `CHECKPOINT_PATH` abgeleitet, das USD ist aber die Robotergeometrie und für alle Läufe dieselbe. Ein Ordner mit nur Gewichten hat es nicht — `ensure_black_hands` sucht es dann an den anderen bekannten Orten (`/workspace/assets`, `/data/assets`, zur Not vom Host). Man muss nichts weiter angeben. |
+| **Unvollständige Ordner werden erkannt** | Geprüft wird auf `config.json` + `*.safetensors` ohne `.incomplete`-Reste, nicht bloß auf die Existenz des Verzeichnisses. Ein abgebrochener Download wird fortgesetzt statt für fertig gehalten. |
+| **Platz** | ~9,8 GB je Checkpoint an Gewichten, ~23 GB mit `optimizer.pt` — die braucht nur ein Training-Resume, Sim und RL lesen sie nie. Bei drei Vergleichs-Checkpoints ist eine kleine Partition schnell voll, und genau daran brechen die Downloads ab. |
+
 ---
 
 ### Schritt 3 — USD-Asset erzeugen (einmalig)
@@ -282,8 +328,11 @@ tail -f "$RL_HOST_DATA_DIR"/logs/rl-*.log         # mitlesen
 ```
 
 Beide liegen unter dem gemounteten `/data`, sind also ohne `docker cp` direkt auf dem Host
-lesbar. Ohne `.env.local` ist `RL_HOST_DATA_DIR` standardmäßig `$HOME/groot-rl-data`;
-auf dem IKR-Server empfiehlt sich `$HOME/project/data/RL`.
+lesbar. `RL_HOST_DATA_DIR` ist standardmäßig `$HOME/groot-rl-data`; der host-spezifische Pfad
+gehört seit der Portabilitäts-Umstellung in `.env.local` und **nicht** mehr ins Skript (siehe
+[portabilitaet.md](../portabilitaet.md)). Auf dem IKR-Server ist das die Zeile
+`: "${RL_HOST_DATA_DIR:=/home/lmuecke/project/data/RL}"` — fehlt sie, liegt alles unter
+`$HOME/groot-rl-data`, und man sucht die Dateien an der falschen Stelle.
 
 #### Live zusehen (`LIVE_VIEW=1`) — dringend empfohlen beim ersten großen Lauf
 

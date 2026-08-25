@@ -1,5 +1,9 @@
 # GPU-Eignung für die Isaac-Sim-Closed-Loop-Sim auf GWDG
 
+> **TL;DR:** Archiviert: frühere GPU-Kompatibilitätsanalyse für die Isaac-Sim-Closed-Loop-Sim auf
+> GWDG, deren Kernempfehlung (Quadro RTX 5000) inzwischen widerlegt ist. Aktuelle Quelle:
+> [umsetzungsnotizen.md §1](../umsetzungsnotizen.md).
+
 > ⚠️ **ARCHIVIERT — die zentrale Schlussfolgerung dieses Dokuments ist widerlegt.**
 > Es empfiehlt unten in §3 die **Quadro RTX 5000** (`jupyter`-Partition) als „die Lösung".
 > Das ist **falsch**: Die RTX 5000 hat zwar RT-Cores, ist aber Turing (Compute Capability 7.5)

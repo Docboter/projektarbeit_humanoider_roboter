@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# TL;DR: Host-Skript: baut das Sim-Docker-Image (KISSKI oder --vastai) und pusht es zu Docker Hub.
 # update_sim_image.sh — Linux/WSL-Port von update_sim_image.ps1
 #
 # Baut das Sim-Docker-Image und pusht es nach Docker Hub.
@@ -35,7 +36,7 @@ for arg in "$@"; do
         --skip-push) SKIP_PUSH=1 ;;
         --dry-run)   DRY_RUN=1 ;;
         --vastai|-VastAI) VASTAI=1 ;;
-        --help|-h)   sed -n '2,19p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        --help|-h)   awk 'NR>1 { if (/^#/) { sub(/^# ?/, ""); print; next } exit }' "${BASH_SOURCE[0]}"; exit 0 ;;
         *)           fatal "Unbekanntes Argument: $arg (--help für Hilfe)" ;;
     esac
 done

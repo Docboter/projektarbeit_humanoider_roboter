@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# TL;DR: Host-Workflow für den eigenen Docker-Server: preflight/setup/check/eval/gap/rl/... als Unterbefehle.
 # server_rl_run.sh — RL-Fine-tuning (FPO) auf einem generischen Docker-GPU-Server
 #   (z. B. 2× RTX PRO 6000 Blackwell) statt auf vast.ai.
 #
@@ -104,12 +105,14 @@ REPO_DIR="${RL_REPO_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 # nutzt die Datei die Form  : "${VAR:=wert}"  — ein nacktes VAR=wert würde eine bereits
 # gesetzte Variable überschreiben. `set -a` exportiert das Gesetzte, damit es auch
 # Unterprozesse (docker, apptainer) erreicht.
-if [[ -f "$REPO_DIR/.env.local" ]]; then
-  set -a
-  # shellcheck source=/dev/null
-  source "$REPO_DIR/.env.local"
-  set +a
-fi
+# Die Mechanik selbst steht in tools/lib_env_local.sh — dieselbe Fassung nutzen jetzt
+# auch die Trainings-Launcher, denen sie bis 2026-08 ganz fehlte. env_local_load merkt
+# sich zusaetzlich, welche Variablen der Aufrufer schon gesetzt hatte und welche aus
+# .env.local kamen; das Menue zeigt sie damit als "vorgegeben" bzw. "aus .env.local" an,
+# statt sie erneut zu fragen.
+# shellcheck source=../tools/lib_env_local.sh
+source "$REPO_DIR/tools/lib_env_local.sh"
+env_local_load "$REPO_DIR"
 
 # ── Konfiguration (alle via Env überschreibbar) ──────────────────────────────
 IMAGE="${RL_IMAGE:-lucam03/projekt-humanoider-roboter-sim-vastai:latest}"
@@ -540,16 +543,62 @@ build_rl_env() {
 # Lädt BC-Checkpoint + USD-Asset von HF, falls noch nicht im Container vorhanden
 # (identische Download-Logik wie in entrypoint_rl.sh — wird hier separat gebraucht,
 # weil ein direkter rl_finetune.py-Aufruf für `check` den Entrypoint umgeht).
+#
+# Vollstaendigkeit wird an DREI Dingen gemessen, nicht am blossen Vorhandensein des
+# Verzeichnisses: config.json, mindestens eine *.safetensors-Datei und kein Rest im
+# .incomplete-Zustand. Grund: `huggingface-cli download` legt das Zielverzeichnis sofort
+# an und fuellt es erst nach und nach. Bricht der Download ab (Strg-C, Platte voll, Netz
+# weg), bleibt genau dieses halbe Verzeichnis stehen — und ein `test -d` haelt es fuer
+# fertig. Beobachtet 2026-08-21: `check` sprang mit "BC-Checkpoint bereits vorhanden" ueber
+# den Download und starb erst Minuten spaeter mitten im Isaac-Sim-Aufbau an
+# "FileNotFoundError: model-00001-of-00002.safetensors". Der Fehler stand also zwei
+# Bildschirmseiten von seiner Ursache entfernt.
+checkpoint_complete() {
+  local ck="$1"
+  docker exec "$CONTAINER" test -f "$ck/config.json" 2>/dev/null || return 1
+  docker exec "$CONTAINER" bash -lc "compgen -G '$ck/*.safetensors' >/dev/null" 2>/dev/null \
+    || return 1
+  # .incomplete-Reste liegen im HF-Cache INNERHALB des Zielverzeichnisses. Sie sind der
+  # eindeutige Beleg fuer einen abgebrochenen Download — auch dann, wenn zufaellig schon
+  # eine der beiden Shards fertig ist und der Test oben allein durchginge.
+  # Kein `| grep -q`: `grep -q` steigt nach dem ersten Treffer aus, schiesst `find` per
+  # SIGPIPE ab, und `set -o pipefail` macht daraus einen Fehlschlag der ganzen Pipe — der
+  # Fund wuerde als "nichts gefunden" durchgehen. Deshalb in eine Variable lesen.
+  local leftover
+  leftover="$(docker exec "$CONTAINER" \
+      find "$ck/.cache" -name '*.incomplete' -print -quit 2>/dev/null || true)"
+  if [[ -n "$leftover" ]]; then
+    return 1
+  fi
+  return 0
+}
+
 ensure_checkpoint() {
   ensure_container
-  if docker exec "$CONTAINER" test -d "$CHECKPOINT_PATH"; then
+  if checkpoint_complete "$CHECKPOINT_PATH"; then
     ok "BC-Checkpoint bereits vorhanden: $CHECKPOINT_PATH"
     return 0
   fi
+  if docker exec "$CONTAINER" test -d "$CHECKPOINT_PATH"; then
+    warn "Checkpoint-Verzeichnis vorhanden, aber UNVOLLSTAENDIG: $CHECKPOINT_PATH"
+    warn "  Sieht nach einem abgebrochenen Download aus. Der Aufruf unten setzt wieder auf."
+    warn "  Kommt es wieder, zuerst den Platz pruefen:  df -h $HOST_DATA_DIR"
+  fi
   require_hf_token
-  log "Lade BC-Checkpoint von HF: $HF_CHECKPOINT_REPO -> $CHECKPOINT_PATH (~10 GB, einmalig)"
+  log "Lade BC-Checkpoint von HF: $HF_CHECKPOINT_REPO -> $CHECKPOINT_PATH"
+  # Groessenangabe bewusst konkret: das Repo enthaelt neben den ~9,8 GB Gewichten eine
+  # 13 GB grosse optimizer.pt, die NUR ein Training-Resume braucht (s. upload_checkpoint.py
+  # --with-optimizer). Wer mehrere Checkpoints nebeneinander vergleicht, laeuft sonst in
+  # genau die volle Platte, die den Abbruch oben verursacht.
+  log "  (~23 GB vollstaendig; davon 13 GB optimizer.pt, die Sim und RL nie lesen.)"
   docker exec -e "HF_TOKEN=$HF_TOKEN" -e "HUGGING_FACE_HUB_TOKEN=$HF_TOKEN" "$CONTAINER" \
     bash -lc "huggingface-cli download '$HF_CHECKPOINT_REPO' --local-dir '$CHECKPOINT_PATH'"
+  if ! checkpoint_complete "$CHECKPOINT_PATH"; then
+    err "Checkpoint nach dem Download immer noch unvollstaendig: $CHECKPOINT_PATH"
+    err "  Erwartet: config.json + *.safetensors, keine *.incomplete-Reste."
+    err "  Inhalt ansehen:  docker exec $CONTAINER ls -lh $CHECKPOINT_PATH"
+    return 1
+  fi
   ok "Checkpoint geladen."
 }
 
@@ -627,23 +676,63 @@ ensure_dataset() {
   ok "Datensatz einsatzbereit: $ds"
 }
 
-# Stellt das schwarzhändige Asset sicher (Domain-Gap: reale DEX3 schwarz, URDF-Asset weiß).
-# Reines USD-Authoring, keine GPU, wenige Sekunden — deshalb bei jedem Lauf geprüft statt
-# einmalig dokumentiert. Schlägt der Recolor fehl, fällt ASSET_PATH aufs Original zurück,
-# damit ein kosmetischer Fehler keinen Lauf verhindert.
+# Stellt das USD-Asset sicher — und zwar in der richtigen Handfarbe (Domain-Gap: reale DEX3
+# schwarz, URDF-Asset weiß). Reines USD-Authoring, keine GPU, wenige Sekunden — deshalb bei
+# jedem Lauf geprüft statt einmalig dokumentiert. Schlägt der Recolor fehl, fällt ASSET_PATH
+# aufs Original zurück, damit ein kosmetischer Fehler keinen Lauf verhindert.
+#
+# Zwei Dinge, die die Funktion seit 2026-08-21 zusätzlich tut, beide wegen des
+# Checkpoint-Wechsels per CHECKPOINT_PATH: sie prüft die Existenz des Assets auch bei
+# BLACK_HANDS=0, und sie sucht das USD an den anderen bekannten Orten, statt bei einem
+# checkpoint-fremden Ordner nur zu warnen. Der Aufrufer kann sich danach darauf verlassen,
+# dass ASSET_PATH auf eine Datei zeigt, die es gibt.
 ensure_black_hands() {
-  [[ "$BLACK_HANDS" == "1" ]] || return 0
-  [[ "$ASSET_PATH" == *g1_dex3_blackhands.usd ]] || return 0
+  local want_black=0
+  if [[ "$BLACK_HANDS" == "1" && "$ASSET_PATH" == *g1_dex3_blackhands.usd ]]; then
+    want_black=1
+  fi
   local orig="$CHECKPOINT_PATH/g1_dex3.usd"
 
+  # Schritt 1: Liegt das gewünschte Asset schon da? Geprüft wird das JETZT auch bei
+  # BLACK_HANDS=0 — früher stieg die Funktion in dem Fall in Zeile 1 aus und prüfte
+  # überhaupt nichts, der fehlende Pfad fiel erst Isaac Sim auf.
   if docker exec "$CONTAINER" test -f "$ASSET_PATH"; then
-    ok "Schwarzhändiges Asset vorhanden: $ASSET_PATH"
+    if (( want_black )); then
+      ok "Schwarzhändiges Asset vorhanden: $ASSET_PATH"
+    else
+      ok "USD-Asset vorhanden: $ASSET_PATH"
+    fi
     return 0
   fi
+
+  # Schritt 2: Auch das weiße Original fehlt neben dem Checkpoint. Seit man Checkpoints
+  # per CHECKPOINT_PATH umschaltet, ist das der Normalfall und kein Defekt: ASSET_PATH wird
+  # aus CHECKPOINT_PATH abgeleitet (s. Konfiguration oben), das USD gehört aber gar nicht
+  # zum Checkpoint — es ist die Robotergeometrie und für alle Trainingsläufe dieselbe.
+  # Ein Ordner mit nur Gewichten hat es nicht. Statt hier wie bis 2026-08 nur zu warnen und
+  # mit einem Pfad weiterzulaufen, den es nie gab, dieselbe Suche fahren wie 'view':
+  # Container-Orte der Reihe nach, zuletzt vom Host kopieren.
   if ! docker exec "$CONTAINER" test -f "$orig"; then
-    warn "Weder $ASSET_PATH noch $orig im Container — Asset-Pfad prüfen."
+    warn "Kein USD neben $CHECKPOINT_PATH — suche das Asset an den bekannten Orten."
+    ASSET_PATH=""            # sonst gewinnt der fehlende Pfad in ensure_asset_local
+    ensure_asset_local || return 1
+    # ensure_asset_local bevorzugt bei BLACK_HANDS=1 bereits die schwarze Variante; hat es
+    # sie gefunden, ist der Recolor unnötig.
+    if [[ "$ASSET_PATH" == *g1_dex3_blackhands.usd ]] || (( ! want_black )); then
+      return 0
+    fi
+    # Nur das weiße Original gefunden — die schwarze Fassung daneben erzeugen.
+    orig="$ASSET_PATH"
+    ASSET_PATH="${orig%/*}/g1_dex3_blackhands.usd"
+  elif (( ! want_black )); then
+    # Hierher kommt nur, wer ASSET_PATH selbst auf etwas Nicht-Existierendes gesetzt hat
+    # (bei BLACK_HANDS=0 ist ASSET_PATH == $orig, dann greift schon der Zweig darüber).
+    # Der Rückfall ist brauchbar, aber nichts, was man stillschweigend tun sollte.
+    warn "ASSET_PATH zeigt ins Leere — falle auf $orig zurück."
+    ASSET_PATH="$orig"
     return 0
   fi
+
   # Ausgabe MUSS neben das Original: der Wrapper referenziert configuration/ relativ.
   log "Erzeuge schwarzhändiges Asset (Recolor, offline auf dem USD)."
   if docker exec "$CONTAINER" bash -lc "
@@ -2097,7 +2186,50 @@ EOF
 
 # ── Dispatch ──────────────────────────────────────────────────────────────────
 require_docker
-ACTION="${1:-help}"
+
+# ── Geführte Menüführung (docs/weiterfuehrend/cli-menuefuehrung.md) ───────────
+# Das Menü erzeugt NUR Umgebungsvariablen und läuft VOR dem Dispatch — die
+# Aktionsfunktionen darunter sind unverändert und wissen nichts davon. Es meldet sich
+# ausschließlich, wenn wirklich ein Mensch davorsitzt (Terminal, kein SLURM/CI, kein
+# Container); `MENU=0` bzw. `--no-menu` schaltet es hart ab.
+# shellcheck source=../tools/lib_menu.sh
+source "$REPO_DIR/tools/lib_menu.sh"
+MENU_SPEC_DIR="$REPO_DIR/tools/menu"
+_MENU_LAUNCHER="./Simulation/server_rl_run.sh"    # für den äquivalenten Ein-Zeiler
+
+# --menu/--no-menu/--profile vorweg aus der Argumentliste ziehen, damit sie nicht als
+# Aktion missverstanden werden.
+_ARGS=()
+for _a in "$@"; do
+  case "$_a" in
+    --menu)      MENU=1 ;;
+    --no-menu)   MENU=0 ;;
+    --profile=*) MENU_PROFILE="${_a#*=}"; MENU=1 ;;
+    *)           _ARGS+=("$_a") ;;
+  esac
+done
+set -- ${_ARGS[@]+"${_ARGS[@]}"}
+
+ACTION="${1:-}"
+if [[ -z "$ACTION" ]] && menu_enabled; then
+  ACTION="$(menu_pick_action "$MENU_SPEC_DIR" sim)" || { _rc=$?; menu_pick_rc "$_rc"
+                                                         echo; warn "Abgebrochen."; exit 0; }
+fi
+: "${ACTION:=help}"
+
+# Fragen läuft ZWINGEND vor start_logging. Zwei Gründe: start_logging setzt
+# `exec > >(tee …)`, und durch die Prozesssubstitution kann die Reihenfolge zwischen
+# read-Prompt (stderr) und Eingabe verrutschen — das Menü wirkt dann kaputt. Und der
+# HF-Token hat in der Log-Datei nichts verloren.
+if [[ "$ACTION" != help && "$ACTION" != -h && "$ACTION" != --help ]] && menu_enabled; then
+  menu_ask "$MENU_SPEC_DIR" sim "$ACTION" || exit 0
+  # Positionsargumente aus dem Menü nachreichen (optimize <phase>, webview stop), aber
+  # nur, wenn der Aufrufer selbst keins mitgegeben hat.
+  if [[ $# -le 1 ]] && (( ${#MENU_ARGV[@]} )); then
+    set -- "$ACTION" ${MENU_ARGV[@]+"${MENU_ARGV[@]}"}
+  fi
+fi
+
 # 'shell' bleibt ungespiegelt (interaktives -it verträgt die Pipe nicht), 'help'/'clean'
 # haben nichts zu protokollieren.
 case "$ACTION" in
@@ -2107,6 +2239,11 @@ case "$ACTION" in
   rl|shell|help|clean|webview) ;;
   *) select_gpu ;;
 esac
+
+# Erst JETZT — nach start_logging — die aufgelöste Konfiguration ins Log schreiben.
+# Maskiert; das ist die Provenienz-Information, die man beim Nachlesen eines Laufs
+# braucht ("stand NUM_EPISODES=2 wirklich so drin?").
+if [[ -n "${MENU_ACTION_ASKED:-}" ]]; then menu_summary_for_log || true; fi
 case "$ACTION" in
   preflight)  do_preflight ;;
   setup)      do_setup ;;

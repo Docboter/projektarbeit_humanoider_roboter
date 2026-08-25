@@ -1,5 +1,9 @@
 # Reinforcement-Learning-Training — Recherche & Umsetzungsplan
 
+> **TL;DR:** RL-Recherche und Umsetzungsplan (FPO-Fine-tuning): Bausteine, Phasen-Plan,
+> GPU-Rendering-Konflikt und Status der bereits gebauten Teile. Gepflegte Statusquelle — aktueller
+> Stand „Pipeline läuft end-to-end, Lernwirkung offen“ im Banner direkt darunter.
+
 > **Status: Pipeline läuft end-to-end, Lernwirkung noch offen.** Dieses Dokument beschreibt
 > Motivation, Bausteine und Phasen-Plan. Der **FPO-RL-Pfad ist gebaut** (Algorithmus-Kern gegen
 > die GR00T-API verifiziert) und am **2026-08-08** erstmals **vollständig durchgelaufen** —

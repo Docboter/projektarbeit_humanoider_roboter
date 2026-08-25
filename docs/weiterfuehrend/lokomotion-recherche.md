@@ -1,5 +1,9 @@
 # Lokomotion des Unitree G1 freischalten — Recherche
 
+> **TL;DR:** Reine Recherche (Code-Analyse + Quellen, keine Umsetzung) dazu, warum der G1 aktuell
+> fixiert ist und wie sich Lokomotion nachrüsten ließe. Zentrale Erkenntnis in §0 TL;DR, konkrete
+> Integrationspfade in §5.
+
 > **Frage:** Aktuell steht der Roboter fix an einer Position und manipuliert nur den Tisch.
 > Was ist nötig, damit er sich **bewegen** (laufen, drehen, neu positionieren) kann?
 >

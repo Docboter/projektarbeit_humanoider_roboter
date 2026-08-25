@@ -1,5 +1,9 @@
 # Auswertung — dritter Trainingsdurchlauf, Vision-Encoder **mit** Split & Augmentierung (`g1_dex3_blockstacking_vision_v2`)
 
+> **TL;DR:** Auswertung des dritten Trainingslaufs (Vision-Encoder + Color-Jitter + 80/20-Split) —
+> erste echte Validierung mit zurückgehaltenen Episoden. Checkpoint-Sweep belegt Overfitting
+> (U-Kurve, bester Checkpoint 30.000). Kurzfazit in §1.
+
 **Erstellt:** 2026-08-14 · **Run-ID:** `tp1nc699` (W&B-Projekt `gr00t-g1-dex3`, Entity
 `projektarbeit_humanoider_roboter`) · **Modell:** GR00T N1.6 (3,29 Mrd. Parameter),
 Finetune mit aufgetautem Vision-Encoder (`tune_visual = true`), Color-Jitter aktiv,

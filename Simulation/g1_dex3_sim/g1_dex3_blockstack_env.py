@@ -1,3 +1,4 @@
+# TL;DR: Isaac-Lab-Env (Roboter, Tisch, Würfel, 4 Policy-Kameras + Szenenkamera) für Eval und RL.
 """
 Block-Stacking-Umgebung für G1 + Dex3 in Isaac Lab.
 

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# TL;DR: Rendert den Co-Training-Datensatz (Sim-Bild + echte Aktion); `server_rl_run.sh render`.
 """
 render_cotrain_dataset.py — erzeugt den GERENDERTEN Datensatz für das Co-Training (Schritt 4).
 

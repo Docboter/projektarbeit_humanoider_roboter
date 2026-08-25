@@ -1,5 +1,10 @@
 # Live-Ansicht — Isaac Sim auf dem eigenen Rechner öffnen
 
+> **TL;DR:** Anleitung für die Live-Ansicht: Isaac Sim streamt seinen 3D-Viewport per WebRTC
+> (`LIVESTREAM=2`) an einen nativen Client oder Browser (`webview`), plus `view` als billigster
+> Weg ganz ohne Checkpoint. Für alle, die der Policy in Echtzeit zuschauen statt hinterher Videos
+> zu holen; Hardware-Test steht noch aus.
+
 **Was das ist:** Statt nach dem Lauf MP4s aus dem Container zu holen, streamt Isaac Sim
 seinen **3D-Viewport live per WebRTC**. Auf dem Arbeitsrechner öffnet ihn die App *Isaac Sim
 WebRTC Streaming Client* — mit **freier Kamera**: Szene drehen, zoomen, dem Greifer über die

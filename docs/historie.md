@@ -1,9 +1,11 @@
 # Historie — ausgelagerte veraltete Doku-Inhalte
 
-> **Zweck:** Rohmaterial für ein späteres Changelog. Die Haupt-Dokumentation enthält nur noch
-> den aktuellen Stand; überholte Befunde, abgeschlossene Fix-Protokolle und ersetzte Messungen
-> wandern hierher — je Eintrag mit Datum, Herkunftsdatei und dem Grund der Ablösung.
-> Die Einträge sind chronologisch nach dem Datum des Originalinhalts sortiert.
+> **TL;DR:** Rohmaterial für ein späteres Changelog: hierher wandern überholte, aus der
+> Haupt-Doku ausgelagerte Inhalte. Nichts auf dieser Seite ist aktueller Stand — für aktuelle
+> Informationen die verlinkte Zieldoku lesen.
+
+> **Aufbau:** Je Eintrag Datum, Herkunftsdatei und Grund der Ablösung; die Einträge sind
+> chronologisch nach dem Datum des Originalinhalts sortiert.
 >
 > **Abgrenzung:** Die vier historischen Planungs-Docs unter
 > [simulation/archiv/](simulation/archiv/) behalten ihr eigenes Warnbanner-Muster und bleiben

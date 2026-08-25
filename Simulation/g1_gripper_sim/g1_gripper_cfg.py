@@ -1,3 +1,4 @@
+# TL;DR: Articulation-Konfiguration für stock G1+Dex1-Greifer (Baseline, Embodiment UNITREE_G1).
 """
 Articulation-Konfiguration für den **stock Unitree G1 mit Dex1-Parallelgreifer**
 in Isaac Lab — für den Baseline-Closed-Loop-Test (un-finetuntes GR00T-N1.6-3B,

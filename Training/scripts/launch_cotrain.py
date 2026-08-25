@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# TL;DR: Trainingseinstieg für zwei Datensätze (Mix-Ratio); von run_finetuning_cotrain.sh gestartet.
 """
 launch_cotrain.py — Trainings-Einstieg für ZWEI Datensätze (echt + gerendert).
 

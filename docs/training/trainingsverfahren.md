@@ -1,5 +1,10 @@
 # Was für ein Training wird hier durchgeführt?
 
+> **TL;DR:** Konzeptionelle Einordnung: welche Art Training das ist — Modellarchitektur
+> (GR00T N1.6), Lernverfahren (Imitation Learning/Behavior Cloning), Embodiment und
+> Ein-/Ausgaben. Für die Bedienung siehe [anleitung.md](anleitung.md), für Parameter
+> [env-vars.md](env-vars.md).
+
 Dieses Dokument beschreibt **die Art des Trainings** — Modellarchitektur, Lernverfahren und was
 genau gelernt wird. Für die *Bedienung* (wie man einen Job startet) siehe
 [anleitung.md](anleitung.md) und [kisski-hpc.md](kisski-hpc.md); für die Parameterliste

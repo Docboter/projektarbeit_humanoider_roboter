@@ -1,5 +1,10 @@
 # Closed-Loop-Sim auf vast.ai — Schritt-für-Schritt-Anleitung
 
+> **TL;DR:** Schritt-für-Schritt-Anleitung für den primären Sim-Eval-Workflow: Image bauen/pushen,
+> Checkpoint und USD-Asset bereitstellen, vast.ai-Instanz (L40, 48 GB) konfigurieren und
+> überwachen. Für alle, die den feingetunten GR00T-N1.6-Checkpoint closed-loop im
+> Isaac-Lab-Block-Stacking evaluieren wollen.
+
 Ziel: Den feingetunten GR00T-N1.6-Checkpoint in der Isaac-Lab-Simulation auf einer
 **NVIDIA L40 (48 GB)** auf vast.ai evaluieren.
 

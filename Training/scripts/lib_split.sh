@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# TL;DR: Gesourcte Bibliothek — setzt den Train/Test-Split in meta/info.json für die Finetuning-Läufe.
 # lib_split.sh — Train/Test-Split für die Finetuning-Läufe.
 #
 # Gemeinsame Logik von run_finetuning.sh und run_finetuning_vision.sh. Wird
