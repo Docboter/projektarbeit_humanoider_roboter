@@ -115,7 +115,7 @@ RUN uv pip install --python /app/Groot-1.6/.venv/bin/python \
 # DiT-Engine. Der -cu12-Suffix ist Pflicht: das unversionierte NVIDIA-Paket zieht inzwischen
 # standardmaessig CUDA-13-Libraries, waehrend dieses Image auf CUDA 12.x basiert.
 RUN uv pip install --python /app/Groot-1.6/.venv/bin/python \
-        onnx==1.20.1 tensorrt-cu12==11.2.1
+        onnx==1.20.1 tensorrt-cu12==11.2.1.2
 # usd-core: standalone-pxr für den Hand-Recolor (recolor_hands_black.py). Isaacs gebündeltes
 # Python exponiert pxr NICHT für standalone-Skripte (ohne Kit-App-Start) → der Recolor muss
 # über dieses venv laufen. Separates Interpreter-Env als Isaac Sim → kein pxr-Konflikt.
