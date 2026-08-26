@@ -451,6 +451,14 @@ class G1Dex3BlockstackEnvCfg(DirectRLEnvCfg):
     # Deaktivieren mit DR_ENABLED=0 Env-Var im Eval-Runner oder dr_enabled=False.
     dr_enabled: bool = True
 
+    # Seed der DR-Ziehung. None (Default) = pro Prozess neu ausgewürfelt — für Eval und RL
+    # gewollt, dort ist Streuung über Läufe hinweg genau der Zweck. Ist ein int gesetzt,
+    # zieht jede Episode aus einem eigenen Strom default_rng([dr_seed, dr_key]): der Lauf
+    # wird reproduzierbar UND unabhängig davon, wie viele Episoden vorher liefen (Resume,
+    # ausgelassene Fenster, getrennte scan-/render-Stufen). Nötig für A/B-Vergleiche, bei
+    # denen sich genau ein Faktor unterscheiden darf — siehe render_cotrain_dataset.py.
+    dr_seed: int | None = None
+
     # ── Reward-Modus ──────────────────────────────────────────────────────────
     # "binary" (Default): spärlicher 0/1-Success-Reward — für Closed-Loop-Eval/Ablation.
     # "shaped":          dichter, vektorisierter Reward fürs RL-Training (πRL/FPO).
@@ -826,6 +834,9 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
         stage = omni.usd.get_context().get_stage()
         self._dr_shaders: dict[str, "UsdShade.Shader | None"] = {}
         self._dr_rng = np.random.default_rng()
+        if not hasattr(self, "_dr_key"):
+            self._dr_key = 0
+            self._dr_key_manual = False
 
         targets = {
             "table":      "/World/envs/env_0/table",
@@ -865,6 +876,22 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
         if inp:
             inp.Set(Gf.Vec3f(float(rgb[0]), float(rgb[1]), float(rgb[2])))
 
+    def set_dr_key(self, key: int) -> None:
+        """Schlüssel der nächsten DR-Ziehung setzen (nur wirksam bei cfg.dr_seed != None).
+
+        VOR ``env.reset()`` aufrufen. Gedacht für den Renderer, der den Quell-Episodenindex
+        einsetzt: damit hängt das Aussehen einer Episode an ihr selbst statt daran, an
+        welcher Stelle des Laufs sie gerendert wurde. Mehrere Resets mit demselben
+        Schlüssel liefern dasselbe Bild — der Renderer setzt nach der Ankersuche ein
+        zweites Mal zurück und braucht genau das.
+
+        Ruft niemand diese Methode, zählt der Schlüssel bei jedem Reset selbst hoch: ein
+        geseedeter Lauf streut dann trotzdem über die Episoden, statt jede gleich
+        aussehen zu lassen.
+        """
+        self._dr_key = int(key)
+        self._dr_key_manual = True
+
     def _randomize_visuals(self) -> None:
         """Per-episode visual DR: dome light intensity/color + object diffuse colors.
 
@@ -877,7 +904,15 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
             return
 
         from pxr import Gf
-        rng = self._dr_rng
+        # Mit dr_seed bekommt jede Episode einen eigenen Strom: gleicher Schlüssel ->
+        # gleiche Farben, unabhängig von der Position im Lauf. Ohne Seed bleibt es der
+        # eine fortlaufende Strom wie bisher.
+        if self.cfg.dr_seed is None:
+            rng = self._dr_rng
+        else:
+            rng = np.random.default_rng(
+                [int(self.cfg.dr_seed), int(getattr(self, "_dr_key", 0))]
+            )
 
         # 1. Dome light: intensity ±50 % + warm/cool white-balance shift
         if self._dr_light.IsValid():
@@ -931,6 +966,8 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
         if not hasattr(self, "_dr_shaders"):
             self._setup_visual_dr()
         self._randomize_visuals()
+        if not getattr(self, "_dr_key_manual", False):
+            self._dr_key = getattr(self, "_dr_key", 0) + 1
 
         # env_origins: write_root_pose_to_sim() erwartet WELT-Koordinaten, block_*_range aus
         # der Config ist env-LOKAL. Roboter, Tisch und Stapel-Band brauchen hier nichts —

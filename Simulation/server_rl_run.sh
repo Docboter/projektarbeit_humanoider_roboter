@@ -1669,6 +1669,13 @@ do_render() {
   # steht, wo er real lag. RENDER_MAX_ANCHOR_SHIFT ist die Plausibilitaetsschranke (m).
   [[ -n "${RENDER_CUBE_SOURCE:-}" ]] && extra+=" --cube-source ${RENDER_CUBE_SOURCE}"
   [[ "${RENDER_IGNORE_YAW:-0}" == "1" ]] && extra+=" --ignore-yaw"
+  # Domain Randomization ist per Default reproduzierbar geseedet (Seed 0, je Episode).
+  # RENDER_DR_SEED aendert den Seed, ein NEGATIVER Wert wuerfelt wie frueher pro Prozess
+  # neu — dann sind zwei Laeufe visuell nicht mehr vergleichbar. RENDER_NO_DR=1 schaltet
+  # sie ganz ab: die schaerfste Variante fuer ein A/B, weil sich die Bildpaare dann nur
+  # noch im geprueften Faktor unterscheiden.
+  [[ -n "${RENDER_DR_SEED:-}" ]] && extra+=" --dr-seed ${RENDER_DR_SEED}"
+  [[ "${RENDER_NO_DR:-0}" == "1" ]] && extra+=" --no-dr"
   [[ -n "${RENDER_MAX_ANCHOR_SHIFT:-}" ]] \
     && extra+=" --max-anchor-shift ${RENDER_MAX_ANCHOR_SHIFT}"
   [[ -n "${RENDER_EPISODE_IDS:-}" ]] && extra+=" --episode-ids ${RENDER_EPISODE_IDS}"

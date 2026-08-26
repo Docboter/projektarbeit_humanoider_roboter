@@ -51,6 +51,7 @@ Für den **aktuellen Projektstatus** siehe
 | 38–46 | Die vier Fingergrundgelenke standen in **jedem** Lauf still: der „Sign-Convention-Fix" drehte sie aus ihrer Gelenkgrenze, wo sie geklemmt wurden ([Läufe 38–46](#läufe-3846-runs2026082302-runs2026082405-12-die-fingergrundgelenke-standen-still)) |
 | 47–51 | Drei unabhängige Geometriefehler ergaben zusammen ~12 cm: Vorzeichen, Beckenhöhe 0,85→0,764, Basis x 0→−0,057. Restabstand 4,5 cm ([Läufe 49–51](#läufe-4951-auch-die-basis-in-x--die-rekonstruktion-steht)) |
 | 52 | Der **Gierwinkel** der Würfel wurde nie rekonstruiert — Sim stellte sie immer achsparallel. Schätzer gebaut; auf echten Frames scheiterten 13/15 am Deckflächenschnitt, der fest die hellsten 30 % nahm statt der 49–58 %, die die Deckfläche ausmacht. Erste Begründung stützte sich auf annotierte Debug-PNGs und ist zurückgezogen ([Lauf 52](#lauf-52-der-gierwinkel-fehlte-in-jedem-lauf)) |
+| 53 | A/B mit und ohne Gierwinkel (`runs/20260826/01`): der Bildwinkel deckt sich **nicht** mit der Greifachse (Δ im Mittel 27° bei einer 45°-Obergrenze, n=5). Die Sichtprüfung war durch ungeseedete Domain Randomization entwertet — Seed nachgerüstet ([Lauf 53](#lauf-53-der-gierwinkel-und-die-greifachse-widersprechen-sich)) |
 
 ---
 
@@ -2041,3 +2042,62 @@ Daten sichtbar würde.
 
 Offene Entscheidung: `block_yaw_range_deg` für Eval/Replay/RL auf `(0, 90)` zu stellen wäre nach
 dieser Messung richtig, bricht aber die Vergleichbarkeit mit den Läufen 08–52.
+
+#### Lauf 53: der Gierwinkel und die Greifachse widersprechen sich
+
+Lauf 52 hat den Gierwinkel-Schätzer abgenommen, aber nur gegen sich selbst: das einzige Tor auf
+echten Frames ist die **Einigkeit beider Kopfkameras**. Beide Kameras laufen durch dieselbe
+Verarbeitungskette — Farbblob, Deckflächenschnitt, 4. Winkelmoment. Ein systematischer Fehler in
+dieser Kette träfe beide gleich, und die Einigkeit würde ihn bestätigen statt aufdecken. Es fehlte
+ein Zeuge, der nichts mit dem Bild zu tun hat.
+
+Der Zeuge ist die **Greifachse**: die Verbindung Daumen → Mitte Zeige-/Mittelfinger im Moment der
+größten Annäherung an den Würfel, aus den replayten Realaktionen. Wer einen Würfel greift, legt sie
+quer zu einer Fläche, nicht zu einer Ecke. Beide Zahlen sind mod 90° zu nehmen, die Abweichung liegt
+also zwangsläufig in [0°, 45°].
+
+`runs/20260826/01`, 7 gerenderte Episoden, davon 5 mit Bildwinkel:
+
+| Episode | Bildwinkel | Greifachse | Δ | Ankerdistanz |
+|---|---|---|---|---|
+| 0 | 32° | 72° | **40°** | 4,7 cm |
+| 8 | 17° | 5° | 12° | 2,1 cm |
+| 12 | 85° | 47° | **38°** | 1,3 cm |
+| 16 | 48° | 34° | 14° | 2,8 cm |
+| 28 | 76° | 17° | **31°** | 3,1 cm |
+
+Mittel **27°**. Gleichverteilung auf 0…45° hätte 22,5° — die beiden Verfahren bestätigen sich also
+nicht, sie verhalten sich zueinander wie Zufall. Bei n=5 ist das kein Beleg für „schlechter als
+Zufall"; es ist der Beleg, dass die Übereinstimmung, die der Test zeigen sollte, **nicht da ist**.
+
+Der Verdacht „der Greifanker sitzt auf der Transportbahn" trägt hier nicht: der schlechteste Fall
+(Episode 12, Δ 38°) hat mit 1,3 cm die **beste** Ankerdistanz aller fünf, und über die fünf Fälle
+laufen Δ und Ankerdistanz nicht miteinander.
+
+Was die Messung **nicht** trennt: ob die Winkelrekonstruktion falsch ist oder die Annahme über die
+Greifachse. Die DEX3 ist dreifingrig; dass sie quer zu einer Fläche zupackt, ist plausibel, aber für
+diese Hand nirgends nachgemessen. Solange das offen ist, ist `cubes_yaw_deg` ein unbelegter Wert —
+und der Weg zur Entscheidung führt über die Hand, nicht über eine weitere Bildvariante.
+
+Auf die replayte Geometrie wirkt der Winkel erwartungsgemäß gar nicht (Kuppen↔Würfel am Ende 9,33
+gegen 9,49 cm, Treffer < 3 cm 1/14 gegen 2/14 — Rauschen). Er dreht das Bild, nicht die Aktionen.
+
+**Die zweite Hälfte des A/B war ungültig.** Der Lauf sollte den Winkel auch *sichtbar* machen, und
+das ging nicht auf: `_setup_visual_dr` legte den DR-Strom mit `np.random.default_rng()` **ohne Seed**
+an, `dr_enabled` steht per Default auf `True`, und der Renderer schaltete nichts ab. Beide Läufe
+würfelten Beleuchtung und Materialfarben unabhängig neu — im Bildpaar ist derselbe Würfel einmal
+magenta, einmal orange, und die Tischhelligkeit springt. Ein Unterschied zwischen zwei solchen
+Bildern lässt sich dem geprüften Faktor nicht zuordnen.
+
+Behoben über `dr_seed` in der Env-Config: ist er gesetzt, zieht **jede Episode aus einem eigenen
+Strom** `default_rng([dr_seed, key])`. Damit hängt das Aussehen an der Episode statt an ihrer
+Position im Lauf — ein Resume oder ein anders ausgelassenes Fenster verschiebt nichts mehr. Der
+Renderer setzt den Schlüssel auf den Quell-Episodenindex und seedet per Default (`--dr-seed 0`);
+ohne Aufruf zählt der Schlüssel bei jedem Reset selbst hoch, damit ein geseedeter Eval-Lauf trotzdem
+über die Episoden streut. `--no-dr` schaltet sie ganz ab — für ein A/B die schärfste Variante.
+Eval/RL bleiben unverändert ungeseedet, dort ist die Streuung über Läufe hinweg der Zweck;
+`DR_SEED` stellt sie bei Bedarf fest.
+
+Ausbeute nebenbei: 8 von 15 Episoden fielen aus, 5× „kein belastbarer Bewegungsbeginn im Layout",
+3× Fenster unter 60 Frames. 12 von 21 Würfelplätzen bekamen überhaupt einen Winkel — deckt sich mit
+den 61 % aus dem Vollauslauf in Lauf 52.

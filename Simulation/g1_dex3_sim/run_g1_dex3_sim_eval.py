@@ -497,6 +497,11 @@ def main():
     cfg.execution_horizon = args.execution_horizon
     cfg.task_description = args.task_description
     cfg.dr_enabled = os.getenv("DR_ENABLED", "1") != "0"
+    # DR_SEED macht die Ziehung reproduzierbar (je Episode ein eigener Strom). Ohne die
+    # Variable bleibt es beim Auswuerfeln pro Prozess — fuer Eval gewollt, weil dort die
+    # Streuung ueber Laeufe hinweg Teil der Messung ist.
+    _dr_seed = os.getenv("DR_SEED", "")
+    cfg.dr_seed = int(_dr_seed) if _dr_seed.strip() else None
     if cfg.camera_render_every_n > 1 and cfg.camera_render_every_n != args.execution_horizon:
         raise ValueError(
             "CAMERA_RENDER_EVERY_N muss im vergleichbaren schnellen Modus exakt "
@@ -527,7 +532,10 @@ def main():
     print(f"  Task:             {args.task_description}")
     print(f"  Video-Dir:        {args.video_dir or '(kein Video)'}")
     print(f"  Asset:            {cfg.scene.robot.spawn.usd_path}")
-    print(f"  Domain Rand.:     {'AN' if cfg.dr_enabled else 'AUS (DR_ENABLED=0)'}")
+    _dr_state = "AN" if cfg.dr_enabled else "AUS (DR_ENABLED=0)"
+    if cfg.dr_enabled and cfg.dr_seed is not None:
+        _dr_state += f", Seed {cfg.dr_seed} je Episode"
+    print(f"  Domain Rand.:     {_dr_state}")
     print(
         f"  Episodenlaenge:   {cfg.episode_length_s:.0f}s "
         f"= {int(cfg.episode_length_s * cfg.policy_hz)} Steps"

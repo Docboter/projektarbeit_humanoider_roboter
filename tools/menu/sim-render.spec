@@ -40,6 +40,14 @@ param RENDER_IGNORE_YAW bool 0 expert \
   "Gierwinkel ignorieren, alle Wuerfel achsparallel" \
   "Nur fuer den A/B-Vergleich: derselbe Episodensatz einmal mit und einmal ohne Drehung. Ohne ihn ist nicht zu trennen, ob eine Verbesserung vom Winkel kommt oder von der Episodenauswahl." \
   --default-from "render_cotrain_dataset.py --ignore-yaw"
+param RENDER_DR_SEED int 0 expert \
+  "Seed der Domain Randomization" \
+  "Jede Episode zieht Licht- und Materialfarben aus default_rng([seed, episode_index]). Damit haengt das Aussehen an der Episode statt an ihrer Position im Lauf - zwei Laeufe sind vergleichbar, auch nach Resume oder bei anders ausgelassenen Fenstern. Negativ = wie frueher pro Prozess neu auswuerfeln." \
+  --default-from "render_cotrain_dataset.py --dr-seed"
+param RENDER_NO_DR bool 0 expert \
+  "Domain Randomization ganz aus" \
+  "Festes Licht, feste Farben. Fuer ein A/B die schaerfste Variante: die Bildpaare unterscheiden sich dann nur noch im geprueften Faktor." \
+  --default-from "render_cotrain_dataset.py --no-dr"
 
 group "Schnitt"
 param RENDER_STOP_AT_GRASP bool 1 advanced \

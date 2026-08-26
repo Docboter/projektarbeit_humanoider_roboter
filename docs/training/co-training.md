@@ -429,9 +429,15 @@ Ehrlich benannt, weil jeder dieser Punkte den Lauf entwerten würde:
    das Problem, sondern die Physik-Konfiguration.
 4. **Der dritte Würfel liegt zufällig.** Bei zwei erkannten Greifpunkten bleibt Würfel 2
    ein Ablenker im konfigurierten Band, mit Mindestabstand zu den gesetzten.
-5. **Domain Randomization ist beim Rendern an** (`DR_ENABLED=1`, Default). Das ist
-   erwünscht — es verbreitert die Beleuchtung im Trainingsmaterial. Für einen
-   Diagnose-Lauf mit fester Optik `DR_ENABLED=0` setzen.
+5. **Domain Randomization ist beim Rendern an, aber seit 2026-08-26 geseedet.** Sie ist
+   erwünscht — sie verbreitert die Beleuchtung im Trainingsmaterial —, nur war ihr Strom
+   bis dahin ungeseedet, und damit unterschieden sich zwei Läufe in Licht und
+   Würfelfarben, selbst wenn sonst nichts anders war. Ein A/B war so nicht auswertbar
+   (siehe [Lauf 53](../ergebnisse/diagnose-chronik.md#lauf-53-der-gierwinkel-und-die-greifachse-widersprechen-sich)).
+   Jetzt zieht jede Episode aus `default_rng([RENDER_DR_SEED, episode_index])`: über Läufe
+   hinweg reproduzierbar, über Episoden hinweg weiterhin gestreut. `RENDER_NO_DR=1` schaltet
+   sie für einen Diagnoselauf ganz ab. `DR_ENABLED` wirkt **nicht** auf den Render-Pfad —
+   die Variable liest nur der Eval-Runner.
 
 ---
 
@@ -447,7 +453,8 @@ Ehrlich benannt, weil jeder dieser Punkte den Lauf entwerten würde:
 | `RENDER_MAX_FRAMES` | `0` | `>0` kürzt jede Episode (Rauchtest) |
 | `RENDER_EPISODE_IDS` | — | Explizite Indices statt Streuung, z. B. `"0 4 8"` |
 | `RENDER_OVERWRITE` | `0` | `1` = fertige Episoden neu rendern |
-| `DR_ENABLED` | `1` | Beleuchtungs-/Farb-Randomisierung beim Rendern |
+| `RENDER_DR_SEED` | `0` | Seed der Beleuchtungs-/Farb-Randomisierung. Jede Episode zieht aus `default_rng([seed, episode_index])`, das Aussehen hängt also an der Episode statt an ihrer Position im Lauf. **Negativ** = pro Prozess neu auswürfeln (dann sind zwei Läufe visuell nicht vergleichbar) |
+| `RENDER_NO_DR` | `0` | `1` = Randomisierung ganz aus, festes Licht und feste Farben. Für ein A/B die schärfste Variante |
 | `SPAN_DATASET` | `/data/unitreerobotics/G1_Dex3_BlockStacking_Dataset` | Quelldatensatz (wird bei Bedarf geholt + konvertiert) |
 
 ### Trainieren

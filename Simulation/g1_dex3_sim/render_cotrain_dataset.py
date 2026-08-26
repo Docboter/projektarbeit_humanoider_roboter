@@ -112,6 +112,18 @@ parser.add_argument("--ignore-yaw", action="store_true",
                          "Episodensatz einmal mit und einmal ohne Drehung, sonst ist "
                          "nicht zu trennen, ob eine Verbesserung vom Winkel kommt "
                          "oder von der Episodenauswahl")
+parser.add_argument("--dr-seed", type=int, default=0,
+                    help="Seed der Domain Randomization (Licht- und Materialfarben). "
+                         "Jede Episode zieht aus default_rng([seed, episode_index]), das "
+                         "Aussehen haengt also an der Episode und nicht daran, an welcher "
+                         "Stelle des Laufs sie gerendert wurde — reproduzierbar auch nach "
+                         "Resume oder bei anders ausgelassenen Fenstern. NEGATIV = wie "
+                         "frueher pro Prozess neu auswuerfeln (dann sind zwei Laeufe nicht "
+                         "vergleichbar)")
+parser.add_argument("--no-dr", action="store_true",
+                    help="Domain Randomization ganz aus: festes Licht, feste Farben. Fuer "
+                         "den A/B-Vergleich die schaerfste Variante — die Bildpaare "
+                         "unterscheiden sich dann NUR im geprueften Faktor")
 parser.add_argument("--max-anchor-shift", type=float, default=0.08,
                     help="Wieviel der Greifanker hoechstens von der Bild-Lage abweichen darf "
                          "(m). Darueber wird die Episode verworfen statt geraten")
@@ -294,6 +306,12 @@ def build_env(args, n_frames: int):
     if args.asset_path:
         cfg.scene.robot.spawn.usd_path = args.asset_path
     cfg.episode_length_s = (n_frames + args.settle_steps) / cfg.policy_hz + 10.0
+    # DR ist fuer den Datensatz erwuenscht (sie ist der halbe Zweck der gerenderten
+    # Bilder), aber sie muss reproduzierbar sein: sonst wuerfeln zwei Laeufe Licht und
+    # Wuerfelfarben unabhaengig neu und ein A/B laesst sich nicht mehr auf den geprueften
+    # Faktor zurueckfuehren. Deshalb hier per Default ein fester Seed statt keinem.
+    cfg.dr_enabled = not args.no_dr
+    cfg.dr_seed = None if args.dr_seed < 0 else int(args.dr_seed)
     return G1Dex3BlockstackEnv(cfg=cfg, render_mode=None)
 
 
@@ -920,6 +938,7 @@ def run_scan(env_builder, src_root: Path, src_info: dict, episodes: list[int],
 
         if env is None:
             env = env_builder()
+        env.set_dr_key(ep_idx)
         env.reset()
         stash_cubes(env)
         set_robot_to_state(env, state[0])
@@ -1049,6 +1068,7 @@ def run_render(env_builder, src_root: Path, src_info: dict, episodes: list[int],
 
         if env is None:
             env = env_builder()
+        env.set_dr_key(ep_idx)
         env.reset()
         cubes, cube_src, cube_yaw = None, None, None
         if not args.no_place_cubes:
@@ -1197,6 +1217,13 @@ def main():
     cube_mode = ("keine (ABLATION)" if args.no_place_cubes
                  else "aus dem Bild-Layout (einzige Quelle; sonst wird die Episode verworfen)")
     print(f"  Würfel:      {cube_mode}")
+    if args.no_dr:
+        dr_txt = "AUS (--no-dr) — festes Licht, feste Farben"
+    elif args.dr_seed < 0:
+        dr_txt = "AN, OHNE Seed — zwei Läufe sind visuell NICHT vergleichbar"
+    else:
+        dr_txt = f"AN, Seed {args.dr_seed} je Episode — reproduzierbar"
+    print(f"  Domain Rand.: {dr_txt}")
     if args.stop_at_grasp:
         win = (f"letzte {args.grasp_window} Frames vor der Würfelbewegung"
                if args.grasp_window else "Frame 0 bis zur ersten Würfelbewegung")
