@@ -86,7 +86,7 @@ Diese Schritte sind **noch nicht** automatisiert/erledigt und müssen vor dem er
   stock-Greifer-Asset — nur DEX3-USDs. Der Konverter braucht `isaaclab.sh`, das **nur im
   Sim-Container** existiert → **nicht** auf dem nackten Host ausführen, sondern in einem
   **lokal gestarteten Docker-Container** (genau wie das DEX3-Asset, siehe
-  [vastai-anleitung.md](vastai-anleitung.md) Schritt 3b). Im Repo-Root:
+  [sim-eval-anleitung.md](sim-eval-anleitung.md) Schritt 3b). Im Repo-Root:
   ```bash
   docker run -it --rm --gpus all --ipc=host --shm-size=8g \
     --entrypoint bash \

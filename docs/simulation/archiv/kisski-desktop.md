@@ -3,7 +3,7 @@
 > **TL;DR:** Archiviert: Schritt-für-Schritt-Anleitung für den Sim-Container auf der
 > KISSKI-JupyterHPC-Desktop-Umgebung (Quadro RTX 5000) — laut
 > [gpu-kompatibilitaet.md](gpu-kompatibilitaet.md) zu alt für Isaac Sim 4.x. Aktueller Weg:
-> [vastai-anleitung.md](../vastai-anleitung.md).
+> [sim-eval-anleitung.md](../sim-eval-anleitung.md).
 
 Ziel: Den Isaac-Lab-Sim-Client-Container interaktiv in der **JupyterHPC-Desktop-Umgebung**
 auf KISSKI testen (Phase A des Plans: leere Szene rendert RGB-Bild headless).

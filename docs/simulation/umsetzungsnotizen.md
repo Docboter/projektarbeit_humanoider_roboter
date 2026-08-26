@@ -104,7 +104,7 @@ zuerst `unset VIRTUAL_ENV` ausführen.
 übergeben (Bash-Kommentarzeichen am Zeilenende durch Copy-Paste). Das `#` wurde
 wörtlich in den Dateinamen übernommen → `g1_dex3.usd#` erzeugt, USD nicht ladbar.
 
-**Fix:** Pfad ohne `#` übergeben. Bereits in `vastai-anleitung.md` korrigiert.
+**Fix:** Pfad ohne `#` übergeben. Bereits in `sim-eval-anleitung.md` korrigiert.
 
 ### USD-Asset ist ein Dateibündel, nicht eine einzelne Datei
 
@@ -144,7 +144,7 @@ Use-Case), Sim-Eval hingegen scheitert.
 
 Trotz Vulkan-Problemen funktioniert die **URDF→USD-Konvertierung** lokal auf Windows
 mit Docker Desktop, weil sie kein funktionierendes Rendering braucht. Befehle:
-[vastai-anleitung.md](vastai-anleitung.md) Schritt 3 (Option 1, lokal).
+[sim-eval-anleitung.md](sim-eval-anleitung.md) Schritt 3 (Option 1, lokal).
 
 Voraussetzung: `git submodule update --init data/unitree_ros`
 
@@ -252,7 +252,7 @@ an `run_gr00t_server.py`. Die Anleitung empfahl genau das als Fix bei „flash-a
 `flash_attn 2.7.4.post1` ist im venv installiert.
 
 **Fix:** Flash-Attn-Flag-Logik aus dem Entrypoint entfernt; `NO_FLASH_ATTN` wird nur noch mit
-Warnung ignoriert. `NO_FLASH_ATTN`-Zeile + Troubleshooting-Tipp aus `vastai-anleitung.md`
+Warnung ignoriert. `NO_FLASH_ATTN`-Zeile + Troubleshooting-Tipp aus `sim-eval-anleitung.md`
 entfernt. **Konsequenz:** Nur GPUs mit Flash-Attn-Support (Ampere+) sind nutzbar — bestätigt die
 ohnehin bestehende GPU-Anforderung.
 
@@ -694,7 +694,7 @@ Die folgenden Dokumente sind historisch/überholt und liegen daher im Unterordne
 | [`archiv/kisski-desktop.md`](archiv/kisski-desktop.md) | Setzt RTX-5000-Kompatibilität voraus — vor Nutzung prüfen ob ältere Isaac-Lab-Version kompatibel ist |
 | [`archiv/isaac-lab-plan.md`](archiv/isaac-lab-plan.md) | Ursprünglicher Implementierungs-Plan (historisch). Konkrete Werte (Kamera-Posen, Tischhöhe 0.74, Würfelpositionen, Aktions-Annahmen) sind durch die Umsetzung überholt — **§10/§11 dieses Dokuments sind die Quelle der Wahrheit** für den aktuellen Stand. |
 
-> **Geprüft (2026-06-01) und aktuell:** [`vastai-anleitung.md`](vastai-anleitung.md) (Env-Vars inkl.
+> **Geprüft (2026-06-01) und aktuell:** [`sim-eval-anleitung.md`](sim-eval-anleitung.md) (Env-Vars inkl.
 > `ASSET_PATH`, `NO_FLASH_ATTN`-Hinweis, `-p 22`, Open-Loop-Replay-Abschnitt), `CLAUDE.md`
 > (Architekturbaum mit Replay-Tool/`camera_reference`, Sim-Env-Tabelle). Das Trainings-README und
 > die Trainings-Anleitung (`docs/training/`) betreffen nur das Training — von den Sim-Eval-

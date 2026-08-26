@@ -158,7 +158,7 @@ Ergebnis: `lucam03/projekt-humanoider-roboter-sim-standalone:latest` auf Docker 
 ### Schritt 2 — BC-Checkpoint als RL-Startpunkt bereitstellen
 
 RL **verfeinert** einen BC-Checkpoint (es ersetzt BC nicht). Lade den besten BC-Checkpoint zu
-HuggingFace hoch — identisch zur Sim-Eval, [vastai-anleitung.md Schritt 2](../simulation/vastai-anleitung.md#schritt-2--checkpoint-von-kisski-holen):
+HuggingFace hoch — identisch zur Sim-Eval, [sim-eval-anleitung.md Schritt 2](../simulation/sim-eval-anleitung.md#schritt-2--checkpoint-von-kisski-holen):
 
 ```bash
 # Modell-Repo (einmalig, privat reicht)
@@ -214,7 +214,7 @@ Drei Dinge, die beim Umschalten zählen:
 ### Schritt 3 — USD-Asset erzeugen (einmalig)
 
 Identisch zur Sim-Eval — die RL-Env spawnt denselben Roboter. Vollständige Anleitung:
-[vastai-anleitung.md Schritt 3](../simulation/vastai-anleitung.md#schritt-3--usd-asset-erzeugen-einmalig).
+[sim-eval-anleitung.md Schritt 3](../simulation/sim-eval-anleitung.md#schritt-3--usd-asset-erzeugen-einmalig).
 Kurz: `convert_urdf_to_usd.py` erzeugt `g1_dex3.usd`; am besten ins selbe HF-Repo wie den
 Checkpoint legen, dann findet der Entrypoint es automatisch (`ASSET_PATH` default =
 `$CHECKPOINT_PATH/g1_dex3.usd`).
@@ -450,7 +450,7 @@ scp -P <port> -r root@<ip>:/data/g1_dex3_rl/ ./rl_checkpoints/
 ```
 
 Der beste RL-Checkpoint wird anschließend genau wie ein BC-Checkpoint in der
-[Closed-Loop-Sim](../simulation/vastai-anleitung.md) evaluiert — **RL- vs. BC-Erfolgsrate auf dem
+[Closed-Loop-Sim](../simulation/sim-eval-anleitung.md) evaluiert — **RL- vs. BC-Erfolgsrate auf dem
 `test`-Split** ist der eigentliche Vergleich (RL-Plan Gruppe 6).
 
 ---

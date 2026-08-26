@@ -41,7 +41,7 @@ Operativer Sim-Eval-Workflow. Mess- und Methodik-Ergebnisse stehen unter [Ergebn
 | Dokument | Inhalt |
 |---|---|
 | [simulation/](simulation/README.md) | **Einstieg Simulation** (Index) |
-| [simulation/vastai-anleitung.md](simulation/vastai-anleitung.md) | **Primärer Workflow** — Closed-Loop-Sim-Eval auf vast.ai, Schritt für Schritt (inkl. Open-Loop-Replay-Diagnose) |
+| [simulation/sim-eval-anleitung.md](simulation/sim-eval-anleitung.md) | **Primärer Workflow** — Closed-Loop-Sim-Eval Schritt für Schritt: gemeinsame Einmal-Schritte, dann Weg A IKR-Server (Standard) oder Weg B vast.ai (Cloud-Alternative); inkl. Open-Loop-Replay-Diagnose |
 | [simulation/live-ansicht.md](simulation/live-ansicht.md) | **Live zuschauen** — Isaac-Sim-Viewport per WebRTC auf dem eigenen Rechner öffnen (`LIVESTREAM=2`, nativer Streaming-Client) statt hinterher MP4s zu holen. Gilt für Sim-Eval, Baseline, Greif-Test und RL. Gebaut 2026-08-13, Hardware-Test offen |
 | [simulation/umsetzungsnotizen.md](simulation/umsetzungsnotizen.md) | **READ FIRST** — Lessons Learned, bekannte Fixes (Stand bis Juni 2026; die Sim-Erkenntnisse seit August — Isaac-Sim-6.0-Port, Kamera-Neukalibrierung, Greif-Diagnostik — stehen in [ergebnisse/diagnose-chronik.md](ergebnisse/diagnose-chronik.md)) |
 | [simulation/wuerfellage-rekonstruktion.md](simulation/wuerfellage-rekonstruktion.md) | **Würfellage aus den Realbildern** — Verfahren und Koordinatentransformation (Bild → Kamerastrahl → Sim-Koordinate) für den Co-Training-Renderer. Übergabedokument mit Annahmenliste, den zwei gescheiterten Vorgängerverfahren und dem offenen Abnahme-Test. |

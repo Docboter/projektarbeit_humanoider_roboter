@@ -793,7 +793,7 @@ ensure_asset_local() {
     err "  Drei Wege:"
     err "    1. Anderen Ort angeben:  VIEW_HOST_ASSET_DIR=/pfad/zu/usd $0 $ACTION"
     err "    2. Aus dem URDF erzeugen (braucht Isaac Sim, laeuft IM Container —"
-    err "       docs/simulation/vastai-anleitung.md Schritt 3):"
+    err "       docs/simulation/sim-eval-anleitung.md Schritt 3):"
     err "         $0 shell"
     err "         unset VIRTUAL_ENV && '\$ISAACLAB_PATH/isaaclab.sh' -p \\"
     err "             $SIM_DIR/convert_urdf_to_usd.py --headless \\"

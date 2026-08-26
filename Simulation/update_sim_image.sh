@@ -148,7 +148,7 @@ if [[ "$STANDALONE" == "1" ]]; then
     echo "         Docker Options: --ipc=host --shm-size=16g"
     echo "         Env:            CHECKPOINT_PATH=/data/checkpoints/checkpoint-XXXX  HF_TOKEN=hf_..."
     echo "         Ergebnisse vor dem Destroy sichern: docker cp CONTAINER:/data/sim_results ./sim_results"
-    echo "    Anleitung vast.ai: docs/simulation/vastai-anleitung.md"
+    echo "    Anleitung Sim-Eval (IKR & vast.ai): docs/simulation/sim-eval-anleitung.md"
 else
     echo "    1. SIF auf KISSKI ziehen (Login-Node):"
     echo "         module load apptainer"

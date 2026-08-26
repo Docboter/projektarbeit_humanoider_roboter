@@ -1,6 +1,6 @@
 # Quickstart
 
-> **TL;DR:** Der schnellste Weg vom frischen Checkout zu laufendem Training bzw. laufender Simulation: Systemvoraussetzungen, Host-Software, Accounts/Tokens und die kürzeste Befehlskette pro Weg. Details stehen bewusst nicht hier, sondern in den verlinkten Anleitungen ([Training](training/anleitung.md), [Simulation](simulation/vastai-anleitung.md), [KISSKI](training/kisski-hpc.md)).
+> **TL;DR:** Der schnellste Weg vom frischen Checkout zu laufendem Training bzw. laufender Simulation: Systemvoraussetzungen, Host-Software, Accounts/Tokens und die kürzeste Befehlskette pro Weg. Details stehen bewusst nicht hier, sondern in den verlinkten Anleitungen ([Training](training/anleitung.md), [Simulation](simulation/sim-eval-anleitung.md), [KISSKI](training/kisski-hpc.md)).
 
 Alles läuft in Containern: **CUDA 12.8, Python 3.10 und `uv` stecken im Image** — auf dem
 Host werden nur Docker, der NVIDIA-Treiber und Git gebraucht. Wer nur trainieren will,
@@ -95,7 +95,7 @@ cp .env.local.example .env.local              # Host-Pfade eintragen
 ./run.sh sim                                  # dann: setup → eval → …
 ```
 
-→ vast.ai-Weg: [simulation/vastai-anleitung.md](simulation/vastai-anleitung.md) · RL: [weiterfuehrend/rl-anleitung.md](weiterfuehrend/rl-anleitung.md) · bei Problemen zuerst [simulation/umsetzungsnotizen.md](simulation/umsetzungsnotizen.md)
+→ Schritt für Schritt (IKR & vast.ai): [simulation/sim-eval-anleitung.md](simulation/sim-eval-anleitung.md) · RL: [weiterfuehrend/rl-anleitung.md](weiterfuehrend/rl-anleitung.md) · bei Problemen zuerst [simulation/umsetzungsnotizen.md](simulation/umsetzungsnotizen.md)
 
 **KISSKI-Cluster** (nur Training, kein Sim):
 
@@ -118,7 +118,7 @@ sbatch Training/kisski_submit.sh
 | Trainings-Anleitung (alle Wege, FAQ) | [training/anleitung.md](training/anleitung.md) |
 | Env-Variablen-Referenz | [training/env-vars.md](training/env-vars.md) |
 | KISSKI/SLURM im Detail | [training/kisski-hpc.md](training/kisski-hpc.md) |
-| Sim-Eval auf vast.ai Schritt für Schritt | [simulation/vastai-anleitung.md](simulation/vastai-anleitung.md) |
+| Sim-Eval Schritt für Schritt (IKR-Server & vast.ai) | [simulation/sim-eval-anleitung.md](simulation/sim-eval-anleitung.md) |
 | Bekannte Sim-Fallstricke (zuerst lesen!) | [simulation/umsetzungsnotizen.md](simulation/umsetzungsnotizen.md) |
 | Live in die Simulation schauen | [simulation/live-ansicht.md](simulation/live-ansicht.md) |
 | RL-Feintuning | [weiterfuehrend/rl-anleitung.md](weiterfuehrend/rl-anleitung.md) |

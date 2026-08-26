@@ -266,7 +266,7 @@ höchstens Komfort, nie den Lauf.
 | **2b — Spur B auf Sim-/Baseline-Eval** | Hook an derselben Stelle wie `frames.append(frame)` (§4.2); `live_view.py` ist lauf-agnostisch, es fehlt nur der Aufruf | ~1 h | ⬜ offen — für diese Läufe deckt jetzt Spur A den Bedarf |
 | **3 — Spur A reparieren** ✅ | D1–D4 zentral in [`lib_livestream.sh`](../../Simulation/scripts/lib_livestream.sh) (statt doppelt in beiden Entrypoints); D6 über `server_rl_run.sh` statt eines neuen `server_sim_run.sh`; `LIVESTREAM` zusätzlich in Replay und RL; `livecheck`; Live **statt** MP4 (`LIVE_KEEP_VIDEO=1` = beides); Doku [live-ansicht.md](../simulation/live-ansicht.md) | erledigt 2026-08-13 | ✅ — trocken geprüft (Flag-/Video-Matrix, Kit-Settings je Version, `docker exec`-Kommandos gegen ein Fake-`docker`); **Hardware-Test offen** |
 | **4 — Spur A testen** | `livecheck`, dann `./Simulation/server_rl_run.sh view` (Szene ohne Modell/Checkpoint/`HF_TOKEN` — seit 2026-08-17 der Einstieg mit den wenigsten beweglichen Teilen), erst danach `NUM_EPISODES=2 EPISODE_LENGTH_S=120 LIVESTREAM=2 … eval`; Client → Viewport sichtbar und flüssig? Als Client geht der native **oder** der Browser (`webview`, s. u.) | ~2 h | ⬜ **offen — der nächste Schritt.** `view` trennt dabei die Fehlerquellen: scheitert schon er, liegt es an Isaac Sim/GPU/Ports, nicht am Modell. Der Web-Viewer ist **nicht mehr nur Rückfalloption, sondern gebaut** (2026-08-17) und lokal end-to-end geprüft — er ist damit sogar der schnellere Einstieg, weil nichts installiert werden muss. Bleibt das Bild in beiden Clients schwarz, obwohl UDP offen ist: `RL_NETWORK_MODE=host` probieren (NVIDIA nennt `--network=host` für WebRTC erforderlich). Sonst bleibt Spur B die Lösung |
-| **5 — Doku** ✅ (RL-Teil) | [`rl-anleitung.md`](rl-anleitung.md) Schritt 6, [`env-vars.md`](../training/env-vars.md), [`CLAUDE.md`](../../CLAUDE.md). Offen: [`vastai-anleitung.md`](../simulation/vastai-anleitung.md) + [`umsetzungsnotizen.md`](../simulation/umsetzungsnotizen.md) (gehören zu Phase 2b/3) | erledigt 2026-08-08 | ✅ |
+| **5 — Doku** ✅ (RL-Teil) | [`rl-anleitung.md`](rl-anleitung.md) Schritt 6, [`env-vars.md`](../training/env-vars.md), [`CLAUDE.md`](../../CLAUDE.md). Offen: [`sim-eval-anleitung.md`](../simulation/sim-eval-anleitung.md) + [`umsetzungsnotizen.md`](../simulation/umsetzungsnotizen.md) (gehören zu Phase 2b/3) | erledigt 2026-08-08 | ✅ |
 
 **Reihenfolge-Begründung:** Spur B zuerst, obwohl der Viewport das attraktivere Ziel ist —
 weil Phase 1+2 mit hoher Sicherheit funktionieren und danach *unabhängig vom Isaac-Sim-6.0-Risiko*
@@ -370,7 +370,7 @@ Der v1-Code ist umgesetzt und bleibt für vast.ai die Referenz:
 - [x] `entrypoint_sim.sh` + `entrypoint_baseline.sh`: `LIVESTREAM`/`LIVESTREAM_PORT`/`PUBLIC_IP`,
       konditionales `--headless`/`--livestream`
 - [x] `Dockerfile.standalone`: `LIVESTREAM`/`LIVESTREAM_PORT`-Defaults
-- [x] Doku: [vastai-anleitung.md](../simulation/vastai-anleitung.md), Env-Var-Tabelle in [`CLAUDE.md`](../../CLAUDE.md)
+- [x] Doku: [sim-eval-anleitung.md](../simulation/sim-eval-anleitung.md), Env-Var-Tabelle in [`CLAUDE.md`](../../CLAUDE.md)
 - [ ] **Nie auf Hardware getestet** — weder auf vast.ai noch auf dem Server
 
 Offene v1-Punkte sind in §6 als Phase 3–5 aufgegangen.

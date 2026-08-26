@@ -393,7 +393,7 @@ Zwei Details, die sonst Stunden kosten:
 | Stream steht, Szene **friert ein** | Der Render-Loop wird nicht getrieben. Im RL-Pfad regelt das `LIVESTREAM_UPDATE_EVERY_N` (Default 1 = jeder Rollout-Step ein `simulation_app.update()`); `0` schaltet es ab. |
 | `docker run` meldet *port is already allocated* | Ein anderer Prozess hält 49100/47998. `LIVESTREAM_PORT=49101 ./Simulation/server_rl_run.sh clean` und neu anlegen. `ensure_container` legt den Container notfalls ohne die Livestream-Ports an, statt den ganzen Workflow zu blockieren — dann warnt es. |
 | Videos fehlen nach dem Lauf | So gewollt: live **statt** Video. `LIVE_KEEP_VIDEO=1` schreibt beides. |
-| Läuft mit `LIVESTREAM=1` auf vast.ai nicht | Dort muss `LIVESTREAM_PORT` der **extern gemappte** Port sein (intern == extern) und `PUBLIC_IP` stimmen — siehe [vastai-anleitung.md](vastai-anleitung.md). Auf einer öffentlichen IP ist der Viewport **ungeschützt**; besser per SSH-Tunnel arbeiten oder Spur B nutzen. |
+| Läuft mit `LIVESTREAM=1` auf vast.ai nicht | Dort muss `LIVESTREAM_PORT` der **extern gemappte** Port sein (intern == extern) und `PUBLIC_IP` stimmen — siehe [sim-eval-anleitung.md](sim-eval-anleitung.md). Auf einer öffentlichen IP ist der Viewport **ungeschützt**; besser per SSH-Tunnel arbeiten oder Spur B nutzen. |
 | Kit-Settings greifen nachweislich nicht | `LIVESTREAM_SETTINGS_STYLE=new\|old\|both` erzwingen, oder die Zeile komplett selbst setzen: `LIVESTREAM_KIT_ARGS="--/… "`. |
 
 ---

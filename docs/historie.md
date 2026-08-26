@@ -83,7 +83,7 @@ Umbau der `docs/`-Struktur; zugleich der erste Eintrag des Changelog-Rohmaterial
 Quelle: `docs/training/fixes-aus-erstem-lauf.md`, aufgelöst am 2026-08-18. Die drei
 Sim-Asset-Fixes — Würfelfarbe (gelb statt blau), das schwarze Stapel-Band und die
 `BLACK_HANDS`-Auto-Recolor-Mechanik — sind längst im Sim-Asset bzw. den Sim-Launchern aktiv
-und operativ in [`docs/simulation/vastai-anleitung.md`](simulation/vastai-anleitung.md) und
+und operativ in [`docs/simulation/sim-eval-anleitung.md`](simulation/sim-eval-anleitung.md) und
 den `env-vars`-Referenzen dokumentiert; dieses Dokument ist reine Historie eines
 abgeschlossenen Fixes und wird hier nur noch als Protokoll aufbewahrt.
 
@@ -681,7 +681,8 @@ Server eintragen als `<PUBLIC_IP>:<extern-gemappter-49100>`.
 
 Der vast.ai-spezifische Kern dieses Abschnitts (Port-Problem, Stop/Neustart, sowie die
 vast.ai-spezifische Verbinden-Notiz mit `<PUBLIC_IP>:<extern-gemappter-49100>`) bleibt in
-`docs/simulation/vastai-anleitung.md` erhalten — nur der oben zitierte, inzwischen
+`docs/simulation/sim-eval-anleitung.md` (heutiger Name; damals `vastai-anleitung.md`)
+erhalten — nur der oben zitierte, inzwischen
 gegenstandslose Teil wurde entfernt.
 
 ---

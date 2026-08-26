@@ -21,7 +21,7 @@ Detailed guides (all prose docs live under [`docs/`](docs/README.md)):
 - **Setup & Architecture:** [`app/Groot-1.6/examples/G1_DEX3/SETUP_DOCUMENTATION.md`](app/Groot-1.6/examples/G1_DEX3/SETUP_DOCUMENTATION.md)
 - **Fine-tuning step-by-step:** [`app/Groot-1.6/examples/G1_DEX3/FINETUNING_GUIDE.md`](app/Groot-1.6/examples/G1_DEX3/FINETUNING_GUIDE.md)
 - **G1/DEX3 joint layout & datasets:** [`app/Groot-1.6/examples/G1_DEX3/README.md`](app/Groot-1.6/examples/G1_DEX3/README.md)
-- **Sim eval on vast.ai (German):** [`docs/simulation/vastai-anleitung.md`](docs/simulation/vastai-anleitung.md)
+- **Sim-eval step-by-step (German):** [`docs/simulation/sim-eval-anleitung.md`](docs/simulation/sim-eval-anleitung.md) — shared one-time steps, then IKR server (standard) or vast.ai (cloud alternative)
 - **Sim implementation notes & lessons learned:** [`docs/simulation/umsetzungsnotizen.md`](docs/simulation/umsetzungsnotizen.md)
 - **Results & evaluation (German):** [`docs/ergebnisse/`](docs/ergebnisse/README.md) — run analyses, domain-gap, sim methodology review, plus the **diagnose chronicle** ([`diagnose-chronik.md`](docs/ergebnisse/diagnose-chronik.md), ongoing from run 08 — the project-wide "Lauf N" references resolve here)
 - **Further work / concepts (German):** [`docs/weiterfuehrend/`](docs/weiterfuehrend/README.md) — RL plan + slim operative RL guide ([`rl-anleitung.md`](docs/weiterfuehrend/rl-anleitung.md); RL runs end-to-end on the Blackwell server; run 32 (span gate) confirmed the domain gap, run 34 measured the `TUNE_VISUAL` checkpoint at 27.6% vs 20.5% finger span with `lifted` still 0/10 → next step is co-training, RL after; learning effect still unverified), locomotion research (not implemented), livestream plan (Spur A/WebRTC open; Spur B/MJPEG `LIVE_VIEW` is built)
@@ -128,9 +128,9 @@ rsync -avz <username>@transfer.hpc.gwdg.de:/mnt/vast-kisski/projects/kisski-humr
 
 KISSKI partitions: `kisski` (A100 80 GB) and `kisski-h100` (H100 94 GB), max walltime 48 h.
 
-### Sim eval on vast.ai (build → push → run)
+### Sim eval (build → push → run)
 
-Full guide: [`docs/simulation/vastai-anleitung.md`](docs/simulation/vastai-anleitung.md)
+Full guide: [`docs/simulation/sim-eval-anleitung.md`](docs/simulation/sim-eval-anleitung.md)
 Known fixes & GPU requirements: [`docs/simulation/umsetzungsnotizen.md`](docs/simulation/umsetzungsnotizen.md)
 
 ```bash
@@ -142,7 +142,7 @@ python Simulation/scripts/upload_checkpoint.py \
   --checkpoint /path/to/checkpoint-3000 --repo luca-mue/groot-g1dex3-checkpoint
 
 # 3. Generate USD asset (one-time, local Docker)
-#    → see docs/simulation/vastai-anleitung.md Schritt 3, or data/g1_dex3.usd already exists
+#    → see docs/simulation/sim-eval-anleitung.md Schritt 3, or data/g1_dex3.usd already exists
 ```
 
 On vast.ai: GPU must be **Ampere+ with RT-Cores** (L40, RTX 4090, A6000) — A100/H100 lack RT-Cores; RTX 5000 is Turing (too old for Isaac Sim 4.x). Env vars for the sim container:
@@ -251,7 +251,7 @@ repo root
 │   │                                   #   multi-gpu.md, train-test-split.md, wandb-offline-sync.md,
 │   │                                   #   trainingsverfahren.md, co-training.md (step 4: real +
 │   │                                   #   rendered images; tools built 2026-08-14, run still pending)
-│   ├── simulation/                     # operative guides: vastai-anleitung.md, umsetzungsnotizen.md (READ FIRST),
+│   ├── simulation/                     # operative guides: sim-eval-anleitung.md, umsetzungsnotizen.md (READ FIRST),
 │   │                                   #   live-ansicht.md, inferenz-optimierung.md,
 │   │                                   #   wuerfellage-rekonstruktion.md (cube layout handover doc),
 │   │                                   #   baseline-eval.md (stock-gripper baseline, first run pending)

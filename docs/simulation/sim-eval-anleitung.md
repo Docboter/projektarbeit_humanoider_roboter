@@ -1,15 +1,16 @@
-# Closed-Loop-Sim auf vast.ai — Schritt-für-Schritt-Anleitung
+# Closed-Loop-Sim-Eval — Schritt-für-Schritt-Anleitung
 
-> **TL;DR:** Schritt-für-Schritt-Anleitung für den Sim-Eval-Workflow auf vast.ai: Image
-> bauen/pushen, Checkpoint und USD-Asset bereitstellen, vast.ai-Instanz (L40, 48 GB)
-> konfigurieren und überwachen. vast.ai ist die **Cloud-Alternative** zum Standardweg über den
-> eigenen IKR-Server ([`Simulation/server_rl_run.sh`](../../Simulation/server_rl_run.sh));
-> genutzt wird in beiden Fällen dasselbe **Standalone-Image** (Isaac Sim + GR00T kombiniert,
-> läuft auf dem IKR-Server UND auf vast.ai). Für alle, die den feingetunten
-> GR00T-N1.6-Checkpoint closed-loop im Isaac-Lab-Block-Stacking evaluieren wollen.
+> **TL;DR:** Schritt-für-Schritt-Anleitung für die Closed-Loop-Evaluation des feingetunten
+> GR00T-N1.6-Checkpoints im Isaac-Lab-Block-Stacking. Die Schritte 1-3 sind die gemeinsamen
+> Einmal-Schritte (Image bauen, Checkpoint holen, USD-Asset erzeugen); danach zwei Wege:
+> **Weg A** = Standardweg auf dem eigenen IKR-Server
+> ([`Simulation/server_rl_run.sh`](../../Simulation/server_rl_run.sh)), **Weg B** = die
+> Cloud-Alternative vast.ai (Schritte 4-7). Beide nutzen dasselbe **Standalone-Image**
+> (Isaac Sim + GR00T kombiniert).
 
-Ziel: Den feingetunten GR00T-N1.6-Checkpoint in der Isaac-Lab-Simulation auf einer
-**NVIDIA L40 (48 GB)** auf vast.ai evaluieren.
+Ziel: Den feingetunten GR00T-N1.6-Checkpoint in der Isaac-Lab-Simulation closed-loop
+evaluieren — auf dem IKR-Server (Standardweg) oder auf einer **NVIDIA L40 (48 GB)**
+auf vast.ai.
 
 Der Container startet autonom:
 1. Checkpoint herunterladen (oder aus Volume lesen)
@@ -21,7 +22,7 @@ Der Container startet autonom:
 ## Überblick: Was läuft wo
 
 ```text
-vast.ai Instanz (L40, 48 GB VRAM)
+IKR-Server oder vast.ai-Instanz (RT-Core-GPU, z. B. L40 mit 48 GB VRAM)
 └── Docker-Container: lucam03/projekt-humanoider-roboter-sim-standalone:latest
     ├── GR00T-Policy-Server  → /app/Groot-1.6/.venv/bin/python   (~10 GB VRAM)
     │     lädt Checkpoint, antwortet auf ZMQ-Requests
@@ -34,14 +35,14 @@ vast.ai Instanz (L40, 48 GB VRAM)
 
 ## Voraussetzungen
 
-Einmalig zu erledigen, bevor du die erste Instanz startest. Allgemeine Accounts/Tokens
+Einmalig zu erledigen, bevor der erste Lauf startet. Allgemeine Accounts/Tokens
 (HuggingFace, W&B) stehen in
 [../quickstart.md#accounts-und-tokens](../quickstart.md#accounts-und-tokens) — hier nur die
-vast.ai-spezifischen:
+build-spezifischen; der vast.ai-Account wird nur für Weg B gebraucht:
 
 | Was | Wo |
 |---|---|
-| vast.ai-Account mit Credits | https://cloud.vast.ai |
+| vast.ai-Account mit Credits (nur Weg B) | https://cloud.vast.ai |
 | Docker-Hub-Login (`lucam03`) | `docker login` lokal |
 | NGC-API-Key für `nvcr.io` | https://ngc.nvidia.com → API Key |
 | Feingetunter Checkpoint | von KISSKI rsync'd (→ Abschnitt 3) |
@@ -204,6 +205,35 @@ Oder lokal aufbewahren und bei jeder Sim-Instanz per SCP hochladen (klein genug)
 
 ---
 
+## Weg A — Standardweg: IKR-Server
+
+Auf dem eigenen Server (Docker, RT-Core-GPU) übernimmt
+[`Simulation/server_rl_run.sh`](../../Simulation/server_rl_run.sh) den kompletten Ablauf —
+Container-Erstellung, Checkpoint-Auswahl, Eval-Schleife:
+
+```bash
+./run.sh sim eval                    # geführt (fragt Checkpoint + Parameter ab)
+# oder direkt:
+./Simulation/server_rl_run.sh eval
+```
+
+Der Launcher fragt, welcher Checkpoint gemessen wird, und schlägt die unter
+`HOST_DATA_DIR/checkpoints/` vorhandenen vor. Host-spezifische Pfade kommen aus der
+gitignorierten `.env.local` (Template: [`.env.local.example`](../../.env.local.example),
+siehe [../portabilitaet.md](../portabilitaet.md)). Die weiteren Aktionen — Replay-Diagnose
+(`grasp`), Domain-Gap (`gap`), Live-Ansicht, RL — und die Fehlersuche stehen in
+[../weiterfuehrend/rl-anleitung.md](../weiterfuehrend/rl-anleitung.md); die
+Env-Var-Referenz in [CLAUDE.md](../../CLAUDE.md) gilt für beide Wege.
+
+Die Schritte 4-7 unten betreffen nur **Weg B (vast.ai)**.
+
+---
+
+## Weg B — Cloud-Alternative: vast.ai
+
+Ohne eigenen RT-Core-Server läuft dasselbe Image auf einer gemieteten vast.ai-Instanz;
+die Schritte 4-7 beschreiben diesen Weg.
+
 ## Schritt 4 — Instanz auf vast.ai konfigurieren
 
 ### 4a) GPU auswählen
@@ -256,7 +286,7 @@ lucam03/projekt-humanoider-roboter-sim-standalone:latest
 | `LIVE_VIEW` | `1` | Nein (default 0) — MJPEG-Live-Ansicht im Browser, Port `LIVE_VIEW_PORT` (8900) |
 
 > Die vollständige Env-Var-Referenz des Sim-Containers steht in
-> [CLAUDE.md](../../CLAUDE.md) („Sim eval on vast.ai"); dort sind auch `LIVE_VIEW_EVERY_N`,
+> [CLAUDE.md](../../CLAUDE.md) („Sim eval"); dort sind auch `LIVE_VIEW_EVERY_N`,
 > `LIVE_VIEW_CAMS` und die `LIVESTREAM*`-Variablen beschrieben.
 
 > **Flash-Attention:** Das Modell (Eagle-Block2A-2B-v2) erfordert `flash_attention_2`
@@ -511,6 +541,10 @@ Der Replay ist **vollständig additiv**: er überschreibt nichts vom Modell-Eval
 eigene Ausgabepfade (`/data/sim_videos_replay`, `/data/sim_results_replay`) und kann sogar
 **parallel** in einer zweiten Instanz laufen.
 
+> **Auf dem IKR-Server** ist derselbe Diagnose-Lauf eine eigene Aktion:
+> `./Simulation/server_rl_run.sh grasp` (Replay + Grasp-Test) — kein manueller
+> Entrypoint-Override nötig. Der Rest dieses Abschnitts beschreibt den vast.ai-Weg.
+
 ### Lauf konfigurieren
 
 Gleiches Image wie der Modell-Eval, aber der **Entrypoint wird überschrieben**:
@@ -571,7 +605,7 @@ scp -P <port> root@<ip>:/data/sim_videos_replay/_debug_obs_cam_*.png ./
 
 ---
 
-## Kosten & Laufzeiten (Richtwerte)
+## Kosten & Laufzeiten auf vast.ai (Richtwerte)
 
 | GPU | Preis/h | 20 Episoden (ca.) | Kosten gesamt |
 |---|---|---|---|
@@ -627,8 +661,10 @@ Output. Danach kommt `[Phase A] Isaac-Lab-Sim wird initialisiert …`.
 
 ## Zusammenfassung: Schnellstart
 
-Voraussetzungen: Image gepusht (`./Simulation/update_sim_image.sh --standalone`), Checkpoint und
-USD-Asset auf HuggingFace (`luca-mue/groot-g1dex3-checkpoint`).
+**Weg A (IKR-Server):** `./run.sh sim eval` — mehr braucht der Standardweg nicht.
+
+**Weg B (vast.ai):** Image gepusht (`./Simulation/update_sim_image.sh --standalone`), Checkpoint und
+USD-Asset auf HuggingFace (`luca-mue/groot-g1dex3-checkpoint`), dann:
 
 1. `./Simulation/update_sim_image.sh --standalone` ausführen (nur wenn Image noch nicht gepusht)
 2. vast.ai → Search → **L40** filtern (≥24 GB, Ampere+, RT-Cores) → Rent
