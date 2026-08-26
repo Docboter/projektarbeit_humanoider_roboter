@@ -19,4 +19,8 @@ param LAYOUTCHECK_EXPECT str "" basic \
   "Bekannte Wuerfelpositionen als JSON" \
   "Aus render_manifest.json, Feld cubes_xyz. Ohne diese Referenz kann der Check nichts beweisen." \
   --default-from "ohne Referenz beweist der Check nichts"
+param LAYOUTCHECK_EXPECT_YAW str "" basic \
+  "Bekannte Gierwinkel als JSON" \
+  "Aus render_manifest.json, Feld cubes_yaw_deg. Prueft den Rundlauf: steht der Wuerfel im Renderbild bei einem bekannten Winkel, liest der Detektor ihn zurueck? Leer = nur die Positionen pruefen." \
+  --default-from "leer = nur Positionen pruefen"
 param LAYOUTCHECK_CAM str "cam_left_high" advanced "Zu pruefende Kamera"
