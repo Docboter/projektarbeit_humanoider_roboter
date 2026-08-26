@@ -13,44 +13,13 @@ Multi-GPU-Skalierung sowie die Methodik der Evaluation. Reproduktionsdetails
 \section{Vorgehensmodell}
 \label{sec:vorgehen}
 
-Das Projekt folgte einer klaren Abfolge (\cref{fig:system-overview}): Zunächst
-wurde eine containerisierte Trainingsinfrastruktur aufgebaut, anschließend der
-Datensatz beschafft und ins erwartete Format konvertiert, danach das Fine-Tuning
-auf dem HPC-Cluster durchgeführt und schließlich der resultierende Checkpoint
-evaluiert. Die Evaluation -- insbesondere die geschlossene Simulationsschleife --
-führte zu Erkenntnissen über den Domain-Gap, die wiederum
-Sim-Kalibrierungs- und Konzeptarbeiten anstießen (\cref{chap:ergebnisse}).
-
-\begin{figure}[H]
-  \centering
-  \resizebox{\linewidth}{!}{%
-  \begin{tikzpicture}[
-    node distance = 1.1cm and 1.5cm,
-    box/.style    = {draw, rounded corners, fill=NavyBlue!8,
-                     minimum width=2.9cm, minimum height=1cm,
-                     font=\small\sffamily, align=center},
-    eval/.style   = {draw, rounded corners, fill=BurntOrange!10,
-                     minimum width=2.9cm, minimum height=1cm,
-                     font=\small\sffamily, align=center},
-    arrow/.style  = {-{Stealth[scale=1.1]}, thick, NavyBlue!70},
-  ]
-    \node[box]  (data)     {Datensatz\\LeRobot v3.0};
-    \node[box]  (convert)  [right=of data]   {Konvertierung\\v3.0\,$\to$\,v2.1};
-    \node[box]  (train)    [right=of convert]{Fine-Tuning\\(KISSKI, A100)};
-    \node[box]  (ckpt)     [right=of train]  {Checkpoint\\\texttt{checkpoint-*}};
-    \node[eval] (openloop) [below=of train]  {Open-Loop-Eval\\(Action-\ac{mse})};
-    \node[eval] (closed)   [below=of ckpt]   {Closed-Loop-Eval\\(Isaac~Lab)};
-
-    \draw[arrow] (data)    -- (convert);
-    \draw[arrow] (convert) -- (train);
-    \draw[arrow] (train)   -- (ckpt);
-    \draw[arrow] (ckpt)    -- (closed);
-    \draw[arrow] (ckpt.south) |- (openloop.east);
-  \end{tikzpicture}}
-  \caption{Vorgehensmodell: von der Datenaufbereitung über das Training bis zur
-    zweigleisigen Evaluation (Open-Loop und Closed-Loop).}
-  \label{fig:system-overview}
-\end{figure}
+Das Projekt folgte einer klaren Abfolge: Aufbau der containerisierten
+Trainingsinfrastruktur, Beschaffung und Konvertierung des Datensatzes,
+Fine-Tuning auf dem \ac{hpc}-Cluster und schließlich die zweigleisige Evaluation
+des Checkpoints (Open-Loop und Closed-Loop). Die Evaluation -- insbesondere
+die geschlossene Simulationsschleife -- führte zu Erkenntnissen über den
+Domain-Gap, die wiederum Sim-Kalibrierungs- und Konzeptarbeiten anstießen
+(\cref{chap:ergebnisse}).
 
 \section{Trainingsinfrastruktur}
 \label{sec:infrastruktur}
@@ -66,71 +35,39 @@ selbst, sodass keine Codeänderung nötig ist. Die vollständige Bedienung ist i
 \doc{docs/training/anleitung.md} dokumentiert.
 
 \paragraph{Speichermodell.}
-Eine bewusste Designentscheidung betrifft die Datenhaltung: Standardmäßig gibt es
-\emph{keinen} persistenten Host-Speicher; alle Daten, Checkpoints und Logs liegen
-im Container-Dateisystem unter \texttt{/data}. Der Container ist langlebig
-gedacht -- \texttt{stop}/\texttt{start} erhält den Zustand, nur \texttt{docker rm}
-zerstört ihn. Diese Wahl spiegelt die Semantik von Cloud-GPU-Plattformen wider
-(eine Instanz~$\equiv$~ein Container) und verhindert insbesondere den
-verbreiteten Fehler, mit \texttt{docker run -{}-rm} unbeabsichtigt
-Trainingsergebnisse zu löschen. \textbf{Ausnahme KISSKI:} Dort bindet Apptainer
-das VAST-Projektverzeichnis \texttt{/mnt/vast-kisski/\dots/data} nach
-\texttt{/data}, sodass Daten über Job-Läufe hinweg persistieren.
+Standardmäßig gibt es \emph{keinen} persistenten Host-Speicher; alle Daten,
+Checkpoints und Logs liegen im Container-Dateisystem unter \texttt{/data} --
+der Container ist langlebig gedacht (\texttt{stop}/\texttt{start} erhält den
+Zustand). Das spiegelt die Semantik von Cloud-GPU-Plattformen (eine
+Instanz~$\equiv$~ein Container) und verhindert den verbreiteten Fehler,
+mit \texttt{docker run -{}-rm} Trainingsergebnisse zu löschen.
+\textbf{Ausnahme KISSKI:} Dort bindet Apptainer das VAST-Projektverzeichnis
+nach \texttt{/data}, sodass Daten über Job-Läufe hinweg persistieren.
 
 \paragraph{Konfiguration über Umgebungsvariablen.}
-Sämtliches Verhalten wird über Umgebungsvariablen gesteuert; ihre Defaults sind
-im Dockerfile hinterlegt. Dadurch lässt sich derselbe Container ohne Codeänderung
-an die jeweilige Hardware anpassen. \Cref{tab:env-curated} zeigt die
-konzeptionell wichtigsten Variablen; die vollständige Referenz mit allen Defaults
-findet sich in \doc{docs/training/env-vars.md}.
-
-\begin{table}[H]
-  \centering
-  \begin{tabularx}{\linewidth}{llX}
-    \toprule
-    \textbf{Variable} & \textbf{Default} & \textbf{Zweck} \\
-    \midrule
-    \texttt{HF\_TOKEN}          & ---     & Pflicht: HuggingFace-Zugang \\
-    \texttt{GLOBAL\_BATCH\_SIZE}& \texttt{8} & globale Batch-Größe (VRAM-abhängig) \\
-    \texttt{MAX\_STEPS}         & \texttt{20000} & Trainingsschritte \\
-    \texttt{NUM\_GPUS}          & \texttt{1} & GPUs (aktiviert \texttt{torchrun}) \\
-    \texttt{LEARNING\_RATE}     & \texttt{1e-4} & Lernrate \\
-    \texttt{TUNE\_VISUAL}       & \texttt{0} & Vision-Encoder mittrainieren \\
-    \texttt{USE\_AUGMENTATION}  & \texttt{1} & Bild-Augmentierung (Color-Jitter) \\
-    \texttt{TRAIN\_TEST\_SPLIT} & \texttt{0} & 80/20-Split aktivieren \\
-    \texttt{USE\_COTRAIN}       & \texttt{0} & Co-Training auf echten \emph{und}
-      gerenderten Bildern (\cref{sec:cotrain}) \\
-    \texttt{SKIP\_*}            & \texttt{0} & einzelne Phasen überspringen
-      (\texttt{DOWNLOAD}, \texttt{CONVERT}, \texttt{TRAIN}) \\
-    \bottomrule
-  \end{tabularx}
-  \caption{Auswahl der zentralen Konfigurationsvariablen (Defaults). Vollständige
-    Liste: \doc{docs/training/env-vars.md}.}
-  \label{tab:env-curated}
-\end{table}
+Sämtliches Verhalten wird über Umgebungsvariablen gesteuert; ihre Defaults
+sind im Dockerfile hinterlegt, sodass sich derselbe Container ohne
+Codeänderung an die Hardware anpassen lässt. Konzeptionell wichtig sind
+insbesondere \texttt{GLOBAL\_BATCH\_SIZE} und \texttt{MAX\_STEPS}
+(VRAM-abhängige Trainingsdimensionierung), \texttt{NUM\_GPUS} (aktiviert
+\texttt{torchrun}), \texttt{TUNE\_VISUAL} (Vision-Encoder mittrainieren),
+\texttt{USE\_AUGMENTATION} (Color-Jitter), \texttt{TRAIN\_TEST\_SPLIT}
+(80/20-Split) und \texttt{USE\_COTRAIN} (\cref{sec:cotrain}); die
+vollständige Referenz mit allen Defaults ist
+\doc{docs/training/env-vars.md}.
 
 \paragraph{Bedienbarkeit als Reproduzierbarkeitsproblem.}
-Die Konfiguration über Umgebungsvariablen erkauft ihre Flexibilität mit einer
-wachsenden Bedienoberfläche: Im Projektverlauf verteilte sich dieselbe
-Parameterliste auf vier Orte -- den Vorgabewert im Skript, dessen
-Hilfetext, die Tabelle in der Dokumentation und die Projektübersicht. Solche
-Kopien laufen erfahrungsgemäß auseinander, und eine Anleitung, die einen
-falschen Vorgabewert nennt, beschädigt genau die Reproduzierbarkeit, um derer
-willen die Infrastruktur gebaut wurde.
-
-Die Abhilfe war, die Parameter \emph{einmal} deklarativ zu beschreiben und
-alles Weitere daraus abzuleiten: Aus derselben Spezifikation speisen sich ein
-geführtes Auswahlmenü für die Bedienung am Terminal, der Hilfetext und eine
-Prüfung, die Abweichungen zwischen Spezifikation, Skript und Dokumentation
-meldet. Ergänzt wird dies durch einen einzigen Einstiegspunkt, der zunächst
-nach der Domäne (Simulation, Training, Cluster) fragt und dann an den
-zuständigen Starter übergibt. Zugleich wurden die verbliebenen
-maschinengebundenen Pfade entfernt: Der Simulationsserver liest seine
-lokalen Einstellungen aus einer nicht versionierten Konfigurationsdatei, die
-Cluster-Skripte leiten sämtliche Pfade aus einer einzigen Variablen ab. Damit
-läuft das Repository ohne Anpassung auf einer fremden Maschine -- die
-praktische Voraussetzung dafür, dass die hier berichteten Läufe von Dritten
-wiederholt werden können (\doc{docs/portabilitaet.md}).
+Die Env-Var-Konfiguration erkauft ihre Flexibilität mit einer wachsenden
+Bedienoberfläche: Dieselbe Parameterliste existierte zeitweise an vier Orten
+(Skript-Default, Hilfetext, Doku-Tabelle, Projektübersicht) -- Kopien, die
+auseinanderlaufen und damit genau die Reproduzierbarkeit beschädigen, für die
+die Infrastruktur gebaut wurde. Abhilfe schafft eine \emph{einmalige}
+deklarative Parameter-Spezifikation, aus der geführtes Terminal-Menü,
+Hilfetext und ein automatischer Drift-Check gespeist werden
+(\doc{docs/weiterfuehrend/cli-menuefuehrung.md}). Zusätzlich wurden alle
+maschinengebundenen Pfade entfernt, sodass das Repository ohne Anpassung auf
+fremden Maschinen läuft -- die praktische Voraussetzung, dass Dritte die hier
+berichteten Läufe wiederholen können (\doc{docs/portabilitaet.md}).
 
 \section{Datensatz, Konvertierung und Train/Test-Split}
 \label{sec:datensatz}
@@ -180,54 +117,36 @@ konvertiert die Pipeline automatisch von v3.0 nach v2.1 und ergänzt bei Bedarf 
 bei bereits konvertierten Daten übersprungen werden.
 
 \paragraph{Train/Test-Split.}
-Um eine objektive Bewertung zu ermöglichen, wurde ein \textbf{reproduzierbarer
-80/20-Split} konzipiert: die ersten 240~Episoden (Index 0--239) als Trainings-,
-die letzten 61 (Index 240--300) als Testmenge.\footnote{Die Grenze liegt bei~240,
-nicht bei~241: Die Split-Logik rechnet $n_{\text{train}} = \lfloor 301 \cdot 0{,}8
-\rfloor = 240$. Der erste reale Split-Lauf (\cref{sec:lauf3}) protokolliert
-entsprechend \texttt{split\_range: "240:301"}.} Bewusst wurde \emph{nicht} zufällig
-gesplittet, sondern entlang des natürlichen Episodenindex -- das garantiert
-Reproduzierbarkeit ohne Seed-Abhängigkeit. Das Vorgehen und seine
-Einschränkungen (ein niedriger Action-Loss auf der Testmenge ist nur ein
-\emph{schwacher} Proxy für Aufgabenerfolg) sind in
-\doc{docs/training/train-test-split.md} ausgeführt. Dass dieser Split im ersten
-durchgeführten Lauf noch \emph{nicht aktiv} war, ist ein Befund der Durchführung
-und wird in \cref{sec:split-befund} behandelt.
+Für eine objektive Bewertung wurde ein \textbf{reproduzierbarer 80/20-Split}
+konzipiert: die ersten 240~Episoden (Index 0--239) als Trainings-, die letzten
+61 (Index 240--300) als Testmenge\footnote{Die Grenze liegt bei~240, nicht
+bei~241: Die Split-Logik rechnet $n_{\text{train}} = \lfloor 301 \cdot 0{,}8
+\rfloor = 240$; der erste Split-Lauf (\cref{sec:lauf3}) protokolliert
+entsprechend \texttt{split\_range: "240:301"}.} -- bewusst entlang des
+Episodenindex statt zufällig, was Reproduzierbarkeit ohne Seed-Abhängigkeit
+garantiert. Vorgehen und Einschränkungen (Action-Loss auf der Testmenge ist
+nur ein \emph{schwacher} Proxy für Aufgabenerfolg):
+\doc{docs/training/train-test-split.md}. Dass der Split im ersten Lauf noch
+\emph{nicht aktiv} war, behandelt \cref{sec:split-befund}.
 
 \section{Trainingsverfahren und Hyperparameter}
 \label{sec:trainingsverfahren}
 
 Das Training ist ein \acf{sft} (Post-Training) des vortrainierten Modells per
-\acl{bc} -- es ist \emph{kein} Training von Grund auf, kein RL und kein
-Multi-Embodiment-Training. Entscheidend ist, dass nur ein Teil des Modells
-angepasst wird (\emph{selektives} Fine-Tuning, kein LoRA): Das Sprach-Backbone und
-der Vision-Encoder bleiben \textbf{eingefroren}, trainiert werden der Projektor und
-der Diffusions-/Flow-Matching-Aktionskopf (\cref{tab:tuning}). Dieses Einfrieren
-des Vision-Encoders ist die unmittelbare Ursache des später analysierten
-Domain-Gaps -- der Encoder sieht im gesamten Training nie ein Simulationsbild.
-
-\begin{table}[H]
-  \centering
-  \begin{tabular}{lll}
-    \toprule
-    \textbf{Komponente} & \textbf{Flag} & \textbf{Status} \\
-    \midrule
-    Sprach-Backbone (LLM) & \texttt{tune\_llm=False}            & eingefroren \\
-    Vision-Encoder        & \texttt{tune\_visual=False}         & eingefroren \\
-    Projektor             & \texttt{tune\_projector=True}       & trainiert \\
-    Aktionskopf (Diffusion)& \texttt{tune\_diffusion\_model=True}& trainiert \\
-    \bottomrule
-  \end{tabular}
-  \caption{Selektives Fine-Tuning: trainierbare vs.\ eingefrorene Komponenten
-    (Standardkonfiguration).}
-  \label{tab:tuning}
-\end{table}
+\acl{bc} -- kein Training von Grund auf, kein RL, kein
+Multi-Embodiment-Training. Entscheidend ist das \emph{selektive} Fine-Tuning
+(kein LoRA): Sprach-Backbone (\texttt{tune\_llm=False}) und Vision-Encoder
+(\texttt{tune\_visual=False}) bleiben \textbf{eingefroren}; trainiert werden
+Projektor (\texttt{tune\_projector=True}) und Flow-Matching-Aktionskopf
+(\texttt{tune\_diffusion\_model=True}). Das Einfrieren des Vision-Encoders
+ist die unmittelbare Ursache des später analysierten Domain-Gaps -- der
+Encoder sieht im gesamten Training nie ein Simulationsbild.
 
 Die Hyperparameter (\cref{tab:hparams}) wurden für zwei Konfigurationen
 festgelegt: einen Einzel-GPU-Lauf (A100, Batch~8, 175\,000~Schritte) und einen
 Vier-GPU-Lauf (4$\times$A100, Batch~32, 44\,000~Schritte). Beide verarbeiten rund
 1,4~Mio.\ Samples (etwa fünf Epochen) und sind damit äquivalent: $44\,000 \times 32
-= 1{,}408\,\text{Mio.} \approx 176\,000 \times 8$. Der erste vollständige Lauf
+= 1{,}408\,\text{Mio.} \approx 175\,000 \times 8$. Der erste vollständige Lauf
 wurde in der Einzel-GPU-Konfiguration durchgeführt.
 
 \begin{table}[H]
@@ -275,21 +194,15 @@ beschränkte sich die Multi-GPU-Aktivierung auf die \emph{Verkabelung}: Der
 Trainingsstarter wurde von \texttt{python} auf
 \texttt{torchrun -{}-nproc\_per\_node=}\allowbreak\texttt{\$NUM\_GPUS} umgestellt (bei
 \texttt{NUM\_GPUS=1} bleibt es rückwärtskompatibel beim einfachen
-\texttt{python}), und die SLURM-Ressourcen wurden angepasst.
+\texttt{python}), und die \ac{slurm}-Ressourcen wurden angepasst.
 
-\begin{warningbox}[Host-RAM-Engpass bei verteilten Dataloadern]
-  Eine nicht offensichtliche Hürde war der Arbeitsspeicher des Hosts: Bei
-  acht Dataloader-Prozessen pro Rang und vier GPUs entstehen 32~Prozesse, die
-  256~GB RAM überliefen und vom System beendet wurden
-  (\texttt{DataLoader worker killed by signal: Killed}). Die Lösung bestand darin,
-  \texttt{DATALOADER\_WORKERS=4} zu setzen und den angeforderten Speicher auf
-  384~GB zu erhöhen. Details: \doc{docs/training/multi-gpu.md}.
-\end{warningbox}
-
-Erwartet wird durch NVLink eine Beschleunigung um etwa das 3,5-fache (nicht das
-volle Vierfache, da die NCCL-Kommunikation 5--20\,\% kostet). Der reale
-Vier-GPU-Lauf wurde im Rahmen dieser Arbeit nicht zeitlich vermessen; der
-ausgewertete vollständige Lauf ist der Einzel-GPU-Lauf (\cref{sec:trainingsverlauf}).
+Eine nicht offensichtliche Hürde war der Host-Arbeitsspeicher: Acht
+Dataloader-Prozesse pro Rang ergeben bei vier GPUs 32~Prozesse, die 256~GB RAM
+überliefen und vom System beendet wurden; die Lösung waren
+\texttt{DATALOADER\_WORKERS=4} und 384~GB angeforderter Speicher
+(\doc{docs/training/multi-gpu.md}). Durch NVLink ist etwa das 3,5-fache an
+Beschleunigung zu erwarten (NCCL-Kommunikation kostet 5--20\,\%); zeitlich
+vermessen wurde der Vier-GPU-Betrieb nicht.
 
 \section{Durchführung auf dem KISSKI-Cluster}
 \label{sec:kisski}
@@ -384,15 +297,11 @@ Isaac~Sim: gebündeltes Python~3.11). Die vollständige Bedienung beschreibt
 
 \paragraph{Inferenz-Durchsatz.}
 Da jede Episode viele hundert Modellaufrufe erfordert, wurde die Inferenzseite
-gesondert vermessen und optimiert: Der Flow-Matching-Aktionskopf lässt sich in
-ein GPU-spezifisches Laufzeitformat übersetzen, und das Rendern der Kameras
-lässt sich auf den Takt der Politikaufrufe synchronisieren, statt jedes
-Simulationsbild zu rendern. Methodisch bemerkenswert ist dabei die Trennung der
-Messgrößen: Die reine \emph{Politik}-Latenz wird ohne Simulation und ohne
-Netzwerktransport bestimmt und ist damit die einzige Durchsatzgröße dieser
-Arbeit, die auch auf realer Hardware gilt -- das Rendern, das in der Simulation
-den Löwenanteil der Laufzeit ausmacht, entfällt dort ersatzlos.
-Details: \doc{docs/simulation/inferenz-optimierung.md}.
+gesondert optimiert (TensorRT-Übersetzung des Aktionskopfs, Rendern nur im
+Takt der Politikaufrufe). Methodisch relevant ist die Trennung der Messgrößen:
+Die reine \emph{Politik}-Latenz wird ohne Simulation und Netzwerktransport
+bestimmt und ist damit die einzige Durchsatzgröße dieser Arbeit, die auch auf
+realer Hardware gilt (\doc{docs/simulation/inferenz-optimierung.md}).
 
 \paragraph{Referenz-Eval zur Pipeline-Validierung.}
 Ergänzend zu den beiden internen Evaluationsgleisen wurde eine \emph{externe}
@@ -409,3 +318,44 @@ Modell auf dem Standard-G1-Embodiment vorgesehen. Da dieses Embodiment auf
 Ganzkörper-Loko-Manipulation mit nur einer Kamera ausgelegt ist und stark
 außerhalb der Verteilung der Tabletop-Szene liegt, ist hier eine Erfolgsrate
 nahe~$0\,\%$ zu erwarten (\doc{docs/simulation/baseline-eval.md}).
+
+\paragraph{Diagnose-Werkzeugkasten.}
+Über die beiden Evaluationsgleise hinaus entstand im Projekt eine Reihe
+gezielter Diagnose-Instrumente, die jeweils \emph{eine} Komponente der
+Pipeline isolieren (\cref{tab:werkzeuge}). Sie tragen die Diagnosekette in
+\cref{chap:ergebnisse} und werden dort nicht erneut eingeführt.
+
+\begin{table}[htb]
+  \centering
+  \begin{tabularx}{\linewidth}{lX}
+    \toprule
+    \textbf{Instrument} & \textbf{Isolierte Fragestellung} \\
+    \midrule
+    Checkpoint-Sweep
+      & Welcher Checkpoint hat den kleinsten Open-Loop-Fehler auf der
+        Testmenge? (\doc{Training/scripts/checkpoint\_sweep.py}) \\
+    Replay-Test
+      & Sind Simulation und Steuerungspfad korrekt -- ohne Modell?
+        (\doc{Simulation/g1\_dex3\_sim/run\_g1\_dex3\_replay.py}) \\
+    SigLIP-Distanzmessung
+      & Wie groß ist der visuelle Real$\to$Sim-Abstand pro Kamera?
+        (\doc{Simulation/scripts/measure\_domain\_gap.py}) \\
+    Kamera-Overlay/-Posen-Dump
+      & Stimmen Kamerapose und Sichtfeld mit den Referenzbildern überein?
+        (\doc{Simulation/scripts/overlay\_camera\_check.py}) \\
+    \texttt{span}-Gate
+      & Kommandiert dieselbe Politik auf echten und simulierten Bildern
+        dieselbe Greifbewegung?
+        (\doc{Simulation/scripts/finger\_span\_openloop.py}) \\
+    Würfellage-/Gierwinkel-Schätzer
+      & Wo liegen die Würfel im realen Bild tatsächlich -- und wie gedreht?
+        (\doc{Simulation/g1\_dex3\_sim/extract\_block\_layout.py}) \\
+    Politik-Latenz
+      & Wie schnell ist die reine Inferenz, ohne Simulation und Netzwerk?
+        (\doc{Simulation/scripts/policy\_latency.py}) \\
+    \bottomrule
+  \end{tabularx}
+  \caption{Im Projekt entwickelte Diagnose-Instrumente. Jedes isoliert eine
+    Pipeline-Komponente; die Anwendung erfolgt in \cref{chap:ergebnisse}.}
+  \label{tab:werkzeuge}
+\end{table}

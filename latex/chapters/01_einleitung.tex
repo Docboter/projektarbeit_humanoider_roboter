@@ -6,23 +6,17 @@
 \section{Motivation}
 \label{sec:motivation}
 
-Humanoide Roboter sollen in einer für den Menschen gebauten Welt arbeiten --
-mit denselben Werkzeugen, an denselben Tischen, in denselben Räumen. Damit das
-gelingt, müssen sie Manipulationsaufgaben in unstrukturierten Umgebungen
-beherrschen. Der klassische Weg dorthin -- das manuelle Entwerfen von Regel- und
-Bewegungsprimitiven -- skaliert schlecht: Jede neue Aufgabe und jede neue
-Roboterplattform erfordert erheblichen Entwicklungsaufwand, und die entstehenden
-Lösungen sind kaum übertragbar.
-
-Einen Gegenentwurf bilden \emph{Foundation-Modelle} für die Robotik. In Analogie
-zu großen Sprachmodellen werden \acp{vla} auf heterogenen Daten -- echten
-Roboter-Trajektorien, Menschvideos und synthetischen Datensätzen --
-vortrainiert und können anschließend durch gezieltes Fine-Tuning auf wenigen
-Demonstrationsepisoden an einen konkreten Roboter und eine konkrete Aufgabe
-angepasst werden~\cite{openvla2024,pi0_2024}. NVIDIA hat mit
+Humanoide Roboter sollen in einer für den Menschen gebauten Welt arbeiten und
+müssen dafür Manipulationsaufgaben in unstrukturierten Umgebungen
+beherrschen; manuell entworfene Regel- und Bewegungsprimitive skalieren
+dafür schlecht. Einen Gegenentwurf bilden \emph{Foundation-Modelle} für die
+Robotik: \acp{vla} werden auf heterogenen Daten vortrainiert und anschließend
+durch gezieltes Fine-Tuning auf wenigen Demonstrationsepisoden an einen
+konkreten Roboter und eine konkrete Aufgabe
+angepasst~\cite{openvla2024,pi0_2024}. NVIDIA hat mit
 \textbf{GR00T~N1}~\cite{groot2025} ein solches offenes Modell für humanoide
-Roboter veröffentlicht; die in dieser Arbeit verwendete Variante
-\textbf{GR00T~N1.6} setzt diese Linie fort.
+Roboter veröffentlicht; die hier verwendete Variante \textbf{GR00T~N1.6}
+setzt diese Linie fort.
 
 \begin{infobox}[Projektziel]
   Diese Projektarbeit untersucht praktisch, \emph{ob und wie} sich das
@@ -35,12 +29,11 @@ Roboter veröffentlicht; die in dieser Arbeit verwendete Variante
 \section{Problemstellung}
 \label{sec:problemstellung}
 
-Das Stapeln von Klötzchen mit einer mehrfingrigen humanoiden Hand ist eine
-nicht-triviale, kontaktreiche Manipulationsaufgabe: Der Roboter muss Objekte
-präzise greifen, anheben und ablegen, wobei Kamerabilder, Propriozeption und die
-zeitliche Abfolge der Bewegungen in einer gemeinsamen Repräsentation
-zusammengeführt werden müssen. Daraus ergeben sich mehrere Herausforderungen,
-die diese Arbeit strukturieren:
+Das Stapeln von Würfeln mit einer mehrfingrigen humanoiden Hand ist eine
+kontaktreiche Manipulationsaufgabe, in der Kamerabilder, Propriozeption und
+Bewegungsabfolge in einer gemeinsamen Repräsentation zusammengeführt werden
+müssen. Daraus ergeben sich die Herausforderungen, die diese Arbeit
+strukturieren:
 
 \begin{itemize}
   \item \textbf{Hohe Dimensionalität.} Das verwendete Embodiment umfasst
@@ -71,7 +64,7 @@ Die Ziele dieser Arbeit sind:
 
 \begin{enumerate}
   \item Aufbau einer \textbf{reproduzierbaren, plattformunabhängigen
-    Trainingsinfrastruktur} (Docker lokal, Apptainer auf dem HPC-Cluster).
+    Trainingsinfrastruktur} (Docker lokal, Apptainer auf dem \ac{hpc}-Cluster).
   \item \textbf{Fine-Tuning} von GR00T~N1.6 auf dem G1-DEX3-Block-Stacking-
     Datensatz im LeRobot-Format, inklusive der nötigen Daten-Konvertierung und
     eines reproduzierbaren Train/Test-Splits.
@@ -95,7 +88,64 @@ konzeptionell -- sie wurde recherchiert, aber nicht implementiert. Das
 \textbf{Rein\-force\-ment-Learning-Fine-Tuning} gingen über den Konzeptstatus
 hinaus: Beide sind implementiert, das RL-Fine-Tuning lief end-to-end auf
 eigener Hardware durch. Ein produktiver Trainingslauf und damit der Nachweis
-einer \emph{Lernwirkung} steht für beide noch aus.
+einer \emph{Lernwirkung} stehen für beide noch aus.
+
+\section{Projektkontext und Eigenleistung}
+\label{sec:eigenleistung}
+
+Das Projekt entstand als Teamarbeit dreier Studierender -- Maximilian Berger,
+Matthias Späth und Luca Mücke --, die die vorliegende Ausarbeitung gemeinsam
+verantworten.
+Als \textbf{Fremdkomponenten} übernommen wurden das vortrainierte Modell
+GR00T~N1.6 samt Trainings-Framework (NVIDIA), der Simulator
+Isaac~Sim/Isaac~Lab, das LeRobot-Datenformat, der öffentliche Datensatz
+\texttt{G1\_Dex3\_BlockStacking}, das G1/DEX3-\ac{urdf} (Unitree), SigLIP als
+Messinstrument, das FPO-Verfahren aus der Literatur sowie die
+KISSKI-\ac{hpc}-Infrastruktur der GWDG. Alles Weitere -- die reproduzierbare
+Infrastruktur, die vollständige Evaluations- und Diagnose-Werkzeugkette sowie
+die damit gewonnenen Analysen -- ist Projektleistung.
+\Cref{tab:beitraege} ordnet die Arbeitspakete den federführenden Bearbeitern
+zu; sie grenzt den Eigenanteil gegenüber den Fremdkomponenten ab und macht
+die Arbeitsteilung im Team nachvollziehbar.
+
+\begin{table}[H]
+  \centering
+  \begin{tabularx}{\linewidth}{Xl}
+    \toprule
+    \textbf{Arbeitspaket} & \textbf{Federführend} \\
+    \midrule
+    Containerisierte Trainingspipeline (autonomer Entrypoint,
+      Umgebungsvariablen-Konfiguration) und KISSKI-Integration
+      (Apptainer/\ac{slurm}, Multi-GPU); Basis-Container-Setup zu
+      Projektbeginn gemeinsam im Team & Luca Mücke \\
+    \addlinespace
+    Embodiment-Konfiguration G1/DEX3 im GR00T-Fork, Datensatz-Konvertierung
+      (Basis aus dem GR00T-Release erweitert), Train/Test-Split,
+      Checkpoint-Sweep & Luca Mücke \\
+    \addlinespace
+    Isaac-Lab-Evaluationsumgebung (Szene, Kameras, \ac{zmq}-Kopplung),
+      Sim-Kalibrierung, Diagnose-Werkzeugkette (SigLIP-Domain-Gap-Messung,
+      Replay-Tests, \texttt{span}-Gate, bildbasierte Würfellage- und
+      Gierwinkel-Rekonstruktion) & Luca Mücke \\
+    \addlinespace
+    FPO-basiertes RL-Fine-Tuning und Co-Training-Werkzeugkette & Luca Mücke \\
+    \addlinespace
+    vast.ai-Sim-Container und Remote-Simulation; Inferenz-Optimierung
+      (TensorRT, Render-Synchronisation); Replay-Videos aus Realdaten;
+      Erstverfahren der Würfellage-Rekonstruktion & Matthias Späth \\
+    \addlinespace
+    Generative Video-Augmentierung mit Cosmos-Transfer
+      (in Entwicklung, \cref{sec:cotrain}) & Maximilian Berger \\
+    \addlinespace
+    Technische Projektdokumentation, geführte Bedienoberfläche,
+      vorliegende Ausarbeitung & Luca Mücke \\
+    \bottomrule
+  \end{tabularx}
+  \caption{Beitragsübersicht: Arbeitspakete des Teamprojekts und
+    federführende Bearbeiter. Fremdkomponenten (Modell, Simulator,
+    Datensatz, Cluster) sind im Text abgegrenzt.}
+  \label{tab:beitraege}
+\end{table}
 
 \section{Verhältnis zur Projektdokumentation}
 \label{sec:doku-verhaeltnis}
@@ -108,26 +158,20 @@ Fehlerbehebungen. Um \textbf{Doppelungen zu vermeiden}, beschränkt sich diese
 Ausarbeitung auf das \emph{Was, Wann, Wie und vor allem Warum} der einzelnen
 Arbeitsschritte und verweist für reproduzierbare Details jeweils auf die
 entsprechende Datei der Projektdokumentation. Solche Verweise sind im Folgenden
-in der Form \doc{docs/training/kisski-hpc.md} gesetzt.
-
-Die Dokumentation ist dabei thematisch gegliedert und spiegelt den Aufbau dieser
-Arbeit wider: die operativen Anleitungen zu Training (\doc{docs/training/}) und
-Simulation (\doc{docs/simulation/}), die gebündelten Auswertungen und Messungen
-der durchgeführten Läufe (\doc{docs/ergebnisse/}) sowie die konzeptionellen
-Vorarbeiten zu den noch nicht umgesetzten Folgeschritten
-(\doc{docs/weiterfuehrend/}).
+in der Form \doc{docs/training/kisski-hpc.md} gesetzt. Die Dokumentation ist
+thematisch analog zu dieser Arbeit gegliedert (Training, Simulation,
+Ergebnisse, weiterführende Konzepte); Navigations-Hub ist
+\doc{docs/README.md}.
 
 \section{Aufbau der Arbeit}
 \label{sec:aufbau}
 
-\Cref{chap:grundlagen} legt die theoretischen Grundlagen zu humanoider Robotik,
-\acp{vla}, \acl{il}, dem Flow-Matching-Aktionskopf sowie zum LeRobot-Datenformat
-und zum Konzept des Domain-Gaps dar. \Cref{chap:methoden} beschreibt die Methodik:
-Trainingsinfrastruktur, Datensatz und Split, Trainingsverfahren mit
-Hyperparametern, Multi-GPU-Skalierung sowie die Evaluationsmethodik.
-\Cref{chap:ergebnisse} schildert die Durchführung in chronologischer Reihenfolge
-und stellt die Trainings- und Evaluationsergebnisse vor. \Cref{chap:diskussion}
-ordnet diese Ergebnisse literaturgestützt ein und diskutiert Limitierungen und
-die Validität der Evaluationsmethodik. \Cref{chap:weiterfuehrend} entwickelt die
-weiterführenden Arbeiten zu Lokomotion und Reinforcement Learning.
-\Cref{chap:fazit} schließt mit Fazit und Ausblick.
+\Cref{chap:grundlagen} stellt die projektspezifischen Grundlagen kompakt dar,
+\cref{chap:methoden} Infrastruktur, Datensatz, Trainingsverfahren und
+Evaluationsmethodik. \Cref{chap:ergebnisse} schildert Durchführung und
+Ergebnisse entlang der fortschreitenden Diagnose; \cref{chap:diskussion}
+ordnet die Befunde literaturgestützt ein. \Cref{chap:weiterfuehrend}
+skizziert die weiterführenden Stränge. \Cref{chap:projektverlauf} reflektiert
+den Projektverlauf prozessual (Hindernisse, Lessons Learned, Arbeitsmittel,
+KI-gestützte Entwicklung); \cref{chap:fazit} zieht das fachliche Fazit und
+gibt den Ausblick.
