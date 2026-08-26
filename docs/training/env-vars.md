@@ -58,21 +58,6 @@ lokal **identisch**. Der Entrypoint (`/scripts/entrypoint.sh`) liest sie ein.
 
 Diese Schalter aktivieren einzelne Verfahren beim Trainingsstart — alle unabhängig voneinander.
 
-> **Nicht auswendig lernen:** Die Host-Launcher fragen diese Werte ab, wenn man sie ohne
-> Parameter startet, und erklären sie dabei — siehe
-> [cli-menuefuehrung.md](../weiterfuehrend/cli-menuefuehrung.md). Die Menü-Beschreibungen
-> unter [`tools/menu/`](../../tools/menu/) und diese Tabelle werden von
-> `tools/gen_docs.sh` gegeneinander abgeglichen; weicht ein Default ab, schlägt der
-> Abgleich fehl. Diese Tabelle bleibt die ausführliche Fassung — sie trägt Begründungen,
-> die eine Menü-Zeile nicht fassen kann.
-
-> ⚠️ **`MAX_STEPS` — zwei verschiedene Defaults, je nach Startweg.**
-> [`entrypoint.sh`](../../Training/scripts/entrypoint.sh) und das Dockerfile sagen
-> `20000` (der Wert in der Tabelle unten); der Host-Launcher
-> [`setup_and_train_DockerHub-pull.sh`](../../Training/setup_and_train_DockerHub-pull.sh)
-> überstimmt ihn mit `30000`. Wer über den Launcher startet, bekommt also 30000, wer das
-> Image direkt fährt (vast.ai), 20000. Beim Umsetzen der Menüführung aufgefallen.
-
 | Variable | Default | Beschreibung |
 |---|---|---|
 | `TRAIN_TEST_SPLIT` | `0` | `1` = 80/20-Split scharf schalten: [`lib_split.sh`](../../Training/scripts/lib_split.sh) patcht `meta/info.json`, sodass nur die ersten `TRAIN_SPLIT_RATIO` der Episoden als `train` geladen werden; die restlichen stehen als `test` für die Open-Loop-Eval auf **ungesehenen** Episoden bereit. Zusätzlich landet ein Protokoll `split.json` im `OUTPUT_DIR`. `0` = kompletter Datensatz; ein zuvor gesetzter Split wird dann automatisch zurückgesetzt. **Gilt seit 2026-08-13 auch für `TUNE_VISUAL=1`** (vorher nur im Standard-Skript). |
@@ -90,21 +75,6 @@ Der gerenderte Datensatz entsteht auf dem **Sim-Server** (RT-Core-GPU) mit
 `./Simulation/server_rl_run.sh render` und wird zum Trainings-Rechner transportiert
 (~1–2 GB für 60 Episoden). Vollständige Herleitung der Werte:
 [co-training.md §4](co-training.md#4-die-beiden-entscheidungen--und-wie-sie-begründet-sind).
-
-> **Nicht auswendig lernen:** Die Host-Launcher fragen diese Werte ab, wenn man sie ohne
-> Parameter startet, und erklären sie dabei — siehe
-> [cli-menuefuehrung.md](../weiterfuehrend/cli-menuefuehrung.md). Die Menü-Beschreibungen
-> unter [`tools/menu/`](../../tools/menu/) und diese Tabelle werden von
-> `tools/gen_docs.sh` gegeneinander abgeglichen; weicht ein Default ab, schlägt der
-> Abgleich fehl. Diese Tabelle bleibt die ausführliche Fassung — sie trägt Begründungen,
-> die eine Menü-Zeile nicht fassen kann.
-
-> ⚠️ **`MAX_STEPS` — zwei verschiedene Defaults, je nach Startweg.**
-> [`entrypoint.sh`](../../Training/scripts/entrypoint.sh) und das Dockerfile sagen
-> `20000` (der Wert in der Tabelle unten); der Host-Launcher
-> [`setup_and_train_DockerHub-pull.sh`](../../Training/setup_and_train_DockerHub-pull.sh)
-> überstimmt ihn mit `30000`. Wer über den Launcher startet, bekommt also 30000, wer das
-> Image direkt fährt (vast.ai), 20000. Beim Umsetzen der Menüführung aufgefallen.
 
 | Variable | Default | Beschreibung |
 |---|---|---|
@@ -131,21 +101,6 @@ stehen in [co-training.md §7](co-training.md#7-env-vars) und in `./Simulation/s
 >
 > [`lib_resume_guard.sh`](../../Training/scripts/lib_resume_guard.sh) bricht seitdem vorher ab.
 
-> **Nicht auswendig lernen:** Die Host-Launcher fragen diese Werte ab, wenn man sie ohne
-> Parameter startet, und erklären sie dabei — siehe
-> [cli-menuefuehrung.md](../weiterfuehrend/cli-menuefuehrung.md). Die Menü-Beschreibungen
-> unter [`tools/menu/`](../../tools/menu/) und diese Tabelle werden von
-> `tools/gen_docs.sh` gegeneinander abgeglichen; weicht ein Default ab, schlägt der
-> Abgleich fehl. Diese Tabelle bleibt die ausführliche Fassung — sie trägt Begründungen,
-> die eine Menü-Zeile nicht fassen kann.
-
-> ⚠️ **`MAX_STEPS` — zwei verschiedene Defaults, je nach Startweg.**
-> [`entrypoint.sh`](../../Training/scripts/entrypoint.sh) und das Dockerfile sagen
-> `20000` (der Wert in der Tabelle unten); der Host-Launcher
-> [`setup_and_train_DockerHub-pull.sh`](../../Training/setup_and_train_DockerHub-pull.sh)
-> überstimmt ihn mit `30000`. Wer über den Launcher startet, bekommt also 30000, wer das
-> Image direkt fährt (vast.ai), 20000. Beim Umsetzen der Menüführung aufgefallen.
-
 | Variable | Default | Beschreibung |
 |---|---|---|
 | `OUTPUT_DIR` | `/data/g1_dex3_finetune/blockstacking` (Vision-Lauf: `…_vision`) | Wurzel des Lauf-Namespace. |
@@ -165,21 +120,6 @@ Auf KISSKI werden alle drei seit 2026-08-13 von `kisski_submit.sh` durchgereicht
 
 Der Sweep lädt jeden `checkpoint-*` einzeln und misst MSE/MAE gegen die **zurückgehaltenen**
 Episoden. Voraussetzung ist ein Trainingslauf mit `TRAIN_TEST_SPLIT=1`.
-
-> **Nicht auswendig lernen:** Die Host-Launcher fragen diese Werte ab, wenn man sie ohne
-> Parameter startet, und erklären sie dabei — siehe
-> [cli-menuefuehrung.md](../weiterfuehrend/cli-menuefuehrung.md). Die Menü-Beschreibungen
-> unter [`tools/menu/`](../../tools/menu/) und diese Tabelle werden von
-> `tools/gen_docs.sh` gegeneinander abgeglichen; weicht ein Default ab, schlägt der
-> Abgleich fehl. Diese Tabelle bleibt die ausführliche Fassung — sie trägt Begründungen,
-> die eine Menü-Zeile nicht fassen kann.
-
-> ⚠️ **`MAX_STEPS` — zwei verschiedene Defaults, je nach Startweg.**
-> [`entrypoint.sh`](../../Training/scripts/entrypoint.sh) und das Dockerfile sagen
-> `20000` (der Wert in der Tabelle unten); der Host-Launcher
-> [`setup_and_train_DockerHub-pull.sh`](../../Training/setup_and_train_DockerHub-pull.sh)
-> überstimmt ihn mit `30000`. Wer über den Launcher startet, bekommt also 30000, wer das
-> Image direkt fährt (vast.ai), 20000. Beim Umsetzen der Menüführung aufgefallen.
 
 | Variable | Default | Beschreibung |
 |---|---|---|
@@ -201,21 +141,6 @@ Episoden. Voraussetzung ist ein Trainingslauf mit `TRAIN_TEST_SPLIT=1`.
 Auf KISSKI als Job: [`Training/kisski_open_loop_eval.sh`](../../Training/kisski_open_loop_eval.sh).
 
 ### RL-Env-Vars (nur im Sim-Image, `entrypoint_rl.sh`)
-
-> **Nicht auswendig lernen:** Die Host-Launcher fragen diese Werte ab, wenn man sie ohne
-> Parameter startet, und erklären sie dabei — siehe
-> [cli-menuefuehrung.md](../weiterfuehrend/cli-menuefuehrung.md). Die Menü-Beschreibungen
-> unter [`tools/menu/`](../../tools/menu/) und diese Tabelle werden von
-> `tools/gen_docs.sh` gegeneinander abgeglichen; weicht ein Default ab, schlägt der
-> Abgleich fehl. Diese Tabelle bleibt die ausführliche Fassung — sie trägt Begründungen,
-> die eine Menü-Zeile nicht fassen kann.
-
-> ⚠️ **`MAX_STEPS` — zwei verschiedene Defaults, je nach Startweg.**
-> [`entrypoint.sh`](../../Training/scripts/entrypoint.sh) und das Dockerfile sagen
-> `20000` (der Wert in der Tabelle unten); der Host-Launcher
-> [`setup_and_train_DockerHub-pull.sh`](../../Training/setup_and_train_DockerHub-pull.sh)
-> überstimmt ihn mit `30000`. Wer über den Launcher startet, bekommt also 30000, wer das
-> Image direkt fährt (vast.ai), 20000. Beim Umsetzen der Menüführung aufgefallen.
 
 | Variable | Default | Beschreibung |
 |---|---|---|
@@ -243,21 +168,6 @@ MJPEG-Stream des laufenden Rollouts im Browser („Spur B" aus dem
 Render-Pass** — `cam_scene` wird ohnehin jeden Env-Step gerendert. Bei `LIVE_VIEW=0` ist der
 Codepfad ein reiner Early-Return, das Verhalten also identisch zu vorher.
 
-> **Nicht auswendig lernen:** Die Host-Launcher fragen diese Werte ab, wenn man sie ohne
-> Parameter startet, und erklären sie dabei — siehe
-> [cli-menuefuehrung.md](../weiterfuehrend/cli-menuefuehrung.md). Die Menü-Beschreibungen
-> unter [`tools/menu/`](../../tools/menu/) und diese Tabelle werden von
-> `tools/gen_docs.sh` gegeneinander abgeglichen; weicht ein Default ab, schlägt der
-> Abgleich fehl. Diese Tabelle bleibt die ausführliche Fassung — sie trägt Begründungen,
-> die eine Menü-Zeile nicht fassen kann.
-
-> ⚠️ **`MAX_STEPS` — zwei verschiedene Defaults, je nach Startweg.**
-> [`entrypoint.sh`](../../Training/scripts/entrypoint.sh) und das Dockerfile sagen
-> `20000` (der Wert in der Tabelle unten); der Host-Launcher
-> [`setup_and_train_DockerHub-pull.sh`](../../Training/setup_and_train_DockerHub-pull.sh)
-> überstimmt ihn mit `30000`. Wer über den Launcher startet, bekommt also 30000, wer das
-> Image direkt fährt (vast.ai), 20000. Beim Umsetzen der Menüführung aufgefallen.
-
 | Variable | Default | Beschreibung |
 |---|---|---|
 | `LIVE_VIEW` | `0` | `1` = Live-Ansicht aktiv (`http://<server-ip>:8900/`) |
@@ -279,21 +189,6 @@ Fehlersuche: **[live-ansicht.md](../simulation/live-ansicht.md)**.
 
 Bei `LIVESTREAM=0` (Default) ist das Verhalten identisch zu vorher; bei `≠0` wird
 `--video-dir` leer übergeben — **live statt Video**, es entstehen also keine MP4s.
-
-> **Nicht auswendig lernen:** Die Host-Launcher fragen diese Werte ab, wenn man sie ohne
-> Parameter startet, und erklären sie dabei — siehe
-> [cli-menuefuehrung.md](../weiterfuehrend/cli-menuefuehrung.md). Die Menü-Beschreibungen
-> unter [`tools/menu/`](../../tools/menu/) und diese Tabelle werden von
-> `tools/gen_docs.sh` gegeneinander abgeglichen; weicht ein Default ab, schlägt der
-> Abgleich fehl. Diese Tabelle bleibt die ausführliche Fassung — sie trägt Begründungen,
-> die eine Menü-Zeile nicht fassen kann.
-
-> ⚠️ **`MAX_STEPS` — zwei verschiedene Defaults, je nach Startweg.**
-> [`entrypoint.sh`](../../Training/scripts/entrypoint.sh) und das Dockerfile sagen
-> `20000` (der Wert in der Tabelle unten); der Host-Launcher
-> [`setup_and_train_DockerHub-pull.sh`](../../Training/setup_and_train_DockerHub-pull.sh)
-> überstimmt ihn mit `30000`. Wer über den Launcher startet, bekommt also 30000, wer das
-> Image direkt fährt (vast.ai), 20000. Beim Umsetzen der Menüführung aufgefallen.
 
 | Variable | Default | Beschreibung |
 |---|---|---|

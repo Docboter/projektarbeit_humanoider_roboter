@@ -1,3 +1,4 @@
+# TL;DR: Hilfsfunktionen für sparse, zustandsbasierte Greif-Unterstützung bei Würfelposenschätzung.
 """Pure helpers for sparse, state-based grasp support in cube pose reconstruction."""
 
 from __future__ import annotations

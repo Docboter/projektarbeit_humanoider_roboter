@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# TL;DR: Fügt sparse Greif-Positions-Unterstützung zu rekonstruierten Würfelposen hinzu.
 """Add sparse grasp-position support to already reconstructed CV cube poses."""
 
 from __future__ import annotations

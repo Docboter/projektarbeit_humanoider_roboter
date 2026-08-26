@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# TL;DR: Projiziert Fingerkuppen der FK ins Realbild zur Validierung von Kamerapose und Hand-FK.
 """Fingerkuppen aus der FK ins REALBILD projizieren — Kamerapose gegen Roboter-FK.
 
 WOZU

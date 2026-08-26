@@ -17,7 +17,7 @@ Der Container startet autonom:
 
 ## Überblick: Was läuft wo
 
-```
+```text
 vast.ai Instanz (L40, 48 GB VRAM)
 └── Docker-Container: lucam03/projekt-humanoider-roboter-sim-vastai:latest
     ├── GR00T-Policy-Server  → /app/Groot-1.6/.venv/bin/python   (~10 GB VRAM)
@@ -31,14 +31,16 @@ vast.ai Instanz (L40, 48 GB VRAM)
 
 ## Voraussetzungen
 
-Einmalig zu erledigen, bevor du die erste Instanz startest:
+Einmalig zu erledigen, bevor du die erste Instanz startest. Allgemeine Accounts/Tokens
+(HuggingFace, W&B) stehen in
+[../quickstart.md#accounts-und-tokens](../quickstart.md#accounts-und-tokens) — hier nur die
+vast.ai-spezifischen:
 
 | Was | Wo |
 |---|---|
 | vast.ai-Account mit Credits | https://cloud.vast.ai |
 | Docker-Hub-Login (`lucam03`) | `docker login` lokal |
 | NGC-API-Key für `nvcr.io` | https://ngc.nvidia.com → API Key |
-| HuggingFace-Token (`hf_...`) | https://huggingface.co/settings/tokens |
 | Feingetunter Checkpoint | von KISSKI rsync'd (→ Abschnitt 3) |
 | `g1_dex3.usd` Asset | einmalig erzeugt (→ Abschnitt 4) |
 
@@ -163,7 +165,7 @@ Starte eine **temporäre vast.ai-Instanz** (L40 oder RTX 4090) mit dem Image, ab
 überbrücke den Entrypoint:
 
 Im vast.ai-Launch-Dialog unter **"Docker Options"**:
-```
+```text
 --ipc=host --shm-size=16g --entrypoint bash
 ```
 
@@ -215,12 +217,12 @@ Oder lokal aufbewahren und bei jeder Sim-Instanz per SCP hochladen (klein genug)
 Im Launch-Dialog folgende Felder ausfüllen:
 
 **Image:**
-```
+```text
 lucam03/projekt-humanoider-roboter-sim-vastai:latest
 ```
 
 **Docker Options:**
-```
+```text
 --ipc=host --shm-size=16g -p 22
 ```
 
@@ -276,14 +278,14 @@ Wenn `HF_CHECKPOINT_REPO` gesetzt ist, lädt der Container alles automatisch.
 Checkpoint und `g1_dex3.usd` landen unter `/data/checkpoints/<repo-name>/`.
 
 Dann `ASSET_PATH` entsprechend anpassen:
-```
+```text
 ASSET_PATH=/data/checkpoints/groot-g1dex3-checkpoint/g1_dex3.usd
 ```
 
 ### Variante B: Manueller Upload per SCP
 
 vast.ai zeigt dir nach dem Start einen SSH-Befehl, z. B.:
-```
+```bash
 ssh -p 12345 root@123.45.67.89
 ```
 
@@ -320,7 +322,7 @@ tail -f /data/logs/groot_server.log
 ```
 
 Erfolgreicher Start sieht so aus:
-```
+```text
 Loading model from /data/checkpoints/groot-g1dex3-checkpoint ...
 Server listening on tcp://0.0.0.0:5555
 ```
@@ -338,7 +340,7 @@ tail -f /data/logs/sim_client.log
 ```
 
 ### Fortschritt ablesen
-```
+```text
 --- Episode 1/20 ---
   Episode 1: ERFOLG | 142 Steps | 4.7s
 --- Episode 2/20 ---
@@ -511,12 +513,12 @@ eigene Ausgabepfade (`/data/sim_videos_replay`, `/data/sim_results_replay`) und 
 Gleiches Image wie der Modell-Eval, aber der **Entrypoint wird überschrieben**:
 
 **Docker Options:**
-```
+```text
 --ipc=host --shm-size=16g -p 22 --entrypoint bash
 ```
 
 **Args to pass to docker entrypoint:**
-```
+```text
 /scripts/entrypoint_replay.sh
 ```
 
@@ -536,7 +538,7 @@ Gleiches Image wie der Modell-Eval, aber der **Entrypoint wird überschrieben**:
 
 Der Lauf gibt direkt im Log die Diagnose-Kennzahlen aus:
 
-```
+```text
 [Replay] TRACKING-FEHLER Arm-Gelenke: mittel=0.022 rad
 [Replay]   > ~0.3 rad mittel = Arme folgen NICHT (PD-Gains zu schwach = Sim-Bug);
             < ~0.1 = Tracking ok (dann Geometrie/Modell).
@@ -581,7 +583,8 @@ Dazu kommen ~10-15 Minuten für Isaac-Sim-Shader-Kompilierung beim ersten Start.
 
 ### `createDLSSContext error` / Rendering-Fehler
 Die GPU hat keine RT-Cores. Nur L40, RTX 30xx/40xx, A6000 sind geeignet —
-**kein A100, kein H100, kein V100**.
+**kein A100, kein H100, kein V100**. Vollständige Liste und Hintergrund:
+[umsetzungsnotizen.md](umsetzungsnotizen.md) §1.
 
 ### GR00T-Server startet nicht
 ```bash

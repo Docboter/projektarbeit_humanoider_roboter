@@ -34,19 +34,9 @@ Diese Anleitung beschreibt Schritt für Schritt, wie du das Fine-tuning von **GR
 
 ## Vorab: Accounts & Tokens
 
-Diese brauchst du in jedem Fall:
-
-1. **HuggingFace-Account** mit Zugriff auf:
-   - [`nvidia/GR00T-N1.6-3B`](https://huggingface.co/nvidia/GR00T-N1.6-3B) — Lizenz *vorher* auf der Seite akzeptieren!
-   - [`unitreerobotics/G1_Dex3_BlockStacking_Dataset`](https://huggingface.co/datasets/unitreerobotics/G1_Dex3_BlockStacking_Dataset)
-   - Token erstellen unter https://huggingface.co/settings/tokens (Lese-Berechtigung reicht)
-   - → ergibt deinen `HF_TOKEN`, beginnt mit `hf_…`
-
-2. **WandB-Account** (optional, aber empfohlen) für Trainings-Logging:
-   - https://wandb.ai → Account anlegen → API-Key kopieren
-   - → ergibt deinen `WANDB_API_KEY`
-
-> Ohne `WANDB_API_KEY` läuft das Training trotzdem durch — nur ohne Online-Dashboard.
+Du brauchst in jedem Fall einen HuggingFace-Account samt `HF_TOKEN` (Lizenz von
+`nvidia/GR00T-N1.6-3B` vorher akzeptieren); ein WandB-`WANDB_API_KEY` ist optional, aber
+empfohlen. Vollständige Tabelle inkl. Links: [Accounts und Tokens](../quickstart.md#accounts-und-tokens).
 
 ---
 
@@ -77,7 +67,7 @@ Auf der Konfigurationsseite der Instanz:
 
 - **Docker Image:** `lucam03/projekt-humanoider-roboter:latest`
 - **Docker options / Environment Variables**:
-  ```
+  ```bash
   -e HF_TOKEN=hf_DEIN_TOKEN
   -e WANDB_API_KEY=dein_wandb_key
   -e MAX_STEPS=30000
@@ -92,7 +82,7 @@ Auf der Konfigurationsseite der Instanz:
 
 Instanz starten. Über **Logs / Console** im UI siehst du:
 
-```
+```text
 ==> GPU-Check
     GPU 0: NVIDIA GeForce RTX 4090 ...
  v   GPU verfügbar
@@ -216,12 +206,8 @@ Der Container behält Daten und Checkpoints. Beim Resume sieht der Entrypoint, d
 
 ### B8. Ergebnisse holen
 
-```bash
-docker cp groot-train:/data/g1_dex3_finetune ./checkpoints
-docker cp groot-train:/data/logs ./logs
-```
-
-Funktioniert sowohl bei laufendem als auch bei gestopptem Container.
+`docker cp` holt Checkpoints und Logs, egal ob der Container läuft oder gestoppt ist —
+Befehl und Details siehe [Daten retten](#daten-retten).
 
 ### B9. Container loeschen
 
@@ -297,35 +283,20 @@ sbatch Training/kisski_submit.sh
 
 > Nach jedem neuen Push (Schritt D0) muss die `.sif`-Datei **neu erzeugt** werden, damit die Änderungen auf dem Cluster ankommen — `apptainer pull` überschreibt eine bestehende `.sif` nicht automatisch, ggf. vorher löschen oder `--force` verwenden.
 
-Standardmäßig ist der Vision-Encoder eingefroren (es werden nur Projector + Diffusion-Action-Head
-trainiert). Soll der **Vision-Encoder mittrainiert** werden, mit `TUNE_VISUAL=1` einreichen — LR
-(`1e-4`), Warmup (`0.1`) und ein eigener Output-Namespace werden dann automatisch gesetzt:
+Standardmäßig ist der Vision-Encoder eingefroren. Soll er **mittrainiert** werden, mit
+`TUNE_VISUAL=1` einreichen (LR, Warmup und Output-Namespace werden dann automatisch
+angepasst) — Details: [Vision-Encoder mittrainieren](kisski-hpc.md#variante--vision-encoder-mittrainieren-tune_visual1).
 
-```bash
-TUNE_VISUAL=1 sbatch --export=ALL Training/kisski_submit.sh
-```
+**Weitere optionale Schalter** — `TRAIN_TEST_SPLIT` (80/20-Split, Voraussetzung für die
+spätere Checkpoint-Auswahl) und `USE_AUGMENTATION` (Domain-Randomization) lassen sich
+unabhängig dazuschalten; Details und Beispiel-Kommandos: [env-vars.md](env-vars.md).
 
-**Weitere optionale Schalter** (getrennt kombinierbar, Details in [env-vars.md](env-vars.md)):
-
-```bash
-TRAIN_TEST_SPLIT=1 sbatch --export=ALL Training/kisski_submit.sh   # 80/20-Split, Test-Episoden held-out
-USE_AUGMENTATION=0 sbatch --export=ALL Training/kisski_submit.sh   # Bild-Augmentierung aus (Default an)
-```
-
-- `TRAIN_TEST_SPLIT=1` schaltet den [80/20-Split](train-test-split.md) scharf (Test-Episoden werden
-  nicht mittrainiert). **Ohne diesen Schalter gibt es hinterher nichts zu validieren** — die
-  Checkpoint-Auswahl bleibt dann blind beim letzten Step, so wie in Lauf 1 und Lauf 2. Nach dem
-  Lauf: `RUN_DIR=… sbatch Training/kisski_open_loop_eval.sh` wählt den Checkpoint mit der besten
-  MSE auf den zurückgehaltenen Episoden.
-- `USE_AUGMENTATION` steuert Color-Jitter/Domain-Randomization gegen den Sim-Real-Gap (Default an;
-  Stärken über `CJ_BRIGHTNESS/CONTRAST/SATURATION/HUE`).
 - **RL** (`USE_RL`) läuft **nicht** im BC-Image — es braucht den Isaac-Sim+GR00T-Container auf einer
   RT-Core-GPU. Siehe [RL-Plan](../weiterfuehrend/reinforcement-learning-plan.md) und
   [`Training/kisski_rl_submit.sh`](../../Training/kisski_rl_submit.sh).
 
 → **Vollständige Schritt-für-Schritt-Anleitung** (SIF-Konvertierung, VAST-Storage, Monitoring,
 Checkpoint-Export, KISSKI-Troubleshooting): [HPC-Training auf KISSKI](kisski-hpc.md).
-Details zur Vision-Variante: [Vision-Encoder mittrainieren](kisski-hpc.md#variante--vision-encoder-mittrainieren-tune_visual1).
 
 ---
 
@@ -344,7 +315,7 @@ docker run --name groot-train --gpus all --ipc=host --shm-size=16g \
   -it lucam03/projekt-humanoider-roboter:latest
 ```
 
-> **Niemals `--rm` mitgeben.** Das würde den Container nach Stop löschen und damit alle Daten verlieren.
+> **Niemals `--rm` mitgeben** — warum, siehe [Speicher-Modell](#speicher-modell--wichtig-vorab).
 
 Fortsetzen:
 ```bash
@@ -417,18 +388,10 @@ rsync -avz --progress \
 ## Konfigurationsreferenz (Env-Vars)
 
 Alle Parameter werden über Umgebungsvariablen gesteuert — auf vast.ai, KISSKI und lokal
-identisch. Die vollständige Tabelle (inkl. VRAM-Richtwerten und OOM-Hinweisen) steht in der
-[Konfigurationsreferenz](env-vars.md).
-
-Die wichtigsten:
-
-| Variable | Default | Beschreibung |
-|---|---|---|
-| `HF_TOKEN` | — | **Pflicht.** HuggingFace-Token |
-| `WANDB_API_KEY` | — | Optional. Ohne diesen läuft Training ohne W&B |
-| `MAX_STEPS` | `20000` | Anzahl Trainings-Steps (KISSKI-Multi-GPU-Default: 44000) |
-| `GLOBAL_BATCH_SIZE` | `8` | 8 für 8 GB VRAM, 16–32 für 16+ GB, 32+ für A100 80 GB |
-| `SHELL_ON_ERROR` | `0` | `1` = bei Fehler in Shell fallen statt zu beenden |
+identisch. Pflichtvariablen sind `HF_TOKEN` (immer) sowie, je nach Weg, `WANDB_API_KEY`.
+Die vollständige Tabelle inkl. aller Defaults und VRAM-Richtwerte für `GLOBAL_BATCH_SIZE`
+ist die [Konfigurationsreferenz](env-vars.md) — dort nachschlagen statt Werte hier
+duplizieren.
 
 Bei `CUDA out of memory`: zuerst `GLOBAL_BATCH_SIZE` halbieren.
 
@@ -453,10 +416,8 @@ Logs werden in `/data/logs/finetune-<timestamp>.log` geschrieben.
 
 ### Wo finde ich die Checkpoints?
 
-Im Container unter `/data/g1_dex3_finetune/blockstacking/`. Zum Holen:
-```bash
-docker cp groot-train:/data/g1_dex3_finetune ./checkpoints
-```
+Im Container unter `/data/g1_dex3_finetune/blockstacking/`. Zum Holen siehe
+[Daten retten](#daten-retten).
 
 ### Wie unterbreche ich das Training?
 
@@ -479,7 +440,8 @@ Mit dem Launcher: `./Training/setup_and_train_DockerHub-pull.sh --resume`. Manue
 
 ### Was ist, wenn ich versehentlich `--rm` benutze?
 
-Dann ist nach Stop alles weg. **Niemals `--rm` mit diesem Image verwenden.** Das Launcher-Skript schließt das aus.
+Dann ist nach Stop alles weg. Warum `--rm` mit diesem Image tabu ist: siehe
+[Speicher-Modell](#speicher-modell--wichtig-vorab). Das Launcher-Skript schließt das aus.
 
 ### Wie ändere ich das Image?
 

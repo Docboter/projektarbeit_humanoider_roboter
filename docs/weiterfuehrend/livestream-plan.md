@@ -105,21 +105,11 @@ D5 war schon vorher für Spur B erledigt und ist jetzt auch für Spur A geschlos
 
 ### 3.1 Funktionsweise, Ports, Clients (Isaac Sim 6.0)
 
-| Port | Protokoll | Zweck | Pflicht? |
-|---|---|---|---|
-| **49100** | TCP | WebRTC-**Signaling** | ✅ |
-| **47998** | UDP | WebRTC-**Medienstrom** | ✅ — TCP-only wird **nicht** unterstützt |
-| 8210 | TCP | Web-Viewer im Browser — **seit 2026-08-17 umgesetzt** als eigenes Image ([`Dockerfile.webviewer`](../../Simulation/Dockerfile.webviewer), `server_rl_run.sh webview`). Kein Docker-Compose und nicht Ubuntu-only, wie hier ursprünglich vermutet | optional |
-| ~~8211~~ | — | Browser-Client aus Isaac Sim ≤5.x — **in 6.0 entfallen** | ✗ |
-
-`LIVESTREAM`-Werte (Isaac Lab 2.x/3.x — in Isaac Lab 1.x bedeutete `1` noch den heute
-deprecateten Native-Client, deshalb kursieren widersprüchliche Tabellen im Netz):
-
-| Wert | Bedeutung | AppLauncher-Verhalten |
-|---|---|---|
-| `0` | aus (Default) | — |
-| `1` | WebRTC über **öffentliches** Netz | setzt `publicEndpointAddress=$PUBLIC_IP` + `port=49100`, aktiviert `omni.services.livestream.nvcf` |
-| `2` | WebRTC über **lokales/privates** Netz | aktiviert `omni.services.livestream.nvcf`, **ohne** Endpunkt-/Port-Injektion |
+Port-Tabelle, Client-Varianten (nativ/Browser) und die Bedeutung der `LIVESTREAM`-Werte
+(`0`/`1`/`2`; Isaac Lab 2.x/3.x — in Isaac Lab 1.x bedeutete `1` noch den heute
+deprecateten Native-Client, deshalb kursieren widersprüchliche Tabellen im Netz) sind die
+gepflegte Referenz in [live-ansicht.md](../simulation/live-ansicht.md#voraussetzungen),
+statt hier doppelt zu stehen.
 
 Jeder Wert ≠ 0 erzwingt Headless — `--headless` darf **nicht zusätzlich** gesetzt werden.
 `--enable_cameras` bleibt Pflicht (5 Kameras in der Szene).
@@ -127,21 +117,8 @@ Jeder Wert ≠ 0 erzwingt Headless — `--headless` darf **nicht zusätzlich** g
 ### 3.2 Netzkonfiguration auf `ikr-ki-server-01`
 
 Da der Server **direkt im Netz/VPN** erreichbar ist, ist die Konfiguration denkbar simpel —
-kein `PUBLIC_IP`, kein Port-Rätselraten:
-
-```bash
-LIVESTREAM=2                 # privates Netz
-# Container-Start (Ergänzung in server_sim_run.sh / server_rl_run.sh):
-docker run … -p 49100:49100/tcp -p 47998:47998/udp …
-```
-
-Client: **Isaac Sim WebRTC Streaming Client** (native Desktop-App für Windows/macOS/Linux,
-von der Isaac-Sim-Downloadseite) → Server-Adresse `<server-ip>:49100`. Läuft ohne lokale
-GPU-Anforderung.
-
-⚠️ Firewall: UDP 47998 muss zwischen Arbeitsrechner und Server **offen** sein. Das ist der
-wahrscheinlichste Stolperstein im Institutsnetz und wird in Phase 0 zuerst geprüft
-(`nc -u -z <ip> 47998` bzw. `iperf3 -u`).
+kein `PUBLIC_IP`, kein Port-Rätselraten. Client-Installation, Firewall-Check und die
+konkreten Kommandos stehen in [live-ansicht.md](../simulation/live-ansicht.md) (Schritt 1 + 2).
 
 ### 3.3 Code-Änderungen
 
@@ -240,20 +217,10 @@ verschwindet aber genau dieses Gratis-Bild. Erst messen (Gruppe 0 im RL-Plan), d
 
 ### 4.3 Neue Env-Vars
 
-| Variable | Default | Zweck |
-|---|---|---|
-| `LIVE_VIEW` | `0` | `1` = Frame-Stream aktiv |
-| `LIVE_VIEW_PORT` | `8900` | HTTP-Port des Frame-Streams |
-| `LIVE_VIEW_EVERY_N` | `1` | nur jedes n-te Frame publizieren (RL-Drosselung) |
-| `LIVE_VIEW_CAMS` | `cam_left_high,cam_left_wrist` | kommagetrennt; mehrere Kameras nebeneinander auf der Seite. Default = die kalibrierten **Policy**-Kameras (= Modell-Eingabe); `cam_scene` ist die unvalidierte Übersichtskamera |
-| `RL_WANDB_VIDEO_EVERY` | `0` | Option C (§5): alle N Iterationen einen Rollout ins W&B-Dashboard |
-
-Alle fünf sind umgesetzt und stehen in der zentralen Referenz
-[`docs/training/env-vars.md`](../training/env-vars.md). Container-Start ergänzen um
-`-p 8900:8900` — [`server_rl_run.sh`](../../Simulation/server_rl_run.sh) macht das beim Anlegen
-selbst und warnt, wenn ein älterer Container das Mapping nicht hat. Aufruf:
-`http://<server-ip>:8900/` — und, falls mal nur SSH geht, `ssh -L 8900:localhost:8900 <server>`
-und dann `http://localhost:8900/`.
+`LIVE_VIEW`, `LIVE_VIEW_PORT`, `LIVE_VIEW_EVERY_N`, `LIVE_VIEW_CAMS` und
+`RL_WANDB_VIDEO_EVERY` sind umgesetzt; die Werte-Tabelle steht in der zentralen Referenz
+[`docs/training/env-vars.md`](../training/env-vars.md), die Bedienung (Port-Mapping, Aufruf,
+SSH-Tunnel) in [live-ansicht.md](../simulation/live-ansicht.md).
 
 **Umsetzungsdetail, das Zeit spart:** Die `LIVE_VIEW*`-Vars liest
 [`rl_finetune.py`](../../Simulation/g1_dex3_sim/rl_finetune.py) **selbst** als argparse-Defaults,

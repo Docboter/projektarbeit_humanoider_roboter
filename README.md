@@ -4,6 +4,9 @@
 > Schnellstart-Befehle für KISSKI/vast.ai/lokal und Links in die ausführliche Doku unter
 > [docs/](docs/README.md).
 
+**Neu im Projekt?** → [docs/quickstart.md](docs/quickstart.md) — Systemvoraussetzungen,
+Host-Software, Accounts/Tokens, kürzeste Befehlsketten.
+
 ## GR00T N1.6 Fine-tuning — Unitree G1 mit DEX3-Hand
 
 Dieses Repository dokumentiert das Fine-tuning von NVIDIAs **GR00T N1.6**
@@ -94,6 +97,7 @@ Die vollständige Dokumentation liegt unter **[docs/](docs/README.md)**:
 | **Weiterführend** | [docs/weiterfuehrend/](docs/weiterfuehrend/README.md) — RL-Plan, Lokomotion, Livestream (Konzepte) |
 | **Portabilität** | [docs/portabilitaet.md](docs/portabilitaet.md) — eigener Rechner / eigenes KISSKI-Projekt: welche Knöpfe zu setzen sind |
 | **Projektstruktur** | [docs/README.md#projektstruktur](docs/README.md#projektstruktur) |
+| **Quickstart** | [docs/quickstart.md](docs/quickstart.md) — Systemvoraussetzungen, Host-Software, Accounts/Tokens, kürzeste Befehlsketten pro Weg |
 
 ---
 
@@ -110,7 +114,8 @@ optional [WandB](https://wandb.ai), für HPC ein [KISSKI-Account](https://docs.h
 **Software (nur lokal):** Docker ≥ 4.x, NVIDIA Container Toolkit, NVIDIA-Treiber ≥ 570
 (CUDA 12.8). Auf vast.ai und KISSKI vorinstalliert.
 
-Details: [docs/training/anleitung.md](docs/training/anleitung.md#vorab-accounts--tokens).
+Vollständige, verbindliche Voraussetzungen: **[docs/quickstart.md](docs/quickstart.md)**;
+Accounts/Tokens im Detail: [docs/training/anleitung.md](docs/training/anleitung.md#vorab-accounts--tokens).
 
 ---
 

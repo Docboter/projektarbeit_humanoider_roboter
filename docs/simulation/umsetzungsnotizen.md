@@ -63,7 +63,7 @@ Für GR00T-Inference (ohne Sim) auf A100 geeignet, nicht für die Closed-Loop-Si
 
 Für **vast.ai** wurde eine **kombinierte Ein-Container-Architektur** implementiert:
 
-```
+```text
 Dockerfile.vastai
 └── nvcr.io/nvidia/isaac-lab:2.3.2  (Basis)
     ├── Isaac Lab / Isaac Sim        (bereits im Basis-Image)
@@ -110,7 +110,7 @@ wörtlich in den Dateinamen übernommen → `g1_dex3.usd#` erzeugt, USD nicht la
 
 Die Konvertierung erzeugt **5 Dateien** die zusammen gehören:
 
-```
+```text
 g1_dex3.usd                          (1,4 KB — Root, relative Referenzen)
 configuration/
   g1_dex3_base.usd                   (38 MB — embedded Mesh-Geometrie)
@@ -143,26 +143,8 @@ Use-Case), Sim-Eval hingegen scheitert.
 ## 4. USD-Asset erzeugen — lokale Methode (Windows + Docker Desktop)
 
 Trotz Vulkan-Problemen funktioniert die **URDF→USD-Konvertierung** lokal auf Windows
-mit Docker Desktop, weil sie kein funktionierendes Rendering braucht:
-
-```powershell
-# Im Projektrepo-Root (PowerShell):
-docker run -it --rm --gpus all --ipc=host --shm-size=8g `
-  -v "${PWD}\data:/data" `
-  -e NVIDIA_DRIVER_CAPABILITIES=all `
-  --entrypoint bash `
-  lucam03/projekt-humanoider-roboter-sim-vastai:latest
-```
-
-```bash
-# Im Container:
-unset VIRTUAL_ENV
-${ISAACLAB_PATH}/isaaclab.sh -p \
-    /workspace/g1_dex3_sim/convert_urdf_to_usd.py \
-    --headless \
-    --urdf /data/unitree_ros/robots/g1_description/g1_29dof_with_hand_rev_1_0.urdf \
-    --output /data/g1_dex3.usd
-```
+mit Docker Desktop, weil sie kein funktionierendes Rendering braucht. Befehle:
+[vastai-anleitung.md](vastai-anleitung.md) Schritt 3 (Option 1, lokal).
 
 Voraussetzung: `git submodule update --init data/unitree_ros`
 
@@ -221,7 +203,7 @@ ln -sf "$LIBCUDA_SO1" /usr/lib/x86_64-linux-gnu/libcuda.so
 ### Ursache 3: DeepSpeed verlangt CUDA-Toolchain — `CUDA_HOME does not exist`
 
 Nachdem Ursache 1+2 behoben waren, scheiterte der Import an einer dritten Stelle:
-```
+```text
 RuntimeError: Failed to import transformers.modeling_utils ...
 CUDA_HOME does not exist, unable to compile CUDA op(s)
 ```
@@ -280,7 +262,7 @@ ohnehin bestehende GPU-Anforderung.
 
 Nachdem der **Server** sauber startete (alle Server-Fixes wirken), scheiterte **Schritt 3/3**
 (Isaac-Lab-Sim-Client) sofort beim Import:
-```
+```text
 File "/workspace/g1_dex3_sim/client.py", line 21, in <module>
     import zmq
 ModuleNotFoundError: No module named 'zmq'
@@ -545,7 +527,7 @@ notwendig, um Haltekraft während der Arm-Bewegung (Trägheitskräfte) zu gewäh
 ### 14.4 Tischhöhe und Würfelposition
 
 **Diagnose aus Replay-Logs:**
-```
+```text
 tiefster left-Hand-Punkt:  x=0.305  y=0.200  z=0.937
 tiefster right-Hand-Punkt: x=0.350  y=-0.169 z=0.944
 Würfel-Oberseite (Zentrum): z≈0.915  →  tatsächliche Oberkante z=0.940

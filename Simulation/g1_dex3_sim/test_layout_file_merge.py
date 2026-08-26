@@ -1,3 +1,4 @@
+# TL;DR: Prüft, dass partielle Layout-Extraktion eine bestehende layout.json nicht leert.
 """Eine vorhandene layout.json darf ein Teillauf nicht leeren.
 
 Die Bewegungsbeginne in dieser Datei kosten je Episode und Kamera rund vier Sekunden

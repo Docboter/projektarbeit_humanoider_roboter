@@ -1,6 +1,6 @@
-# Diagnose-Chronik — Sim- und RL-Läufe 08–34
+# Diagnose-Chronik — Sim- und RL-Läufe 08–52
 
-> **TL;DR:** Chronologisches Protokoll aller Sim-/RL-Diagnoseläufe (Läufe 08–34): Kamera-Fixes,
+> **TL;DR:** Chronologisches Protokoll aller Sim-/RL-Diagnoseläufe (Läufe 08–52): Kamera-Fixes,
 > Domain-Gap-Messungen, Greif-Physik, `span`-Gate, `TUNE_VISUAL` im Closed Loop. Nachschlagewerk für
 > die projektweiten „Lauf N“-Verweise — gezielt den passenden Abschnitt ansteuern statt komplett
 > lesen.
@@ -8,7 +8,7 @@
 Chronologisches Protokoll der Diagnose-, Kalibrier- und Eval-Läufe der Isaac-Lab-Sim
 (2026-08-08 bis 2026-08-14). Entstanden am 2026-08-18 durch Aufteilung von
 [rl-anleitung.md](../weiterfuehrend/rl-anleitung.md), die auf 2197 Zeilen angewachsen war und
-operative Anleitung mit Protokoll vermischte. Die Lauf-Nummern (`Lauf 8` … `Lauf 34`) sind der
+operative Anleitung mit Protokoll vermischte. Die Lauf-Nummern (`Lauf 8` … `Lauf 52`) sind der
 projektweit referenzierte Zähler — andere Dokumente verlinken gezielt auf einzelne Abschnitte hier.
 
 Für die **operative Bedienung** der Diagnose-Werkzeuge (`gap` · `eval` · `grasp` · `span`) siehe
@@ -2023,7 +2023,7 @@ Code, weil er sonst beim nächsten Lesen verlorengeht.
 
 Neu zur Prüfung: `server_rl_run.sh yawcheck` (synthetische Abnahme, ohne Isaac und ohne Datensatz)
 und `LAYOUTCHECK_EXPECT_YAW` für die Abnahme gegen den echten Renderer. Details in
-[wuerfellage-rekonstruktion.md §7](../simulation/wuerfellage-rekonstruktion.md#7-gierwinkel-um-die-eigene-z-achse).
+[wuerfellage-rekonstruktion.md, §3–§6](../simulation/wuerfellage-rekonstruktion.md).
 
 **Vollauslauf über 60 Episoden (2026-08-25):** 60/60 mit allen drei Würfeln, Kameras in der Position
 auf 1,17 cm einig, **110 von 180 Würfeln (61 %)** mit Gierwinkel. Die Schräglage gegen die Tischkante

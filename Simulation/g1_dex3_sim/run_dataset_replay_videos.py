@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# TL;DR: Rendert echte G1-DEX3-Dataset-Bewegungen mit einmalig gesetzten Würfeln via PhysX.
 """Rendert echte G1-DEX3-Dataset-Bewegungen mit einmalig gesetzten Würfeln.
 
 Es gibt absichtlich keine Policy, kein Würfeltracking und keinen kinematischen Attach.

@@ -1,12 +1,18 @@
 # Abnahmelauf v4 (`replay-calibrate`, 40 Episoden) — Befund
 
+> **TL;DR:** Befund des Abnahmelaufs von `pick_anchored_homography` (Pfad B, v4): Die
+> Kalibrierung schlägt zweimal fehl, weil der Fingerkuppen-Anker die Würfelposition um 4–11 cm
+> verfehlt (offene statt greifende Hand). §8 bestätigt stattdessen das Pinhole-Modell aus Pfad A
+> auf rund 1 cm Genauigkeit und empfiehlt, `pick_anchored_homography` aufzugeben. Setzt
+> wuerfellage-rekonstruktion-bewertung.md voraus, keine eigene Verfahrensbeschreibung.
+
 **Lauf:** 2026-08-22, `Simulation/runs/20260822/01`, Commit `d73c6aa`, Episoden 0–39.
 **Ergebnis:** Kalibrierung abgelehnt, `geometry_calibration.json` **nicht** geschrieben.
 Das Fail-safe hat funktioniert — der Lauf hat keine schlechte Kalibrierung durchgelassen.
 
 ## 1. Was gemeldet wurde
 
-```
+```text
 10 Anker aus 40 Episoden
 QUALITY-GATE: nur 8 statt 24 Fit-Anker
 QUALITY-GATE: nur 2 statt sechs Holdout-Anker

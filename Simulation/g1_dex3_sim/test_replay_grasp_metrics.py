@@ -1,3 +1,5 @@
+# TL;DR: Prüft Greif-Metrik-Validierungsfunktionen.
+
 import numpy as np
 import pytest
 

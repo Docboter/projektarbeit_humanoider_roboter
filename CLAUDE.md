@@ -12,6 +12,7 @@ The container is autonomous: launching the image triggers `/scripts/entrypoint.s
 
 Detailed guides (all prose docs live under [`docs/`](docs/README.md)):
 - **Doc navigation hub:** [`docs/README.md`](docs/README.md)
+- **Quickstart (German):** [`docs/quickstart.md`](docs/quickstart.md) — zentrale Systemvoraussetzungen + Schnellstart; SSOT für Accounts/Tokens
 - **User-facing training instructions (German):** [`docs/training/anleitung.md`](docs/training/anleitung.md)
 - **Project README (German):** [`README.md`](README.md)
 - **Env-var reference:** [`docs/training/env-vars.md`](docs/training/env-vars.md)
@@ -22,7 +23,7 @@ Detailed guides (all prose docs live under [`docs/`](docs/README.md)):
 - **G1/DEX3 joint layout & datasets:** [`app/Groot-1.6/examples/G1_DEX3/README.md`](app/Groot-1.6/examples/G1_DEX3/README.md)
 - **Sim eval on vast.ai (German):** [`docs/simulation/vastai-anleitung.md`](docs/simulation/vastai-anleitung.md)
 - **Sim implementation notes & lessons learned:** [`docs/simulation/umsetzungsnotizen.md`](docs/simulation/umsetzungsnotizen.md)
-- **Results & evaluation (German):** [`docs/ergebnisse/`](docs/ergebnisse/README.md) — run analyses, domain-gap, sim methodology review, plus the **diagnose chronicle** ([`diagnose-chronik.md`](docs/ergebnisse/diagnose-chronik.md), runs 08–34 — the project-wide "Lauf N" references resolve here)
+- **Results & evaluation (German):** [`docs/ergebnisse/`](docs/ergebnisse/README.md) — run analyses, domain-gap, sim methodology review, plus the **diagnose chronicle** ([`diagnose-chronik.md`](docs/ergebnisse/diagnose-chronik.md), ongoing from run 08 — the project-wide "Lauf N" references resolve here)
 - **Further work / concepts (German):** [`docs/weiterfuehrend/`](docs/weiterfuehrend/README.md) — RL plan + slim operative RL guide ([`rl-anleitung.md`](docs/weiterfuehrend/rl-anleitung.md); RL runs end-to-end on the Blackwell server; run 32 (span gate) confirmed the domain gap, run 34 measured the `TUNE_VISUAL` checkpoint at 27.6% vs 20.5% finger span with `lifted` still 0/10 → next step is co-training, RL after; learning effect still unverified), locomotion research (not implemented), livestream plan (Spur A/WebRTC open; Spur B/MJPEG `LIVE_VIEW` is built)
 - **Outdated content / changelog raw material:** [`docs/historie.md`](docs/historie.md) — superseded findings are moved here instead of being kept inline (e.g. the former `umgebungsanalyse.md` audit, run-1 fix round, June domain-gap first measurement)
 
@@ -260,7 +261,7 @@ repo root
 │   │                                   #   lauf2-vision-auswertung.md,
 │   │                                   #   lauf3-vision-split-auswertung.md (first real validation:
 │   │                                   #   checkpoint sweep U-curve, best ckpt 30000, last one 25% worse),
-│   │                                   #   diagnose-chronik.md (runs 08–34 protocol — "Lauf N" refs live here),
+│   │                                   #   diagnose-chronik.md (run protocol, ongoing from run 08 — "Lauf N" refs live here),
 │   │                                   #   domain-gap-analyse.md, sim-bewertung.md
 │   ├── weiterfuehrend/                 # reinforcement-learning-plan.md (status source) + rl-anleitung.md
 │   │                                   #   (slim operative guide; run history moved to

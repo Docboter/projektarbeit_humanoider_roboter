@@ -1,5 +1,17 @@
 # Physikbasierte Replay-Videos aus dem Realdatensatz
 
+> **TL;DR:** Protokolliert den inzwischen aufgegebenen Kalibrierungsweg `pick_anchored_homography`
+> v4 (Pfad B) — Kalibrierung, Zielposen-Rekonstruktion und physikbasiertes Replay-Rendering aus
+> realen Fingerkuppen-Ankern, samt aller Gates und Variablen. Nicht mehr der aktuelle Weg zur
+> Würfellage (siehe Statushinweis unten); bleibt als Protokoll erhalten.
+
+> ⚠️ **Stand 2026-08-26:** Das hier dokumentierte `pick_anchored_homography`-Verfahren (Pfad B)
+> wurde nach dem Abnahmelauf aufgegeben — Empfehlung in
+> [wuerfellage-rekonstruktion-lauf35-befund.md](wuerfellage-rekonstruktion-lauf35-befund.md) §8.
+> Aktuelles Verfahren ist Pfad A (`extract_block_layout` → `layout.json`), dokumentiert in
+> [wuerfellage-rekonstruktion.md](wuerfellage-rekonstruktion.md). Die Datei bleibt als Protokoll
+> erhalten.
+
 Der Workflow rekonstruiert die einmalige Anfangsposition der drei Würfel aus realen
 Kopfkamerabildern. Die aktuelle Kalibrierung ist `pick_anchored_homography` Version 4:
 Bewegungsbeginne im Realvideo werden mit wenigen, direkt gesetzten Roboterzuständen in Isaac

@@ -1,5 +1,11 @@
 # Würfellage aus den Realbildern — Verfahren, Koordinaten, offene Punkte
 
+> **TL;DR:** Beschreibt Pfad A — das aktuelle Verfahren zur Würfellage-Rekonstruktion aus
+> Realbildern (Farbsegmentierung → Kamerastrahl → Schnitt mit der Würfelebene) — sowie die beiden
+> gescheiterten Vorgängerversuche. Übergabedokument für den Co-Training-Renderer; Code-Audit und
+> Abnahmelauf-Befund stehen in wuerfellage-rekonstruktion-bewertung.md bzw.
+> wuerfellage-rekonstruktion-lauf35-befund.md.
+
 **Stand:** 2026-08-17 · Verfahren gebaut und lokal geprüft, **Abnahme-Test gegen den Renderer
 offen** · Vorgeschichte: [co-training.md](../training/co-training.md) §3.0/§3.2a
 
@@ -87,9 +93,10 @@ enthält diese Information nur indirekt und mehrdeutig. Der Datensatz enthält s
 Implementiert in
 [`extract_block_layout.py`](../../Simulation/g1_dex3_sim/extract_block_layout.py) (Detektion,
 Rückprojektion) und [`camera_geometry.py`](../../Simulation/g1_dex3_sim/camera_geometry.py)
-(Kameramodell). Beide brauchen **kein Isaac Lab und keine GPU** — das ist Absicht, siehe §7.
+(Kameramodell). Beide brauchen **kein Isaac Lab und keine GPU** — das ist Absicht: nur so
+lässt sich das Kameramodell auch außerhalb des Containers prüfen.
 
-```
+```text
 Realvideo Episode n, Frame 0
    │
    ├─ (a) HSV-Segmentierung rot / grün / gelb           → binäre Masken
@@ -127,7 +134,8 @@ liegt die hellste Seitenfläche bei 0,64 gegen 0,91, und genau dort entscheidet 
 Unter dieser Beleuchtung fällt die alte feste Quote auf p90 **36,7°**, die gemessene Schwelle bleibt
 bei 0,20°.
 
-Diese Abnahme rendert ihre eigenen Bilder und ist deshalb von der Debug-PNG-Verwechslung in §7.1
+Diese Abnahme rendert ihre eigenen Bilder und ist deshalb von der Debug-PNG-Verwechslung
+([zurückgezogene Erstbegründung, Lauf 52](../ergebnisse/diagnose-chronik.md#lauf-52-der-gierwinkel-fehlte-in-jedem-lauf))
 unberührt — sie belegt aber auch nur den Schätzer, nicht das Verhalten auf Realbildern. Ohne die
 beiden Tore lag derselbe Aufbau vor dem Schnitt-Fix bei Median 3,15° / p90 26,3°; das Tor kauft
 Genauigkeit mit Ertrag, und das ist die richtige Richtung: ein geratener Winkel dreht den
@@ -137,7 +145,11 @@ Die Abnahme gegen den **echten Renderer** ist `detect --expect-yaw` mit `cubes_y
 `render_manifest.json` — dieselbe Rolle, die `--expect` für die Position spielt. Der `selftest`
 teilt sich mit dem Schätzer die Kameraannahme und kann sie deshalb nicht prüfen.
 
-### 7.4 Der Probelauf und was er ergab
+Die Schritte (b)–(f) des Diagramms sind hier nicht mehr im Detail dokumentiert; die
+per-Schritt-Diagnose und die v4-Gate-Bewertung stehen in
+[wuerfellage-rekonstruktion-bewertung.md](wuerfellage-rekonstruktion-bewertung.md).
+
+## 4. Der Probelauf und was er ergab
 
 Probelauf vom 2026-08-25 über die echten Videos der Episoden 0, 1, 2, 8 und 12 (`layout` →
 `layoutreport`): **1 von 15 Würfeln** passiert das Tor, dieser eine bei **30,0°** — eine echte
@@ -157,10 +169,11 @@ und die Aufschlüsselung: **13 von 15 an der Formprobe**, 1 an der Uneinigkeit, 
 
 **Die Farbmaske war es also nicht** — 0,69 ist für eine sechseckige Silhouette in einer rechteckigen
 Bounding-Box praktisch der Bestwert. Es war der Deckflächenschnitt, und die Geometrie sagt den
-Fehler auf zwei Stellen vorher (siehe §7.2: erwartet 1,35, gemessen 1,42). Die Schwelle wird deshalb
+Fehler auf zwei Stellen vorher (erwartet 1,35, gemessen 1,42 — hergeleitet in
+[Lauf 52 der Diagnose-Chronik](../ergebnisse/diagnose-chronik.md#lauf-52-der-gierwinkel-fehlte-in-jedem-lauf)). Die Schwelle wird deshalb
 seit dem 2026-08-25 gemessen statt gesetzt.
 
-### 7.5 Der Deckflächenschnitt, auf echten Frames vermessen
+## 5. Der Deckflächenschnitt, auf echten Frames vermessen
 
 `topface` (`server_rl_run.sh topface`) stellt die Schwellenregeln gegeneinander. Die Würfeloberseite
 ist ein 5-cm-Quadrat — „welche Regel trifft sie am besten" ist damit eine Messung und keine Meinung.
@@ -213,7 +226,7 @@ quer zu einer Fläche. Er wird bewusst **nicht** als Ersatz für einen verworfen
 eingesetzt — das wäre genau die stille Rückfallebene, die `place_cubes` aus gutem Grund verloren
 hat. Erst wenn beide Zahlen über viele Episoden zusammenfallen, ist die Annahme belegt.
 
-### 7.6 Der Vollauslauf: die Würfel liegen beliebig
+## 6. Der Vollauslauf: die Würfel liegen beliebig
 
 60 Episoden, 2026-08-25. Alle drei Würfel in allen 60 Episoden gefunden, Kameras in der Position auf
 1,17 cm (Median) einig, **110 von 180 Würfeln (61 %)** mit belastbarem Gierwinkel.
@@ -251,7 +264,7 @@ Die 39 % ohne Winkel werden mit 0° gerendert und tragen damit den alten Fehler 
 auszuschließen wäre teuer (alle drei Würfel gemessen: ~0,61³ ≈ 23 % der Episoden); die zielgenauere
 Variante wäre, nur den GEGRIFFENEN Würfel zu verlangen — den kennt `grasp_anchor`.
 
-### 7.7 Probelauf statt Vollauslauf
+## 7. Probelauf statt Vollauslauf
 
 Ein `layout`-Lauf über 60 Episoden dekodiert für den Bewegungsbeginn jedes Video einmal ganz —
 rund 4 s je Video und Kamera, also etwa acht Minuten allein dafür. Für die Frage „kommt ein

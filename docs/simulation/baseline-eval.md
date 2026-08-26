@@ -44,7 +44,7 @@ hineingesetzt. Konsequenzen, die im Bericht stehen müssen:
 
 ## 2. Architektur & neue Dateien
 
-```
+```text
 GR00T-Server (--embodiment-tag UNITREE_G1)  ←─ ZMQ :5555 ─→  Isaac-Lab-Sim-Client
   Modell: nvidia/GR00T-N1.6-3B (Basis)                        run_g1_gripper_sim_eval.py
 ```

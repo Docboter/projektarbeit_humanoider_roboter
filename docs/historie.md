@@ -11,7 +11,7 @@
 > [simulation/archiv/](simulation/archiv/) behalten ihr eigenes Warnbanner-Muster und bleiben
 > dort. Die Lauf-Auswertungen unter [ergebnisse/](ergebnisse/README.md) sind bewusst
 > historische Berichte und gehören nicht hierher; dasselbe gilt für die
-> [Diagnose-Chronik](ergebnisse/diagnose-chronik.md) (Läufe 08–34).
+> [Diagnose-Chronik](ergebnisse/diagnose-chronik.md) (fortlaufend ab Lauf 08).
 >
 > **Hinweis zu Links:** In den zitierten Originaltexten sind die auffälligsten relativen Links
 > an den neuen Dateiort angepasst; vereinzelte Links können noch auf den ursprünglichen
@@ -25,7 +25,7 @@ Umbau der `docs/`-Struktur; zugleich der erste Eintrag des Changelog-Rohmaterial
 
 **Aufgeteilt:**
 - `weiterfuehrend/rl-anleitung.md` (2 197 Zeilen): operative RL-Anleitung (556 Zeilen) bleibt;
-  das komplette Lauf-Protokoll der Läufe 08–34 (Kamera-Diagnosen, Kalibrier-Iterationen,
+  das komplette Lauf-Protokoll (damals Läufe 08–34, seither fortgeführt: Kamera-Diagnosen, Kalibrier-Iterationen,
   Domain-Gap-Messläufe, Greif-Physik, `span`-Gate, `TUNE_VISUAL`-Closed-Loop) ist jetzt
   [ergebnisse/diagnose-chronik.md](ergebnisse/diagnose-chronik.md) (1 667 Zeilen). Der alte,
   in sich widersprüchliche Status-Kopf („nächster Schritt TUNE_VISUAL" vs. „nächster Schritt

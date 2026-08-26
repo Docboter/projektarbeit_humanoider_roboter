@@ -1,3 +1,5 @@
+# TL;DR: Prüft Bewegungsbeginn-Erkennung in Farbspuren.
+
 from __future__ import annotations
 
 import extract_block_layout

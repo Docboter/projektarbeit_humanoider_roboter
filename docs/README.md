@@ -15,6 +15,9 @@ Veraltete Inhalte werden nicht in den Dokumenten mitgeschleppt, sondern nach
 > `Training/`, `Simulation/`, `tools/` mit einer Zeile `# TL;DR: …` nach dem Shebang.
 > `tools/check_tldr.sh` prüft das, `tools/check_tldr.sh --list` druckt alle TL;DRs als Übersicht.
 
+**Neu hier?** Zuerst [quickstart.md](quickstart.md) — Systemvoraussetzungen, Host-Software,
+Accounts/Tokens und die kürzesten Befehlsketten pro Weg.
+
 ## Training (Fine-tuning von GR00T N1.6)
 
 Operative Anleitungen zum Trainieren. Die Auswertung der Läufe steht unter [Ergebnisse](#ergebnisse--evaluation).
@@ -42,6 +45,8 @@ Operativer Sim-Eval-Workflow. Mess- und Methodik-Ergebnisse stehen unter [Ergebn
 | [simulation/live-ansicht.md](simulation/live-ansicht.md) | **Live zuschauen** — Isaac-Sim-Viewport per WebRTC auf dem eigenen Rechner öffnen (`LIVESTREAM=2`, nativer Streaming-Client) statt hinterher MP4s zu holen. Gilt für Sim-Eval, Baseline, Greif-Test und RL. Gebaut 2026-08-13, Hardware-Test offen |
 | [simulation/umsetzungsnotizen.md](simulation/umsetzungsnotizen.md) | **READ FIRST** — Lessons Learned, bekannte Fixes (Stand bis Juni 2026; die Sim-Erkenntnisse seit August — Isaac-Sim-6.0-Port, Kamera-Neukalibrierung, Greif-Diagnostik — stehen in [ergebnisse/diagnose-chronik.md](ergebnisse/diagnose-chronik.md)) |
 | [simulation/wuerfellage-rekonstruktion.md](simulation/wuerfellage-rekonstruktion.md) | **Würfellage aus den Realbildern** — Verfahren und Koordinatentransformation (Bild → Kamerastrahl → Sim-Koordinate) für den Co-Training-Renderer. Übergabedokument mit Annahmenliste, den zwei gescheiterten Vorgängerverfahren und dem offenen Abnahme-Test. |
+| [simulation/wuerfellage-rekonstruktion-bewertung.md](simulation/wuerfellage-rekonstruktion-bewertung.md) | **Bewertung der Implementierung** (Stand 2026-08-21) — Doku-vs.-Code-Abgleich von `pick_anchored_homography` v4, priorisierte Befundliste und Empfehlungen |
+| [simulation/wuerfellage-rekonstruktion-lauf35-befund.md](simulation/wuerfellage-rekonstruktion-lauf35-befund.md) | **Abnahmelauf-Befund (Läufe 35–37)** — erster `replay-calibrate`-Testlauf: Kalibrierung abgelehnt (Fail-safe griff), Fingeröffnung erweist sich als untauglicher Greifdetektor; Empfehlung, `pick_anchored_homography` zugunsten der Realbild-Extraktion aufzugeben |
 | [simulation/basismodell-referenzaufgabe.md](simulation/basismodell-referenzaufgabe.md) | **Referenzaufgabe zur Sim-Validierung** — was das Basismodell laut NVIDIA können muss, als Prüfstein für die eigene Pipeline (Stand 2026-06-16) |
 | [simulation/robocasa-referenz-eval.md](simulation/robocasa-referenz-eval.md) | **RoboCasa-GR-1-Referenz-Eval (Bedienung)** — `server_robocasa_ref_run.sh`; validiert die Pipeline gegen NVIDIAs publizierte Zahlen. Ergebnis in [ergebnisse/basismodell-referenz-eval.md](ergebnisse/basismodell-referenz-eval.md) |
 | [simulation/baseline-eval.md](simulation/baseline-eval.md) | **Baseline-Eval (Vorbereitung)** — un-finetuntes `GR00T-N1.6-3B` + stock G1-Greifer (`SIM_MODE=baseline`) auf Block-Stacking; parallele Pipeline + TODO-Checkliste, **erster Lauf steht aus** |
@@ -58,7 +63,7 @@ Alle Auswertungen, Messungen und Methodik-Reviews gebündelt — die „Was kam 
 | [ergebnisse/lauf2-vision-auswertung.md](ergebnisse/lauf2-vision-auswertung.md) | **Auswertung 2. Lauf** — Training mit Vision-Encoder (`TUNE_VISUAL=1`, Namespace `blockstacking_vision`) |
 | [ergebnisse/lauf3-vision-split-auswertung.md](ergebnisse/lauf3-vision-split-auswertung.md) | **Auswertung 3. Lauf** (`tp1nc699`, Vision + Color-Jitter + 80/20-Split) — **erste echte Validierungszahl im Projekt.** Checkpoint-Sweep zeigt U-Kurve: bester Checkpoint **30.000**, der letzte (44.000) ist 25 % schlechter → Overfitting erstmals belegt. **Closed-Loop nachgemessen (Lauf 34):** dieser Checkpoint hebt die Sim-Fingerspanne auf 27,6 % — erster Lauf mit belegter Verhaltenswirkung |
 | [ergebnisse/lauf1-zwischenstand.md](ergebnisse/lauf1-zwischenstand.md) | **Zwischenstand 1. Lauf** — W&B-Health-Check des laufenden Trainings (Detail-Charts in [`wandb-run-charts.html`](ergebnisse/wandb-run-charts.html)) |
-| [ergebnisse/diagnose-chronik.md](ergebnisse/diagnose-chronik.md) | **Diagnose-Chronik (Läufe 08–34)** — chronologisches Protokoll der Sim-/RL-Diagnoseläufe: Kamera-Fixes, Domain-Gap-Messläufe, Greif-Physik (Lauf 29), `span`-Gate (Lauf 32), `TUNE_VISUAL` im Closed Loop (Lauf 34). Die projektweit referenzierten Lauf-Nummern leben hier |
+| [ergebnisse/diagnose-chronik.md](ergebnisse/diagnose-chronik.md) | **Diagnose-Chronik (fortlaufend ab Lauf 08)** — chronologisches Protokoll der Sim-/RL-Diagnoseläufe: Kamera-Fixes, Domain-Gap-Messläufe, Greif-Physik (Lauf 29), `span`-Gate (Lauf 32), `TUNE_VISUAL` im Closed Loop (Lauf 34). Die projektweit referenzierten Lauf-Nummern leben hier |
 | [ergebnisse/basismodell-referenz-eval.md](ergebnisse/basismodell-referenz-eval.md) | **Referenz-Eval-Ergebnis** — RoboCasa GR-1, Aggregat 47,7 % über 12 Tasks; validiert die Eval-Pipeline gegen NVIDIAs Zahlen (Re-Run der restlichen 12 Tasks offen) |
 | [ergebnisse/domain-gap-analyse.md](ergebnisse/domain-gap-analyse.md) | **Domain-Gap-Messung** — Cosine-Distanz Real→Sim pro Kamera via frozen SigLIP-ViT. Neumessung 2026-08-08 nach Kamerakalibrierung + Albedo-Fixes: Mittel 0.22, `cam_left_wrist` 0.36 (Juni-Erstmessung 0.26/0.43 überholt) |
 | [ergebnisse/sim-bewertung.md](ergebnisse/sim-bewertung.md) | **Methodik-Review** — Ist Closed-Loop-Sim sinnvoll/korrekt? Belegt: 0-%-Ergebnis ist der erwartete Real→Sim-Gap; Open-Loop-MSE ist die valide Metrik. Mit Code-Befunden + Quellen |
@@ -83,6 +88,7 @@ Diese Sammlung speist das gleichnamige Kapitel der Projektarbeit.
 
 | Dokument | Inhalt |
 |---|---|
+| [../next-steps.md](../next-steps.md) | **Nächste Schritte** — laufender Prioritäten-Tracker: Stand der Messkette, priorisierte nächste Schritte, offene Widersprüche zwischen den Ergebnisdokumenten |
 | [fehlerbehebung.md](fehlerbehebung.md) | **Fehlerbehebung** — gebündelte Fehlerlösungen: Domain-Gap, OOM/VRAM, KISSKI-Queue & W&B-Pflicht, Sim-GPU-Anforderung |
 | [historie.md](historie.md) | **Historie / Changelog-Rohmaterial** — chronologisch gesammelte, aus der Haupt-Doku ausgelagerte veraltete Inhalte (u. a. das frühere Audit `umgebungsanalyse.md`, die Fixes aus dem 1. Lauf, die Domain-Gap-Erstmessung) |
 | [portabilitaet.md](portabilitaet.md) | **Portabilität / Fremdnutzung** — das Repo auf einem anderen Rechner betreiben. `.env.local` für den Docker-Server, `KISSKI_PROJECT_DIR`/`KISSKI_SIF_DIR` für den Cluster; enthält die **Migrationsschritte**, mit denen die eigenen Maschinen nach dem Umbau vom 2026-08-18 wieder exakt wie vorher laufen |
@@ -110,6 +116,7 @@ Diese Sammlung speist das gleichnamige Kapitel der Projektarbeit.
 ├── CLAUDE.md                  # Anweisungen für Claude Code
 ├── docs/                      # ▶ Diese Dokumentation
 │   ├── README.md              # dieser Navigations-Hub
+│   ├── quickstart.md          # Neu hier? Systemvoraussetzungen, Accounts/Tokens, Schnellstart
 │   ├── training/              # operative Trainings-Doku
 │   ├── simulation/            # operative Sim-Eval-Doku (+ archiv/)
 │   ├── ergebnisse/            # Auswertungen, Messungen, Methodik-Reviews

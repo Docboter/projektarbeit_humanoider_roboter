@@ -1,3 +1,5 @@
+# TL;DR: Prüft Hilfsfunktionen für Greif-Positionsunterstützung.
+
 from __future__ import annotations
 
 import numpy as np

@@ -53,7 +53,7 @@ robustere Wahl; Spur A ist der Weg, wenn man sich die Szene wirklich *ansehen* w
 
 | | |
 |---|---|
-| **GPU** | NVENC-Encoder nötig. Die RTX PRO 6000 Blackwell hat vier NVENC-Engines ✓. A100/H100 haben **keine** — dieselben GPUs, die schon am RT-Core-Rendering scheitern. |
+| **GPU** | NVENC-Encoder nötig. Die RTX PRO 6000 Blackwell hat vier NVENC-Engines ✓. A100/H100 haben **keine** NVENC — dieselben GPUs, die schon am RT-Core-Rendering scheitern (allgemeine GPU-Kompatibilität: [umsetzungsnotizen.md](umsetzungsnotizen.md) §1). |
 | **Ports** | `49100/tcp` (Signaling) **und** `47998/udp` (Video). Beide `intern == extern` gemappt — WebRTC bettet den Port in die SDP-Aushandlung ein. `server_rl_run.sh` mappt sie beim **Anlegen** des Containers automatisch. |
 | **Firewall** | UDP 47998 muss zwischen Arbeitsrechner und Server offen sein. Das ist der wahrscheinlichste Stolperstein im Institutsnetz. |
 | **Client** | Isaac Sim WebRTC Streaming Client (Windows/Linux/macOS), Download über die [Isaac-Sim-Doku → Livestream Clients](https://docs.isaacsim.omniverse.nvidia.com/6.0.1/installation/manual_livestream_clients.html) |
@@ -321,7 +321,7 @@ mehr aus den Messergebnissen herauszurechnen.
 Die Sim rechnet langsamer als Echtzeit. **Erste Messung auf Hardware (2026-08-13,
 `LIVESTREAM=2`, 1 Env):**
 
-```
+```text
 … Step 150/3600 (17s, 8.6 Steps/s, 3.5x Echtzeit) | Obs 0% · Inferenz 5% · Sim+Render 94%
 ```
 

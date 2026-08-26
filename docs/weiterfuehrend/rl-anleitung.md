@@ -32,7 +32,7 @@ statt nur Aktions-Nachahmung (Hintergrund: [reinforcement-learning-plan.md](rein
 > ohne Terminal erscheint es nie. Die Beispiele unten funktionieren unverändert weiter.
 > Details: [cli-menuefuehrung.md](cli-menuefuehrung.md)
 
-```
+```text
 vast.ai Instanz (L40 48 GB / RTX 4090 24 GB — RT-Cores PFLICHT)
 └── Docker-Container: lucam03/projekt-humanoider-roboter-sim-vastai:latest
     └── entrypoint_rl.sh → rl_finetune.py
@@ -128,7 +128,7 @@ ist das der Standardweg.
 | vast.ai-Account mit Credits | https://cloud.vast.ai |
 | Docker-Hub-Login (`lucam03`) | `docker login` lokal |
 | NGC-API-Key für `nvcr.io` | https://ngc.nvidia.com → API Key |
-| HuggingFace-Token (`hf_...`) | https://huggingface.co/settings/tokens |
+| HuggingFace-Token (`hf_...`) — hier für BC-Checkpoint- + USD-Download | Einrichtung: [quickstart.md](../quickstart.md#accounts-und-tokens) |
 | **BC-Checkpoint** (RL-Startpunkt) | aus dem BC-Training, auf HF hochgeladen (→ Schritt 2) |
 | `g1_dex3.usd` Asset | einmalig erzeugt (→ Schritt 3) |
 | **GPU mit RT-Cores** | L40 / RTX 4090 / A6000 — **kein A100/H100** (kein RT-Core-Rendering) |
@@ -299,7 +299,7 @@ vastai ssh <instance-id>            # SSH-Befehl
 ```
 
 **Trainer-Output** (Vordergrund-Prozess, auch unter vast.ai → Instances → Logs):
-```
+```text
 [rl] device=cuda  num_envs=8
 [rl] trainierbare Tensoren: ...
 [rl] iter 0000  reward=+0.123  success=0.000
@@ -340,7 +340,7 @@ Mit `LIVE_VIEW=1` blendet der Trainer den laufenden Rollout als **MJPEG-Stream i
 („Spur B" aus dem [Livestream-Plan](livestream-plan.md), Modul
 [`live_view.py`](../../Simulation/g1_dex3_sim/live_view.py)):
 
-```
+```bash
 http://<server-ip>:8900/            # Bild + Live-Metriken (Iteration, reward_mean, success_rate)
 ssh -L 8900:localhost:8900 <server> # falls nur SSH möglich → http://localhost:8900/
 ```

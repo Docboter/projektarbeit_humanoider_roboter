@@ -1,3 +1,4 @@
+# TL;DR: Prüft Würfel-Gierwinkel-Schätzer gegen synthetische Würfel mit bekanntem Kameramodell.
 """Gierwinkel der Würfel: Schätzer, Tor und die Umrechnung ins Quaternion.
 
 Der Schätzer wird gegen SYNTHETISCHE Würfel bekannter Drehung geprüft, gerendert durch

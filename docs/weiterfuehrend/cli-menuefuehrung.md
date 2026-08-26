@@ -151,7 +151,7 @@ Stelle, die veraltet.
 
 Geplant war das hier; **tatsächlich entstanden** ist die rechte Fassung:
 
-```
+```text
 tools/
 ├── lib_menu.sh              # Menü-Engine, reines Bash (>= 4.2), ~870 Zeilen
 ├── lib_env_local.sh         # ★ NEU: gemeinsames Laden der .env.local (§12.1)
@@ -282,7 +282,7 @@ Die Stufeneinteilung ist die wichtigste einzelne Entwurfsentscheidung: `eval` li
 
 Die heutige Regel bleibt, das Menü schiebt sich nur ein:
 
-```
+```text
 explizite Umgebungsvariable  >  Menü-Antwort  >  .env.local  >  Default im Skript
 ```
 
@@ -294,7 +294,7 @@ Dauer-Konfiguration, statt sie davon abzuhalten.
 
 ### 3.5 Zustand: Recall und Profile
 
-```
+```text
 .menu/                               # gitignoriert
 ├── last/<skript>.<aktion>.env       # zuletzt benutzte Antworten
 └── profiles/<name>.env              # benannte Profile (--profile rauchtest)
@@ -377,7 +377,7 @@ Bau-statt-Pull-Frage.
 
 Auf dem **Login-Node** baut das Menü die Absende-Zeile und zeigt sie an:
 
-```
+```bash
 export HF_TOKEN=…  GLOBAL_BATCH_SIZE=32  MAX_STEPS=44000
 sbatch Training/kisski_submit.sh
 ```
@@ -397,7 +397,7 @@ Parameter und stehen hinten an. `update_*_image.sh` bekämen im Wesentlichen die
 
 ## 5. Bedienablauf (Sollzustand)
 
-```
+```text
 $ ./Simulation/server_rl_run.sh
 
   Was möchtest du tun?
@@ -601,8 +601,9 @@ Plan verhindern soll. Solange Phase 5 nicht steht, muss sie manuell laufen.
 ## 12. Umsetzungsstand
 
 Umgesetzt am 2026-08-20. Der Plantext oben ist unverändert erhalten; hier steht, was
-beim Bauen anders wurde und warum. Prüfstand: `tools/test_menu.sh` — **30 Prüfungen,
-alle bestanden**, ohne GPU und ohne Container.
+beim Bauen anders wurde und warum. Prüfstand: `tools/test_menu.sh` — **inzwischen 81
+Prüfungen** (Stand bei Einführung 2026-08-20: 30; seither erweitert, s. §13), alle
+bestanden, ohne GPU und ohne Container.
 
 ### 12.1 Zwei Defekte, die der Plan nicht kennen konnte
 
@@ -713,7 +714,7 @@ MENU=0 ./Simulation/server_rl_run.sh eval     # wie bisher, keine Rückfrage
 
 ./tools/gen_docs.sh                           # Abgleich Spec <-> Skript <-> Doku
 ./tools/gen_docs.sh --table sim               # Markdown-Tabelle aller Sim-Parameter
-./tools/test_menu.sh                          # der Prüfplan aus §8 (30 Prüfungen)
+./tools/test_menu.sh                          # der Prüfplan aus §8 (aktuell 81 Prüfungen)
 ```
 
 In der Fragerunde: `?` zeigt den Langtext, leere Eingabe nimmt den Default.
@@ -776,7 +777,7 @@ Regel wie überall hier. `run.sh` enthält keine Liste.
 brauchen Docker, KISSKI braucht `sbatch` (nur auf dem Login-Node). Fehlt das Kommando,
 bleibt der Eintrag **sichtbar und gesperrt**, mit dem Grund daneben:
 
-```
+```text
   auf fedora:  docker ✓  sbatch ✗  apptainer ✗
 
    1) sim          Simulation      19 Aktionen
@@ -837,7 +838,7 @@ Details, die beim Bauen Zeit gekostet haben und deshalb im Code kommentiert steh
 Die Sim-Aktionsliste zeigte 19 Einträge in 7 Gruppen, gut 30 Zeilen. Sie ist jetzt
 zweistufig — aber **nicht** einfach eingeklappt.
 
-```
+```text
   Simulation — Was moechtest du tun?
 
  › 1) Vorbereiten              preflight, setup, check                  3 Akt.
@@ -885,7 +886,7 @@ Prüfungen**.
 
 ### 13.5 Der Rückweg — `[←]` führt immer eine Ebene höher
 
-```
+```text
    Untermenue  ──[←]──▶  Gruppenuebersicht  ──[←]──▶  Hauptmenue  ──[a]──▶  Ende
    (Messen)                (Simulation)                (Domaenen)
 ```
@@ -940,7 +941,7 @@ Die Simulation läuft auf dem IKR-Server. Zwei Konsequenzen:
 
 **1. Die Domänenliste ist gruppiert, nicht geschachtelt.**
 
-```
+```text
   Simulation
    1) sim          auf dem IKR-Server (Docker, RT-Cores)      19 Aktionen
   Training
@@ -961,7 +962,7 @@ sonst stünde dort „auf dem KISSKI-Cluster (sbatch) — Was moechtest du tun?"
 
 **2. `--blocked` für dauerhaft nicht lauffähige Aktionen.**
 
-```
+```text
   Nicht auf diesem Cluster
    3) sim         Sim-Eval einreichen         RTX 5000 zu alt -> IKR-Server
    4) rl          RL-Fine-tuning (FPO)        Vorlage, keine RT-Core-Partition

@@ -1,3 +1,4 @@
+# TL;DR: Hilfsfunktionen zur physikalischen Greif-Validierung während der Datensatz-Wiedergabe.
 """Pure helpers for physical grasp validation during dataset replay."""
 
 from __future__ import annotations

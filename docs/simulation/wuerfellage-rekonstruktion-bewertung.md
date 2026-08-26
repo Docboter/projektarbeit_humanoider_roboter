@@ -1,5 +1,11 @@
 # Würfellage-Rekonstruktion — Bewertung der Implementierung
 
+> **TL;DR:** Code-Audit von `wuerfellage-rekonstruktion.md` (Pfad B, `pick_anchored_homography`
+> v4) gegen die tatsächliche Implementierung: Die Doku stimmt mit dem Code überein, aber es
+> existieren zwei parallele Pfade nebeneinander, und der Dataset-Modus von Pfad B ist tot.
+> Enthält Bewertung, priorisierte Empfehlungen und eine verifizierte Behauptungs-Tabelle — keine
+> eigenen Messungen (die liefert wuerfellage-rekonstruktion-lauf35-befund.md).
+
 **Stand:** 2026-08-21 · Branch `training-luca-IKR-IS6.0-wuerfel-rekon-matthias` · HEAD `d73c6aa`
 **Gegenstand:** Vergleich von [wuerfellage-rekonstruktion.md](wuerfellage-rekonstruktion.md) (Verfahren
 `pick_anchored_homography` v4) mit dem tatsächlichen Code, dem älteren Co-Training-Pfad und den
@@ -27,7 +33,7 @@ Zeilenangaben beziehen sich auf HEAD.
      `layout.json` aus `extract_block_layout.py` (Verfahren v2, Blob + Pinhole) **und weiterhin
      `scan.json`-Greifpunkt als Fallback** — genau das, was §6.1 der Doku verbietet.
    - **Pfad B (v4, neu):** `replay-calibrate` → `replay-poses` → `replay-render`. Code-komplett,
-     lokal getestet, **auf dem GPU-Server noch nie gelaufen** (Agent_Handoff.md), und
+     lokal getestet, **auf dem GPU-Server noch nie gelaufen** (laut damaliger Übergabenotiz), und
 3. **Der Dataset-Modus von Pfad B ist tot.** `REPLAY_OUTPUT_MODE=dataset` verlangt
    `wrist_calibration.dataset_ready` in der Kalibrierung
    ([run_dataset_replay_videos.py:542-547](../../Simulation/g1_dex3_sim/run_dataset_replay_videos.py#L542-L547));

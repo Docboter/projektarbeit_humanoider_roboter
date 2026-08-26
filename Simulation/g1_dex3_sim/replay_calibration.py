@@ -1,3 +1,4 @@
+# TL;DR: Reine NumPy-Hilfsfunktionen für anker-basierte Würfel-Wiedergabe-Kalibrierung.
 """Pure-numpy helpers for pick-anchored cube replay calibration."""
 
 from __future__ import annotations

@@ -259,8 +259,9 @@ sbatch --export=ALL Training/kisski_submit.sh
 
 ## Variante — Weitere optionale Schalter
 
-Zusätzlich zu `TUNE_VISUAL` lassen sich diese Verfahren **getrennt** kombinieren (Details in
-[env-vars.md](env-vars.md)). Alle werden über `kisski_submit.sh` durchgereicht:
+Zusätzlich zu `TUNE_VISUAL` lassen sich `TRAIN_TEST_SPLIT` und `USE_AUGMENTATION` **getrennt**
+kombinieren, alle über `kisski_submit.sh` durchgereicht. Bedeutung und Defaults stehen in der
+SSOT [env-vars.md](env-vars.md):
 
 ```bash
 # 80/20-Train-Test-Split (Test-Episoden werden NICHT mittrainiert):
@@ -269,14 +270,6 @@ TRAIN_TEST_SPLIT=1 sbatch --export=ALL Training/kisski_submit.sh
 # Bild-Augmentierung / Domain-Randomization abschalten (Default ist AN):
 USE_AUGMENTATION=0 sbatch --export=ALL Training/kisski_submit.sh
 ```
-
-- **`TRAIN_TEST_SPLIT=1`** — [`lib_split.sh`](../../Training/scripts/lib_split.sh) patcht vor dem
-  Start `meta/info.json` auf `train: 0:N` / `test: N:total` (Ratio via `TRAIN_SPLIT_RATIO`,
-  Default 0.8) und legt ein `split.json`-Protokoll im `OUTPUT_DIR` ab. Die Test-Episoden stehen
-  danach für die Checkpoint-Auswahl auf **ungesehenen** Episoden bereit. Siehe
-  [Train-Test-Split](train-test-split.md).
-- **`USE_AUGMENTATION`** (Default `1`) — Color-Jitter/Domain-Randomization gegen den
-  Sim-zu-Real-Domain-Gap; Stärken über `CJ_BRIGHTNESS/CONTRAST/SATURATION/HUE`. `0` = explizit aus.
 
 > Ältere Images vor 2026-08-13 reichten `TRAIN_TEST_SPLIT`/`USE_AUGMENTATION` nicht durch —
 > siehe [docs/historie.md](../historie.md).

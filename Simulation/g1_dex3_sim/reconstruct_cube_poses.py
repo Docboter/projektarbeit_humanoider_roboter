@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# TL;DR: Rekonstruiert initiale Würfelposen aus echten RGB-Bildern mittels Anker und Homographie.
 """Reconstruct initial cube poses for physical dataset replay from real RGB frames.
 
 Calibration uses sparse pick anchors; pose reconstruction uses only stationary real frames.

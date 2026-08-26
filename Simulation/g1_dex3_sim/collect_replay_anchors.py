@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# TL;DR: Sammelt sparse Real-Bild/FK-Anker für Würfelkalibrierung ohne volle Action-Wiedergabe.
 """Collect sparse real-pixel/FK pick anchors without replaying actions."""
 
 from __future__ import annotations
