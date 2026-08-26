@@ -1,4 +1,4 @@
-# TL;DR: Prüft Würfelpositionsrekonstruktion aus Kameramessungen.
+# TL;DR: Prüft Aktions-Hash und Top-Face-Erkennung aus replay_calibration sowie die Pinhole-Projektion.
 
 from __future__ import annotations
 

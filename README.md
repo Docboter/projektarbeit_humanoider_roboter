@@ -47,7 +47,7 @@ Training läuft. Derselbe Container läuft lokal, auf Cloud-GPU-Plattformen wie
 > zurück:** aus einer Gruppe in die Übersicht, von dort ins Hauptmenü.
 >
 > **Ohne Parameter starten führt durch** — das gilt auch für jedes Skript einzeln
-> (`./Simulation/server_rl_run.sh`, `./Training/setup_and_train_DockerHub-pull.sh`).
+> (`./Simulation/server_rl_run.sh`, `./Training/setup_and_train_dockerhub_pull.sh`).
 > `?` bei einer Frage zeigt den Langtext; am Ende steht der äquivalente Ein-Zeiler, beim
 > dritten Mal kommt man also ohne aus. `MENU=0` bzw. `--no-menu` schaltet ab; im
 > Container, unter SLURM und ohne Terminal erscheint nie ein Menü. Alle Beispiele unten
@@ -72,7 +72,7 @@ Docker-Options `-e HF_TOKEN=hf_… -e WANDB_API_KEY=…` setzen → Training lä
 **Lokal (Linux / WSL2):**
 ```bash
 export HF_TOKEN=hf_...  WANDB_API_KEY=...
-./Training/setup_and_train_DockerHub-pull.sh
+./Training/setup_and_train_dockerhub_pull.sh
 ```
 
 → Ausführliche Schritt-für-Schritt-Anleitung: **[docs/training/anleitung.md](docs/training/anleitung.md)**

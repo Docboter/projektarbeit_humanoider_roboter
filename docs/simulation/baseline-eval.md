@@ -91,7 +91,7 @@ Diese Schritte sind **noch nicht** automatisiert/erledigt und müssen vor dem er
   docker run -it --rm --gpus all --ipc=host --shm-size=8g \
     --entrypoint bash \
     -v "$(pwd)/data:/data" \
-    lucam03/projekt-humanoider-roboter-sim-vastai:latest
+    lucam03/projekt-humanoider-roboter-sim-standalone:latest
   ```
   Im Container (nur Mesh-Import, ~2–5 min, eine lokale GPU reicht — keine RT-Cores nötig):
   ```bash
@@ -123,7 +123,7 @@ Diese Schritte sind **noch nicht** automatisiert/erledigt und müssen vor dem er
 
 - [ ] **Image bauen & pushen** (kopiert `g1_gripper_sim/` + Entrypoint ins Image):
   ```bash
-  ./Simulation/update_sim_image.sh --vastai
+  ./Simulation/update_sim_image.sh --standalone
   ```
 
 - [ ] **Dim-Dump-Vorabtest (optional, empfohlen).** Einmal lokal/Container im GR00T-venv prüfen,
@@ -161,7 +161,7 @@ docker run --name groot-baseline --gpus all --ipc=host --shm-size=16g \
   -e HF_TOKEN=hf_... -e HF_CHECKPOINT_REPO=nvidia/GR00T-N1.6-3B \
   -e ASSET_PATH=/workspace/assets/g1_gripper.usd \
   -e NUM_EPISODES=20 -e SHELL_ON_ERROR=1 \
-  -it lucam03/projekt-humanoider-roboter-sim-vastai:latest
+  -it lucam03/projekt-humanoider-roboter-sim-standalone:latest
 ```
 
 Der Entrypoint (`entrypoint_baseline.sh`) führt aus: Checkpoint-Download → Asset-Check →

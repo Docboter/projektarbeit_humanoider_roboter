@@ -58,7 +58,7 @@ unmodified path, and it always prints the equivalent one-liner so you can skip i
 
 ```bash
 ./Simulation/server_rl_run.sh                 # action list + questions
-./Training/setup_and_train_DockerHub-pull.sh  # training parameters, VRAM-aware suggestion
+./Training/setup_and_train_dockerhub_pull.sh  # training parameters, VRAM-aware suggestion
 ./Training/kisski_menu.sh --dry-run           # builds the sbatch line (login node only)
 ```
 
@@ -86,7 +86,7 @@ between two of them is copying a name rather than looking it up — §13.8).
 
 ```bash
 # Local: thin launcher (handles existing-container detection)
-HF_TOKEN=hf_... WANDB_API_KEY=... ./Training/setup_and_train_DockerHub-pull.sh
+HF_TOKEN=hf_... WANDB_API_KEY=... ./Training/setup_and_train_dockerhub_pull.sh
 
 # Or manually — NO --rm, NO -v mount:
 docker run --name groot-train --gpus all --ipc=host --shm-size=16g \
@@ -135,7 +135,7 @@ Known fixes & GPU requirements: [`docs/simulation/umsetzungsnotizen.md`](docs/si
 
 ```bash
 # 1. Build + push sim image (includes entrypoint_sim.sh with unset VIRTUAL_ENV fix)
-./Simulation/update_sim_image.sh --vastai
+./Simulation/update_sim_image.sh --standalone
 
 # 2. Upload checkpoint to HuggingFace (skips optimizer.pt by default)
 python Simulation/scripts/upload_checkpoint.py \
@@ -300,8 +300,8 @@ repo root
 │   ├── kisski_open_loop_eval.sh        # SLURM job: open-loop checkpoint eval (open_loop_eval.py, no server)
 │   ├── kisski_rl_submit.sh             # SLURM job: RL fine-tuning (FPO) — sim SIF, RT-core GPU guard (TEMPLATE)
 │   ├── update_image.sh                 # Host build/push tool (must sit next to Dockerfile)
-│   ├── setup_and_train_DockerHub-pull.sh   # Thin host launcher: docker pull + docker run
-│   ├── setup_and_train_Container-build.sh  # Host launcher that builds the image locally
+│   ├── setup_and_train_dockerhub_pull.sh   # Thin host launcher: docker pull + docker run
+│   ├── setup_and_train_container_build.sh  # Host launcher that builds the image locally
 │   └── scripts/                        # COPIED into image at /scripts/
 │       ├── entrypoint.sh               # Autonomous orchestrator (download→convert→train; TUNE_VISUAL routes here)
 │       ├── download_data.sh            # HuggingFace download (model + dataset)
@@ -313,6 +313,8 @@ repo root
 │       ├── launch_cotrain.py           # Two-dataset training entry point (mix_ratio). Copy of the fork's
 │       │                               #   launch_finetune.py with ONE change — the datasets list — so no
 │       │                               #   submodule change / image rebuild is needed. Re-check on GR00T bumps
+│       ├── lib_resume_guard.sh         # Sourced by run_finetuning.sh / run_finetuning_vision.sh; guards against
+│       │                               #   silently resuming an old run instead of training fresh
 │       ├── lib_split.sh                # Shared train/test-split logic, sourced by all training launchers;
 │       │                               #   writes a split.json record next to the checkpoints
 │       └── checkpoint_sweep.py         # ★ Checkpoint SELECTION: open-loop MSE/MAE of every checkpoint on the
@@ -321,7 +323,7 @@ repo root
 │                                       #   eval_strategy=="no"), so validation happens after the run
 ├── Simulation/                         # Closed-loop sim eval
 │   ├── Dockerfile                      # KISSKI-only: slim Isaac Lab sim-client (no GR00T)
-│   ├── Dockerfile.vastai               # vast.ai: combined Isaac Sim + GR00T in one container
+│   ├── Dockerfile.standalone           # Standalone: Isaac Sim + GR00T in one container — IKR server & vast.ai
 │   ├── Dockerfile.webviewer            # ★ Browser client for the WebRTC viewport (variant A2).
 │   │                                   #   Contains NO simulator — serves a page; the browser then
 │   │                                   #   connects straight to 49100/tcp + 47998/udp of groot-rl.
@@ -341,7 +343,7 @@ repo root
 │   │                                   #   switches the sim container to host networking — NVIDIA says
 │   │                                   #   WebRTC requires it; first suspect if the viewport stays black)
 │   ├── server_robocasa_ref_run.sh      # Own-server RoboCasa GR-1 reference eval (pipeline validation)
-│   ├── update_sim_image.sh             # Build/push tool (--vastai flag for Dockerfile.vastai)
+│   ├── update_sim_image.sh             # Build/push tool (--standalone flag for Dockerfile.standalone)
 │   │                                   #   (sim docs moved to docs/simulation/)
 │   ├── g1_dex3_sim/                    # COPIED into image at /workspace/g1_dex3_sim/
 │   │   ├── run_g1_dex3_sim_eval.py     # Main eval loop (model-based, ZMQ client to GR00T server)
@@ -378,8 +380,8 @@ repo root
 │   ├── camera_reference/               # Dataset reference frames (camera-calibration targets)
 │   ├── g1_gripper_sim/                 # Stock-G1 gripper baseline sim (SIM_MODE=baseline)
 │   ├── robocasa_reference/             # RoboCasa GR-1 reference-eval scripts (run_robocasa_ref_eval.sh)
-│   └── scripts/                        # COPIED into vastai image at /scripts/
-│       ├── entrypoint_sim.sh           # Autonomous entrypoint (model eval) for Dockerfile.vastai
+│   └── scripts/                        # COPIED into the standalone image at /scripts/
+│       ├── entrypoint_sim.sh           # Autonomous entrypoint (model eval) for Dockerfile.standalone
 │       ├── entrypoint_replay.sh        # Entrypoint for the open-loop replay diagnostic
 │       ├── entrypoint_baseline.sh      # Entrypoint for baseline eval (SIM_MODE=baseline: un-finetuned model + stock G1)
 │       ├── entrypoint_rl.sh            # Entrypoint for RL fine-tuning (FPO; loads BC checkpoint, runs rl_finetune.py)
@@ -394,17 +396,23 @@ repo root
 │       ├── policy_latency.py           # Pure policy latency (ms per action chunk), in-process, no sim/ZMQ.
 │       │                               #   The one number here that also holds on real hardware — rendering
 │       │                               #   (94% of sim wall-clock) does not exist there. `server_rl_run.sh latency`
+│       ├── groot_inference_backend.py  # Shared library: ONNX/TensorRT backends for GR00T-DiT inference
+│       ├── run_groot_optimized_server.py # GR00T ZMQ server in-container with optional torch.compile/TensorRT backend for the DiT
+│       ├── optimize_groot_inference.py # Exports/checks the GR00T DiT as a TensorRT engine; runs in the GR00T venv in-container
+│       ├── summarize_optimization.py   # Baseline vs. optimized policy benchmark → speedup report (server_rl_run.sh optimize)
 │       └── upload_checkpoint.py        # HuggingFace upload helper (skips optimizer.pt by default)
 ├── data/                               # Local assets and submodules (mostly gitignored)
 │   ├── unitree_ros/                    # Git submodule — Unitree ROS packages (URDF source)
 │   ├── g1_dex3.usd                     # Generated robot USD asset (run convert_urdf_to_usd.py)
 │   └── configuration/                  # Companion USD files referenced by g1_dex3.usd
+├── latex/                              # Projektarbeit/Thesis document (LuaLaTeX; own top-level dir, not a submodule)
 └── app/                                # Git submodule, cloned in Dockerfile at build time
-    └── Groot-1.6/                      # PRIMARY — custom fork (lucam06, pinned commit)
-        ├── gr00t/experiment/launch_finetune.py  # Training entry point
-        ├── gr00t/policy/               # Gr00tPolicy inference class
-        ├── examples/G1_DEX3/           # Embodiment config, modality JSONs, guides
-        └── scripts/lerobot_conversion/ # Dataset format converter (v3.0 → v2.1)
+    ├── Groot-1.6/                      # PRIMARY — custom fork (lucam06, pinned commit)
+    │   ├── gr00t/experiment/launch_finetune.py  # Training entry point
+    │   ├── gr00t/policy/               # Gr00tPolicy inference class
+    │   ├── examples/G1_DEX3/           # Embodiment config, modality JSONs, guides
+    │   └── scripts/lerobot_conversion/ # Dataset format converter (v3.0 → v2.1)
+    └── Groot-1.7/                      # Untracked checkout of the parallel branch training-luca-IKR-IS6.0-GN1.7 (GR00T N1.7 path); not in .gitmodules here — leave it, don't delete
 ```
 
 At runtime, the container holds (no host mount):

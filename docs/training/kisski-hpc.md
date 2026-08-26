@@ -108,6 +108,10 @@ Der Cluster nutzt für dieses Projekt den **GWDG VAST-Projekt-Storage** unter
 `/mnt/vast-kisski/projects/kisski-humrob/data/` (persistente SSD-Storage — kein Scratch!).
 `kisski_submit.sh` setzt diesen Pfad als Standard-`DATA_DIR`.
 
+> **Begriffsklärung:** VAST ist das Storage-System der GWDG — nicht zu verwechseln mit
+> **vast.ai**, der Cloud-GPU-Plattform, die an anderer Stelle in diesem Dokument für den
+> RT-Core-Pfad (RL-Fine-tuning) erwähnt wird.
+
 > **Hinweis:** Der alte SCRATCH-SCC-Speicher (`/scratch/`) wurde am 31.03.2026 abgeschaltet.
 > Alle Daten müssen auf dem VAST-Projekt-Storage liegen.
 

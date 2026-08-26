@@ -21,7 +21,7 @@ Pfade auf genau *einen* Rechner bzw. *ein* HPC-Konto. Wer das Repo klonte, lief 
 > `server_robocasa_ref_run.sh` die Datei; in den Trainings-Launchern fehlte der Block
 > ganz, die unten beschriebene Vorrangregel galt dort also nicht. Ein in `.env.local`
 > hinterlegter `HF_TOKEN` wurde von
-> [`setup_and_train_DockerHub-pull.sh`](../Training/setup_and_train_DockerHub-pull.sh)
+> [`setup_and_train_dockerhub_pull.sh`](../Training/setup_and_train_dockerhub_pull.sh)
 > trotzdem abgefragt. Die Mechanik steckt jetzt einmal in
 > [`tools/lib_env_local.sh`](../tools/lib_env_local.sh) und wird von beiden Seiten
 > gesourct. Aufgefallen beim Umsetzen der
@@ -146,6 +146,31 @@ sbatch --output=/user/luca.muecke/u28320/.project/dir.project/logs/slurm-sim-%j.
 | ☐ | KISSKI Login-Knoten | `ln -s …/images "$HOME/images"` **oder** `export KISSKI_SIF_DIR=…` in `~/.bashrc` |
 | ☐ | KISSKI Repo-Checkout | `mkdir -p logs` |
 | ☐ | KISSKI Repo-Checkout | `git pull`, damit die neuen Skripte dort ankommen |
+| ☐ | IKR-Server | Sim-Standalone-Image auf den neuen Namen bringen (§2.4) |
+
+### 2.4 Sim-Standalone-Image umbenannt (ehemals `sim-vastai`)
+
+Das kombinierte Isaac-Lab+GR00T-Image heißt jetzt nach seinem Zuschnitt statt nach einer
+Plattform — **Standalone**, weil derselbe Container unverändert auf dem IKR-Server **und** auf
+vast.ai läuft: `lucam03/projekt-humanoider-roboter-sim-standalone`.
+`server_rl_run.sh` erwartet diesen Namen inzwischen als `RL_IMAGE`-Default (siehe §4). Auf dem
+IKR-Server einmalig eine der folgenden Optionen:
+
+```bash
+# a) neu bauen und pushen (dauert am längsten, aber sauber)
+./Simulation/update_sim_image.sh --standalone
+
+# b) oder lokal nur umtaggen, wenn das alte Image bereits vorhanden ist
+docker tag lucam03/projekt-humanoider-roboter-sim-vastai:latest \
+    lucam03/projekt-humanoider-roboter-sim-standalone:latest
+
+# c) oder übergangsweise beim alten Tag bleiben — in .env.local:
+: "${RL_IMAGE:=lucam03/projekt-humanoider-roboter-sim-vastai:latest}"
+```
+
+Option c) ist nur ein Übergang, kein Dauerzustand — `--vastai` existiert bei
+[`update_sim_image.sh`](../Simulation/update_sim_image.sh) nur noch als deprecated Alias für
+`--standalone`.
 
 ---
 
@@ -153,7 +178,7 @@ sbatch --output=/user/luca.muecke/u28320/.project/dir.project/logs/slurm-sim-%j.
 
 Alles Nötige ist öffentlich: das Repo, beide Submodule
 (`lucam06/Isaac-GR00T`, `unitreerobotics/unitree_ros`), beide Docker-Images
-(`lucam03/projekt-humanoider-roboter`, `…-sim-vastai`) sowie Modell und Datensatz auf
+(`lucam03/projekt-humanoider-roboter`, `…-sim-standalone`) sowie Modell und Datensatz auf
 HuggingFace (`nvidia/GR00T-N1.6-3B` ist **nicht** gated). Mitbringen muss man nur einen
 **eigenen HF-Token**, optional einen W&B-Key und passende GPU-Hardware.
 
@@ -233,7 +258,7 @@ Das RoboCasa-Skript nutzt dieselbe Mechanik mit `RC_`-Präfix (`RC_HOST_DATA_DIR
 |---|---|---|
 | `RL_HOST_DATA_DIR` | `$HOME/groot-rl-data` | Host-Verzeichnis, das im Container `/data` wird (Checkpoints, Shader-Cache, Logs). Rechne mit 40–60 GB |
 | `RL_REPO_DIR` | Elternverzeichnis des Skripts | Repo-Wurzel; bestimmt auch, wo `.env.local` gesucht wird |
-| `RL_IMAGE` | `lucam03/…-sim-vastai:latest` | Abweichendes/lokal gebautes Image |
+| `RL_IMAGE` | `lucam03/…-sim-standalone:latest` | Abweichendes/lokal gebautes Image |
 | `RL_CONTAINER` | `groot-rl` | Container-Name (mehrere Läufe pro Server) |
 | `RL_GPUS` | `"device=1,0"` | GPU-Auswahl; erste Karte trägt Rendering + Training |
 | `HF_TOKEN`, `WANDB_API_KEY` | — | Zugangsdaten; gehören in `.env.local` |

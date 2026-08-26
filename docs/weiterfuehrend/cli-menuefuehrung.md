@@ -63,7 +63,7 @@ Ursprünglich erhoben auf `training-luca-IKR-IS6.0-GN1.7`; die Spalte „hier" i
 | Distinkte Env-Vars, die dasselbe Skript liest | 99 | **101** |
 | Länge des `usage()`-Heredocs | ~200 Zeilen | **171 Zeilen** (1463–1634) |
 | Gesamtlänge des Skripts | 1757 Zeilen | 1667 Zeilen / 91 KB |
-| Weitere Host-Einstiegspunkte | `setup_and_train_DockerHub-pull.sh`, `setup_and_train_Container-build.sh`, `server_robocasa_ref_run.sh`, `update_image.sh`, `update_sim_image.sh`, `kisski_*.sh` | dieselben |
+| Weitere Host-Einstiegspunkte | `setup_and_train_dockerhub_pull.sh`, `setup_and_train_container_build.sh`, `server_robocasa_ref_run.sh`, `update_image.sh`, `update_sim_image.sh`, `kisski_*.sh` | dieselben |
 | Env-Vars im Trainings-Entrypoint | 20 | **19** (`entrypoint.sh`), plus die Feature-Schalter aus `run_finetuning*.sh` |
 | **Davon vom Host-Launcher durchgereicht** | — | **6** — der Rest kam nie im Container an (siehe §12.1) |
 
@@ -73,7 +73,7 @@ Weitere für den Entwurf relevante Beobachtungen:
   lesen ausschließlich Env-Vars. Ein Menü, das nur exportiert, ist damit vollständig
   ausreichend — es braucht keinen einzigen neuen Parameter-Kanal.
 - **Es gibt bereits Ansätze von Interaktivität**, aber handgestrickt und nur an zwei Stellen:
-  [`setup_and_train_DockerHub-pull.sh`](../../Training/setup_and_train_DockerHub-pull.sh)
+  [`setup_and_train_dockerhub_pull.sh`](../../Training/setup_and_train_dockerhub_pull.sh)
   fragt in Zeile ~152 nach `resume/destroy/abbrechen` und in Zeile ~165–181 nach
   `HF_TOKEN`/`WANDB_API_KEY`. Das ist der erste Anwendungsfall, den die Engine ablöst.
 - **Keine TUI-Bibliothek verfügbar.** `whiptail`, `dialog`, `gum`, `fzf` sind auf dem
@@ -358,7 +358,7 @@ das ist die Provenienz-Information, die im Log stehen soll.
 Prosablöcke (Beispiele, „LIVE-Variante", „Tempo der Sim", GR00T-Versionshinweis) **bleiben** —
 sie erklären Zusammenhänge, nicht einzelne Parameter.
 
-### 4.2 `Training/setup_and_train_DockerHub-pull.sh`
+### 4.2 `Training/setup_and_train_dockerhub_pull.sh`
 
 Hier ersetzt das Menü die zwei handgestrickten Abfragen (Zeile ~152 `resume/destroy` und
 ~165–181 `HF_TOKEN`/`WANDB_API_KEY`) und ergänzt die Trainingsparameter
@@ -370,7 +370,7 @@ Zusätzlicher Gewinn hier: Das Menü kann die **VRAM-Tabelle aus CLAUDE.md opera
 (24 GB → 2, 32 GB → 8, 80 GB → 64). Das ist genau die Art Wissen, die heute in einer Tabelle
 steht, die man vorher gelesen haben muss.
 
-Dieselbe Spec bedient `setup_and_train_Container-build.sh`; der Unterschied ist nur die
+Dieselbe Spec bedient `setup_and_train_container_build.sh`; der Unterschied ist nur die
 Bau-statt-Pull-Frage.
 
 ### 4.3 KISSKI (`Training/kisski_*.sh`, `Simulation/kisski_*.sh`)
@@ -491,7 +491,7 @@ Bewusst inkrementell — nach jeder Phase ist das Repo benutzbar.
 `./Simulation/server_rl_run.sh eval < /dev/null` bricht mit klarer Meldung ab statt zu hängen.
 
 ### Phase 2 — Trainings-Launcher — ✓ erledigt
-`tools/menu/train-local.spec`, Hook in `setup_and_train_DockerHub-pull.sh`, Ablösung der
+`tools/menu/train-local.spec`, Hook in `setup_and_train_dockerhub_pull.sh`, Ablösung der
 zwei handgestrickten Abfragen, VRAM-basierter Vorschlag für `GLOBAL_BATCH_SIZE`.
 **Abnahme:** Ein Trainingsstart ist ohne Blick in [env-vars.md](../training/env-vars.md)
 möglich; der Ein-Zeiler in der Zusammenfassung startet denselben Lauf.
@@ -612,7 +612,7 @@ gemacht. Sie sind mitbehoben.
 
 **Der Trainings-Launcher las `.env.local` überhaupt nicht.** Nur
 [`server_rl_run.sh`](../../Simulation/server_rl_run.sh) und `server_robocasa_ref_run.sh`
-hatten den Block; in [`setup_and_train_DockerHub-pull.sh`](../../Training/setup_and_train_DockerHub-pull.sh)
+hatten den Block; in [`setup_and_train_dockerhub_pull.sh`](../../Training/setup_and_train_dockerhub_pull.sh)
 fehlte er ganz. Die in [portabilitaet.md](../portabilitaet.md) beschriebene Vorrangregel
 galt dort also nie — ein in `.env.local` hinterlegter `HF_TOKEN` wurde trotzdem
 abgefragt. Damit hätte auch §3.4 („das Menü wird stiller, je besser `.env.local` gepflegt
@@ -625,7 +625,7 @@ gesourct.
 `docker run`-Zeile setzte davon 6 (`HF_TOKEN`, `MAX_STEPS`, `GLOBAL_BATCH_SIZE`,
 `NUM_GPUS`, `WANDB_PROJECT`, `WANDB_API_KEY`). `TUNE_VISUAL`, `USE_COTRAIN`,
 `TRAIN_TEST_SPLIT`, `USE_AUGMENTATION`, `SKIP_*`, `SHELL_ON_ERROR` und `WANDB_MODE`
-kamen im Container nie an: wer `TUNE_VISUAL=1 ./setup_and_train_DockerHub-pull.sh`
+kamen im Container nie an: wer `TUNE_VISUAL=1 ./setup_and_train_dockerhub_pull.sh`
 aufrief, bekam **still ein normales Training**. Ein Menü, das danach fragt und den Wert
 dann verschluckt, wäre schlimmer als keins gewesen. Der Launcher reicht jetzt alle 19
 durch — aber nur, wenn sie gesetzt sind, damit ein leeres `-e VAR=` nicht die
@@ -633,7 +633,7 @@ durch — aber nur, wenn sie gesetzt sind, damit ein leeres `-e VAR=` nicht die
 
 Nebenbei fielen drei `read`-Aufrufe im selben Skript, die unter `set -euo pipefail` bei
 EOF das Skript **kommentarlos beendeten** — genau der Fall aus §6.
-`./setup_and_train_DockerHub-pull.sh < /dev/null` starb an der WandB-Abfrage. Zwei davon
+`./setup_and_train_dockerhub_pull.sh < /dev/null` starb an der WandB-Abfrage. Zwei davon
 ersetzt jetzt das Menü, die dritte (`resume`/`destroy`) prüft `[[ -t 0 ]]`, bevor sie
 fragt.
 
@@ -698,7 +698,7 @@ dieser beiden Angaben meldet der Bericht als `UNGEPRUEFT`. Derzeit sind es null.
 - **`server_robocasa_ref_run.sh`** (§4.4). Wenige Parameter, seltene Benutzung. Es liest
   seine `.env.local` weiterhin über den eigenen Block — der Umbau auf
   `lib_env_local.sh` wäre eine Verbesserung, gehört aber nicht in diesen Schritt.
-- **`setup_and_train_Container-build.sh`.** Teilt sich die Spec mit der Pull-Fassung, ist
+- **`setup_and_train_container_build.sh`.** Teilt sich die Spec mit der Pull-Fassung, ist
   aber noch nicht verdrahtet. Ein Einzeiler wie in der Pull-Fassung genügt dafür.
 
 ### 12.5 Bedienung
@@ -709,7 +709,7 @@ dieser beiden Angaben meldet der Bericht als `UNGEPRUEFT`. Derzeit sind es null.
 MENU=0 ./Simulation/server_rl_run.sh eval     # wie bisher, keine Rückfrage
 ./Simulation/server_rl_run.sh --profile=rauchtest eval
 
-./Training/setup_and_train_DockerHub-pull.sh  # führt durch
+./Training/setup_and_train_dockerhub_pull.sh  # führt durch
 ./Training/kisski_menu.sh --dry-run           # baut die sbatch-Zeile, reicht nicht ein
 
 ./tools/gen_docs.sh                           # Abgleich Spec <-> Skript <-> Doku
@@ -747,7 +747,7 @@ kein Messlauf danach fragte, **welche Gewichte** er misst (§13.7). Prüfstand j
 ### 13.1 `run.sh` — die Domänen-Ebene
 
 Bisher musste man wissen, *welches Skript* man aufruft: `server_rl_run.sh`,
-`setup_and_train_DockerHub-pull.sh` oder `kisski_menu.sh`. Das ist genau die Sorte
+`setup_and_train_dockerhub_pull.sh` oder `kisski_menu.sh`. Das ist genau die Sorte
 Vorwissen, die das Menü eigentlich abschaffen sollte — nur eine Ebene höher.
 
 ```bash

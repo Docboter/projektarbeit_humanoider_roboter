@@ -11,7 +11,7 @@
 # Partition (Ada/L40) bestätigt ODER der vast.ai-Pfad (L40/A6000) gewählt werden.
 # Der unten stehende RT-Core-Guard bricht auf A100/H100 bewusst ab.
 #
-# Es nutzt das SIM-SIF (kombiniertes Isaac-Sim + GR00T, aus Simulation/Dockerfile.vastai),
+# Es nutzt das SIM-SIF (kombiniertes Isaac-Sim + GR00T, aus Simulation/Dockerfile.standalone),
 # NICHT das BC-Trainingsimage. Startpunkt ist ein BC-Checkpoint (RL verfeinert ihn).
 #
 # Einreichen (sobald RT-Core-Partition feststeht — Platzhalter unten anpassen):
@@ -96,7 +96,7 @@ esac
 
 if [[ ! -f "$SIM_SIF" ]]; then
     echo "FEHLER: SIM-SIF nicht gefunden: $SIM_SIF" >&2
-    echo "Einmalig erstellen (aus Simulation/Dockerfile.vastai gebautem Docker-Image):" >&2
+    echo "Einmalig erstellen (aus Simulation/Dockerfile.standalone gebautem Docker-Image):" >&2
     echo "    apptainer pull \$HOME/images/projekt-humanoider-roboter-sim.sif docker://<sim-image>:latest" >&2
     exit 1
 fi

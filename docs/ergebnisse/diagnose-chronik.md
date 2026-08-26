@@ -94,7 +94,7 @@ belassen, falls der Server-Constraint sich mal ändert oder für einen anderen S
 
 ### Isaac-Sim-6.0-Migration (2026-08-07) — implementiert und seit 2026-08-08 auf Hardware bestätigt
 
-[`Dockerfile.vastai`](../../Simulation/Dockerfile.vastai) wurde von `isaac-lab:2.3.2` auf
+[`Dockerfile.vastai`](../../Simulation/Dockerfile.standalone) wurde von `isaac-lab:2.3.2` auf
 **`isaac-lab:3.0.0-beta2-post1`** (= Isaac Sim 6.0) portiert. Die Bundle-Angaben unten sind per
 pip-list-Inventar aus dem echten Image verifiziert (2026-08-07), nicht aus Release Notes übernommen —
 die nannten fälschlich torch 2.11. Folgeänderungen:
@@ -414,7 +414,8 @@ Horizont — sichtbar sind nur ~8 % Boden statt der rechnerischen 97 %.
 Bilder. `cam_left_high` spannte über das gesamte Bild nur die Helligkeitsstufen **244–249**; die
 Chroma fiel von 6,0 (Juni, mit farbigen Würfeln) auf 2,0. Die Wrist-Kameras erwischten noch einen
 Streifen Hand am Bildrand, wo im Juni die Hand formatfüllend war. Zum Vergleich der Juni-Frame:
-`Simulation/old_videos/12/_debug_obs_cam_left_high.png` (Tisch, drei Würfel, beide Hände).
+`Simulation/old_videos/12/_debug_obs_cam_left_high.png` (Tisch, drei Würfel, beide Hände;
+der Ordner `Simulation/old_videos/` wurde am 2026-08-26 im Zuge der Repo-Bereinigung entfernt).
 
 **Was es NICHT ist** — drei per Messung ausgeschlossene Verdächtige:
 
@@ -1421,7 +1422,7 @@ HF_TOKEN=hf_... ./Simulation/server_rl_run.sh span
 > **`ffmpeg` im Sim-Image (2026-08-12).** Schritt 2 schneidet die zusammenhängenden MP4s per
 > Subprozess in Einzel-Episoden und scheiterte mit `FileNotFoundError: 'ffmpeg'` — das Paket war
 > im Training-Image seit jeher drin, im Sim-Image nicht, weil der Sim-Pfad den Trainingsdatensatz
-> nie brauchte. [`Dockerfile.vastai`](../../Simulation/Dockerfile.vastai) hat es jetzt; bis zum
+> nie brauchte. [`Dockerfile.vastai`](../../Simulation/Dockerfile.standalone) hat es jetzt; bis zum
 > nächsten Rebuild installiert `ensure_dataset` es zur Laufzeit nach, damit kein 60-Minuten-Build
 > zwischen dir und der Messung steht. Die Laufzeit-Installation überlebt `clean` nicht.
 >

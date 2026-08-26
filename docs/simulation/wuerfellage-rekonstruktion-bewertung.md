@@ -14,8 +14,8 @@ Ideen aus der Doku-Historie. Das Feature ist ein Teilschritt für den Co-Trainin
 
 Geprüft wurden: `collect_replay_anchors.py`, `replay_calibration.py`, `reconstruct_cube_poses.py`,
 `replay_grasp_metrics.py`, `run_dataset_replay_videos.py`, `render_cotrain_dataset.py`,
-`extract_block_layout.py`, `grasp_pose_support.py`, `estimate_grasp_pose_support.py`,
-`camera_geometry.py`, die zugehörigen Tests (40/40 bestanden), `server_rl_run.sh`,
+`extract_block_layout.py`, `grasp_pose_support.py`, `estimate_grasp_pose_support.py`
+(Umgesetzt 2026-08-26: entfernt), `camera_geometry.py`, die zugehörigen Tests (40/40 bestanden), `server_rl_run.sh`,
 `launch_cotrain.py`/`lib_split.sh` sowie alle Revisionen der Doku (`641ffc4` → `d73c6aa`).
 Zeilenangaben beziehen sich auf HEAD.
 
@@ -97,6 +97,7 @@ importiert `CUBE_COLORS`, `HSV_WINDOWS`, `color_mask`, `largest_blob`, `rgb_to_h
 
 **Nicht verdrahtet:** `estimate_grasp_pose_support.py` und `apply_grasp_support()` (die
 75/25-Fusion aus Commit `c2afe2e`) ruft nichts mehr auf — toter Code mit eigener Testdatei.
+(Umgesetzt 2026-08-26: entfernt.)
 Nur `closure_candidates`/`fingertip_measurement` aus `grasp_pose_support.py` leben in Pfad B
 weiter ([collect_replay_anchors.py:40](../../Simulation/g1_dex3_sim/collect_replay_anchors.py#L40)).
 
@@ -158,7 +159,7 @@ Kontext. Sie lebt nur als ein Satz in §3 der HEAD-Doku.
 |---|---|---|
 | Methodik v4 | **gut** | gelernte Pixel→Tisch-Abbildung mit Holdout ist der richtige Schritt weg von der rekonstruierten Kamera; Top-Face-Pixel konsistent in Kalibrierung *und* Anwendung → systematischer Bias hebt sich auf (v2 brauchte dafür einen additiven Bias); Anker nur bei eindeutiger Hand und plausiblem Arbeitsraum |
 | Robustheit / Fail-safe | **gut** | keine stummen Fallbacks; Artefakt-Versionen, Methoden, SHA-256-Kette; Overwrite umgeht keine Eingabeprüfung; Aktionen werden nach der Verarbeitung auf Unverändertheit geprüft |
-| Code-Qualität | **mittel–gut** | lesbar, klein geschnitten, 40 Unit-Tests grün. Aber: hausgemachte DLT ohne Normalisierung (D3), duplizierte Konstanten und Split-Formel (D5), ein totes Modul, zwei unabhängige „Wann schließt die Hand"-Algorithmen (`find_grasp_points` vs. `closure_candidates`), Tracker nur auf synthetischen Rechtecken getestet, `test_reconstruct_cube_poses.py` testet keine Funktion seines Namensgebers |
+| Code-Qualität | **mittel–gut** | lesbar, klein geschnitten, 40 Unit-Tests grün. Aber: hausgemachte DLT ohne Normalisierung (D3), duplizierte Konstanten und Split-Formel (D5), ein totes Modul, zwei unabhängige „Wann schließt die Hand"-Algorithmen (`find_grasp_points` vs. `closure_candidates`), Tracker nur auf synthetischen Rechtecken getestet, `test_reconstruct_cube_poses.py` testet keine Funktion seines Namensgebers (umbenannt 2026-08-26 in `test_replay_calibration.py`, da real `replay_calibration.py`/`camera_geometry.py` getestet werden) |
 | Betriebsreife | **schwach** | nie auf Isaac/GPU gelaufen; Dataset-Modus gesperrt (D1); kein Eintrag in der Diagnose-Chronik; alle Schwellwerte sind Soll-, keine Ist-Werte |
 | Co-Training-Tauglichkeit | **offen** | Pfad B kann heute keinen Datensatz schreiben; Pfad A schreibt einen mit v2-Posen und verbotenem Fallback. Ob v4-Posen die Griffquote im Replay (v2-Lauf: 101/116 Griffe mit > 6 cm Kuppenöffnung) verbessern, ist unbekannt |
 | Dokumentation | **mittel** | wuerfellage-rekonstruktion.md ist präzise, aber: CLAUDE.md, co-training.md, docs/README.md und docs/simulation/README.md beschreiben noch v2 als aktuell; CLAUDE.md kennt die v4-Dateien nicht; `historie.md:710` verweist auf §2.1 (jetzt §6.1) |
@@ -298,7 +299,7 @@ unabhängig vom Tracker, und einen Regressionstest auf echten Bildern.
 12. **Fehlgriff-Schnitt** aus dem Manifest (§5.8).
 13. **Env-Spawn-Band** aus `cube_poses.json` ableiten (§5.8).
 14. **Aufräumen:** `estimate_grasp_pose_support.py` + `apply_grasp_support` entfernen oder
-    begründen; `find_grasp_points` durch `closure_candidates` ersetzen; Doku-Drift (§5.8);
+    begründen (Umgesetzt 2026-08-26: entfernt); `find_grasp_points` durch `closure_candidates` ersetzen; Doku-Drift (§5.8);
     wuerfellage-rekonstruktion.md um D1/D7/D8 und §5.1 ergänzen.
 
 ---
@@ -327,8 +328,8 @@ unabhängig vom Tracker, und einen Regressionstest auf echten Bildern.
 | MITTEL | Kalibrierung nur auf Episoden 0–39, keine Drift-Prüfung | collect_replay_anchors.py (`--num-episodes`) |
 | MITTEL | Fünf verschiedene Arbeitsraum-Fenster ohne gemeinsame Konstante (A: 3, B: 2) | render_cotrain_dataset.py:527/536/547; collect_replay_anchors.py:136; replay_calibration.py:576 |
 | MITTEL | `grasp_success=false` → trotzdem `status: ok` im Datensatz | run_dataset_replay_videos.py:806-817 |
-| NIEDRIG | `estimate_grasp_pose_support.py`/`apply_grasp_support` tot, aber mit Test | Simulation/g1_dex3_sim/ |
-| NIEDRIG | `test_reconstruct_cube_poses.py` testet keine Funktion aus `reconstruct_cube_poses.py`; Tracker nie auf Realbildern getestet | Simulation/g1_dex3_sim/test_*.py |
+| NIEDRIG | `estimate_grasp_pose_support.py`/`apply_grasp_support` tot, aber mit Test (Umgesetzt 2026-08-26: entfernt) | Simulation/g1_dex3_sim/ |
+| NIEDRIG | `test_reconstruct_cube_poses.py` testet keine Funktion aus `reconstruct_cube_poses.py`; Tracker nie auf Realbildern getestet (umbenannt 2026-08-26 in `test_replay_calibration.py`, da real `replay_calibration.py`/`camera_geometry.py` getestet werden) | Simulation/g1_dex3_sim/test_*.py |
 | NIEDRIG | `count_frames()` dekodiert jedes Video doppelt (nach dem Schreiben und in `validate_dataset`) | run_dataset_replay_videos.py:789-790, 503-504 |
 | NIEDRIG | RANSAC-Warnungen `divide by zero` ungefiltert im Log (harmlos, wird per `isfinite` gefangen) | replay_calibration.py:270, 307 |
 | NIEDRIG | Tischoberkante 0,87 (alte Doku) vs. 0,89 (Env-Kommentar) | g1_dex3_blockstack_env.py:422 |

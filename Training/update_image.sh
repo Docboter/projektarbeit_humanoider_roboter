@@ -222,6 +222,6 @@ if [[ -n "$CURRENT_COMMIT" ]]; then
 fi
 echo ""
 echo "  Naechste Schritte:"
-echo "    * Testen:  ./setup_and_train_DockerHub-pull.sh"
+echo "    * Testen:  ./setup_and_train_dockerhub_pull.sh"
 echo "    * Ziehen:  docker pull $IMAGE_LATEST"
 echo ""

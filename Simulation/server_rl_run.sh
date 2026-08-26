@@ -4,7 +4,7 @@
 #   (z. B. 2× RTX PRO 6000 Blackwell) statt auf vast.ai.
 #
 # Docker-Pendant zu docs/weiterfuehrend/rl-anleitung.md (dort vast.ai-Instanz-Miete).
-# Fährt den kombinierten Isaac-Lab+GR00T-Container (Dockerfile.vastai) und startet
+# Fährt den kombinierten Isaac-Lab+GR00T-Container (Dockerfile.standalone) und startet
 # entrypoint_rl.sh / rl_finetune.py — verfeinert den BC-Checkpoint per FPO in der
 # Block-Stacking-Sim.
 #   Hintergrund: docs/weiterfuehrend/reinforcement-learning-plan.md
@@ -18,7 +18,7 @@
 #        auf 3.0.0-beta2-post1 — nötig, weil Isaac Sim 5.1 auf der RTX PRO 6000 Blackwell
 #        mit dem (nicht änderbaren) Treiber-Branch 610.x segfaultet.
 #   Vor dem ersten `check`/`rl`-Lauf daher zwingend:
-#     ./Simulation/update_sim_image.sh --vastai      # baut Dockerfile.vastai neu + pusht
+#     ./Simulation/update_sim_image.sh --standalone      # baut Dockerfile.standalone neu + pusht
 #   `preflight` unten prüft Python-Version, torch, flash-attn und gr00t-Import.
 #
 # RT-CORES: Die RTX PRO 6000 Blackwell haben RT-Cores (anders als KISSKI A100/H100) —
@@ -115,7 +115,7 @@ source "$REPO_DIR/tools/lib_env_local.sh"
 env_local_load "$REPO_DIR"
 
 # ── Konfiguration (alle via Env überschreibbar) ──────────────────────────────
-IMAGE="${RL_IMAGE:-lucam03/projekt-humanoider-roboter-sim-vastai:latest}"
+IMAGE="${RL_IMAGE:-lucam03/projekt-humanoider-roboter-sim-standalone:latest}"
 CONTAINER="${RL_CONTAINER:-groot-rl}"
 # Host-Verzeichnis, das im Container zu /data wird: HF-Checkpoint-Cache, RL-Checkpoints,
 # Isaac-Sim-Shader-Cache und die Logspiegelung. Wächst auf viele GB — auf eine Partition
@@ -646,14 +646,14 @@ ensure_dataset() {
   # ffmpeg: die Konvertierung schneidet die zusammenhaengenden MP4s in Einzel-Episoden
   # (_extract_video_segment ruft es als Subprozess). Im Training-Image ist es drin, im
   # Sim-Image fehlte es bis 2026-08-12 — der Sim-Pfad brauchte den Datensatz nie.
-  # Dockerfile.vastai hat es jetzt; bis zum naechsten Rebuild wird es hier nachinstalliert,
+  # Dockerfile.standalone hat es jetzt; bis zum naechsten Rebuild wird es hier nachinstalliert,
   # damit ein 60-Minuten-Rebuild nicht zwischen dir und der Messung steht.
   if ! docker exec "$CONTAINER" bash -lc "command -v ffmpeg >/dev/null"; then
     warn "ffmpeg fehlt im Container (Image aelter als der Dockerfile-Fix) — installiere es."
     docker exec "$CONTAINER" bash -lc \
       "apt-get update -qq && apt-get install -y -qq --no-install-recommends ffmpeg" \
       || { err "ffmpeg-Installation fehlgeschlagen. Image neu bauen:"
-           err "  ./Simulation/update_sim_image.sh --vastai"; return 1; }
+           err "  ./Simulation/update_sim_image.sh --standalone"; return 1; }
     ok "ffmpeg installiert (nur in diesem Container; ueberlebt 'clean' nicht)."
   fi
 
@@ -830,7 +830,7 @@ import torch
 print("torch      :", torch.__version__, "| cuda", torch.version.cuda, "| dev", torch.cuda.get_device_name(0))
 x = torch.randn(2048, 2048, device="cuda")
 print("matmul ok  :", float((x @ x).sum()))
-import gr00t  # noqa: F401  -- nur vorhanden, wenn das Image aus Dockerfile.vastai gebaut wurde
+import gr00t  # noqa: F401  -- nur vorhanden, wenn das Image aus Dockerfile.standalone gebaut wurde
 from flash_attn import flash_attn_func
 import flash_attn
 q = k = v = torch.randn(1, 8, 4, 64, device="cuda", dtype=torch.float16)
@@ -842,7 +842,7 @@ PY
   else
     err "Preflight fehlgeschlagen. Haeufigste Ursache: Image noch nicht neu gebaut"
     err "  (Isaac-Sim-6.0-Port). Beheben mit:"
-    err "    ./Simulation/update_sim_image.sh --vastai"
+    err "    ./Simulation/update_sim_image.sh --standalone"
     err "  Details: docs/weiterfuehrend/rl-anleitung.md (Troubleshooting)"
     return 1
   fi
@@ -851,7 +851,7 @@ PY
       "import onnx,tensorrt as trt; print('onnx',onnx.__version__,'tensorrt',trt.__version__); assert trt.Builder(trt.Logger())"; then
     ok "ONNX + TensorRT-cu12 im GR00T-venv nutzbar."
   else
-    err "ONNX/TensorRT-Preflight fehlgeschlagen — Image mit aktuellem Dockerfile.vastai bauen."
+    err "ONNX/TensorRT-Preflight fehlgeschlagen — Image mit aktuellem Dockerfile.standalone bauen."
     return 1
   fi
 }
@@ -1950,7 +1950,7 @@ usage() {
 server_rl_run.sh — RL-Fine-tuning (FPO), Docker-Server statt vast.ai
 
 ⚠️  Vor dem ersten Lauf: Image ggf. neu bauen+pushen (siehe Kopf dieser Datei):
-      ./Simulation/update_sim_image.sh --vastai
+      ./Simulation/update_sim_image.sh --standalone
     'preflight' unten weist das verbindlich nach.
 
 Aktionen:

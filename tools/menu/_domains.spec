@@ -38,7 +38,7 @@ domain train "auf diesem Rechner (Docker)" \
   --group "Training" \
   --label "Training (lokal)" \
   --prefix train \
-  --launcher "Training/setup_and_train_DockerHub-pull.sh" \
+  --launcher "Training/setup_and_train_dockerhub_pull.sh" \
   --needs docker \
   --hint "Behaviour-Cloning-Feintuning von GR00T im Container auf diesem Rechner: Download, Konvertierung und Training in einem Lauf. Der Container ist langlebig — kein --rm, keine Volume-Mounts."
 

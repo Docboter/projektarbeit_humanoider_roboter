@@ -114,6 +114,7 @@ Diese Sammlung speist das gleichnamige Kapitel der Projektarbeit.
 │                              #   Zuordnung Domäne → Launcher: tools/menu/_domains.spec
 ├── README.md                  # Projekt-Überblick & Schnellstart (Landing)
 ├── CLAUDE.md                  # Anweisungen für Claude Code
+├── .env.local.example         # Vorlage für host-spezifische Konfiguration (→ .env.local kopieren, gitignored) — nur von Simulation/server_rl_run.sh gelesen
 ├── docs/                      # ▶ Diese Dokumentation
 │   ├── README.md              # dieser Navigations-Hub
 │   ├── quickstart.md          # Neu hier? Systemvoraussetzungen, Accounts/Tokens, Schnellstart
@@ -135,7 +136,7 @@ Diese Sammlung speist das gleichnamige Kapitel der Projektarbeit.
 │       └── run_finetuning.sh  # Trainings-Launcher im Container
 ├── Simulation/                # Sim-Client-Code, Dockerfiles, Build-Tools
 │   ├── Dockerfile             # KISSKI: schlanker Isaac-Lab-Sim-Client
-│   ├── Dockerfile.vastai      # vast.ai: kombiniert Isaac Sim + GR00T
+│   ├── Dockerfile.standalone  # Standalone: kombiniert Isaac Sim + GR00T — IKR-Server & vast.ai
 │   ├── Dockerfile.webviewer   # Browser-Client für den WebRTC-Viewport (Port 8210).
 │   │                          #   Enthält KEINEN Simulator — serviert nur die Seite
 │   ├── server_rl_run.sh       # ★ Eigener-Server-Workflow (Docker): preflight/setup/view/check/
@@ -144,17 +145,19 @@ Diese Sammlung speist das gleichnamige Kapitel der Projektarbeit.
 │   │                          #    view = Szene ohne Gewichte; webview = Viewport im Browser —
 │   │                          #    beides in simulation/live-ansicht.md)
 │   ├── server_robocasa_ref_run.sh  # RoboCasa-GR-1-Referenz-Eval (Pipeline-Validierung)
-│   ├── update_sim_image.sh    # Build/Push-Tool (--vastai-Flag)
+│   ├── update_sim_image.sh    # Build/Push-Tool (--standalone-Flag)
 │   ├── g1_dex3_sim/           # Sim-Code (Env, Cams, Client, Eval, Replay)
 │   ├── camera_reference/      # Dataset-Referenzframes für Kamera-Kalibrierung
-│   └── scripts/               # In das vast.ai-Image kopiert (→ /scripts)
+│   └── scripts/               # In das Standalone-Image kopiert (→ /scripts)
 ├── tools/                     # Host-Helfer, nie im Image: Menü-Engine + Specs, gen_docs.sh,
 │                              #   test_menu.sh, check_tldr.sh (TL;DR-Konvention)
 │   └── menu/_domains.spec     #   Domänenliste für run.sh (Launcher, --needs, Erklärtext)
 ├── data/                      # Lokale Assets + Submodule (überwiegend gitignored)
 │   └── unitree_ros/           # Git-Submodul — Unitree-ROS (URDF-Quelle)
+├── latex/                     # Projektarbeit/Thesis-Dokument (LuaLaTeX; eigenes Root-Verzeichnis, kein Submodul)
 └── app/                       # Git-Submodul, im Image geklont
-    └── Groot-1.6/             # GR00T N1.6 + eigene G1/DEX3-Configs
+    ├── Groot-1.6/             # GR00T N1.6 + eigene G1/DEX3-Configs
+    └── Groot-1.7/             # Ungetrackter Checkout des Parallel-Branches training-luca-IKR-IS6.0-GN1.7 (GR00T N1.7); nicht in .gitmodules — stehen lassen
 ```
 
 Zur Laufzeit (lokal/vast.ai im Container-Filesystem, auf KISSKI unter dem VAST-Projekt-Storage):

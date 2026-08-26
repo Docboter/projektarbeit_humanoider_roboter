@@ -214,7 +214,7 @@ echo ""
 # Ehrlicher Hinweis-Schalter: präzise auf den RL-Pfad lenken statt still BC zu fahren.
 if [[ "$USE_RL" == "1" ]]; then
     err "USE_RL=1 — RL-Fine-tuning (FPO) läuft NICHT im BC-Trainingsimage (kein Isaac Sim enthalten)."
-    err "RL braucht den kombinierten Isaac-Sim + GR00T-Container (Simulation/Dockerfile.vastai) auf"
+    err "RL braucht den kombinierten Isaac-Sim + GR00T-Container (Simulation/Dockerfile.standalone) auf"
     err "einer RT-Core-GPU (L40 / RTX 4090 / A6000). Starte stattdessen:"
     err "  • Cloud/vast.ai: Sim-Image mit Simulation/scripts/entrypoint_rl.sh"
     err "  • KISSKI:        sbatch Training/kisski_rl_submit.sh"

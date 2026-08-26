@@ -51,7 +51,7 @@
 #                             schneller Modus = EXECUTION_HORIZON (normalerweise 8)
 #
 # Auf vast.ai:
-#   Image:          lucam03/projekt-humanoider-roboter-sim-vastai:latest
+#   Image:          lucam03/projekt-humanoider-roboter-sim-standalone:latest
 #   GPU:            RTX 3090 / RTX 4090 / A6000 (≥24 GB, Ampere+, RT-Cores!)
 #   Docker Options: --ipc=host --shm-size=16g
 #   Disk:           Checkpoint-Volume nach /data mounten

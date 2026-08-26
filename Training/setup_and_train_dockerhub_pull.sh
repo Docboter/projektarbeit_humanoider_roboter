@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # TL;DR: Schlanker Host-Launcher — zieht das Image von Docker Hub, startet den autonomen Container.
-# setup_and_train_DockerHub-pull.sh
+# setup_and_train_dockerhub_pull.sh
 #
 # Schlankes Host-Skript: zieht das Image von Docker Hub und startet den
 # autonomen Container-Entrypoint. Alle eigentliche Arbeit (Download, Konvertierung,
@@ -14,12 +14,12 @@
 #   * Bei `--destroy` (oder docker rm) ist alles weg
 #
 # Verwendung:
-#   HF_TOKEN=hf_... WANDB_API_KEY=... ./setup_and_train_DockerHub-pull.sh
-#   ./setup_and_train_DockerHub-pull.sh --skip-pull           # Image schon lokal
-#   ./setup_and_train_DockerHub-pull.sh --interactive         # Shell statt Training
-#   ./setup_and_train_DockerHub-pull.sh --resume              # Bestehenden Container weiterlaufen lassen
-#   ./setup_and_train_DockerHub-pull.sh --destroy             # Alten Container loeschen + neu starten
-#   ./setup_and_train_DockerHub-pull.sh --dry-run             # Nur Befehle anzeigen
+#   HF_TOKEN=hf_... WANDB_API_KEY=... ./setup_and_train_dockerhub_pull.sh
+#   ./setup_and_train_dockerhub_pull.sh --skip-pull           # Image schon lokal
+#   ./setup_and_train_dockerhub_pull.sh --interactive         # Shell statt Training
+#   ./setup_and_train_dockerhub_pull.sh --resume              # Bestehenden Container weiterlaufen lassen
+#   ./setup_and_train_dockerhub_pull.sh --destroy             # Alten Container loeschen + neu starten
+#   ./setup_and_train_dockerhub_pull.sh --dry-run             # Nur Befehle anzeigen
 #
 #   Ohne Parameter aufgerufen fuehrt das Skript durch die noetigen Werte (gefuehrtes
 #   Menue, docs/weiterfuehrend/cli-menuefuehrung.md). --no-menu bzw. MENU=0 schaltet
@@ -98,7 +98,7 @@ env_local_load "$REPO_DIR"
 # sich ausschliesslich, wenn wirklich ein Mensch davorsitzt.
 # shellcheck source=../tools/lib_menu.sh
 source "$REPO_DIR/tools/lib_menu.sh"
-_MENU_LAUNCHER="./Training/setup_and_train_DockerHub-pull.sh"
+_MENU_LAUNCHER="./Training/setup_and_train_dockerhub_pull.sh"
 
 MENU_ACTION=""
 if $RESUME;      then MENU_ACTION=resume
@@ -311,10 +311,10 @@ echo ""
 ok "Container beendet (nicht geloescht)."
 echo ""
 echo "  Naechste Schritte:"
-echo "    * Container fortsetzen:  ./setup_and_train_DockerHub-pull.sh --resume"
+echo "    * Container fortsetzen:  ./setup_and_train_dockerhub_pull.sh --resume"
 echo "    * Checkpoints sichern:   docker cp $CONTAINER_NAME:/data/g1_dex3_finetune ./checkpoints"
 echo "    * Logs sichern:          docker cp $CONTAINER_NAME:/data/logs ./logs"
-echo "    * Alles loeschen:        ./setup_and_train_DockerHub-pull.sh --destroy"
+echo "    * Alles loeschen:        ./setup_and_train_dockerhub_pull.sh --destroy"
 echo ""
 echo "  Hinweis: Auf vast.ai brauchst du dieses Skript NICHT — dort uebernimmt"
 echo "  der vast.ai-Orchestrator die Container-Verwaltung. Du gibst nur das"

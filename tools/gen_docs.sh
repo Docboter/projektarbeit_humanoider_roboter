@@ -52,7 +52,7 @@ sim_sources=(
   "Simulation/scripts/lib_livestream.sh"
 )
 train_sources=(
-  "Training/setup_and_train_DockerHub-pull.sh"
+  "Training/setup_and_train_dockerhub_pull.sh"
   "Training/scripts/entrypoint.sh"
   "Training/scripts/run_finetuning.sh"
   "Training/scripts/run_finetuning_vision.sh"

@@ -628,7 +628,7 @@ Ausgeschnitten aus `docs/simulation/vastai-anleitung.md`, Abschnitt „Optional 
 > Weg.** Zwei Punkte vorweg:
 > 1. **Der Browser-Client auf Port 8211 existiert nicht mehr.** Er stammt aus Isaac Sim ≤ 5.x
 >    und ist mit der Migration auf Isaac Sim 6.0 (2026-08-07) entfallen; das Image exponiert
->    den Port bewusst nicht mehr ([Dockerfile.vastai](../Simulation/Dockerfile.vastai),
+>    den Port bewusst nicht mehr ([Dockerfile.vastai](../Simulation/Dockerfile.standalone),
 >    `EXPOSE 49100 8900`). Alle 8211-Angaben unten sind gegenstandslos — es bleibt der native
 >    „Isaac Sim WebRTC Streaming Client" auf `LIVESTREAM_PORT` (49100).
 > 2. **Spur A (WebRTC) ist nicht auf Hardware verifiziert.** Der Abschnitt liest sich wie ein

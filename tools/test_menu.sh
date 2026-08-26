@@ -326,7 +326,7 @@ chk  "22  bash -n ueber Bibliotheken, Werkzeug und alle Specs" \
 chk  "23  jede Aktion von server_rl_run.sh hat eine Spec" \
      'for a in $(sed -n "/^case .\\\$ACTION. in$/,/^esac$/p" $SIM | grep -oE "^  [a-z|]+\)" | tr -d " )" | tr "|" "\n" | grep -vE "^(help|down)$"); do [ -f "tools/menu/sim-$a.spec" ] || exit 1; done'
 chk  "24  Trainings-Launcher reicht die Feature-Schalter durch" \
-     'MENU=0 TUNE_VISUAL=1 HF_TOKEN=hf_x ./Training/setup_and_train_DockerHub-pull.sh --dry-run --skip-pull < /dev/null 2>&1 | grep -q -- "-e TUNE_VISUAL=1"'
+     'MENU=0 TUNE_VISUAL=1 HF_TOKEN=hf_x ./Training/setup_and_train_dockerhub_pull.sh --dry-run --skip-pull < /dev/null 2>&1 | grep -q -- "-e TUNE_VISUAL=1"'
 chk  "25  Abgleich Spec <-> Skript <-> Doku (Pruefung 9 des Plans)" \
      './tools/gen_docs.sh --quiet'
 echo ""

@@ -1,9 +1,12 @@
 # Closed-Loop-Sim auf vast.ai — Schritt-für-Schritt-Anleitung
 
-> **TL;DR:** Schritt-für-Schritt-Anleitung für den primären Sim-Eval-Workflow: Image bauen/pushen,
-> Checkpoint und USD-Asset bereitstellen, vast.ai-Instanz (L40, 48 GB) konfigurieren und
-> überwachen. Für alle, die den feingetunten GR00T-N1.6-Checkpoint closed-loop im
-> Isaac-Lab-Block-Stacking evaluieren wollen.
+> **TL;DR:** Schritt-für-Schritt-Anleitung für den Sim-Eval-Workflow auf vast.ai: Image
+> bauen/pushen, Checkpoint und USD-Asset bereitstellen, vast.ai-Instanz (L40, 48 GB)
+> konfigurieren und überwachen. vast.ai ist die **Cloud-Alternative** zum Standardweg über den
+> eigenen IKR-Server ([`Simulation/server_rl_run.sh`](../../Simulation/server_rl_run.sh));
+> genutzt wird in beiden Fällen dasselbe **Standalone-Image** (Isaac Sim + GR00T kombiniert,
+> läuft auf dem IKR-Server UND auf vast.ai). Für alle, die den feingetunten
+> GR00T-N1.6-Checkpoint closed-loop im Isaac-Lab-Block-Stacking evaluieren wollen.
 
 Ziel: Den feingetunten GR00T-N1.6-Checkpoint in der Isaac-Lab-Simulation auf einer
 **NVIDIA L40 (48 GB)** auf vast.ai evaluieren.
@@ -19,7 +22,7 @@ Der Container startet autonom:
 
 ```text
 vast.ai Instanz (L40, 48 GB VRAM)
-└── Docker-Container: lucam03/projekt-humanoider-roboter-sim-vastai:latest
+└── Docker-Container: lucam03/projekt-humanoider-roboter-sim-standalone:latest
     ├── GR00T-Policy-Server  → /app/Groot-1.6/.venv/bin/python   (~10 GB VRAM)
     │     lädt Checkpoint, antwortet auf ZMQ-Requests
     └── Isaac-Lab-Sim-Client → ${ISAACLAB_PATH}/isaaclab.sh -p   (~8 GB VRAM)
@@ -55,13 +58,13 @@ Auf deinem Laptop im Repo-Root:
 docker login nvcr.io   # Username: $oauthtoken   Password: <NGC-API-Key>
 
 # Image bauen und nach Docker Hub pushen (~30-60 min, nur beim ersten Mal)
-./Simulation/update_sim_image.sh --vastai
+./Simulation/update_sim_image.sh --standalone
 
 # Nur bauen, nicht pushen (zum Testen):
-./Simulation/update_sim_image.sh --vastai --skip-push
+./Simulation/update_sim_image.sh --standalone --skip-push
 ```
 
-Ergebnis: `lucam03/projekt-humanoider-roboter-sim-vastai:latest` auf Docker Hub.
+Ergebnis: `lucam03/projekt-humanoider-roboter-sim-standalone:latest` auf Docker Hub.
 
 > **Hinweis:** Das Image ist ~30-40 GB. Genug Plattenplatz einplanen (80+ GB frei).
 
@@ -140,7 +143,7 @@ Voraussetzung: Docker Desktop mit GPU-Support (WSL2 + nvidia-container-toolkit).
 docker run -it --rm --gpus all --ipc=host --shm-size=8g `
   --entrypoint bash `
   -v "${PWD}/data:/data" `
-  lucam03/projekt-humanoider-roboter-sim-vastai:latest
+  lucam03/projekt-humanoider-roboter-sim-standalone:latest
 ```
 
 Im Container:
@@ -218,7 +221,7 @@ Im Launch-Dialog folgende Felder ausfüllen:
 
 **Image:**
 ```text
-lucam03/projekt-humanoider-roboter-sim-vastai:latest
+lucam03/projekt-humanoider-roboter-sim-standalone:latest
 ```
 
 **Docker Options:**
@@ -624,12 +627,12 @@ Output. Danach kommt `[Phase A] Isaac-Lab-Sim wird initialisiert …`.
 
 ## Zusammenfassung: Schnellstart
 
-Voraussetzungen: Image gepusht (`./Simulation/update_sim_image.sh --vastai`), Checkpoint und
+Voraussetzungen: Image gepusht (`./Simulation/update_sim_image.sh --standalone`), Checkpoint und
 USD-Asset auf HuggingFace (`luca-mue/groot-g1dex3-checkpoint`).
 
-1. `./Simulation/update_sim_image.sh --vastai` ausführen (nur wenn Image noch nicht gepusht)
+1. `./Simulation/update_sim_image.sh --standalone` ausführen (nur wenn Image noch nicht gepusht)
 2. vast.ai → Search → **L40** filtern (≥24 GB, Ampere+, RT-Cores) → Rent
-3. Image: `lucam03/projekt-humanoider-roboter-sim-vastai:latest`
+3. Image: `lucam03/projekt-humanoider-roboter-sim-standalone:latest`
 4. Docker Options: `--ipc=host --shm-size=16g -p 22`
 5. Env:
    ```

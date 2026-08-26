@@ -70,8 +70,20 @@ run() {
 }
 
 # ── Konfiguration ─────────────────────────────────────────────────────────────
+# .env.local laden, falls das Skript aus einem Checkout heraus läuft (bei einem
+# Bootstrap-Aufruf außerhalb des Repos existiert tools/lib_env_local.sh nicht).
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ -f "$SCRIPT_DIR/../tools/lib_env_local.sh" ]]; then
+    # shellcheck source=../tools/lib_env_local.sh
+    source "$SCRIPT_DIR/../tools/lib_env_local.sh"
+    env_local_load "$(cd "$SCRIPT_DIR/.." && pwd)"
+fi
+
 REPO_URL="https://github.com/Docboter/projektarbeit_humanoider_roboter.git"
-REPO_BRANCH="training-luca"
+# TODO: Eigentlich sollte der Bootstrap main klonen. Bis der Stand von
+# training-luca-IKR-IS6.0 nach main gemerged ist, zeigt REPO_BRANCH auf den
+# aktiven Arbeitsbranch — nach dem Merge auf "main" umstellen.
+REPO_BRANCH="training-luca-IKR-IS6.0"
 REPO_DIR="${REPO_DIR:-$(pwd)/phr}"
 
 MAX_STEPS="${MAX_STEPS:-30000}"

@@ -66,7 +66,7 @@
 > RT-Cores — RL läuft dort, keine vast.ai-Miete nötig. Isaac Sim 5.1 stürzte auf dem dortigen
 > Treiber-Branch 610.x im RTX-Renderer ab; der Treiber ist nicht änderbar, deshalb der Port auf
 > **Isaac Sim 6.0** (`isaac-lab` 3.0.0-beta2-post1). Auf einer Maschine ohne dieses Image zuerst
-> `update_sim_image.sh --vastai` bauen, siehe
+> `update_sim_image.sh --standalone` bauen, siehe
 > [Pfad B in rl-anleitung.md](rl-anleitung.md#pfad-b--eigener-docker-gpu-server-mit-rt-cores--empfohlen-wenn-verfügbar).
 >
 > 👉 **Operative Schritt-für-Schritt-Anleitung zum Starten:** [rl-anleitung.md](rl-anleitung.md)

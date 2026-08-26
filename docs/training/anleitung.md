@@ -161,7 +161,7 @@ export WANDB_API_KEY=dein_wandb_key      # optional
 
 Linux / macOS / WSL2:
 ```bash
-./Training/setup_and_train_DockerHub-pull.sh
+./Training/setup_and_train_dockerhub_pull.sh
 ```
 
 *(Die frühere Windows-PowerShell-Variante `setup_and_train_DockerHub-pull.ps1` wurde entfernt —
@@ -176,11 +176,11 @@ Das Skript:
 ### B5. Optionen
 
 ```bash
-./Training/setup_and_train_DockerHub-pull.sh --skip-pull       # Image schon lokal
-./Training/setup_and_train_DockerHub-pull.sh --interactive     # Shell statt Training
-./Training/setup_and_train_DockerHub-pull.sh --resume          # Bestehenden Container weiterlaufen lassen
-./Training/setup_and_train_DockerHub-pull.sh --destroy         # Alten Container loeschen + neu starten
-./Training/setup_and_train_DockerHub-pull.sh --dry-run         # Nur Befehle anzeigen
+./Training/setup_and_train_dockerhub_pull.sh --skip-pull       # Image schon lokal
+./Training/setup_and_train_dockerhub_pull.sh --interactive     # Shell statt Training
+./Training/setup_and_train_dockerhub_pull.sh --resume          # Bestehenden Container weiterlaufen lassen
+./Training/setup_and_train_dockerhub_pull.sh --destroy         # Alten Container loeschen + neu starten
+./Training/setup_and_train_dockerhub_pull.sh --dry-run         # Nur Befehle anzeigen
 ```
 
 ### B6. Konfiguration anpassen
@@ -189,7 +189,7 @@ Trainings-Parameter über Env-Vars vor dem Skriptaufruf:
 ```bash
 export MAX_STEPS=50000
 export GLOBAL_BATCH_SIZE=16
-./Training/setup_and_train_DockerHub-pull.sh
+./Training/setup_and_train_dockerhub_pull.sh
 ```
 
 ### B7. Training pausieren und fortsetzen
@@ -197,7 +197,7 @@ export GLOBAL_BATCH_SIZE=16
 ```bash
 # Mit Ctrl+C unterbrechen (oder `docker stop groot-train`)
 # Später:
-./Training/setup_and_train_DockerHub-pull.sh --resume
+./Training/setup_and_train_dockerhub_pull.sh --resume
 # Alternativ direkt:
 docker start -ai groot-train
 ```
@@ -214,7 +214,7 @@ Befehl und Details siehe [Daten retten](#daten-retten).
 ```bash
 docker rm -f groot-train
 # oder per Skript:
-./Training/setup_and_train_DockerHub-pull.sh --destroy
+./Training/setup_and_train_dockerhub_pull.sh --destroy
 ```
 
 > **Vorsicht:** Damit sind ALLE Daten weg — vorher `docker cp` ausführen, falls du etwas behalten willst.
@@ -425,7 +425,7 @@ Im Container unter `/data/g1_dex3_finetune/blockstacking/`. Zum Holen siehe
 
 ### Wie setze ich das Training nach einem Abbruch fort?
 
-Mit dem Launcher: `./Training/setup_and_train_DockerHub-pull.sh --resume`. Manuell: `docker start -ai groot-train`. Der Entrypoint sieht, dass Daten vorhanden sind, und überspringt Download + Konvertierung.
+Mit dem Launcher: `./Training/setup_and_train_dockerhub_pull.sh --resume`. Manuell: `docker start -ai groot-train`. Der Entrypoint sieht, dass Daten vorhanden sind, und überspringt Download + Konvertierung.
 
 > **Wichtig — was beim Resume passiert:** `docker start` bzw. `--resume` startet den
 > *Container* neu (Daten und Checkpoints bleiben erhalten), und **das Training setzt dabei

@@ -63,7 +63,7 @@ export LIVESTREAM_HOST_ADDR="$(hostname -I | awk '{print $1}')"
 export RL_SKIP_PULL=1
 
 mkdir -p "$RL_HOST_DATA_DIR"
-./Simulation/update_sim_image.sh --vastai --skip-push
+./Simulation/update_sim_image.sh --standalone --skip-push
 ./Simulation/server_rl_run.sh preflight
 ./Simulation/server_rl_run.sh clean
 ./Simulation/server_rl_run.sh setup

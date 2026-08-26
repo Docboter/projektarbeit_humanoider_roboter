@@ -15,8 +15,8 @@ This repository fine-tunes NVIDIA GR00T N1.6 for the Unitree G1 with DEX3 hands 
 
 ```bash
 docker build -t projektarbeit-humanoider-roboter Training/
-./Training/setup_and_train_DockerHub-pull.sh
-./Simulation/update_sim_image.sh --vastai --skip-push
+./Training/setup_and_train_dockerhub_pull.sh
+./Simulation/update_sim_image.sh --standalone --skip-push
 ./Simulation/server_rl_run.sh preflight
 ./Simulation/server_rl_run.sh eval
 cd latex && make

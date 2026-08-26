@@ -64,7 +64,7 @@ Für GR00T-Inference (ohne Sim) auf A100 geeignet, nicht für die Closed-Loop-Si
 Für **vast.ai** wurde eine **kombinierte Ein-Container-Architektur** implementiert:
 
 ```text
-Dockerfile.vastai
+Dockerfile.standalone
 └── nvcr.io/nvidia/isaac-lab:2.3.2  (Basis)
     ├── Isaac Lab / Isaac Sim        (bereits im Basis-Image)
     └── GR00T N1.6 Policy           (isolierte venv: /app/Groot-1.6/.venv)
@@ -690,7 +690,7 @@ Die folgenden Dokumente sind historisch/überholt und liegen daher im Unterordne
 | Dokument | Problem |
 |---|---|
 | [`archiv/gpu-kompatibilitaet.md`](archiv/gpu-kompatibilitaet.md) | RTX 5000 als "ja" (Isaac-Sim-Rendering) gelistet — ist faktisch **nein** für Isaac Lab 2.3.2 (Turing < Ampere-Mindestanforderung) |
-| [`archiv/sim-docker-build.md`](archiv/sim-docker-build.md) | Beschreibt Zwei-Container-Plan; `Dockerfile.vastai` (kombiniert) jetzt primäre Impl. für vast.ai; KISSKI-Zwei-Container bleibt gültig |
+| [`archiv/sim-docker-build.md`](archiv/sim-docker-build.md) | Beschreibt Zwei-Container-Plan; `Dockerfile.standalone` (kombiniert) jetzt primäre Impl. für vast.ai; KISSKI-Zwei-Container bleibt gültig |
 | [`archiv/kisski-desktop.md`](archiv/kisski-desktop.md) | Setzt RTX-5000-Kompatibilität voraus — vor Nutzung prüfen ob ältere Isaac-Lab-Version kompatibel ist |
 | [`archiv/isaac-lab-plan.md`](archiv/isaac-lab-plan.md) | Ursprünglicher Implementierungs-Plan (historisch). Konkrete Werte (Kamera-Posen, Tischhöhe 0.74, Würfelpositionen, Aktions-Annahmen) sind durch die Umsetzung überholt — **§10/§11 dieses Dokuments sind die Quelle der Wahrheit** für den aktuellen Stand. |
 

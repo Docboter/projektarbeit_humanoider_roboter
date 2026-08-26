@@ -51,6 +51,10 @@ docker run --rm --gpus all nvidia/cuda:12.8.0-base-ubuntu22.04 nvidia-smi
 | vast.ai-Konto + Guthaben | Miet-GPU für Sim-Eval bzw. Training | Nur Weg vast.ai |
 | Docker-Hub-Login, NGC-API-Key (nvcr.io) | Eigene Images bauen und pushen | Nur Maintainer |
 
+Drei Konten-Namensräume tauchen im Projekt auf, nicht verwechseln:
+`lucam03` = Docker-Hub-Konto (Images), `lucam06` = GitHub-Konto (Isaac-GR00T-Fork),
+`luca-mue` = Hugging-Face-Konto (Checkpoints/Datasets).
+
 ## Repo holen
 
 ```bash
@@ -78,7 +82,7 @@ Oder direkt — pro Weg die kürzeste Kette:
 ```bash
 export HF_TOKEN=hf_...            # Pflicht
 export WANDB_API_KEY=...          # optional
-./Training/setup_and_train_DockerHub-pull.sh
+./Training/setup_and_train_dockerhub_pull.sh
 ```
 
 → Alle vier Trainingswege, Speicher-Modell und FAQ: [training/anleitung.md](training/anleitung.md)

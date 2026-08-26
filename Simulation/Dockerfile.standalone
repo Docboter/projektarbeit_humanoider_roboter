@@ -24,8 +24,8 @@
 #
 # Build (vom Repo-Root aus, Kontext = Simulation/):
 #   docker build --platform linux/amd64 \
-#     -f Simulation/Dockerfile.vastai \
-#     -t lucam03/projekt-humanoider-roboter-sim-vastai:latest \
+#     -f Simulation/Dockerfile.standalone \
+#     -t lucam03/projekt-humanoider-roboter-sim-standalone:latest \
 #     Simulation/
 #
 # Run (lokal zum Testen):
@@ -33,11 +33,11 @@
 #     -e HF_TOKEN=hf_... \
 #     -e CHECKPOINT_PATH=/data/checkpoints/checkpoint-3000 \
 #     -v /pfad/zum/checkpoint:/data/checkpoints \
-#     lucam03/projekt-humanoider-roboter-sim-vastai:latest
+#     lucam03/projekt-humanoider-roboter-sim-standalone:latest
 #
 # Interaktive Shell (Entrypoint überspringen):
 #   docker run -it --rm --gpus all --ipc=host --shm-size=16g \
-#     lucam03/projekt-humanoider-roboter-sim-vastai:latest bash
+#     lucam03/projekt-humanoider-roboter-sim-standalone:latest bash
 
 FROM nvcr.io/nvidia/isaac-lab:3.0.0-beta2-post1
 

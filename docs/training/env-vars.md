@@ -27,7 +27,7 @@ lokal **identisch**. Der Entrypoint (`/scripts/entrypoint.sh`) liest sie ein.
 > ⚠️ **`MAX_STEPS` — zwei verschiedene Defaults, je nach Startweg.**
 > [`entrypoint.sh`](../../Training/scripts/entrypoint.sh) und das Dockerfile sagen
 > `20000` (der Wert in der Tabelle unten); der Host-Launcher
-> [`setup_and_train_DockerHub-pull.sh`](../../Training/setup_and_train_DockerHub-pull.sh)
+> [`setup_and_train_dockerhub_pull.sh`](../../Training/setup_and_train_dockerhub_pull.sh)
 > überstimmt ihn mit `30000`. Wer über den Launcher startet, bekommt also 30000, wer das
 > Image direkt fährt (vast.ai), 20000. Beim Umsetzen der Menüführung aufgefallen.
 

@@ -44,7 +44,7 @@ einer vast.ai-Instanz**. Drei Dinge haben sich seither verschoben:
 **Hardware-Voraussetzung ist erfüllt:** WebRTC braucht NVENC; die RTX PRO 6000 Blackwell hat
 **vier NVENC-Engines (9. Generation)**. Die Sim-GPU-Regel (Ampere+ mit RT-Cores) und die
 Streaming-Regel (NVENC) schließen weiterhin beide dieselben GPUs aus — A100/H100.
-`NVIDIA_DRIVER_CAPABILITIES=all` ist in [`Dockerfile.vastai`](../../Simulation/Dockerfile.vastai)
+`NVIDIA_DRIVER_CAPABILITIES=all` ist in [`Dockerfile.standalone`](../../Simulation/Dockerfile.standalone)
 bereits gesetzt und enthält `video` (NVENC) — kein Zusatz-Install nötig.
 
 ---
@@ -92,7 +92,7 @@ D5 war schon vorher für Spur B erledigt und ist jetzt auch für Spur A geschlos
 
 | # | Defekt | Datei/Zeile | Fix |
 |---|---|---|---|
-| **D1** | ~~**Browser-URL zeigt auf Port 8211**~~ — in Isaac Sim 6.0 gibt es diesen Client nicht mehr; die URL lief garantiert ins Leere. | [`entrypoint_sim.sh`](../../Simulation/scripts/entrypoint_sim.sh) | ✅ `livestream_banner` nennt nur noch den **nativen Client** (`<IP>:49100`) und beide nötigen Ports. `EXPOSE 8211` ist aus [`Dockerfile.vastai`](../../Simulation/Dockerfile.vastai) entfernt. **Nachtrag 2026-08-17:** ein Browser-Weg existiert wieder — nicht als eingebauter Client, sondern als separater Web-Viewer auf 8210 (`server_rl_run.sh webview`, s. Porttabelle). |
+| **D1** | ~~**Browser-URL zeigt auf Port 8211**~~ — in Isaac Sim 6.0 gibt es diesen Client nicht mehr; die URL lief garantiert ins Leere. | [`entrypoint_sim.sh`](../../Simulation/scripts/entrypoint_sim.sh) | ✅ `livestream_banner` nennt nur noch den **nativen Client** (`<IP>:49100`) und beide nötigen Ports. `EXPOSE 8211` ist aus [`Dockerfile.standalone`](../../Simulation/Dockerfile.standalone) entfernt. **Nachtrag 2026-08-17:** ein Browser-Weg existiert wieder — nicht als eingebauter Client, sondern als separater Web-Viewer auf 8210 (`server_rl_run.sh webview`, s. Porttabelle). |
 | **D2** | ~~**Kit-Settings-Pfad veraltet**~~ (`--/app/livestream/...` gilt nur bis Isaac Sim 5.x; 6.0 nutzt `--/exts/omni.kit.livestream.app/primaryStream/{signalPort,streamPort,publicIp}`). | [`lib_livestream.sh`](../../Simulation/scripts/lib_livestream.sh) | ✅ `livestream_kit_args` liest die Isaac-Sim-`VERSION` und wählt danach; ohne erkennbare Version werden **beide** Pfade gesetzt (der falsche verpufft, weil Kit unbekannte Settings still ignoriert). Override: `LIVESTREAM_SETTINGS_STYLE`, `LIVESTREAM_KIT_ARGS`. |
 | **D3** | ~~**Doppelte Port-Belegung**~~ — der `AppLauncher` injiziert bei `livestream=1` selbst `--/app/livestream/port=49100`, unser `--kit_args` hängte einen zweiten an. | [`lib_livestream.sh`](../../Simulation/scripts/lib_livestream.sh) | ✅ Kit-Settings werden **nur noch erzeugt, wenn nötig** (abweichender Port oder `PUBLIC_IP`). Im Server-Fall (`LIVESTREAM=2`, Default-Ports) ist der String leer — es gibt nichts mehr zu kollidieren. |
 | **D4** | ~~**`curl ifconfig.me` lief auch bei `LIVESTREAM=2`**~~, wo `PUBLIC_IP` bedeutungslos ist — im Institutsnetz ein 10-s-Timeout beim Start. | [`lib_livestream.sh`](../../Simulation/scripts/lib_livestream.sh) | ✅ `livestream_init` ruft `curl` ausschließlich bei `LIVESTREAM=1` auf. |
@@ -139,7 +139,7 @@ konkreten Kommandos stehen in [live-ansicht.md](../simulation/live-ansicht.md) (
 3. ✅ **D6 ohne `server_sim_run.sh`** — stattdessen `server_rl_run.sh` erweitert (Port-Mapping
    beim Anlegen, `LIVESTREAM*` an `eval`/`grasp`/`rl`/`check`, Aktion `livecheck`,
    `sync_scripts` kopiert die Lib mit in den Container).
-4. ✅ **[`Dockerfile.vastai`](../../Simulation/Dockerfile.vastai)** — `EXPOSE 49100 8900` +
+4. ✅ **[`Dockerfile.standalone`](../../Simulation/Dockerfile.standalone)** — `EXPOSE 49100 8900` +
    `47998/udp`; `EXPOSE 8211` **entfernt** (existiert in Isaac Sim 6.0 nicht mehr, D1); neue
    ENV-Defaults `LIVESTREAM_MEDIA_PORT`, `LIVE_KEEP_VIDEO`.
 5. ⬜ **Optional, niedrige Priorität — Echtzeit-Pacing:** Die Eval läuft so schnell wie möglich;
@@ -280,7 +280,7 @@ Beobachtbarkeit lässt sich in einen bereits laufenden Mehrstunden-Job nicht nac
 so ~2 h für den Teil, der vor dem Lauf tatsächlich gebraucht wird.
 
 **Image-Rebuild:** Alle Skripte unter `Simulation/scripts/` und `g1_dex3_sim/` werden ins Image
-**kopiert**, nicht gemountet → nach jeder Änderung `./Simulation/update_sim_image.sh --vastai`.
+**kopiert**, nicht gemountet → nach jeder Änderung `./Simulation/update_sim_image.sh --standalone`.
 Für die Iteration in Phase 1–2 lohnt ein Bind-Mount (`-v $(pwd)/Simulation/g1_dex3_sim:/workspace/g1_dex3_sim`).
 
 ---
@@ -369,7 +369,7 @@ Der v1-Code ist umgesetzt und bleibt für vast.ai die Referenz:
 
 - [x] `entrypoint_sim.sh` + `entrypoint_baseline.sh`: `LIVESTREAM`/`LIVESTREAM_PORT`/`PUBLIC_IP`,
       konditionales `--headless`/`--livestream`
-- [x] `Dockerfile.vastai`: `LIVESTREAM`/`LIVESTREAM_PORT`-Defaults
+- [x] `Dockerfile.standalone`: `LIVESTREAM`/`LIVESTREAM_PORT`-Defaults
 - [x] Doku: [vastai-anleitung.md](../simulation/vastai-anleitung.md), Env-Var-Tabelle in [`CLAUDE.md`](../../CLAUDE.md)
 - [ ] **Nie auf Hardware getestet** — weder auf vast.ai noch auf dem Server
 

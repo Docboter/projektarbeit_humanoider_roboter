@@ -34,7 +34,7 @@ statt nur Aktions-Nachahmung (Hintergrund: [reinforcement-learning-plan.md](rein
 
 ```text
 vast.ai Instanz (L40 48 GB / RTX 4090 24 GB — RT-Cores PFLICHT)
-└── Docker-Container: lucam03/projekt-humanoider-roboter-sim-vastai:latest
+└── Docker-Container: lucam03/projekt-humanoider-roboter-sim-standalone:latest
     └── entrypoint_rl.sh → rl_finetune.py
         ├── lädt BC-Checkpoint (Policy) + eingefrorene Referenz (für KL)
         ├── baut vektorisierte Isaac-Lab-Env (RL_NUM_ENVS, reward_mode="shaped")
@@ -50,7 +50,7 @@ und steuert die Env direkt (Gradienten-fähig).
 ## Pfad B — eigener Docker-GPU-Server mit RT-Cores ★ empfohlen, wenn verfügbar
 
 [`Simulation/server_rl_run.sh`](../../Simulation/server_rl_run.sh) fährt denselben kombinierten
-Isaac-Lab+GR00T-Container wie vast.ai (`Dockerfile.vastai`), aber als langlebiger
+Isaac-Lab+GR00T-Container wie vast.ai (`Dockerfile.standalone`), aber als langlebiger
 „Workbench"-Container auf einem generischen Docker-GPU-Server — analog zu
 [`server_robocasa_ref_run.sh`](../../Simulation/server_robocasa_ref_run.sh) (Pfad A2 im
 [RoboCasa-Referenz-Eval](../simulation/robocasa-referenz-eval.md)). Spart die vast.ai-Miete, **wenn** ein Server mit
@@ -87,7 +87,7 @@ HF_TOKEN=hf_... WANDB_API_KEY=... LIVE_VIEW=1 RL_WANDB_VIDEO_EVERY=10 \
 ```
 
 - **Image-Rebuild zuerst:** anders als beim RoboCasa-Server-Pfad ist hier ein Rebuild **nötig** (siehe
-  Status-Callout oben) — `./Simulation/update_sim_image.sh --vastai`.
+  Status-Callout oben) — `./Simulation/update_sim_image.sh --standalone`.
 - **Isaac Sim auf Blackwell:** Isaac Sim 5.1 (isaac-lab 2.3.2) segfaultet auf der RTX PRO 6000 mit
   Treiber 610.x — daher der Port auf Isaac Sim 6.0 (siehe Troubleshooting). `preflight` prüft
   Torch/flash-attn/gr00t; `check` ist der eigentliche Nachweis, dass Kamera-Rendering +
@@ -143,15 +143,15 @@ ist das der Standardweg.
 
 RL nutzt **dasselbe kombinierte Sim+GR00T-Image** wie die Closed-Loop-Eval — `rl_finetune.py`
 und `entrypoint_rl.sh` sind bereits darin enthalten (`COPY g1_dex3_sim/`, `COPY scripts/` in
-[`Dockerfile.vastai`](../../Simulation/Dockerfile.vastai)). Wenn das Image für die Sim-Eval schon
+[`Dockerfile.standalone`](../../Simulation/Dockerfile.standalone)). Wenn das Image für die Sim-Eval schon
 gepusht ist, **entfällt dieser Schritt**.
 
 ```bash
 docker login nvcr.io   # Username: $oauthtoken   Password: <NGC-API-Key>
-./Simulation/update_sim_image.sh --vastai
+./Simulation/update_sim_image.sh --standalone
 ```
 
-Ergebnis: `lucam03/projekt-humanoider-roboter-sim-vastai:latest` auf Docker Hub.
+Ergebnis: `lucam03/projekt-humanoider-roboter-sim-standalone:latest` auf Docker Hub.
 
 ---
 
@@ -231,7 +231,7 @@ Min VRAM ≥ 24 GB, Disk ≥ 60 GB → **Rent**. **Kein A100/H100** (kein RT-Cor
 
 **Image:**
 ```
-lucam03/projekt-humanoider-roboter-sim-vastai:latest
+lucam03/projekt-humanoider-roboter-sim-standalone:latest
 ```
 
 **Docker Options** (Entrypoint auf RL überschreiben):
@@ -543,7 +543,7 @@ ist. `grep -c … >/dev/null` liest bis EOF und kann nicht früher schließen; a
 [`server_rl_run.sh`](../../Simulation/server_rl_run.sh) sind umgestellt.
 
 ### `isaaclab nicht importierbar`
-Das Skript braucht das **kombinierte** Image (`Dockerfile.vastai`), nicht das BC-Trainingsimage.
+Das Skript braucht das **kombinierte** Image (`Dockerfile.standalone`), nicht das BC-Trainingsimage.
 
 ### Erfolgsrate bleibt 0, Reward explodiert
 Reward-Hacking — `RL_KL_COEF` erhöhen oder die Shaped-Reward-Gewichte (`rew_*` in
@@ -589,9 +589,9 @@ im Update — `RL_FPO_MC_SAMPLES` und `RL_EPOCHS_PER_ITER` sind daher auch hier 
 
 ## Schnellstart
 
-1. Image gepusht (`./Simulation/update_sim_image.sh --vastai`), BC-Checkpoint + `g1_dex3.usd` auf HF.
+1. Image gepusht (`./Simulation/update_sim_image.sh --standalone`), BC-Checkpoint + `g1_dex3.usd` auf HF.
 2. vast.ai → **L40** (RT-Cores!) → Rent.
-3. Image: `lucam03/projekt-humanoider-roboter-sim-vastai:latest`
+3. Image: `lucam03/projekt-humanoider-roboter-sim-standalone:latest`
 4. Docker Options: `--ipc=host --shm-size=16g -p 22 --entrypoint bash` · Args: `/scripts/entrypoint_rl.sh`
 5. Env:
    ```
