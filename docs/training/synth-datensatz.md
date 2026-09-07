@@ -26,13 +26,18 @@ mit demselben Aufbau, in der Sim teleoperiert, dieselbe Aufgabe (rot unten, gelb
 oben), dieselben vier Policy-Kameras. Er kostet keinen Renderlauf und bringt eine Varianz mit,
 die der eigene Renderer nicht hat — andere Bediener, andere Trajektorien, andere Szenen.
 
-**Vorbehalt, der ins Ergebnisprotokoll gehört:** Die Zieldomäne der Messung ist *unsere*
-Isaac-Lab-Umgebung. Welcher Simulator und welche Kamerakalibrierung hinter `Cube_Stacking_synth`
-stehen, ist nicht dokumentiert. Sim-Bilder allgemein zu sehen macht den Encoder robuster; dass es
-*genau* die Lücke zu unserer Sim schließt, ist damit nicht gesagt. Wer das vorab beziffern will,
-hält Standbilder des synth-Datensatzes mit
-[`measure_domain_gap.py`](../../Simulation/scripts/measure_domain_gap.py) gegen Frames unserer
-Sim — dieselbe Kosinus-Metrik wie in der [Domain-Gap-Analyse](../ergebnisse/domain-gap-analyse.md).
+**Es ist dieselbe Umgebung.** Der Sichtvergleich (2026-08-28) gegen ein eigenes Sim-Rendering
+(`Simulation/runs/20260822/03/cam_left_high_cam_left_high.png`) zeigt denselben grauen
+Kachelboden mit demselben Gittermuster, denselben weißen Trapeztisch, dieselbe
+Kameraperspektive und dieselbe Beleuchtung. Damit ist die entscheidende Voraussetzung erfüllt:
+der synth-Datensatz zeigt **genau die Domäne, in der später gemessen wird** — nicht irgendeine
+Sim. Das ist mehr, als der eigene Renderer bräuchte, und der Grund, warum dieser Datensatz den
+Renderlauf ersetzen kann.
+
+**Ein sichtbarer Unterschied bleibt: die Handfarbe** (§ 9). Wer den Rest beziffern will, hält
+Standbilder mit [`measure_domain_gap.py`](../../Simulation/scripts/measure_domain_gap.py) gegen
+Frames unserer Sim — dieselbe Kosinus-Metrik wie in der
+[Domain-Gap-Analyse](../ergebnisse/domain-gap-analyse.md).
 
 ---
 
@@ -329,15 +334,27 @@ gezeigt, dass der letzte Checkpoint 25 % schlechter sein kann als der beste
 
 ## 9. Offene Punkte
 
-* **Die Episoden sind 4,7-mal kürzer als die echten.** 333 Frames bei 50 fps = **6,7 s** gegen
-  934 Frames bei 30 fps = **31,1 s** im echten Datensatz, bei derselben Aufgabe. Zwei Lesarten:
-  Teleoperation in der Sim ist schneller als am echten Roboter, oder die Episoden decken die
-  Aufgabe nicht vollständig ab. **Vor dem Trainingslauf ein bis zwei `cam_left_high`-Videos
-  ansehen** und im Laufprotokoll festhalten, was darauf zu sehen ist. Decken sie nur einen
-  Ausschnitt ab, lernt das Co-Training ein Teilverhalten, und das Mischungsverhältnis aus § 7
-  gehört nach unten.
-* **Welcher Simulator?** Nicht dokumentiert. Bestimmt, wie nah die synth-Bilder an unserer
-  Isaac-Lab-Zieldomäne liegen (§ 1).
+* **Die Hände sind weiß, nicht schwarz.** Unsere Sim rendert die DEX3 mit dem
+  Schwarzhand-Asset (`data/g1_dex3_blackhands.usd`), passend zum echten Roboter; der
+  synth-Datensatz zeigt die helle Standardausführung. Über alle 16 Episoden gleich, also das
+  Asset und keine Domain-Randomisierung. Das ist der **einzige** auffällige Bildunterschied zur
+  Zieldomäne — und er sitzt ausgerechnet auf der Region, um die es geht: ein Encoder, der auf
+  weißen Händen lernt, sieht diese Erscheinung weder im echten Datensatz noch in der Eval-Sim.
+  Der Color-Jitter (Helligkeit 0,3) deckt einen Schwarz-Weiß-Sprung nicht ab. Billigste Abhilfe:
+  den Ersteller bitten, mit dem Schwarzhand-Asset neu aufzunehmen. Sonst gehört es als Vorbehalt
+  ins Ergebnisprotokoll.
+* **Rote Punkte im Bild.** In mehreren Episoden (7, 11, 15) liegen kleine rote Punkte auf dem
+  Tisch und um die Hand. Sieht nach eingeblendeter Kontaktpunkt-Visualisierung aus. Falls ja,
+  lernt der Encoder ein reines Sim-Artefakt mit — beim Ersteller nachfragen, ob sich das
+  abschalten lässt.
+* **Es läuft offenbar keine Domain-Randomisierung.** Beleuchtung und Materialfarben sind über
+  alle Episoden identisch. Für 16 Episoden ist das schade: DR wäre hier der billigste Weg zu
+  mehr Varianz.
+
+*Geklärt am 2026-08-28:* Die Episodenlänge (⌀ 6,7 s gegen 31,1 s) ist **kein** Ausschnitt — die
+Videos zeigen den vollständigen Ablauf von Anfahren über Greifen bis zum fertigen Dreierstapel,
+nur zügiger ausgeführt als die reale Teleoperation. Das Mischungsverhältnis aus § 7 bleibt
+deshalb bei 0,10.
 * **Quaternionsreihenfolge.** Ob `action[3:7]` als (w,x,y,z) oder (x,y,z,w) abgelegt ist, spielt
   für die Harmonisierung keine Rolle — die Armaktion wird ohnehin ersetzt. Für eine spätere
   Auswertung der EEF-Bahnen wäre es zu klären.
