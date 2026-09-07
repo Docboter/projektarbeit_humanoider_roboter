@@ -313,6 +313,15 @@ repo root
 │       ├── launch_cotrain.py           # Two-dataset training entry point (mix_ratio). Copy of the fork's
 │       │                               #   launch_finetune.py with ONE change — the datasets list — so no
 │       │                               #   submodule change / image rebuild is needed. Re-check on GR00T bumps
+│       ├── dex3_fingerorder_probe.py   # Belegt, dass die DEX3-Fingerreihenfolge NICHT aus
+│       │                               #   Kinematik bestimmbar ist — Rueckgewinnungstest am echten
+│       │                               #   Datensatz mit bekannter Wahrheit (49 bzw. 34 Gleichstaende).
+│       │                               #   Isaac-freie DEX3-FK aus der offiziellen URDF
+│       ├── harmonize_synth_dataset.py  # ★ Fremden Sim-Datensatz (Cube_Stacking_synth: 57-Dim-State,
+│       │                               #   50 fps, andere Keys) auf das echte Schema umschreiben. MISST die
+│       │                               #   Gelenk-Zuordnung (RMSE-Matrix Aktion↔Gelenk + Wertebereich gegen
+│       │                               #   stats.json des echten Satzes) statt sie zu raten; inspect/convert/
+│       │                               #   verify. Siehe docs/training/synth-datensatz.md
 │       ├── lib_resume_guard.sh         # Sourced by run_finetuning.sh / run_finetuning_vision.sh; guards against
 │       │                               #   silently resuming an old run instead of training fresh
 │       ├── lib_split.sh                # Shared train/test-split logic, sourced by all training launchers;

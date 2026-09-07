@@ -53,6 +53,9 @@
 
 # --- Rohdatensätze (Videos & große Binärdaten) ---
 /data/unitreerobotics/
+# Fremder Sim-Datensatz + harmonisierte Fassung (docs/training/synth-datensatz.md)
+/data/cotrain_synth/
+/data/cube_stacking_synth_v21/
 *.mp4
 *.avi
 *.mov

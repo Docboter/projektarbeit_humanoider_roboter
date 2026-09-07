@@ -32,6 +32,7 @@ Operative Anleitungen zum Trainieren. Die Auswertung der Läufe steht unter [Erg
 | [training/env-vars.md](training/env-vars.md) | **Konfigurationsreferenz** — alle Env-Vars + VRAM-Richtwerte (Single Source of Truth) |
 | [training/train-test-split.md](training/train-test-split.md) | 80/20-Datensatz-Split **und Checkpoint-Auswahl** — Implementierung, Nutzung, und warum die Validierung erst nach dem Lauf läuft (`checkpoint_sweep.py`) |
 | [training/co-training.md](training/co-training.md) | **Schritt 4 — Co-Training echt + gerendert** (`USE_COTRAIN=1`). Renderer für Sim-Bilder zu echten Aktionen, Zwei-Datensatz-Training mit `mix_ratio`, begründete Episodenzahl/Mischung, vorregistrierte Erfolgsregel. Werkzeuge gebaut, Lauf steht aus |
+| [training/synth-datensatz.md](training/synth-datensatz.md) | **Fremder Sim-Datensatz im Co-Training** (`Fichtl00/Cube_Stacking_synth`) — warum er schematisch nicht passt (57-Dim-State, 50 fps), wie `harmonize_synth_dataset.py` die Gelenk-Zuordnung *misst* statt sie zu raten, begründetes Mischungsverhältnis, vorregistrierte Bewertungsregel |
 | [training/wandb-offline-sync.md](training/wandb-offline-sync.md) | W&B-Offline-Sync auf KISSKI |
 
 ## Simulation (Closed-Loop-Eval in Isaac Lab)
