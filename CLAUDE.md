@@ -386,6 +386,11 @@ repo root
 │   │   ├── client.py                   # ZMQ policy client + build_obs (state split into modality keys)
 │   │   ├── convert_urdf_to_usd.py      # One-time URDF→USD conversion
 │   │   └── ...
+│   │   ├── isaac_joint_order.txt    # Die 43 Gelenknamen des USD-Assets in ISAAC-Reihenfolge
+│   │   │                           #   (nach Baumtiefe, links/rechts verschachtelt — NICHT die
+│   │   │                           #   Reihenfolge des Datensatzes). Ausgelesen aus der
+│   │   │                           #   "Simulation Joint Information"-Tabelle eines Sim-Logs.
+│   │   │                           #   Eingabe fuer harmonize_synth_dataset.py --joint-names
 │   ├── camera_reference/               # Dataset reference frames (camera-calibration targets)
 │   ├── g1_gripper_sim/                 # Stock-G1 gripper baseline sim (SIM_MODE=baseline)
 │   ├── robocasa_reference/             # RoboCasa GR-1 reference-eval scripts (run_robocasa_ref_eval.sh)

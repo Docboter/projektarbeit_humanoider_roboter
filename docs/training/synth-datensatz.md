@@ -3,13 +3,14 @@
 > **TL;DR:** Der extern aufgenommene Sim-Datensatz `Fichtl00/Cube_Stacking_synth` (16 Episoden,
 > in der Sim teleoperierter G1) passt schematisch **nicht** zum echten Datensatz — 57-Dim-State
 > statt 28, 50 fps statt 30, und die Armachsen tragen eine kartesische EEF-Pose statt
-> Gelenkwinkeln. `harmonize_synth_dataset.py` misst die Zuordnung, statt sie zu raten. Alles ist
-> geklärt **bis auf eine Angabe**: die Reihenfolge der 7 Gelenke innerhalb jeder Hand ist aus den
-> Daten nachweislich nicht bestimmbar und muss beim Ersteller erfragt werden (§ 5).
+> Gelenkwinkeln. `harmonize_synth_dataset.py` misst die Zuordnung, statt sie zu raten.
+> Die Gelenkreihenfolge ist **aufgelöst**: sie steht in den eigenen Sim-Logs, weil der Datensatz
+> in dieser Umgebung aufgenommen wurde (§ 5) — aus den Daten allein wäre sie nicht bestimmbar
+> gewesen (§ 3.1).
 > Nicht hier: das Co-Training-Verfahren selbst ([co-training.md](co-training.md)).
 
-**Stand:** 2026-08-28 · Werkzeug gebaut und abgenommen; Arme, Zeitversatz und Vorzeichen belegt;
-**Fingerreihenfolge offen** → Trainingslauf blockiert.
+**Stand:** 2026-08-28 · Werkzeug gebaut und abgenommen; Arme, Zeitversatz, Vorzeichen und
+Fingerreihenfolge belegt. Der Trainingslauf kann laufen.
 
 ---
 
@@ -82,11 +83,13 @@ nichts. Stand der Messungen vom 2026-08-28:
 | Güte des Arm-Ersatzes | **0,0238 rad = 1,4°** | `hand_joint[t+4]` gegen das echte Handkommando — dort liegen beide vor |
 | Handblöcke | links `j29…j35`, rechts `j36…j42` | RMSE 0,008…0,049 rad, Abstand zum Zweitbesten 3,4…15× |
 | Vorzeichenkonvention der Hände | wie die offizielle DEX3-URDF, **nicht gespiegelt** | Grenzverletzung 0,0000 rad gegen die eigene Seite, 0,74 (links) / 0,14 (rechts) gegen die gespiegelte |
-| **Reihenfolge innerhalb einer Hand** | **unbestimmt** | § 3.1 |
+| **Reihenfolge innerhalb einer Hand** | `left_dex3` → `[31, 37, 41, 30, 36, 29, 35]`, `right_dex3` → `[34, 40, 42, 32, 38, 33, 39]` | **nicht** aus den Daten, sondern aus der Isaac-Gelenktabelle des eigenen USD-Assets (§ 5). Gegengeprüft: alle 14 passen in die USD-Grenzen genau ihres Gelenks, größte Verletzung 0,0005 rad, sechs davon einseitig begrenzt |
 
 ### 3.1 Warum die Fingerreihenfolge nicht aus den Daten kommt
 
-Drei Verfahren wurden probiert, alle drei trennen nicht:
+Der Vollständigkeit halber, weil der Weg naheliegt und in eine Sackgasse führt: **aus dem
+Datensatz allein** ist die Reihenfolge nicht bestimmbar. Drei Verfahren wurden probiert, keines
+trennt. Aufgelöst wurde sie am Ende aus einer ganz anderen Quelle — § 5.
 
 1. **URDF-Gelenkgrenzen.** Sie schließen viel aus, aber nicht genug: **336** (links) bzw. **144**
    (rechts) der 5040 Reihenfolgen bleiben zulässig. Immerhin fällt eine Grobstruktur ab — rechts
@@ -118,7 +121,8 @@ Drei Verfahren wurden probiert, alle drei trennen nicht:
 Eine falsche Fingerzuordnung wäre hier der teuerste denkbare Fehler: die Fingerspanne ist die
 Messgröße dieses Projekts, und 10 % der Trainingsstichproben trügen dann widersprüchliche
 Fingerbefehle. Deshalb verweigert `inspect` ohne `--joint-names` die Freigabe, und `convert`
-läuft nicht auf einem nicht freigegebenen Mapping.
+läuft nicht auf einem nicht freigegebenen Mapping — auch jetzt noch, wo die Antwort vorliegt:
+sie kommt als *Eingabe* herein und wird gegengeprüft, nicht fest verdrahtet.
 
 ---
 
@@ -148,24 +152,65 @@ brechen ab bzw. kürzen konsistent; der Permutationsdetektor findet einen künst
 
 ---
 
-## 5. Die eine offene Angabe
+## 5. Die Auflösung: die eigene Sim weiß es
 
-Beim Ersteller des Datensatzes zu erfragen — beides steht in dessen Sim-Skript:
+Der Datensatz wurde **in dieser Umgebung** aufgenommen — mit demselben USD-Asset
+(`data/g1_dex3.usd`). Damit ist die Gelenkreihenfolge kein Rätsel, sondern eine Eigenschaft
+des Assets, und Isaac Lab druckt sie beim Spawn als Tabelle „Simulation Joint Information".
+Sie steht in jedem Sim-Log dieses Projekts, z. B.
+`Simulation/runs/20260808/04/cams-20260808-130340.log`, und liegt jetzt ausgelesen unter
+[`Simulation/g1_dex3_sim/isaac_joint_order.txt`](../../Simulation/g1_dex3_sim/isaac_joint_order.txt).
 
-1. Die **Namensliste der 43 Gelenke** in der Reihenfolge von `observation.state[0:43]`
-   (`robot_joint_pos`). In Isaac Lab: `env.scene["robot"].joint_names`.
-2. Zur Bestätigung die **Belegung der 28 Aktionsdimensionen** — die Vermutung lautet `[0:3]`
-   linke EEF-Position, `[3:7]` linkes EEF-Quaternion, `[7:14]` dasselbe rechts, `[14:21]` linke
-   Handgelenke, `[21:28]` rechte Handgelenke.
+Sie ist eine **andere** als die des echten Datensatzes: Isaac sortiert nach Baumtiefe und
+verschachtelt links/rechts, Beine und Hände liegen dazwischen.
 
-Die Antwort wird **nicht blind übernommen**: `inspect --joint-names` hält die daraus abgeleitete
-Armzuordnung gegen die selbst gemessene (§ 3) und die Handgelenke gegen den gemessenen
-Handblock. Weichen sie ab, bricht es ab.
-
-```bash
-harm inspect --source Fichtl00/Cube_Stacking_synth --work-dir data/cotrain_synth \
-     --joint-names joint_names.txt        # eine Zeile je Name, oder JSON-Liste
 ```
+ 0 left_hip_pitch    1 right_hip_pitch    2 waist_yaw
+ 3 left_hip_roll     4 right_hip_roll     5 waist_roll
+ 6 left_hip_yaw      7 right_hip_yaw      8 waist_pitch
+ 9 left_knee        10 right_knee        11 left_shoulder_pitch  12 right_shoulder_pitch
+13 left_ankle_pitch 14 right_ankle_pitch 15 left_shoulder_roll   16 right_shoulder_roll
+17 left_ankle_roll  18 right_ankle_roll  19 left_shoulder_yaw    20 right_shoulder_yaw
+21 left_elbow       22 right_elbow       23 left_wrist_roll      24 right_wrist_roll
+25 left_wrist_pitch 26 right_wrist_pitch 27 left_wrist_yaw       28 right_wrist_yaw
+29 left_hand_index_0   30 left_hand_middle_0   31 left_hand_thumb_0
+32 right_hand_index_0  33 right_hand_middle_0  34 right_hand_thumb_0
+35 left_hand_index_1   36 left_hand_middle_1   37 left_hand_thumb_1
+38 right_hand_index_1  39 right_hand_middle_1  40 right_hand_thumb_1
+41 left_hand_thumb_2   42 right_hand_thumb_2
+```
+
+**Die Hände sind links/rechts verschachtelt.** Die Schlüssel `left_hand`/`right_hand` in der
+`modality.json` des synth-Datensatzes sind deshalb irreführend: sie teilen den
+Isaac-geordneten 14er-Vektor stumpf in 7 + 7, und der erste Block enthält bereits drei
+Gelenke der *rechten* Hand. Wer diesen Namen geglaubt hätte, hätte die Finger vertauscht.
+
+### 5.1 Warum das keine Annahme, sondern eine Prüfung ist
+
+Die Liste kommt von außen — sie wird deshalb gegen die Daten gehalten, nicht geglaubt:
+
+| Prüfung | Ergebnis |
+|---|---|
+| Passt jeder synth-Wertebereich in die USD-Grenze **genau des Gelenks**, das die Tabelle dort nennt? | ja, alle 14 Handgelenke; größte Verletzung **0,0005 rad** |
+| Wie zufällig ist das? | Sechs der 14 haben **einseitige** Grenzen (links index/middle nur negativ, rechts nur positiv, `thumb_2` seitenverkehrt) — die synth-Daten treffen jedes Vorzeichen |
+| Deckt sich die Armzuordnung mit der unabhängigen FK-Messung aus § 3? | **identisch**, alle 14 Indizes |
+| Deckt sich der Handblock mit der RMSE-Messung aus § 3? | **identisch**, dieselbe Menge `29…42` |
+
+Daraus folgt der 28er-Indexplan in der Achsenreihenfolge des echten Datensatzes:
+
+```
+left_arm    [11, 15, 19, 21, 23, 25, 27]
+right_arm   [12, 16, 20, 22, 24, 26, 28]
+left_dex3   [31, 37, 41, 30, 36, 29, 35]     thumb0,1,2  middle0,1  index0,1
+right_dex3  [34, 40, 42, 32, 38, 33, 39]     thumb0,1,2  index0,1   middle0,1
+```
+
+`inspect` rechnet ihn selbst aus der Namensliste aus und führt die Prüfungen der Tabelle
+oben durch — er ist nirgends fest verdrahtet.
+
+> **Wenn der Datensatz aus einer FREMDEN Umgebung käme**, gälte das alles nicht. Dann bliebe
+> nur, die Namensliste beim Ersteller zu erfragen (`env.scene["robot"].joint_names`) und sie
+> genauso durch `--joint-names` zu schicken. Die Prüfungen greifen unverändert.
 
 ---
 
@@ -185,10 +230,10 @@ harm() {
          python Training/scripts/harmonize_synth_dataset.py "$@"
 }
 
-# 1. Prüfen und Zuordnung belegen (~4 MB, keine Videos). Ohne --joint-names endet es mit
-#    der offenen Fingerreihenfolge aus § 5 — das ist gewollt, nicht kaputt.
+# 1. Prüfen und Zuordnung belegen (~4 MB, keine Videos). Ohne --joint-names bricht es
+#    bei der Fingerreihenfolge ab — das ist gewollt, nicht kaputt (§ 3.1).
 harm inspect --source Fichtl00/Cube_Stacking_synth --work-dir data/cotrain_synth \
-     --joint-names joint_names.txt
+     --joint-names Simulation/g1_dex3_sim/isaac_joint_order.txt
 
 # 2. Umschreiben (~150 MB Videodownload)
 harm convert --work-dir data/cotrain_synth --out data/cube_stacking_synth_v21 \
@@ -284,7 +329,6 @@ gezeigt, dass der letzte Checkpoint 25 % schlechter sein kann als der beste
 
 ## 9. Offene Punkte
 
-* **Die Fingerreihenfolge (§ 5).** Blockiert den Lauf. Alles andere steht.
 * **Die Episoden sind 4,7-mal kürzer als die echten.** 333 Frames bei 50 fps = **6,7 s** gegen
   934 Frames bei 30 fps = **31,1 s** im echten Datensatz, bei derselben Aufgabe. Zwei Lesarten:
   Teleoperation in der Sim ist schneller als am echten Roboter, oder die Episoden decken die

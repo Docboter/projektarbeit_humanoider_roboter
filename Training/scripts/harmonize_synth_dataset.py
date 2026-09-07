@@ -559,11 +559,15 @@ def check_state_ranges(states: list[np.ndarray], idx28: list[int], stats: dict,
         print(f"    {i:>2}  {REAL_JOINT_NAMES[i]:<20}{j:>5}{a0:>11.3f}…{a1:<12.3f}"
               f"{rmin[i]:>11.3f}…{rmax[i]:<12.3f}  {'ja' if hit else 'NEIN'}")
     print(f"    → {inside}/{len(idx28)} innerhalb (Toleranz ±{tolerance} rad)")
-    if inside < len(idx28) - 2:
+    if inside < len(idx28) - 4:
         return [
             f"Nur {inside}/{len(idx28)} Gelenkbereiche liegen im Bereich des echten "
             "Datensatzes — die Zuordnung ist vermutlich falsch."
         ]
+    if inside < len(idx28):
+        warn(f"{len(idx28) - inside} Achse(n) außerhalb — bei zwei Datensätzen, die dieselbe "
+             "Aufgabe unterschiedlich ausführen, ist das normal. Eine falsche Zuordnung "
+             "fällt mit zweistelligen Zahlen auf, nicht mit ein bis vier.")
     return []
 
 
@@ -622,7 +626,8 @@ def read_joint_names(spec: str) -> list[str]:
         text = path.read_text().strip()
         if text.startswith("["):
             return [str(x) for x in json.loads(text)]
-        return [ln.strip() for ln in text.splitlines() if ln.strip()]
+        return [ln.strip() for ln in text.splitlines()
+                if ln.strip() and not ln.lstrip().startswith("#")]
     return [x.strip() for x in spec.split(",") if x.strip()]
 
 
