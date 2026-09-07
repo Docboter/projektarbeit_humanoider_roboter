@@ -101,7 +101,7 @@ Simulation/robocasa_reference/runs/
 .menu/
 
 # --- Graphify-Ausgaben (vollständig generiert, nicht tracken) ---
-graphify-out/
+#graphify-out/
 
 # --- Sensible Dateien (API-Keys) ---
 .env

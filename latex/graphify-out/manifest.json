@@ -1,0 +1,38 @@
+{
+  "README.md": {
+    "mtime": 1787699877.1682503,
+    "seen": 1787700565.2664597,
+    "ast_hash": "fc40338c3985caec13ad5b65c31bb10a",
+    "semantic_hash": ""
+  },
+  "figures/sim/openloop_montage.png": {
+    "mtime": 1786900566.5130181,
+    "seen": 1787700565.266468,
+    "ast_hash": "c7e0fd4e93ecbf12d0567399eb245127",
+    "semantic_hash": ""
+  },
+  "figures/sim/panel_cam_left_high.png": {
+    "mtime": 1786900566.514018,
+    "seen": 1787700565.2664728,
+    "ast_hash": "a95cb9182c71f67e3c6a5f1b9cbe8448",
+    "semantic_hash": ""
+  },
+  "figures/sim/panel_cam_left_wrist.png": {
+    "mtime": 1786900566.5150182,
+    "seen": 1787700565.2664754,
+    "ast_hash": "584389686ebe0c12e13c87bdce104526",
+    "semantic_hash": ""
+  },
+  "figures/sim/real_cam_left_high.png": {
+    "mtime": 1786900566.5150182,
+    "seen": 1787700565.2664773,
+    "ast_hash": "7b21c4c4ccadbcc0dae64b6e11d91fc3",
+    "semantic_hash": ""
+  },
+  "figures/sim/sim_cam_left_high.png": {
+    "mtime": 1786900566.5150182,
+    "seen": 1787700565.2664788,
+    "ast_hash": "cba5a3d5f8f701531357aa711d628c0e",
+    "semantic_hash": ""
+  }
+}

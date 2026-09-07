@@ -1,0 +1,154 @@
+{
+  "directed": false,
+  "multigraph": false,
+  "graph": {},
+  "nodes": [
+    {
+      "label": "README.md",
+      "file_type": "document",
+      "source_file": "README.md",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "readme",
+      "community": 0,
+      "community_name": "LaTeX \u2014 Projektarbeit (Ausarbeitung)",
+      "norm_label": "readme.md"
+    },
+    {
+      "label": "Kompilieren",
+      "file_type": "document",
+      "source_file": "README.md",
+      "source_location": "L51",
+      "_origin": "ast",
+      "id": "readme_kompilieren",
+      "community": 0,
+      "community_name": "LaTeX \u2014 Projektarbeit (Ausarbeitung)",
+      "norm_label": "kompilieren"
+    },
+    {
+      "label": "LaTeX \u2014 Projektarbeit (Ausarbeitung)",
+      "file_type": "document",
+      "source_file": "README.md",
+      "source_location": "L1",
+      "_origin": "ast",
+      "id": "readme_latex_projektarbeit_ausarbeitung",
+      "community": 0,
+      "community_name": "LaTeX \u2014 Projektarbeit (Ausarbeitung)",
+      "norm_label": "latex \u2014 projektarbeit (ausarbeitung)"
+    },
+    {
+      "label": "Struktur",
+      "file_type": "document",
+      "source_file": "README.md",
+      "source_location": "L22",
+      "_origin": "ast",
+      "id": "readme_struktur",
+      "community": 0,
+      "community_name": "LaTeX \u2014 Projektarbeit (Ausarbeitung)",
+      "norm_label": "struktur"
+    },
+    {
+      "label": "Zweck",
+      "file_type": "document",
+      "source_file": "README.md",
+      "source_location": "L14",
+      "_origin": "ast",
+      "id": "readme_zweck",
+      "community": 0,
+      "community_name": "LaTeX \u2014 Projektarbeit (Ausarbeitung)",
+      "norm_label": "zweck"
+    },
+    {
+      "label": "Inhaltlich offen (h\u00e4ngt am Projekt, nicht am Dokument)",
+      "file_type": "document",
+      "source_file": "README.md",
+      "source_location": "L88",
+      "_origin": "ast",
+      "id": "readme_inhaltlich_offen_h\u00e4ngt_am_projekt_nicht_am_dokument",
+      "community": 1,
+      "community_name": "N\u00e4chste Schritte (TODO)",
+      "norm_label": "inhaltlich offen (hangt am projekt, nicht am dokument)"
+    },
+    {
+      "label": "N\u00e4chste Schritte (TODO)",
+      "file_type": "document",
+      "source_file": "README.md",
+      "source_location": "L71",
+      "_origin": "ast",
+      "id": "readme_n\u00e4chste_schritte_todo",
+      "community": 1,
+      "community_name": "N\u00e4chste Schritte (TODO)",
+      "norm_label": "nachste schritte (todo)"
+    }
+  ],
+  "links": [
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "README.md",
+      "source_location": "L1",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "readme",
+      "target": "readme_latex_projektarbeit_ausarbeitung",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "README.md",
+      "source_location": "L14",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "readme_latex_projektarbeit_ausarbeitung",
+      "target": "readme_zweck",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "README.md",
+      "source_location": "L22",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "readme_latex_projektarbeit_ausarbeitung",
+      "target": "readme_struktur",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "README.md",
+      "source_location": "L51",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "readme_latex_projektarbeit_ausarbeitung",
+      "target": "readme_kompilieren",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "README.md",
+      "source_location": "L71",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "readme_latex_projektarbeit_ausarbeitung",
+      "target": "readme_n\u00e4chste_schritte_todo",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "README.md",
+      "source_location": "L88",
+      "weight": 1.0,
+      "_origin": "ast",
+      "source": "readme_n\u00e4chste_schritte_todo",
+      "target": "readme_inhaltlich_offen_h\u00e4ngt_am_projekt_nicht_am_dokument",
+      "confidence_score": 1.0
+    }
+  ],
+  "hyperedges": [],
+  "built_at_commit": "e966b09d71c480b7a95e3145e04b608ca51639c8"
+}
