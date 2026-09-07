@@ -263,6 +263,25 @@ Das RoboCasa-Skript nutzt dieselbe Mechanik mit `RC_`-Präfix (`RC_HOST_DATA_DIR
 | `RL_GPUS` | `"device=1,0"` | GPU-Auswahl; erste Karte trägt Rendering + Training |
 | `HF_TOKEN`, `WANDB_API_KEY` | — | Zugangsdaten; gehören in `.env.local` |
 
+### `Training/setup_and_train_dockerhub_pull.sh` (Docker, Training)
+
+| Variable | Default | Zweck |
+|---|---|---|
+| `TRAIN_HOST_DATA_DIR` | — (kein Mount) | Host-Verzeichnis, das im Container `/data` wird. Leer = altes vast.ai-Verhalten, alles lebt im Container und stirbt mit `--destroy`. Auf einem Rechner, der **auch die Sim fährt**, gehört hier `$HOME/groot-rl-data` hin — derselbe Pfad, den `server_rl_run.sh` einhängt; sonst sieht die Sim-Eval die Checkpoints nur nach einem `docker cp` über hunderte GB |
+| `MOUNT_SCRIPTS` | `auto` | `auto` bindet `Training/scripts` über `/scripts`, sobald das Repo daneben liegt — genau wie [`kisski_submit.sh:336`](../Training/kisski_submit.sh#L336) es seit jeher tut. `0` = der Stand im Image gilt |
+| `CONTAINER_NAME` | `groot-train` | mehrere Läufe pro Server |
+| `DOCKER_GPUS` | `all` | Wert für `docker run --gpus`, z. B. `'"device=0"'` |
+
+> **Warum `MOUNT_SCRIPTS` per Default an ist.** Am 2026-09-08 stellte sich heraus, dass
+> `lucam03/projekt-humanoider-roboter:latest` ein `/scripts` von **vor dem 2026-06-03** trug:
+> ohne `run_finetuning_cotrain.sh`, ohne `lib_split.sh`, ohne `torchrun`. `USE_COTRAIN=1` und
+> `TRAIN_TEST_SPLIT=1` liefen darüber still ins Leere, `NUM_GPUS=2` landete in `DataParallel`
+> statt unter `torchrun` und riss das Training ab. Auf KISSKI war das nie sichtbar, weil dort
+> der Bind schon immer gesetzt war. Der Mount macht den Docker-Weg fehlerfrei-gleich —
+> er ersetzt aber **keinen Rebuild**: liegt auch `/app/Groot-1.6` im Image falsch, hilft nur
+> [`Training/update_image.sh`](../Training/update_image.sh), und auf vast.ai gibt es gar kein
+> Repo zum Einhängen.
+
 ### KISSKI-SLURM-Skripte
 
 | Variable | Default | Zweck |
