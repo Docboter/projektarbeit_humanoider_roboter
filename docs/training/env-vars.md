@@ -51,6 +51,7 @@ lokal **identisch**. Der Entrypoint (`/scripts/entrypoint.sh`) liest sie ein.
 | `DATALOADER_WORKERS` | `8` | Dataloader-Worker (`--dataloader_num_workers`); KISSKI-Default: `4` |
 | `SAVE_STEPS` | `2000` | Checkpoint-Intervall in Steps (`--save_steps`); KISSKI-Default: `5000`. `2000` + Limit `10` → 10 gleichmäßig verteilte Checkpoints über den 20k-Lauf (Basis für die Open-Loop-Checkpoint-Auswahl). |
 | `SAVE_TOTAL_LIMIT` | `10` | Max. Anzahl behaltener Checkpoints (`--save_total_limit`); KISSKI-Default: `40` |
+| `GRADIENT_ACCUMULATION_STEPS` | `1` | Gradienten-Akkumulation (`--gradient_accumulation_steps`). Entkoppelt die effektive Batchgröße vom Speicherbedarf: `experiment.py:188` rechnet `per_device = GLOBAL_BATCH_SIZE / NUM_GPUS`, die Akkumulation kommt oben drauf. Auf einer Karte, deren VRAM teilweise anderweitig belegt ist, hält man damit die Batchgröße des Referenzlaufs, statt sie zu senken und das Optimierungsregime mitzuändern. `1` = aus. |
 | `USE_WANDB` | *auto* | W&B an/aus. Wird vom Entrypoint automatisch gesetzt: `1` wenn `WANDB_API_KEY` vorhanden, sonst `0`. Manuell `USE_WANDB=0` erzwingt Training ohne W&B. |
 | `WANDB_MODE` | `offline` | W&B-Modus (vom Entrypoint gesetzt). `offline` puffert lokal — danach manuell syncen, siehe [wandb-offline-sync.md](wandb-offline-sync.md). |
 

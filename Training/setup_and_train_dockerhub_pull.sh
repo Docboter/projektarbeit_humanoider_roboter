@@ -35,13 +35,26 @@
 #   WANDB_PROJECT      (default gr00t-g1-dex3)
 #   CONTAINER_NAME     (default groot-train)
 #   DOCKER_HUB_IMAGE   (default lucam03/projekt-humanoider-roboter:latest)
+#   DOCKER_GPUS        (default all) — Wert fuer `docker run --gpus`. Auf einem Rechner,
+#                      der die Karten noch mit etwas anderem teilt, gezielt eine belegen:
+#                      DOCKER_GPUS='"device=0"' ./setup_and_train_dockerhub_pull.sh
+#
+# Ausserdem werden alle Lauf-Parameter des Entrypoints durchgereicht, sofern gesetzt:
+#   SAVE_STEPS SAVE_TOTAL_LIMIT LEARNING_RATE WARMUP_RATIO WEIGHT_DECAY
+#   DATALOADER_WORKERS GRADIENT_ACCUMULATION_STEPS OUTPUT_DIR EXPERIMENT_NAME RESUME
+#   TUNE_VISUAL USE_COTRAIN COTRAIN_* TRAIN_TEST_SPLIT USE_AUGMENTATION CJ_* ...
 
 set -euo pipefail
 
 # ── Flags ─────────────────────────────────────────────────────────────────────
+# RESUME_CONTAINER (Flag --resume) heisst "diesen Docker-Container weiterlaufen lassen".
+# Die Env-Variable RESUME dagegen heisst "den Trainingslauf bei seinem letzten Checkpoint
+# fortsetzen" (lib_resume_guard.sh) und wird unten durchgereicht. Zwei Bedeutungen, deshalb
+# zwei Namen — vorher hiessen beide RESUME, und der Durchgriff haette dem Trainer ein
+# "RESUME=false" untergeschoben.
 SKIP_PULL=false
 INTERACTIVE=false
-RESUME=false
+RESUME_CONTAINER=false
 DESTROY=false
 DRY_RUN=false
 
@@ -49,7 +62,7 @@ for arg in "$@"; do
     case "$arg" in
         --skip-pull)   SKIP_PULL=true ;;
         --interactive) INTERACTIVE=true ;;
-        --resume)      RESUME=true ;;
+        --resume)      RESUME_CONTAINER=true ;;
         --destroy)     DESTROY=true ;;
         --dry-run)     DRY_RUN=true ;;
         --menu)        MENU=1 ;;
@@ -101,7 +114,7 @@ source "$REPO_DIR/tools/lib_menu.sh"
 _MENU_LAUNCHER="./Training/setup_and_train_dockerhub_pull.sh"
 
 MENU_ACTION=""
-if $RESUME;      then MENU_ACTION=resume
+if $RESUME_CONTAINER; then MENU_ACTION=resume
 elif $DESTROY;   then MENU_ACTION=destroy
 elif $INTERACTIVE; then MENU_ACTION=interactive
 fi
@@ -115,7 +128,7 @@ if menu_enabled; then
     fi
     menu_ask "$REPO_DIR/tools/menu" train "$MENU_ACTION" || exit 0
     case "$MENU_ACTION" in
-        resume)      RESUME=true ;;
+        resume)      RESUME_CONTAINER=true ;;
         destroy)     DESTROY=true ;;
         interactive) INTERACTIVE=true ;;
     esac
@@ -193,7 +206,7 @@ if $CONTAINER_RUNNING; then
 fi
 
 if $CONTAINER_EXISTS; then
-    if $RESUME; then
+    if $RESUME_CONTAINER; then
         log "Starte bestehenden Container '$CONTAINER_NAME' (--resume)…"
         invoke_cmd docker start -ai "$CONTAINER_NAME"
         exit 0
@@ -257,7 +270,7 @@ echo ""
 run_args=(
     "docker" "run"
     "--name" "$CONTAINER_NAME"
-    "--gpus" "all"
+    "--gpus" "${DOCKER_GPUS:-all}"
     "--ipc=host"
     "--shm-size=16g"
 )
@@ -274,8 +287,10 @@ else
     printf "    %-25s %s\n" "CONTAINER_NAME"    "$CONTAINER_NAME"
     # Auch die durchgereichten Schalter anzeigen — sonst faellt nicht auf, wenn einer fehlt.
     for _v in TUNE_VISUAL USE_COTRAIN COTRAIN_MIX_RATIO TRAIN_TEST_SPLIT \
-              USE_AUGMENTATION SKIP_DOWNLOAD SKIP_CONVERT SKIP_TRAIN \
-              SHELL_ON_ERROR WANDB_MODE; do
+              USE_AUGMENTATION SAVE_STEPS SAVE_TOTAL_LIMIT LEARNING_RATE \
+              WARMUP_RATIO GRADIENT_ACCUMULATION_STEPS OUTPUT_DIR \
+              EXPERIMENT_NAME RESUME SKIP_DOWNLOAD SKIP_CONVERT SKIP_TRAIN \
+              SHELL_ON_ERROR WANDB_MODE DOCKER_GPUS; do
         [[ -n "${!_v:-}" ]] && printf "    %-25s %s\n" "$_v" "${!_v}"
     done
     echo ""
@@ -295,10 +310,20 @@ else
     # im Container an. entrypoint.sh liest 19 Variablen, weitergereicht wurden 6.
     # Weitergereicht wird nur, was auch gesetzt ist — sonst ueberschriebe ein leeres
     # "-e VAR=" die ENV-Defaults aus dem Dockerfile.
+    # Zweite Runde derselben Lektion: 2026-08 fehlten die Feature-Schalter, jetzt fehlten
+    # die Lauf-Parameter. Besonders teuer waere SAVE_TOTAL_LIMIT gewesen — der Default 5 in
+    # run_finetuning_cotrain.sh laesst nur die letzten fuenf Checkpoints ueberleben, und
+    # Lauf 3 hat gezeigt, dass der beste in der Mitte liegt. Der checkpoint_sweep haette
+    # dann nur noch das Ende zu sehen bekommen.
     for _v in TUNE_VISUAL USE_COTRAIN COTRAIN_MIX_RATIO COTRAIN_DATASET_PATH \
               COTRAIN_HF_REPO TRAIN_TEST_SPLIT TRAIN_SPLIT_RATIO USE_AUGMENTATION \
               USE_RL SKIP_DOWNLOAD SKIP_CONVERT SKIP_TRAIN SHELL_ON_ERROR \
-              WANDB_MODE WANDB_DIR DATA_DIR; do
+              WANDB_MODE WANDB_DIR DATA_DIR \
+              SAVE_STEPS SAVE_TOTAL_LIMIT LEARNING_RATE WARMUP_RATIO WEIGHT_DECAY \
+              DATALOADER_WORKERS GRADIENT_ACCUMULATION_STEPS \
+              OUTPUT_DIR EXPERIMENT_NAME RESUME \
+              CJ_BRIGHTNESS CJ_CONTRAST CJ_SATURATION CJ_HUE \
+              RANDOM_ROTATION_ANGLE STATE_DROPOUT_PROB; do
         [[ -n "${!_v:-}" ]] && run_args+=("-e" "$_v=${!_v}")
     done
     # -it sorgt fuer farbiges Log + Ctrl+C; bei reinem Headless waere -d sinnvoll.

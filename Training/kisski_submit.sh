@@ -113,6 +113,10 @@ NUM_GPUS="${NUM_GPUS:-4}"
 # Shards in RAM cachen. 8/Rank (= 32 Prozesse) sprengten den Host-RAM → OOM-Kill der Worker
 # (SIGKILL) → DataLoader-Abbruch. 4/Rank füttern eine A100 locker und halbieren den RAM-Druck.
 DATALOADER_WORKERS="${DATALOADER_WORKERS:-4}"
+# Akkumulation, falls global_batch_size je GPU nicht in den Speicher passt. Hier auf
+# 4x A100 80 GB nicht noetig (1 = aus); der Knopf existiert, damit der lokale und der
+# Cluster-Weg dieselben Stellschrauben haben und ein Lauf uebertragbar bleibt.
+GRADIENT_ACCUMULATION_STEPS="${GRADIENT_ACCUMULATION_STEPS:-1}"
 # TUNE_VISUAL=1 → Vision-Encoder mittrainieren (Entrypoint startet run_finetuning_vision.sh,
 # eigener Output-Namespace /data/g1_dex3_finetune/blockstacking_vision). Default 0 = Standardlauf.
 # Steht hier oben, weil LR + Warmup davon abhängen.
@@ -293,6 +297,7 @@ APPTAINER_ARGS=(
     --env "GLOBAL_BATCH_SIZE=$GLOBAL_BATCH_SIZE"
     --env "NUM_GPUS=$NUM_GPUS"
     --env "DATALOADER_WORKERS=$DATALOADER_WORKERS"
+    --env "GRADIENT_ACCUMULATION_STEPS=$GRADIENT_ACCUMULATION_STEPS"
     --env "LEARNING_RATE=$LEARNING_RATE"
     --env "WARMUP_RATIO=$WARMUP_RATIO"
     --env "WANDB_PROJECT=$WANDB_PROJECT"

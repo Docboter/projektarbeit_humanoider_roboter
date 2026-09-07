@@ -36,6 +36,12 @@ EMBODIMENT_TAG="${EMBODIMENT_TAG:-NEW_EMBODIMENT}"
 MAX_STEPS="${MAX_STEPS:-30000}"
 GLOBAL_BATCH_SIZE="${GLOBAL_BATCH_SIZE:-8}" #8
 DATALOADER_WORKERS="${DATALOADER_WORKERS:-8}"
+# Entkoppelt die effektive Batchgroesse vom Speicherbedarf. experiment.py rechnet
+# per_device = global_batch_size / num_gpus (Zeile 188); die Akkumulation kommt oben drauf.
+# Auf einer Karte mit knappem VRAM — etwa wenn andere Dienste die Haelfte belegen — haelt
+# man damit die Batchgroesse des Referenzlaufs, statt sie senken und das Optimierungs-
+# regime mitaendern zu muessen. 1 = aus, verhaelt sich exakt wie bisher.
+GRADIENT_ACCUMULATION_STEPS="${GRADIENT_ACCUMULATION_STEPS:-1}"
 SAVE_STEPS="${SAVE_STEPS:-1000}"
 SAVE_TOTAL_LIMIT="${SAVE_TOTAL_LIMIT:-5}"
 LEARNING_RATE="${LEARNING_RATE:-1e-4}"
@@ -162,6 +168,7 @@ TRAIN_CMD=(
     --weight_decay           "$WEIGHT_DECAY"
     --warmup_ratio           "$WARMUP_RATIO"
     --dataloader_num_workers "$DATALOADER_WORKERS"
+    --gradient_accumulation_steps "$GRADIENT_ACCUMULATION_STEPS"
     --tune_visual            # ← einziger funktionaler Unterschied zu run_finetuning.sh
 )
 
