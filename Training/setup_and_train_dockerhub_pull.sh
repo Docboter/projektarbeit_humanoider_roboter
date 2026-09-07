@@ -7,11 +7,13 @@
 # Training) passiert IM Container — das gleiche Image laeuft so auch auf vast.ai
 # oder anderen Cloud-GPU-Plattformen ohne dieses Skript.
 #
-# Konzept: KEIN persistenter Storage auf dem Host.
-#   * Kein `-v`-Mount nach /data
+# Konzept: standardmaessig KEIN persistenter Storage auf dem Host.
 #   * Kein `--rm` — der Container bleibt nach `stop` bestehen
-#   * Daten und Checkpoints leben im Container-Filesystem
-#   * Bei `--destroy` (oder docker rm) ist alles weg
+#   * Ohne TRAIN_HOST_DATA_DIR leben Daten und Checkpoints im Container-Filesystem,
+#     und bei `--destroy` (oder docker rm) ist alles weg
+#   * TRAIN_HOST_DATA_DIR=<pfad> haengt stattdessen ein Host-Verzeichnis als /data ein.
+#     Auf dem Sim-Server ist das der Normalfall, siehe Abschnitt 5.
+#   * /scripts kommt per Bind aus dem Repo, sofern vorhanden (MOUNT_SCRIPTS=0 dagegen)
 #
 # Verwendung:
 #   HF_TOKEN=hf_... WANDB_API_KEY=... ./setup_and_train_dockerhub_pull.sh
@@ -43,6 +45,12 @@
 #   SAVE_STEPS SAVE_TOTAL_LIMIT LEARNING_RATE WARMUP_RATIO WEIGHT_DECAY
 #   DATALOADER_WORKERS GRADIENT_ACCUMULATION_STEPS OUTPUT_DIR EXPERIMENT_NAME RESUME
 #   TUNE_VISUAL USE_COTRAIN COTRAIN_* TRAIN_TEST_SPLIT USE_AUGMENTATION CJ_* ...
+#
+# Host-seitige Schalter (werden NICHT durchgereicht, sie steuern `docker run` selbst):
+#   TRAIN_HOST_DATA_DIR  (leer)  — Host-Verzeichnis, das als /data eingehaengt wird.
+#                                  Auf dem Sim-Server: $HOME/groot-rl-data, damit die
+#                                  Sim-Eval die Checkpoints ohne `docker cp` sieht.
+#   MOUNT_SCRIPTS        (auto)  — 0 = /scripts NICHT aus dem Repo binden.
 
 set -euo pipefail
 
@@ -264,9 +272,27 @@ ok "Image bereit: $DOCKER_HUB_IMAGE"
 echo ""
 
 # ── 5. Container starten ──────────────────────────────────────────────────────
-# Bewusst KEIN --rm und KEIN -v:
-#   * --rm waere fatal — wir wollen den Container nach Stop behalten (Daten!)
-#   * -v entfaellt — Daten leben im Container-Filesystem (vast.ai-Modell)
+# --rm waere weiterhin fatal: der Container soll `stop` ueberleben.
+#
+# Zwei optionale Mounts weichen vom urspruenglichen vast.ai-Modell ("nichts auf dem Host")
+# ab. Beide haben einen konkreten Anlass, keinen aesthetischen:
+#
+#   /data      per TRAIN_HOST_DATA_DIR, standardmaessig AUS. Auf einem Rechner, der auch
+#              die Sim faehrt, muss das Training dorthin schreiben, wo der Sim-Container
+#              liest — server_rl_run.sh haengt $HOME/groot-rl-data als /data ein. Ohne
+#              Mount liegen die Checkpoints im Container und muessten per `docker cp`
+#              (Groessenordnung 240 GB) hinueber. Leer = altes Verhalten.
+#
+#   /scripts   standardmaessig AN, sobald das Repo daneben liegt. Anlass: am 2026-09-08
+#              trug das Docker-Hub-Image einen /scripts-Stand von VOR dem 2026-06-03 —
+#              ohne run_finetuning_cotrain.sh, ohne lib_split.sh, ohne torchrun. USE_COTRAIN=1
+#              und TRAIN_TEST_SPLIT=1 liefen dadurch still ins Leere, und NUM_GPUS=2 landete
+#              statt in torchrun in DataParallel. Auf KISSKI ist das nie passiert, weil
+#              kisski_submit.sh:336 genau diesen Bind schon immer setzt. MOUNT_SCRIPTS=0
+#              schaltet ihn ab, dann gilt wieder der Stand im Image.
+#              ACHTUNG: der Bind heilt nur /scripts. Ist auch /app/Groot-1.6 im Image alt,
+#              hilft nur ein Rebuild (Training/update_image.sh) — und auf vast.ai, wo kein
+#              Repo zum Einhaengen existiert, sowieso.
 run_args=(
     "docker" "run"
     "--name" "$CONTAINER_NAME"
@@ -274,6 +300,25 @@ run_args=(
     "--ipc=host"
     "--shm-size=16g"
 )
+
+TRAIN_HOST_DATA_DIR="${TRAIN_HOST_DATA_DIR:-}"
+if [[ -n "$TRAIN_HOST_DATA_DIR" ]]; then
+    if ! mkdir -p "$TRAIN_HOST_DATA_DIR" 2>/dev/null; then
+        err "TRAIN_HOST_DATA_DIR nicht anlegbar: $TRAIN_HOST_DATA_DIR"
+        exit 1
+    fi
+    TRAIN_HOST_DATA_DIR="$(cd "$TRAIN_HOST_DATA_DIR" && pwd -P)"
+    run_args+=("-v" "$TRAIN_HOST_DATA_DIR:/data")
+    log "Host-Datenverzeichnis: $TRAIN_HOST_DATA_DIR  (im Container: /data)"
+else
+    warn "Kein Host-Mount fuer /data — Daten und Checkpoints leben nur im Container."
+    warn "  Auf dem Sim-Server stattdessen:  TRAIN_HOST_DATA_DIR=\$HOME/groot-rl-data $0 …"
+fi
+
+if [[ "${MOUNT_SCRIPTS:-auto}" != "0" && -d "$SCRIPT_DIR/scripts" ]]; then
+    run_args+=("-v" "$SCRIPT_DIR/scripts:/scripts")
+    log "Skripte aus dem Repo: $SCRIPT_DIR/scripts -> /scripts  (MOUNT_SCRIPTS=0 schaltet ab)"
+fi
 
 if $INTERACTIVE; then
     log "Interaktive Shell — kein automatisches Training."
