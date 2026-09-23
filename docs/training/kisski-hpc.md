@@ -291,6 +291,17 @@ Nach dem Lauf steht die Checkpoint-Auswahl an — nicht blind den letzten Step n
 RUN_DIR=/data/g1_dex3_finetune/blockstacking_vision sbatch Training/kisski_open_loop_eval.sh
 ```
 
+**Mehrere Läufe hintereinander** (Warteschlange statt Einzel-Einreichen):
+[`kisski_chain.sh`](../../Training/kisski_chain.sh) reicht je Lauf Training + Sweep ein, die
+Trainings per `--dependency=afterany` nacheinander, jeder Sweep per `afterok` hinter seinem
+Training. Die Läufe sind im Skript als Voreinstellungen hinterlegt (`--list`); Datensätze und
+freie Namespaces werden vor dem Einreichen geprüft.
+
+```bash
+./Training/kisski_chain.sh --dry-run synth_jointspace synth_v22   # anzeigen
+./Training/kisski_chain.sh synth_jointspace synth_v22             # einreichen
+```
+
 > **`USE_RL` gehört NICHT hierher** — RL läuft auf KISSKI grundsätzlich nicht (kein RT-Core-Rendering,
 > siehe [den Hinweis-Kasten oben](#verfügbare-gpu-partitionen)). Für RL den vast.ai-Pfad nutzen.
 

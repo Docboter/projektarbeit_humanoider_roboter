@@ -56,6 +56,9 @@
 # Fremder Sim-Datensatz + harmonisierte Fassung (docs/training/synth-datensatz.md)
 /data/cotrain_synth/
 /data/cube_stacking_synth_v21/
+/data/cube_stacking_synth_v22/
+/data/cotrain_synth_jointspace/
+/data/cube_stacking_synth_jointspace_v21/
 *.mp4
 *.avi
 *.mov

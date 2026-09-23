@@ -7,10 +7,13 @@
 > Die Gelenkreihenfolge ist **aufgelöst**: sie steht in den eigenen Sim-Logs, weil der Datensatz
 > in dieser Umgebung aufgenommen wurde (§ 5) — aus den Daten allein wäre sie nicht bestimmbar
 > gewesen (§ 3.1).
+> **Achtung (2026-09-23):** `cube_stacking_synth_v21` und damit Lauf `cotrain_synth_v1` tragen
+> **vertauschte Fingerkommandos** — korrigiert als `v22`; dazu kommt der Neu-Export
+> `Cube_Stacking_synth_jointspace` (§ 10).
 > Nicht hier: das Co-Training-Verfahren selbst ([co-training.md](co-training.md)).
 
-**Stand:** 2026-08-28 · Werkzeug gebaut und abgenommen; Arme, Zeitversatz, Vorzeichen und
-Fingerreihenfolge belegt. Der Trainingslauf kann laufen.
+**Stand:** 2026-09-23 · Handaktions-Fehler in v21 gefunden und behoben (§ 10.1); Neu-Export
+`_jointspace` harmonisiert (§ 10.2); zwei Läufe als KISSKI-Kette vorbereitet (§ 10.4).
 
 ---
 
@@ -360,3 +363,92 @@ deshalb bei 0,10.
   Auswertung der EEF-Bahnen wäre es zu klären.
 * **16 Episoden bleiben 16 Episoden.** Kann der Ersteller nachlegen, ist mehr Material der
   wirksamste einzelne Hebel an dieser Stelle.
+
+---
+
+## 10. Nachtrag 2026-09-23: Handaktions-Fehler in v21 und der Neu-Export `_jointspace`
+
+### 10.1 v21 hatte die Fingerkommandos gegen ihre Achsen verschoben
+
+`convert` hat den **State** über die belegte Namensliste umsortiert (§ 5), die **Handaktion**
+aber roh als `action[:, 14:28]` übernommen. Die liegt im Quelldatensatz in Isaac-Reihenfolge
+(Gelenk 29…42, links/rechts verschachtelt) — das hatte `inspect` sogar gemessen
+(`mapping.json`, `rows`: `action_dim 14 → joint 29` usw.), `convert` hat es nur nicht benutzt.
+Folge: auf der Achse `kLeftHandThumb0` lag das Kommando für `left_hand_index_0`, auf
+`kRightHandThumb1` eines der linken Hand.
+
+| Datensatz | Aktion folgt State, schlechteste Handachse (min RMSE über Versatz 0…6) |
+|---|---|
+| `cube_stacking_synth_v21` (Lauf `cotrain_synth_v1`) | **1,695 rad** — 12/14 Handachsen über 0,15 |
+| `cube_stacking_synth_v22` (korrigiert) | 0,045 rad |
+| `cube_stacking_synth_jointspace_v21` | 0,013 rad |
+
+**Konsequenz für `cotrain_synth_v1`:** die synth-Stichproben (10 %) haben der Hand
+widersprüchliche Ziele beigebracht. Die Sweep-MSE auf echten Episoden bleibt als Zahl gültig,
+eine `span`-Aussage über den synth-Anteil ist aus diesem Lauf **nicht** ableitbar. Die
+Wiederholung mit korrigierten Daten ist der Lauf `synth_v22` (§ 10.4).
+
+Behoben in `convert` (Handaktion über die gemessenen `rows` umsortiert). Damit das nie wieder
+still passiert, prüft `verify` jetzt je Achse, ob die Aktion ihrem eigenen State folgt
+(`--max-action-rmse`, Default 0,15 rad) — die alte v21 fällt damit durch, beide neuen bestehen.
+
+### 10.2 `Fichtl00/Cube_Stacking_synth_jointspace`
+
+Kein neues Material, sondern ein Neu-Export **derselben** 16 Aufnahmen: Videos byteidentisch
+(gleiche LFS-SHA256), State jeder Spalte exakt gleich einer Spalte des 57-Dim-Originals.
+Neu sind 28-Dim-State/Action im Gelenkraum — mit zwei Eigenheiten, beide gemessen:
+
+| Punkt | Befund | Behandlung |
+|---|---|---|
+| Aktionsdefinition | `action[t] == state[t+1]` **exakt** (RMSE 0,0) — der erreichte Folgezustand, kein Reglerkommando; so auch der Commit-Text des Erstellers | übernommen wie geliefert. Beim Greifen fehlt damit das Schließen über den Kontakt hinaus (v22: echtes Kommando) |
+| Handreihenfolge | Spalten 14–27 = rohe Isaac-Gelenke 29…42; `left_hand`/`right_hand` in seiner `modality.json` sind irreführend (13/28 Achsen nicht am Namensplatz) | umsortiert wie State und Aktion |
+| fps | weiterhin 50 | auf 30 resampelt wie v21 |
+
+`harmonize_synth_dataset.py derive` belegt das, statt neu zu raten: jede neue Spalte muss exakt
+(max |Δ| ≤ 1e-6) eine Spalte des **abgenommenen** Bezugs sein; dessen Achsenreihenfolge wird
+durch diese Spaltenauswahl übertragen. Stimmen Episoden oder Längen nicht, bricht es ab.
+
+### 10.3 Revisionen werden gepinnt
+
+Der Ersteller hat am 2026-09-13 auch `Fichtl00/Cube_Stacking_synth` **in place** auf 28 Dims
+umgeschrieben. Ein ungepinntes `convert` holte diese Fassung und überschrieb die 57-Dim-Quelle,
+gegen die das Mapping abgenommen war (bemerkt, weil `convert` abstürzte). Jetzt schreiben
+`inspect`/`derive` den Commit-SHA in `mapping.json`, `convert` lädt genau den und verweigert
+ohne. Abgenommene Stände: `Cube_Stacking_synth@0a73ad9d8a`, `_jointspace@9d006170d6`.
+
+```bash
+# Lokal (harm() wie in § 6.1)
+harm derive                                   # Bezug: data/cotrain_synth/mapping.json
+harm convert --work-dir data/cotrain_synth_jointspace --out data/cube_stacking_synth_jointspace_v21 \
+     --task-text "Stack the cubes: red on the bottom, yellow in the middle, green on top."
+harm convert --work-dir data/cotrain_synth --out data/cube_stacking_synth_v22 \
+     --task-text "Stack the cubes: red on the bottom, yellow in the middle, green on top."
+harm verify --dataset data/cube_stacking_synth_jointspace_v21
+harm verify --dataset data/cube_stacking_synth_v22
+
+P=/mnt/vast-kisski/projects/kisski-humrob
+rsync -avz --progress data/cube_stacking_synth_jointspace_v21/ \
+  <user>@transfer.hpc.gwdg.de:$P/data/cotrain/cube_stacking_synth_jointspace/
+rsync -avz --progress data/cube_stacking_synth_v22/ \
+  <user>@transfer.hpc.gwdg.de:$P/data/cotrain/cube_stacking_synth_v22/
+```
+
+### 10.4 Die Läufe als KISSKI-Kette
+
+[`Training/kisski_chain.sh`](../../Training/kisski_chain.sh) reicht je Lauf Training + Sweep
+ein; die Trainings laufen nacheinander (`afterany`), jeder Sweep nach seinem Training
+(`afterok`). Parameter identisch zu `cotrain_synth_v1` (§ 6.2, § 7: Mix 0,10, Split 0,8,
+44 000 Schritte, Batch 32, 4× A100), damit alle drei vergleichbar sind.
+
+```bash
+cd $P/repo && git pull
+./Training/kisski_chain.sh --dry-run synth_jointspace synth_v22
+./Training/kisski_chain.sh synth_jointspace synth_v22
+```
+
+| Lauf | Datensatz | Namespace |
+|---|---|---|
+| `synth_jointspace` | `_jointspace`: Arm + Hand = `state[t+1]` | `blockstacking_cotrain_synth_jointspace` |
+| `synth_v22` | v22: Arm = `state[t+4]`, Hand = echtes Kommando | `blockstacking_cotrain_synth_v22` |
+
+Beurteilt wird wie in § 8. Speicher: je Lauf 9 Checkpoints × ~22 GB ≈ 200 GB.

@@ -298,6 +298,9 @@ repo root
 │   │                                   #   Standalone on purpose — kisski_submit.sh must
 │   │                                   #   stay scp-able alone, so it gets no tools/ dep
 │   ├── kisski_open_loop_eval.sh        # SLURM job: open-loop checkpoint eval (open_loop_eval.py, no server)
+│   ├── kisski_chain.sh                 # ★ Login-node helper: queues several training runs in a row
+│   │                                   #   (afterany), each with its checkpoint sweep (afterok).
+│   │                                   #   Runs are presets in the script (synth_jointspace, synth_v22)
 │   ├── kisski_rl_submit.sh             # SLURM job: RL fine-tuning (FPO) — sim SIF, RT-core GPU guard (TEMPLATE)
 │   ├── update_image.sh                 # Host build/push tool (must sit next to Dockerfile)
 │   ├── setup_and_train_dockerhub_pull.sh   # Thin host launcher: docker pull + docker run

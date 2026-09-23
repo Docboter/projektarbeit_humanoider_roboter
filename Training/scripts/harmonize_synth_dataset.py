@@ -117,8 +117,23 @@ def die(msg: str) -> "NoReturn":  # noqa: F821
 # ─────────────────────────────────────────────────────────────────────────────
 # Laden
 # ─────────────────────────────────────────────────────────────────────────────
-def fetch(source: str, work_dir: Path, patterns: list[str], token: str | None) -> Path:
-    """HF-Repo nach work_dir spiegeln — oder einen lokalen Pfad unverändert nehmen."""
+def resolve_revision(source: str, revision: str | None, token: str | None) -> str | None:
+    """Commit-SHA, auf den gepinnt wird: der angegebene, sonst der aktuelle HEAD.
+
+    Pinnen ist Pflicht, nicht Kosmetik: der Ersteller hat Fichtl00/Cube_Stacking_synth am
+    2026-09-13 in place umgeschrieben (57 → 28 Dims). Ein ungepinntes ``convert`` holte
+    diese Fassung und überschrieb damit die Quelldaten, gegen die das Mapping abgenommen war.
+    """
+    if Path(source).is_dir():
+        return None
+    from huggingface_hub import HfApi
+
+    return HfApi(token=token).dataset_info(source, revision=revision).sha
+
+
+def fetch(source: str, work_dir: Path, patterns: list[str], token: str | None,
+          revision: str | None = None) -> Path:
+    """HF-Repo (gepinnte Revision) nach work_dir spiegeln — oder lokalen Pfad nehmen."""
     local = Path(source)
     if local.is_dir():
         log(f"Quelle ist ein lokales Verzeichnis: {local}")
@@ -127,10 +142,12 @@ def fetch(source: str, work_dir: Path, patterns: list[str], token: str | None) -
     from huggingface_hub import snapshot_download
 
     work_dir.mkdir(parents=True, exist_ok=True)
-    log(f"Lade {source} nach {work_dir}  (Muster: {', '.join(patterns)})")
+    log(f"Lade {source}@{(revision or 'HEAD')[:10]} nach {work_dir}  "
+        f"(Muster: {', '.join(patterns)})")
     snapshot_download(
         repo_id=source,
         repo_type="dataset",
+        revision=revision,
         local_dir=str(work_dir),
         allow_patterns=patterns,
         token=token,
@@ -753,7 +770,8 @@ def cross_check_axes(actions: list[np.ndarray], stats: dict) -> list[str]:
 # ─────────────────────────────────────────────────────────────────────────────
 def cmd_inspect(args: argparse.Namespace) -> int:
     work = Path(args.work_dir)
-    root = fetch(args.source, work, ["meta/*", "data/*", "README.md"], args.token)
+    revision = resolve_revision(args.source, args.revision, args.token)
+    root = fetch(args.source, work, ["meta/*", "data/*", "README.md"], args.token, revision)
 
     info = read_json(root / "meta" / "info.json")
     modality = read_json(root / "meta" / "modality.json")
@@ -867,6 +885,7 @@ def cmd_inspect(args: argparse.Namespace) -> int:
     mapping_file = work / "mapping.json"
     payload = {
         "source": args.source,
+        "revision": revision,
         "source_fps": float(info.get("fps", 0.0)),
         "target_fps": TARGET_FPS,
         "joint_offset": mapping["joint_offset"],
@@ -910,6 +929,165 @@ def cmd_inspect(args: argparse.Namespace) -> int:
         ok("Handaktion bleibt das echte Kommando aus action[14:28].")
     ok("Weiter mit:  harmonize_synth_dataset.py convert --work-dir "
        f"{args.work_dir} --out <ziel>")
+    return 0
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# derive — Neu-Export derselben Aufnahmen gegen ein bereits abgenommenes Mapping
+# ─────────────────────────────────────────────────────────────────────────────
+def cmd_derive(args: argparse.Namespace) -> int:
+    """Zuordnung für einen Datensatz, der dieselben Aufnahmen in anderem Zuschnitt trägt.
+
+    Anlass: ``Fichtl00/Cube_Stacking_synth_jointspace`` hat 28-Dim-State/Action statt
+    57 Dims, die Schlüssel heißen left_arm/right_arm/left_hand/right_hand. Die Namen
+    beweisen nichts — schon beim ersten Satz trennten ``left_hand``/``right_hand`` den
+    Isaac-verschachtelten Vektor stumpf in 7 + 7. Statt erneut zu messen, was bereits
+    belegt ist, wird hier gezeigt, dass jede neue State-Spalte EXAKT eine Spalte des
+    abgenommenen Quellsatzes ist. Dann gilt dessen belegte Achsenreihenfolge
+    unverändert, nur durch diese Spaltenauswahl hindurch.
+    """
+    ref_work = Path(args.reference_work_dir)
+    ref_mapping_file = ref_work / "mapping.json"
+    if not ref_mapping_file.exists():
+        die(f"{ref_mapping_file} fehlt — erst den Bezugssatz mit 'inspect' abnehmen.")
+    ref_mapping = read_json(ref_mapping_file)
+    if not ref_mapping.get("accepted"):
+        die(f"{ref_mapping_file} ist nicht als gültig markiert — ohne abgenommenen Bezug kein derive.")
+    ref_idx28 = [int(i) for i in ref_mapping["state_index_map"]]
+
+    ref_info = read_json(ref_work / "meta" / "info.json")
+    ref_eps, ref_states, _ = load_episodes(ref_work, ref_info)
+
+    work = Path(args.work_dir)
+    revision = resolve_revision(args.source, args.revision, args.token)
+    root = fetch(args.source, work, ["meta/*", "data/*", "README.md"], args.token, revision)
+    info = read_json(root / "meta" / "info.json")
+    eps, states, actions = load_episodes(root, info)
+
+    print()
+    log(f"Neu-Export {args.source} gegen abgenommenen Bezug {ref_mapping.get('source')}")
+    print(f"    Episoden neu/Bezug : {len(eps)} / {len(ref_eps)}")
+    print(f"    State-Breite       : {states[0].shape[1]} (Bezug {ref_states[0].shape[1]})")
+    print(f"    Action-Breite      : {actions[0].shape[1]}")
+    print(f"    fps                : {info.get('fps')} (Bezug {ref_info.get('fps')})")
+
+    problems: list[str] = []
+    if eps != ref_eps:
+        die(f"Episodenlisten verschieden (neu {eps[:5]}…, Bezug {ref_eps[:5]}…) — "
+            "das sind nicht dieselben Aufnahmen.")
+    bad_len = [e for e, a, b in zip(eps, states, ref_states) if len(a) != len(b)]
+    if bad_len:
+        die(f"Episodenlängen verschieden in {bad_len} — das sind nicht dieselben Aufnahmen.")
+    ok("Gleiche Episoden, gleiche Längen.")
+    if states[0].shape[1] != 28 or actions[0].shape[1] != 28:
+        die("derive erwartet 28-Dim-State und -Action.")
+    if float(info.get("fps", 0)) != float(ref_info.get("fps", -1)):
+        problems.append(f"fps verschieden: {info.get('fps')} gegen {ref_info.get('fps')}")
+
+    # ── Jede neue State-Spalte als exakte Spalte des Bezugs ──────────────────
+    new_cat, ref_cat = np.concatenate(states), np.concatenate(ref_states)
+    col_of: list[int] = []
+    print()
+    log("State-Spalten: neue Spalte j = Bezugsspalte c (max |Δ| über alle Frames)")
+    for j in range(28):
+        diff = np.abs(ref_cat - new_cat[:, j:j + 1]).max(axis=0)
+        order = np.argsort(diff)
+        c, c2 = int(order[0]), int(order[1])
+        exact = diff[c] <= args.exact_tol
+        print(f"    {j:>2} → {c:>2}   max|Δ|={diff[c]:.1e}   nächste {c2:>2}: {diff[c2]:.3f}"
+              f"{'' if exact else '   ✗'}")
+        if not exact:
+            problems.append(f"State-Spalte {j} ist keine exakte Bezugsspalte "
+                            f"(bester Treffer {c}, max|Δ| {diff[c]:.2e}).")
+        col_of.append(c)
+    if len(set(col_of)) != 28:
+        problems.append(f"Bezugsspalten nicht eindeutig: {col_of}")
+
+    local_of = {c: j for j, c in enumerate(col_of)}
+    missing = [c for c in ref_idx28 if c not in local_of]
+    if missing:
+        die(f"Bezugsgelenke {missing} fehlen im neuen Satz — Zuordnung nicht übertragbar.")
+    idx28 = [local_of[c] for c in ref_idx28]
+    print()
+    log("Belegte Achsenreihenfolge, übertragen auf die neuen Spalten")
+    for k in range(28):
+        flag = "" if idx28[k] == k else "   ← umsortiert"
+        print(f"    {REAL_JOINT_NAMES[k]:<20} ← neue Spalte {idx28[k]:>2}  (Bezug {ref_idx28[k]}){flag}")
+    moved = sum(idx28[k] != k for k in range(28))
+    if moved:
+        warn(f"{moved}/28 Achsen stehen im neuen Satz NICHT an ihrem Namensplatz — die "
+             "Schlüssel in dessen modality.json sind irreführend. Wird umsortiert.")
+
+    # ── Was die Aktion ist ───────────────────────────────────────────────────
+    print()
+    log("Aktion gegen State[t+lag], je Spalte (gleiche Spaltenordnung)")
+    rows = []
+    for lag in range(args.max_lag + 1):
+        r = np.sqrt(np.mean(np.concatenate(
+            [(a[:len(a) - lag] - s[lag:]) ** 2 for a, s in zip(actions, states)]), axis=0))
+        rows.append(r)
+        print(f"    lag {lag}: RMSE mittel {r.mean():.5f}  max {r.max():.5f}")
+    best_lag = int(np.argmin([r.mean() for r in rows]))
+    best_rmse = float(rows[best_lag].max())
+    # Gleiche Spaltenordnung? Jede Aktionsspalte muss am besten zu IHRER State-Spalte passen.
+    a_cat = np.concatenate([a[:len(a) - best_lag] for a in actions])
+    s_cat = np.concatenate([s[best_lag:] for s in states])
+    same_order = all(
+        int(np.argmin(np.sqrt(((s_cat - a_cat[:, i:i + 1]) ** 2).mean(axis=0)))) == i
+        for i in range(28)
+    )
+    if not same_order:
+        problems.append("Aktionsspalten liegen nicht in der Spaltenordnung des States — "
+                        "action_index_map wäre falsch.")
+    if best_rmse <= args.exact_tol:
+        definition = f"state[t+{best_lag}] (gemessener Folgezustand, kein Reglerkommando)"
+        warn(f"Aktion ist EXAKT der gemessene Zustand {best_lag} Frame(s) später — kein "
+             "Reglerkommando. Beim Greifen fehlt damit das Schließen über den Kontakt hinaus.")
+    else:
+        definition = f"≈ state[t+{best_lag}] (max RMSE {best_rmse:.4f})"
+        ok(f"Aktion folgt dem State mit Versatz {best_lag} (max RMSE {best_rmse:.4f}).")
+
+    stats = reference_stats(work, args.token, args.reference)
+    if stats:
+        problems += check_state_ranges(states, idx28, stats, args.range_tolerance)
+
+    payload = {
+        "source": args.source,
+        "revision": revision,
+        "source_fps": float(info.get("fps", 0.0)),
+        "target_fps": TARGET_FPS,
+        # lag=0 und 'joint': convert übernimmt die Aktion Frame für Frame, nur umsortiert.
+        "lag": 0,
+        "arm_action_mode": "joint",
+        "state_index_map": idx28,
+        "action_index_map": idx28 if same_order else None,
+        "action_definition": definition,
+        "action_state_lag_frames": best_lag,
+        "derived_from": {
+            "source": ref_mapping.get("source"),
+            "revision": ref_mapping.get("revision"),
+            "mapping": str(ref_mapping_file),
+            "reference_state_index_map": ref_idx28,
+            "column_of_reference": col_of,
+        },
+        "problems": problems,
+        "accepted": not problems or bool(args.force),
+    }
+    mapping_file = work / "mapping.json"
+    mapping_file.parent.mkdir(parents=True, exist_ok=True)
+    with open(mapping_file, "w") as fh:
+        json.dump(payload, fh, indent=2)
+
+    print()
+    if problems:
+        for p in problems:
+            warn(p)
+        if not args.force:
+            die(f"{len(problems)} Beanstandung(en). {mapping_file} geschrieben, aber NICHT "
+                "als gültig markiert.")
+        warn(f"--force gesetzt — {mapping_file} trotzdem als gültig markiert.")
+    ok(f"Zuordnung aus dem Bezug übertragen und belegt. Geschrieben: {mapping_file}")
+    ok(f"Weiter mit:  harmonize_synth_dataset.py convert --work-dir {args.work_dir} --out <ziel>")
     return 0
 
 
@@ -977,7 +1155,16 @@ def cmd_convert(args: argparse.Namespace) -> int:
         )
 
     source = args.source or mapping.get("source")
-    root = fetch(source, work, ["meta/*", "data/*", "videos/*", "README.md"], args.token)
+    revision = args.revision or mapping.get("revision")
+    if not revision and not Path(source).is_dir():
+        die(
+            f"{mapping_file} nennt keine Revision. Ungepinnt holt convert den aktuellen HEAD — "
+            "und der kann ein anderer Datensatz sein als der, gegen den das Mapping abgenommen "
+            "wurde (Cube_Stacking_synth wurde am 2026-09-13 in place umgeschrieben). "
+            "--revision <sha> angeben."
+        )
+    root = fetch(source, work, ["meta/*", "data/*", "videos/*", "README.md"], args.token,
+                 revision)
     info = read_json(root / "meta" / "info.json")
     src_fps = float(info.get("fps", mapping["source_fps"]))
     dst_fps = float(args.fps)
@@ -996,14 +1183,31 @@ def cmd_convert(args: argparse.Namespace) -> int:
         die(f"state_index_map hat {idx_map.size} Einträge, erwartet 28.")
     arm_mode = mapping.get("arm_action_mode", "joint")
     lag = int(mapping.get("lag", 0))
+    hand_perm: list[int] | None = None
     if arm_mode == "eef_pose":
         log(f"Arm-Aktion wird rekonstruiert: robot_joint_pos[t+{lag}] der Gelenke "
             f"{idx_map[:14].tolist()}")
-        log("Handaktion bleibt das echte Kommando aus action[14:28].")
+        offset = int(mapping.get("joint_offset", 0))
+        dim_of_joint = {offset + int(r["joint_index"]): int(r["action_dim"])
+                        for r in mapping["rows"]}
+        missing = [j for j in idx_map[14:].tolist() if j not in dim_of_joint]
+        if missing:
+            die(f"Für die Handgelenke {missing} gibt es keine gemessene Aktionsdimension "
+                "(mapping.json rows).")
+        hand_perm = [dim_of_joint[j] for j in idx_map[14:].tolist()]
+        log(f"Handaktion bleibt das echte Kommando, umsortiert: action[:, {hand_perm}]")
         log(f"Je Episode entfallen dadurch die letzten {lag} Quellframes — für sie gibt es "
             "kein t+lag mehr.")
     else:
         log("Arm-Aktion wird unverändert aus action[0:14] übernommen (Gelenkraum).")
+    # Nur bei 'derive': die Aktion liegt in derselben (Isaac-)Spaltenordnung wie der State
+    # und muss genauso umsortiert werden — ohne das kämen die Finger vertauscht an.
+    act_map = mapping.get("action_index_map")
+    if act_map is not None:
+        act_map = np.asarray(act_map, dtype=int)
+        if act_map.size != 28:
+            die(f"action_index_map hat {act_map.size} Einträge, erwartet 28.")
+        log(f"Aktion wird umsortiert: action[:, {act_map.tolist()}]")
 
     out = Path(args.out)
     if out.exists() and args.overwrite:
@@ -1085,8 +1289,15 @@ def cmd_convert(args: argparse.Namespace) -> int:
             # erreichte Armstellung lag Frames später. An den HÄNDEN gegen das echte
             # Kommando geprüft — dort liegen beide vor (siehe mapping.json, rows).
             arm_act = state57[keep + lag][:, idx_map[:14]]
-            hand_act = action[keep][:, 14:28]
+            # Die Handaktion liegt in der Reihenfolge des QUELL-Gelenkvektors (gemessen:
+            # mapping.json rows, action_dim → joint_index), nicht in der echten
+            # Achsenreihenfolge. Genauso umsortieren wie den State — bis 2026-09-23 fehlte
+            # das, die Fingerkommandos lagen gegen ihre Achsen verschoben (verify prüft es
+            # jetzt, siehe check_action_follows_state).
+            hand_act = action[keep][:, hand_perm]
             action_out = np.concatenate([arm_act, hand_act], axis=1).astype(np.float32)
+        elif act_map is not None:
+            action_out = action[keep][:, act_map].astype(np.float32)
         else:
             action_out = action[keep].astype(np.float32)
 
@@ -1189,12 +1400,17 @@ def cmd_convert(args: argparse.Namespace) -> int:
         json.dump(
             {
                 "source": source,
+                "revision": revision,
                 "source_fps": src_fps,
                 "target_fps": dst_fps,
                 "state_index_map": idx_map.tolist(),
                 "state_axis_names": REAL_JOINT_NAMES,
                 "arm_action_mode": arm_mode,
                 "arm_action_lag_frames": lag,
+                "action_index_map": None if act_map is None else act_map.tolist(),
+                "hand_action_dims": hand_perm,
+                "action_definition": mapping.get("action_definition"),
+                "derived_from": mapping.get("derived_from"),
                 "arm_joint_indices": idx_map[:14].tolist(),
                 "hand_joint_indices": idx_map[14:].tolist(),
                 "task_text": task_text,
@@ -1227,6 +1443,43 @@ def cmd_convert(args: argparse.Namespace) -> int:
 # ─────────────────────────────────────────────────────────────────────────────
 # verify
 # ─────────────────────────────────────────────────────────────────────────────
+def check_action_follows_state(root: Path, info: dict, eps: list[int], max_rmse: float,
+                               max_lag: int = 6) -> list[str]:
+    """Jede Aktionsachse muss ihrer EIGENEN State-Achse folgen (kleinster RMSE über den Versatz).
+
+    Fängt genau den Fehler, den bis 2026-09-23 niemand sah: State umsortiert, Aktion nicht.
+    Dann lag z. B. das Kommando für left_hand_index_0 auf der Achse kLeftHandThumb0 — beide
+    einzeln plausibel im Wertebereich, nur nicht zueinander (RMSE bis 1,7 rad).
+    """
+    states, actions = [], []
+    for ep in eps:
+        pq = parquet_path(root, info, ep)
+        if pq.exists():
+            df = pd.read_parquet(pq)
+            states.append(stack_column(df, "observation.state"))
+            actions.append(stack_column(df, "action"))
+    if not states:
+        return []
+    best = np.full(states[0].shape[1], np.inf)
+    for lag in range(max_lag + 1):
+        parts = [(a[:len(a) - lag] - s[lag:]) ** 2 for a, s in zip(actions, states) if len(a) > lag]
+        best = np.minimum(best, np.sqrt(np.mean(np.concatenate(parts), axis=0)))
+    print()
+    log(f"Aktion folgt State je Achse (min RMSE über Versatz 0…{max_lag}, Grenze {max_rmse} rad)")
+    problems = []
+    for i, r in enumerate(best):
+        name = REAL_JOINT_NAMES[i] if i < len(REAL_JOINT_NAMES) else str(i)
+        bad = r > max_rmse
+        if bad or i >= 14:
+            print(f"    {i:>2}  {name:<20} {r:.4f}{'   ✗' if bad else ''}")
+        if bad:
+            problems.append(f"Aktionsachse {i} ({name}) folgt ihrem State nicht "
+                            f"(min RMSE {r:.3f} rad) — Aktion und State verschieden sortiert?")
+    if not problems:
+        ok(f"Alle {best.size} Aktionsachsen folgen ihrem State (max {best.max():.4f} rad).")
+    return problems
+
+
 def cmd_verify(args: argparse.Namespace) -> int:
     root = Path(args.dataset)
     info = read_json(root / "meta" / "info.json")
@@ -1293,6 +1546,7 @@ def cmd_verify(args: argparse.Namespace) -> int:
                     )
     if total != int(info.get("total_frames", -1)):
         problems.append(f"total_frames sagt {info.get('total_frames')}, gezählt {total}")
+    problems += check_action_follows_state(root, info, eps, args.max_action_rmse)
 
     print()
     if problems:
@@ -1315,6 +1569,9 @@ def main() -> int:
     ins.add_argument("--source", default="Fichtl00/Cube_Stacking_synth",
                      help="HF-Repo-ID oder lokales Verzeichnis")
     ins.add_argument("--work-dir", default="data/cotrain_synth")
+    ins.add_argument("--revision", default=None,
+                     help="Commit-SHA des Quell-Repos (ohne Angabe: aktueller HEAD, "
+                          "wird in mapping.json festgeschrieben)")
     ins.add_argument("--reference", default=REFERENCE_REPO,
                      help="Echter Datensatz (HF-Repo oder lokaler Pfad) für die Gegenprobe")
     ins.add_argument("--token", default=None, help="HF-Token (sonst HF_TOKEN aus der Umgebung)")
@@ -1345,9 +1602,30 @@ def main() -> int:
                      help="Beanstandungen nur melden, Mapping trotzdem als gültig markieren")
     ins.set_defaults(func=cmd_inspect)
 
+    dv = sub.add_parser("derive", help="Neu-Export derselben Aufnahmen: Zuordnung aus einem "
+                                          "bereits abgenommenen Mapping übertragen")
+    dv.add_argument("--source", default="Fichtl00/Cube_Stacking_synth_jointspace",
+                    help="HF-Repo-ID oder lokales Verzeichnis des Neu-Exports")
+    dv.add_argument("--work-dir", default="data/cotrain_synth_jointspace")
+    dv.add_argument("--revision", default=None,
+                    help="Commit-SHA (ohne Angabe: aktueller HEAD, wird festgeschrieben)")
+    dv.add_argument("--reference-work-dir", default="data/cotrain_synth",
+                    help="work-dir des abgenommenen Bezugs (mapping.json + Quelldaten)")
+    dv.add_argument("--reference", default=REFERENCE_REPO,
+                    help="Echter Datensatz für die Bereichsprüfung")
+    dv.add_argument("--token", default=None)
+    dv.add_argument("--max-lag", type=int, default=6)
+    dv.add_argument("--exact-tol", type=float, default=1e-6,
+                    help="Bis zu welchem max|Δ| zwei Spalten als identisch gelten")
+    dv.add_argument("--range-tolerance", type=float, default=0.15)
+    dv.add_argument("--force", action="store_true")
+    dv.set_defaults(func=cmd_derive)
+
     cv = sub.add_parser("convert", help="Datensatz auf das echte Schema umschreiben")
     cv.add_argument("--work-dir", default="data/cotrain_synth")
     cv.add_argument("--source", default=None, help="Überschreibt die Quelle aus mapping.json")
+    cv.add_argument("--revision", default=None,
+                    help="Überschreibt die Revision aus mapping.json")
     cv.add_argument("--out", required=True, help="Zielverzeichnis des harmonisierten Datensatzes")
     cv.add_argument("--modality-json",
                     default="app/Groot-1.6/examples/G1_DEX3/modality_4cam.json",
@@ -1368,6 +1646,9 @@ def main() -> int:
                     default="app/Groot-1.6/examples/G1_DEX3/modality_4cam.json")
     vf.add_argument("--check-videos", action="store_true", default=True)
     vf.add_argument("--no-check-videos", dest="check_videos", action="store_false")
+    vf.add_argument("--max-action-rmse", type=float, default=0.15,
+                    help="Grenze (rad), ab der eine Aktionsachse als nicht zu ihrem State "
+                         "passend gilt")
     vf.set_defaults(func=cmd_verify)
 
     args = p.parse_args()
