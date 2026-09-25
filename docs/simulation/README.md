@@ -29,7 +29,7 @@ ZMQ-Requests eines Isaac-Lab-Sim-Clients.
 > und die [Diagnose-Chronik](../ergebnisse/diagnose-chronik.md) (fortlaufend ab Lauf 08). Der **Livestream-Plan**
 > liegt unter [`../weiterfuehrend/livestream-plan.md`](../weiterfuehrend/livestream-plan.md).
 
-> **GR00T N1.7 im Sim-Image:** Das vast.ai-Image (`Dockerfile.vastai`) enthält seit 2026-08-19
+> **GR00T N1.7 im Sim-Image:** Das Standalone-Image (`Dockerfile.standalone`, IKR-Server und vast.ai) enthält seit 2026-08-19
 > auch eine N1.7-venv, auswählbar per `GROOT_VERSION=1.7` (Default `auto` erkennt die Version
 > aus dem Checkpoint). N1.6-only bleiben das optimierte Inferenz-Backend
 > ([inferenz-optimierung.md](inferenz-optimierung.md)), der Stock-G1-Baseline-Test

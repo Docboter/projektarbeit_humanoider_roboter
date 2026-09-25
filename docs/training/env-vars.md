@@ -16,12 +16,16 @@ lokal **identisch**. Der Entrypoint (`/scripts/entrypoint.sh`) liest sie ein.
 > [`run_finetuning.sh`](../../Training/scripts/run_finetuning.sh). Für die Bedienung macht das
 > keinen Unterschied; beim Suchen im Code schon.
 >
-> **Build-Zeit vs. Laufzeit:** `GROOT_VERSION` wählt zur **Laufzeit** zwischen den zwei
-> Codebäumen, die im Image liegen. Welche Bäume überhaupt **gebaut** werden, entscheidet das
-> Docker-Build-Arg `GROOT_VERSIONS` (Default `"1.6 1.7"`, beide) — `--build-arg
-> GROOT_VERSIONS=1.6` baut nur den alten Baum (halbe Image-Größe, kein N1.7 zur Laufzeit
-> wählbar). Siehe [`Training/Dockerfile`](../../Training/Dockerfile) und
-> [`update_image.sh`](../../Training/update_image.sh).
+> **Build-Zeit vs. Laufzeit:** `GROOT_VERSION` wählt zur **Laufzeit** zwischen den Codebäumen,
+> die im Image liegen. Welche Bäume überhaupt **gebaut** werden, entscheidet das
+> Docker-Build-Arg `GROOT_VERSIONS` (Default seit 2026-09-25: `1.6`, ein Image je Generation) —
+> `--build-arg GROOT_VERSIONS=1.7` baut nur den N1.7-Baum, `"1.6 1.7"` beide venvs in einem
+> (Dual-Image, doppelte Größe, nie Default). Bequemer über
+> [`update_image.sh`](../../Training/update_image.sh) `--groot=1.6|1.7|both` (fragt ohne
+> Flag am Terminal, sonst Default `1.6`) — das Skript setzt auch `GROOT_VERSION_DEFAULT`
+> (welche Generation der Container ohne `-e GROOT_VERSION=…` startet) und taggt passend
+> (`:latest` bleibt N1.6, N1.7 → `:latest-n17`). Siehe
+> [`Training/Dockerfile`](../../Training/Dockerfile).
 
 > **Nicht auswendig lernen:** Die Host-Launcher fragen diese Werte ab, wenn man sie ohne
 > Parameter startet, und erklären sie dabei — siehe
@@ -75,7 +79,7 @@ Diese Schalter aktivieren einzelne Verfahren beim Trainingsstart — alle unabh�
 | `USE_AUGMENTATION` | `1` | Bild-Augmentierung / Domain-Randomization (Color-Jitter, optional Rotation/State-Dropout) gegen den Sim-Real-Domain-Gap. `0` = explizit aus (Color-Jitter auf 0, kein Modell-Default-Jitter). **Gilt seit 2026-08-13 auch für `TUNE_VISUAL=1`** — vorher war der Jitter im Vision-Skript fest verdrahtet und der Schalter dort wirkungslos. |
 | `CJ_BRIGHTNESS` / `CJ_CONTRAST` / `CJ_SATURATION` / `CJ_HUE` | `0.3` / `0.4` / `0.5` / `0.08` | Color-Jitter-Stärken (nur bei `USE_AUGMENTATION=1`). |
 | `RANDOM_ROTATION_ANGLE` | *(leer)* | Max. Rotationswinkel (Grad) für Bild-Rotations-Augmentierung; leer = aus. |
-| `STATE_DROPOUT_PROB` | `0.0` | Dropout-Wahrscheinlichkeit auf den State-Inputs (Regularisierung); `0.0` = aus. |
+| `STATE_DROPOUT_PROB` | *(leer)* | Dropout-Wahrscheinlichkeit auf den State-Inputs (Regularisierung). Leer = Modell-Default der gewählten Generation (N1.6 `0.0`, N1.7 `0.2` — bewusst übernommen, siehe [groot-n17-migration.md § Stand der Umsetzung, Nachtrag 2026-09-25](../weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19)); ein gesetzter Wert (auch `0`) wird immer übergeben. |
 | `USE_RL` | `0` | `1` = RL-Fine-tuning (FPO) gewünscht. Läuft **nicht** im BC-Trainingsimage (kein Isaac Sim): der BC-Entrypoint bricht mit einem Hinweis auf den RL-Pfad ab. RL braucht den kombinierten Isaac-Sim + GR00T-Container ([`Simulation/scripts/entrypoint_rl.sh`](../../Simulation/scripts/entrypoint_rl.sh) bzw. [`Training/kisski_rl_submit.sh`](../../Training/kisski_rl_submit.sh)) auf einer **RT-Core-GPU**. Details: [reinforcement-learning-plan.md](../weiterfuehrend/reinforcement-learning-plan.md). |
 | `USE_COTRAIN` | `0` | `1` = **Co-Training auf echten UND gerenderten Bildern** (Schritt 4). Entrypoint startet [`run_finetuning_cotrain.sh`](../../Training/scripts/run_finetuning_cotrain.sh) mit eigenem Namespace `blockstacking_cotrain`; setzt `--tune_visual` selbst und hat Vorrang vor `TUNE_VISUAL`. Braucht einen gerenderten Datensatz (siehe unten). Anleitung: [co-training.md](co-training.md). |
 

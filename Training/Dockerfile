@@ -13,8 +13,9 @@
 # Build (Build-Context ist der Training/-Ordner, der dieses Dockerfile + scripts/ enthält):
 #   docker build -t projektarbeit-humanoider-roboter Training/      # vom Repo-Root aus
 #   cd Training && docker build -t projektarbeit-humanoider-roboter .
-#   Nur N1.6 (halbe Größe, altes Verhalten):  --build-arg GROOT_VERSIONS=1.6
-#   Nur N1.7:                                  --build-arg GROOT_VERSIONS=1.7
+#   Default: nur N1.6 (GROOT_VERSIONS=1.6). Bequemer über ./update_image.sh --groot=1.6|1.7|both.
+#   Nur N1.7:     --build-arg GROOT_VERSIONS=1.7 --build-arg GROOT_VERSION_DEFAULT=1.7
+#   Beide venvs:  --build-arg "GROOT_VERSIONS=1.6 1.7"   (~doppelte Größe, nie Default)
 #
 # Braucht BuildKit (Docker >= 23, sonst DOCKER_BUILDKIT=1): dieses Dockerfile nutzt
 # `RUN --mount=type=cache`, `COPY --chmod` und Heredocs. Der alte Classic Builder
@@ -71,8 +72,12 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 # uv Paketmanager (exakte Version wie im Original)
 RUN curl -LsSf https://astral.sh/uv/0.8.14/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh
 
-# Welche GR00T-Generationen gebaut werden (Leerzeichen-getrennt). Default: beide.
-ARG GROOT_VERSIONS="1.6 1.7"
+# Welche GR00T-Generationen gebaut werden (Leerzeichen-getrennt). Default: nur N1.6 —
+# ein Image je Generation; "1.6 1.7" packt beide venvs hinein (doppelte Größe).
+ARG GROOT_VERSIONS="1.6"
+# GROOT_VERSION, mit der der Container ohne -e GROOT_VERSION=… startet. Muss eine der
+# gebauten Generationen sein (update_image.sh setzt die erste aus GROOT_VERSIONS).
+ARG GROOT_VERSION_DEFAULT=1.6
 
 # ── GR00T N1.6 ───────────────────────────────────────────────────────────────────────────
 # Repositories klonen (gepinnte Commits für Reproduzierbarkeit)
@@ -137,12 +142,13 @@ COPY <<'EOF' /usr/share/vulkan/icd.d/nvidia_icd.json
 }
 EOF
 
-# Default-venv = N1.6 (Rückwärtskompatibilität für interaktive Shells); bei GROOT_VERSION=1.7
-# stellt der Entrypoint via groot_activate_venv auf /app/Groot-1.7/.venv um. Interaktiv:
+# Default-venv = die der Default-Generation (GROOT_VERSION_DEFAULT, im N1.6-Image wie bisher
+# /app/Groot-1.6) — so hat auch eine interaktive Shell im reinen N1.7-Image eine venv. Im
+# Dual-Image stellt der Entrypoint bei GROOT_VERSION=1.7 via groot_activate_venv um. Interaktiv:
 #   source /scripts/lib_groot_version.sh && GROOT_VERSION=1.7 groot_resolve && groot_activate_venv
-ENV PATH="/app/Groot-1.6/.venv/bin:${PATH}" \
-    VIRTUAL_ENV="/app/Groot-1.6/.venv" \
-    GROOT_ROOT="/app/Groot-1.6" \
+ENV PATH="/app/Groot-${GROOT_VERSION_DEFAULT}/.venv/bin:${PATH}" \
+    VIRTUAL_ENV="/app/Groot-${GROOT_VERSION_DEFAULT}/.venv" \
+    GROOT_ROOT="/app/Groot-${GROOT_VERSION_DEFAULT}" \
     MUJOCO_GL="egl" \
     PYOPENGL_PLATFORM="egl" \
     __EGL_VENDOR_LIBRARY_FILENAMES="/usr/share/glvnd/egl_vendor.d/10_nvidia.json" \
@@ -176,7 +182,7 @@ ENV MAX_STEPS=20000 \
     WANDB_PROJECT=gr00t-g1-dex3 \
     DATA_DIR=/data \
     HF_HOME=/data/hf_cache \
-    GROOT_VERSION=1.6 \
+    GROOT_VERSION=${GROOT_VERSION_DEFAULT} \
     SKIP_DOWNLOAD=0 \
     SKIP_CONVERT=0 \
     SKIP_TRAIN=0 \

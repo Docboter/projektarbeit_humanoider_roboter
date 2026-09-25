@@ -63,9 +63,12 @@ pick_sif() {   # erste EXISTIERENDE Datei gewinnt; sonst der erste Kandidat, dam
 }
 
 # ── Konfiguration ─────────────────────────────────────────────────────────────
+# Ein Image je GR00T-Generation: N1.7 liegt als eigene SIF daneben (aus :latest-n17).
+case "${GROOT_VERSION:-1.6}" in 1.7|n17|N1.7|17) SIF_SUFFIX="-n17" ;; *) SIF_SUFFIX="" ;; esac
 SERVER_SIF="${SERVER_SIF:-$(pick_sif \
-    "$KISSKI_SIF_DIR/projekt-humanoider-roboter.sif" \
-    "$KISSKI_PROJECT_DIR/images/projekt-humanoider-roboter.sif")}"
+    "$KISSKI_SIF_DIR/projekt-humanoider-roboter$SIF_SUFFIX.sif" \
+    "$KISSKI_PROJECT_DIR/images/projekt-humanoider-roboter$SIF_SUFFIX.sif")}"
+SIF_DOCKER_TAG="latest"; [[ -n "$SIF_SUFFIX" ]] && SIF_DOCKER_TAG="latest-n17"
 DATA_DIR="${DATA_DIR:-$KISSKI_PROJECT_DIR/data}"
 # Wie in kisski_submit.sh: fester Pfad auf dem Projektspeicher. NICHT über BASH_SOURCE
 # herleiten — sbatch führt eine Kopie aus dem SLURM-Spool aus, nicht die Datei im Repo.

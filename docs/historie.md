@@ -770,3 +770,17 @@ Doku-Gegenstück: [groot-n17-migration.md](weiterfuehrend/groot-n17-migration.md
 [env-vars.md](training/env-vars.md), [kisski-hpc.md](training/kisski-hpc.md),
 [co-training.md](training/co-training.md), [vastai-anleitung.md](simulation/vastai-anleitung.md),
 [fehlerbehebung.md](fehlerbehebung.md), [portabilitaet.md](portabilitaet.md).
+
+## 2026-09-25 — Upstream-Merge, ein Trainings-Image je Generation
+
+**Was geändert wurde:** `training-luca-IKR-IS6.0` (Stand 2026-09-23, 69 Commits) ist per
+**Merge** (kein Rebase) in den N1.7-Branch geholt — der Datensatz
+`unitreerobotics/G1_Dex3_BlockStacking_Dataset` passt dabei ohne Umbau für beide Generationen.
+Das Trainings-Image baut seither standardmäßig nur noch **eine** GR00T-Generation statt beider
+venvs: `Training/update_image.sh --groot=1.6|1.7|both` (Default `1.6`; `both` nie Default),
+Tags `:<branch>-n16|-n17|-n16-n17` bzw. mit `--push-latest` `:latest`/`:latest-n17`. Zusätzlich
+**Entscheidung:** N1.7 trainiert mit den NVIDIA-Standardwerten statt gleichgezogenen — betrifft
+vor allem `STATE_DROPOUT_PROB` (jetzt leer = Modell-Default, N1.6 `0.0`, N1.7 `0.2`, bewusst
+beibehalten statt erzwungen gleichgesetzt). Weiterhin gilt: **kein Image gebaut, kein
+N1.7-Trainings-/Sim-Lauf** — vollständiger Stand:
+[groot-n17-migration.md § Stand der Umsetzung, Nachtrag 2026-09-25](weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19).

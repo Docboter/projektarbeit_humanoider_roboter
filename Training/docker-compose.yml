@@ -15,7 +15,9 @@
 #   docker compose run --rm groot-training bash   # Shell
 services:
   groot-training:
-    image: lucam03/projekt-humanoider-roboter:latest
+    # Ein Image je GR00T-Generation: :latest = N1.6, :latest-n17 = N1.7 (GROOT_IMAGE_TAG setzt
+    # setup_and_train_container_build.sh passend zu GROOT_VERSION).
+    image: lucam03/projekt-humanoider-roboter:${GROOT_IMAGE_TAG:-latest}
     container_name: groot-train
     runtime: nvidia
     ipc: host

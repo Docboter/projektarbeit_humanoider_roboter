@@ -84,7 +84,7 @@ Sweep-Tabelle, HF-Zugang zum gated Backbone noch nicht bestätigt (muss je Token
 werden).
 
 **Phase 5 — Sim-Image & Inferenz: Scripts fertig, Image nicht gebaut, kein Lauf.**
-[`Simulation/Dockerfile.vastai`](../../Simulation/Dockerfile.vastai) baut ebenfalls beide
+[`Simulation/Dockerfile.standalone`](../../Simulation/Dockerfile.standalone) baut ebenfalls beide
 venvs (N1.7 mit System-Python 3.12 von Ubuntu 24.04 + `python3.12-dev`, `usd-core` installiert,
 deepspeed entfernt, Build-Time-Smoke-Test); `ENV GROOT_VERSION=auto`; das fest gesetzte
 `GROOT_ROOT` wurde entfernt (die Lib leitet es her).
@@ -128,6 +128,55 @@ kein Retag, keine Pfad-Umbenennung.
 die beim eigentlichen Bauen entstanden sind, z. B. `co-training.md`, `fehlerbehebung.md`) wurden
 mit diesem Stand aktualisiert; Changelog-Eintrag in [historie.md](../historie.md).
 
+**Nachtrag 2026-09-25 — Upstream-Merge, Datensatz-Kompatibilität, ein Image je Generation.**
+Weiterhin gilt: **kein Image gebaut, kein N1.7-Lauf.** Alles Folgende ist statisch geprüft
+(gegen die gepinnten Fork-Commits N1.6 `9508b49` aus `Training/Dockerfile` und N1.7 `efa0169`).
+
+- **Upstream eingemergt:** `training-luca-IKR-IS6.0` (Stand 2026-09-23, 69 Commits) ist per
+  **Merge** (kein Rebase) in diesen Branch geholt — der N1.7-Branch bleibt eigenständig, der
+  spätere Rück-Merge wird kleiner. Dortige Umbenennungen (`Dockerfile.vastai` →
+  `Dockerfile.standalone`, `--vastai` → `--standalone`, `setup_and_train_dockerhub_pull.sh`,
+  `sim-eval-anleitung.md`) sind nachgezogen; `GROOT_VERSION` läuft auch durch die neuen
+  Upstream-Pfade (`run.sh`, `lib_resume_guard.sh`, `--gradient_accumulation_steps`).
+- **Datensatz `unitreerobotics/G1_Dex3_BlockStacking_Dataset` passt ohne Umbau** (LeRobot v3.0,
+  301 Episoden, 4 × AV1-Video 640×480, 28-dim State/Action): Konverter v3→v2.1,
+  `g1_dex3_config.py` und `modality_4cam.json` sind in beiden Fork-Bäumen byte-identisch und
+  nutzen die N1.7-API korrekt; jedes Flag der Launcher existiert unverändert in der
+  N1.7-`FinetuneConfig`; N1.7 liest `info.json["splits"]` im Format von `lib_split.sh`.
+  Die mitgelieferte `stats.json` hat keine `q01`/`q99` — N1.7 rechnet `stats.json` und
+  `relative_stats.json` beim ersten Start auf Rank 0 selbst nach (`DatasetFactory.build`), ein
+  zusätzlicher Datensatz-Durchlauf. N1.6 ignoriert die Zusatzschlüssel; derselbe Datensatz unter
+  `/data` bleibt für beide Generationen nutzbar.
+- **Entscheidung: N1.7 trainiert mit den NVIDIA-Standardwerten.** Ziel ist das bestmögliche
+  N1.7-Ergebnis, nicht ein streng gleicher Vergleich. Betroffen:
+  - **State-Dropout** (`state_dropout_prob`: im Training wird der State — die 28 Gelenkwinkel —
+    zufällig ausgeblendet, das Modell muss dann allein aus den Bildern handeln): N1.6-Default
+    `0.0`, N1.7-Default `0.2`. `STATE_DROPOUT_PROB` ist jetzt **leer = Modell-Default**; ein
+    gesetzter Wert wird immer übergeben (vorher wurde `0` verschluckt, unter N1.7 ließ sich der
+    Dropout also nicht abschalten).
+  - **Normalisierung** (`use_percentiles`, nur N1.7, Default `True`): Perzentile `q01`/`q99`
+    statt Min/Max wie bei N1.6. Nicht als Env-Var verdrahtet.
+  - Folge: N1.6 vs. N1.7 vergleicht Modell **und** Trainingsrezept. Für die Ausarbeitung
+    vermerkt in `latex/chapters/03_methoden.tex` (Kommentar `TODO(N1.7, …)`).
+- **Ein Image je Generation:** `Training/update_image.sh --groot=1.6|1.7|both` (ohne Flag am
+  Terminal: Menü, Spec `tools/menu/image-build.spec`; sonst Default `1.6`). `both` ist nie
+  Default. Tags: `:<branch>-n16|-n17|-n16-n17`, `:<zeitstempel>-<gen>`; mit `--push-latest`
+  N1.6 → `:latest` (unverändert), N1.7 → `:latest-n17`. `Training/Dockerfile` baut ohne
+  Build-Arg nur N1.6; `GROOT_VERSION_DEFAULT` setzt `GROOT_VERSION`/venv/`PATH` im Image.
+  Verbraucher folgen `GROOT_VERSION`: `setup_and_train_dockerhub_pull.sh` zieht bei `1.7`
+  `:latest-n17` und prüft nach dem Pull das Label `de.humrob.groot-versions`;
+  `docker-compose.yml` nutzt `${GROOT_IMAGE_TAG:-latest}`; KISSKI (`kisski_submit.sh`,
+  `kisski_open_loop_eval.sh`) wählt bei `1.7` die SIF `projekt-humanoider-roboter-n17.sif`;
+  der Entrypoint bricht klar ab, wenn die venv der gewählten Generation im Image fehlt.
+  Das Sim-Image (`update_sim_image.sh`) baut weiterhin standardmäßig beide.
+- **Offen / ungetestet:** AV1-Dekodierung über torchcodec 0.8 mit dem FFmpeg 4.4 aus Ubuntu
+  22.04 (der Build-Smoke-Test importiert torchcodec nur); VRAM auf der 32-GB-5090; ob
+  `nvidia/GR00T-N1.7-3B` gegen `efa0169` sauber lädt. Der Submodul-Pointer `app/Groot-1.6`
+  (`26ad1f7`) ist im Fork nicht mehr abrufbar (`git submodule update` scheitert; der Build nutzt
+  `GROOT16_COMMIT=9508b49` und ist nicht betroffen). `setup_and_train_container_build.sh`
+  „baut“ per `docker compose build`, aber `docker-compose.yml` hat seit `cb388a1` keinen
+  `build:`-Abschnitt mehr — der Schritt ist wirkungslos (bestand schon vorher).
+
 ## 1. Was ist GR00T N1.7?
 
 | | |
@@ -166,7 +215,7 @@ mit diesem Stand aktualisiert; Changelog-Eintrag in [historie.md](../historie.md
 
 **A — unverändert nutzbar (0 Aufwand):** `examples/G1_DEX3/g1_dex3_config.py`, `modality_*.json`, `lib_split.sh` (patcht nur `meta/info.json`), `run_finetuning.sh` / `_vision.sh` / `_cotrain.sh` (nur `MODEL_PATH`-Default), `entrypoint.sh` (nur `MODEL_DIR`), `kisski_submit.sh` (Bind-Mounts bleiben; Kommentar Zeile 345 „Container hat nur gr00t_n1d7-Code, Modell ist aber N1.6" ist mit N1.7 endlich stimmig — **vorher verifizieren, was das SIF heute enthält**), `client.py` / `client_g1.py` (vendored, protokollgleich), `check_action_norm.py` (stdlib, 28-dim-Layout), `entrypoint_sim.sh`-Serverstart, `server_rl_run.sh`, `camera_geometry.py`, Sim-Env.
 
-**B — kleine Anpassung (Zeilen):** `download_data.sh` (+ Cosmos-Backbone in HF-Cache), `Training/Dockerfile:55-56` + `Simulation/Dockerfile.vastai:90-92` (Clone-Branch/Pin; `update_image.sh` kann den Pin per `--update-commit` setzen), `.gitmodules` (Branch), `checkpoint_sweep.py` (Import-Check, `EmbodimentTag`-Resolve), `finger_span_openloop.py`, `dump_unitree_g1_dims.py`, Robocasa-Skripte (Modell-ID; **Achtung:** `run_robocasa_ref_eval.sh:51` nutzt `RC_EMBODIMENT_TAG=GR1` — in N1.7 **entfernt**, ebenso das Robocasa-Env im EA-Tag → Referenz-Eval bleibt N1.6 oder entfällt), **`entrypoint_baseline.sh:70,163` + `g1_gripper_sim/` (Stock-G1-Baseline, `UNITREE_G1`, 16-dim Actions): in N1.7 ist `UNITREE_G1` ein *Posttrain*-Tag mit anderer Semantik (Sim-Ganzkörper, `ego_view`, Waist/Nav-Cmds, 50er-Chunk) und **ohne Zero-Shot-Kopf im Base-Modell** → Baseline-Eval in heutiger Form **bricht**; Ersatzkandidat ist der Pretrain-Tag `REAL_G1` (Keys prüfen, §6), `entrypoint_sim.sh:236-241` (Flash-Attn-Pflichthinweis ist N1.7-spezifisch zu prüfen: Qwen3-Backbone fällt auf `sdpa` zurück, wenn flash-attn fehlt).
+**B — kleine Anpassung (Zeilen):** `download_data.sh` (+ Cosmos-Backbone in HF-Cache), `Training/Dockerfile:55-56` + `Simulation/Dockerfile.standalone` (Clone-Branch/Pin; `update_image.sh` kann den Pin per `--update-commit` setzen), `.gitmodules` (Branch), `checkpoint_sweep.py` (Import-Check, `EmbodimentTag`-Resolve), `finger_span_openloop.py`, `dump_unitree_g1_dims.py`, Robocasa-Skripte (Modell-ID; **Achtung:** `run_robocasa_ref_eval.sh:51` nutzt `RC_EMBODIMENT_TAG=GR1` — in N1.7 **entfernt**, ebenso das Robocasa-Env im EA-Tag → Referenz-Eval bleibt N1.6 oder entfällt), **`entrypoint_baseline.sh:70,163` + `g1_gripper_sim/` (Stock-G1-Baseline, `UNITREE_G1`, 16-dim Actions): in N1.7 ist `UNITREE_G1` ein *Posttrain*-Tag mit anderer Semantik (Sim-Ganzkörper, `ego_view`, Waist/Nav-Cmds, 50er-Chunk) und **ohne Zero-Shot-Kopf im Base-Modell** → Baseline-Eval in heutiger Form **bricht**; Ersatzkandidat ist der Pretrain-Tag `REAL_G1` (Keys prüfen, §6), `entrypoint_sim.sh:236-241` (Flash-Attn-Pflichthinweis ist N1.7-spezifisch zu prüfen: Qwen3-Backbone fällt auf `sdpa` zurück, wenn flash-attn fehlt).
 
 **C — Neubau/Abgleich (Tage):** `launch_cotrain.py` (Kopie der **N1.7**-`launch_finetune.py` mit nur dem `datasets`-Block; Upstream-Multi-Path reicht nicht, da wir pro Datensatz `mix_ratio` brauchen), `rl_finetune.py` (Action-Head-Forward/Maske/Decode gegen `gr00t_n1d7` + `processing_gr00t_n1d7.py` neu verifizieren), `policy_latency.py` (greift `Gr00tN1d6ActionHead` an), `groot_inference_backend.py` + `optimize_groot_inference.py` + `run_groot_optimized_server.py` (TRT-DiT-Export für neue Architektur; Alternative Upstream-Pipeline `scripts/deployment/export_onnx_n1d7.py` + `build_trt_pipeline.py`).
 
@@ -223,7 +272,7 @@ mit diesem Stand aktualisiert; Changelog-Eintrag in [historie.md](../historie.md
 4. Sweep auf Held-out wie bei Lauf 3 → U-Kurve N1.7 vs. N1.6 (Lauf 3, ckpt 30000).
 - **Abnahme:** Lauf beendet, Sweep-Tabelle in `docs/ergebnisse/` (neue Datei `lauf4-n17-vergleich.md`), W&B-Offline-Sync.
 
-### Phase 5 — Sim-Image & Inferenz (`Simulation/Dockerfile.vastai`, Server-Workflow)
+### Phase 5 — Sim-Image & Inferenz (`Simulation/Dockerfile.standalone`, Server-Workflow)
 1. GR00T-venv auf Python 3.12 (Ubuntu 24.04-Basis hat 3.12 nativ → `uv venv --python /usr/bin/python3.12`), Pin wie Training-Image, `HF_HOME` + Backbone-Download in `entrypoint_sim.sh`/`entrypoint_rl.sh`/`entrypoint_baseline.sh` (oder per `HF_CHECKPOINT_REPO`-Pfad mitladen).
 2. `entrypoint_sim.sh:236-241`: Flash-Attn-Hinweis auf Qwen3 anpassen (Fallback `sdpa` existiert jetzt — `NO_FLASH_ATTN` könnte wieder wirken).
 3. Eager-Pfad zuerst: `server_rl_run.sh eval` mit N1.7-Checkpoint → Phase-D-Assert `(16,28)` in `run_g1_dex3_sim_eval.py:561` muss halten.
@@ -242,7 +291,7 @@ mit diesem Stand aktualisiert; Changelog-Eintrag in [historie.md](../historie.md
 2. Optional: Submodul-Pfad `app/Groot-1.6` → `app/Groot` (156 Stellen, `GROOT_ROOT`-Defaults), N1.6-Pfad als `:n16`-Images + Branch `luca/g1-dex3` archivieren.
 
 ### Phase 8 — Doku-Pass
-`CLAUDE.md` (Overview, Env-Var-Tabelle, VRAM-Tabelle, Architektur-Baum), `README.md`, `docs/README.md`, `docs/training/{anleitung,env-vars,kisski-hpc,trainingsverfahren,co-training}.md`, `docs/simulation/{vastai-anleitung,umsetzungsnotizen,inferenz-optimierung,baseline-eval}.md`, `docs/weiterfuehrend/{rl-anleitung,reinforcement-learning-plan}.md`, `docs/portabilitaet.md` (Hinweis „HF-Repo nicht gated" → Backbone **ist** gated), `app/Groot-1.6/examples/G1_DEX3/*.md` (Fork), `docs/historie.md` (Eintrag „Umstieg N1.6→N1.7"). Ergebnis-Dateien `lauf1–3` bleiben unverändert (historisch, N1.6).
+`CLAUDE.md` (Overview, Env-Var-Tabelle, VRAM-Tabelle, Architektur-Baum), `README.md`, `docs/README.md`, `docs/training/{anleitung,env-vars,kisski-hpc,trainingsverfahren,co-training}.md`, `docs/simulation/{sim-eval-anleitung,umsetzungsnotizen,inferenz-optimierung,baseline-eval}.md`, `docs/weiterfuehrend/{rl-anleitung,reinforcement-learning-plan}.md`, `docs/portabilitaet.md` (Hinweis „HF-Repo nicht gated" → Backbone **ist** gated), `app/Groot-1.6/examples/G1_DEX3/*.md` (Fork), `docs/historie.md` (Eintrag „Umstieg N1.6→N1.7"). Ergebnis-Dateien `lauf1–3` bleiben unverändert (historisch, N1.6).
 
 ## 6. Offene Entscheidungen / Optionen (nicht Teil der Basis-Migration)
 
@@ -263,7 +312,7 @@ N1.6 bleibt vollständig lauffähig: Branch `luca/g1-dex3`, Images `:n16`, Upstr
 - Lokaler Diff im Submodul: `git -C app/Groot-1.6 diff n1.6-release..n1.7-release` (295 Dateien; für uns relevant ~650 Zeilen in `gr00t/{configs,data,experiment,policy}`), `git merge-tree --write-tree HEAD n1.7-release` (nur `uv.lock`-Konflikt).
 - HF: `nvidia/GR00T-N1.7-3B` (Model-Card, NVIDIA Open Model License), `nvidia/Cosmos-Reason2-2B` (gated); HF-Blog `nvidia/gr00t-n1-7` (EgoScale-Skalierung — Zahlen nicht primär verifiziert).
 - NVIDIA Developer Forum: „Early Access: Isaac GR00T N1.7" (2026-04-17/18).
-- Repo-Inventar (eigene Skripte): `Training/scripts/{download_data,entrypoint,run_finetuning*,launch_cotrain,checkpoint_sweep}`, `Training/{Dockerfile,kisski_submit.sh,update_image.sh}`, `Simulation/{Dockerfile.vastai,server_rl_run.sh}`, `Simulation/scripts/{entrypoint_sim,entrypoint_baseline,policy_latency,finger_span_openloop,groot_inference_backend,optimize_groot_inference,run_groot_optimized_server,check_action_norm}`, `Simulation/g1_dex3_sim/{client,rl_finetune,run_g1_dex3_sim_eval}`.
+- Repo-Inventar (eigene Skripte): `Training/scripts/{download_data,entrypoint,run_finetuning*,launch_cotrain,checkpoint_sweep}`, `Training/{Dockerfile,kisski_submit.sh,update_image.sh}`, `Simulation/{Dockerfile.standalone,server_rl_run.sh}`, `Simulation/scripts/{entrypoint_sim,entrypoint_baseline,policy_latency,finger_span_openloop,groot_inference_backend,optimize_groot_inference,run_groot_optimized_server,check_action_norm}`, `Simulation/g1_dex3_sim/{client,rl_finetune,run_g1_dex3_sim_eval}`.
 
 ## 9. Entscheidungslog
 

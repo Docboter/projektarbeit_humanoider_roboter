@@ -19,8 +19,10 @@ Diese Anleitung beschreibt Schritt für Schritt, wie du das Fine-tuning von **GR
 ## Modellgeneration wählen — N1.6 oder N1.7
 
 Standardmäßig trainiert der Container **GR00T N1.6** (`GROOT_VERSION=1.6`, so wie der Rest
-dieser Anleitung es beschreibt). Seit 2026-08-19 liegt **N1.7** als **paralleler Pfad** im
-selben Image — auswählbar über eine zusätzliche Env-Var, sonst ändert sich nichts:
+dieser Anleitung es beschreibt). Seit 2026-08-19 liegt **N1.7** als **paralleler Codebaum**
+vor — auswählbar über eine zusätzliche Env-Var, sonst ändert sich nichts. Seit 2026-09-25
+steckt N1.7 dafür in einem **eigenen Image** (`:latest-n17` statt `:latest`, siehe
+[Weg D](#d0-docker-image-bauen-und-nach-docker-hub-pushen)):
 
 ```bash
 -e GROOT_VERSION=1.7
@@ -279,20 +281,25 @@ Der Cluster zieht das Image per `apptainer pull docker://lucam03/projekt-humanoi
 ```bash
 docker login                            # einmalig
 cd Training
-./update_image.sh                       # Build + Push (aktueller Dockerfile-Stand)
+./update_image.sh                       # fragt am Terminal nach der Generation (sonst Default 1.6)
+./update_image.sh --groot=1.6           # N1.6-Image bauen + pushen
+./update_image.sh --groot=1.7           # N1.7-Image bauen + pushen
+./update_image.sh --groot=both          # beide venvs in einem Image (~doppelte Größe, nie Default)
 ./update_image.sh --update-commit       # zusätzlich neuesten GR00T-Commit ins Dockerfile eintragen
 ./update_image.sh --no-cache            # Build ohne Cache (z. B. nach flash-attn-Problemen)
 ./update_image.sh --skip-push           # nur lokal bauen, nicht pushen
-./update_image.sh --push-latest         # zusätzlich :latest setzen + pushen
+./update_image.sh --push-latest         # zusätzlich :latest (bzw. :latest-n17/-n16-n17) setzen + pushen
 ./update_image.sh --dry-run             # nur Befehle anzeigen
 ```
 
-Das Skript taggt das Image mit `:<repo-branch>` (z. B. `:training-luca-IKR-IS6.0-GN1.7`, `/`→`-`)
-und `:<timestamp>` und pusht beide. **`:latest` wird nur mit `--push-latest` angefasst** — so
-überschreibt ein ungetesteter Build (etwa das Dual-Image N1.6+N1.7) nicht das Image, das
-`setup_and_train_DockerHub-pull.sh` und die KISSKI-`apptainer pull`-Befehle standardmäßig ziehen.
-Die Herkunft steht in OCI-Labels im Image (Repo-Branch/-Commit, `de.humrob.repo-dirty`,
-`GROOT_VERSIONS`, beide Fork-Pins): `docker inspect --format '{{json .Config.Labels}}' <image>`.
+Jede Generation bekommt ihr eigenes Image: Das Skript taggt mit `:<repo-branch>-<gen>` (z. B.
+`:training-luca-IKR-IS6.0-GN1.7-n17`, `/`→`-`) und `:<timestamp>-<gen>`, `<gen>` = `n16` |
+`n17` | `n16-n17`, und pusht beide. **`:latest` wird nur mit `--push-latest` angefasst** —
+N1.6 → `:latest` (unverändert, das ziehen `setup_and_train_dockerhub_pull.sh` und die
+KISSKI-`apptainer pull`-Befehle standardmäßig), N1.7 → `:latest-n17`, `both` →
+`:latest-n16-n17`. Die Herkunft steht in OCI-Labels im Image (Repo-Branch/-Commit,
+`de.humrob.repo-dirty`, `de.humrob.groot-versions`, beide Fork-Pins):
+`docker inspect --format '{{json .Config.Labels}}' <image>`.
 *(Das frühere Windows-Pendant `update_image.ps1` wurde entfernt; unter Windows WSL2 verwenden.)*
 
 **Variante 2 — manuell mit `docker` (Linux/macOS/WSL2):**
@@ -302,6 +309,12 @@ docker login                          # einmalig
 # Build-Context ist Training/ (damit COPY scripts/ funktioniert). --platform für KISSKI-Kompatibilität:
 docker build --platform linux/amd64 -t lucam03/projekt-humanoider-roboter:latest Training/
 docker push lucam03/projekt-humanoider-roboter:latest
+
+# N1.7 (eigenes Image, eigenes Tag):
+docker build --platform linux/amd64 \
+  --build-arg GROOT_VERSIONS=1.7 --build-arg GROOT_VERSION_DEFAULT=1.7 \
+  -t lucam03/projekt-humanoider-roboter:latest-n17 Training/
+docker push lucam03/projekt-humanoider-roboter:latest-n17
 ```
 
 Der erste Build dauert ~30–60 min (PyTorch + flash-attn); danach greift der Docker-Cache. Das Dockerfile klont das GR00T-Submodul selbst und checkt einen **gepinnten Commit** aus — `git clone --recurse-submodules` vorab ist nicht nötig.
@@ -315,6 +328,9 @@ Auf dem Login-Knoten wird das (frisch gepushte) Docker-Hub-Image in das Apptaine
 module load apptainer
 apptainer pull $HOME/images/projekt-humanoider-roboter.sif \
     docker://lucam03/projekt-humanoider-roboter:latest
+# Für GROOT_VERSION=1.7 eine eigene SIF (wird von kisski_submit.sh automatisch gewählt):
+apptainer pull $HOME/images/projekt-humanoider-roboter-n17.sif \
+    docker://lucam03/projekt-humanoider-roboter:latest-n17
 
 # Job einreichen:
 export HF_TOKEN=hf_...  WANDB_API_KEY=...  GLOBAL_BATCH_SIZE=32

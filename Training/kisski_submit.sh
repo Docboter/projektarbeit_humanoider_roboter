@@ -11,6 +11,9 @@
 #        mkdir -p $HOME/images
 #        apptainer pull $HOME/images/projekt-humanoider-roboter.sif \
 #            docker://lucam03/projekt-humanoider-roboter:latest
+#      Für GROOT_VERSION=1.7 eine eigene SIF (wird dann automatisch gewählt):
+#        apptainer pull $HOME/images/projekt-humanoider-roboter-n17.sif \
+#            docker://lucam03/projekt-humanoider-roboter:latest-n17
 #
 #   3. Tokens EINMALIG in Dateien hinterlegen (mode 600):
 #        printf 'hf_DEIN_TOKEN\n'    > ~/.hf_token  && chmod 600 ~/.hf_token
@@ -82,9 +85,12 @@ pick_sif() {   # erste EXISTIERENDE Datei gewinnt; sonst der erste Kandidat, dam
 }
 
 # ── Konfiguration ─────────────────────────────────────────────────────────────
+# Ein Image je GR00T-Generation: N1.7 liegt als eigene SIF daneben (aus :latest-n17).
+case "${GROOT_VERSION:-1.6}" in 1.7|n17|N1.7|17) SIF_SUFFIX="-n17" ;; *) SIF_SUFFIX="" ;; esac
 SIF_IMAGE="${SIF_IMAGE:-$(pick_sif \
-    "$KISSKI_SIF_DIR/projekt-humanoider-roboter.sif" \
-    "$KISSKI_PROJECT_DIR/images/projekt-humanoider-roboter.sif")}"
+    "$KISSKI_SIF_DIR/projekt-humanoider-roboter$SIF_SUFFIX.sif" \
+    "$KISSKI_PROJECT_DIR/images/projekt-humanoider-roboter$SIF_SUFFIX.sif")}"
+SIF_DOCKER_TAG="latest"; [[ -n "$SIF_SUFFIX" ]] && SIF_DOCKER_TAG="latest-n17"
 DATA_DIR="${DATA_DIR:-$KISSKI_PROJECT_DIR/data}"
 
 # Prüfen ob DATA_DIR-Pfad vom Compute-Node aus erreichbar ist
@@ -178,7 +184,7 @@ CJ_CONTRAST="${CJ_CONTRAST:-0.4}"
 CJ_SATURATION="${CJ_SATURATION:-0.5}"
 CJ_HUE="${CJ_HUE:-0.08}"
 RANDOM_ROTATION_ANGLE="${RANDOM_ROTATION_ANGLE:-}"
-STATE_DROPOUT_PROB="${STATE_DROPOUT_PROB:-0.0}"
+STATE_DROPOUT_PROB="${STATE_DROPOUT_PROB:-}"   # leer = Modell-Default (N1.6: 0.0, N1.7: 0.2)
 
 SKIP_DOWNLOAD="${SKIP_DOWNLOAD:-1}"
 SKIP_CONVERT="${SKIP_CONVERT:-0}"
@@ -223,7 +229,7 @@ if [[ ! -f "$SIF_IMAGE" ]]; then
     echo "Einmalig erstellen:" >&2
     echo "    module load apptainer" >&2
     echo "    mkdir -p \$HOME/images" >&2
-    echo "    apptainer pull \$HOME/images/projekt-humanoider-roboter.sif docker://lucam03/projekt-humanoider-roboter:latest" >&2
+    echo "    apptainer pull \$HOME/images/projekt-humanoider-roboter$SIF_SUFFIX.sif docker://lucam03/projekt-humanoider-roboter:$SIF_DOCKER_TAG" >&2
     exit 1
 fi
 

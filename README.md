@@ -13,8 +13,9 @@ Dieses Repository dokumentiert das Fine-tuning von NVIDIAs **GR00T N1.6**
 Vision-Language-Action-Modell auf den Unitree G1 Roboter mit DEX3-Hand für die Aufgabe
 Block-Stacking — plus eine Closed-Loop-**Simulations-Evaluation** in Isaac Lab.
 
-Seit 2026-08-19 liegt **GR00T N1.7** als **paralleler Pfad** im selben Image (`GROOT_VERSION=1.7`
-statt Default `1.6`) — Details: [docs/weiterfuehrend/groot-n17-migration.md](docs/weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19).
+Seit 2026-08-19 liegt **GR00T N1.7** als **paralleler Codebaum** vor (`GROOT_VERSION=1.7`
+statt Default `1.6`); seit 2026-09-25 in einem **eigenen Trainings-Image** (`:latest-n17`) —
+Details: [docs/weiterfuehrend/groot-n17-migration.md](docs/weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19).
 **Ungetestet:** Es gibt noch keinen abgeschlossenen N1.7-Trainings- oder Sim-Lauf.
 
 Die Trainingsumgebung läuft **vollständig autonom in einem Container**: Container starten →
@@ -79,12 +80,13 @@ export HF_TOKEN=hf_...  WANDB_API_KEY=...
 ./Training/setup_and_train_dockerhub_pull.sh
 ```
 
-**GR00T N1.7 statt N1.6** (paralleler Pfad, ungetestet — Zugang zum gated Backbone
-`nvidia/Cosmos-Reason2-2B` nötig): einfach `GROOT_VERSION=1.7` zusätzlich setzen, z. B.
+**GR00T N1.7 statt N1.6** (paralleler Codebaum, ungetestet — Zugang zum gated Backbone
+`nvidia/Cosmos-Reason2-2B` nötig): eigenes Image (`:latest-n17`, gebaut mit
+`Training/update_image.sh --groot=1.7`) plus `GROOT_VERSION=1.7`, z. B.
 ```bash
 docker run --name groot-train --gpus all --ipc=host --shm-size=16g \
   -e HF_TOKEN=hf_... -e WANDB_API_KEY=... -e GROOT_VERSION=1.7 \
-  -it lucam03/projekt-humanoider-roboter:latest
+  -it lucam03/projekt-humanoider-roboter:latest-n17
 ```
 
 → Ausführliche Schritt-für-Schritt-Anleitung: **[docs/training/anleitung.md](docs/training/anleitung.md)**

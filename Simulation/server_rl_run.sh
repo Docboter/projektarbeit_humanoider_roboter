@@ -915,7 +915,7 @@ print('python', '.'.join(map(str, sys.version_info[:2])), '| gr00t_n1d7 importie
       ok "GR00T-N1.7-venv nutzbar ($GROOT_ROOT)."
     else
       err "N1.7-Preflight fehlgeschlagen — enthaelt das Image $GROOT_ROOT mit eigenem venv?"
-      err "  Image neu bauen:  ./Simulation/update_sim_image.sh --vastai"
+      err "  Image neu bauen:  ./Simulation/update_sim_image.sh --standalone"
       return 1
     fi
     warn "ONNX/TensorRT werden nicht geprueft: das optimierte Backend ist N1.6-only."

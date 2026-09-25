@@ -179,6 +179,16 @@ dadurch begrenzt, aber nicht unerheblich -- der dritte Lauf
 (\cref{sec:lauf3}) ist der erste, der sie zusammen mit dem mittrainierten
 Vision-Encoder einsetzt, und unterscheidet sich genau darin vom zweiten.
 
+% TODO(N1.7, Entscheidung 2026-09-25) — beim Beschreiben der N1.7-Läufe aufnehmen:
+% N1.7 trainiert mit den NVIDIA-Standardwerten, auch wo sie von unseren N1.6-Läufen
+% abweichen. Wichtigster Fall: State-Dropout (zufälliges Ausblenden der 28 Gelenkwinkel
+% im Training, das Modell muss dann allein aus den Bildern handeln) — N1.6: 0.0,
+% N1.7: 0.2. Außerdem normalisiert N1.7 State/Action per Perzentil (q01/q99,
+% use_percentiles=True) statt per Min/Max. Folge: N1.6 vs. N1.7 ist kein reiner
+% Modellvergleich, sondern Modell + Trainingsrezept; bewusst in Kauf genommen, weil
+% das Ziel das bestmögliche N1.7-Ergebnis ist. Details:
+% docs/weiterfuehrend/groot-n17-migration.md (Nachtrag 2026-09-25).
+
 Die Lernrate des Vier-GPU-Laufs ist mit $\sqrt{4}$ skaliert ($1\text{e-}4 \cdot
 \sqrt{4} = 2\text{e-}4$), um dem vierfach größeren Batch Rechnung zu tragen. Eine
 Validierung \emph{während} des Trainings findet nicht statt

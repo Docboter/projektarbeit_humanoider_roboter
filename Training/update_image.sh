@@ -8,12 +8,16 @@
 #   1. Neuesten Commit der Isaac-GR00T-Repo ermitteln — fuer BEIDE Fork-Branches
 #      (N1.6: luca/g1-dex3 -> ARG GROOT16_COMMIT, N1.7: luca/g1-dex3-n17 -> ARG GROOT17_COMMIT)
 #   2. Dockerfile aktualisieren (falls --update-commit gesetzt und Commit neuer)
-#   3. Image bauen (docker build) — Default: beide Modellgenerationen im Image
-#      (GROOT_VERSIONS="1.6 1.7"; nur eine: GROOT_VERSIONS=1.6 bzw. 1.7, siehe Dockerfile)
+#   3. Image bauen (docker build) — EINE Modellgeneration je Image (Default N1.6);
+#      --groot=1.7 baut das N1.7-Image, --groot=both beide venvs in einem (nie Default).
+#      Ohne --groot und am Terminal fragt ein Menue (MENU=0 / --no-menu schaltet es ab).
 #   4. Nach Docker Hub pushen
 #
 # Verwendung:
-#   ./update_image.sh                    # Build + Push (aktueller Dockerfile)
+#   ./update_image.sh                    # Build + Push (fragt am Terminal nach der Generation)
+#   ./update_image.sh --groot=1.6        # N1.6-Image (Default ohne Terminal)
+#   ./update_image.sh --groot=1.7        # N1.7-Image
+#   ./update_image.sh --groot=both       # beide venvs in einem Image (~doppelte Groesse)
 #   ./update_image.sh --update-commit    # Neuesten GR00T-Commit eintragen + bauen
 #   ./update_image.sh --no-cache         # Build ohne Docker-Cache
 #   ./update_image.sh --skip-push        # Nur bauen, nicht pushen
@@ -21,9 +25,11 @@
 #   ./update_image.sh --dry-run          # Befehle anzeigen, nichts ausfuehren
 #
 # Tags & Herkunft (seit 2026-08-19):
-#   Jeder Build bekommt :<repo-branch> (z. B. :training-luca-IKR-IS6.0-GN1.7, '/' -> '-')
-#   und :<zeitstempel>. :latest wird NUR mit --push-latest gesetzt/gepusht — das Dual-Image
-#   (N1.6+N1.7) soll :latest nicht ungepruefte ueberschreiben. Zusaetzlich tragen die Images
+#   Jeder Build bekommt :<repo-branch>-<gen> (z. B. :training-luca-IKR-IS6.0-GN1.7-n17,
+#   '/' -> '-') und :<zeitstempel>-<gen>, mit <gen> = n16 | n17 | n16-n17 — so ueberschreiben
+#   sich N1.6- und N1.7-Build desselben Branches nicht. :latest wird NUR mit --push-latest
+#   gesetzt/gepusht: N1.6 -> :latest (wie bisher, das ziehen alle Launcher), N1.7 ->
+#   :latest-n17, beide -> :latest-n16-n17. Zusaetzlich tragen die Images
 #   OCI-Labels (docker inspect --format '{{json .Config.Labels}}' <image>):
 #     org.opencontainers.image.revision / .source / .created, de.humrob.repo-branch,
 #     de.humrob.repo-dirty, de.humrob.groot-versions, de.humrob.groot16-commit, .groot17-commit
@@ -37,7 +43,7 @@
 #   GROOT_REPO       (default: https://github.com/lucam06/Isaac-GR00T.git)
 #   GROOT_BRANCH     (default: luca/g1-dex3)      — N1.6-Fork-Branch -> ARG GROOT16_COMMIT
 #   GROOT17_BRANCH   (default: luca/g1-dex3-n17)  — N1.7-Fork-Branch -> ARG GROOT17_COMMIT
-#   GROOT_VERSIONS   (default: "1.6 1.7")         — Build-Arg: welche Baeume ins Image kommen
+#   GROOT_VERSIONS   (default: 1.6)               — wie --groot: 1.6 | 1.7 | both ("1.6 1.7")
 
 set -euo pipefail
 
@@ -48,9 +54,13 @@ SKIP_PUSH=0
 PUSH_LATEST=0
 DRY_RUN=0
 SHOW_HELP=0
+GROOT_ARG=""
 
 for arg in "$@"; do
     case "$arg" in
+        --groot=*)       GROOT_ARG="${arg#*=}" ;;
+        --menu)          MENU=1 ;;
+        --no-menu)       MENU=0 ;;
         --update-commit) UPDATE_COMMIT=1 ;;
         --no-cache)      NO_CACHE=1 ;;
         --skip-push)     SKIP_PUSH=1 ;;
@@ -102,9 +112,30 @@ DOCKER_IMAGE="${DOCKER_IMAGE:-lucam03/projekt-humanoider-roboter}"
 GROOT_REPO="${GROOT_REPO:-https://github.com/lucam06/Isaac-GR00T.git}"
 GROOT_BRANCH="${GROOT_BRANCH:-luca/g1-dex3}"
 GROOT17_BRANCH="${GROOT17_BRANCH:-luca/g1-dex3-n17}"
-GROOT_VERSIONS="${GROOT_VERSIONS:-1.6 1.7}"
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# ── GR00T-Generation waehlen ─────────────────────────────────────────────────
+# Vorrang: --groot=… > GROOT_VERSIONS aus der Umgebung > Menue (nur am Terminal) > 1.6.
+# Nie stillschweigend beide: das Dual-Image ist doppelt so gross und selten noetig.
+[[ -n "$GROOT_ARG" ]] && GROOT_VERSIONS="$GROOT_ARG"
+if [[ -z "${GROOT_VERSIONS:-}" && -f "$REPO_DIR/tools/lib_menu.sh" && $SHOW_HELP -eq 0 ]]; then
+    # shellcheck source=../tools/lib_menu.sh
+    source "$REPO_DIR/tools/lib_menu.sh"
+    _MENU_LAUNCHER="./Training/update_image.sh"
+    if menu_enabled; then
+        menu_ask "$REPO_DIR/tools/menu" image build || exit 0
+    fi
+fi
+GROOT_VERSIONS="${GROOT_VERSIONS:-1.6}"
+case "$GROOT_VERSIONS" in
+    1.6|n16)                          GROOT_VERSIONS="1.6"     GROOT_IMAGE_TAG="n16" ;;
+    1.7|n17)                          GROOT_VERSIONS="1.7"     GROOT_IMAGE_TAG="n17" ;;
+    both|"1.6 1.7"|"1.7 1.6"|"1.6,1.7") GROOT_VERSIONS="1.6 1.7" GROOT_IMAGE_TAG="n16-n17" ;;
+    *) exit_fatal "Unbekannte GR00T-Generation '$GROOT_VERSIONS' (erlaubt: 1.6, 1.7, both)" ;;
+esac
+# Default-Generation im Image = die erste gebaute (bei both: 1.6, wie bisher).
+GROOT_VERSION_DEFAULT="${GROOT_VERSIONS%% *}"
 DOCKERFILE="$SCRIPT_DIR/Dockerfile"
 
 if [[ ! -f "$DOCKERFILE" ]]; then
@@ -114,7 +145,7 @@ fi
 # ── Banner ───────────────────────────────────────────────────────────────────
 echo ""
 echo "${C_MAGENTA}╔══════════════════════════════════════════════════════════════════╗${C_RESET}"
-echo "${C_MAGENTA}║   GR00T N1.6 + N1.7 — Docker-Image Update                        ║${C_RESET}"
+echo "${C_MAGENTA}║   GR00T Training — Docker-Image Update                           ║${C_RESET}"
 echo "${C_MAGENTA}╚══════════════════════════════════════════════════════════════════╝${C_RESET}"
 echo ""
 if [[ $DRY_RUN -eq 1 ]]; then warn "DRY-RUN aktiv — es werden keine Befehle ausgefuehrt."; fi
@@ -212,11 +243,15 @@ REPO_SOURCE="$(git -C "$SCRIPT_DIR" remote get-url origin 2>/dev/null || echo un
 BRANCH_TAG="$(printf '%s' "$REPO_BRANCH" | sed -E 's#[^A-Za-z0-9_.-]+#-#g; s#^[.-]+##' | cut -c1-128)"
 [[ -n "$BRANCH_TAG" && "$BRANCH_TAG" != "HEAD" ]] || BRANCH_TAG="detached-${REPO_COMMIT:0:12}"
 
-IMAGE_LATEST="${DOCKER_IMAGE}:latest"
-IMAGE_DATED="${DOCKER_IMAGE}:${BUILD_TIMESTAMP}"
-IMAGE_BRANCH="${DOCKER_IMAGE}:${BRANCH_TAG}"
+# N1.6 behaelt :latest (das ziehen setup_and_train_*.sh, docker-compose und der KISSKI-Pull);
+# jede andere Generation bekommt ihr eigenes :latest-<gen>.
+if [[ "$GROOT_IMAGE_TAG" == "n16" ]]; then LATEST_TAG="latest"; else LATEST_TAG="latest-$GROOT_IMAGE_TAG"; fi
+IMAGE_LATEST="${DOCKER_IMAGE}:${LATEST_TAG}"
+IMAGE_DATED="${DOCKER_IMAGE}:${BUILD_TIMESTAMP}-${GROOT_IMAGE_TAG}"
+IMAGE_BRANCH="${DOCKER_IMAGE}:${BRANCH_TAG:0:120}-${GROOT_IMAGE_TAG}"
 
-BUILD_CMD=(docker build --platform linux/amd64 --build-arg "GROOT_VERSIONS=$GROOT_VERSIONS")
+BUILD_CMD=(docker build --platform linux/amd64 --build-arg "GROOT_VERSIONS=$GROOT_VERSIONS"
+           --build-arg "GROOT_VERSION_DEFAULT=$GROOT_VERSION_DEFAULT")
 BUILD_CMD+=(--label "org.opencontainers.image.revision=$REPO_COMMIT"
             --label "org.opencontainers.image.source=$REPO_SOURCE"
             --label "org.opencontainers.image.created=$BUILD_CREATED"

@@ -84,7 +84,7 @@ CJ_CONTRAST="${CJ_CONTRAST:-0.4}"
 CJ_SATURATION="${CJ_SATURATION:-0.5}"
 CJ_HUE="${CJ_HUE:-0.08}"
 RANDOM_ROTATION_ANGLE="${RANDOM_ROTATION_ANGLE:-}"
-STATE_DROPOUT_PROB="${STATE_DROPOUT_PROB:-0.0}"
+STATE_DROPOUT_PROB="${STATE_DROPOUT_PROB:-}"   # leer = Modell-Default (N1.6: 0.0, N1.7: 0.2)
 
 USE_WANDB="${USE_WANDB:-1}"
 WANDB_PROJECT="${WANDB_PROJECT:-gr00t-g1-dex3}"
@@ -242,7 +242,9 @@ if [[ "$USE_AUGMENTATION" == "1" ]]; then
     log "Augmentierung AN — Color-Jitter (b=$CJ_BRIGHTNESS c=$CJ_CONTRAST s=$CJ_SATURATION h=$CJ_HUE)"
     TRAIN_CMD+=(--color_jitter_params brightness "$CJ_BRIGHTNESS" contrast "$CJ_CONTRAST" saturation "$CJ_SATURATION" hue "$CJ_HUE")
     [[ -n "$RANDOM_ROTATION_ANGLE" ]] && TRAIN_CMD+=(--random_rotation_angle "$RANDOM_ROTATION_ANGLE")
-    if [[ "$STATE_DROPOUT_PROB" != "0.0" && "$STATE_DROPOUT_PROB" != "0" ]]; then
+    # state_dropout_prob: leer = NVIDIA-Default der Generation (N1.6 0.0, N1.7 0.2 — bewusst
+    # uebernommen, siehe docs/weiterfuehrend/groot-n17-migration.md); gesetzt = immer uebergeben.
+    if [[ -n "$STATE_DROPOUT_PROB" ]]; then
         TRAIN_CMD+=(--state_dropout_prob "$STATE_DROPOUT_PROB")
     fi
 else

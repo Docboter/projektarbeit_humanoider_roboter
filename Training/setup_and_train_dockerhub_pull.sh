@@ -145,6 +145,11 @@ if menu_enabled; then
 fi
 
 # ── Konfiguration ─────────────────────────────────────────────────────────────
+GROOT_VERSION="${GROOT_VERSION:-1.6}"
+# Ein Image je GR00T-Generation (update_image.sh --groot=…): N1.6 = :latest, N1.7 = :latest-n17.
+if [[ -z "${DOCKER_HUB_IMAGE-}" && "$GROOT_VERSION" == "1.7" ]]; then
+    DOCKER_HUB_IMAGE="lucam03/projekt-humanoider-roboter:latest-n17"
+fi
 DOCKER_HUB_IMAGE="${DOCKER_HUB_IMAGE:-lucam03/projekt-humanoider-roboter:latest}"
 CONTAINER_NAME="${CONTAINER_NAME:-groot-train}"
 
@@ -152,7 +157,6 @@ MAX_STEPS="${MAX_STEPS:-30000}"
 GLOBAL_BATCH_SIZE="${GLOBAL_BATCH_SIZE:-8}"
 NUM_GPUS="${NUM_GPUS:-1}"
 WANDB_PROJECT="${WANDB_PROJECT:-gr00t-g1-dex3}"
-GROOT_VERSION="${GROOT_VERSION:-1.6}"
 
 # ── Banner ────────────────────────────────────────────────────────────────────
 echo ""
@@ -270,6 +274,18 @@ if $SKIP_PULL; then
     warn "Pull uebersprungen (--skip-pull)."
 else
     invoke_cmd docker pull "$DOCKER_HUB_IMAGE"
+fi
+# Passt die Generation zum Image? update_image.sh schreibt sie ins Label de.humrob.groot-versions.
+# Ohne Label (Images vor 2026-08-19) steckt nur N1.6 drin.
+if ! $DRY_RUN && docker image inspect "$DOCKER_HUB_IMAGE" >/dev/null 2>&1; then
+    _img_versions="$(docker image inspect --format '{{ index .Config.Labels "de.humrob.groot-versions" }}' "$DOCKER_HUB_IMAGE" 2>/dev/null || true)"
+    [[ -n "$_img_versions" && "$_img_versions" != "<no value>" ]] || _img_versions="1.6"
+    if [[ " $_img_versions " != *" $GROOT_VERSION "* ]]; then
+        err "GROOT_VERSION=$GROOT_VERSION, aber $DOCKER_HUB_IMAGE enthaelt nur N$_img_versions."
+        err "  Passendes Image bauen:  ./Training/update_image.sh --groot=$GROOT_VERSION --push-latest"
+        err "  oder eines vorgeben:     DOCKER_HUB_IMAGE=lucam03/projekt-humanoider-roboter:<tag>"
+        exit 1
+    fi
 fi
 ok "Image bereit: $DOCKER_HUB_IMAGE"
 echo ""

@@ -171,6 +171,8 @@ echo
 # unter Training/ — über COMPOSE_FILE finden alle `docker compose`-Aufrufe sie.
 cd "$REPO_DIR"
 export COMPOSE_FILE="Training/docker-compose.yml"
+# Image-Tag passend zur Generation (docker-compose.yml: image …:${GROOT_IMAGE_TAG:-latest}).
+if [[ "$GROOT_VERSION" == "1.7" ]]; then export GROOT_IMAGE_TAG="${GROOT_IMAGE_TAG:-latest-n17}"; fi
 
 # ══════════════════════════════════════════════════════════════════════════════
 # SCHRITT 3 — Docker-Image bauen

@@ -9,4 +9,5 @@ param WANDB_API_KEY secret "" basic \
   --default-from "Geheimnis - hat per Definition keinen Default"
 group "Container"
 param CONTAINER_NAME str "groot-train" expert "Name des Trainings-Containers"
-param DOCKER_HUB_IMAGE str "lucam03/projekt-humanoider-roboter:latest" expert "Docker-Image"
+param DOCKER_HUB_IMAGE str "lucam03/projekt-humanoider-roboter:latest" expert "Docker-Image" \
+  "Leer = nach GROOT_VERSION: 1.6 -> :latest, 1.7 -> :latest-n17 (ein Image je Generation, gebaut mit Training/update_image.sh --groot=…). Nach dem Pull prueft der Launcher per Label de.humrob.groot-versions, ob die Generation im Image steckt."

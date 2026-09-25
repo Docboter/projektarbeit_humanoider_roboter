@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project overview
 
-Fine-tuning of **NVIDIA GR00T** (Vision-Language-Action model) on the **Unitree G1 + DEX3-Hand** for block-stacking tasks. **N1.6** (default) and **N1.7** (parallel path, since 2026-08-19) are both selectable at runtime via `GROOT_VERSION=1.6|1.7|auto` — two code trees (`app/Groot-1.6`, `app/Groot-1.7`), two venvs, one image. N1.7 is scripted end-to-end but **untested**: no image has been rebuilt and no N1.7 training/sim run has happened yet — see [`docs/weiterfuehrend/groot-n17-migration.md`](docs/weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19). The full environment runs in a **self-contained Docker container** (CUDA 12.8, package manager: `uv`; Python 3.10 for N1.6, Python 3.12 for N1.7).
+Fine-tuning of **NVIDIA GR00T** (Vision-Language-Action model) on the **Unitree G1 + DEX3-Hand** for block-stacking tasks. **N1.6** (default) and **N1.7** (parallel path, since 2026-08-19) are both selectable at runtime via `GROOT_VERSION=1.6|1.7|auto` — two code trees (`app/Groot-1.6`, `app/Groot-1.7`), two venvs. The **training image** ships one generation at a time by default (`Training/update_image.sh --groot=1.6|1.7|both`, since 2026-09-25 — `both` builds a dual-venv image but is never the default); the **sim image** still builds both venvs by default. N1.7 is scripted end-to-end but **untested**: no image has been rebuilt and no N1.7 training/sim run has happened yet — see [`docs/weiterfuehrend/groot-n17-migration.md`](docs/weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19). The full environment runs in a **self-contained Docker container** (CUDA 12.8, package manager: `uv`; Python 3.10 for N1.6, Python 3.12 for N1.7).
 
 The container is autonomous: launching the image triggers `/scripts/entrypoint.sh` (source: `Training/scripts/entrypoint.sh`), which orchestrates download → conversion → training. The same image runs locally, on cloud-GPU platforms like vast.ai, and on the **KISSKI HPC cluster** (GWDG Göttingen) via Apptainer — configuration is via env vars only.
 
@@ -24,7 +24,7 @@ Detailed guides (all prose docs live under [`docs/`](docs/README.md)):
 - **Sim-eval step-by-step (German):** [`docs/simulation/sim-eval-anleitung.md`](docs/simulation/sim-eval-anleitung.md) — shared one-time steps, then IKR server (standard) or vast.ai (cloud alternative)
 - **Sim implementation notes & lessons learned:** [`docs/simulation/umsetzungsnotizen.md`](docs/simulation/umsetzungsnotizen.md)
 - **Results & evaluation (German):** [`docs/ergebnisse/`](docs/ergebnisse/README.md) — run analyses, domain-gap, sim methodology review, plus the **diagnose chronicle** ([`diagnose-chronik.md`](docs/ergebnisse/diagnose-chronik.md), ongoing from run 08 — the project-wide "Lauf N" references resolve here)
-- **Further work / concepts (German):** [`docs/weiterfuehrend/`](docs/weiterfuehrend/README.md) — RL plan + slim operative RL guide ([`rl-anleitung.md`](docs/weiterfuehrend/rl-anleitung.md); RL runs end-to-end on the Blackwell server, **N1.6-only**; run 32 (span gate) confirmed the domain gap, run 34 measured the `TUNE_VISUAL` checkpoint at 27.6% vs 20.5% finger span with `lifted` still 0/10 → next step is co-training, RL after; learning effect still unverified), locomotion research (not implemented), livestream plan (Spur A/WebRTC open; Spur B/MJPEG `LIVE_VIEW` is built), **GR00T N1.7 migration** ([`groot-n17-migration.md`](docs/weiterfuehrend/groot-n17-migration.md) — research/plan, plus a **"Stand der Umsetzung" section (2026-08-19)**: N1.7 built as a parallel path — second submodule `app/Groot-1.7`, `GROOT_VERSION` runtime switch in one image (`GROOT_VERSIONS` build-arg) — but **no image rebuilt, no N1.7 run executed yet**; `NEW_EMBODIMENT`, CLI, dataset, ZMQ server stay compatible; the Cosmos-Reason2-2B backbone is HF-gated, N1.7 needs Py 3.12/torch 2.9, and N1.6/N1.7 checkpoints are not cross-loadable; RL, the optimized inference backend, the stock-G1 baseline, and the RoboCasa reference eval remain N1.6-only)
+- **Further work / concepts (German):** [`docs/weiterfuehrend/`](docs/weiterfuehrend/README.md) — RL plan + slim operative RL guide ([`rl-anleitung.md`](docs/weiterfuehrend/rl-anleitung.md); RL runs end-to-end on the Blackwell server, **N1.6-only**; run 32 (span gate) confirmed the domain gap, run 34 measured the `TUNE_VISUAL` checkpoint at 27.6% vs 20.5% finger span with `lifted` still 0/10 → next step is co-training, RL after; learning effect still unverified), locomotion research (not implemented), livestream plan (Spur A/WebRTC open; Spur B/MJPEG `LIVE_VIEW` is built), **GR00T N1.7 migration** ([`groot-n17-migration.md`](docs/weiterfuehrend/groot-n17-migration.md) — research/plan, plus a **"Stand der Umsetzung" section (2026-08-19)**: N1.7 built as a parallel path — second submodule `app/Groot-1.7`, `GROOT_VERSION` runtime switch, one training image per generation by default (`GROOT_VERSIONS` build-arg, `update_image.sh --groot=`) — but **no image rebuilt, no N1.7 run executed yet**; `NEW_EMBODIMENT`, CLI, dataset, ZMQ server stay compatible; the Cosmos-Reason2-2B backbone is HF-gated, N1.7 needs Py 3.12/torch 2.9, and N1.6/N1.7 checkpoints are not cross-loadable; RL, the optimized inference backend, the stock-G1 baseline, and the RoboCasa reference eval remain N1.6-only; plus a **"Nachtrag" (2026-09-25)**: upstream merged in via merge, not rebase, dataset compat confirmed without conversion changes, and `STATE_DROPOUT_PROB` left empty = model default (N1.6 `0.0`, N1.7 `0.2`, kept deliberately))
 - **Outdated content / changelog raw material:** [`docs/historie.md`](docs/historie.md) — superseded findings are moved here instead of being kept inline (e.g. the former `umgebungsanalyse.md` audit, run-1 fix round, June domain-gap first measurement)
 
 ## Key commands
@@ -113,6 +113,9 @@ docker rm -f groot-train                 # destroy everything
 module load apptainer
 apptainer pull $HOME/images/projekt-humanoider-roboter.sif \
     docker://lucam03/projekt-humanoider-roboter:latest
+# N1.7 (own image, own SIF — picked up automatically when GROOT_VERSION=1.7):
+apptainer pull $HOME/images/projekt-humanoider-roboter-n17.sif \
+    docker://lucam03/projekt-humanoider-roboter:latest-n17
 
 # Submit training job
 export HF_TOKEN=hf_... WANDB_API_KEY=... GLOBAL_BATCH_SIZE=32
@@ -176,9 +179,13 @@ On vast.ai: GPU must be **Ampere+ with RT-Cores** (L40, RTX 4090, A6000) — A10
 docker build -t projektarbeit-humanoider-roboter Training/   # build context = Training/
 # ~30 min first time (PyTorch, flash-attn). The Dockerfile clones both the
 # Groot-1.6 AND Groot-1.7 submodules itself — no `git clone --recurse-submodules`
-# needed before building. Both venvs are built by default (roughly doubles image
-# size / build time); to build only one tree:
-docker build --build-arg GROOT_VERSIONS=1.6 -t projektarbeit-humanoider-roboter Training/
+# needed before building. Default: only N1.6 (GROOT_VERSIONS=1.6, one venv). Prefer
+# ./Training/update_image.sh --groot=1.6|1.7|both (tags the image, sets both build-args).
+# Manual N1.7 build (own image, needs GROOT_VERSION_DEFAULT too):
+docker build --build-arg GROOT_VERSIONS=1.7 --build-arg GROOT_VERSION_DEFAULT=1.7 \
+  -t projektarbeit-humanoider-roboter-n17 Training/
+# Manual dual-venv build (both trees in one image, ~doubles size — never the default):
+docker build --build-arg "GROOT_VERSIONS=1.6 1.7" -t projektarbeit-humanoider-roboter Training/
 ```
 
 ### Interactive shell (entrypoint bypassed when a command is passed)

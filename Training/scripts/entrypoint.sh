@@ -77,6 +77,15 @@ if [[ $# -gt 0 ]]; then
     exec "$@"
 fi
 
+# Ein Image je GR00T-Generation (update_image.sh --groot=…): passt GROOT_VERSION nicht zum
+# Image, hier klar abbrechen statt spaeter mit "python: not found" im Training.
+if [[ ! -x "$GROOT_VENV_PY" ]]; then
+    err "Dieses Image enthaelt GR00T N${GROOT_VERSION} nicht ($GROOT_VENV_PY fehlt)."
+    err "  Images: N1.6 = lucam03/projekt-humanoider-roboter:latest, N1.7 = …:latest-n17"
+    err "  Bauen:  ./Training/update_image.sh --groot=${GROOT_VERSION}"
+    exit 1
+fi
+
 # ── Banner ────────────────────────────────────────────────────────────────────
 echo ""
 echo -e "\033[1;35m╔══════════════════════════════════════════════════════════════════╗\033[0m"

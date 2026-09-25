@@ -95,6 +95,15 @@ apptainer pull $HOME/images/projekt-humanoider-roboter.sif \
 Das erzeugt `$HOME/images/projekt-humanoider-roboter.sif` (~10–15 GB). Diese Datei nur neu
 erstellen, wenn ein neues Image auf Docker Hub gepusht wurde.
 
+**Nur für `GROOT_VERSION=1.7` — eigenes Image, eigene SIF.** Seit 2026-09-25 ist N1.7 ein
+eigenes Docker-Image (`Training/update_image.sh --groot=1.7`, Tag `:latest-n17`); `kisski_submit.sh`
+und `kisski_open_loop_eval.sh` wählen die passende SIF automatisch anhand von `GROOT_VERSION`:
+
+```bash
+apptainer pull $HOME/images/projekt-humanoider-roboter-n17.sif \
+    docker://lucam03/projekt-humanoider-roboter:latest-n17
+```
+
 > Wo [`kisski_submit.sh`](../../Training/kisski_submit.sh) das SIF sucht, steht oben unter
 > [Pfad-Konfiguration](#pfad-konfiguration--zwei-variablen-sonst-nichts): zuerst `$KISSKI_SIF_DIR`
 > (Default `$HOME/images`), dann `$KISSKI_PROJECT_DIR/images`. Wer das Image wie oben nach
@@ -242,7 +251,8 @@ sbatch Training/kisski_submit.sh
 ```
 
 Für **GR00T N1.7** statt des Defaults `1.6` genügt eine zusätzliche Zeile im selben Prefix
-(Voraussetzung: zweiter Fork-Clone + Backbone/Modell vorab im Cache, siehe
+(Voraussetzung: N1.7-SIF aus `:latest-n17` gepullt — siehe [Schritt 1](#schritt-1--image-einmalig-zu-sif-konvertieren-auf-dem-login-knoten)
+— sowie zweiter Fork-Clone + Backbone/Modell vorab im Cache, siehe
 [Schritt 2b](#schritt-2b--repos-einmalig-auf-dem-login-knoten-klonen) oben — **ungetestet**,
 siehe [groot-n17-migration.md](../weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19)):
 
@@ -461,6 +471,8 @@ mkdir -p $HOME/images
 apptainer pull $HOME/images/projekt-humanoider-roboter.sif \
     docker://lucam03/projekt-humanoider-roboter:latest
 ```
+Bei `GROOT_VERSION=1.7` wird stattdessen `projekt-humanoider-roboter-n17.sif` aus
+`:latest-n17` gesucht — siehe [Schritt 1](#schritt-1--image-einmalig-zu-sif-konvertieren-auf-dem-login-knoten).
 
 ### Job bleibt in Status `PD` (Pending)
 
