@@ -43,7 +43,7 @@ build-spezifischen; der vast.ai-Account wird nur für Weg B gebraucht:
 | Was | Wo |
 |---|---|
 | vast.ai-Account mit Credits (nur Weg B) | https://cloud.vast.ai |
-| Docker-Hub-Login (`lucam03`) | `docker login` lokal |
+| Docker-Hub-Login (eigenes Konto mit Schreibrechten; Team-Konto `lucam03`) | `docker login` lokal; Konto als `DOCKER_NAMESPACE` (fragt das Skript ab) |
 | NGC-API-Key für `nvcr.io` | https://ngc.nvidia.com → API Key |
 | Feingetunter Checkpoint | von KISSKI rsync'd (→ Abschnitt 3) |
 | `g1_dex3.usd` Asset | einmalig erzeugt (→ Abschnitt 4) |
@@ -68,7 +68,11 @@ docker login nvcr.io   # Username: $oauthtoken   Password: <NGC-API-Key>
 ./Simulation/update_sim_image.sh --standalone --push-latest
 ```
 
-Ergebnis: `lucam03/projekt-humanoider-roboter-sim-standalone:<repo-branch>` (z. B.
+Gepusht wird auf `DOCKER_NAMESPACE` — das Skript fragt am Terminal danach (Vorschlag: das
+angemeldete Konto) und merkt es sich auf Wunsch in `.env.local`; `server_rl_run.sh` zieht
+dann automatisch von dort. Ohne Angabe ziehen die Launcher vom Team-Konto `lucam03`.
+
+Ergebnis: `<konto>/projekt-humanoider-roboter-sim-standalone:<repo-branch>` (z. B.
 `:training-luca-IKR-IS6.0-GN1.7`) und `:<timestamp>` auf Docker Hub; `:latest` nur mit
 `--push-latest`. Herkunft (Repo-Branch/-Commit, `GROOT_VERSIONS`) steht in OCI-Labels:
 `docker inspect --format '{{json .Config.Labels}}' <image>`. Wer das Branch-Tag nutzt, setzt

@@ -108,7 +108,7 @@ for SIF in "$SERVER_SIF" "$SIM_SIF"; do
     if [[ ! -f "$SIF" ]]; then
         echo "FEHLER: SIF-Image nicht gefunden: $SIF" >&2
         echo "Einmalig auf dem Login-Node erstellen:" >&2
-        echo "    module load apptainer && apptainer pull $SIF docker://lucam03/..." >&2
+        echo "    module load apptainer && apptainer pull $SIF docker://${DOCKER_NAMESPACE:-lucam03}/..." >&2
         exit 1
     fi
 done

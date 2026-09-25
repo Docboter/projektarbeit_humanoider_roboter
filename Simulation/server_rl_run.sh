@@ -125,7 +125,8 @@ source "$REPO_DIR/tools/lib_env_local.sh"
 env_local_load "$REPO_DIR"
 
 # ── Konfiguration (alle via Env überschreibbar) ──────────────────────────────
-IMAGE="${RL_IMAGE:-lucam03/projekt-humanoider-roboter-sim-standalone:latest}"
+# Konto per DOCKER_NAMESPACE (wie update_sim_image.sh); ohne Angabe das Team-Konto.
+IMAGE="${RL_IMAGE:-${DOCKER_NAMESPACE:-lucam03}/projekt-humanoider-roboter-sim-standalone:latest}"
 CONTAINER="${RL_CONTAINER:-groot-rl}"
 # Host-Verzeichnis, das im Container zu /data wird: HF-Checkpoint-Cache, RL-Checkpoints,
 # Isaac-Sim-Shader-Cache und die Logspiegelung. Wächst auf viele GB — auf eine Partition

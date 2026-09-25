@@ -16,3 +16,11 @@ param GROOT_VERSIONS choice 1.6 basic \
   "GR00T-Generation im Image" \
   "Ein Image enthaelt standardmaessig genau EINE Generation. 1.6 ist der bisherige, getestete Weg und behaelt das Tag :latest. 1.7 wird als :latest-n17 getaggt (Python 3.12, torch 2.9, Cosmos-Reason2-2B-Backbone). both packt beide venvs in ein Image — etwa doppelte Groesse und Bauzeit, nur noetig, wenn ein Container zwischen den Generationen wechseln soll." \
   --options "1.6:N1.6 (Default, :latest);1.7:N1.7 (:latest-n17);both:beide venvs (:latest-n16-n17, doppelte Groesse)"
+
+group "Ziel"
+# Nur fragen, wenn wirklich gepusht wird — ein --skip-push-Build bleibt lokal.
+when '[[ ${SKIP_PUSH:-0} -eq 0 && ${DRY_RUN:-0} -eq 0 ]]'
+param DOCKER_NAMESPACE str "" basic \
+  "Docker-Hub-Konto (Push-Ziel)" \
+  "Das Konto, auf das gepusht wird — du brauchst dort Schreibrechte. Das Image heisst danach <konto>/projekt-humanoider-roboter:<tag>. Vorgeschlagen wird das Konto, mit dem 'docker login' angemeldet ist. Dauerhaft setzen: : \"\${DOCKER_NAMESPACE:=<konto>}\" in .env.local — dann ziehen auch die Trainings-Launcher von dort." \
+  --suggest 'docker_hub_login_user'

@@ -229,7 +229,7 @@ if [[ ! -f "$SIF_IMAGE" ]]; then
     echo "Einmalig erstellen:" >&2
     echo "    module load apptainer" >&2
     echo "    mkdir -p \$HOME/images" >&2
-    echo "    apptainer pull \$HOME/images/projekt-humanoider-roboter$SIF_SUFFIX.sif docker://lucam03/projekt-humanoider-roboter:$SIF_DOCKER_TAG" >&2
+    echo "    apptainer pull \$HOME/images/projekt-humanoider-roboter$SIF_SUFFIX.sif docker://${DOCKER_NAMESPACE:-lucam03}/projekt-humanoider-roboter:$SIF_DOCKER_TAG" >&2
     exit 1
 fi
 

@@ -81,7 +81,7 @@ fi
 # Image, hier klar abbrechen statt spaeter mit "python: not found" im Training.
 if [[ ! -x "$GROOT_VENV_PY" ]]; then
     err "Dieses Image enthaelt GR00T N${GROOT_VERSION} nicht ($GROOT_VENV_PY fehlt)."
-    err "  Images: N1.6 = lucam03/projekt-humanoider-roboter:latest, N1.7 = …:latest-n17"
+    err "  Images: N1.6 = <konto>/projekt-humanoider-roboter:latest, N1.7 = …:latest-n17 (Team-Konto: lucam03)"
     err "  Bauen:  ./Training/update_image.sh --groot=${GROOT_VERSION}"
     exit 1
 fi

@@ -784,3 +784,9 @@ vor allem `STATE_DROPOUT_PROB` (jetzt leer = Modell-Default, N1.6 `0.0`, N1.7 `0
 beibehalten statt erzwungen gleichgesetzt). Weiterhin gilt: **kein Image gebaut, kein
 N1.7-Trainings-/Sim-Lauf** — vollständiger Stand:
 [groot-n17-migration.md § Stand der Umsetzung, Nachtrag 2026-09-25](weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19).
+
+**Außerdem am selben Tag — Docker-Hub-Konto frei wählbar.** Bis dahin pushten
+`update_image.sh`/`update_sim_image.sh` fest nach `lucam03`; wer dort keine Schreibrechte hatte,
+scheiterte erst nach dem Build. Jetzt: `DOCKER_NAMESPACE` (Umgebung, `.env.local` oder
+Rückfrage am Terminal), die Launcher ziehen von dort, ohne Angabe weiter von `lucam03`.
+Details: [portabilitaet.md § 3.4](portabilitaet.md#34-eigene-images-bauen-eigenes-docker-hub-konto).

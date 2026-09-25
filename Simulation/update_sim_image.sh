@@ -27,7 +27,9 @@
 #   .groot-versions) zeigen die Herkunft: docker inspect --format '{{json .Config.Labels}}' <image>
 #
 # Umgebungsvariablen (optional):
-#   DOCKER_IMAGE   (default abhängig von --standalone)
+#   DOCKER_NAMESPACE (default: fragen) — Docker-Hub-Konto für den Push; auch aus .env.local.
+#                  Mit --skip-push/--dry-run ohne Angabe: Team-Konto lucam03 (nur lokale Tags)
+#   DOCKER_IMAGE   (default $DOCKER_NAMESPACE/projekt-humanoider-roboter-sim[-standalone])
 #   GROOT_VERSIONS (default "1.6 1.7") — nur Dockerfile.standalone: welche GR00T-Generationen ins
 #                  Image kommen (Build-Arg). "1.6" = altes, halb so großes Image ohne N1.7-venv.
 
@@ -67,13 +69,30 @@ run() {
 
 # ── Konfiguration ─────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Docker-Hub-Konto: nicht mehr fest lucam03 (Push braucht Schreibrechte dort), sondern
+# DOCKER_NAMESPACE aus Umgebung/.env.local, sonst Rückfrage — siehe tools/lib_docker_ns.sh.
+# shellcheck source=../tools/lib_env_local.sh
+source "$REPO_DIR/tools/lib_env_local.sh"
+env_local_load "$REPO_DIR"
+# shellcheck source=../tools/lib_docker_ns.sh
+source "$REPO_DIR/tools/lib_docker_ns.sh"
+DOCKER_NAMESPACE="${DOCKER_NAMESPACE:-}"
+if [[ -z "${DOCKER_IMAGE:-}" ]]; then
+    if [[ "$SKIP_PUSH" == "1" || "$DRY_RUN" == "1" ]] && [[ -z "$DOCKER_NAMESPACE" ]]; then
+        DOCKER_NAMESPACE="$DOCKER_NAMESPACE_TEAM"   # nur lokale Tags, kein Push
+    else
+        docker_ns_require_push "$REPO_DIR" || exit 1
+    fi
+fi
 
 if [[ "$STANDALONE" == "1" ]]; then
-    DOCKER_IMAGE="${DOCKER_IMAGE:-lucam03/projekt-humanoider-roboter-sim-standalone}"
+    DOCKER_IMAGE="${DOCKER_IMAGE:-$DOCKER_NAMESPACE/projekt-humanoider-roboter-sim-standalone}"
     DOCKERFILE="$SCRIPT_DIR/Dockerfile.standalone"
     TARGET="Standalone: Isaac Sim + GR00T (IKR-Server / vast.ai, Dockerfile.standalone)"
 else
-    DOCKER_IMAGE="${DOCKER_IMAGE:-lucam03/projekt-humanoider-roboter-sim}"
+    DOCKER_IMAGE="${DOCKER_IMAGE:-$DOCKER_NAMESPACE/projekt-humanoider-roboter-sim}"
     DOCKERFILE="$SCRIPT_DIR/Dockerfile"
     TARGET="KISSKI/Apptainer (nur Sim-Client)"
 fi
@@ -99,15 +118,10 @@ log "Schritt 1/3 — Voraussetzungen prüfen"
 command -v docker >/dev/null 2>&1 || fatal "docker nicht gefunden. https://docs.docker.com/get-docker/"
 docker info >/dev/null 2>&1 || fatal "Docker-Daemon nicht erreichbar. Läuft Docker?"
 ok "Docker-Daemon läuft"
+ok "Ziel-Image: $DOCKER_IMAGE"
 
 if [[ "$SKIP_PUSH" != "1" && "$DRY_RUN" != "1" ]]; then
-    if docker info 2>/dev/null | grep -q "Username"; then
-        ok "Bereits bei Docker Hub angemeldet"
-    else
-        warn "Nicht bei Docker Hub angemeldet."
-        log "Starte 'docker login' …"
-        docker login || fatal "Docker-Login fehlgeschlagen."
-    fi
+    docker_ns_check_login || fatal "Docker-Login fehlgeschlagen."
 fi
 echo ""
 

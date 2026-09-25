@@ -2,8 +2,9 @@
 # TL;DR: Host-Werkzeug — baut das Docker-Image neu und pusht es nach Docker Hub.
 # update_image.sh
 #
-# Bringt das Docker-Image lucam03/projekt-humanoider-roboter:latest auf den
-# neuesten Stand:
+# Bringt das Docker-Image <konto>/projekt-humanoider-roboter:latest auf den
+# neuesten Stand. <konto> = DOCKER_NAMESPACE — dein Docker-Hub-Konto; ohne Angabe wird am
+# Terminal gefragt (und auf Wunsch in .env.local gemerkt), ohne Terminal bricht der Push ab:
 #
 #   1. Neuesten Commit der Isaac-GR00T-Repo ermitteln — fuer BEIDE Fork-Branches
 #      (N1.6: luca/g1-dex3 -> ARG GROOT16_COMMIT, N1.7: luca/g1-dex3-n17 -> ARG GROOT17_COMMIT)
@@ -11,7 +12,7 @@
 #   3. Image bauen (docker build) — EINE Modellgeneration je Image (Default N1.6);
 #      --groot=1.7 baut das N1.7-Image, --groot=both beide venvs in einem (nie Default).
 #      Ohne --groot und am Terminal fragt ein Menue (MENU=0 / --no-menu schaltet es ab).
-#   4. Nach Docker Hub pushen
+#   4. Nach Docker Hub pushen (auf DOCKER_NAMESPACE — Schreibrechte dort noetig)
 #
 # Verwendung:
 #   ./update_image.sh                    # Build + Push (fragt am Terminal nach der Generation)
@@ -39,7 +40,10 @@
 #   git (im PATH)
 #
 # Umgebungsvariablen (optional, vor dem Aufruf setzen):
-#   DOCKER_IMAGE     (default: lucam03/projekt-humanoider-roboter)
+#   DOCKER_NAMESPACE (default: fragen) — Docker-Hub-Konto fuer den Push; auch aus .env.local.
+#                    Mit --skip-push/--dry-run ohne Angabe: Team-Konto lucam03 (nur lokale Tags)
+#   DOCKER_IMAGE     (default: $DOCKER_NAMESPACE/projekt-humanoider-roboter) — ganzer Name, schlaegt
+#                    DOCKER_NAMESPACE
 #   GROOT_REPO       (default: https://github.com/lucam06/Isaac-GR00T.git)
 #   GROOT_BRANCH     (default: luca/g1-dex3)      — N1.6-Fork-Branch -> ARG GROOT16_COMMIT
 #   GROOT17_BRANCH   (default: luca/g1-dex3-n17)  — N1.7-Fork-Branch -> ARG GROOT17_COMMIT
@@ -108,12 +112,22 @@ invoke_cmd() {
 }
 
 # ── Konfiguration ────────────────────────────────────────────────────────────
-DOCKER_IMAGE="${DOCKER_IMAGE:-lucam03/projekt-humanoider-roboter}"
+# DOCKER_IMAGE wird erst NACH dem Menue festgelegt (Konto kann dort gefragt werden).
+DOCKER_NAMESPACE="${DOCKER_NAMESPACE:-}"
 GROOT_REPO="${GROOT_REPO:-https://github.com/lucam06/Isaac-GR00T.git}"
 GROOT_BRANCH="${GROOT_BRANCH:-luca/g1-dex3}"
 GROOT17_BRANCH="${GROOT17_BRANCH:-luca/g1-dex3-n17}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# .env.local (gitignoriert) kann DOCKER_NAMESPACE dauerhaft setzen; Vorrang: Umgebung > .env.local.
+if [[ -f "$REPO_DIR/tools/lib_env_local.sh" ]]; then
+    # shellcheck source=../tools/lib_env_local.sh
+    source "$REPO_DIR/tools/lib_env_local.sh"
+    env_local_load "$REPO_DIR"
+fi
+# shellcheck source=../tools/lib_docker_ns.sh
+source "$REPO_DIR/tools/lib_docker_ns.sh"
 
 # ── GR00T-Generation waehlen ─────────────────────────────────────────────────
 # Vorrang: --groot=… > GROOT_VERSIONS aus der Umgebung > Menue (nur am Terminal) > 1.6.
@@ -137,6 +151,18 @@ esac
 # Default-Generation im Image = die erste gebaute (bei both: 1.6, wie bisher).
 GROOT_VERSION_DEFAULT="${GROOT_VERSIONS%% *}"
 DOCKERFILE="$SCRIPT_DIR/Dockerfile"
+
+# ── Docker-Hub-Konto ─────────────────────────────────────────────────────────
+# Frueher fest lucam03 — wer dort keine Schreibrechte hatte, scheiterte erst NACH dem Build.
+# Jetzt: expliziter DOCKER_IMAGE > DOCKER_NAMESPACE (Umgebung/.env.local/Menue) > Rueckfrage.
+if [[ -z "${DOCKER_IMAGE:-}" ]]; then
+    if [[ $SKIP_PUSH -eq 1 || $DRY_RUN -eq 1 ]] && [[ -z "$DOCKER_NAMESPACE" ]]; then
+        DOCKER_NAMESPACE="$DOCKER_NAMESPACE_TEAM"   # nur lokale Tags, kein Push
+    elif [[ $SHOW_HELP -eq 0 ]]; then
+        docker_ns_require_push "$REPO_DIR" || exit 1
+    fi
+    DOCKER_IMAGE="$DOCKER_NAMESPACE/projekt-humanoider-roboter"
+fi
 
 if [[ ! -f "$DOCKERFILE" ]]; then
     exit_fatal "Dockerfile nicht gefunden: $DOCKERFILE"
@@ -168,14 +194,9 @@ if ! docker info >/dev/null 2>&1; then
 fi
 ok "Docker-Daemon laeuft"
 
+ok "Ziel-Image: $DOCKER_IMAGE"
 if [[ $SKIP_PUSH -eq 0 && $DRY_RUN -eq 0 ]]; then
-    if ! docker info 2>/dev/null | grep -q "Username"; then
-        warn "Nicht bei Docker Hub angemeldet."
-        log "Starte 'docker login' ..."
-        if ! docker login; then exit_fatal "Docker-Login fehlgeschlagen."; fi
-    else
-        ok "Bereits bei Docker Hub angemeldet"
-    fi
+    docker_ns_check_login || exit_fatal "Docker-Login fehlgeschlagen."
 fi
 echo ""
 

@@ -265,7 +265,7 @@ Der Ablauf hat drei Stufen: **Docker-Image bauen & nach Docker Hub pushen** → 
 
 ### D0. Docker-Image bauen und nach Docker Hub pushen
 
-Der Cluster zieht das Image per `apptainer pull docker://lucam03/projekt-humanoider-roboter:latest` **direkt von Docker Hub**. Apptainer kann ein Image nur konvertieren, das dort bereits liegt — es baut nichts selbst. Deshalb muss das Docker-Image **vor** der SIF-Konvertierung existieren und aktuell sein.
+Der Cluster zieht das Image per `apptainer pull docker://lucam03/projekt-humanoider-roboter:latest` **direkt von Docker Hub** (bzw. von deinem eigenen Konto, wenn du selbst baust — siehe unten). Apptainer kann ein Image nur konvertieren, das dort bereits liegt — es baut nichts selbst. Deshalb muss das Docker-Image **vor** der SIF-Konvertierung existieren und aktuell sein.
 
 **Wann ist dieser Schritt nötig?**
 
@@ -276,10 +276,16 @@ Der Cluster zieht das Image per `apptainer pull docker://lucam03/projekt-humanoi
 
 **Variante 1 — mit dem Build-Skript (empfohlen):**
 
-[`Training/update_image.sh`](../../Training/update_image.sh) prüft Docker-Login, baut und pusht in einem Rutsch:
+[`Training/update_image.sh`](../../Training/update_image.sh) prüft Docker-Login, baut und pusht in einem Rutsch.
+Gepusht wird auf **dein** Docker-Hub-Konto (`DOCKER_NAMESPACE`): Das Skript fragt beim ersten
+Mal danach (Vorschlag: das angemeldete Konto) und merkt es sich auf Wunsch in `.env.local`.
+Auf `lucam03` kann nur pushen, wer dort Schreibrechte hat. Wer selbst baut, zieht danach auch
+von seinem Konto — `setup_and_train_dockerhub_pull.sh` und `apptainer pull` also mit
+`<dein-konto>/projekt-humanoider-roboter:<tag>`.
 
 ```bash
-docker login                            # einmalig
+docker login                            # einmalig, mit deinem Docker-Hub-Konto
+DOCKER_NAMESPACE=dein-konto ./update_image.sh --groot=1.7   # Konto ohne Rückfrage vorgeben
 cd Training
 ./update_image.sh                       # fragt am Terminal nach der Generation (sonst Default 1.6)
 ./update_image.sh --groot=1.6           # N1.6-Image bauen + pushen
@@ -307,8 +313,8 @@ KISSKI-`apptainer pull`-Befehle standardmäßig), N1.7 → `:latest-n17`, `both`
 ```bash
 docker login                          # einmalig
 # Build-Context ist Training/ (damit COPY scripts/ funktioniert). --platform für KISSKI-Kompatibilität:
-docker build --platform linux/amd64 -t lucam03/projekt-humanoider-roboter:latest Training/
-docker push lucam03/projekt-humanoider-roboter:latest
+docker build --platform linux/amd64 -t <dein-konto>/projekt-humanoider-roboter:latest Training/
+docker push <dein-konto>/projekt-humanoider-roboter:latest
 
 # N1.7 (eigenes Image, eigenes Tag):
 docker build --platform linux/amd64 \

@@ -249,6 +249,7 @@ The entrypoint reads everything from env vars. Defaults are set as `ENV` in the 
 | `USE_RL` | `0` | `1` = RL fine-tuning (FPO). Not in the BC image (no Isaac Sim) — BC entrypoint errors with a pointer to the sim-image RL path (`entrypoint_rl.sh` / `kisski_rl_submit.sh`, RT-core GPU). See [docs/training/env-vars.md](docs/training/env-vars.md) + [RL plan](docs/weiterfuehrend/reinforcement-learning-plan.md) |
 | `USE_COTRAIN` | `0` | `1` = co-training on real **and** rendered images (step 4); routes to `run_finetuning_cotrain.sh` (namespace `blockstacking_cotrain`, sets `--tune_visual` itself, takes precedence over `TUNE_VISUAL`). Needs a rendered dataset from `server_rl_run.sh render` via `COTRAIN_DATASET_PATH` / `COTRAIN_HF_REPO`; `COTRAIN_MIX_RATIO` is the share of rendered samples (0.25 recommended, see [co-training.md](docs/training/co-training.md)) |
 | `GROOT_VERSION` | `1.6` | `1.6` \| `1.7` — selects the GR00T generation: code tree (`/app/Groot-1.6` vs `/app/Groot-1.7`), venv, model repo (`nvidia/GR00T-N1.6-3B` vs `nvidia/GR00T-N1.7-3B`), and output-namespace suffix (`""` vs `_n17`). Resolved by `lib_groot_version.sh`. `1.7` also downloads the **gated** backbone `nvidia/Cosmos-Reason2-2B` (separate HF access request needed). **Untested** — no N1.7 training run has completed yet. See [docs/weiterfuehrend/groot-n17-migration.md](docs/weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19) |
+| `DOCKER_NAMESPACE` | pull: `lucam03` / push: asked | **Host-side only.** Docker Hub account for images. `update_image.sh` / `update_sim_image.sh` push there — never silently to `lucam03`: without it they ask at the terminal (suggesting the `docker login` account, offering to save it to `.env.local`) and abort before building when there is no terminal. Launchers, compose, and KISSKI pull hints pull from it, falling back to the public team account `lucam03`. Logic: `tools/lib_docker_ns.sh`; see [`docs/portabilitaet.md`](docs/portabilitaet.md) §3.4 |
 | `HF_HOME` | `/data/hf_cache` | HF cache dir. Only matters for `GROOT_VERSION=1.7`: the Cosmos-Reason2-2B backbone is re-fetched from the Hub on every checkpoint load unless it's already cached here |
 
 ## Code style
@@ -320,6 +321,8 @@ repo root
 │   │                                   #   number entry) and the domain layer behind run.sh
 │   ├── lib_env_local.sh                # Shared .env.local loader (was duplicated /
 │   │                                   #   missing; the training launchers had none)
+│   ├── lib_docker_ns.sh                # DOCKER_NAMESPACE (Docker Hub account): asked for
+│   │                                   #   before a push instead of hardcoding lucam03
 │   ├── gen_docs.sh                     # Drift check: spec default vs. ${VAR:-…} vs. docs
 │   ├── test_menu.sh                    # The §8 acceptance plan, runnable (30 checks)
 │   ├── check_tldr.sh                   # TL;DR convention guard; --list = one-screen overview

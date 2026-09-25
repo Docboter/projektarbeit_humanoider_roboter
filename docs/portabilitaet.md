@@ -27,6 +27,20 @@ Pfade auf genau *einen* Rechner bzw. *ein* HPC-Konto. Wer das Repo klonte, lief 
 > gesourct. Aufgefallen beim Umsetzen der
 > [CLI-Menüführung](weiterfuehrend/cli-menuefuehrung.md).
 
+> **Nachtrag 2026-09-25 — Docker-Hub-Konto nicht mehr fest `lucam03`.** Ziehen durfte jeder
+> (die Images sind öffentlich), **pushen** aber nur, wer Schreibrechte auf `lucam03` hat — alle
+> anderen scheiterten erst nach einem 30-Minuten-Build. Jetzt gilt eine Variable
+> **`DOCKER_NAMESPACE`** (dein Docker-Hub-Konto):
+> [`update_image.sh`](../Training/update_image.sh) und
+> [`update_sim_image.sh`](../Simulation/update_sim_image.sh) fragen sie am Terminal ab
+> (Vorschlag: das per `docker login` angemeldete Konto) und bieten an, sie in `.env.local`
+> zu merken; ohne Terminal brechen sie **vor** dem Build ab, statt still nach `lucam03` zu
+> pushen. Die Launcher (`setup_and_train_*`, `server_rl_run.sh`, `server_robocasa_ref_run.sh`,
+> `docker-compose.yml`, die `apptainer pull`-Hinweise der KISSKI-Skripte) ziehen von
+> `DOCKER_NAMESPACE`, ohne Angabe weiter vom Team-Konto `lucam03`. Wer selbst baut, trägt
+> das Konto also einmal in `.env.local` ein, und Build und Start passen zusammen. Logik:
+> [`tools/lib_docker_ns.sh`](../tools/lib_docker_ns.sh). Siehe §3.4.
+
 ## 1. Was sich geändert hat
 
 | Wo | Vorher (fest verdrahtet) | Jetzt |
@@ -251,6 +265,24 @@ der einzige Teil, den Umgebungsvariablen prinzipiell nicht erreichen.
 
 ---
 
+### 3.4 Eigene Images bauen (eigenes Docker-Hub-Konto)
+
+Nur nötig, wenn du am Image etwas änderst (Dockerfile, gepinnter GR00T-Commit, N1.7-Image) —
+zum reinen Trainieren reichen die Team-Images von `lucam03`.
+
+```bash
+docker login                                   # mit DEINEM Docker-Hub-Konto
+# einmalig in .env.local (oder beim ersten Build auf die Frage hin merken lassen):
+#   : "${DOCKER_NAMESPACE:=dein-konto}"
+./Training/update_image.sh --groot=1.7 --push-latest   # -> dein-konto/projekt-humanoider-roboter:latest-n17
+GROOT_VERSION=1.7 ./Training/setup_and_train_dockerhub_pull.sh   # zieht jetzt von dein-konto
+```
+
+Auf KISSKI entsprechend: `apptainer pull … docker://dein-konto/projekt-humanoider-roboter:<tag>`
+(die Fehlerhinweise der SLURM-Skripte setzen `$DOCKER_NAMESPACE` ein, wenn es exportiert ist).
+Arbeiten mehrere Leute am selben Stand, lohnt eine **Docker-Hub-Organisation** mit allen als
+Mitgliedern: `DOCKER_NAMESPACE=<organisation>` — dann darf jeder pushen und alle ziehen dasselbe.
+
 ## 4. Referenz — alle Portabilitäts-Knöpfe
 
 ### `Simulation/server_rl_run.sh` und `server_robocasa_ref_run.sh` (Docker)
@@ -261,7 +293,8 @@ Das RoboCasa-Skript nutzt dieselbe Mechanik mit `RC_`-Präfix (`RC_HOST_DATA_DIR
 |---|---|---|
 | `RL_HOST_DATA_DIR` | `$HOME/groot-rl-data` | Host-Verzeichnis, das im Container `/data` wird (Checkpoints, Shader-Cache, Logs). Rechne mit 40–60 GB |
 | `RL_REPO_DIR` | Elternverzeichnis des Skripts | Repo-Wurzel; bestimmt auch, wo `.env.local` gesucht wird |
-| `RL_IMAGE` | `lucam03/…-sim-standalone:latest` | Abweichendes/lokal gebautes Image |
+| `DOCKER_NAMESPACE` | `lucam03` | Docker-Hub-Konto der Images (gilt auch für `RC_IMAGE` und die Trainings-Launcher); eigenes Konto, wenn du selbst baust |
+| `RL_IMAGE` | `$DOCKER_NAMESPACE/…-sim-standalone:latest` | Abweichendes/lokal gebautes Image (ganzer Name) |
 | `RL_CONTAINER` | `groot-rl` | Container-Name (mehrere Läufe pro Server) |
 | `RL_GPUS` | `"device=1,0"` | GPU-Auswahl; erste Karte trägt Rendering + Training |
 | `HF_TOKEN`, `WANDB_API_KEY` | — | Zugangsdaten; gehören in `.env.local` |
@@ -275,6 +308,7 @@ Das RoboCasa-Skript nutzt dieselbe Mechanik mit `RC_`-Präfix (`RC_HOST_DATA_DIR
 | `TRAIN_HOST_DATA_DIR` | — (kein Mount) | Host-Verzeichnis, das im Container `/data` wird. Leer = altes vast.ai-Verhalten, alles lebt im Container und stirbt mit `--destroy`. Auf einem Rechner, der **auch die Sim fährt**, gehört hier `$HOME/groot-rl-data` hin — derselbe Pfad, den `server_rl_run.sh` einhängt; sonst sieht die Sim-Eval die Checkpoints nur nach einem `docker cp` über hunderte GB |
 | `MOUNT_SCRIPTS` | `auto` | `auto` bindet `Training/scripts` über `/scripts`, sobald das Repo daneben liegt — genau wie [`kisski_submit.sh:336`](../Training/kisski_submit.sh#L336) es seit jeher tut. `0` = der Stand im Image gilt |
 | `CONTAINER_NAME` | `groot-train` | mehrere Läufe pro Server |
+| `DOCKER_NAMESPACE` | `lucam03` | Docker-Hub-Konto, von dem gezogen wird; `DOCKER_HUB_IMAGE` (ganzer Name) schlägt es |
 | `DOCKER_GPUS` | `all` | Wert für `docker run --gpus`, z. B. `'"device=0"'` |
 
 > **Warum `MOUNT_SCRIPTS` per Default an ist.** Am 2026-09-08 stellte sich heraus, dass
@@ -310,9 +344,11 @@ Nicht jeder absolute Pfad ist ein Portabilitätsproblem:
 
 - **`/data/…`, `/workspace/…`, `/app/Groot-1.6` in Python-Skripten** sind *container-intern*.
   Sie hängen nicht am Host-Layout und bleiben unverändert.
-- **Image-Namen** (`lucam03/…`) und **HF-Repos** (`luca-mue/groot-g1dex3-checkpoint`) sind
-  öffentlich und funktionieren für alle. Wer eigene Artefakte nutzt, setzt `RL_IMAGE` bzw.
-  `HF_CHECKPOINT_REPO`.
+- **Lese-Defaults** für Images (`lucam03/…`), den GR00T-Fork (`lucam06/Isaac-GR00T`) und
+  HF-Repos (`luca-mue/groot-g1dex3-checkpoint`) sind öffentlich und funktionieren für alle.
+  Eigene Artefakte: `DOCKER_NAMESPACE` (oder ganz `RL_IMAGE`/`DOCKER_HUB_IMAGE`) bzw.
+  `HF_CHECKPOINT_REPO`. **Schreiben** ist nie mehr fest verdrahtet: Das Push-Konto fragen die
+  Build-Skripte ab (§3.4), und `upload_checkpoint.py` verlangt `--repo` ohnehin ausdrücklich.
 - **`#SBATCH`-Ressourcenzeilen** (Partition, GPU, Walltime) sind cluster-spezifisch und
   müssen für einen fremden Scheduler von Hand angepasst werden.
 - **Der Portable-Block ist in allen sechs SLURM-Skripten dupliziert** statt in eine

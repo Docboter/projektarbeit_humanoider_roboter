@@ -38,7 +38,9 @@
 #   GROOT_VERSION      (default 1.6)      1.6 | 1.7 — waehlt Code-Baum/Modell/venv im
 #                                         Container (siehe Training/scripts/lib_groot_version.sh)
 #   CONTAINER_NAME     (default groot-train)
-#   DOCKER_HUB_IMAGE   (default lucam03/projekt-humanoider-roboter:latest)
+#   DOCKER_NAMESPACE   (default lucam03) — Docker-Hub-Konto, von dem gezogen wird; eigenes
+#                      Konto, wenn du selbst mit update_image.sh baust (am besten in .env.local)
+#   DOCKER_HUB_IMAGE   (default $DOCKER_NAMESPACE/projekt-humanoider-roboter:latest)
 #   DOCKER_GPUS        (default all) — Wert fuer `docker run --gpus`. Auf einem Rechner,
 #                      der die Karten noch mit etwas anderem teilt, gezielt eine belegen:
 #                      DOCKER_GPUS='"device=0"' ./setup_and_train_dockerhub_pull.sh
@@ -146,11 +148,14 @@ fi
 
 # ── Konfiguration ─────────────────────────────────────────────────────────────
 GROOT_VERSION="${GROOT_VERSION:-1.6}"
+# Docker-Hub-Konto der Images. Ziehen darf jeder vom Team-Konto (oeffentlich); wer selbst
+# baut und pusht, setzt sein Konto — dieselbe Variable, die update_image.sh fuer den Push nimmt.
+DOCKER_NAMESPACE="${DOCKER_NAMESPACE:-lucam03}"
 # Ein Image je GR00T-Generation (update_image.sh --groot=…): N1.6 = :latest, N1.7 = :latest-n17.
 if [[ -z "${DOCKER_HUB_IMAGE-}" && "$GROOT_VERSION" == "1.7" ]]; then
-    DOCKER_HUB_IMAGE="lucam03/projekt-humanoider-roboter:latest-n17"
+    DOCKER_HUB_IMAGE="$DOCKER_NAMESPACE/projekt-humanoider-roboter:latest-n17"
 fi
-DOCKER_HUB_IMAGE="${DOCKER_HUB_IMAGE:-lucam03/projekt-humanoider-roboter:latest}"
+DOCKER_HUB_IMAGE="${DOCKER_HUB_IMAGE:-$DOCKER_NAMESPACE/projekt-humanoider-roboter:latest}"
 CONTAINER_NAME="${CONTAINER_NAME:-groot-train}"
 
 MAX_STEPS="${MAX_STEPS:-30000}"
@@ -290,7 +295,7 @@ if ! $DRY_RUN && docker image inspect "$DOCKER_HUB_IMAGE" >/dev/null 2>&1; then
     if [[ " $_img_versions " != *" $GROOT_VERSION "* ]]; then
         err "GROOT_VERSION=$GROOT_VERSION, aber $DOCKER_HUB_IMAGE enthaelt nur N$_img_versions."
         err "  Passendes Image bauen:  ./Training/update_image.sh --groot=$GROOT_VERSION --push-latest"
-        err "  oder eines vorgeben:     DOCKER_HUB_IMAGE=lucam03/projekt-humanoider-roboter:<tag>"
+        err "  oder eines vorgeben:     DOCKER_HUB_IMAGE=$DOCKER_NAMESPACE/projekt-humanoider-roboter:<tag>"
         exit 1
     fi
 fi

@@ -1,6 +1,7 @@
 # TL;DR: Optionale Dev-Variante mit Host-Bind-Mounts; fuer den taeglichen Betrieb nicht noetig.
 # Optionale Dev-Variante — fuer den taeglichen Betrieb NICHT noetig.
 # Das Image ist autonom: `docker run lucam03/projekt-humanoider-roboter:latest`
+# (Konto per DOCKER_NAMESPACE, Default lucam03 — eigenes Konto fuer selbst gebaute Images)
 # (oder ./setup_and_train_dockerhub_pull.sh) startet alles selbst.
 #
 # Diese Datei ist nur fuer lokale Entwicklung gedacht, wenn du Skripte und Daten
@@ -17,7 +18,7 @@ services:
   groot-training:
     # Ein Image je GR00T-Generation: :latest = N1.6, :latest-n17 = N1.7 (GROOT_IMAGE_TAG setzt
     # setup_and_train_container_build.sh passend zu GROOT_VERSION).
-    image: lucam03/projekt-humanoider-roboter:${GROOT_IMAGE_TAG:-latest}
+    image: ${DOCKER_NAMESPACE:-lucam03}/projekt-humanoider-roboter:${GROOT_IMAGE_TAG:-latest}
     container_name: groot-train
     runtime: nvidia
     ipc: host
