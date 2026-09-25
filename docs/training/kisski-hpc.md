@@ -211,8 +211,9 @@ apptainer exec --bind /mnt/vast-kisski/projects/kisski-humrob/data:/data \
 
 Der Job selbst setzt danach `--env HF_HOME=/data/hf_cache --env HF_HUB_OFFLINE=1`, damit das
 Training den vorab gefüllten Cache trifft, statt (erfolglos) online nachzuladen. **Dieser
-Pfad ist bislang ungetestet** — es gibt noch keinen abgeschlossenen N1.7-Trainingslauf auf
-KISSKI, siehe [groot-n17-migration.md](../weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19).
+Pfad ist auf KISSKI bislang ungetestet** — N1.7 hat bisher nur Smoke-Tests auf dem IKR-Blackwell
+bestanden (2026-09-25: 1 und 2 GPUs, `TUNE_VISUAL` + Split, Checkpoint-Sweep); Ergebnis und Übergabe-Reihenfolge für KISSKI:
+[groot-n17-migration.md](../weiterfuehrend/groot-n17-migration.md#smoke-test-auf-dem-ikr-blackwell-2026-09-25-und-übergabe-an-kisski).
 
 ---
 

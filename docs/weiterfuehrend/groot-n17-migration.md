@@ -2,8 +2,9 @@
 
 > **TL;DR:** Recherche und Migrationsplan für den Umstieg GR00T N1.6 → N1.7, plus den erreichten
 > Umsetzungsstand. N1.7 ist als **paralleler Pfad** gebaut — zweiter Code-Baum `app/Groot-1.7`,
-> Laufzeit-Auswahl per `GROOT_VERSION` in einem Image —, aber **noch kein Image gebaut und kein
-> N1.7-Lauf gefahren**. Was sich ändert (gated Cosmos-Reason2-2B-Backbone, Python 3.12/torch 2.9,
+> Laufzeit-Auswahl per `GROOT_VERSION` —; **Trainings-Smoke-Tests am 2026-09-25 auf dem
+> IKR-Blackwell bestanden** (1 GPU, 2 GPUs, `TUNE_VISUAL` + Split, Checkpoint-Sweep) ([Ergebnis + Übergabe an KISSKI](#smoke-test-auf-dem-ikr-blackwell-2026-09-25-und-übergabe-an-kisski)),
+> noch kein voller Lauf, kein KISSKI-, kein Sim-Lauf. Was sich ändert (gated Cosmos-Reason2-2B-Backbone, Python 3.12/torch 2.9,
 > N1.6-Checkpoints nicht ladbar), was N1.6-only bleibt, und die 8 Phasen mit Abnahmekriterien.
 
 Recherche- und Planungsdokument. **Umsetzung als paralleler Pfad begonnen** (Stand 2026-08-19 —
@@ -65,7 +66,10 @@ Alle Trainings-Launcher (`entrypoint.sh`, `download_data.sh`, `run_finetuning*.s
 (löst 173 Pakete auf, darunter torch 2.9.0+cu128 und das flash-attn-2.8.3-cp312-Wheel — ohne
 etwas zu installieren).
 
-**Phase 3 — lokaler Trainings-Smoke-Test: offen.** Kein Trainingslauf (mit oder ohne
+**Phase 3 — lokaler Trainings-Smoke-Test: erledigt am 2026-09-25** (Training mit und ohne
+`TUNE_VISUAL`, 2 GPUs, Split, VRAM, Sweep; siehe
+[Smoke-Test](#smoke-test-auf-dem-ikr-blackwell-2026-09-25-und-übergabe-an-kisski)). Der Rest
+dieses Absatzes ist der überholte Stand vom 2026-08-19. Kein Trainingslauf (mit oder ohne
 `TUNE_VISUAL`), keine VRAM-Messung, kein `checkpoint_sweep.py`-Lauf gegen einen echten
 N1.7-Checkpoint. `checkpoint_sweep.py` wurde zwar so angepasst, dass es unter beiden venvs
 läuft (introspiziert `execution_horizon` vs. `action_horizon`, `decoder_kwargs` vs.
@@ -182,6 +186,124 @@ Weiterhin gilt: **kein Image gebaut, kein N1.7-Lauf.** Alles Folgende ist statis
   `GROOT16_COMMIT=9508b49` und ist nicht betroffen). `setup_and_train_container_build.sh`
   „baut“ per `docker compose build`, aber `docker-compose.yml` hat seit `cb388a1` keinen
   `build:`-Abschnitt mehr — der Schritt ist wirkungslos (bestand schon vorher).
+
+## Smoke-Test auf dem IKR-Blackwell (2026-09-25) und Übergabe an KISSKI
+
+> **Kurz:** Alle vier N1.7-Tests auf dem IKR-Server sind **bestanden**: Einzel-GPU-Training
+> (200 Steps), Multi-GPU mit `torchrun` + DeepSpeed (2 GPUs), `TUNE_VISUAL=1` mit 80/20-Split
+> sowie Laden + Open-Loop-Auswertung der feinjustierten Checkpoints (`checkpoint_sweep.py`).
+> Getestet ist damit die ganze Kette: Image → Download (inkl. gated Backbone) → Konvertierung →
+> Training → Checkpoint → Inferenz. **Offen ist nur, was es ausschließlich auf KISSKI gibt**
+> (Apptainer, Offline-Cache, A100/H100) und die Sim. Durchgeführt von Matthias; Übergabe an Luca
+> für den vollen KISSKI-Lauf.
+
+### Gemeinsamer Aufbau
+
+| | |
+|---|---|
+| Rechner | `ikr-ki-server-01`, 2 × RTX PRO 6000 Blackwell Max-Q (96 GB) |
+| Image | `lucam03/projekt-humanoider-roboter:training-luca-IKR-IS6.0-GN1.7-n17` — auf dem Server mit `update_image.sh --groot=1.7` gebaut, gestartet mit `--skip-pull` |
+| Skripte | per Bind-Mount aus dem Repo (Branch `training-luca-IKR-IS6.0-GN1.7`, inkl. `22c3183`) |
+| Rezept | Augmentierung an (Color-Jitter), LR 1e-4, Warmup 5 %, `GLOBAL_BATCH_SIZE=8`, `STATE_DROPOUT_PROB` leer = N1.7-Default 0.2, ohne W&B |
+| Container | Test 0 in `groot-n17-smoke`; Tests 1–3 in `groot-n17-tests` (`SKIP_TRAIN=1`, dann von Hand in der Container-Shell) |
+
+### Die Tests im Überblick
+
+| # | Test | Aufruf (im Container, außer Test 0) | Ergebnis |
+|---|---|---|---|
+| 0 | Einzel-GPU, Standard | `GROOT_VERSION=1.7 … MAX_STEPS=200 SAVE_STEPS=100 NUM_GPUS=1 ./Training/setup_and_train_dockerhub_pull.sh --skip-pull` | ✅ 200/200, Loss 1,283 → 1,031, `checkpoint-100/200` |
+| 1 | Multi-GPU (`torchrun` + DeepSpeed ZeRO-2) | `NUM_GPUS=2 MAX_STEPS=50 SAVE_STEPS=50 EXPERIMENT_NAME=smoke_2gpu bash /scripts/run_finetuning.sh` | ✅ 50/50, Ranks 0 und 1 aktiv, Loss 1,271 → 1,091, `checkpoint-50` |
+| 2 | `TUNE_VISUAL=1` + `TRAIN_TEST_SPLIT=1` + VRAM | `TRAIN_TEST_SPLIT=1 MAX_STEPS=100 SAVE_STEPS=50 bash /scripts/run_finetuning_vision.sh` | ✅ 100/100, Split 240/61 Episoden, Loss 1,275 → 1,181, **VRAM-Spitze 59 322 MiB** |
+| 3 | Checkpoint laden + Open-Loop-Eval | `uv run --no-sync python /scripts/checkpoint_sweep.py --run-dir …/blockstacking_vision_n17 --split test --num-trajectories 2 --steps 150` | ✅ beide Checkpoints geladen, MSE 0,2527 → 0,2494 |
+
+### Messwerte
+
+| Messgröße | Wert |
+|---|---|
+| Zugangs-Check `nvidia/Cosmos-Reason2-2B` | bestanden (Launcher **und** Entrypoint) |
+| Download | GR00T-N1.7-3B (~7 GB) 2:35 min · Cosmos-Reason2-2B (4,9 GB) 2:00 min · Datensatz 4:29 min |
+| v3→v2.1-Konvertierung | ~1 min, fehlerfrei; `modality_4cam.json` → `modality.json` |
+| Modell | 3 144 016 000 Parameter, davon **1 620 515 968 trainierbar (51,5 %)** ohne `TUNE_VISUAL`; DiT 1,09 Mrd., SelfAttention 0,20 Mrd. |
+| Datensatz | 301 Episoden, 276 681 Frames, 271 Shards; `stats.json`/`relative_stats.json` beim ersten Start nachgerechnet (~27 s), danach aus dem Cache |
+| Anlauf | ~100 s Shard-Caching bis zum ersten Step (1 GPU, 8 Worker); ~155–200 s bei 2 GPUs (2 × 8 Worker) |
+| **Durchsatz (eingeschwungen, bs 8)** | Standard 1 GPU: **3,1–3,4 Steps/s** · Standard 2 GPUs: **2,75 Steps/s** · `TUNE_VISUAL` 1 GPU: **1,96 Steps/s** |
+| grad_norm | 0,4–1,05, einmal 3,43 im ersten Log-Schritt von Test 1 (Warmup); keine NaN/Inf |
+| **VRAM** (`TUNE_VISUAL=1`, bs 8, 1 GPU, `nvidia-smi memory.used`) | **59 322 MiB ≈ 58 GiB** — inkl. PyTorch-Cache, also eine Obergrenze |
+| Split | `lib_split.sh` hält die Episoden 240–300 (61) zurück; `checkpoint_sweep.py` findet und nutzt sie |
+| Open-Loop (Test 3, 2 Test-Episoden, 150 Steps) | ckpt-50: MSE 0,2527 / MAE 0,3742 · ckpt-100: MSE 0,2494 / MAE 0,3710 — nach 100 Steps **nicht aussagekräftig**, belegt nur, dass Laden und Inferenz funktionieren |
+| Präzision | bf16 bestätigt (`Casting fp32 inputs back to torch.bfloat16 for flash-attn compatibility`) |
+
+Zur Einordnung: 2 GPUs bei globaler bs 8 (4 je Karte) sind **nicht** schneller als eine. Bei so
+kleiner Batch je Karte überwiegt der Synchronisationsaufwand. Test 1 prüft nur, dass der
+Multi-GPU-Pfad funktioniert, nicht wie schnell er ist. Auf KISSKI mit größerer Batch sieht das
+anders aus. Grob hochgerechnet (1 GPU, bs 8): Standard ~2,5–3 h, `TUNE_VISUAL` ~4,5 h für
+30 000 Steps.
+
+**VRAM-Hinweis für die Batch-Größe:** N1.7 mit `TUNE_VISUAL=1` braucht bei 8 Samples auf einer
+Karte schon ~58 GiB. Auf der 32-GB-RTX-5090 passt das **nicht** (N1.6 lag dort bei ~31 GB).
+Auf einer A100 80 GB sind 8 Samples je GPU sicher. Mehr je GPU ist ungetestet, DeepSpeed ZeRO-2
+entlastet aber etwas, weil es die Optimizer-Zustände auf die Karten verteilt.
+
+**Beobachtung (Test 1, harmlos):** Nach `Training completed!` meldete der Abbau der Dataloader
+`RuntimeError: DataLoader worker (pid …) is killed by signal: Killed` („Exception ignored“).
+Das Modell war da schon gespeichert, und der Launcher meldete Erfolg. Falls das auf KISSKI
+**während** des Trainings auftritt, ist es vermutlich der Host-RAM (2 Ranks × 8 Worker cachen
+Shards). Dann `DATALOADER_WORKERS` senken.
+
+Harmlose Warnungen im Log, keine Aktion nötig: Flash-Attention-2-Hinweis „current dtype is
+float32“ (Laden in fp32, Training läuft in bf16, s. o.), `albumentations`-Update,
+`image_crop_size … deprecated`, TF32-API, `huggingface-cli download is deprecated`,
+`Could not estimate the number of tokens`.
+
+### Gefundener und behobener Fehler
+
+Der erste Versuch von Test 0 brach im ersten Step mit `StopIteration` in
+`gr00t_n1d7.py:618` (`next(iter(self.parameters())).device`) innerhalb von
+`torch/nn/parallel/data_parallel.py` ab. Ursache: `--gpus all` zeigt dem Container beide Karten,
+`NUM_GPUS=1` startet aber kein `torchrun`. Dann wickelt der HF-Trainer das Modell selbst in
+`nn.DataParallel`, und dessen Replika hat keine Parameter. **Fix `22c3183`:** Die drei
+Trainings-Launcher setzen bei `NUM_GPUS=1` und mehreren sichtbaren Karten
+`CUDA_VISIBLE_DEVICES=0` (ein vorgegebener Wert, z. B. von SLURM, bleibt). Das betrifft nur
+Rechner mit mehreren GPUs ohne SLURM. Auf KISSKI setzt SLURM die Variable selbst.
+
+### Was noch offen ist
+
+| Punkt | Warum relevant | Wo prüfbar |
+|---|---|---|
+| Apptainer-SIF, `HF_HUB_OFFLINE=1`, Cache auf VAST | Compute-Knoten haben kein Internet; N1.7 lädt das Backbone bei jedem Modell-Laden | nur KISSKI |
+| A100/H100, Batch > 8 je GPU | VRAM-Grenze mit `TUNE_VISUAL` | nur KISSKI |
+| Aussagekräftige Validierung (voller Lauf + Sweep) | Vergleich N1.7 vs. N1.6 (Lauf 3, ckpt 30000) | KISSKI |
+| Sim-Eval mit N1.7-Checkpoint | Phase 5; Sim-Image noch nicht gebaut | IKR |
+
+### Übergabe an KISSKI (Luca)
+
+Die operativen Schritte stehen in [kisski-hpc.md](../training/kisski-hpc.md), jeweils in den
+Abschnitten „Nur für `GROOT_VERSION=1.7`“. Reihenfolge:
+
+1. **SIF:** `kisski_submit.sh` erwartet für N1.7 `projekt-humanoider-roboter-n17.sif`. Die
+   Doku zieht `:latest-n17`, der hier getestete Build trägt aber den Branch-Tag
+   `:training-luca-IKR-IS6.0-GN1.7-n17`. Vor dem Pull auf Docker Hub prüfen, welcher Tag
+   existiert, und genau das getestete Image nehmen:
+   `apptainer pull $HOME/images/projekt-humanoider-roboter-n17.sif docker://lucam03/projekt-humanoider-roboter:<tag>`.
+2. **Fork-Clone** `luca/g1-dex3-n17` nach `$KISSKI_PROJECT_DIR/repo-groot-n17` anlegen
+   (kisski-hpc.md, Schritt 2b).
+3. **Modell + gated Backbone auf dem Login-Knoten** in den VAST-Cache laden. Die Compute-Knoten
+   haben kein Internet, der Job läuft mit `HF_HUB_OFFLINE=1`. Der Token braucht die
+   Cosmos-Freigabe **auf dem eigenen Konto**. Test: `curl -I -H "Authorization: Bearer $HF_TOKEN"
+   https://huggingface.co/nvidia/Cosmos-Reason2-2B/resolve/main/config.json` muss `200` liefern.
+4. **Zuerst ein kurzer Job** (`GROOT_VERSION=1.7 TUNE_VISUAL=1 MAX_STEPS=200 SAVE_STEPS=100`,
+   gleiche GPU-Zahl und Batch wie später). Er prüft Apptainer, Offline-Cache und VRAM auf der
+   Zielkarte in einem Durchlauf, bevor 48 h Walltime verbraucht werden. Namespace:
+   `blockstacking_vision_n17` bzw. `blockstacking_n17`. Der Resume-Schutz bricht ab, wenn dort
+   schon Checkpoints liegen, also vor dem echten Lauf `EXPERIMENT_NAME` ändern oder das
+   Verzeichnis leeren.
+5. **Vergleichslauf** wie in Phase 4 geplant (`TUNE_VISUAL=1`, `TRAIN_TEST_SPLIT=1`), danach
+   `kisski_open_loop_eval.sh` bzw. den Sweep auf den Test-Episoden fahren.
+
+Für einen Coding-Agent: Einstieg ist dieser Abschnitt. Die relevanten Code-Pfade sind
+`Training/kisski_submit.sh`, `Training/kisski_menu.sh` (Login-Knoten; prüft Zugang und Cache vor
+`sbatch`), `Training/scripts/lib_groot_version.sh`, `Training/scripts/run_finetuning*.sh`,
+`Training/scripts/checkpoint_sweep.py`.
 
 ## 1. Was ist GR00T N1.7?
 

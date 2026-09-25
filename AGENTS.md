@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-This repository fine-tunes NVIDIA GR00T N1.6 for the Unitree G1 with DEX3 hands and evaluates it in Isaac Lab.
+This repository fine-tunes NVIDIA GR00T N1.6 for the Unitree G1 with DEX3 hands and evaluates it in Isaac Lab. GR00T N1.7 runs as a parallel path (`GROOT_VERSION=1.7`, `app/Groot-1.7/`). Its training smoke tests passed on the IKR server on 2026-09-25; the tested commands, the results and the next steps for the full KISSKI run are in `docs/weiterfuehrend/groot-n17-migration.md`, section "Smoke-Test auf dem IKR-Blackwell (2026-09-25) und Übergabe an KISSKI". `CLAUDE.md` has the full project context.
 
 - `Training/`: Docker and Apptainer launchers, training entrypoints, and checkpoint tools.
 - `Simulation/`: Isaac Lab environments, ZMQ policy clients, evaluation scripts, Dockerfiles, and server workflows.
