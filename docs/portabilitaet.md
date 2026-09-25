@@ -21,7 +21,7 @@ Pfade auf genau *einen* Rechner bzw. *ein* HPC-Konto. Wer das Repo klonte, lief 
 > `server_robocasa_ref_run.sh` die Datei; in den Trainings-Launchern fehlte der Block
 > ganz, die unten beschriebene Vorrangregel galt dort also nicht. Ein in `.env.local`
 > hinterlegter `HF_TOKEN` wurde von
-> [`setup_and_train_DockerHub-pull.sh`](../Training/setup_and_train_DockerHub-pull.sh)
+> [`setup_and_train_dockerhub_pull.sh`](../Training/setup_and_train_dockerhub_pull.sh)
 > trotzdem abgefragt. Die Mechanik steckt jetzt einmal in
 > [`tools/lib_env_local.sh`](../tools/lib_env_local.sh) und wird von beiden Seiten
 > gesourct. Aufgefallen beim Umsetzen der
@@ -58,14 +58,15 @@ explizit gesetzte Umgebungsvariable   >   .env.local (nur server_rl_run.sh)   > 
 
 ### 2.1 IKR-Server (Docker, `server_rl_run.sh`)
 
-Bisher lag `/data` des Containers auf `/home/lmuecke/project/data/RL`. Ohne Zutun landet es
-jetzt unter `$HOME/groot-rl-data`. **Eine Zeile stellt den alten Zustand her** — auf dem
-Server, im Repo-Wurzelverzeichnis:
+Bisher lag `/data` eines einzelnen Benutzerkontos fest unter
+`/home/lmuecke/project/data/RL`. Ohne Konfiguration landet es jetzt portabel unter
+`$HOME/groot-rl-data`. Auf dem IKR-Server empfiehlt sich der ebenfalls portable
+Projektpfad `$HOME/project/data/RL` — im Repo-Wurzelverzeichnis:
 
 ```bash
 cp .env.local.example .env.local
-echo ': "${RL_HOST_DATA_DIR:=/home/lmuecke/project/data/RL}"'       >> .env.local
-echo ': "${RC_HOST_DATA_DIR:=/home/lmuecke/project/data/RoboCasa}"' >> .env.local
+echo ': "${RL_HOST_DATA_DIR:=$HOME/project/data/RL}"'       >> .env.local
+echo ': "${RC_HOST_DATA_DIR:=$HOME/project/data/RoboCasa}"' >> .env.local
 ```
 
 Die zweite Zeile gilt für [`server_robocasa_ref_run.sh`](../Simulation/server_robocasa_ref_run.sh)
@@ -78,13 +79,11 @@ Prüfen, dass es gegriffen hat (die Ausgabe muss den alten Pfad zeigen):
 grep RL_HOST_DATA_DIR .env.local
 ```
 
-> **Es besteht kein Zeitdruck und es geht nichts verloren.** Der Bind-Mount wird nur beim
-> **Anlegen** des Containers gesetzt; ein bereits existierender `groot-rl` behält seinen alten
-> Mount, egal was hier steht. Ohne `.env.local` würden lediglich die **Host-Logs** nach
-> `$HOME/groot-rl-data/logs` wandern — und ein späteres `clean` + Neuanlegen würde dann
-> tatsächlich auf das neue Verzeichnis zeigen (Checkpoint-Cache und Shader-Cache müssten neu
-> aufgebaut werden). Deshalb: `.env.local` anlegen, *bevor* du auf dem Server das nächste Mal
-> `clean` fährst.
+> Der Bind-Mount wird nur beim **Anlegen** des Containers gesetzt; ein bereits existierender
+> `groot-rl` behält seinen alten Mount. `server_rl_run.sh` vergleicht deshalb den realen
+> `/data`-Mount mit `RL_HOST_DATA_DIR` und bricht bei einer Abweichung ab. Dann entweder
+> `.env.local` auf den bestehenden Datenpfad korrigieren oder den Container mit `clean`
+> neu anlegen. `clean` löscht das Host-Datenverzeichnis nicht.
 
 Praktisch: In dieselbe Datei gehören auch `HF_TOKEN` und `WANDB_API_KEY` — dann entfällt das
 Voranstellen bei jedem Aufruf. Siehe [`.env.local.example`](../.env.local.example).
@@ -147,6 +146,31 @@ sbatch --output=/user/luca.muecke/u28320/.project/dir.project/logs/slurm-sim-%j.
 | ☐ | KISSKI Login-Knoten | `ln -s …/images "$HOME/images"` **oder** `export KISSKI_SIF_DIR=…` in `~/.bashrc` |
 | ☐ | KISSKI Repo-Checkout | `mkdir -p logs` |
 | ☐ | KISSKI Repo-Checkout | `git pull`, damit die neuen Skripte dort ankommen |
+| ☐ | IKR-Server | Sim-Standalone-Image auf den neuen Namen bringen (§2.4) |
+
+### 2.4 Sim-Standalone-Image umbenannt (ehemals `sim-vastai`)
+
+Das kombinierte Isaac-Lab+GR00T-Image heißt jetzt nach seinem Zuschnitt statt nach einer
+Plattform — **Standalone**, weil derselbe Container unverändert auf dem IKR-Server **und** auf
+vast.ai läuft: `lucam03/projekt-humanoider-roboter-sim-standalone`.
+`server_rl_run.sh` erwartet diesen Namen inzwischen als `RL_IMAGE`-Default (siehe §4). Auf dem
+IKR-Server einmalig eine der folgenden Optionen:
+
+```bash
+# a) neu bauen und pushen (dauert am längsten, aber sauber)
+./Simulation/update_sim_image.sh --standalone
+
+# b) oder lokal nur umtaggen, wenn das alte Image bereits vorhanden ist
+docker tag lucam03/projekt-humanoider-roboter-sim-vastai:latest \
+    lucam03/projekt-humanoider-roboter-sim-standalone:latest
+
+# c) oder übergangsweise beim alten Tag bleiben — in .env.local:
+: "${RL_IMAGE:=lucam03/projekt-humanoider-roboter-sim-vastai:latest}"
+```
+
+Option c) ist nur ein Übergang, kein Dauerzustand — `--vastai` existiert bei
+[`update_sim_image.sh`](../Simulation/update_sim_image.sh) nur noch als deprecated Alias für
+`--standalone`.
 
 ---
 
@@ -154,7 +178,7 @@ sbatch --output=/user/luca.muecke/u28320/.project/dir.project/logs/slurm-sim-%j.
 
 Alles Nötige ist öffentlich: das Repo, **drei** Submodule (`app/Groot-1.6` und `app/Groot-1.7`
 → jeweils `lucam06/Isaac-GR00T`, verschiedene Branches; `data/unitree_ros`), beide Docker-Images
-(`lucam03/projekt-humanoider-roboter`, `…-sim-vastai`) sowie Modell und Datensatz auf
+(`lucam03/projekt-humanoider-roboter`, `…-sim-standalone`) sowie Modell und Datensatz auf
 HuggingFace (`nvidia/GR00T-N1.6-3B` ist **nicht** gated). Mitbringen muss man nur einen
 **eigenen HF-Token**, optional einen W&B-Key und passende GPU-Hardware. Wer zusätzlich
 **GR00T N1.7** nutzen will (`GROOT_VERSION=1.7`, seit 2026-08-19 als paralleler Pfad im
@@ -237,12 +261,31 @@ Das RoboCasa-Skript nutzt dieselbe Mechanik mit `RC_`-Präfix (`RC_HOST_DATA_DIR
 |---|---|---|
 | `RL_HOST_DATA_DIR` | `$HOME/groot-rl-data` | Host-Verzeichnis, das im Container `/data` wird (Checkpoints, Shader-Cache, Logs). Rechne mit 40–60 GB |
 | `RL_REPO_DIR` | Elternverzeichnis des Skripts | Repo-Wurzel; bestimmt auch, wo `.env.local` gesucht wird |
-| `RL_IMAGE` | `lucam03/…-sim-vastai:latest` | Abweichendes/lokal gebautes Image |
+| `RL_IMAGE` | `lucam03/…-sim-standalone:latest` | Abweichendes/lokal gebautes Image |
 | `RL_CONTAINER` | `groot-rl` | Container-Name (mehrere Läufe pro Server) |
 | `RL_GPUS` | `"device=1,0"` | GPU-Auswahl; erste Karte trägt Rendering + Training |
 | `HF_TOKEN`, `WANDB_API_KEY` | — | Zugangsdaten; gehören in `.env.local` |
 | `GROOT_VERSION` | Container-Default `auto`, Host-Default `1.6` für `docker exec`-Aktionen | `1.6` \| `1.7` \| `auto` — nur ein **explizit** gesetzter Wert wird beim Anlegen des Containers durchgereicht (`-e`, wirkt nur bei `docker create`/`run` — nach einem Wechsel `clean` nötig). `1.7` braucht Zugang zum gated Backbone `nvidia/Cosmos-Reason2-2B`; `rl`/`check`/`optimize` und der Baseline-Lauf laufen nur mit `1.6` |
 | `HF_HOME` | `/data/hf_cache` (Container-Pfad) | Nur bei `GROOT_VERSION=1.7` relevant (Cosmos-Reason2-2B-Cache); muss unterhalb von `/data` liegen, sonst überlebt es kein `clean` |
+
+### `Training/setup_and_train_dockerhub_pull.sh` (Docker, Training)
+
+| Variable | Default | Zweck |
+|---|---|---|
+| `TRAIN_HOST_DATA_DIR` | — (kein Mount) | Host-Verzeichnis, das im Container `/data` wird. Leer = altes vast.ai-Verhalten, alles lebt im Container und stirbt mit `--destroy`. Auf einem Rechner, der **auch die Sim fährt**, gehört hier `$HOME/groot-rl-data` hin — derselbe Pfad, den `server_rl_run.sh` einhängt; sonst sieht die Sim-Eval die Checkpoints nur nach einem `docker cp` über hunderte GB |
+| `MOUNT_SCRIPTS` | `auto` | `auto` bindet `Training/scripts` über `/scripts`, sobald das Repo daneben liegt — genau wie [`kisski_submit.sh:336`](../Training/kisski_submit.sh#L336) es seit jeher tut. `0` = der Stand im Image gilt |
+| `CONTAINER_NAME` | `groot-train` | mehrere Läufe pro Server |
+| `DOCKER_GPUS` | `all` | Wert für `docker run --gpus`, z. B. `'"device=0"'` |
+
+> **Warum `MOUNT_SCRIPTS` per Default an ist.** Am 2026-09-08 stellte sich heraus, dass
+> `lucam03/projekt-humanoider-roboter:latest` ein `/scripts` von **vor dem 2026-06-03** trug:
+> ohne `run_finetuning_cotrain.sh`, ohne `lib_split.sh`, ohne `torchrun`. `USE_COTRAIN=1` und
+> `TRAIN_TEST_SPLIT=1` liefen darüber still ins Leere, `NUM_GPUS=2` landete in `DataParallel`
+> statt unter `torchrun` und riss das Training ab. Auf KISSKI war das nie sichtbar, weil dort
+> der Bind schon immer gesetzt war. Der Mount macht den Docker-Weg fehlerfrei-gleich —
+> er ersetzt aber **keinen Rebuild**: liegt auch `/app/Groot-1.6` im Image falsch, hilft nur
+> [`Training/update_image.sh`](../Training/update_image.sh), und auf vast.ai gibt es gar kein
+> Repo zum Einhängen.
 
 ### KISSKI-SLURM-Skripte
 

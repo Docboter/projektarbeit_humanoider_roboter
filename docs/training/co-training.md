@@ -3,6 +3,8 @@
 > **TL;DR:** Schritt 4 der Domain-Gap-Behebung: warum Co-Training auf echten + gerenderten
 > Sim-Bildern der nächste Hebel ist, und welche Werkzeuge dafür gebaut wurden (Renderer,
 > Zwei-Datensatz-Training `USE_COTRAIN=1`). Werkzeuge stehen, der Trainingslauf steht noch aus.
+> Ein **fremder** Sim-Datensatz statt des eigenen Renderers läuft über denselben
+> `USE_COTRAIN`-Pfad, braucht aber vorher eine Schema-Harmonisierung: [synth-datensatz.md](synth-datensatz.md).
 
 **Stand:** 2026-08-17 · erster voller Renderlauf gefahren (60 Episoden), **Befund: Frames ab
 dem Griff sind falsch beschriftet** → `RENDER_STOP_AT_GRASP` (§ 3.2a), Trainingslauf steht
@@ -66,9 +68,12 @@ Die beiden Stufen heute:
 
 1. **`scan`** — Episode abspielen, Kameras auf ein Zehntel der Auflösung. Liefert je Episode
    den Arm-Tracking-Fehler und je Hand einen Greifpunkt aus der Fingerkinematik → `scan.json`.
-   Der Greifpunkt ist seit 2026-08-17 nur noch **Notnagel** für die Würfelplatzierung: er
-   liegt bei ~der Hälfte der Griffe auf dem Transportweg statt am Pick (§ 3.2a). Die
-   maßgebliche Würfellage kommt aus den **Realbildern** — § 3.0 (`layout`,
+   Der Greifpunkt platziert seit 2026-08-22 **keine Würfel mehr**: er liegt bei ~der Hälfte
+   der Griffe auf dem Transportweg statt am Pick (§ 3.2a), und die Fingeröffnung ist für
+   diese Hand überhaupt kein Greifdetektor (bei 101 von 116 Griffen bleibt die engste
+   Öffnung über 6 cm, bei 5 cm Würfelkante). Aus `scan.json` kommt nur noch der
+   Arm-Tracking-Fehler. Die Würfellage kommt ausschließlich aus den **Realbildern** — § 3.0
+   (`layout`,
    [wuerfellage-rekonstruktion.md](../simulation/wuerfellage-rekonstruktion.md)). Die
    ursprüngliche Greifpunkt-Begründung ist in [../historie.md](../historie.md) dokumentiert.
 2. **`render`** — dieselben Episoden mit den Würfeln an den Layout-Positionen (x/y aus dem
@@ -88,11 +93,19 @@ Die beiden Stufen heute:
 
 ### 3.0 Zuerst die Würfellage aus den Realbildern — `layout` (seit 2026-08-17)
 
-**Das ist der wichtigste Schritt, und er war zuerst nicht da.** Ohne ihn platziert der
-Renderer die Würfel am Greifpunkt aus `scan.json`, und der ist falsch — siehe § 3.2a.
+**Das ist der wichtigste Schritt, und er war zuerst nicht da.** Seit 2026-08-22 ist er die
+einzige Quelle: fehlt für eine Episode die Lage auch nur eines Würfels, verwirft `render` die
+Episode (`status: rejected_layout`), statt sie mit einem Greifpunkt oder einer Zufallslage zu
+füllen. Beide Rückfallebenen erzeugten Bilder, auf denen der Arm an einem Würfel vorbeigreift,
+der dort nie lag — und das sieht aus wie gültige Aufsicht.
+
+Der Verzicht kostet praktisch nichts: der Layout-Lauf vom 2026-08-22 findet in **60 von 60
+Episoden alle drei Würfel**, die beiden Kopfkameras sind sich im Median auf 1,17 cm einig
+(max 2,31 cm), und das Kameramodell selbst trifft auf 0,3 cm
+([Läufe 35–37](../ergebnisse/diagnose-chronik.md)).
 
 ```bash
-HF_TOKEN=hf_... RENDER_EPISODES=60 ./Simulation/server_rl_run.sh layout
+RENDER_EPISODES=60 LAYOUT_OVERWRITE=1 ./Simulation/server_rl_run.sh layout
 ```
 
 > **Verfahren, Koordinatentransformation und offene Punkte im Detail:**
@@ -224,9 +237,18 @@ Damit sind Frames **vor** dem Griff brauchbar (der Würfel liegt dort, wo der Ar
 und Frames **ab** dem Griff **falsch beschriftet** (Bild: Würfel auf dem Tisch, Aktion:
 Würfel transportieren). Falsch beschriftete Paare sind schlimmer als fehlende.
 
-`RENDER_STOP_AT_GRASP=1` (Default) schneidet jede Episode am **frühesten** `close_step`
-beider Hände ab — nicht am spätesten: sobald eine Hand zugreift, ist ihr Würfel der Physik
-überlassen, und er ist auch in der Kamera der anderen Hand sichtbar.
+`RENDER_STOP_AT_GRASP=1` (Default) schneidet jede Episode an der **ersten Würfelbewegung**
+ab — nicht am spätesten Würfel: ein bewegter Würfel ist in beiden Kopfkameras zu sehen, also
+verdirbt er auch die Frames der anderen Hand.
+
+> **Seit 2026-08-22 kommt diese Grenze aus `layout.json` (`motion_onset`), nicht mehr aus
+> `close_step`.** Der alte Weg war zweimal falsch. Erstens greift der Detektor für diese Hand
+> nicht: bei 101 von 116 Griffen bleibt die engste Kuppenöffnung über 6 cm bei 5 cm
+> Würfelkante. Zweitens lag er, wo er etwas fand, zu spät — in Episode 0 endete das Fenster
+> bei Frame 136, während sich der rote Würfel real ab Frame 108 bewegt: **28 Frames, 21 % der
+> Episode, falsch beschriftet**. Der Bewegungsbeginn misst direkt, was das Fenster braucht,
+> und wird nur gezählt, wenn beide Kopfkameras sich auf 12 Frames einig sind. Episoden ohne
+> einen einzigen belastbaren Onset werden verworfen (`skipped_window`).
 
 `RENDER_GRASP_WINDOW=N` rendert nur die letzten N Frames davor. Das schneidet den
 Leerlauf-Kopf langer Aufnahmen weg und vereinheitlicht das Gewicht der Episoden — ohne das
@@ -410,9 +432,15 @@ Ehrlich benannt, weil jeder dieser Punkte den Lauf entwerten würde:
    das Problem, sondern die Physik-Konfiguration.
 4. **Der dritte Würfel liegt zufällig.** Bei zwei erkannten Greifpunkten bleibt Würfel 2
    ein Ablenker im konfigurierten Band, mit Mindestabstand zu den gesetzten.
-5. **Domain Randomization ist beim Rendern an** (`DR_ENABLED=1`, Default). Das ist
-   erwünscht — es verbreitert die Beleuchtung im Trainingsmaterial. Für einen
-   Diagnose-Lauf mit fester Optik `DR_ENABLED=0` setzen.
+5. **Domain Randomization ist beim Rendern an, aber seit 2026-08-26 geseedet.** Sie ist
+   erwünscht — sie verbreitert die Beleuchtung im Trainingsmaterial —, nur war ihr Strom
+   bis dahin ungeseedet, und damit unterschieden sich zwei Läufe in Licht und
+   Würfelfarben, selbst wenn sonst nichts anders war. Ein A/B war so nicht auswertbar
+   (siehe [Lauf 53](../ergebnisse/diagnose-chronik.md#lauf-53-der-gierwinkel-und-die-greifachse-widersprechen-sich)).
+   Jetzt zieht jede Episode aus `default_rng([RENDER_DR_SEED, episode_index])`: über Läufe
+   hinweg reproduzierbar, über Episoden hinweg weiterhin gestreut. `RENDER_NO_DR=1` schaltet
+   sie für einen Diagnoselauf ganz ab. `DR_ENABLED` wirkt **nicht** auf den Render-Pfad —
+   die Variable liest nur der Eval-Runner.
 
 ---
 
@@ -428,7 +456,8 @@ Ehrlich benannt, weil jeder dieser Punkte den Lauf entwerten würde:
 | `RENDER_MAX_FRAMES` | `0` | `>0` kürzt jede Episode (Rauchtest) |
 | `RENDER_EPISODE_IDS` | — | Explizite Indices statt Streuung, z. B. `"0 4 8"` |
 | `RENDER_OVERWRITE` | `0` | `1` = fertige Episoden neu rendern |
-| `DR_ENABLED` | `1` | Beleuchtungs-/Farb-Randomisierung beim Rendern |
+| `RENDER_DR_SEED` | `0` | Seed der Beleuchtungs-/Farb-Randomisierung. Jede Episode zieht aus `default_rng([seed, episode_index])`, das Aussehen hängt also an der Episode statt an ihrer Position im Lauf. **Negativ** = pro Prozess neu auswürfeln (dann sind zwei Läufe visuell nicht vergleichbar) |
+| `RENDER_NO_DR` | `0` | `1` = Randomisierung ganz aus, festes Licht und feste Farben. Für ein A/B die schärfste Variante |
 | `SPAN_DATASET` | `/data/unitreerobotics/G1_Dex3_BlockStacking_Dataset` | Quelldatensatz (wird bei Bedarf geholt + konvertiert) |
 
 ### Trainieren

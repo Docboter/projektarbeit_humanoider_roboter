@@ -37,9 +37,9 @@ statt nur Aktions-Nachahmung (Hintergrund: [reinforcement-learning-plan.md](rein
 > ohne Terminal erscheint es nie. Die Beispiele unten funktionieren unverändert weiter.
 > Details: [cli-menuefuehrung.md](cli-menuefuehrung.md)
 
-```
+```text
 vast.ai Instanz (L40 48 GB / RTX 4090 24 GB — RT-Cores PFLICHT)
-└── Docker-Container: lucam03/projekt-humanoider-roboter-sim-vastai:latest
+└── Docker-Container: lucam03/projekt-humanoider-roboter-sim-standalone:latest
     └── entrypoint_rl.sh → rl_finetune.py
         ├── lädt BC-Checkpoint (Policy) + eingefrorene Referenz (für KL)
         ├── baut vektorisierte Isaac-Lab-Env (RL_NUM_ENVS, reward_mode="shaped")
@@ -55,7 +55,7 @@ und steuert die Env direkt (Gradienten-fähig).
 ## Pfad B — eigener Docker-GPU-Server mit RT-Cores ★ empfohlen, wenn verfügbar
 
 [`Simulation/server_rl_run.sh`](../../Simulation/server_rl_run.sh) fährt denselben kombinierten
-Isaac-Lab+GR00T-Container wie vast.ai (`Dockerfile.vastai`), aber als langlebiger
+Isaac-Lab+GR00T-Container wie vast.ai (`Dockerfile.standalone`), aber als langlebiger
 „Workbench"-Container auf einem generischen Docker-GPU-Server — analog zu
 [`server_robocasa_ref_run.sh`](../../Simulation/server_robocasa_ref_run.sh) (Pfad A2 im
 [RoboCasa-Referenz-Eval](../simulation/robocasa-referenz-eval.md)). Spart die vast.ai-Miete, **wenn** ein Server mit
@@ -92,7 +92,7 @@ HF_TOKEN=hf_... WANDB_API_KEY=... LIVE_VIEW=1 RL_WANDB_VIDEO_EVERY=10 \
 ```
 
 - **Image-Rebuild zuerst:** anders als beim RoboCasa-Server-Pfad ist hier ein Rebuild **nötig** (siehe
-  Status-Callout oben) — `./Simulation/update_sim_image.sh --vastai`.
+  Status-Callout oben) — `./Simulation/update_sim_image.sh --standalone`.
 - **Isaac Sim auf Blackwell:** Isaac Sim 5.1 (isaac-lab 2.3.2) segfaultet auf der RTX PRO 6000 mit
   Treiber 610.x — daher der Port auf Isaac Sim 6.0 (siehe Troubleshooting). `preflight` prüft
   Torch/flash-attn/gr00t; `check` ist der eigentliche Nachweis, dass Kamera-Rendering +
@@ -133,7 +133,7 @@ ist das der Standardweg.
 | vast.ai-Account mit Credits | https://cloud.vast.ai |
 | Docker-Hub-Login (`lucam03`) | `docker login` lokal |
 | NGC-API-Key für `nvcr.io` | https://ngc.nvidia.com → API Key |
-| HuggingFace-Token (`hf_...`) | https://huggingface.co/settings/tokens |
+| HuggingFace-Token (`hf_...`) — hier für BC-Checkpoint- + USD-Download | Einrichtung: [quickstart.md](../quickstart.md#accounts-und-tokens) |
 | **BC-Checkpoint** (RL-Startpunkt) | aus dem BC-Training, auf HF hochgeladen (→ Schritt 2) |
 | `g1_dex3.usd` Asset | einmalig erzeugt (→ Schritt 3) |
 | **GPU mit RT-Cores** | L40 / RTX 4090 / A6000 — **kein A100/H100** (kein RT-Core-Rendering) |
@@ -148,22 +148,22 @@ ist das der Standardweg.
 
 RL nutzt **dasselbe kombinierte Sim+GR00T-Image** wie die Closed-Loop-Eval — `rl_finetune.py`
 und `entrypoint_rl.sh` sind bereits darin enthalten (`COPY g1_dex3_sim/`, `COPY scripts/` in
-[`Dockerfile.vastai`](../../Simulation/Dockerfile.vastai)). Wenn das Image für die Sim-Eval schon
+[`Dockerfile.standalone`](../../Simulation/Dockerfile.standalone)). Wenn das Image für die Sim-Eval schon
 gepusht ist, **entfällt dieser Schritt**.
 
 ```bash
 docker login nvcr.io   # Username: $oauthtoken   Password: <NGC-API-Key>
-./Simulation/update_sim_image.sh --vastai
+./Simulation/update_sim_image.sh --standalone
 ```
 
-Ergebnis: `lucam03/projekt-humanoider-roboter-sim-vastai:latest` auf Docker Hub.
+Ergebnis: `lucam03/projekt-humanoider-roboter-sim-standalone:latest` auf Docker Hub.
 
 ---
 
 ### Schritt 2 — BC-Checkpoint als RL-Startpunkt bereitstellen
 
 RL **verfeinert** einen BC-Checkpoint (es ersetzt BC nicht). Lade den besten BC-Checkpoint zu
-HuggingFace hoch — identisch zur Sim-Eval, [vastai-anleitung.md Schritt 2](../simulation/vastai-anleitung.md#schritt-2--checkpoint-von-kisski-holen):
+HuggingFace hoch — identisch zur Sim-Eval, [sim-eval-anleitung.md Schritt 2](../simulation/sim-eval-anleitung.md#schritt-2--checkpoint-von-kisski-holen):
 
 ```bash
 # Modell-Repo (einmalig, privat reicht)
@@ -179,12 +179,47 @@ den Checkpoint nach `CHECKPOINT_PATH` (`/data/checkpoints/<repo-name>`).
 > **`test`-Split** den besten 1–2 BC-Checkpoints filtern und dessen **Closed-Loop-Erfolgsrate als
 > Baseline** messen — RL wird daran gemessen (RL-Plan Gruppe 4/6).
 
+#### Zwischen mehreren Checkpoints umschalten
+
+Ein Checkpoint ist **ein Verzeichnis**. Mehrere liegen einfach nebeneinander unter
+`$RL_HOST_DATA_DIR/checkpoints/` (im Container `/data/checkpoints/`), umgeschaltet wird über
+`CHECKPOINT_PATH`:
+
+```bash
+CHECKPOINT_PATH=/data/checkpoints/vision-v2-30000 \
+NUM_EPISODES=10 EPISODE_LENGTH_S=40 ./Simulation/server_rl_run.sh eval
+```
+
+Im Menü fragt `eval` den Pfad als erstes Feld und **schlägt die tatsächlich vorhandenen
+Checkpoints vor** — den zuletzt geänderten als Vorgabe, die übrigen als Liste darunter. Ein
+Vergleichslauf ist damit Abschreiben statt Suchen.
+
+Einen zweiten Checkpoint danebenlegen — der einfachste Weg ist der Bind-Mount, kein `docker cp`:
+
+```bash
+mkdir -p "$RL_HOST_DATA_DIR/checkpoints/vision-v2-30000"
+rsync -a .../checkpoint-30000/ "$RL_HOST_DATA_DIR/checkpoints/vision-v2-30000/"
+```
+
+Alternativ aus einem anderen HF-Repo, dann **beide** Variablen zusammen:
+`HF_CHECKPOINT_REPO=<user>/<repo> CHECKPOINT_PATH=/data/checkpoints/<name> … setup`.
+Verschiedene Revisionen desselben Repos kann das Skript nicht — `--revision` wird nicht
+durchgereicht.
+
+Drei Dinge, die beim Umschalten zählen:
+
+| | |
+|---|---|
+| **Das USD wandert nicht mit** | `ASSET_PATH` wird zwar aus `CHECKPOINT_PATH` abgeleitet, das USD ist aber die Robotergeometrie und für alle Läufe dieselbe. Ein Ordner mit nur Gewichten hat es nicht — `ensure_black_hands` sucht es dann an den anderen bekannten Orten (`/workspace/assets`, `/data/assets`, zur Not vom Host). Man muss nichts weiter angeben. |
+| **Unvollständige Ordner werden erkannt** | Geprüft wird auf `config.json` + `*.safetensors` ohne `.incomplete`-Reste, nicht bloß auf die Existenz des Verzeichnisses. Ein abgebrochener Download wird fortgesetzt statt für fertig gehalten. |
+| **Platz** | ~9,8 GB je Checkpoint an Gewichten, ~23 GB mit `optimizer.pt` — die braucht nur ein Training-Resume, Sim und RL lesen sie nie. Bei drei Vergleichs-Checkpoints ist eine kleine Partition schnell voll, und genau daran brechen die Downloads ab. |
+
 ---
 
 ### Schritt 3 — USD-Asset erzeugen (einmalig)
 
 Identisch zur Sim-Eval — die RL-Env spawnt denselben Roboter. Vollständige Anleitung:
-[vastai-anleitung.md Schritt 3](../simulation/vastai-anleitung.md#schritt-3--usd-asset-erzeugen-einmalig).
+[sim-eval-anleitung.md Schritt 3](../simulation/sim-eval-anleitung.md#schritt-3--usd-asset-erzeugen-einmalig).
 Kurz: `convert_urdf_to_usd.py` erzeugt `g1_dex3.usd`; am besten ins selbe HF-Repo wie den
 Checkpoint legen, dann findet der Entrypoint es automatisch (`ASSET_PATH` default =
 `$CHECKPOINT_PATH/g1_dex3.usd`).
@@ -201,7 +236,7 @@ Min VRAM ≥ 24 GB, Disk ≥ 60 GB → **Rent**. **Kein A100/H100** (kein RT-Cor
 
 **Image:**
 ```
-lucam03/projekt-humanoider-roboter-sim-vastai:latest
+lucam03/projekt-humanoider-roboter-sim-standalone:latest
 ```
 
 **Docker Options** (Entrypoint auf RL überschreiben):
@@ -269,7 +304,7 @@ vastai ssh <instance-id>            # SSH-Befehl
 ```
 
 **Trainer-Output** (Vordergrund-Prozess, auch unter vast.ai → Instances → Logs):
-```
+```text
 [rl] device=cuda  num_envs=8
 [rl] trainierbare Tensoren: ...
 [rl] iter 0000  reward=+0.123  success=0.000
@@ -298,7 +333,11 @@ tail -f "$RL_HOST_DATA_DIR"/logs/rl-*.log         # mitlesen
 ```
 
 Beide liegen unter dem gemounteten `/data`, sind also ohne `docker cp` direkt auf dem Host
-lesbar. `RL_HOST_DATA_DIR` ist standardmäßig `/home/lmuecke/project/data/RL`.
+lesbar. `RL_HOST_DATA_DIR` ist standardmäßig `$HOME/groot-rl-data`; der host-spezifische Pfad
+gehört seit der Portabilitäts-Umstellung in `.env.local` und **nicht** mehr ins Skript (siehe
+[portabilitaet.md](../portabilitaet.md)). Auf dem IKR-Server ist das die Zeile
+`: "${RL_HOST_DATA_DIR:=/home/lmuecke/project/data/RL}"` — fehlt sie, liegt alles unter
+`$HOME/groot-rl-data`, und man sucht die Dateien an der falschen Stelle.
 
 #### Live zusehen (`LIVE_VIEW=1`) — dringend empfohlen beim ersten großen Lauf
 
@@ -306,7 +345,7 @@ Mit `LIVE_VIEW=1` blendet der Trainer den laufenden Rollout als **MJPEG-Stream i
 („Spur B" aus dem [Livestream-Plan](livestream-plan.md), Modul
 [`live_view.py`](../../Simulation/g1_dex3_sim/live_view.py)):
 
-```
+```bash
 http://<server-ip>:8900/            # Bild + Live-Metriken (Iteration, reward_mean, success_rate)
 ssh -L 8900:localhost:8900 <server> # falls nur SSH möglich → http://localhost:8900/
 ```
@@ -416,7 +455,7 @@ scp -P <port> -r root@<ip>:/data/g1_dex3_rl/ ./rl_checkpoints/
 ```
 
 Der beste RL-Checkpoint wird anschließend genau wie ein BC-Checkpoint in der
-[Closed-Loop-Sim](../simulation/vastai-anleitung.md) evaluiert — **RL- vs. BC-Erfolgsrate auf dem
+[Closed-Loop-Sim](../simulation/sim-eval-anleitung.md) evaluiert — **RL- vs. BC-Erfolgsrate auf dem
 `test`-Split** ist der eigentliche Vergleich (RL-Plan Gruppe 6).
 
 ---
@@ -509,7 +548,7 @@ ist. `grep -c … >/dev/null` liest bis EOF und kann nicht früher schließen; a
 [`server_rl_run.sh`](../../Simulation/server_rl_run.sh) sind umgestellt.
 
 ### `isaaclab nicht importierbar`
-Das Skript braucht das **kombinierte** Image (`Dockerfile.vastai`), nicht das BC-Trainingsimage.
+Das Skript braucht das **kombinierte** Image (`Dockerfile.standalone`), nicht das BC-Trainingsimage.
 
 ### Erfolgsrate bleibt 0, Reward explodiert
 Reward-Hacking — `RL_KL_COEF` erhöhen oder die Shaped-Reward-Gewichte (`rew_*` in
@@ -555,9 +594,9 @@ im Update — `RL_FPO_MC_SAMPLES` und `RL_EPOCHS_PER_ITER` sind daher auch hier 
 
 ## Schnellstart
 
-1. Image gepusht (`./Simulation/update_sim_image.sh --vastai`), BC-Checkpoint + `g1_dex3.usd` auf HF.
+1. Image gepusht (`./Simulation/update_sim_image.sh --standalone`), BC-Checkpoint + `g1_dex3.usd` auf HF.
 2. vast.ai → **L40** (RT-Cores!) → Rent.
-3. Image: `lucam03/projekt-humanoider-roboter-sim-vastai:latest`
+3. Image: `lucam03/projekt-humanoider-roboter-sim-standalone:latest`
 4. Docker Options: `--ipc=host --shm-size=16g -p 22 --entrypoint bash` · Args: `/scripts/entrypoint_rl.sh`
 5. Env:
    ```

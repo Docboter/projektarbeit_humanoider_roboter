@@ -167,6 +167,11 @@ class G1Dex3CameraCfg:
         # Bildmitte — die reale Kamera sitzt also auf der Mittellinie. Das `d435_link` ist
         # der Montageflansch eines Moduls, nicht der Mittelpunkt zwischen zwei Bildsensoren.
         # x und z bleiben beim URDF-Wert, die sind eindeutig.
+        # ACHTUNG: 0.915 ist hier KEINE Würfelhöhe, sondern der Blickzielpunkt, der den
+        # Nickwinkel festlegt. Genau diese Pose wurde am 2026-08-22 gegen gerenderte Bilder
+        # mit bekannter Grundwahrheit geprüft (Restfehler 0,30 / 0,22 cm je Kopfkamera).
+        # Sie darf NICHT mitgezogen werden, wenn die Würfelebene korrigiert wird — die
+        # Ebene steht in Z_CUBE_CENTER, hier steht die Kamera.
         high_target_x, high_target_z = 0.34, 0.915
         left_high_eye  = (0.0537,  0.025, 1.3239)   # halbe Stereobasis links der Mittellinie
         right_high_eye = (0.0537, -0.025, 1.3239)   # halbe Stereobasis rechts der Mittellinie
@@ -297,6 +302,31 @@ class PinholeCamera:
         d_cam = np.array([1.0, -d_right, -d_down])   # rechts = −links, unten = −oben
         d = self.R @ d_cam
         return d / np.linalg.norm(d)
+
+    def rays(self, uv) -> np.ndarray:
+        """Wie ``ray``, aber für viele Pixel auf einmal: (…, 2) → (…, 3), nicht normiert.
+
+        Nicht normiert, weil der einzige Abnehmer die Ebenenschnitt-Formel ist und die
+        Länge sich dort herauskürzt. Wer eine Richtung braucht, normiert selbst.
+        """
+        uv = np.asarray(uv, dtype=float)
+        d_right = ((uv[..., 0] + 0.5) - self.cx) / self.f_px
+        d_down = ((uv[..., 1] + 0.5) - self.cy) / self.f_px
+        d_cam = np.stack([np.ones_like(d_right), -d_right, -d_down], axis=-1)
+        return d_cam @ self.R.T
+
+    def backproject_many_to_plane(self, uv, z_plane: float) -> np.ndarray:
+        """Viele Pixel (…, 2) auf die Ebene z = ``z_plane`` schneiden → (…, 3).
+
+        Strahlen, die parallel zur Ebene laufen oder sie hinter der Kamera treffen,
+        kommen als NaN zurück statt als Ausnahme — bei einer ganzen Blob-Maske ist ein
+        einzelnes entartetes Pixel kein Grund, die Messung abzubrechen.
+        """
+        d = self.rays(uv)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            t = (z_plane - self.eye[2]) / d[..., 2]
+            t = np.where((np.abs(d[..., 2]) < 1e-9) | (t <= 0.0), np.nan, t)
+        return self.eye + t[..., None] * d
 
     def backproject_to_plane(self, u: float, v: float, z_plane: float) -> np.ndarray:
         """Pixel (u, v) auf die waagerechte Ebene z = ``z_plane`` schneiden → (x, y, z)."""

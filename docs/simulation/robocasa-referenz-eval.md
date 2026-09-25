@@ -171,7 +171,7 @@ squeue -u $USER
 ---
 
 ## Isolation — was bewusst NICHT verändert wird
-- Keine Änderung an bestehenden Entrypoints, `run_finetuning*.sh`, Isaac-Lab-Sim-Code, `Training/Dockerfile`, `Dockerfile.vastai` oder bestehenden `kisski_*`-Skripten.
+- Keine Änderung an bestehenden Entrypoints, `run_finetuning*.sh`, Isaac-Lab-Sim-Code, `Training/Dockerfile`, `Dockerfile.standalone` oder bestehenden `kisski_*`-Skripten.
 - Eigene, isolierte `robocasa_uv`-Venv — die GR00T-`.venv` bleibt unberührt.
 - Eigener ZMQ-Port (`5757` statt `5555`), eigene Env-Vars (`RC_*`), eigenes Ergebnisverzeichnis (`/data/robocasa_ref`).
 - Setup-Artefakte (robosuite-Submodul, Assets, Venv) liegen unter `gr00t/eval/sim/robocasa-gr1-tabletop-tasks/` (generierte Dateien, kein getrackter Quellcode).

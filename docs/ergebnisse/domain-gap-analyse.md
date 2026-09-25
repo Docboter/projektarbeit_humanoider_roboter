@@ -28,7 +28,7 @@ Da `tune_visual = false`, sind die Gewichte identisch mit dem frozen GR00T-ViT �
 ```bash
 docker run --rm \
   -v "$REPO/Simulation/camera_reference:/workspace/camera_reference:ro" \
-  -v "$REPO/Simulation/runs/202606002/02:/workspace/sim_debug:ro" \
+  -v "$REPO/Simulation/runs/20260602/02:/workspace/sim_debug:ro" \
   -v "$REPO/Simulation/scripts:/workspace/scripts:ro" \
   -v "$HOME/.cache/huggingface:/root/.cache/huggingface" \
   -v "/tmp/output:/output" \
@@ -38,7 +38,7 @@ docker run --rm \
 
 **Frames:**
 - Real: `Simulation/camera_reference/dataset_cam_*.png` (aus dem Teleop-Datensatz)
-- Sim: `Simulation/runs/202606002/02/_debug_obs_cam_*.png` (Isaac Sim Debug-Frames)
+- Sim: `Simulation/runs/20260602/02/_debug_obs_cam_*.png` (Isaac Sim Debug-Frames)
 
 **Metrik:** Cosine-Distanz zwischen CLS-/Pooled-Embeddings (0 = identisch, ~0.5–0.7 = zufälliges Bildpaar)
 

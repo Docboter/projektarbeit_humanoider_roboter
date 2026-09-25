@@ -63,8 +63,8 @@ Für GR00T-Inference (ohne Sim) auf A100 geeignet, nicht für die Closed-Loop-Si
 
 Für **vast.ai** wurde eine **kombinierte Ein-Container-Architektur** implementiert:
 
-```
-Dockerfile.vastai
+```text
+Dockerfile.standalone
 └── nvcr.io/nvidia/isaac-lab:2.3.2  (Basis)
     ├── Isaac Lab / Isaac Sim        (bereits im Basis-Image)
     └── GR00T N1.6 Policy           (isolierte venv: /app/Groot-1.6/.venv)
@@ -104,13 +104,13 @@ zuerst `unset VIRTUAL_ENV` ausführen.
 übergeben (Bash-Kommentarzeichen am Zeilenende durch Copy-Paste). Das `#` wurde
 wörtlich in den Dateinamen übernommen → `g1_dex3.usd#` erzeugt, USD nicht ladbar.
 
-**Fix:** Pfad ohne `#` übergeben. Bereits in `vastai-anleitung.md` korrigiert.
+**Fix:** Pfad ohne `#` übergeben. Bereits in `sim-eval-anleitung.md` korrigiert.
 
 ### USD-Asset ist ein Dateibündel, nicht eine einzelne Datei
 
 Die Konvertierung erzeugt **5 Dateien** die zusammen gehören:
 
-```
+```text
 g1_dex3.usd                          (1,4 KB — Root, relative Referenzen)
 configuration/
   g1_dex3_base.usd                   (38 MB — embedded Mesh-Geometrie)
@@ -143,26 +143,8 @@ Use-Case), Sim-Eval hingegen scheitert.
 ## 4. USD-Asset erzeugen — lokale Methode (Windows + Docker Desktop)
 
 Trotz Vulkan-Problemen funktioniert die **URDF→USD-Konvertierung** lokal auf Windows
-mit Docker Desktop, weil sie kein funktionierendes Rendering braucht:
-
-```powershell
-# Im Projektrepo-Root (PowerShell):
-docker run -it --rm --gpus all --ipc=host --shm-size=8g `
-  -v "${PWD}\data:/data" `
-  -e NVIDIA_DRIVER_CAPABILITIES=all `
-  --entrypoint bash `
-  lucam03/projekt-humanoider-roboter-sim-vastai:latest
-```
-
-```bash
-# Im Container:
-unset VIRTUAL_ENV
-${ISAACLAB_PATH}/isaaclab.sh -p \
-    /workspace/g1_dex3_sim/convert_urdf_to_usd.py \
-    --headless \
-    --urdf /data/unitree_ros/robots/g1_description/g1_29dof_with_hand_rev_1_0.urdf \
-    --output /data/g1_dex3.usd
-```
+mit Docker Desktop, weil sie kein funktionierendes Rendering braucht. Befehle:
+[sim-eval-anleitung.md](sim-eval-anleitung.md) Schritt 3 (Option 1, lokal).
 
 Voraussetzung: `git submodule update --init data/unitree_ros`
 
@@ -221,7 +203,7 @@ ln -sf "$LIBCUDA_SO1" /usr/lib/x86_64-linux-gnu/libcuda.so
 ### Ursache 3: DeepSpeed verlangt CUDA-Toolchain — `CUDA_HOME does not exist`
 
 Nachdem Ursache 1+2 behoben waren, scheiterte der Import an einer dritten Stelle:
-```
+```text
 RuntimeError: Failed to import transformers.modeling_utils ...
 CUDA_HOME does not exist, unable to compile CUDA op(s)
 ```
@@ -270,7 +252,7 @@ an `run_gr00t_server.py`. Die Anleitung empfahl genau das als Fix bei „flash-a
 `flash_attn 2.7.4.post1` ist im venv installiert.
 
 **Fix:** Flash-Attn-Flag-Logik aus dem Entrypoint entfernt; `NO_FLASH_ATTN` wird nur noch mit
-Warnung ignoriert. `NO_FLASH_ATTN`-Zeile + Troubleshooting-Tipp aus `vastai-anleitung.md`
+Warnung ignoriert. `NO_FLASH_ATTN`-Zeile + Troubleshooting-Tipp aus `sim-eval-anleitung.md`
 entfernt. **Konsequenz:** Nur GPUs mit Flash-Attn-Support (Ampere+) sind nutzbar — bestätigt die
 ohnehin bestehende GPU-Anforderung.
 
@@ -280,7 +262,7 @@ ohnehin bestehende GPU-Anforderung.
 
 Nachdem der **Server** sauber startete (alle Server-Fixes wirken), scheiterte **Schritt 3/3**
 (Isaac-Lab-Sim-Client) sofort beim Import:
-```
+```text
 File "/workspace/g1_dex3_sim/client.py", line 21, in <module>
     import zmq
 ModuleNotFoundError: No module named 'zmq'
@@ -489,34 +471,45 @@ Diese Session hat die Greif-Physik der Sim systematisch kalibriert, ausgehend vo
 | `solver_position_iter` | 4 | **8** | Bessere Kontaktauflösung bei Mehrfach-Kontakt (Finger + Würfel) |
 | `solver_velocity_iter` | 0 | **1** | Stabilerere Kontaktdynamik |
 
-### 14.2 Sign-Convention-Fix für proximale Fingergelenke
+### 14.2 Der „Sign-Convention-Fix" war selbst der Fehler (zurückgenommen 2026-08-24)
 
-**Ursache:** `middle_0` und `index_0` beider Hände haben im USD eine **invertierte Achse**
-gegenüber der Dataset-Konvention. Dataset: positiver Wert = schließen (links) / negativer Wert
-= schließen (rechts). USD-Limits: `[-1,571, 0]` links / `[0, 1,571]` rechts → entgegengesetzt.
+> Bis 2026-08-24 stand hier ein Fix, der `middle_0` und `index_0` **beider** Hände negierte
+> (`_SIGN_FLIP_IDX = [17, 19, 24, 26]`), dazu negierte Startwerte in `DATASET_INIT_STATE` und
+> die ausdrückliche Entscheidung, diese vier Gelenke **nicht** zu weiten. Die zugrunde liegende
+> Annahme — „Datensatz: positiv = schließen" — ist falsch. Alles davon ist zurückgenommen.
 
-**Symptom:** Policy sagt „schließen" → Sim bewegt Proximal-Gelenke in Öffnungsrichtung →
-nur Distal-Gelenke (`_1`) griffen, Griff zu schwach für Transport.
+**Was tatsächlich gilt:** Der Datensatz ist bereits **seitenweise in USD-Konvention**
+aufgezeichnet: links negativ = schließen, rechts positiv = schließen. Die `_1`-Beugegelenke
+belegen es — sie wurden nie gespiegelt und passen trotzdem beide exakt in ihre Grenzen
+(`meta/stats.json`, ganzer Datensatz):
 
-**Betroffene Policy-Indices:** 17 (`l_middle_0`), 19 (`l_index_0`), 24 (`r_index_0`), 26 (`r_middle_0`)
+| Gelenk | Datensatz | Grenze |
+|---|---|---|
+| `left_hand_index_1` | −2,083 … −0,008 | −2,13 … 0,05 |
+| `right_hand_index_1` | 0,010 … 2,085 | −0,05 … 2,14 |
+| `left_hand_index_0` | −1,089 … 0,267 | −1,571 … 0,0 |
+| `right_hand_index_0` | −0,199 … 1,646 | 0,0 … 1,571 |
 
-**Fix in `g1_dex3_blockstack_env.py`:**
+**Was die Spiegelung anrichtete:** Sie drehte die `_0`-Werte aus ihrer Grenze heraus.
+`set_joint_position_target` klemmt dort auf 0 — das Gelenk bewegte sich **überhaupt nicht**.
+Nicht „in Öffnungsrichtung", wie die alte Notiz vermutete, sondern gar nicht. Gemessen mit
+`server_rl_run.sh tipcheck` (Episode 0): auf den linken `_0`-Gelenken klemmten 550 bzw. 587
+von 1173 Frames. Die Spiegelung wirkte in `_get_observations` **und** `_pre_physics_step`, also
+in jedem Lauf — Eval, Grasp, RL, Replay, Co-Training.
 
-```python
-# _pre_physics_step: Actions negieren → USD-Konvention
-actions[:, self._SIGN_FLIP_IDX] *= -1   # _SIGN_FLIP_IDX = [17, 19, 24, 26]
+**Symptom über die ganze Kette:** Hand schließt nie → 101/116 Griffen bleiben über 6 cm Öffnung
+→ die v4-Greifanker sind unbrauchbar → der darauf gebaute `close_step`-Detektor misst Rauschen.
 
-# _get_observations: Beobachtungen negieren → Dataset-Konvention für Modell
-joint_pos[:, self._SIGN_FLIP_IDX] *= -1
-```
+**Stand jetzt:**
+- `_SIGN_FLIP_IDX = []` — keine Spiegelung, auf keiner Seite.
+- `DATASET_INIT_STATE`: alle 28 Werte roh aus dem Datensatz, keine Umrechnung.
+- `_widen_finger_joint_limits`: die vier `_0`-Gelenke sind wieder drin. Beide Hände fahren
+  real ~0,2 rad über die Nulllinie in die Gegenrichtung, rechts `index_0` zusätzlich über
+  1,571 hinaus. Grenzen = Union(USD, Datensatz-Min/Max) + ~0,05 rad, wie bei den `_1`-Gelenken.
 
-Ohne den **Observations-Fix** würde das Modell im Closed-Loop falsche Fingerwinkel sehen und
-permanent gegensteuern (Policy-Feedback-Loop mit verdoppeltem Fehler).
-
-**Fix in `g1_dex3_cfg.py`:**
-- `DATASET_INIT_STATE`: negierte Werte für die 4 Joints (Dataset-Wert × −1)
-- `_widen_finger_joint_limits`: diese 4 Joints entfernt — nach dem Flip liegen die Werte
-  bereits im Original-USD-Bereich, kein Weiten nötig
+Maßgeblich ist dabei `observation.state` (was das Gelenk erreicht **hat**), nicht `action`:
+kommandiert wurde stellenweise deutlich mehr (`left_index_0` bis −1,762 gegen −1,089 erreicht),
+das hat auch die reale Hand nicht ausgefahren.
 
 ### 14.3 Würfel-Reibung (`g1_dex3_blockstack_env.py`)
 
@@ -534,7 +527,7 @@ notwendig, um Haltekraft während der Arm-Bewegung (Trägheitskräfte) zu gewäh
 ### 14.4 Tischhöhe und Würfelposition
 
 **Diagnose aus Replay-Logs:**
-```
+```text
 tiefster left-Hand-Punkt:  x=0.305  y=0.200  z=0.937
 tiefster right-Hand-Punkt: x=0.350  y=-0.169 z=0.944
 Würfel-Oberseite (Zentrum): z≈0.915  →  tatsächliche Oberkante z=0.940
@@ -697,11 +690,11 @@ Die folgenden Dokumente sind historisch/überholt und liegen daher im Unterordne
 | Dokument | Problem |
 |---|---|
 | [`archiv/gpu-kompatibilitaet.md`](archiv/gpu-kompatibilitaet.md) | RTX 5000 als "ja" (Isaac-Sim-Rendering) gelistet — ist faktisch **nein** für Isaac Lab 2.3.2 (Turing < Ampere-Mindestanforderung) |
-| [`archiv/sim-docker-build.md`](archiv/sim-docker-build.md) | Beschreibt Zwei-Container-Plan; `Dockerfile.vastai` (kombiniert) jetzt primäre Impl. für vast.ai; KISSKI-Zwei-Container bleibt gültig |
+| [`archiv/sim-docker-build.md`](archiv/sim-docker-build.md) | Beschreibt Zwei-Container-Plan; `Dockerfile.standalone` (kombiniert) jetzt primäre Impl. für vast.ai; KISSKI-Zwei-Container bleibt gültig |
 | [`archiv/kisski-desktop.md`](archiv/kisski-desktop.md) | Setzt RTX-5000-Kompatibilität voraus — vor Nutzung prüfen ob ältere Isaac-Lab-Version kompatibel ist |
 | [`archiv/isaac-lab-plan.md`](archiv/isaac-lab-plan.md) | Ursprünglicher Implementierungs-Plan (historisch). Konkrete Werte (Kamera-Posen, Tischhöhe 0.74, Würfelpositionen, Aktions-Annahmen) sind durch die Umsetzung überholt — **§10/§11 dieses Dokuments sind die Quelle der Wahrheit** für den aktuellen Stand. |
 
-> **Geprüft (2026-06-01) und aktuell:** [`vastai-anleitung.md`](vastai-anleitung.md) (Env-Vars inkl.
+> **Geprüft (2026-06-01) und aktuell:** [`sim-eval-anleitung.md`](sim-eval-anleitung.md) (Env-Vars inkl.
 > `ASSET_PATH`, `NO_FLASH_ATTN`-Hinweis, `-p 22`, Open-Loop-Replay-Abschnitt), `CLAUDE.md`
 > (Architekturbaum mit Replay-Tool/`camera_reference`, Sim-Env-Tabelle). Das Trainings-README und
 > die Trainings-Anleitung (`docs/training/`) betreffen nur das Training — von den Sim-Eval-

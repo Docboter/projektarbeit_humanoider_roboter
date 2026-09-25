@@ -1,0 +1,57 @@
+# Gelenkreihenfolge des USD-Assets data/g1_dex3.usd, wie Isaac Lab sie meldet
+# (robot.data.joint_names). Quelle: Simulation/runs/20260808/04/cams-20260808-130340.log,
+# Abschnitt "Simulation Joint Information" — dort druckt Isaac Lab die Tabelle beim Spawn.
+#
+# WOFÜR: Ein in DIESER Umgebung aufgenommener Datensatz legt robot_joint_pos in genau
+# dieser Reihenfolge ab — sie ist NICHT die des echten Datensatzes (dort left_arm,
+# right_arm, left_dex3, right_dex3; hier nach Baumtiefe sortiert, links/rechts
+# verschachtelt, Beine und Hände dazwischen). Übergabe an:
+#     harmonize_synth_dataset.py inspect --joint-names <diese Datei>
+#
+# NACHGEPRÜFT (2026-08-28): Gegen Fichtl00/Cube_Stacking_synth passen alle 14
+# Handgelenke in die USD-Grenzen genau des hier genannten Gelenks (größte Verletzung
+# 0,0005 rad), sechs davon mit einseitigen Grenzen. Die 14 Armgelenke decken sich mit
+# einer unabhängigen Messung über die Vorwärtskinematik (R² 0,992).
+left_hip_pitch_joint
+right_hip_pitch_joint
+waist_yaw_joint
+left_hip_roll_joint
+right_hip_roll_joint
+waist_roll_joint
+left_hip_yaw_joint
+right_hip_yaw_joint
+waist_pitch_joint
+left_knee_joint
+right_knee_joint
+left_shoulder_pitch_joint
+right_shoulder_pitch_joint
+left_ankle_pitch_joint
+right_ankle_pitch_joint
+left_shoulder_roll_joint
+right_shoulder_roll_joint
+left_ankle_roll_joint
+right_ankle_roll_joint
+left_shoulder_yaw_joint
+right_shoulder_yaw_joint
+left_elbow_joint
+right_elbow_joint
+left_wrist_roll_joint
+right_wrist_roll_joint
+left_wrist_pitch_joint
+right_wrist_pitch_joint
+left_wrist_yaw_joint
+right_wrist_yaw_joint
+left_hand_index_0_joint
+left_hand_middle_0_joint
+left_hand_thumb_0_joint
+right_hand_index_0_joint
+right_hand_middle_0_joint
+right_hand_thumb_0_joint
+left_hand_index_1_joint
+left_hand_middle_1_joint
+left_hand_thumb_1_joint
+right_hand_index_1_joint
+right_hand_middle_1_joint
+right_hand_thumb_1_joint
+left_hand_thumb_2_joint
+right_hand_thumb_2_joint

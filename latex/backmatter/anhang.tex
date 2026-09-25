@@ -254,6 +254,41 @@ der Test die reine Modellgüte vom Regelkreis und von der Simulation.
   \label{fig:anh-openloop}
 \end{figure}
 
+\section{Kalibrierte Szenenparameter}
+\label{anh:szenenparameter}
+
+\Cref{tab:anh-szene} fasst die Parameter zusammen, mit denen die
+Simulationsszene nach den Korrekturen aus \cref{sec:geometrie} beschrieben ist.
+Sie sind der reproduktionsrelevante Kern jener Arbeitsschritte: Mit diesen
+Werten deckt sich die simulierte Szene mit der realen Aufnahme, mit den vorher
+verwendeten nicht.
+
+\begin{table}[htb]
+  \centering
+  \begin{tabularx}{\linewidth}{lllX}
+    \toprule
+    \textbf{Parameter} & \textbf{Alt} & \textbf{Neu} & \textbf{Bedeutung} \\
+    \midrule
+    Beckenhöhe (Basis $z$)   & 0,85   & \textbf{0,764} & Höhe der Roboterbasis über dem Boden (m) \\
+    Basis $x$                & 0      & \textbf{$-$0,057} & Längsversatz der Roboterbasis (m) \\
+    Würfel-Ruhehöhe          & 0,915  & \textbf{0,895} & Höhe der Würfelmitte in Ruhelage (m);
+      Tisch 0,87 $+$ halbe Kantenlänge 0,025 \\
+    Vorzeichen-Spiegelung    & 4 Gelenke & \textbf{keine} & Fingergrundgelenke; siehe
+      \cref{sec:vorzeichen-widerruf} \\
+    Sichtfeld Kopfkameras    & 47,2°  & \textbf{75,0°} & zuvor durch einen Auslese-Fehler
+      nie angewendet \\
+    Stereobasis              & ---    & \textbf{$\pm$0,025} & aus der Pixel-Disparität des
+      realen Stereopaars zurückgerechnet (m), parallel statt konvergierend \\
+    Würfel-Gierwinkel        & stets 0° & \textbf{offen} & real gleichverteilt über
+      0--45° (\cref{sec:gierwinkel}); Umstellung zum Redaktionsschluss nicht entschieden \\
+    \bottomrule
+  \end{tabularx}
+  \caption{Kalibrierte Parameter der Simulationsszene vor und nach den
+    Korrekturen aus \cref{sec:geometrie}. Quelle:
+    \doc{docs/ergebnisse/diagnose-chronik.md}.}
+  \label{tab:anh-szene}
+\end{table}
+
 \section{Kamerakalibrierung über Alpha-Blend-Overlays}
 \label{anh:overlay}
 

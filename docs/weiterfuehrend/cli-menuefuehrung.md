@@ -8,10 +8,14 @@
 > stehen, mit zwei bewussten Abweichungen vom Plan (Phase 5 und §4.4) — siehe
 > [§12 Umsetzungsstand](#12-umsetzungsstand). Der Plantext unten bleibt als
 > Begründungsprotokoll erhalten; wo die Umsetzung abweicht, steht es dort.
+> **Nachtrag 2026-08-21:** ein Einstiegspunkt [`./run.sh`](../../run.sh) über allen
+> Launchern, Pfeiltasten-Bedienung, eine Gruppenebene für lange Aktionslisten und der
+> Checkpoint als Grundfrage jedes Messlaufs —
+> [§13](#13-nachtrag-2026-08-21--ein-einstiegspunkt-und-pfeiltasten).
 >
-> **Bedienung in einem Satz:** Eines der Skripte ohne Parameter starten, dann führt es
-> durch. `MENU=0` bzw. `--no-menu` schaltet das ab; jeder bisherige Aufruf funktioniert
-> unverändert weiter.
+> **Bedienung in einem Satz:** `./run.sh` starten — oder eines der Skripte direkt, ohne
+> Parameter. Beides führt durch; `[←]` bzw. `[z]` führt jederzeit eine Ebene zurück. `MENU=0` bzw. `--no-menu` schaltet das ab, `MENU_ARROWS=0`
+> nur die Pfeiltasten; jeder bisherige Aufruf funktioniert unverändert weiter.
 >
 > Idee aus der Projektabsprache vom 2026-08-20:
 > *„Wenn man das Sim-Skript ohne Parameter startet, soll es die nötigen Werte in der CLI
@@ -59,7 +63,7 @@ Ursprünglich erhoben auf `training-luca-IKR-IS6.0-GN1.7`; die Spalte „hier" i
 | Distinkte Env-Vars, die dasselbe Skript liest | 99 | **101** |
 | Länge des `usage()`-Heredocs | ~200 Zeilen | **171 Zeilen** (1463–1634) |
 | Gesamtlänge des Skripts | 1757 Zeilen | 1667 Zeilen / 91 KB |
-| Weitere Host-Einstiegspunkte | `setup_and_train_DockerHub-pull.sh`, `setup_and_train_Container-build.sh`, `server_robocasa_ref_run.sh`, `update_image.sh`, `update_sim_image.sh`, `kisski_*.sh` | dieselben |
+| Weitere Host-Einstiegspunkte | `setup_and_train_dockerhub_pull.sh`, `setup_and_train_container_build.sh`, `server_robocasa_ref_run.sh`, `update_image.sh`, `update_sim_image.sh`, `kisski_*.sh` | dieselben |
 | Env-Vars im Trainings-Entrypoint | 20 | **19** (`entrypoint.sh`), plus die Feature-Schalter aus `run_finetuning*.sh` |
 | **Davon vom Host-Launcher durchgereicht** | — | **6** — der Rest kam nie im Container an (siehe §12.1) |
 
@@ -69,7 +73,7 @@ Weitere für den Entwurf relevante Beobachtungen:
   lesen ausschließlich Env-Vars. Ein Menü, das nur exportiert, ist damit vollständig
   ausreichend — es braucht keinen einzigen neuen Parameter-Kanal.
 - **Es gibt bereits Ansätze von Interaktivität**, aber handgestrickt und nur an zwei Stellen:
-  [`setup_and_train_DockerHub-pull.sh`](../../Training/setup_and_train_DockerHub-pull.sh)
+  [`setup_and_train_dockerhub_pull.sh`](../../Training/setup_and_train_dockerhub_pull.sh)
   fragt in Zeile ~152 nach `resume/destroy/abbrechen` und in Zeile ~165–181 nach
   `HF_TOKEN`/`WANDB_API_KEY`. Das ist der erste Anwendungsfall, den die Engine ablöst.
 - **Keine TUI-Bibliothek verfügbar.** `whiptail`, `dialog`, `gum`, `fzf` sind auf dem
@@ -147,7 +151,7 @@ Stelle, die veraltet.
 
 Geplant war das hier; **tatsächlich entstanden** ist die rechte Fassung:
 
-```
+```text
 tools/
 ├── lib_menu.sh              # Menü-Engine, reines Bash (>= 4.2), ~870 Zeilen
 ├── lib_env_local.sh         # ★ NEU: gemeinsames Laden der .env.local (§12.1)
@@ -278,7 +282,7 @@ Die Stufeneinteilung ist die wichtigste einzelne Entwurfsentscheidung: `eval` li
 
 Die heutige Regel bleibt, das Menü schiebt sich nur ein:
 
-```
+```text
 explizite Umgebungsvariable  >  Menü-Antwort  >  .env.local  >  Default im Skript
 ```
 
@@ -290,7 +294,7 @@ Dauer-Konfiguration, statt sie davon abzuhalten.
 
 ### 3.5 Zustand: Recall und Profile
 
-```
+```text
 .menu/                               # gitignoriert
 ├── last/<skript>.<aktion>.env       # zuletzt benutzte Antworten
 └── profiles/<name>.env              # benannte Profile (--profile rauchtest)
@@ -354,7 +358,7 @@ das ist die Provenienz-Information, die im Log stehen soll.
 Prosablöcke (Beispiele, „LIVE-Variante", „Tempo der Sim", GR00T-Versionshinweis) **bleiben** —
 sie erklären Zusammenhänge, nicht einzelne Parameter.
 
-### 4.2 `Training/setup_and_train_DockerHub-pull.sh`
+### 4.2 `Training/setup_and_train_dockerhub_pull.sh`
 
 Hier ersetzt das Menü die zwei handgestrickten Abfragen (Zeile ~152 `resume/destroy` und
 ~165–181 `HF_TOKEN`/`WANDB_API_KEY`) und ergänzt die Trainingsparameter
@@ -366,14 +370,14 @@ Zusätzlicher Gewinn hier: Das Menü kann die **VRAM-Tabelle aus CLAUDE.md opera
 (24 GB → 2, 32 GB → 8, 80 GB → 64). Das ist genau die Art Wissen, die heute in einer Tabelle
 steht, die man vorher gelesen haben muss.
 
-Dieselbe Spec bedient `setup_and_train_Container-build.sh`; der Unterschied ist nur die
+Dieselbe Spec bedient `setup_and_train_container_build.sh`; der Unterschied ist nur die
 Bau-statt-Pull-Frage.
 
 ### 4.3 KISSKI (`Training/kisski_*.sh`, `Simulation/kisski_*.sh`)
 
 Auf dem **Login-Node** baut das Menü die Absende-Zeile und zeigt sie an:
 
-```
+```bash
 export HF_TOKEN=…  GLOBAL_BATCH_SIZE=32  MAX_STEPS=44000
 sbatch Training/kisski_submit.sh
 ```
@@ -393,7 +397,7 @@ Parameter und stehen hinten an. `update_*_image.sh` bekämen im Wesentlichen die
 
 ## 5. Bedienablauf (Sollzustand)
 
-```
+```text
 $ ./Simulation/server_rl_run.sh
 
   Was möchtest du tun?
@@ -487,7 +491,7 @@ Bewusst inkrementell — nach jeder Phase ist das Repo benutzbar.
 `./Simulation/server_rl_run.sh eval < /dev/null` bricht mit klarer Meldung ab statt zu hängen.
 
 ### Phase 2 — Trainings-Launcher — ✓ erledigt
-`tools/menu/train-local.spec`, Hook in `setup_and_train_DockerHub-pull.sh`, Ablösung der
+`tools/menu/train-local.spec`, Hook in `setup_and_train_dockerhub_pull.sh`, Ablösung der
 zwei handgestrickten Abfragen, VRAM-basierter Vorschlag für `GLOBAL_BATCH_SIZE`.
 **Abnahme:** Ein Trainingsstart ist ohne Blick in [env-vars.md](../training/env-vars.md)
 möglich; der Ein-Zeiler in der Zusammenfassung startet denselben Lauf.
@@ -597,8 +601,9 @@ Plan verhindern soll. Solange Phase 5 nicht steht, muss sie manuell laufen.
 ## 12. Umsetzungsstand
 
 Umgesetzt am 2026-08-20. Der Plantext oben ist unverändert erhalten; hier steht, was
-beim Bauen anders wurde und warum. Prüfstand: `tools/test_menu.sh` — **30 Prüfungen,
-alle bestanden**, ohne GPU und ohne Container.
+beim Bauen anders wurde und warum. Prüfstand: `tools/test_menu.sh` — **inzwischen 81
+Prüfungen** (Stand bei Einführung 2026-08-20: 30; seither erweitert, s. §13), alle
+bestanden, ohne GPU und ohne Container.
 
 ### 12.1 Zwei Defekte, die der Plan nicht kennen konnte
 
@@ -607,7 +612,7 @@ gemacht. Sie sind mitbehoben.
 
 **Der Trainings-Launcher las `.env.local` überhaupt nicht.** Nur
 [`server_rl_run.sh`](../../Simulation/server_rl_run.sh) und `server_robocasa_ref_run.sh`
-hatten den Block; in [`setup_and_train_DockerHub-pull.sh`](../../Training/setup_and_train_DockerHub-pull.sh)
+hatten den Block; in [`setup_and_train_dockerhub_pull.sh`](../../Training/setup_and_train_dockerhub_pull.sh)
 fehlte er ganz. Die in [portabilitaet.md](../portabilitaet.md) beschriebene Vorrangregel
 galt dort also nie — ein in `.env.local` hinterlegter `HF_TOKEN` wurde trotzdem
 abgefragt. Damit hätte auch §3.4 („das Menü wird stiller, je besser `.env.local` gepflegt
@@ -620,7 +625,7 @@ gesourct.
 `docker run`-Zeile setzte davon 6 (`HF_TOKEN`, `MAX_STEPS`, `GLOBAL_BATCH_SIZE`,
 `NUM_GPUS`, `WANDB_PROJECT`, `WANDB_API_KEY`). `TUNE_VISUAL`, `USE_COTRAIN`,
 `TRAIN_TEST_SPLIT`, `USE_AUGMENTATION`, `SKIP_*`, `SHELL_ON_ERROR` und `WANDB_MODE`
-kamen im Container nie an: wer `TUNE_VISUAL=1 ./setup_and_train_DockerHub-pull.sh`
+kamen im Container nie an: wer `TUNE_VISUAL=1 ./setup_and_train_dockerhub_pull.sh`
 aufrief, bekam **still ein normales Training**. Ein Menü, das danach fragt und den Wert
 dann verschluckt, wäre schlimmer als keins gewesen. Der Launcher reicht jetzt alle 19
 durch — aber nur, wenn sie gesetzt sind, damit ein leeres `-e VAR=` nicht die
@@ -628,7 +633,7 @@ durch — aber nur, wenn sie gesetzt sind, damit ein leeres `-e VAR=` nicht die
 
 Nebenbei fielen drei `read`-Aufrufe im selben Skript, die unter `set -euo pipefail` bei
 EOF das Skript **kommentarlos beendeten** — genau der Fall aus §6.
-`./setup_and_train_DockerHub-pull.sh < /dev/null` starb an der WandB-Abfrage. Zwei davon
+`./setup_and_train_dockerhub_pull.sh < /dev/null` starb an der WandB-Abfrage. Zwei davon
 ersetzt jetzt das Menü, die dritte (`resume`/`destroy`) prüft `[[ -t 0 ]]`, bevor sie
 fragt.
 
@@ -693,7 +698,7 @@ dieser beiden Angaben meldet der Bericht als `UNGEPRUEFT`. Derzeit sind es null.
 - **`server_robocasa_ref_run.sh`** (§4.4). Wenige Parameter, seltene Benutzung. Es liest
   seine `.env.local` weiterhin über den eigenen Block — der Umbau auf
   `lib_env_local.sh` wäre eine Verbesserung, gehört aber nicht in diesen Schritt.
-- **`setup_and_train_Container-build.sh`.** Teilt sich die Spec mit der Pull-Fassung, ist
+- **`setup_and_train_container_build.sh`.** Teilt sich die Spec mit der Pull-Fassung, ist
   aber noch nicht verdrahtet. Ein Einzeiler wie in der Pull-Fassung genügt dafür.
 
 ### 12.5 Bedienung
@@ -704,12 +709,12 @@ dieser beiden Angaben meldet der Bericht als `UNGEPRUEFT`. Derzeit sind es null.
 MENU=0 ./Simulation/server_rl_run.sh eval     # wie bisher, keine Rückfrage
 ./Simulation/server_rl_run.sh --profile=rauchtest eval
 
-./Training/setup_and_train_DockerHub-pull.sh  # führt durch
+./Training/setup_and_train_dockerhub_pull.sh  # führt durch
 ./Training/kisski_menu.sh --dry-run           # baut die sbatch-Zeile, reicht nicht ein
 
 ./tools/gen_docs.sh                           # Abgleich Spec <-> Skript <-> Doku
 ./tools/gen_docs.sh --table sim               # Markdown-Tabelle aller Sim-Parameter
-./tools/test_menu.sh                          # der Prüfplan aus §8 (30 Prüfungen)
+./tools/test_menu.sh                          # der Prüfplan aus §8 (aktuell 81 Prüfungen)
 ```
 
 In der Fragerunde: `?` zeigt den Langtext, leere Eingabe nimmt den Default.
@@ -727,3 +732,372 @@ Auf der Bestätigungsseite: `[Enter]` startet, `[1-n]` ändert einen Wert,
 Schritt 2 ist der Punkt, an dem dieses Vorhaben steht oder fällt: ohne ihn wären die
 Specs die fünfte Kopie derselben Beschreibungen, und der Plan hätte in §9 mit dem
 höchsten Risiko recht behalten.
+
+---
+
+## 13. Nachtrag 2026-08-21 — ein Einstiegspunkt und Pfeiltasten
+
+Nachgereicht auf denselben Branch. Sechs Dinge, die der Plan nicht vorsah: die Ebene
+**über** den Aktionen (§13.1), Pfeiltasten (§13.3), eine Gruppenebene **innerhalb**
+einer Domäne (§13.4), den Rückweg über alle Ebenen (§13.5), die Einsicht, dass
+KISSKI kein eigener Zweig ist, sondern ein Trainings-Ort (§13.6), und die Lücke, dass
+kein Messlauf danach fragte, **welche Gewichte** er misst (§13.7). Prüfstand jetzt
+**76 Prüfungen** statt 30.
+
+### 13.1 `run.sh` — die Domänen-Ebene
+
+Bisher musste man wissen, *welches Skript* man aufruft: `server_rl_run.sh`,
+`setup_and_train_dockerhub_pull.sh` oder `kisski_menu.sh`. Das ist genau die Sorte
+Vorwissen, die das Menü eigentlich abschaffen sollte — nur eine Ebene höher.
+
+```bash
+./run.sh              # fragt: Simulation / Training / KISSKI
+./run.sh sim          # direkt in die Simulation
+./run.sh sim eval     # ganz durch bis zu den Parametern von 'eval'
+```
+
+**Der Router wählt nur und übergibt per `exec`.** Er baut keinen `docker run`-Aufruf,
+setzt keinen Trainingsparameter und kennt keine Aktionsliste — ab dem `exec` läuft der
+unveränderte Launcher mit seinem eigenen Menü. Damit gilt §2.1 („kein zweiter
+Ausführungspfad") eine Ebene höher unverändert weiter, und alles, was die Launcher
+können, gilt automatisch mit: `MENU=0`, `--profile=<name>`, jede Env-Var, jedes Argument.
+
+Der Ausbau war deshalb billig: [`lib_menu.sh`](../../tools/lib_menu.sh) war seit Phase 3
+ohnehin über einen `<prefix>` parametrisiert (`sim` / `train` / `kisski`), inklusive
+`_order-<prefix>.spec` und `_common-<prefix>.spec`. Es fehlte buchstäblich nur die Ebene
+darüber.
+
+Die Zuordnung Domäne → Launcher steht in
+[`tools/menu/_domains.spec`](../../tools/menu/_domains.spec), nicht im Skript — dieselbe
+Regel wie überall hier. `run.sh` enthält keine Liste.
+
+### 13.2 Was der Router zusätzlich kann — und was bewusst nicht
+
+**Kontexterkennung.** Die drei Domänen laufen an verschiedenen Orten: Sim und Training
+brauchen Docker, KISSKI braucht `sbatch` (nur auf dem Login-Node). Fehlt das Kommando,
+bleibt der Eintrag **sichtbar und gesperrt**, mit dem Grund daneben:
+
+```text
+  auf fedora:  docker ✓  sbatch ✗  apptainer ✗
+
+   1) sim          Simulation      19 Aktionen
+   2) train        Training         4 Aktionen
+   3) kisski       KISSKI (HPC)    kein sbatch
+```
+
+Sichtbar-und-gesperrt statt versteckt: dass es den KISSKI-Weg *gibt*, soll man auch auf
+dem Rechner erfahren, auf dem er gerade nicht geht. Die Aktionszahl wird aus den Specs
+abgeleitet (`menu_list_actions`), nicht gepflegt — Prüfung 30 hält das fest.
+
+**Keine Zustandsauswertung auf dem Startbildschirm.** Die `--state`-Marker der Aktionen
+(`✓ liegt bereits vor`, `! braucht vorher cams`) wertet der Router **nicht** aus. Drei
+von ihnen rufen `docker ps` (`train-resume`, `train-destroy`, `train-train`). Auf dem
+Startbildschirm wäre das ein Aufruf, der bei hängendem Docker-Daemon das ganze Menü
+einfriert — und zwar bevor überhaupt eine Domäne gewählt ist. Die Marker erscheinen
+weiterhin, nur einen Schirm später in der Aktionsliste. Die Standortzeile oben nutzt aus
+demselben Grund ausschließlich `command -v`, kein `docker info`, kein `nvidia-smi`.
+
+> Der Kommentarkopf in `lib_menu.sh` verlangt für `--state` „reine
+> Dateisystem-Prüfungen". Die drei `docker ps`-Ausdrücke halten das nicht ein. Sie sind
+> mit `2>/dev/null` abgesichert und in der Aktionsliste vertretbar, aber es bleibt eine
+> offene Kleinigkeit — nicht in diesem Schritt angefasst.
+
+### 13.3 Pfeiltasten — eine Zugabe, kein Modus
+
+Das Entscheidungslog (§11) verwirft `whiptail`/`dialog`/`gum`/`fzf`, und die Gründe
+gelten unverändert: keins davon ist auf dem IKR-Server oder dem KISSKI-Login-Node
+vorausgesetzt, und ein Vollbild-TUI verträgt sich nicht mit der `tee`-Spiegelung aus
+`start_logging`. Pfeiltasten brauchen davon nichts — ANSI-Sequenzen und `read -rsn1`
+genügen.
+
+Umgesetzt als eine generische Auswahl (`menu_select`), die Domänenliste, Aktionsliste und
+künftig weitere Listen gemeinsam benutzen. Zwei Regeln machen sie unkritisch:
+
+1. **Die Zahleneingabe bleibt der Boden.** Jede Liste ist vollständig per Ziffer
+   bedienbar, auch im Pfeiltasten-Modus (Prüfung 41).
+2. **Sie schaltet sich selbst ab**, wenn kein echtes Terminal da ist, `TERM` fehlt oder
+   `dumb` ist, oder `MENU_ARROWS=0` gesetzt wurde.
+
+Regel 2 hat einen angenehmen Nebeneffekt: `tools/test_menu.sh` fährt sein Pseudoterminal
+mit `TERM=dumb`, also laufen **alle 31 Alt-Prüfungen weiter über die Zahleneingabe** —
+denselben Pfad wie vor der Änderung. Die Pfeiltasten bekamen eigene Prüfungen (35–41),
+die den pty-Treiber um Rohbytes (`<RAW>\x1b[B`) und ein setzbares `TERM` erweitern.
+
+Details, die beim Bauen Zeit gekostet haben und deshalb im Code kommentiert stehen:
+
+| Punkt | Warum |
+|---|---|
+| Zeile erst als **Klartext** bauen, dann einfärben | Farbcodes zählen in `${#s}` mit. Färbt man zuerst, verrutscht die Breitenrechnung, die Zeile bricht um — und beim Neuzeichnen stimmt die Zeilenzahl nicht mehr, das Bild zerfranst |
+| `\033[K` an **jedem** Zeilenende | Sonst bleiben Reste der vorigen, längeren Fassung stehen |
+| Ziffern mit Timeout nachlesen | Nach einer `1` muss klar werden, ob noch eine `2` folgt (Eintrag 12) oder nicht (Eintrag 1) — ohne dass die Anzeige bis zum nächsten Tastendruck einfriert |
+| `trap … INT` speichern und wiederherstellen | Der Cursor ist während der Auswahl versteckt. Ohne Handler bliebe er nach Ctrl-C unsichtbar; der Handler stellt ihn her, räumt sich weg und sendet das Signal erneut, damit Ctrl-C nicht verschluckt wird |
+| Erklärung (`?`) erzwingt ein **frisches** Bild | Sie fügt Zeilen ein; ein Neuzeichnen an Ort und Stelle würde daneben landen |
+
+### 13.4 Gruppenebene — Schachtelung mit Vorschau
+
+Die Sim-Aktionsliste zeigte 19 Einträge in 7 Gruppen, gut 30 Zeilen. Sie ist jetzt
+zweistufig — aber **nicht** einfach eingeklappt.
+
+```text
+  Simulation — Was moechtest du tun?
+
+ › 1) Vorbereiten              preflight, setup, check                  3 Akt.
+   2) Ansehen                  view, livecheck, webview                 3 Akt.
+   3) Messen                   cams, gap, eval, grasp, span, latency    6 Akt.  !
+   4) Co-Training vorbereiten  layoutcheck, layout, render              3 Akt.  !
+   5) Trainieren               rl                                       1 Akt.
+   6) Beschleunigen            optimize                                 1 Akt.
+   7) Werkzeuge                shell, clean                             2 Akt.
+
+  [↑↓] waehlen  [Enter] bestaetigen  [1-7] direkt  [?] erklaeren  [*] alle 19 Aktionen  [a] abbrechen
+```
+
+**Der Konflikt, den das lösen musste:** §12.3 hält fest, dass `_order.spec` genau dafür
+existiert, die Kette `preflight → setup → cams → gap → eval → layout → render → rl`
+sichtbar zu machen — sie läuft quer durch vier Gruppen. Reines Schachteln hätte sie
+hinter Überschriften versteckt und damit den Nutzen aus §5.1 kassiert.
+
+Drei Dinge halten sie sichtbar:
+
+1. **Vorschau der Aktionsnamen** je Gruppe. Die Kette bleibt lesbar, in einem Siebtel
+   der Zeilen.
+2. **`[*]` schaltet auf die Gesamtliste** — das alte Verhalten, unverändert, einen
+   Tastendruck entfernt.
+3. **`?<nr>` erklärt eine ganze Gruppe**: Aktionsnamen mit Titeln und offenen
+   Voraussetzungen, ohne hineinzugehen.
+
+Das `!` in der rechten Spalte heißt: mindestens eine Aktion dieser Gruppe hat eine
+offene Voraussetzung. Welche, steht eine Ebene tiefer — oben wäre es Rauschen.
+
+**Geschachtelt wird nach Größe, nicht pauschal.** Bei 19 Aktionen in 7 Gruppen ist ein
+Schirm voll; bei den 4 Aktionen von Training und KISSKI wäre eine Gruppenebene davor
+reine Mehrarbeit. Schwelle: mehr als `MENU_NEST_MIN` (10) Aktionen **und** mindestens 3
+Gruppen. `MENU_NEST=0` erzwingt flach, `MENU_NEST=1` erzwingt geschachtelt.
+
+Zurück geht es mit `[←]` (bzw. `[z]` ohne Pfeiltasten). Die Zustandsmarker werden pro
+Aufruf **einmal** ausgewertet und zwischengespeichert — beim Blättern zwischen den Ebenen
+liefen sonst wiederholt Ausdrücke, unter denen `docker ps` ist (§13.2).
+
+**Drei Prüfungen mussten dem folgen**, weil sich der Ablauf bewusst geändert hat: 7
+(Kettenreihenfolge), 8 (`?<nr>`) und 14b (Auswahl plus Fragen). Sie prüfen jetzt beide
+Ebenen — die alte Absicht steckt unverändert in der `MENU_NEST=0`-Variante daneben
+(7b, 8, 14c). Dazu sieben neue (15a–15g) für die Schachtelung selbst. Stand: **57
+Prüfungen**.
+
+### 13.5 Der Rückweg — `[←]` führt immer eine Ebene höher
+
+```text
+   Untermenue  ──[←]──▶  Gruppenuebersicht  ──[←]──▶  Hauptmenue  ──[a]──▶  Ende
+   (Messen)                (Simulation)                (Domaenen)
+```
+
+Ohne Pfeiltasten dieselbe Bewegung mit `[z]`. Die Fußzeile beschriftet die Taste nach
+ihrem Ziel — `[←] zurueck` innerhalb einer Domäne, `[←] Hauptmenue` auf der obersten
+Ebene.
+
+**Warum das nicht trivial war:** `run.sh` übergab bisher per `exec`. Das ersetzt den
+Prozess — mit ihm wäre das Hauptmenü weg gewesen, es gäbe schlicht nichts, wohin man
+zurückkehren könnte. Die Übergabe hat jetzt zwei Wege:
+
+| Fall | Übergabe | Warum |
+|---|---|---|
+| Menü an (Terminal, kein `MENU=0`) | Launcher als **Kindprozess** | Nur so überlebt `run.sh` und kann das Hauptmenü erneut zeigen |
+| Menü aus (`MENU=0`, kein Terminal, Skriptaufruf) | **`exec`** | Kein Menü, kein Rückweg — und Rückgabewert wie Signale gehen unverändert durch |
+
+Der Launcher meldet den Rückwunsch über den Rückgabewert **`MENU_RC_BACK` (97)**.
+Bewusst eine hohe, sonst nirgends benutzte Zahl: die Launcher enden regulär mit 0, 1
+oder 2. `run.sh` wertet sie ausschließlich aus, wenn es den Launcher selbst gestartet
+hat, und `MENU_TOPLEVEL_BACK=1` schaltet das `[←]` der obersten Liste überhaupt erst
+frei. **Beim direkten Aufruf** (`./Simulation/server_rl_run.sh`) bleibt die Taste
+deshalb tot — ein Rücksprung ins Nichts würde das Skript kommentarlos beenden, und
+genau das prüfen 15m/15n.
+
+Zwei Feinheiten, die beim Bauen auffielen:
+
+- **Auch eine per Argument gewählte Domäne hat einen Rückweg.** `./run.sh sim` bietet
+  `[←] Hauptmenue` genau wie `./run.sh`. Die Asymmetrie „mit Argument kein Zurück"
+  merkt sich niemand.
+- **Beim Rücksprung fallen die restlichen Argumente weg.** Bei `./run.sh sim eval` →
+  `[←]` → *Training* wäre `eval` an den Trainings-Launcher weitergereicht worden — es
+  ist dort keine gültige Aktion. Sie gehörten zur alten Domäne und werden verworfen.
+
+Sieben neue Prüfungen (15h–15n) decken das ab, inklusive der beiden Fälle, in denen
+`[←]` **nichts** tun darf.
+
+### 13.6 KISSKI gehört unter „Training" — die Sim kann der Cluster nicht
+
+Die erste Fassung der Domänenliste stellte Simulation, Training und KISSKI gleichrangig
+nebeneinander. Das mischte zwei Achsen: *was* man tut und *wo*. Der Befund dahinter:
+
+| Aktion | Status auf KISSKI |
+|---|---|
+| `kisski-train` | läuft — der eigentliche Zweck des Clusters hier |
+| `kisski-openloop` | läuft — reine Rechenarbeit, kein Rendering |
+| `kisski-sim` | **tot.** Zielt auf die `jupyter`-Partition, weil nur deren Quadro RTX 5000 überhaupt RT-Cores hat. Die ist aber Turing und damit „eine Generation zu alt" ([fehlerbehebung.md](../fehlerbehebung.md)); die zugehörige Anleitung liegt längst in [`simulation/archiv/`](../simulation/archiv/kisski-desktop.md) |
+| `kisski-rl` | **nicht einreichbar.** Vorlage mit `#SBATCH -p PLACEHOLDER_RTCORE_PARTITION`; der RT-Core-Guard bricht auf A100/H100 ab, und eine RT-Core-Partition gibt es dort nicht |
+
+**KISSKI ist in diesem Projekt also ausschließlich Training plus Checkpoint-Auswertung.**
+Die Simulation läuft auf dem IKR-Server. Zwei Konsequenzen:
+
+**1. Die Domänenliste ist gruppiert, nicht geschachtelt.**
+
+```text
+  Simulation
+   1) sim          auf dem IKR-Server (Docker, RT-Cores)      19 Aktionen
+  Training
+   2) train        auf diesem Rechner (Docker)                 4 Aktionen
+   3) kisski       auf dem KISSKI-Cluster (sbatch)             kein sbatch
+```
+
+Ein echtes Untermenü unter „Training" wäre eine eigene Ebene für eine Ja/Nein-Wahl
+gewesen — genau das, was §13.4 für kurze Listen ablehnt — und die beiden Zweige haben
+verschiedene Launcher, was die Domänenebene architektonisch aufgeweicht hätte. Die
+Gruppierung nutzt dieselbe `_MENU_SEL_HEAD`-Mechanik wie die Aktionsliste und kostet
+keine Ebene.
+
+Dafür beschreibt der Titel einer Domäne jetzt nur noch die **Variante** („auf diesem
+Rechner (Docker)") — er ergibt ohne die Gruppe daneben keinen Satz mehr. Überschriften
+tieferer Ebenen brauchen deshalb einen Kurznamen: `--label` („Training (KISSKI)"),
+sonst stünde dort „auf dem KISSKI-Cluster (sbatch) — Was moechtest du tun?".
+
+**2. `--blocked` für dauerhaft nicht lauffähige Aktionen.**
+
+```text
+  Nicht auf diesem Cluster
+   3) sim         Sim-Eval einreichen         RTX 5000 zu alt -> IKR-Server
+   4) rl          RL-Fine-tuning (FPO)        Vorlage, keine RT-Core-Partition
+```
+
+Bewusst nicht gelöscht: das Wissen *warum das hier nicht geht* soll dort stehen, wo die
+Frage aufkommt — dieselbe Begründung wie beim Sperren einer ganzen Domäne (§13.2). `?`
+liefert den Langtext samt Verweis auf den Weg, der funktioniert. Die Skripte bleiben
+unangetastet im Repo.
+
+Unterschied zum Domänen-Sperrgrund: `--needs` heißt „hier gerade nicht" (ortsabhängig,
+per `command -v` geprüft), `--blocked` heißt „grundsätzlich nicht" (eine Eigenschaft des
+Ziels, statisch in der Spec). Deshalb zählt die Domänenzeile nur die **lauffähigen**
+Aktionen (`menu_list_actions --runnable`, „2 Aktionen" statt 4) — eine Zahl, die die
+nächste Ebene nicht einlöst, wäre ein Versprechen zu viel. `menu_list_actions` **ohne**
+den Schalter listet weiterhin alles: `gen_docs.sh` prüft darüber die Defaults, eine
+stille Filterung wäre ein Loch in der Drift-Sicherung.
+
+Eine Gruppe, in der nichts lauffähig ist, wird selbst gesperrt — hineingehen zu dürfen,
+um dort nur Graues zu finden, wäre eine Sackgasse.
+
+### 13.7 Welche Gewichte gemessen werden, gehört ins Menü
+
+Beim ersten Durchspielen von `./run.sh → sim → Messen → eval` fiel auf, dass der Dialog
+nach Token, Episodenzahl, Zeitbudget und Randomisierung fragt — aber mit keinem Wort
+danach, **welcher Checkpoint** eigentlich gemessen wird. Der Befund:
+
+- Nur [`sim-setup.spec`](../../tools/menu/sim-setup.spec) nannte `HF_CHECKPOINT_REPO`.
+  Alle anderen Aktionen erbten davon nichts.
+- `CHECKPOINT_PATH` stand in **keiner** Spec. Über das Menü war ein zweiter Checkpoint
+  damit gar nicht erreichbar — obwohl genau dieser Vergleich der Punkt ist: Lauf 3
+  zeigte eine U-Kurve über die Checkpoints, der beste lag bei 30000, der letzte war
+  25 % schlechter ([lauf3-vision-split-auswertung.md](../ergebnisse/lauf3-vision-split-auswertung.md)).
+- Zehn der 19 Sim-Aktionen rufen `ensure_checkpoint` **selbst** auf (`setup`, `check`,
+  `rl`, `eval`, `optimize`, `cams`, `grasp`, `span`, `latency`, `render`). Das
+  `--needs "setup"` bei `eval` ist nur ein Hinweis, keine Sperre — ohne vorheriges
+  `setup` lud `eval` also stillschweigend das Default-Repo herunter, 10 GB, ungefragt.
+
+Eine Erfolgsrate ohne die Angabe, welche Gewichte sie gemessen hat, ist nicht
+vergleichbar. Also gehört der Checkpoint in den **Grunddialog**, nicht hinter `[e]`.
+
+**Der Pfad ist der Hebel, nicht das Repo.** `ensure_checkpoint`
+([`server_rl_run.sh`](../../Simulation/server_rl_run.sh)) prüft ausschließlich, ob
+`$CHECKPOINT_PATH` existiert; liegt das Verzeichnis da, wird nichts nachgeladen und
+`HF_CHECKPOINT_REPO` bleibt wirkungslos. Ein Wechsel des Trainingslaufs braucht deshalb
+**beide** Felder — sonst misst der zweite Lauf den ersten Checkpoint. Genau das steht
+jetzt als `note` über dem Dialog und im Langtext beider Parameter.
+
+Umgesetzt nach dem Muster, das `_common.spec` für `HF_TOKEN` schon vorgibt:
+
+| Ort | Stufe | Aktionen |
+|---|---|---|
+| [`_common-sim.spec`](../../tools/menu/_common-sim.spec), Gruppe „Gewichte" | `advanced` | alle Sim-Aktionen erben beide Felder |
+| [`sim-eval.spec`](../../tools/menu/sim-eval.spec) | `CHECKPOINT_PATH` auf `basic` | der Messlauf fragt danach zuerst |
+| [`sim-setup.spec`](../../tools/menu/sim-setup.spec) | beide erneut unter „Quelle" | Repo und Zielpfad stehen nebeneinander |
+| `preflight`, `view`, `webview`, `livecheck`, `gap`, `layout`, `layoutcheck`, `shell`, `clean` | beide auf `expert` | dokumentiert, aber nie gefragt |
+
+Das erneute Nennen in `sim-eval.spec` und `sim-setup.spec` ist kein Duplikat, sondern
+die vorgesehene Mechanik: die spätere Fassung gewinnt und bestimmt auch die **Position**.
+Ohne sie stünde `HF_CHECKPOINT_REPO` in der `[e]`-Liste ganz oben und der zugehörige
+Pfad zehn Zeilen darunter.
+
+**Der Zustandsmarker nennt den Checkpoint beim Namen.** Vorher: `! braucht vorher setup`.
+Jetzt zeigt `eval` den tatsächlich vorliegenden Namen — `✓ lauf3` —, ausgewertet über
+denselben billigen Dateisystem-Test wie bisher (§5.1: ein `docker inspect` an dieser
+Stelle würde das Menü einfrieren).
+
+Fünf neue Prüfungen (42–46) in [`test_menu.sh`](../../tools/test_menu.sh) halten das
+fest, darunter die Gegenprobe, dass `view` weder Pfad noch Repo zeigt — der gemeinsame
+Block darf für die neun gewichtslosen Aktionen keine Verschlechterung sein. Zählung
+jetzt 76 statt 71.
+
+**Nebenbefund beim Nachziehen der Tastenfolgen.** Die Prüfungen 10, 11 und 11b hatten je
+eine Leerzeile zu viel: die letzte landete auf der Zusammenfassung und ist dort `[Enter]`
+= **starten**. Auf dieser Maschine fiel das nie auf, weil kein Container hochkommt — auf
+dem IKR-Server hätte der Prüfplan drei echte Eval-Läufe angestoßen. Behoben; damit fasst
+außer dem absichtlichen Paar 19/20 (es prüft, dass der Token in keinem Log landet) keine
+Prüfung mehr einen Container an.
+
+### 13.8 Checkpoints vorschlagen — und wann ein Vorschlag überhaupt greifen darf
+
+Nachtrag desselben Tages, ausgelöst von einer Frage aus der Praxis: „gibt es eine leichte
+Möglichkeit, zwischen verschiedenen Checkpoints zu wechseln?" Der Mechanismus war da
+(§13.7, `CHECKPOINT_PATH` als Grundfrage bei `eval`), aber die Frage war ein leeres Textfeld
+mit einem Default darin. Der Pfad gilt **im Container**, die Verzeichnisse liegen unter
+`HOST_DATA_DIR/checkpoints/` auf dem Host — man musste den Namen also woanders nachsehen und
+abtippen.
+
+Neu ist `_menu_suggest_checkpoint` in [`lib_menu.sh`](../../tools/lib_menu.sh): es listet die
+Verzeichnisse, die tatsächlich da sind, schlägt den zuletzt geänderten **vollständigen** als
+Vorgabe vor und nennt die übrigen darunter. Ein angeschnittener Download (kein
+`*.safetensors`) wird getrennt als `UNVOLLSTAENDIG` gemeldet, aber nie vorgeschlagen —
+dieselbe Bedingung, die `checkpoint_complete()` in `server_rl_run.sh` prüft, hier nur auf dem
+Host und ohne Docker. Gibt es *nur* angeschnittene, kommt gar kein Vorschlag: ein kaputtes
+Verzeichnis vorzuschlagen wäre schlechter als keine Hilfe.
+
+**Der eigentliche Fund steckt eine Ebene tiefer.** Der `--suggest`-Mechanismus gab es seit
+Phase 3, er hat aber praktisch nie gefeuert. Die Bedingung war:
+
+```bash
+if [[ -z "${!var:-}" && -n "${_MENU_P_SUGGEST[$var]:-}" ]]; then
+```
+
+„Variable leer" ist die falsche Frage. Die Launcher setzen ihre eigenen Defaults im
+Konfigblock — `CHECKPOINT_PATH="${CHECKPOINT_PATH:-…}"` steht in `server_rl_run.sh` Zeile 129
+—, und der läuft **lange vor** dem Menü. Damit war nie etwas leer, und ein Vorschlag erreichte
+nur Variablen ohne Skript-Default. Der VRAM-Vorschlag beim Training funktionierte bloß, weil
+`GLOBAL_BATCH_SIZE` zufällig zu dieser Sorte gehört.
+
+Maßgeblich ist nicht „leer", sondern „stammt nicht vom Nutzer" — und genau das weiß die
+Herkunftslogik aus §3.4 schon: `env_preset` kennt die Momentaufnahme von *vor* dem
+Konfigblock, `env_local_provided` die `.env.local`-Herkunft. Die Bedingung heißt jetzt
+sinngemäß „hat einen Vorschlag, ist noch nicht beantwortet, und der Wert kam nicht vom
+Nutzer". Zwei Rückfallebenen bleiben:
+
+- Fehlt die Herkunftsmaschinerie ganz — `kisski_menu.sh` läuft bewusst ohne
+  `lib_env_local`, damit `kisski_submit.sh` allein scp-bar bleibt —, gilt weiter der alte,
+  strenge Test. Lieber kein Vorschlag als einer, der eine bewusste Angabe überschreibt.
+- `_MENU_P_ORIGIN` schützt die zweite Runde: wer einen Wert auf der Bestätigungsseite noch
+  einmal ändert, bekommt seine eigene Antwort vorgelegt, nicht wieder den Vorschlag.
+
+Prüfungen 47–51 decken die fünf Fälle ab: neuester gewinnt, die übrigen werden genannt, ein
+angeschnittener wird gemeldet aber nicht vorgeschlagen, ohne Checkpoints bleibt der statische
+Default stehen — und die Gegenprobe, dass ein vom Aufrufer gesetzter Pfad den Vorschlag
+schlägt. Damit steht die Suite bei 81.
+
+### 13.9 Nicht gebaut — und warum
+
+**Eine flache Gesamtliste über alle Domänen** (27 Einträge, Domäne als
+Gruppenüberschrift) wäre der nächste Schritt und ist von hier aus klein. Sie bleibt
+offen: 27 Einträge auf einem Schirm sind ohne Tippfilter unübersichtlicher als zwei
+saubere Ebenen. Sinnvoll wird sie erst, wenn die Kontexterkennung die Liste real
+zusammenstreicht — oder mit `fzf`, das dann aber wieder eine Abhängigkeit wäre.
+
+**`tools/check_tldr.sh` durchsuchte das Wurzelverzeichnis nicht.** Es prüfte nur
+`Training/`, `Simulation/` und `tools/`; ein `run.sh` im Repo-Wurzelverzeichnis wäre
+ungeprüft durchgerutscht — ausgerechnet der Einstiegspunkt. Mitbehoben, Zählung jetzt
+151/151 statt 150/150.

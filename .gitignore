@@ -53,6 +53,12 @@
 
 # --- Rohdatensätze (Videos & große Binärdaten) ---
 /data/unitreerobotics/
+# Fremder Sim-Datensatz + harmonisierte Fassung (docs/training/synth-datensatz.md)
+/data/cotrain_synth/
+/data/cube_stacking_synth_v21/
+/data/cube_stacking_synth_v22/
+/data/cotrain_synth_jointspace/
+/data/cube_stacking_synth_jointspace_v21/
 *.mp4
 *.avi
 *.mov
@@ -92,8 +98,13 @@ Simulation/runs/
 Simulation/robocasa_reference/runs/
 /last_log.md
 
+# --- Menue-Profile (zuletzt benutzte Parameter je Aktion, maschinenlokal) ---
+# Geschrieben von tools/lib_menu.sh. Enthaelt Pfade und Ports der jeweiligen Maschine,
+# keine Geheimnisse — gehoert trotzdem nicht ins Repo, weil es pro Rechner abweicht.
+.menu/
+
 # --- Graphify-Ausgaben (vollständig generiert, nicht tracken) ---
-graphify-out/
+#graphify-out/
 
 # --- Sensible Dateien (API-Keys) ---
 .env

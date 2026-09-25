@@ -1,6 +1,25 @@
-# TL;DR: Gemeinsame Live-Ansicht-Parameter aller Sim-Aktionen von server_rl_run.sh.
+# TL;DR: Gemeinsame Gewichts- und Live-Ansicht-Parameter aller Sim-Aktionen von server_rl_run.sh.
 # _common-sim.spec — Parameter, die sich die Sim-Aktionen teilen.
 # Geladen nach _common.spec, nur fuer den Prefix "sim".
+
+# Welche Gewichte gemessen werden, ist bei einem Messlauf die wichtigste Angabe
+# ueberhaupt. Bis 2026-08-21 stand sie in genau EINER Spec (sim-setup.spec) — jede
+# andere Aktion ruft ensure_checkpoint aber selbst auf und hat den Default-Checkpoint
+# im Zweifel stillschweigend heruntergeladen, ohne je danach zu fragen. Deshalb hier,
+# geteilt von allen Aktionen, die Gewichte laden.
+#
+# Aktionen, die ohne Gewichte auskommen (preflight, view, webview, livecheck, gap,
+# layout, layoutcheck, shell, clean) stufen beide Felder auf "expert" zurueck — dasselbe
+# Muster, mit dem HF_TOKEN aus _common.spec bei "view" verschwindet.
+group "Gewichte"
+param CHECKPOINT_PATH path "/data/checkpoints/groot-g1dex3-checkpoint" advanced \
+  "Checkpoint im Container" \
+  "Der eigentliche Hebel. ensure_checkpoint prueft, ob unter diesem Pfad ein VOLLSTAENDIGER Checkpoint liegt (config.json + *.safetensors, keine .incomplete-Reste): liegt er da, wird nichts nachgeladen und HF_CHECKPOINT_REPO ist wirkungslos. Ein zweiter Trainingslauf braucht deshalb auch einen anderen Pfad, sonst misst man wieder den alten. Der Pfad gilt im Container; auf dem Host liegt er unter HOST_DATA_DIR/checkpoints/. Das USD-Asset muss NICHT mitwandern — es ist fuer alle Laeufe dasselbe und wird notfalls an den anderen bekannten Orten gesucht." \
+  --suggest '_menu_suggest_checkpoint'
+
+param HF_CHECKPOINT_REPO str "luca-mue/groot-g1dex3-checkpoint" advanced \
+  "HuggingFace-Repo des Checkpoints" \
+  "Woher geladen wird, falls CHECKPOINT_PATH im Container noch fehlt (~10 GB, einmalig). Nur aendern, wenn ein anderer Trainingslauf ausgewertet werden soll — dann zusammen mit CHECKPOINT_PATH."
 
 group "Live-Ansicht"
 param LIVESTREAM choice 0 advanced \

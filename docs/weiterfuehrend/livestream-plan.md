@@ -44,7 +44,7 @@ einer vast.ai-Instanz**. Drei Dinge haben sich seither verschoben:
 **Hardware-Voraussetzung ist erfüllt:** WebRTC braucht NVENC; die RTX PRO 6000 Blackwell hat
 **vier NVENC-Engines (9. Generation)**. Die Sim-GPU-Regel (Ampere+ mit RT-Cores) und die
 Streaming-Regel (NVENC) schließen weiterhin beide dieselben GPUs aus — A100/H100.
-`NVIDIA_DRIVER_CAPABILITIES=all` ist in [`Dockerfile.vastai`](../../Simulation/Dockerfile.vastai)
+`NVIDIA_DRIVER_CAPABILITIES=all` ist in [`Dockerfile.standalone`](../../Simulation/Dockerfile.standalone)
 bereits gesetzt und enthält `video` (NVENC) — kein Zusatz-Install nötig.
 
 ---
@@ -92,7 +92,7 @@ D5 war schon vorher für Spur B erledigt und ist jetzt auch für Spur A geschlos
 
 | # | Defekt | Datei/Zeile | Fix |
 |---|---|---|---|
-| **D1** | ~~**Browser-URL zeigt auf Port 8211**~~ — in Isaac Sim 6.0 gibt es diesen Client nicht mehr; die URL lief garantiert ins Leere. | [`entrypoint_sim.sh`](../../Simulation/scripts/entrypoint_sim.sh) | ✅ `livestream_banner` nennt nur noch den **nativen Client** (`<IP>:49100`) und beide nötigen Ports. `EXPOSE 8211` ist aus [`Dockerfile.vastai`](../../Simulation/Dockerfile.vastai) entfernt. **Nachtrag 2026-08-17:** ein Browser-Weg existiert wieder — nicht als eingebauter Client, sondern als separater Web-Viewer auf 8210 (`server_rl_run.sh webview`, s. Porttabelle). |
+| **D1** | ~~**Browser-URL zeigt auf Port 8211**~~ — in Isaac Sim 6.0 gibt es diesen Client nicht mehr; die URL lief garantiert ins Leere. | [`entrypoint_sim.sh`](../../Simulation/scripts/entrypoint_sim.sh) | ✅ `livestream_banner` nennt nur noch den **nativen Client** (`<IP>:49100`) und beide nötigen Ports. `EXPOSE 8211` ist aus [`Dockerfile.standalone`](../../Simulation/Dockerfile.standalone) entfernt. **Nachtrag 2026-08-17:** ein Browser-Weg existiert wieder — nicht als eingebauter Client, sondern als separater Web-Viewer auf 8210 (`server_rl_run.sh webview`, s. Porttabelle). |
 | **D2** | ~~**Kit-Settings-Pfad veraltet**~~ (`--/app/livestream/...` gilt nur bis Isaac Sim 5.x; 6.0 nutzt `--/exts/omni.kit.livestream.app/primaryStream/{signalPort,streamPort,publicIp}`). | [`lib_livestream.sh`](../../Simulation/scripts/lib_livestream.sh) | ✅ `livestream_kit_args` liest die Isaac-Sim-`VERSION` und wählt danach; ohne erkennbare Version werden **beide** Pfade gesetzt (der falsche verpufft, weil Kit unbekannte Settings still ignoriert). Override: `LIVESTREAM_SETTINGS_STYLE`, `LIVESTREAM_KIT_ARGS`. |
 | **D3** | ~~**Doppelte Port-Belegung**~~ — der `AppLauncher` injiziert bei `livestream=1` selbst `--/app/livestream/port=49100`, unser `--kit_args` hängte einen zweiten an. | [`lib_livestream.sh`](../../Simulation/scripts/lib_livestream.sh) | ✅ Kit-Settings werden **nur noch erzeugt, wenn nötig** (abweichender Port oder `PUBLIC_IP`). Im Server-Fall (`LIVESTREAM=2`, Default-Ports) ist der String leer — es gibt nichts mehr zu kollidieren. |
 | **D4** | ~~**`curl ifconfig.me` lief auch bei `LIVESTREAM=2`**~~, wo `PUBLIC_IP` bedeutungslos ist — im Institutsnetz ein 10-s-Timeout beim Start. | [`lib_livestream.sh`](../../Simulation/scripts/lib_livestream.sh) | ✅ `livestream_init` ruft `curl` ausschließlich bei `LIVESTREAM=1` auf. |
@@ -105,21 +105,11 @@ D5 war schon vorher für Spur B erledigt und ist jetzt auch für Spur A geschlos
 
 ### 3.1 Funktionsweise, Ports, Clients (Isaac Sim 6.0)
 
-| Port | Protokoll | Zweck | Pflicht? |
-|---|---|---|---|
-| **49100** | TCP | WebRTC-**Signaling** | ✅ |
-| **47998** | UDP | WebRTC-**Medienstrom** | ✅ — TCP-only wird **nicht** unterstützt |
-| 8210 | TCP | Web-Viewer im Browser — **seit 2026-08-17 umgesetzt** als eigenes Image ([`Dockerfile.webviewer`](../../Simulation/Dockerfile.webviewer), `server_rl_run.sh webview`). Kein Docker-Compose und nicht Ubuntu-only, wie hier ursprünglich vermutet | optional |
-| ~~8211~~ | — | Browser-Client aus Isaac Sim ≤5.x — **in 6.0 entfallen** | ✗ |
-
-`LIVESTREAM`-Werte (Isaac Lab 2.x/3.x — in Isaac Lab 1.x bedeutete `1` noch den heute
-deprecateten Native-Client, deshalb kursieren widersprüchliche Tabellen im Netz):
-
-| Wert | Bedeutung | AppLauncher-Verhalten |
-|---|---|---|
-| `0` | aus (Default) | — |
-| `1` | WebRTC über **öffentliches** Netz | setzt `publicEndpointAddress=$PUBLIC_IP` + `port=49100`, aktiviert `omni.services.livestream.nvcf` |
-| `2` | WebRTC über **lokales/privates** Netz | aktiviert `omni.services.livestream.nvcf`, **ohne** Endpunkt-/Port-Injektion |
+Port-Tabelle, Client-Varianten (nativ/Browser) und die Bedeutung der `LIVESTREAM`-Werte
+(`0`/`1`/`2`; Isaac Lab 2.x/3.x — in Isaac Lab 1.x bedeutete `1` noch den heute
+deprecateten Native-Client, deshalb kursieren widersprüchliche Tabellen im Netz) sind die
+gepflegte Referenz in [live-ansicht.md](../simulation/live-ansicht.md#voraussetzungen),
+statt hier doppelt zu stehen.
 
 Jeder Wert ≠ 0 erzwingt Headless — `--headless` darf **nicht zusätzlich** gesetzt werden.
 `--enable_cameras` bleibt Pflicht (5 Kameras in der Szene).
@@ -127,21 +117,8 @@ Jeder Wert ≠ 0 erzwingt Headless — `--headless` darf **nicht zusätzlich** g
 ### 3.2 Netzkonfiguration auf `ikr-ki-server-01`
 
 Da der Server **direkt im Netz/VPN** erreichbar ist, ist die Konfiguration denkbar simpel —
-kein `PUBLIC_IP`, kein Port-Rätselraten:
-
-```bash
-LIVESTREAM=2                 # privates Netz
-# Container-Start (Ergänzung in server_sim_run.sh / server_rl_run.sh):
-docker run … -p 49100:49100/tcp -p 47998:47998/udp …
-```
-
-Client: **Isaac Sim WebRTC Streaming Client** (native Desktop-App für Windows/macOS/Linux,
-von der Isaac-Sim-Downloadseite) → Server-Adresse `<server-ip>:49100`. Läuft ohne lokale
-GPU-Anforderung.
-
-⚠️ Firewall: UDP 47998 muss zwischen Arbeitsrechner und Server **offen** sein. Das ist der
-wahrscheinlichste Stolperstein im Institutsnetz und wird in Phase 0 zuerst geprüft
-(`nc -u -z <ip> 47998` bzw. `iperf3 -u`).
+kein `PUBLIC_IP`, kein Port-Rätselraten. Client-Installation, Firewall-Check und die
+konkreten Kommandos stehen in [live-ansicht.md](../simulation/live-ansicht.md) (Schritt 1 + 2).
 
 ### 3.3 Code-Änderungen
 
@@ -162,7 +139,7 @@ wahrscheinlichste Stolperstein im Institutsnetz und wird in Phase 0 zuerst gepr�
 3. ✅ **D6 ohne `server_sim_run.sh`** — stattdessen `server_rl_run.sh` erweitert (Port-Mapping
    beim Anlegen, `LIVESTREAM*` an `eval`/`grasp`/`rl`/`check`, Aktion `livecheck`,
    `sync_scripts` kopiert die Lib mit in den Container).
-4. ✅ **[`Dockerfile.vastai`](../../Simulation/Dockerfile.vastai)** — `EXPOSE 49100 8900` +
+4. ✅ **[`Dockerfile.standalone`](../../Simulation/Dockerfile.standalone)** — `EXPOSE 49100 8900` +
    `47998/udp`; `EXPOSE 8211` **entfernt** (existiert in Isaac Sim 6.0 nicht mehr, D1); neue
    ENV-Defaults `LIVESTREAM_MEDIA_PORT`, `LIVE_KEEP_VIDEO`.
 5. ⬜ **Optional, niedrige Priorität — Echtzeit-Pacing:** Die Eval läuft so schnell wie möglich;
@@ -240,20 +217,10 @@ verschwindet aber genau dieses Gratis-Bild. Erst messen (Gruppe 0 im RL-Plan), d
 
 ### 4.3 Neue Env-Vars
 
-| Variable | Default | Zweck |
-|---|---|---|
-| `LIVE_VIEW` | `0` | `1` = Frame-Stream aktiv |
-| `LIVE_VIEW_PORT` | `8900` | HTTP-Port des Frame-Streams |
-| `LIVE_VIEW_EVERY_N` | `1` | nur jedes n-te Frame publizieren (RL-Drosselung) |
-| `LIVE_VIEW_CAMS` | `cam_left_high,cam_left_wrist` | kommagetrennt; mehrere Kameras nebeneinander auf der Seite. Default = die kalibrierten **Policy**-Kameras (= Modell-Eingabe); `cam_scene` ist die unvalidierte Übersichtskamera |
-| `RL_WANDB_VIDEO_EVERY` | `0` | Option C (§5): alle N Iterationen einen Rollout ins W&B-Dashboard |
-
-Alle fünf sind umgesetzt und stehen in der zentralen Referenz
-[`docs/training/env-vars.md`](../training/env-vars.md). Container-Start ergänzen um
-`-p 8900:8900` — [`server_rl_run.sh`](../../Simulation/server_rl_run.sh) macht das beim Anlegen
-selbst und warnt, wenn ein älterer Container das Mapping nicht hat. Aufruf:
-`http://<server-ip>:8900/` — und, falls mal nur SSH geht, `ssh -L 8900:localhost:8900 <server>`
-und dann `http://localhost:8900/`.
+`LIVE_VIEW`, `LIVE_VIEW_PORT`, `LIVE_VIEW_EVERY_N`, `LIVE_VIEW_CAMS` und
+`RL_WANDB_VIDEO_EVERY` sind umgesetzt; die Werte-Tabelle steht in der zentralen Referenz
+[`docs/training/env-vars.md`](../training/env-vars.md), die Bedienung (Port-Mapping, Aufruf,
+SSH-Tunnel) in [live-ansicht.md](../simulation/live-ansicht.md).
 
 **Umsetzungsdetail, das Zeit spart:** Die `LIVE_VIEW*`-Vars liest
 [`rl_finetune.py`](../../Simulation/g1_dex3_sim/rl_finetune.py) **selbst** als argparse-Defaults,
@@ -299,7 +266,7 @@ höchstens Komfort, nie den Lauf.
 | **2b — Spur B auf Sim-/Baseline-Eval** | Hook an derselben Stelle wie `frames.append(frame)` (§4.2); `live_view.py` ist lauf-agnostisch, es fehlt nur der Aufruf | ~1 h | ⬜ offen — für diese Läufe deckt jetzt Spur A den Bedarf |
 | **3 — Spur A reparieren** ✅ | D1–D4 zentral in [`lib_livestream.sh`](../../Simulation/scripts/lib_livestream.sh) (statt doppelt in beiden Entrypoints); D6 über `server_rl_run.sh` statt eines neuen `server_sim_run.sh`; `LIVESTREAM` zusätzlich in Replay und RL; `livecheck`; Live **statt** MP4 (`LIVE_KEEP_VIDEO=1` = beides); Doku [live-ansicht.md](../simulation/live-ansicht.md) | erledigt 2026-08-13 | ✅ — trocken geprüft (Flag-/Video-Matrix, Kit-Settings je Version, `docker exec`-Kommandos gegen ein Fake-`docker`); **Hardware-Test offen** |
 | **4 — Spur A testen** | `livecheck`, dann `./Simulation/server_rl_run.sh view` (Szene ohne Modell/Checkpoint/`HF_TOKEN` — seit 2026-08-17 der Einstieg mit den wenigsten beweglichen Teilen), erst danach `NUM_EPISODES=2 EPISODE_LENGTH_S=120 LIVESTREAM=2 … eval`; Client → Viewport sichtbar und flüssig? Als Client geht der native **oder** der Browser (`webview`, s. u.) | ~2 h | ⬜ **offen — der nächste Schritt.** `view` trennt dabei die Fehlerquellen: scheitert schon er, liegt es an Isaac Sim/GPU/Ports, nicht am Modell. Der Web-Viewer ist **nicht mehr nur Rückfalloption, sondern gebaut** (2026-08-17) und lokal end-to-end geprüft — er ist damit sogar der schnellere Einstieg, weil nichts installiert werden muss. Bleibt das Bild in beiden Clients schwarz, obwohl UDP offen ist: `RL_NETWORK_MODE=host` probieren (NVIDIA nennt `--network=host` für WebRTC erforderlich). Sonst bleibt Spur B die Lösung |
-| **5 — Doku** ✅ (RL-Teil) | [`rl-anleitung.md`](rl-anleitung.md) Schritt 6, [`env-vars.md`](../training/env-vars.md), [`CLAUDE.md`](../../CLAUDE.md). Offen: [`vastai-anleitung.md`](../simulation/vastai-anleitung.md) + [`umsetzungsnotizen.md`](../simulation/umsetzungsnotizen.md) (gehören zu Phase 2b/3) | erledigt 2026-08-08 | ✅ |
+| **5 — Doku** ✅ (RL-Teil) | [`rl-anleitung.md`](rl-anleitung.md) Schritt 6, [`env-vars.md`](../training/env-vars.md), [`CLAUDE.md`](../../CLAUDE.md). Offen: [`sim-eval-anleitung.md`](../simulation/sim-eval-anleitung.md) + [`umsetzungsnotizen.md`](../simulation/umsetzungsnotizen.md) (gehören zu Phase 2b/3) | erledigt 2026-08-08 | ✅ |
 
 **Reihenfolge-Begründung:** Spur B zuerst, obwohl der Viewport das attraktivere Ziel ist —
 weil Phase 1+2 mit hoher Sicherheit funktionieren und danach *unabhängig vom Isaac-Sim-6.0-Risiko*
@@ -313,7 +280,7 @@ Beobachtbarkeit lässt sich in einen bereits laufenden Mehrstunden-Job nicht nac
 so ~2 h für den Teil, der vor dem Lauf tatsächlich gebraucht wird.
 
 **Image-Rebuild:** Alle Skripte unter `Simulation/scripts/` und `g1_dex3_sim/` werden ins Image
-**kopiert**, nicht gemountet → nach jeder Änderung `./Simulation/update_sim_image.sh --vastai`.
+**kopiert**, nicht gemountet → nach jeder Änderung `./Simulation/update_sim_image.sh --standalone`.
 Für die Iteration in Phase 1–2 lohnt ein Bind-Mount (`-v $(pwd)/Simulation/g1_dex3_sim:/workspace/g1_dex3_sim`).
 
 ---
@@ -402,8 +369,8 @@ Der v1-Code ist umgesetzt und bleibt für vast.ai die Referenz:
 
 - [x] `entrypoint_sim.sh` + `entrypoint_baseline.sh`: `LIVESTREAM`/`LIVESTREAM_PORT`/`PUBLIC_IP`,
       konditionales `--headless`/`--livestream`
-- [x] `Dockerfile.vastai`: `LIVESTREAM`/`LIVESTREAM_PORT`-Defaults
-- [x] Doku: [vastai-anleitung.md](../simulation/vastai-anleitung.md), Env-Var-Tabelle in [`CLAUDE.md`](../../CLAUDE.md)
+- [x] `Dockerfile.standalone`: `LIVESTREAM`/`LIVESTREAM_PORT`-Defaults
+- [x] Doku: [sim-eval-anleitung.md](../simulation/sim-eval-anleitung.md), Env-Var-Tabelle in [`CLAUDE.md`](../../CLAUDE.md)
 - [ ] **Nie auf Hardware getestet** — weder auf vast.ai noch auf dem Server
 
 Offene v1-Punkte sind in §6 als Phase 3–5 aufgegangen.

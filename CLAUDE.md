@@ -12,6 +12,7 @@ The container is autonomous: launching the image triggers `/scripts/entrypoint.s
 
 Detailed guides (all prose docs live under [`docs/`](docs/README.md)):
 - **Doc navigation hub:** [`docs/README.md`](docs/README.md)
+- **Quickstart (German):** [`docs/quickstart.md`](docs/quickstart.md) — zentrale Systemvoraussetzungen + Schnellstart; SSOT für Accounts/Tokens
 - **User-facing training instructions (German):** [`docs/training/anleitung.md`](docs/training/anleitung.md)
 - **Project README (German):** [`README.md`](README.md)
 - **Env-var reference:** [`docs/training/env-vars.md`](docs/training/env-vars.md)
@@ -20,39 +21,72 @@ Detailed guides (all prose docs live under [`docs/`](docs/README.md)):
 - **Setup & Architecture:** [`app/Groot-1.6/examples/G1_DEX3/SETUP_DOCUMENTATION.md`](app/Groot-1.6/examples/G1_DEX3/SETUP_DOCUMENTATION.md)
 - **Fine-tuning step-by-step:** [`app/Groot-1.6/examples/G1_DEX3/FINETUNING_GUIDE.md`](app/Groot-1.6/examples/G1_DEX3/FINETUNING_GUIDE.md)
 - **G1/DEX3 joint layout & datasets:** [`app/Groot-1.6/examples/G1_DEX3/README.md`](app/Groot-1.6/examples/G1_DEX3/README.md)
-- **Sim eval on vast.ai (German):** [`docs/simulation/vastai-anleitung.md`](docs/simulation/vastai-anleitung.md)
+- **Sim-eval step-by-step (German):** [`docs/simulation/sim-eval-anleitung.md`](docs/simulation/sim-eval-anleitung.md) — shared one-time steps, then IKR server (standard) or vast.ai (cloud alternative)
 - **Sim implementation notes & lessons learned:** [`docs/simulation/umsetzungsnotizen.md`](docs/simulation/umsetzungsnotizen.md)
-- **Results & evaluation (German):** [`docs/ergebnisse/`](docs/ergebnisse/README.md) — run analyses, domain-gap, sim methodology review, plus the **diagnose chronicle** ([`diagnose-chronik.md`](docs/ergebnisse/diagnose-chronik.md), runs 08–34 — the project-wide "Lauf N" references resolve here)
+- **Results & evaluation (German):** [`docs/ergebnisse/`](docs/ergebnisse/README.md) — run analyses, domain-gap, sim methodology review, plus the **diagnose chronicle** ([`diagnose-chronik.md`](docs/ergebnisse/diagnose-chronik.md), ongoing from run 08 — the project-wide "Lauf N" references resolve here)
 - **Further work / concepts (German):** [`docs/weiterfuehrend/`](docs/weiterfuehrend/README.md) — RL plan + slim operative RL guide ([`rl-anleitung.md`](docs/weiterfuehrend/rl-anleitung.md); RL runs end-to-end on the Blackwell server, **N1.6-only**; run 32 (span gate) confirmed the domain gap, run 34 measured the `TUNE_VISUAL` checkpoint at 27.6% vs 20.5% finger span with `lifted` still 0/10 → next step is co-training, RL after; learning effect still unverified), locomotion research (not implemented), livestream plan (Spur A/WebRTC open; Spur B/MJPEG `LIVE_VIEW` is built), **GR00T N1.7 migration** ([`groot-n17-migration.md`](docs/weiterfuehrend/groot-n17-migration.md) — research/plan, plus a **"Stand der Umsetzung" section (2026-08-19)**: N1.7 built as a parallel path — second submodule `app/Groot-1.7`, `GROOT_VERSION` runtime switch in one image (`GROOT_VERSIONS` build-arg) — but **no image rebuilt, no N1.7 run executed yet**; `NEW_EMBODIMENT`, CLI, dataset, ZMQ server stay compatible; the Cosmos-Reason2-2B backbone is HF-gated, N1.7 needs Py 3.12/torch 2.9, and N1.6/N1.7 checkpoints are not cross-loadable; RL, the optimized inference backend, the stock-G1 baseline, and the RoboCasa reference eval remain N1.6-only)
 - **Outdated content / changelog raw material:** [`docs/historie.md`](docs/historie.md) — superseded findings are moved here instead of being kept inline (e.g. the former `umgebungsanalyse.md` audit, run-1 fix round, June domain-gap first measurement)
 
 ## Key commands
 
-### Guided menus — start any host launcher without arguments
+### Guided menus — `./run.sh` is the one entry point
 
-Every host launcher walks you through the values it needs when it is started without
-arguments and a human is actually at the terminal. Nothing else changes: the menu only
-sets env vars and then runs the unmodified path, and it always prints the equivalent
-one-liner so you can skip it next time.
+[`./run.sh`](run.sh) asks which domain and hands over to the matching host launcher,
+which continues with its own menu. The list is grouped by *what*, not *where*:
+**Simulation** runs only on the IKR server (Docker + RT cores), **Training** runs either
+locally or on KISSKI. The cluster cannot do the sim — A100/H100 have no RT cores and the
+jupyter partition's RTX 5000 is Turing, a generation too old — so `kisski-sim` and
+`kisski-rl` are marked `--blocked` in their specs: still listed, greyed, with the reason
+and a pointer to the IKR path. It only picks — it builds
+no `docker run`, sets no training parameter and holds no action list. Domain → launcher
+mapping lives in [`tools/menu/_domains.spec`](tools/menu/_domains.spec), not in the script.
+
+`[←]` (or `[z]`) always steps one level back: action group → group overview → main menu.
+That works because in menu mode the launcher runs as a child process and signals "back"
+with exit code `MENU_RC_BACK` (97); without a menu `run.sh` still `exec`s, so exit codes
+and signals pass through untouched.
+
+```bash
+./run.sh                                      # domain -> action -> parameters
+./run.sh sim eval                             # straight to eval's parameters
+MENU=0 ./run.sh sim eval                      # off — behaves exactly as before
+```
+
+Every host launcher also still walks you through on its own when started without
+arguments and a human is at the terminal. The menu only sets env vars and then runs the
+unmodified path, and it always prints the equivalent one-liner so you can skip it next time.
 
 ```bash
 ./Simulation/server_rl_run.sh                 # action list + questions
-./Training/setup_and_train_DockerHub-pull.sh  # training parameters, VRAM-aware suggestion
+./Training/setup_and_train_dockerhub_pull.sh  # training parameters, VRAM-aware suggestion
 ./Training/kisski_menu.sh --dry-run           # builds the sbatch line (login node only)
-MENU=0 ./Simulation/server_rl_run.sh eval     # off — behaves exactly as before
 ```
 
-It never appears in a container, under SLURM, in CI, or without a TTY. Engine and
-parameter specs live in [`tools/`](tools/) (host-only, never copied into an image);
-`tools/gen_docs.sh` checks spec defaults against the scripts and the docs, and
-`tools/test_menu.sh` runs the 30-check acceptance suite. Design and deviations:
-[`docs/weiterfuehrend/cli-menuefuehrung.md`](docs/weiterfuehrend/cli-menuefuehrung.md).
+Lists are arrow-key navigable; typing the number always works too. A long action list
+(sim: 19 actions) is split into a group level that previews the action names it contains,
+so the `preflight → setup → cams → gap → eval → layout → render → rl` chain stays
+readable; `[*]` switches to the full flat list, `[←]`/`[z]` goes back, `?<nr>` explains a
+whole group. Short lists (train, kisski: 4 actions) stay flat.
+
+Switches: `MENU=0` / `--no-menu` disables the menu, `MENU_ARROWS=0` only the arrow keys,
+`MENU_NEST=0`/`1` forces flat/nested (auto: nest above `MENU_NEST_MIN`=10 actions and 3+
+groups). Nothing ever appears in a container, under SLURM, in CI, or without a TTY — that
+also means the arrow layer stays out of the way whenever `TERM` is `dumb` or unset.
+
+Engine and parameter specs live in [`tools/`](tools/) (host-only, never copied into an
+image); `tools/gen_docs.sh` checks spec defaults against the scripts and the docs, and
+`tools/test_menu.sh` runs the 81-check acceptance suite. Design and deviations:
+[`docs/weiterfuehrend/cli-menuefuehrung.md`](docs/weiterfuehrend/cli-menuefuehrung.md)
+(§13 covers the router, the arrow keys, the group level, the back path, why KISSKI sits under
+Training, why every measuring run now asks which checkpoint it measures — §13.7 — and how the
+menu suggests the checkpoints actually present under `HOST_DATA_DIR/checkpoints/`, so switching
+between two of them is copying a name rather than looking it up — §13.8).
 
 ### Run the full pipeline (download → convert → train)
 
 ```bash
 # Local: thin launcher (handles existing-container detection)
-HF_TOKEN=hf_... WANDB_API_KEY=... ./Training/setup_and_train_DockerHub-pull.sh
+HF_TOKEN=hf_... WANDB_API_KEY=... ./Training/setup_and_train_dockerhub_pull.sh
 
 # Or manually — NO --rm, NO -v mount:
 docker run --name groot-train --gpus all --ipc=host --shm-size=16g \
@@ -94,9 +128,9 @@ rsync -avz <username>@transfer.hpc.gwdg.de:/mnt/vast-kisski/projects/kisski-humr
 
 KISSKI partitions: `kisski` (A100 80 GB) and `kisski-h100` (H100 94 GB), max walltime 48 h.
 
-### Sim eval on vast.ai (build → push → run)
+### Sim eval (build → push → run)
 
-Full guide: [`docs/simulation/vastai-anleitung.md`](docs/simulation/vastai-anleitung.md)
+Full guide: [`docs/simulation/sim-eval-anleitung.md`](docs/simulation/sim-eval-anleitung.md)
 Known fixes & GPU requirements: [`docs/simulation/umsetzungsnotizen.md`](docs/simulation/umsetzungsnotizen.md)
 
 ```bash
@@ -104,14 +138,14 @@ Known fixes & GPU requirements: [`docs/simulation/umsetzungsnotizen.md`](docs/si
 #    Tags: :<repo-branch> + :<timestamp>; :latest only with --push-latest (same for
 #    Training/update_image.sh). Provenance is in OCI labels (repo branch/commit, GROOT_VERSIONS):
 #    docker inspect --format '{{json .Config.Labels}}' <image>
-./Simulation/update_sim_image.sh --vastai
+./Simulation/update_sim_image.sh --standalone
 
 # 2. Upload checkpoint to HuggingFace (skips optimizer.pt by default)
 python Simulation/scripts/upload_checkpoint.py \
   --checkpoint /path/to/checkpoint-3000 --repo luca-mue/groot-g1dex3-checkpoint
 
 # 3. Generate USD asset (one-time, local Docker)
-#    → see docs/simulation/vastai-anleitung.md Schritt 3, or data/g1_dex3.usd already exists
+#    → see docs/simulation/sim-eval-anleitung.md Schritt 3, or data/g1_dex3.usd already exists
 ```
 
 On vast.ai: GPU must be **Ampere+ with RT-Cores** (L40, RTX 4090, A6000) — A100/H100 lack RT-Cores; RTX 5000 is Turing (too old for Isaac Sim 4.x). Env vars for the sim container:
@@ -212,6 +246,10 @@ when one is missing and `tools/check_tldr.sh --list` prints the whole overview.
 
 ```
 repo root
+├── run.sh                              # ★ THE entry point: asks Simulation/Training/KISSKI,
+│                                       #   then execs the matching launcher. Picks only —
+│                                       #   no docker run, no action list. Domain -> launcher
+│                                       #   mapping: tools/menu/_domains.spec
 ├── README.md                           # Slim landing page (overview + quickstart + doc links)
 ├── .env.local.example                  # Template for host-specific config (copy to .env.local,
 │                                       #   gitignored). Read by Simulation/server_rl_run.sh only
@@ -221,7 +259,7 @@ repo root
 │   │                                   #   multi-gpu.md, train-test-split.md, wandb-offline-sync.md,
 │   │                                   #   trainingsverfahren.md, co-training.md (step 4: real +
 │   │                                   #   rendered images; tools built 2026-08-14, run still pending)
-│   ├── simulation/                     # operative guides: vastai-anleitung.md, umsetzungsnotizen.md (READ FIRST),
+│   ├── simulation/                     # operative guides: sim-eval-anleitung.md, umsetzungsnotizen.md (READ FIRST),
 │   │                                   #   live-ansicht.md, inferenz-optimierung.md,
 │   │                                   #   wuerfellage-rekonstruktion.md (cube layout handover doc),
 │   │                                   #   baseline-eval.md (stock-gripper baseline, first run pending)
@@ -231,7 +269,7 @@ repo root
 │   │                                   #   lauf2-vision-auswertung.md,
 │   │                                   #   lauf3-vision-split-auswertung.md (first real validation:
 │   │                                   #   checkpoint sweep U-curve, best ckpt 30000, last one 25% worse),
-│   │                                   #   diagnose-chronik.md (runs 08–34 protocol — "Lauf N" refs live here),
+│   │                                   #   diagnose-chronik.md (run protocol, ongoing from run 08 — "Lauf N" refs live here),
 │   │                                   #   domain-gap-analyse.md, sim-bewertung.md
 │   ├── weiterfuehrend/                 # reinforcement-learning-plan.md (status source) + rl-anleitung.md
 │   │                                   #   (slim operative guide; run history moved to
@@ -252,12 +290,15 @@ repo root
 │                                       #   migration checklist for the IKR server and KISSKI
 ├── tools/                              # ★ Host-only helpers — NEVER copied into an image,
 │   │                                   #   so changes here never need a rebuild
-│   ├── lib_menu.sh                     # Guided-CLI engine (pure bash, stderr-only UI)
+│   ├── lib_menu.sh                     # Guided-CLI engine (pure bash, stderr-only UI).
+│   │                                   #   Also holds menu_select (arrow keys, falls back to
+│   │                                   #   number entry) and the domain layer behind run.sh
 │   ├── lib_env_local.sh                # Shared .env.local loader (was duplicated /
 │   │                                   #   missing; the training launchers had none)
 │   ├── gen_docs.sh                     # Drift check: spec default vs. ${VAR:-…} vs. docs
 │   ├── test_menu.sh                    # The §8 acceptance plan, runnable (30 checks)
 │   ├── check_tldr.sh                   # TL;DR convention guard; --list = one-screen overview
+│   ├── menu/_domains.spec              # ★ Domain list for run.sh (launcher, --needs, help text)
 │   └── menu/*.spec                     # Parameter specs — one file per action
 ├── Training/                           # Everything training-related (build, run scripts)
 │   ├── Dockerfile                      # Defines image; ENTRYPOINT = /scripts/entrypoint.sh
@@ -271,10 +312,13 @@ repo root
 │   │                                   #   Standalone on purpose — kisski_submit.sh must
 │   │                                   #   stay scp-able alone, so it gets no tools/ dep
 │   ├── kisski_open_loop_eval.sh        # SLURM job: open-loop checkpoint eval (open_loop_eval.py, no server)
+│   ├── kisski_chain.sh                 # ★ Login-node helper: queues several training runs in a row
+│   │                                   #   (afterany), each with its checkpoint sweep (afterok).
+│   │                                   #   Runs are presets in the script (synth_jointspace, synth_v22)
 │   ├── kisski_rl_submit.sh             # SLURM job: RL fine-tuning (FPO) — sim SIF, RT-core GPU guard (TEMPLATE)
 │   ├── update_image.sh                 # Host build/push tool (must sit next to Dockerfile)
-│   ├── setup_and_train_DockerHub-pull.sh   # Thin host launcher: docker pull + docker run
-│   ├── setup_and_train_Container-build.sh  # Host launcher that builds the image locally
+│   ├── setup_and_train_dockerhub_pull.sh   # Thin host launcher: docker pull + docker run
+│   ├── setup_and_train_container_build.sh  # Host launcher that builds the image locally
 │   └── scripts/                        # COPIED into image at /scripts/
 │       ├── entrypoint.sh               # Autonomous orchestrator (download→convert→train; TUNE_VISUAL routes here)
 │       ├── download_data.sh            # HuggingFace download (model + dataset)
@@ -288,6 +332,17 @@ repo root
 │       │                               #   submodule change / image rebuild is needed. Re-check on GR00T bumps
 │       ├── launch_cotrain_n17.py       # Same idea for N1.7 (GROOT_VERSION=1.7) — mirror of N1.7's
 │       │                               #   launch_finetune.py with the same datasets-list change. Untested
+│       ├── dex3_fingerorder_probe.py   # Belegt, dass die DEX3-Fingerreihenfolge NICHT aus
+│       │                               #   Kinematik bestimmbar ist — Rueckgewinnungstest am echten
+│       │                               #   Datensatz mit bekannter Wahrheit (49 bzw. 34 Gleichstaende).
+│       │                               #   Isaac-freie DEX3-FK aus der offiziellen URDF
+│       ├── harmonize_synth_dataset.py  # ★ Fremden Sim-Datensatz (Cube_Stacking_synth: 57-Dim-State,
+│       │                               #   50 fps, andere Keys) auf das echte Schema umschreiben. MISST die
+│       │                               #   Gelenk-Zuordnung (RMSE-Matrix Aktion↔Gelenk + Wertebereich gegen
+│       │                               #   stats.json des echten Satzes) statt sie zu raten; inspect/convert/
+│       │                               #   verify. Siehe docs/training/synth-datensatz.md
+│       ├── lib_resume_guard.sh         # Sourced by run_finetuning.sh / run_finetuning_vision.sh; guards against
+│       │                               #   silently resuming an old run instead of training fresh
 │       ├── lib_split.sh                # Shared train/test-split logic, sourced by all training launchers;
 │       │                               #   writes a split.json record next to the checkpoints
 │       ├── lib_groot_version.sh        # ★ N1.6/N1.7 selection: resolves GROOT_VERSION (1.6|1.7|auto) into
@@ -302,7 +357,7 @@ repo root
 │                                       #   action_horizon, decoder_kwargs vs. video_backend, EmbodimentTag.resolve)
 ├── Simulation/                         # Closed-loop sim eval
 │   ├── Dockerfile                      # KISSKI-only: slim Isaac Lab sim-client (no GR00T)
-│   ├── Dockerfile.vastai               # vast.ai: combined Isaac Sim + GR00T in one container
+│   ├── Dockerfile.standalone           # Standalone: Isaac Sim + GR00T in one container — IKR server & vast.ai
 │   ├── Dockerfile.webviewer            # ★ Browser client for the WebRTC viewport (variant A2).
 │   │                                   #   Contains NO simulator — serves a page; the browser then
 │   │                                   #   connects straight to 49100/tcp + 47998/udp of groot-rl.
@@ -322,7 +377,7 @@ repo root
 │   │                                   #   switches the sim container to host networking — NVIDIA says
 │   │                                   #   WebRTC requires it; first suspect if the viewport stays black)
 │   ├── server_robocasa_ref_run.sh      # Own-server RoboCasa GR-1 reference eval (pipeline validation)
-│   ├── update_sim_image.sh             # Build/push tool (--vastai flag for Dockerfile.vastai)
+│   ├── update_sim_image.sh             # Build/push tool (--standalone flag for Dockerfile.standalone)
 │   │                                   #   (sim docs moved to docs/simulation/)
 │   ├── g1_dex3_sim/                    # COPIED into image at /workspace/g1_dex3_sim/
 │   │   ├── run_g1_dex3_sim_eval.py     # Main eval loop (model-based, ZMQ client to GR00T server)
@@ -356,11 +411,16 @@ repo root
 │   │   ├── client.py                   # ZMQ policy client + build_obs (state split into modality keys)
 │   │   ├── convert_urdf_to_usd.py      # One-time URDF→USD conversion
 │   │   └── ...
+│   │   ├── isaac_joint_order.txt    # Die 43 Gelenknamen des USD-Assets in ISAAC-Reihenfolge
+│   │   │                           #   (nach Baumtiefe, links/rechts verschachtelt — NICHT die
+│   │   │                           #   Reihenfolge des Datensatzes). Ausgelesen aus der
+│   │   │                           #   "Simulation Joint Information"-Tabelle eines Sim-Logs.
+│   │   │                           #   Eingabe fuer harmonize_synth_dataset.py --joint-names
 │   ├── camera_reference/               # Dataset reference frames (camera-calibration targets)
 │   ├── g1_gripper_sim/                 # Stock-G1 gripper baseline sim (SIM_MODE=baseline)
 │   ├── robocasa_reference/             # RoboCasa GR-1 reference-eval scripts (run_robocasa_ref_eval.sh)
-│   └── scripts/                        # COPIED into vastai image at /scripts/
-│       ├── entrypoint_sim.sh           # Autonomous entrypoint (model eval) for Dockerfile.vastai
+│   └── scripts/                        # COPIED into the standalone image at /scripts/
+│       ├── entrypoint_sim.sh           # Autonomous entrypoint (model eval) for Dockerfile.standalone
 │       ├── entrypoint_replay.sh        # Entrypoint for the open-loop replay diagnostic
 │       ├── entrypoint_baseline.sh      # Entrypoint for baseline eval (SIM_MODE=baseline: un-finetuned model + stock G1)
 │       ├── entrypoint_rl.sh            # Entrypoint for RL fine-tuning (FPO; loads BC checkpoint, runs rl_finetune.py)
@@ -376,11 +436,16 @@ repo root
 │       ├── policy_latency.py           # Pure policy latency (ms per action chunk), in-process, no sim/ZMQ.
 │       │                               #   The one number here that also holds on real hardware — rendering
 │       │                               #   (94% of sim wall-clock) does not exist there. `server_rl_run.sh latency`
+│       ├── groot_inference_backend.py  # Shared library: ONNX/TensorRT backends for GR00T-DiT inference
+│       ├── run_groot_optimized_server.py # GR00T ZMQ server in-container with optional torch.compile/TensorRT backend for the DiT
+│       ├── optimize_groot_inference.py # Exports/checks the GR00T DiT as a TensorRT engine; runs in the GR00T venv in-container
+│       ├── summarize_optimization.py   # Baseline vs. optimized policy benchmark → speedup report (server_rl_run.sh optimize)
 │       └── upload_checkpoint.py        # HuggingFace upload helper (skips optimizer.pt by default)
 ├── data/                               # Local assets and submodules (mostly gitignored)
 │   ├── unitree_ros/                    # Git submodule — Unitree ROS packages (URDF source)
 │   ├── g1_dex3.usd                     # Generated robot USD asset (run convert_urdf_to_usd.py)
 │   └── configuration/                  # Companion USD files referenced by g1_dex3.usd
+├── latex/                              # Projektarbeit/Thesis document (LuaLaTeX; own top-level dir, not a submodule)
 └── app/                                # Two git submodules, both cloned in the Dockerfiles at build time
     ├── Groot-1.6/                      # DEFAULT — custom fork (lucam06, branch luca/g1-dex3, pinned commit)
     │   ├── gr00t/experiment/launch_finetune.py  # Training entry point

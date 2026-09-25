@@ -40,7 +40,7 @@ MJPEG-Stream im Browser ein (live_view.py, Port 8900), --wandb-video-every N sch
 zusaetzlich alle N Iterationen einen Rollout ins W&B-Dashboard. Beides ist opt-in und
 im Aus-Zustand ein reiner Early-Return. Hintergrund: docs/weiterfuehrend/livestream-plan.md.
 
-Aufruf (im kombinierten Isaac-Sim + GR00T-Container, vgl. Dockerfile.vastai):
+Aufruf (im kombinierten Isaac-Sim + GR00T-Container, vgl. Dockerfile.standalone):
     python rl_finetune.py \
         --checkpoint /data/checkpoints/groot-g1dex3-checkpoint \
         --num-envs 16 --iterations 500 --rollout-steps 32 \
@@ -166,7 +166,7 @@ def _import_stack():
     except ImportError as e:  # pragma: no cover
         sys.exit(
             "[rl] isaaclab nicht importierbar — dieses Skript braucht den kombinierten "
-            f"Isaac-Sim + GR00T-Container (Simulation/Dockerfile.vastai). Detail: {e}"
+            f"Isaac-Sim + GR00T-Container (Simulation/Dockerfile.standalone). Detail: {e}"
         )
     return AppLauncher
 

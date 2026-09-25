@@ -2,12 +2,12 @@
 
 > **TL;DR:** Archiviert (teilweise überholt): beschreibt den ursprünglichen
 > Zwei-Container-Build-Plan für Isaac Lab + GR00T-Client. Für vast.ai ersetzt durch den
-> kombinierten Container ([Dockerfile.vastai](../../../Simulation/Dockerfile.vastai)); für KISSKI
+> kombinierten Container ([Dockerfile.vastai](../../../Simulation/Dockerfile.standalone)); für KISSKI
 > näherungsweise weiterhin gültig.
 
 > ⚠️ **ARCHIVIERT — teilweise überholt.** Zwei Einschränkungen:
 > - **Für vast.ai überholt:** Der hier beschriebene Zwei-Container-Plan wurde durch den
->   **kombinierten** Container ersetzt → [`Dockerfile.vastai`](../../../Simulation/Dockerfile.vastai),
+>   **kombinierten** Container ersetzt → [`Dockerfile.vastai`](../../../Simulation/Dockerfile.standalone),
 >   Begründung in [umsetzungsnotizen.md §2](../umsetzungsnotizen.md). Für KISSKI bleibt die
 >   Zwei-Container-Trennung näherungsweise gültig ([`Simulation/Dockerfile`](../../../Simulation/Dockerfile)).
 > - **Tote Pfade:** Die Beispiele unten schreiben nach `/scratch/$USER/…`. Der SCRATCH-SCC-Speicher

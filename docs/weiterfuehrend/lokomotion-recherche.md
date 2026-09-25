@@ -57,8 +57,10 @@ articulation_props=sim_utils.ArticulationRootPropertiesCfg(
 `fix_root_link=True` ersetzt das freie Floating-Base-Gelenk durch eine starre Verbindung
 zur Welt. Der Torso schwebt bei `pos=(0.0, 0.0, 0.85)` ohne Schwerkrafteinfluss auf die
 Basis. Das war eine **bewusste Vereinfachung** für die Manipulations-Eval: kein
-Balance-Controller nötig, der Roboter kippt nicht um. Derselbe Trick steht auch in
-[`phase_b_test.py`](../../Simulation/g1_dex3_sim/phase_b_test.py#L105).
+Balance-Controller nötig, der Roboter kippt nicht um. Derselbe Trick steckte auch in
+`phase_b_test.py` (Skript wurde 2026-08-26 bei der Repo-Bereinigung entfernt; der Aufruf ist
+noch in [`docs/simulation/archiv/kisski-desktop.md`](../simulation/archiv/kisski-desktop.md)
+dokumentiert).
 
 ### 1.2 Der Action-/State-Vektor hat keine Beine
 

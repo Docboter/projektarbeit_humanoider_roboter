@@ -106,14 +106,9 @@ Problem, keine GPU/OOM/Walltime-Grenze.
 
 ## 5. Reproduktion
 
-```bash
-# auf dem Server (Repo-Wurzel), Container läuft langlebig weiter:
-HF_TOKEN=hf_... ./Simulation/server_robocasa_ref_run.sh preflight   # Blackwell/Torch/flash-attn
-HF_TOKEN=hf_... ./Simulation/server_robocasa_ref_run.sh setup       # einmalig
-HF_TOKEN=hf_... ./Simulation/server_robocasa_ref_run.sh eval        # Top-Task, 100 Ep.
-```
-Ergebnisse (Summary-JSON, Server-/Client-Logs, Rollout-Videos) unter `/data/robocasa_ref/` bzw. extern
-`/home/lmuecke/project/data/RoboCasa/robocasa_ref/`.
+Kommandos (Pfad A2, `server_robocasa_ref_run.sh`) und Ergebnis-Pfade stehen in
+[robocasa-referenz-eval.md](../simulation/robocasa-referenz-eval.md) — dort die gepflegte
+Referenz.
 
 ## 6. Offen / Ausblick
 

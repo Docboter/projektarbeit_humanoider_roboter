@@ -217,6 +217,18 @@ Greif-Demos oder Gewichtung der Finger-Dims.
 
 ---
 
+## 7. Verwendete Artefakte
+
+| Zweck | Datei |
+|---|---|
+| W&B-Trainingsmetriken (Mid-Run-Snapshot) | [`lauf1-zwischenstand.md`](lauf1-zwischenstand.md) · [`wandb-run-charts.html`](wandb-run-charts.html) |
+| Diagnose 1 — Dataset-Replay (Sim/Config) | [`Simulation/kisski_replay_submit.sh`](../../Simulation/kisski_replay_submit.sh) · `Simulation/scripts/entrypoint_replay.sh` |
+| Diagnose 2 — Open-Loop-Modell-Eval | [`Training/kisski_open_loop_eval.sh`](../../Training/kisski_open_loop_eval.sh) · `gr00t/eval/open_loop_eval.py` |
+| Closed-Loop-Sim-Eval | `Simulation/kisski_sim_submit.sh` · `Simulation/g1_dex3_sim/run_g1_dex3_sim_eval.py` |
+| GPU-Eignung der Sim (RT-Cores) | [`../simulation/umsetzungsnotizen.md`](../simulation/umsetzungsnotizen.md) |
+
+---
+
 ## 8. Update — Sim-Kalibrierung und Diagnose-Bestätigung (2026-06-04)
 
 ### 8.1 W&B-Analyse (via MCP-Server)
@@ -340,15 +352,3 @@ Für dieses Projekt (kein echter Roboter verfügbar):
 2. **RL als Ausblick/Erweiterung formulieren** (falls kein Zeitrahmen mehr vorhanden).
 3. **Falls Zeit:** REINFORCE-Ansatz auf vast.ai umsetzen — die Infrastruktur (Env,
    Reward-Grundlage, Docker-Pipeline) ist fertig.
-
----
-
-## 7. Verwendete Artefakte
-
-| Zweck | Datei |
-|---|---|
-| W&B-Trainingsmetriken (Mid-Run-Snapshot) | [`lauf1-zwischenstand.md`](lauf1-zwischenstand.md) · [`wandb-run-charts.html`](wandb-run-charts.html) |
-| Diagnose 1 — Dataset-Replay (Sim/Config) | [`Simulation/kisski_replay_submit.sh`](../../Simulation/kisski_replay_submit.sh) · `Simulation/scripts/entrypoint_replay.sh` |
-| Diagnose 2 — Open-Loop-Modell-Eval | [`Training/kisski_open_loop_eval.sh`](../../Training/kisski_open_loop_eval.sh) · `gr00t/eval/open_loop_eval.py` |
-| Closed-Loop-Sim-Eval | `Simulation/kisski_sim_submit.sh` · `Simulation/g1_dex3_sim/run_g1_dex3_sim_eval.py` |
-| GPU-Eignung der Sim (RT-Cores) | [`../simulation/umsetzungsnotizen.md`](../simulation/umsetzungsnotizen.md) |

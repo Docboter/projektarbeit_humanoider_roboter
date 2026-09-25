@@ -4,6 +4,9 @@
 > Schnellstart-Befehle für KISSKI/vast.ai/lokal und Links in die ausführliche Doku unter
 > [docs/](docs/README.md).
 
+**Neu im Projekt?** → [docs/quickstart.md](docs/quickstart.md) — Systemvoraussetzungen,
+Host-Software, Accounts/Tokens, kürzeste Befehlsketten.
+
 ## GR00T N1.6 Fine-tuning — Unitree G1 mit DEX3-Hand
 
 Dieses Repository dokumentiert das Fine-tuning von NVIDIAs **GR00T N1.6**
@@ -29,11 +32,30 @@ Training läuft. Derselbe Container läuft lokal, auf Cloud-GPU-Plattformen wie
 
 ## Schnellstart
 
-> **Ohne Parameter starten führt durch.** Ruft man eines der Host-Skripte ohne Argumente
-> auf, fragt es die nötigen Werte ab und erklärt sie (`?` bei einer Frage zeigt den
-> Langtext). Am Ende zeigt es den äquivalenten Ein-Zeiler an — beim dritten Mal kommt man
-> also ohne aus. `MENU=0` bzw. `--no-menu` schaltet es ab; im Container, unter SLURM und
-> ohne Terminal erscheint es nie. Die Beispiele unten funktionieren unverändert weiter.
+> **Wenn du nur einen Befehl behalten willst: `./run.sh`.**
+>
+> ```bash
+> ./run.sh              # fragt: Simulation / Training / KISSKI — dann weiter durch alles
+> ```
+>
+> Das ist der einzige Einstiegspunkt. Er wählt nur die Domäne und übergibt an den
+> passenden Host-Launcher; ab dort führt dessen eigenes Menü durch die Aktion und ihre
+> Parameter. Die Liste ist nach *Tätigkeit* gruppiert: **Simulation** läuft nur auf dem
+> IKR-Server, **Training** wahlweise hier oder auf KISSKI. Was auf diesem Rechner nicht
+> läuft (kein Docker, kein `sbatch`), bleibt sichtbar und wird mit Grund gesperrt.
+> Mit Pfeiltasten bedienbar, Zahlen gehen weiter.
+>
+> Lange Aktionslisten (Simulation: 19) sind nach Gruppen geschachtelt, wobei jede Gruppe
+> die enthaltenen Aktionen als Vorschau zeigt — `[*]` blendet trotzdem alles auf einen
+> Schirm, `?<nr>` erklärt eine Gruppe. **`[←]` (bzw. `[z]`) führt immer eine Ebene
+> zurück:** aus einer Gruppe in die Übersicht, von dort ins Hauptmenü.
+>
+> **Ohne Parameter starten führt durch** — das gilt auch für jedes Skript einzeln
+> (`./Simulation/server_rl_run.sh`, `./Training/setup_and_train_dockerhub_pull.sh`).
+> `?` bei einer Frage zeigt den Langtext; am Ende steht der äquivalente Ein-Zeiler, beim
+> dritten Mal kommt man also ohne aus. `MENU=0` bzw. `--no-menu` schaltet ab; im
+> Container, unter SLURM und ohne Terminal erscheint nie ein Menü. Alle Beispiele unten
+> funktionieren unverändert weiter.
 > Details: [cli-menuefuehrung.md](docs/weiterfuehrend/cli-menuefuehrung.md)
 
 **KISSKI (HPC-Cluster, empfohlen für langes Training):**
@@ -54,7 +76,7 @@ Docker-Options `-e HF_TOKEN=hf_… -e WANDB_API_KEY=…` setzen → Training lä
 **Lokal (Linux / WSL2):**
 ```bash
 export HF_TOKEN=hf_...  WANDB_API_KEY=...
-./Training/setup_and_train_DockerHub-pull.sh
+./Training/setup_and_train_dockerhub_pull.sh
 ```
 
 **GR00T N1.7 statt N1.6** (paralleler Pfad, ungetestet — Zugang zum gated Backbone
@@ -81,12 +103,13 @@ Die vollständige Dokumentation liegt unter **[docs/](docs/README.md)**:
 | ↳ Train-Test-Split | [docs/training/train-test-split.md](docs/training/train-test-split.md) |
 | ↳ W&B-Offline-Sync | [docs/training/wandb-offline-sync.md](docs/training/wandb-offline-sync.md) |
 | **Simulation** | [docs/simulation/](docs/simulation/README.md) — Closed-Loop-Eval in Isaac Lab |
-| ↳ Primärer Workflow | [docs/simulation/vastai-anleitung.md](docs/simulation/vastai-anleitung.md) |
+| ↳ Primärer Workflow | [docs/simulation/sim-eval-anleitung.md](docs/simulation/sim-eval-anleitung.md) |
 | ↳ Lessons & Fixes | [docs/simulation/umsetzungsnotizen.md](docs/simulation/umsetzungsnotizen.md) |
 | **Ergebnisse** | [docs/ergebnisse/](docs/ergebnisse/README.md) — Auswertungen, Domain-Gap, Methodik-Review, Baseline |
 | **Weiterführend** | [docs/weiterfuehrend/](docs/weiterfuehrend/README.md) — RL-Plan, Lokomotion, Livestream (Konzepte) |
 | **Portabilität** | [docs/portabilitaet.md](docs/portabilitaet.md) — eigener Rechner / eigenes KISSKI-Projekt: welche Knöpfe zu setzen sind |
 | **Projektstruktur** | [docs/README.md#projektstruktur](docs/README.md#projektstruktur) |
+| **Quickstart** | [docs/quickstart.md](docs/quickstart.md) — Systemvoraussetzungen, Host-Software, Accounts/Tokens, kürzeste Befehlsketten pro Weg |
 
 ---
 
@@ -103,7 +126,8 @@ optional [WandB](https://wandb.ai), für HPC ein [KISSKI-Account](https://docs.h
 **Software (nur lokal):** Docker ≥ 4.x, NVIDIA Container Toolkit, NVIDIA-Treiber ≥ 570
 (CUDA 12.8). Auf vast.ai und KISSKI vorinstalliert.
 
-Details: [docs/training/anleitung.md](docs/training/anleitung.md#vorab-accounts--tokens).
+Vollständige, verbindliche Voraussetzungen: **[docs/quickstart.md](docs/quickstart.md)**;
+Accounts/Tokens im Detail: [docs/training/anleitung.md](docs/training/anleitung.md#vorab-accounts--tokens).
 
 ---
 

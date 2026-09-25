@@ -3,6 +3,9 @@
   "latex-workshop.latex.rootFile.doNotPrompt": true,
   "latex-workshop.latex.rootFile.useSubFile": false,
 
+  // Kein automatischer Build beim Speichern / Öffnen — nur manuell auslösen
+  "latex-workshop.latex.autoBuild.run": "never",
+
   // Rezept, das beim Speichern / beim manuellen Build ausgeführt wird
   "latex-workshop.latex.recipe.default": "latexmk (LuaLaTeX + Biber)",
 

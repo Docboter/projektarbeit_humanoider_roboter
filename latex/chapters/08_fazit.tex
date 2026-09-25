@@ -1,0 +1,111 @@
+% chapters/08_fazit.tex
+
+\chapter{Fazit und Ausblick}
+\label{chap:fazit}
+
+\section{Fazit}
+\label{sec:fazit}
+
+Diese Projektarbeit ist der Frage nachgegangen, ob und wie sich das
+Vision-Language-Action-Modell NVIDIA GR00T~N1.6 auf dem Unitree~G1 mit
+DEX3-Hand für eine Block-Stacking-Aufgabe feinabstimmen lässt -- und welche
+Aussagekraft die anschließende Simulationsevaluation besitzt. Die zentralen
+Erkenntnisse:
+
+\begin{itemize}
+  \item \textbf{Reproduzierbare Infrastruktur.} Die containerisierte, rein
+    über Umgebungsvariablen konfigurierte Pipeline läuft identisch lokal
+    (Docker) und auf dem KISSKI-Cluster (Apptainer/\ac{slurm}) und skaliert
+    auf vier GPUs.
+  \item \textbf{Erfolgreiches Training.} Das selektive Fine-Tuning
+    konvergierte über 175\,000~Schritte sauber; der Loss plateaut
+    ab~$\approx$~100\,000~Schritten.
+  \item \textbf{Domain-Gap als Kernbefund.} Trotz guter
+    Open-Loop-Armvorhersagen erreichte die Politik im geschlossenen
+    Regelkreis $0/20$~Erfolge und \enquote{fror ein}. Die Dreifach-Diagnose
+    (Open-Loop, Replay, Closed-Loop) isolierte die \emph{Beobachtung} als
+    einzige Differenz; die SigLIP-Messung quantifizierte den visuellen
+    Domain-Gap mit der handnahen Kamera (0,427) als kritischem Blocker.
+  \item \textbf{Einordnung statt Fehlinterpretation.} Literaturgestützt
+    (SIMPLER~\cite{simpler2024}) ist $0\,\%$ Closed-Loop-Erfolg für ein auf
+    Realbildern trainiertes Modell mit eingefrorenem Encoder das
+    \emph{erwartete} Ergebnis -- kein Urteil über die Modellqualität. Die
+    domain-gap-freie Metrik (Open-Loop-\ac{mse}) spricht dafür, dass das
+    Modell die Aufgabe im Prinzip gelernt hat.
+  \item \textbf{Extern validierte Pipeline, eingegrenzter Gap.} Die
+    Inferenz-Kette reproduzierte einen publizierten Benchmark auf
+    0,1~Prozentpunkte (RoboCasa GR-1: 47,7\,\% vs.\ 47,8\,\%,
+    \cref{sec:robocasa}); Kamera-Neukalibrierung und Albedo-Korrekturen
+    senkten den mittleren Real$\to$Sim-Abstand unter die
+    Real$\to$Real-Referenz (\cref{sec:neukalibrierung}) -- dominante
+    Gap-Ursache war die Materialfarbe, nicht die Beleuchtung.
+  \item \textbf{Verhaltensbeleg statt bloßer Bildähnlichkeit.} Das
+    \texttt{span}-Gate (\cref{sec:span-gate}) zeigte: Dieselbe Politik
+    kommandiert auf \emph{echten} Bildern die volle Greifbewegung
+    (Verhältnis~1,00), in der Simulation nur ein Fünftel. Die Politik hat
+    das Greifen gelernt und ruft es nur bei synthetischer Beobachtung nicht
+    ab.
+  \item \textbf{Checkpoint-Auswahl war messbar falsch.} Der dritte Lauf --
+    der erste mit echter Testmenge -- zeigte eine U-Kurve des
+    Validierungsfehlers: Der letzte Checkpoint ist um 25\,\% schlechter als
+    der beste (\cref{sec:lauf3}); Overfitting ist damit erstmals gemessen
+    statt vermutet.
+  \item \textbf{RL-Pipeline implementiert, Lernwirkung offen.} Der
+    FPO-Trainer absolvierte eine vollständige Trainingsiteration auf
+    institutseigener Blackwell-Hardware (\cref{sec:rl-stand}); vor einem
+    produktiven Lauf stehen Co-Training (\cref{sec:cotrain}) und die
+    wiederholten Basismessungen.
+  \item \textbf{Ein widerrufener Fix als methodische Warnung.} Die früher
+    als Korrektur verbuchte Vorzeichen-Spiegelung ließ die Hand in allen
+    Sim-Läufen unvollständig schließen (\cref{sec:vorzeichen-widerruf});
+    die simulationsseitigen Greifzahlen stehen daher unter ausdrücklichem
+    Vorbehalt (\cref{sec:vorbehalt-greifzahlen}).
+\end{itemize}
+
+Der wichtigste Beitrag der Arbeit ist damit weniger eine hohe Erfolgsrate als
+die \emph{methodisch saubere Diagnose}, warum die naheliegende Sim-Evaluation
+für dieses Modell die falsche Messgröße ist -- mit der konkreten Empfehlung,
+Modellqualität primär über Open-Loop-Eval und reale Roboter-Rollouts zu
+belegen (\cref{sec:konsequenz}).
+
+\section{Ausblick}
+\label{sec:ausblick}
+
+\paragraph{Messungen mit korrigierter Geometrie wiederholen.}
+Der unmittelbarste Schritt folgt aus dem Widerruf des Vorzeichen-Fixes: Die
+simulationsseitigen Greifgrößen sind mit korrigierter Hand- und
+Basisgeometrie neu zu erheben. Erst danach existiert ein belastbarer
+Nullpunkt für Co-Training und RL -- und erst danach lässt sich beziffern,
+welcher Anteil des Sim-Versagens tatsächlich auf den visuellen Domain-Gap
+entfällt.
+
+\paragraph{Co-Training durchführen.}
+Der Lauf auf echten \emph{und} gerenderten Bildern ist der inhaltlich
+nächste Schritt: Er erfüllt als einziger die Bedingung aus
+\cref{sec:frozen-vs-tuned}, dass der Vision-Encoder im Training
+Simulationsbilder sieht -- auf reinen Realdaten verschlechterte das
+Encoder-Tuning das Verhalten bis zum Politik-Kollaps
+(\cref{sec:vision-lauf}). Der gerenderte Datensatz ist mit der korrigierten
+Geometrie neu zu erzeugen; parallel dazu läuft der generative
+Cosmos-Transfer-Strang (\cref{sec:cotrain}).
+
+\paragraph{Reinforcement-Learning-Fine-Tuning produktiv machen.}
+RL adressiert die \ac{bc}-Schwäche an der Wurzel und löst den Domain-Gap
+konzeptionell auf, da in derselben Simulation trainiert und evaluiert wird.
+Die FPO-Pipeline ist implementiert und end-to-end validiert
+(\cref{sec:rl-stand}); nach Co-Training und Basismessungen stehen der erste
+produktive Lauf und der Nachweis der Lernwirkung an.
+
+\paragraph{Lokomotion.}
+Mit der entkoppelten Architektur (\cref{sec:loco-pfade}) lässt sich der
+bislang fixierte Roboter zum Laufen bringen, ohne neue Manipulationsdaten zu
+erheben -- gestuft von der Sim-Lauf-Demo bis, langfristig, zur unified
+Whole-Body-\ac{vla}.
+
+\paragraph{Sim-to-Real.}
+Der entscheidende ausstehende Test ist der Einsatz auf der physischen
+G1-Hardware. Da das Closed-Loop-Versagen ein sim-spezifisches
+Wahrnehmungsproblem ist, ist plausibel, dass das Modell auf realen
+Kamerabildern -- die der Trainingsverteilung entsprechen -- deutlich besser
+abschneidet. Der reale Roboter bleibt der Goldstandard und der nächste große
+Meilenstein des Projekts.

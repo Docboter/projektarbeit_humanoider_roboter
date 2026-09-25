@@ -5,6 +5,10 @@ action view "Szene ansehen - ohne Modell, ohne Checkpoint" \
   --hint  "Der einzige Lauf, der ganz ohne Gewichte auskommt: kein HF_TOKEN, kein Checkpoint. Baut nur die Isaac-Lab-Env auf, der Roboter haelt seine Home-Pose. Der billigste Weg zum ersten Bild und der richtige Test fuer die LIVE-Variante, BEVOR ein echter Lauf davon abhaengt. Misst per Konstruktion nichts."
 
 param HF_TOKEN secret "" expert "HuggingFace-Token" "Fuer 'view' bewusst nicht noetig."
+param CHECKPOINT_PATH path "/data/checkpoints/groot-g1dex3-checkpoint" expert \
+  "Checkpoint im Container" "Fuer 'view' nicht noetig. Nur als USD-Suchpfad relevant: ensure_asset_local schaut hier nach dem Roboter-Asset, laedt aber nie Gewichte."
+param HF_CHECKPOINT_REPO str "luca-mue/groot-g1dex3-checkpoint" expert \
+  "HuggingFace-Repo des Checkpoints" "Fuer 'view' bewusst nicht noetig."
 
 group "Laufumfang"
 param VIEW_DURATION_S int 3600 basic \

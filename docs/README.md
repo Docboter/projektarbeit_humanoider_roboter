@@ -15,6 +15,9 @@ Veraltete Inhalte werden nicht in den Dokumenten mitgeschleppt, sondern nach
 > `Training/`, `Simulation/`, `tools/` mit einer Zeile `# TL;DR: …` nach dem Shebang.
 > `tools/check_tldr.sh` prüft das, `tools/check_tldr.sh --list` druckt alle TL;DRs als Übersicht.
 
+**Neu hier?** Zuerst [quickstart.md](quickstart.md) — Systemvoraussetzungen, Host-Software,
+Accounts/Tokens und die kürzesten Befehlsketten pro Weg.
+
 ## Training (Fine-tuning von GR00T N1.6)
 
 Operative Anleitungen zum Trainieren. Die Auswertung der Läufe steht unter [Ergebnisse](#ergebnisse--evaluation).
@@ -29,6 +32,7 @@ Operative Anleitungen zum Trainieren. Die Auswertung der Läufe steht unter [Erg
 | [training/env-vars.md](training/env-vars.md) | **Konfigurationsreferenz** — alle Env-Vars + VRAM-Richtwerte (Single Source of Truth) |
 | [training/train-test-split.md](training/train-test-split.md) | 80/20-Datensatz-Split **und Checkpoint-Auswahl** — Implementierung, Nutzung, und warum die Validierung erst nach dem Lauf läuft (`checkpoint_sweep.py`) |
 | [training/co-training.md](training/co-training.md) | **Schritt 4 — Co-Training echt + gerendert** (`USE_COTRAIN=1`). Renderer für Sim-Bilder zu echten Aktionen, Zwei-Datensatz-Training mit `mix_ratio`, begründete Episodenzahl/Mischung, vorregistrierte Erfolgsregel. Werkzeuge gebaut, Lauf steht aus |
+| [training/synth-datensatz.md](training/synth-datensatz.md) | **Fremder Sim-Datensatz im Co-Training** (`Fichtl00/Cube_Stacking_synth`) — warum er schematisch nicht passt (57-Dim-State, 50 fps), wie `harmonize_synth_dataset.py` die Gelenk-Zuordnung *misst* statt sie zu raten, begründetes Mischungsverhältnis, vorregistrierte Bewertungsregel |
 | [training/wandb-offline-sync.md](training/wandb-offline-sync.md) | W&B-Offline-Sync auf KISSKI |
 
 ## Simulation (Closed-Loop-Eval in Isaac Lab)
@@ -38,10 +42,12 @@ Operativer Sim-Eval-Workflow. Mess- und Methodik-Ergebnisse stehen unter [Ergebn
 | Dokument | Inhalt |
 |---|---|
 | [simulation/](simulation/README.md) | **Einstieg Simulation** (Index) |
-| [simulation/vastai-anleitung.md](simulation/vastai-anleitung.md) | **Primärer Workflow** — Closed-Loop-Sim-Eval auf vast.ai, Schritt für Schritt (inkl. Open-Loop-Replay-Diagnose) |
+| [simulation/sim-eval-anleitung.md](simulation/sim-eval-anleitung.md) | **Primärer Workflow** — Closed-Loop-Sim-Eval Schritt für Schritt: gemeinsame Einmal-Schritte, dann Weg A IKR-Server (Standard) oder Weg B vast.ai (Cloud-Alternative); inkl. Open-Loop-Replay-Diagnose |
 | [simulation/live-ansicht.md](simulation/live-ansicht.md) | **Live zuschauen** — Isaac-Sim-Viewport per WebRTC auf dem eigenen Rechner öffnen (`LIVESTREAM=2`, nativer Streaming-Client) statt hinterher MP4s zu holen. Gilt für Sim-Eval, Baseline, Greif-Test und RL. Gebaut 2026-08-13, Hardware-Test offen |
 | [simulation/umsetzungsnotizen.md](simulation/umsetzungsnotizen.md) | **READ FIRST** — Lessons Learned, bekannte Fixes (Stand bis Juni 2026; die Sim-Erkenntnisse seit August — Isaac-Sim-6.0-Port, Kamera-Neukalibrierung, Greif-Diagnostik — stehen in [ergebnisse/diagnose-chronik.md](ergebnisse/diagnose-chronik.md)) |
 | [simulation/wuerfellage-rekonstruktion.md](simulation/wuerfellage-rekonstruktion.md) | **Würfellage aus den Realbildern** — Verfahren und Koordinatentransformation (Bild → Kamerastrahl → Sim-Koordinate) für den Co-Training-Renderer. Übergabedokument mit Annahmenliste, den zwei gescheiterten Vorgängerverfahren und dem offenen Abnahme-Test. |
+| [simulation/wuerfellage-rekonstruktion-bewertung.md](simulation/wuerfellage-rekonstruktion-bewertung.md) | **Bewertung der Implementierung** (Stand 2026-08-21) — Doku-vs.-Code-Abgleich von `pick_anchored_homography` v4, priorisierte Befundliste und Empfehlungen |
+| [simulation/wuerfellage-rekonstruktion-lauf35-befund.md](simulation/wuerfellage-rekonstruktion-lauf35-befund.md) | **Abnahmelauf-Befund (Läufe 35–37)** — erster `replay-calibrate`-Testlauf: Kalibrierung abgelehnt (Fail-safe griff), Fingeröffnung erweist sich als untauglicher Greifdetektor; Empfehlung, `pick_anchored_homography` zugunsten der Realbild-Extraktion aufzugeben |
 | [simulation/basismodell-referenzaufgabe.md](simulation/basismodell-referenzaufgabe.md) | **Referenzaufgabe zur Sim-Validierung** — was das Basismodell laut NVIDIA können muss, als Prüfstein für die eigene Pipeline (Stand 2026-06-16) |
 | [simulation/robocasa-referenz-eval.md](simulation/robocasa-referenz-eval.md) | **RoboCasa-GR-1-Referenz-Eval (Bedienung)** — `server_robocasa_ref_run.sh`; validiert die Pipeline gegen NVIDIAs publizierte Zahlen. Ergebnis in [ergebnisse/basismodell-referenz-eval.md](ergebnisse/basismodell-referenz-eval.md) |
 | [simulation/baseline-eval.md](simulation/baseline-eval.md) | **Baseline-Eval (Vorbereitung)** — un-finetuntes `GR00T-N1.6-3B` + stock G1-Greifer (`SIM_MODE=baseline`) auf Block-Stacking; parallele Pipeline + TODO-Checkliste, **erster Lauf steht aus** |
@@ -58,7 +64,7 @@ Alle Auswertungen, Messungen und Methodik-Reviews gebündelt — die „Was kam 
 | [ergebnisse/lauf2-vision-auswertung.md](ergebnisse/lauf2-vision-auswertung.md) | **Auswertung 2. Lauf** — Training mit Vision-Encoder (`TUNE_VISUAL=1`, Namespace `blockstacking_vision`) |
 | [ergebnisse/lauf3-vision-split-auswertung.md](ergebnisse/lauf3-vision-split-auswertung.md) | **Auswertung 3. Lauf** (`tp1nc699`, Vision + Color-Jitter + 80/20-Split) — **erste echte Validierungszahl im Projekt.** Checkpoint-Sweep zeigt U-Kurve: bester Checkpoint **30.000**, der letzte (44.000) ist 25 % schlechter → Overfitting erstmals belegt. **Closed-Loop nachgemessen (Lauf 34):** dieser Checkpoint hebt die Sim-Fingerspanne auf 27,6 % — erster Lauf mit belegter Verhaltenswirkung |
 | [ergebnisse/lauf1-zwischenstand.md](ergebnisse/lauf1-zwischenstand.md) | **Zwischenstand 1. Lauf** — W&B-Health-Check des laufenden Trainings (Detail-Charts in [`wandb-run-charts.html`](ergebnisse/wandb-run-charts.html)) |
-| [ergebnisse/diagnose-chronik.md](ergebnisse/diagnose-chronik.md) | **Diagnose-Chronik (Läufe 08–34)** — chronologisches Protokoll der Sim-/RL-Diagnoseläufe: Kamera-Fixes, Domain-Gap-Messläufe, Greif-Physik (Lauf 29), `span`-Gate (Lauf 32), `TUNE_VISUAL` im Closed Loop (Lauf 34). Die projektweit referenzierten Lauf-Nummern leben hier |
+| [ergebnisse/diagnose-chronik.md](ergebnisse/diagnose-chronik.md) | **Diagnose-Chronik (fortlaufend ab Lauf 08)** — chronologisches Protokoll der Sim-/RL-Diagnoseläufe: Kamera-Fixes, Domain-Gap-Messläufe, Greif-Physik (Lauf 29), `span`-Gate (Lauf 32), `TUNE_VISUAL` im Closed Loop (Lauf 34). Die projektweit referenzierten Lauf-Nummern leben hier |
 | [ergebnisse/basismodell-referenz-eval.md](ergebnisse/basismodell-referenz-eval.md) | **Referenz-Eval-Ergebnis** — RoboCasa GR-1, Aggregat 47,7 % über 12 Tasks; validiert die Eval-Pipeline gegen NVIDIAs Zahlen (Re-Run der restlichen 12 Tasks offen) |
 | [ergebnisse/domain-gap-analyse.md](ergebnisse/domain-gap-analyse.md) | **Domain-Gap-Messung** — Cosine-Distanz Real→Sim pro Kamera via frozen SigLIP-ViT. Neumessung 2026-08-08 nach Kamerakalibrierung + Albedo-Fixes: Mittel 0.22, `cam_left_wrist` 0.36 (Juni-Erstmessung 0.26/0.43 überholt) |
 | [ergebnisse/sim-bewertung.md](ergebnisse/sim-bewertung.md) | **Methodik-Review** — Ist Closed-Loop-Sim sinnvoll/korrekt? Belegt: 0-%-Ergebnis ist der erwartete Real→Sim-Gap; Open-Loop-MSE ist die valide Metrik. Mit Code-Befunden + Quellen |
@@ -77,13 +83,14 @@ Diese Sammlung speist das gleichnamige Kapitel der Projektarbeit.
 | [weiterfuehrend/lokomotion-recherche.md](weiterfuehrend/lokomotion-recherche.md) | **Lokomotions-Recherche** — Warum der Roboter fixiert ist, GR00T-N1.6-Whole-Body-Control (entkoppelt: RL-Beine + IK/VLA-Arme), Unitree-G1-Lokomotions-Stacks, Integrationspfade + Quellen |
 | [weiterfuehrend/groot-n17-migration.md](weiterfuehrend/groot-n17-migration.md) | **Umstieg GR00T N1.6 → N1.7** — Recherche + Migrationsplan; **Umsetzung als paralleler Pfad begonnen** (Stand 2026-08-19: zweiter Submodul-Pfad `app/Groot-1.7`, `GROOT_VERSION`-Laufzeit-Auswahl in einem Image, Scripts/KISSKI angepasst — **kein Image gebaut, kein N1.7-Lauf gefahren**). N1.7 (Cosmos-Reason2-2B/Qwen3-VL, GA 2026-07-07) im Überblick, Unterschiede zu unserem Stand (gated Backbone, Py 3.12/torch 2.9, N1.6-Checkpoints nicht ladbar; `NEW_EMBODIMENT`/CLI/Datensatz/ZMQ bleiben kompatibel), 8-Phasen-Plan mit Abnahmekriterien |
 | [weiterfuehrend/livestream-plan.md](weiterfuehrend/livestream-plan.md) | **Livestream-Plan** — **Spur B** (MJPEG-Frame-Stream im Browser, `LIVE_VIEW=1`) ist für den RL-Lauf gebaut; **Spur A** (WebRTC-Echtzeit-Viewport) ist gebaut, aber auf Hardware ungetestet — inzwischen mit zwei Clients: nativer App und **Browser** (`webview`, Port 8210). Bedienung: [simulation/live-ansicht.md](simulation/live-ansicht.md) |
-| [weiterfuehrend/cli-menuefuehrung.md](weiterfuehrend/cli-menuefuehrung.md) | **Geführte CLI-Menüs (umgesetzt 2026-08-20)** — Skriptstart ohne Parameter führt durch die nötigen Werte und erklärt sie; `MENU=0` schaltet ab. Parameter-Specs unter [`tools/menu/`](../tools/menu/) sind die einzige Quelle, `tools/gen_docs.sh` prüft sie gegen Skripte und Doku-Tabellen. §12 hält die Abweichungen vom Plan fest und zwei dabei gefundene Defekte im Trainings-Launcher |
+| [weiterfuehrend/cli-menuefuehrung.md](weiterfuehrend/cli-menuefuehrung.md) | **Geführte CLI-Menüs (umgesetzt 2026-08-20, Router 2026-08-21)** — [`./run.sh`](../run.sh) ist der eine Einstiegspunkt: Domäne wählen, dann führt der jeweilige Launcher weiter. Skriptstart ohne Parameter führt durch die nötigen Werte und erklärt sie. Lange Aktionslisten bekommen eine Gruppenebene mit Vorschau der enthaltenen Aktionen (`[*]` = doch alles auf einen Schirm). `MENU=0` schaltet ab, `MENU_ARROWS=0` nur die Pfeiltasten, `MENU_NEST=0`/`1` die Schachtelung. `[←]`/`[z]` führt aus jeder Ebene zurück bis ins Hauptmenü. Parameter-Specs unter [`tools/menu/`](../tools/menu/) sind die einzige Quelle, `tools/gen_docs.sh` prüft sie gegen Skripte und Doku-Tabellen. §12 hält die Abweichungen vom Plan fest und zwei dabei gefundene Defekte im Trainings-Launcher, §13 den Router, die Pfeiltasten, die Gruppenebene, den Rückweg, die Einordnung von KISSKI unter „Training“ und (§13.7) den Checkpoint als Grundfrage jedes Messlaufs — `CHECKPOINT_PATH` ist der Hebel, `HF_CHECKPOINT_REPO` greift nur, solange der Pfad im Container fehlt |
 | [weiterfuehrend/wiki-migration-plan.md](weiterfuehrend/wiki-migration-plan.md) | **GitHub-Wiki-Migration (Plan)** — ob/wie sich `docs/` ins GitHub-Wiki übertragen lässt (eigenes Git-Repo, Link-Rewriting nötig, kein Auto-Sync); Alternative GitHub Pages/MkDocs. Reine Recherche, nichts umgesetzt |
 
 ## Querschnitt (Training + Simulation)
 
 | Dokument | Inhalt |
 |---|---|
+| [../next-steps.md](../next-steps.md) | **Nächste Schritte** — laufender Prioritäten-Tracker: Stand der Messkette, priorisierte nächste Schritte, offene Widersprüche zwischen den Ergebnisdokumenten |
 | [fehlerbehebung.md](fehlerbehebung.md) | **Fehlerbehebung** — gebündelte Fehlerlösungen: Domain-Gap, OOM/VRAM, KISSKI-Queue & W&B-Pflicht, Sim-GPU-Anforderung |
 | [historie.md](historie.md) | **Historie / Changelog-Rohmaterial** — chronologisch gesammelte, aus der Haupt-Doku ausgelagerte veraltete Inhalte (u. a. das frühere Audit `umgebungsanalyse.md`, die Fixes aus dem 1. Lauf, die Domain-Gap-Erstmessung) |
 | [portabilitaet.md](portabilitaet.md) | **Portabilität / Fremdnutzung** — das Repo auf einem anderen Rechner betreiben. `.env.local` für den Docker-Server, `KISSKI_PROJECT_DIR`/`KISSKI_SIF_DIR` für den Cluster; enthält die **Migrationsschritte**, mit denen die eigenen Maschinen nach dem Umbau vom 2026-08-18 wieder exakt wie vorher laufen |
@@ -102,10 +109,17 @@ Diese Sammlung speist das gleichnamige Kapitel der Projektarbeit.
 
 ```
 /
+├── run.sh                     # ★ Der EINE Einstiegspunkt: fragt Simulation/Training/KISSKI
+│                              #   ab und übergibt an den passenden Host-Launcher. Wählt
+│                              #   nur — baut selbst nichts, kennt keine Aktionsliste.
+│                              #   [←] führt aus jeder Ebene zurück bis hierher.
+│                              #   Zuordnung Domäne → Launcher: tools/menu/_domains.spec
 ├── README.md                  # Projekt-Überblick & Schnellstart (Landing)
 ├── CLAUDE.md                  # Anweisungen für Claude Code
+├── .env.local.example         # Vorlage für host-spezifische Konfiguration (→ .env.local kopieren, gitignored) — nur von Simulation/server_rl_run.sh gelesen
 ├── docs/                      # ▶ Diese Dokumentation
 │   ├── README.md              # dieser Navigations-Hub
+│   ├── quickstart.md          # Neu hier? Systemvoraussetzungen, Accounts/Tokens, Schnellstart
 │   ├── training/              # operative Trainings-Doku
 │   ├── simulation/            # operative Sim-Eval-Doku (+ archiv/)
 │   ├── ergebnisse/            # Auswertungen, Messungen, Methodik-Reviews
@@ -124,7 +138,7 @@ Diese Sammlung speist das gleichnamige Kapitel der Projektarbeit.
 │       └── run_finetuning.sh  # Trainings-Launcher im Container
 ├── Simulation/                # Sim-Client-Code, Dockerfiles, Build-Tools
 │   ├── Dockerfile             # KISSKI: schlanker Isaac-Lab-Sim-Client
-│   ├── Dockerfile.vastai      # vast.ai: kombiniert Isaac Sim + GR00T
+│   ├── Dockerfile.standalone  # Standalone: kombiniert Isaac Sim + GR00T — IKR-Server & vast.ai
 │   ├── Dockerfile.webviewer   # Browser-Client für den WebRTC-Viewport (Port 8210).
 │   │                          #   Enthält KEINEN Simulator — serviert nur die Seite
 │   ├── server_rl_run.sh       # ★ Eigener-Server-Workflow (Docker): preflight/setup/view/check/
@@ -133,16 +147,19 @@ Diese Sammlung speist das gleichnamige Kapitel der Projektarbeit.
 │   │                          #    view = Szene ohne Gewichte; webview = Viewport im Browser —
 │   │                          #    beides in simulation/live-ansicht.md)
 │   ├── server_robocasa_ref_run.sh  # RoboCasa-GR-1-Referenz-Eval (Pipeline-Validierung)
-│   ├── update_sim_image.sh    # Build/Push-Tool (--vastai-Flag)
+│   ├── update_sim_image.sh    # Build/Push-Tool (--standalone-Flag)
 │   ├── g1_dex3_sim/           # Sim-Code (Env, Cams, Client, Eval, Replay)
 │   ├── camera_reference/      # Dataset-Referenzframes für Kamera-Kalibrierung
-│   └── scripts/               # In das vast.ai-Image kopiert (→ /scripts)
+│   └── scripts/               # In das Standalone-Image kopiert (→ /scripts)
 ├── tools/                     # Host-Helfer, nie im Image: Menü-Engine + Specs, gen_docs.sh,
 │                              #   test_menu.sh, check_tldr.sh (TL;DR-Konvention)
+│   └── menu/_domains.spec     #   Domänenliste für run.sh (Launcher, --needs, Erklärtext)
 ├── data/                      # Lokale Assets + Submodule (überwiegend gitignored)
 │   └── unitree_ros/           # Git-Submodul — Unitree-ROS (URDF-Quelle)
+├── latex/                     # Projektarbeit/Thesis-Dokument (LuaLaTeX; eigenes Root-Verzeichnis, kein Submodul)
 └── app/                       # Git-Submodul, im Image geklont
-    └── Groot-1.6/             # GR00T N1.6 + eigene G1/DEX3-Configs
+    ├── Groot-1.6/             # GR00T N1.6 + eigene G1/DEX3-Configs
+    └── Groot-1.7/             # Ungetrackter Checkout des Parallel-Branches training-luca-IKR-IS6.0-GN1.7 (GR00T N1.7); nicht in .gitmodules — stehen lassen
 ```
 
 Zur Laufzeit (lokal/vast.ai im Container-Filesystem, auf KISSKI unter dem VAST-Projekt-Storage):

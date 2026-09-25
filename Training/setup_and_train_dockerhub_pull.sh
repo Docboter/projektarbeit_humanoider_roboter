@@ -1,0 +1,397 @@
+#!/usr/bin/env bash
+# TL;DR: Schlanker Host-Launcher — zieht das Image von Docker Hub, startet den autonomen Container.
+# setup_and_train_dockerhub_pull.sh
+#
+# Schlankes Host-Skript: zieht das Image von Docker Hub und startet den
+# autonomen Container-Entrypoint. Alle eigentliche Arbeit (Download, Konvertierung,
+# Training) passiert IM Container — das gleiche Image laeuft so auch auf vast.ai
+# oder anderen Cloud-GPU-Plattformen ohne dieses Skript.
+#
+# Konzept: standardmaessig KEIN persistenter Storage auf dem Host.
+#   * Kein `--rm` — der Container bleibt nach `stop` bestehen
+#   * Ohne TRAIN_HOST_DATA_DIR leben Daten und Checkpoints im Container-Filesystem,
+#     und bei `--destroy` (oder docker rm) ist alles weg
+#   * TRAIN_HOST_DATA_DIR=<pfad> haengt stattdessen ein Host-Verzeichnis als /data ein.
+#     Auf dem Sim-Server ist das der Normalfall, siehe Abschnitt 5.
+#   * /scripts kommt per Bind aus dem Repo, sofern vorhanden (MOUNT_SCRIPTS=0 dagegen)
+#
+# Verwendung:
+#   HF_TOKEN=hf_... WANDB_API_KEY=... ./setup_and_train_dockerhub_pull.sh
+#   ./setup_and_train_dockerhub_pull.sh --skip-pull           # Image schon lokal
+#   ./setup_and_train_dockerhub_pull.sh --interactive         # Shell statt Training
+#   ./setup_and_train_dockerhub_pull.sh --resume              # Bestehenden Container weiterlaufen lassen
+#   ./setup_and_train_dockerhub_pull.sh --destroy             # Alten Container loeschen + neu starten
+#   ./setup_and_train_dockerhub_pull.sh --dry-run             # Nur Befehle anzeigen
+#
+#   Ohne Parameter aufgerufen fuehrt das Skript durch die noetigen Werte (gefuehrtes
+#   Menue, docs/weiterfuehrend/cli-menuefuehrung.md). --no-menu bzw. MENU=0 schaltet
+#   das ab; jede Aktion bleibt vollstaendig per Flag und Env-Var aufrufbar.
+#   --profile=<name> laedt ein zuvor gesichertes Profil.
+#
+# Umgebungsvariablen:
+#   HF_TOKEN           (Pflicht)  HuggingFace-Token
+#   WANDB_API_KEY      (optional) W&B-Key — ohne laeuft Training ohne W&B
+#   MAX_STEPS          (default 30000)
+#   GLOBAL_BATCH_SIZE  (default 8)
+#   NUM_GPUS           (default 1)
+#   WANDB_PROJECT      (default gr00t-g1-dex3)
+#   GROOT_VERSION      (default 1.6)      1.6 | 1.7 — waehlt Code-Baum/Modell/venv im
+#                                         Container (siehe Training/scripts/lib_groot_version.sh)
+#   CONTAINER_NAME     (default groot-train)
+#   DOCKER_HUB_IMAGE   (default lucam03/projekt-humanoider-roboter:latest)
+#   DOCKER_GPUS        (default all) — Wert fuer `docker run --gpus`. Auf einem Rechner,
+#                      der die Karten noch mit etwas anderem teilt, gezielt eine belegen:
+#                      DOCKER_GPUS='"device=0"' ./setup_and_train_dockerhub_pull.sh
+#
+# Ausserdem werden alle Lauf-Parameter des Entrypoints durchgereicht, sofern gesetzt:
+#   SAVE_STEPS SAVE_TOTAL_LIMIT LEARNING_RATE WARMUP_RATIO WEIGHT_DECAY
+#   DATALOADER_WORKERS GRADIENT_ACCUMULATION_STEPS OUTPUT_DIR EXPERIMENT_NAME RESUME
+#   TUNE_VISUAL USE_COTRAIN COTRAIN_* TRAIN_TEST_SPLIT USE_AUGMENTATION CJ_* ...
+#
+# Host-seitige Schalter (werden NICHT durchgereicht, sie steuern `docker run` selbst):
+#   TRAIN_HOST_DATA_DIR  (leer)  — Host-Verzeichnis, das als /data eingehaengt wird.
+#                                  Auf dem Sim-Server: $HOME/groot-rl-data, damit die
+#                                  Sim-Eval die Checkpoints ohne `docker cp` sieht.
+#   MOUNT_SCRIPTS        (auto)  — 0 = /scripts NICHT aus dem Repo binden.
+
+set -euo pipefail
+
+# ── Flags ─────────────────────────────────────────────────────────────────────
+# RESUME_CONTAINER (Flag --resume) heisst "diesen Docker-Container weiterlaufen lassen".
+# Die Env-Variable RESUME dagegen heisst "den Trainingslauf bei seinem letzten Checkpoint
+# fortsetzen" (lib_resume_guard.sh) und wird unten durchgereicht. Zwei Bedeutungen, deshalb
+# zwei Namen — vorher hiessen beide RESUME, und der Durchgriff haette dem Trainer ein
+# "RESUME=false" untergeschoben.
+SKIP_PULL=false
+INTERACTIVE=false
+RESUME_CONTAINER=false
+DESTROY=false
+DRY_RUN=false
+
+for arg in "$@"; do
+    case "$arg" in
+        --skip-pull)   SKIP_PULL=true ;;
+        --interactive) INTERACTIVE=true ;;
+        --resume)      RESUME_CONTAINER=true ;;
+        --destroy)     DESTROY=true ;;
+        --dry-run)     DRY_RUN=true ;;
+        --menu)        MENU=1 ;;
+        --no-menu)     MENU=0 ;;
+        --profile=*)   MENU_PROFILE="${arg#*=}"; MENU=1 ;;
+        --help|-h)
+            awk 'NR>1 { if (/^#/) { sub(/^# ?/, ""); print; next } if (/^[[:space:]]*$/) { print ""; next } exit }' "$0"
+            exit 0
+            ;;
+        *)
+            echo "Unbekannter Parameter: $arg" >&2
+            echo "Verwende --help fuer Hilfe." >&2
+            exit 1
+            ;;
+    esac
+done
+
+# ── Logging ───────────────────────────────────────────────────────────────────
+log()   { echo -e "\033[36m==> $1\033[0m"; }
+ok()    { echo -e "\033[32m v  $1\033[0m"; }
+warn()  { echo -e "\033[33m  ! $1\033[0m"; }
+err()   { echo -e "\033[31m!! $1\033[0m"; }
+fatal() { err "$1"; exit 1; }
+
+invoke_cmd() {
+    if $DRY_RUN; then
+        echo -e "\033[33m[dry-run] $*\033[0m"
+        return 0
+    fi
+    "$@"
+}
+
+# ── Repo-Wurzel + lokale Host-Konfiguration ───────────────────────────────────
+# Bis 2026-08 las NUR server_rl_run.sh die gitignorierte .env.local — die in
+# docs/portabilitaet.md beschriebene Vorrangregel galt hier also gar nicht, und ein
+# dort hinterlegter HF_TOKEN wurde trotzdem abgefragt. Jetzt teilen sich beide Seiten
+# dieselbe Fassung.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="${REPO_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+# shellcheck source=../tools/lib_env_local.sh
+source "$REPO_DIR/tools/lib_env_local.sh"
+env_local_load "$REPO_DIR"
+
+# ── Gefuehrte Menuefuehrung ───────────────────────────────────────────────────
+# Das Menue erzeugt NUR Umgebungsvariablen und laeuft VOR allem anderen. Es meldet
+# sich ausschliesslich, wenn wirklich ein Mensch davorsitzt.
+# shellcheck source=../tools/lib_menu.sh
+source "$REPO_DIR/tools/lib_menu.sh"
+_MENU_LAUNCHER="./Training/setup_and_train_dockerhub_pull.sh"
+
+MENU_ACTION=""
+if $RESUME_CONTAINER; then MENU_ACTION=resume
+elif $DESTROY;   then MENU_ACTION=destroy
+elif $INTERACTIVE; then MENU_ACTION=interactive
+fi
+if menu_enabled; then
+    if [[ -z "$MENU_ACTION" ]]; then
+        # Die Aktionsliste ersetzt die frueher handgestrickte resume/destroy-Abfrage
+        # weiter unten — sie kommt jetzt VOR der Arbeit statt mitten hinein, und sie
+        # zeigt gleich mit an, ob ueberhaupt ein Container existiert.
+        MENU_ACTION="$(menu_pick_action "$REPO_DIR/tools/menu" train)" || { _rc=$?; menu_pick_rc "$_rc"
+                                                                            echo; exit 0; }
+    fi
+    menu_ask "$REPO_DIR/tools/menu" train "$MENU_ACTION" || exit 0
+    case "$MENU_ACTION" in
+        resume)      RESUME_CONTAINER=true ;;
+        destroy)     DESTROY=true ;;
+        interactive) INTERACTIVE=true ;;
+    esac
+fi
+
+# ── Konfiguration ─────────────────────────────────────────────────────────────
+DOCKER_HUB_IMAGE="${DOCKER_HUB_IMAGE:-lucam03/projekt-humanoider-roboter:latest}"
+CONTAINER_NAME="${CONTAINER_NAME:-groot-train}"
+
+MAX_STEPS="${MAX_STEPS:-30000}"
+GLOBAL_BATCH_SIZE="${GLOBAL_BATCH_SIZE:-8}"
+NUM_GPUS="${NUM_GPUS:-1}"
+WANDB_PROJECT="${WANDB_PROJECT:-gr00t-g1-dex3}"
+GROOT_VERSION="${GROOT_VERSION:-1.6}"
+
+# ── Banner ────────────────────────────────────────────────────────────────────
+echo ""
+echo -e "\033[35m╔══════════════════════════════════════════════════════════════════╗\033[0m"
+echo -e "\033[35m║   GR00T N1.6 Fine-tuning — Host-Launcher (Container ist autonom) ║\033[0m"
+echo -e "\033[35m╚══════════════════════════════════════════════════════════════════╝\033[0m"
+echo ""
+$DRY_RUN && warn "DRY-RUN aktiv — es werden keine Befehle ausgefuehrt."
+
+# ── 1. Voraussetzungen ────────────────────────────────────────────────────────
+log "Schritt 1/3 — Voraussetzungen pruefen"
+
+if ! command -v docker &>/dev/null; then
+    fatal "docker nicht gefunden. Installation: https://docs.docker.com/get-docker/"
+fi
+if ! docker info &>/dev/null; then
+    fatal "Docker-Daemon nicht erreichbar."
+fi
+ok "Docker-Daemon laeuft"
+
+# NVIDIA Container Toolkit (nur informativ)
+if docker run --rm --gpus all --entrypoint nvidia-smi \
+       "nvidia/cuda:12.8.0-base-ubuntu22.04" -L &>/dev/null 2>&1; then
+    ok "NVIDIA Container Toolkit funktioniert"
+else
+    warn "NVIDIA Container Toolkit nicht verfuegbar oder keine GPU erkannt."
+    warn "Training ohne GPU nicht moeglich."
+    if [[ -t 0 ]]; then
+        ans=""
+        read -rp "  Trotzdem fortfahren? [j/N] " ans || true
+        [[ "${ans,,}" == "j" ]] || fatal "Abgebrochen."
+    else
+        fatal "Keine GPU erkannt und kein Terminal zum Nachfragen. Abgebrochen."
+    fi
+fi
+echo ""
+
+# ── 2. Bestehenden Container behandeln ────────────────────────────────────────
+log "Schritt 2/3 — Container-Status pruefen ($CONTAINER_NAME)"
+
+CONTAINER_EXISTS=false
+CONTAINER_RUNNING=false
+if docker ps -a --format '{{.Names}}' | grep -qx "$CONTAINER_NAME"; then
+    CONTAINER_EXISTS=true
+    if docker ps --format '{{.Names}}' | grep -qx "$CONTAINER_NAME"; then
+        CONTAINER_RUNNING=true
+    fi
+fi
+
+if $DESTROY && $CONTAINER_EXISTS; then
+    warn "Loesche bestehenden Container '$CONTAINER_NAME' (--destroy)."
+    invoke_cmd docker rm -f "$CONTAINER_NAME"
+    CONTAINER_EXISTS=false
+    CONTAINER_RUNNING=false
+fi
+
+if $CONTAINER_RUNNING; then
+    warn "Container '$CONTAINER_NAME' laeuft bereits."
+    log "Haenge an die laufende Konsole an (Ctrl+P, Ctrl+Q zum Loesen ohne Stop)…"
+    invoke_cmd docker attach "$CONTAINER_NAME"
+    exit 0
+fi
+
+if $CONTAINER_EXISTS; then
+    if $RESUME_CONTAINER; then
+        log "Starte bestehenden Container '$CONTAINER_NAME' (--resume)…"
+        invoke_cmd docker start -ai "$CONTAINER_NAME"
+        exit 0
+    else
+        warn "Container '$CONTAINER_NAME' existiert bereits (gestoppt)."
+        warn "Optionen:"
+        warn "  --resume   den Container weiterlaufen lassen (Daten + Checkpoints bleiben)"
+        warn "  --destroy  Container loeschen, alles verwerfen und neu starten"
+        # Ohne Terminal hier nicht fragen, sondern abbrechen: `read` wuerde unter
+        # `set -euo pipefail` bei EOF das Skript stumm beenden.
+        if [[ ! -t 0 ]]; then
+            fatal "Kein Terminal — bitte --resume oder --destroy angeben."
+        fi
+        ans=""
+        read -rp "  Was tun? [r=resume / d=destroy / a=abbrechen] " ans || true
+        case "${ans,,}" in
+            r) invoke_cmd docker start -ai "$CONTAINER_NAME"; exit 0 ;;
+            d) invoke_cmd docker rm -f "$CONTAINER_NAME"; CONTAINER_EXISTS=false ;;
+            *) fatal "Abgebrochen." ;;
+        esac
+    fi
+fi
+echo ""
+
+# ── 3. Pflicht-Env pruefen ────────────────────────────────────────────────────
+# Die frueheren zwei handgestrickten `read`-Abfragen standen hier. Sie hatten zwei
+# Probleme: sie kannten nur diese beiden Variablen (alle Trainingsparameter musste man
+# vorher wissen), und ohne Terminal riss `read` unter `set -euo pipefail` das Skript
+# kommentarlos mit — `./setup_and_train_… < /dev/null` starb genau an dieser Stelle.
+# Das Fragen erledigt jetzt das Menue weiter oben; hier bleibt nur die Pruefung.
+if ! $INTERACTIVE; then
+    if [[ -z "${HF_TOKEN:-}" ]]; then
+        err "Kein HF_TOKEN gesetzt — er ist Pflicht."
+        err "  Dauerhaft hinterlegen:  echo ': \"\${HF_TOKEN:=hf_...}\"' >> $REPO_DIR/.env.local"
+        err "  Oder pro Aufruf:        HF_TOKEN=hf_... $0"
+        menu_enabled || err "  Oder das gefuehrte Menue nutzen:  $0 --menu"
+        exit 1
+    fi
+    ok "HF_TOKEN gesetzt"
+
+    if [[ -z "${WANDB_API_KEY:-}" ]]; then
+        warn "Kein WANDB_API_KEY gesetzt — Training laeuft ohne W&B-Logging."
+    fi
+fi
+echo ""
+
+# ── 4. Image ziehen ───────────────────────────────────────────────────────────
+log "Schritt 3/3 — Docker-Image laden und Container starten"
+if $SKIP_PULL; then
+    warn "Pull uebersprungen (--skip-pull)."
+else
+    invoke_cmd docker pull "$DOCKER_HUB_IMAGE"
+fi
+ok "Image bereit: $DOCKER_HUB_IMAGE"
+echo ""
+
+# ── 5. Container starten ──────────────────────────────────────────────────────
+# --rm waere weiterhin fatal: der Container soll `stop` ueberleben.
+#
+# Zwei optionale Mounts weichen vom urspruenglichen vast.ai-Modell ("nichts auf dem Host")
+# ab. Beide haben einen konkreten Anlass, keinen aesthetischen:
+#
+#   /data      per TRAIN_HOST_DATA_DIR, standardmaessig AUS. Auf einem Rechner, der auch
+#              die Sim faehrt, muss das Training dorthin schreiben, wo der Sim-Container
+#              liest — server_rl_run.sh haengt $HOME/groot-rl-data als /data ein. Ohne
+#              Mount liegen die Checkpoints im Container und muessten per `docker cp`
+#              (Groessenordnung 240 GB) hinueber. Leer = altes Verhalten.
+#
+#   /scripts   standardmaessig AN, sobald das Repo daneben liegt. Anlass: am 2026-09-08
+#              trug das Docker-Hub-Image einen /scripts-Stand von VOR dem 2026-06-03 —
+#              ohne run_finetuning_cotrain.sh, ohne lib_split.sh, ohne torchrun. USE_COTRAIN=1
+#              und TRAIN_TEST_SPLIT=1 liefen dadurch still ins Leere, und NUM_GPUS=2 landete
+#              statt in torchrun in DataParallel. Auf KISSKI ist das nie passiert, weil
+#              kisski_submit.sh:336 genau diesen Bind schon immer setzt. MOUNT_SCRIPTS=0
+#              schaltet ihn ab, dann gilt wieder der Stand im Image.
+#              ACHTUNG: der Bind heilt nur /scripts. Ist auch /app/Groot-1.6 im Image alt,
+#              hilft nur ein Rebuild (Training/update_image.sh) — und auf vast.ai, wo kein
+#              Repo zum Einhaengen existiert, sowieso.
+run_args=(
+    "docker" "run"
+    "--name" "$CONTAINER_NAME"
+    "--gpus" "${DOCKER_GPUS:-all}"
+    "--ipc=host"
+    "--shm-size=16g"
+)
+
+TRAIN_HOST_DATA_DIR="${TRAIN_HOST_DATA_DIR:-}"
+if [[ -n "$TRAIN_HOST_DATA_DIR" ]]; then
+    if ! mkdir -p "$TRAIN_HOST_DATA_DIR" 2>/dev/null; then
+        err "TRAIN_HOST_DATA_DIR nicht anlegbar: $TRAIN_HOST_DATA_DIR"
+        exit 1
+    fi
+    TRAIN_HOST_DATA_DIR="$(cd "$TRAIN_HOST_DATA_DIR" && pwd -P)"
+    run_args+=("-v" "$TRAIN_HOST_DATA_DIR:/data")
+    log "Host-Datenverzeichnis: $TRAIN_HOST_DATA_DIR  (im Container: /data)"
+else
+    warn "Kein Host-Mount fuer /data — Daten und Checkpoints leben nur im Container."
+    warn "  Auf dem Sim-Server stattdessen:  TRAIN_HOST_DATA_DIR=\$HOME/groot-rl-data $0 …"
+fi
+
+if [[ "${MOUNT_SCRIPTS:-auto}" != "0" && -d "$SCRIPT_DIR/scripts" ]]; then
+    run_args+=("-v" "$SCRIPT_DIR/scripts:/scripts")
+    log "Skripte aus dem Repo: $SCRIPT_DIR/scripts -> /scripts  (MOUNT_SCRIPTS=0 schaltet ab)"
+fi
+
+if $INTERACTIVE; then
+    log "Interaktive Shell — kein automatisches Training."
+    run_args+=("-it" "$DOCKER_HUB_IMAGE" "bash")
+else
+    echo "  Trainings-Konfiguration:"
+    printf "    %-25s %s\n" "MAX_STEPS"         "$MAX_STEPS"
+    printf "    %-25s %s\n" "GLOBAL_BATCH_SIZE" "$GLOBAL_BATCH_SIZE"
+    printf "    %-25s %s\n" "NUM_GPUS"          "$NUM_GPUS"
+    printf "    %-25s %s\n" "WANDB_PROJECT"     "$WANDB_PROJECT"
+    printf "    %-25s %s\n" "GROOT_VERSION"     "$GROOT_VERSION"
+    printf "    %-25s %s\n" "CONTAINER_NAME"    "$CONTAINER_NAME"
+    # Auch die durchgereichten Schalter anzeigen — sonst faellt nicht auf, wenn einer fehlt.
+    for _v in TUNE_VISUAL USE_COTRAIN COTRAIN_MIX_RATIO TRAIN_TEST_SPLIT \
+              USE_AUGMENTATION SAVE_STEPS SAVE_TOTAL_LIMIT LEARNING_RATE \
+              WARMUP_RATIO GRADIENT_ACCUMULATION_STEPS OUTPUT_DIR \
+              EXPERIMENT_NAME RESUME SKIP_DOWNLOAD SKIP_CONVERT SKIP_TRAIN \
+              SHELL_ON_ERROR WANDB_MODE DOCKER_GPUS; do
+        [[ -n "${!_v:-}" ]] && printf "    %-25s %s\n" "$_v" "${!_v}"
+    done
+    echo ""
+
+    run_args+=(
+        "-e" "HF_TOKEN=$HF_TOKEN"
+        "-e" "MAX_STEPS=$MAX_STEPS"
+        "-e" "GLOBAL_BATCH_SIZE=$GLOBAL_BATCH_SIZE"
+        "-e" "NUM_GPUS=$NUM_GPUS"
+        "-e" "WANDB_PROJECT=$WANDB_PROJECT"
+        "-e" "GROOT_VERSION=$GROOT_VERSION"
+    )
+    [[ -n "${WANDB_API_KEY:-}" ]] && run_args+=("-e" "WANDB_API_KEY=$WANDB_API_KEY")
+
+    # Bis 2026-08 endete die Liste hier — die Feature-Schalter des Entrypoints waren vom
+    # Host aus also gar nicht erreichbar. Wer TUNE_VISUAL=1 ./setup_and_train_… aufrief,
+    # bekam still ein normales Training: die Variable stand in der Host-Shell und kam nie
+    # im Container an. entrypoint.sh liest 19 Variablen, weitergereicht wurden 6.
+    # Weitergereicht wird nur, was auch gesetzt ist — sonst ueberschriebe ein leeres
+    # "-e VAR=" die ENV-Defaults aus dem Dockerfile.
+    # Zweite Runde derselben Lektion: 2026-08 fehlten die Feature-Schalter, jetzt fehlten
+    # die Lauf-Parameter. Besonders teuer waere SAVE_TOTAL_LIMIT gewesen — der Default 5 in
+    # run_finetuning_cotrain.sh laesst nur die letzten fuenf Checkpoints ueberleben, und
+    # Lauf 3 hat gezeigt, dass der beste in der Mitte liegt. Der checkpoint_sweep haette
+    # dann nur noch das Ende zu sehen bekommen.
+    for _v in TUNE_VISUAL USE_COTRAIN COTRAIN_MIX_RATIO COTRAIN_DATASET_PATH \
+              COTRAIN_HF_REPO TRAIN_TEST_SPLIT TRAIN_SPLIT_RATIO USE_AUGMENTATION \
+              USE_RL SKIP_DOWNLOAD SKIP_CONVERT SKIP_TRAIN SHELL_ON_ERROR \
+              WANDB_MODE WANDB_DIR DATA_DIR \
+              SAVE_STEPS SAVE_TOTAL_LIMIT LEARNING_RATE WARMUP_RATIO WEIGHT_DECAY \
+              DATALOADER_WORKERS GRADIENT_ACCUMULATION_STEPS \
+              OUTPUT_DIR EXPERIMENT_NAME RESUME \
+              CJ_BRIGHTNESS CJ_CONTRAST CJ_SATURATION CJ_HUE \
+              RANDOM_ROTATION_ANGLE STATE_DROPOUT_PROB; do
+        [[ -n "${!_v:-}" ]] && run_args+=("-e" "$_v=${!_v}")
+    done
+    # -it sorgt fuer farbiges Log + Ctrl+C; bei reinem Headless waere -d sinnvoll.
+    run_args+=("-it" "$DOCKER_HUB_IMAGE")
+fi
+
+invoke_cmd "${run_args[@]}"
+
+echo ""
+ok "Container beendet (nicht geloescht)."
+echo ""
+echo "  Naechste Schritte:"
+echo "    * Container fortsetzen:  ./setup_and_train_dockerhub_pull.sh --resume"
+echo "    * Checkpoints sichern:   docker cp $CONTAINER_NAME:/data/g1_dex3_finetune ./checkpoints"
+echo "    * Logs sichern:          docker cp $CONTAINER_NAME:/data/logs ./logs"
+echo "    * Alles loeschen:        ./setup_and_train_dockerhub_pull.sh --destroy"
+echo ""
+echo "  Hinweis: Auf vast.ai brauchst du dieses Skript NICHT — dort uebernimmt"
+echo "  der vast.ai-Orchestrator die Container-Verwaltung. Du gibst nur das"
+echo "  Image '$DOCKER_HUB_IMAGE' und die Env-Vars an."
+echo ""

@@ -11,7 +11,7 @@
 > [simulation/archiv/](simulation/archiv/) behalten ihr eigenes Warnbanner-Muster und bleiben
 > dort. Die Lauf-Auswertungen unter [ergebnisse/](ergebnisse/README.md) sind bewusst
 > historische Berichte und gehören nicht hierher; dasselbe gilt für die
-> [Diagnose-Chronik](ergebnisse/diagnose-chronik.md) (Läufe 08–34).
+> [Diagnose-Chronik](ergebnisse/diagnose-chronik.md) (fortlaufend ab Lauf 08).
 >
 > **Hinweis zu Links:** In den zitierten Originaltexten sind die auffälligsten relativen Links
 > an den neuen Dateiort angepasst; vereinzelte Links können noch auf den ursprünglichen
@@ -25,7 +25,7 @@ Umbau der `docs/`-Struktur; zugleich der erste Eintrag des Changelog-Rohmaterial
 
 **Aufgeteilt:**
 - `weiterfuehrend/rl-anleitung.md` (2 197 Zeilen): operative RL-Anleitung (556 Zeilen) bleibt;
-  das komplette Lauf-Protokoll der Läufe 08–34 (Kamera-Diagnosen, Kalibrier-Iterationen,
+  das komplette Lauf-Protokoll (damals Läufe 08–34, seither fortgeführt: Kamera-Diagnosen, Kalibrier-Iterationen,
   Domain-Gap-Messläufe, Greif-Physik, `span`-Gate, `TUNE_VISUAL`-Closed-Loop) ist jetzt
   [ergebnisse/diagnose-chronik.md](ergebnisse/diagnose-chronik.md) (1 667 Zeilen). Der alte,
   in sich widersprüchliche Status-Kopf („nächster Schritt TUNE_VISUAL" vs. „nächster Schritt
@@ -83,7 +83,7 @@ Umbau der `docs/`-Struktur; zugleich der erste Eintrag des Changelog-Rohmaterial
 Quelle: `docs/training/fixes-aus-erstem-lauf.md`, aufgelöst am 2026-08-18. Die drei
 Sim-Asset-Fixes — Würfelfarbe (gelb statt blau), das schwarze Stapel-Band und die
 `BLACK_HANDS`-Auto-Recolor-Mechanik — sind längst im Sim-Asset bzw. den Sim-Launchern aktiv
-und operativ in [`docs/simulation/vastai-anleitung.md`](simulation/vastai-anleitung.md) und
+und operativ in [`docs/simulation/sim-eval-anleitung.md`](simulation/sim-eval-anleitung.md) und
 den `env-vars`-Referenzen dokumentiert; dieses Dokument ist reine Historie eines
 abgeschlossenen Fixes und wird hier nur noch als Protokoll aufbewahrt.
 
@@ -628,7 +628,7 @@ Ausgeschnitten aus `docs/simulation/vastai-anleitung.md`, Abschnitt „Optional 
 > Weg.** Zwei Punkte vorweg:
 > 1. **Der Browser-Client auf Port 8211 existiert nicht mehr.** Er stammt aus Isaac Sim ≤ 5.x
 >    und ist mit der Migration auf Isaac Sim 6.0 (2026-08-07) entfallen; das Image exponiert
->    den Port bewusst nicht mehr ([Dockerfile.vastai](../Simulation/Dockerfile.vastai),
+>    den Port bewusst nicht mehr ([Dockerfile.vastai](../Simulation/Dockerfile.standalone),
 >    `EXPOSE 49100 8900`). Alle 8211-Angaben unten sind gegenstandslos — es bleibt der native
 >    „Isaac Sim WebRTC Streaming Client" auf `LIVESTREAM_PORT` (49100).
 > 2. **Spur A (WebRTC) ist nicht auf Hardware verifiziert.** Der Abschnitt liest sich wie ein
@@ -681,7 +681,8 @@ Server eintragen als `<PUBLIC_IP>:<extern-gemappter-49100>`.
 
 Der vast.ai-spezifische Kern dieses Abschnitts (Port-Problem, Stop/Neustart, sowie die
 vast.ai-spezifische Verbinden-Notiz mit `<PUBLIC_IP>:<extern-gemappter-49100>`) bleibt in
-`docs/simulation/vastai-anleitung.md` erhalten — nur der oben zitierte, inzwischen
+`docs/simulation/sim-eval-anleitung.md` (heutiger Name; damals `vastai-anleitung.md`)
+erhalten — nur der oben zitierte, inzwischen
 gegenstandslose Teil wurde entfernt.
 
 ---

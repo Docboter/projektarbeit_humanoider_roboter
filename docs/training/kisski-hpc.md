@@ -108,6 +108,10 @@ Der Cluster nutzt für dieses Projekt den **GWDG VAST-Projekt-Storage** unter
 `/mnt/vast-kisski/projects/kisski-humrob/data/` (persistente SSD-Storage — kein Scratch!).
 `kisski_submit.sh` setzt diesen Pfad als Standard-`DATA_DIR`.
 
+> **Begriffsklärung:** VAST ist das Storage-System der GWDG — nicht zu verwechseln mit
+> **vast.ai**, der Cloud-GPU-Plattform, die an anderer Stelle in diesem Dokument für den
+> RT-Core-Pfad (RL-Fine-tuning) erwähnt wird.
+
 > **Hinweis:** Der alte SCRATCH-SCC-Speicher (`/scratch/`) wurde am 31.03.2026 abgeschaltet.
 > Alle Daten müssen auf dem VAST-Projekt-Storage liegen.
 
@@ -314,8 +318,9 @@ sbatch --export=ALL Training/kisski_submit.sh
 
 ## Variante — Weitere optionale Schalter
 
-Zusätzlich zu `TUNE_VISUAL` lassen sich diese Verfahren **getrennt** kombinieren (Details in
-[env-vars.md](env-vars.md)). Alle werden über `kisski_submit.sh` durchgereicht:
+Zusätzlich zu `TUNE_VISUAL` lassen sich `TRAIN_TEST_SPLIT` und `USE_AUGMENTATION` **getrennt**
+kombinieren, alle über `kisski_submit.sh` durchgereicht. Bedeutung und Defaults stehen in der
+SSOT [env-vars.md](env-vars.md):
 
 ```bash
 # 80/20-Train-Test-Split (Test-Episoden werden NICHT mittrainiert):
@@ -324,14 +329,6 @@ TRAIN_TEST_SPLIT=1 sbatch --export=ALL Training/kisski_submit.sh
 # Bild-Augmentierung / Domain-Randomization abschalten (Default ist AN):
 USE_AUGMENTATION=0 sbatch --export=ALL Training/kisski_submit.sh
 ```
-
-- **`TRAIN_TEST_SPLIT=1`** — [`lib_split.sh`](../../Training/scripts/lib_split.sh) patcht vor dem
-  Start `meta/info.json` auf `train: 0:N` / `test: N:total` (Ratio via `TRAIN_SPLIT_RATIO`,
-  Default 0.8) und legt ein `split.json`-Protokoll im `OUTPUT_DIR` ab. Die Test-Episoden stehen
-  danach für die Checkpoint-Auswahl auf **ungesehenen** Episoden bereit. Siehe
-  [Train-Test-Split](train-test-split.md).
-- **`USE_AUGMENTATION`** (Default `1`) — Color-Jitter/Domain-Randomization gegen den
-  Sim-zu-Real-Domain-Gap; Stärken über `CJ_BRIGHTNESS/CONTRAST/SATURATION/HUE`. `0` = explizit aus.
 
 > Ältere Images vor 2026-08-13 reichten `TRAIN_TEST_SPLIT`/`USE_AUGMENTATION` nicht durch —
 > siehe [docs/historie.md](../historie.md).
@@ -347,6 +344,17 @@ Nach dem Lauf steht die Checkpoint-Auswahl an — nicht blind den letzten Step n
 
 ```bash
 RUN_DIR=/data/g1_dex3_finetune/blockstacking_vision sbatch Training/kisski_open_loop_eval.sh
+```
+
+**Mehrere Läufe hintereinander** (Warteschlange statt Einzel-Einreichen):
+[`kisski_chain.sh`](../../Training/kisski_chain.sh) reicht je Lauf Training + Sweep ein, die
+Trainings per `--dependency=afterany` nacheinander, jeder Sweep per `afterok` hinter seinem
+Training. Die Läufe sind im Skript als Voreinstellungen hinterlegt (`--list`); Datensätze und
+freie Namespaces werden vor dem Einreichen geprüft.
+
+```bash
+./Training/kisski_chain.sh --dry-run synth_jointspace synth_v22   # anzeigen
+./Training/kisski_chain.sh synth_jointspace synth_v22             # einreichen
 ```
 
 > **`USE_RL` gehört NICHT hierher** — RL läuft auf KISSKI grundsätzlich nicht (kein RT-Core-Rendering,
