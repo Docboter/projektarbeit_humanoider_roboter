@@ -163,6 +163,42 @@ groot_activate_venv() {
     export PATH="$VIRTUAL_ENV/bin${cleaned:+:$cleaned}"
 }
 
+# Prüft VOR allen Downloads, ob HF_TOKEN das gated Backbone (N1.7: nvidia/Cosmos-Reason2-2B)
+# lesen darf — ein HEAD-Request auf config.json, Sekunden statt eines abgebrochenen Laufs
+# nach Image-Pull, Modell-Download oder SLURM-Wartezeit.
+#   Rückgabe 0: Zugriff ok — oder nicht nötig (N1.6) bzw. nicht prüfbar (offline, kein curl,
+#               Netzfehler; dann nur Warnung, nie blockieren)
+#   Rückgabe 1: Zugriff sicher verweigert (401 Token fehlt/ungültig, 403 nicht freigeschaltet)
+groot_check_backbone_access() {
+    local repo="${1:-${GROOT_BACKBONE_REPO:-}}" token="${HF_TOKEN:-${HUGGING_FACE_HUB_TOKEN:-}}"
+    [[ -n "$repo" ]] || return 0
+    if [[ "${HF_HUB_OFFLINE:-0}" == "1" ]]; then
+        echo "lib_groot_version: HF_HUB_OFFLINE=1 — Zugriff auf $repo nicht geprüft." >&2
+        return 0
+    fi
+    if ! command -v curl >/dev/null 2>&1; then
+        echo "lib_groot_version: curl fehlt — Zugriff auf $repo nicht geprüft." >&2
+        return 0
+    fi
+    local -a hdr=()
+    [[ -n "$token" ]] && hdr=(-H "Authorization: Bearer $token")
+    local code
+    code="$(curl -s -o /dev/null -I -w '%{http_code}' --max-time 20 "${hdr[@]}" \
+        "https://huggingface.co/$repo/resolve/main/config.json" 2>/dev/null)" || code="000"
+    case "$code" in
+        2??|3??) return 0 ;;
+        401) echo "lib_groot_version: KEIN Zugriff auf $repo (HTTP 401) — HF_TOKEN fehlt oder ist ungültig." >&2 ;;
+        403) echo "lib_groot_version: KEIN Zugriff auf $repo (HTTP 403) — der Account hinter HF_TOKEN ist" \
+                  "für dieses gated Repo nicht freigeschaltet." >&2 ;;
+        *)   echo "lib_groot_version: Zugriff auf $repo nicht prüfbar (HTTP $code) — weiter ohne Prüfung." >&2
+             return 0 ;;
+    esac
+    echo "lib_groot_version:   Zugang beantragen (Lizenz akzeptieren): https://huggingface.co/$repo" >&2
+    echo "lib_groot_version:   N1.7 baut sein Backbone bei jedem Laden aus diesem Repo — ohne Zugang" \
+         "bricht Training/Inferenz ab." >&2
+    return 1
+}
+
 groot_summary() {
     printf 'GR00T N%s  root=%s  modell=%s  pkg=%s%s\n' \
         "${GROOT_VERSION:-?}" "${GROOT_ROOT:-?}" "${GROOT_MODEL_REPO:-?}" "${GROOT_MODEL_PKG:-?}" \

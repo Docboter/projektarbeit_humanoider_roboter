@@ -169,6 +169,12 @@ Weiterhin gilt: **kein Image gebaut, kein N1.7-Lauf.** Alles Folgende ist statis
   `kisski_open_loop_eval.sh`) wählt bei `1.7` die SIF `projekt-humanoider-roboter-n17.sif`;
   der Entrypoint bricht klar ab, wenn die venv der gewählten Generation im Image fehlt.
   Das Sim-Image (`update_sim_image.sh`) baut weiterhin standardmäßig beide.
+- **Früher Zugriffs-Check für das gated Backbone:** `groot_check_backbone_access` in
+  `lib_groot_version.sh` (HEAD-Request auf `config.json`: 401 = Token fehlt/ungültig, 403 = nicht
+  freigeschaltet → Abbruch; offline/Netzfehler → nur Warnung). Aufgerufen vom Docker-Launcher
+  vor dem Image-Pull, vom Entrypoint vor allen Downloads (nur wenn das Backbone noch nicht im
+  Cache liegt) und von `kisski_menu.sh` auf dem Login-Node vor `sbatch` — dort zusammen mit der
+  Cache-Prüfung, die `kisski_submit.sh` sonst erst im Job (nach der Queue-Wartezeit) macht.
 - **Offen / ungetestet:** AV1-Dekodierung über torchcodec 0.8 mit dem FFmpeg 4.4 aus Ubuntu
   22.04 (der Build-Smoke-Test importiert torchcodec nur); VRAM auf der 32-GB-5090; ob
   `nvidia/GR00T-N1.7-3B` gegen `efa0169` sauber lädt. Der Submodul-Pointer `app/Groot-1.6`

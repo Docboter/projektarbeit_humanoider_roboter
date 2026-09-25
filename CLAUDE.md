@@ -2,6 +2,24 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## ⚠ Open maintenance issues — ask the user every session
+
+Known, deliberately postponed defects. **At the start of every session, before other work, list
+these to the user and ask whether to fix one now.** If they decline, carry on and do not fix them
+unasked. When one is fixed, delete its entry here (and note the fix in `docs/historie.md`).
+
+1. **`Training/setup_and_train_container_build.sh` builds nothing.** Its step 3 runs
+   `docker compose build`, but `Training/docker-compose.yml` has had no `build:` section since
+   `cb388a1` (2026-05) — the step is a silent no-op and the launcher just uses whatever
+   `lucam03/projekt-humanoider-roboter:${GROOT_IMAGE_TAG:-latest}` is present locally.
+   Fix options: restore a `build:` section (context `.`, args `GROOT_VERSIONS` /
+   `GROOT_VERSION_DEFAULT` from `GROOT_VERSION`), or call `Training/update_image.sh --skip-push`.
+2. **Submodule pointer `app/Groot-1.6` → `26ad1f7` no longer exists in the fork**
+   (`lucam06/Isaac-GR00T`; "not our ref"), so `git submodule update` fails. Image builds are
+   unaffected — they pin `GROOT16_COMMIT=9508b49` in `Training/Dockerfile`. Fix: re-pin the
+   submodule to the Dockerfile commit (`git -C app/Groot-1.6 checkout 9508b49` + commit the
+   pointer), after confirming with Luca that `9508b49` is the intended N1.6 fork state.
+
 ## Project overview
 
 Fine-tuning of **NVIDIA GR00T** (Vision-Language-Action model) on the **Unitree G1 + DEX3-Hand** for block-stacking tasks. **N1.6** (default) and **N1.7** (parallel path, since 2026-08-19) are both selectable at runtime via `GROOT_VERSION=1.6|1.7|auto` — two code trees (`app/Groot-1.6`, `app/Groot-1.7`), two venvs. The **training image** ships one generation at a time by default (`Training/update_image.sh --groot=1.6|1.7|both`, since 2026-09-25 — `both` builds a dual-venv image but is never the default); the **sim image** still builds both venvs by default. N1.7 is scripted end-to-end but **untested**: no image has been rebuilt and no N1.7 training/sim run has happened yet — see [`docs/weiterfuehrend/groot-n17-migration.md`](docs/weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19). The full environment runs in a **self-contained Docker container** (CUDA 12.8, package manager: `uv`; Python 3.10 for N1.6, Python 3.12 for N1.7).

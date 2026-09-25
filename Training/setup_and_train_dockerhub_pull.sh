@@ -262,6 +262,13 @@ if ! $INTERACTIVE; then
     fi
     ok "HF_TOKEN gesetzt"
 
+    # N1.7: Zugriff auf das gated Backbone JETZT pruefen — vor Image-Pull und Container-Start.
+    if [[ "$GROOT_VERSION" == "1.7" ]]; then
+        ( source "$REPO_DIR/Training/scripts/lib_groot_version.sh" \
+          && groot_check_backbone_access "nvidia/Cosmos-Reason2-2B" ) || exit 1
+        ok "Zugriff auf nvidia/Cosmos-Reason2-2B bestaetigt"
+    fi
+
     if [[ -z "${WANDB_API_KEY:-}" ]]; then
         warn "Kein WANDB_API_KEY gesetzt — Training laeuft ohne W&B-Logging."
     fi

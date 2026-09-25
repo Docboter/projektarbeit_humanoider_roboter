@@ -77,12 +77,32 @@ SB+=( "$REPO_DIR/$JOB" )
 
 # Die Env-Vars, die der Job wirklich liest — nur gesetzte weiterreichen.
 ENVLINE=""
-for v in MAX_STEPS GLOBAL_BATCH_SIZE NUM_GPUS TUNE_VISUAL USE_COTRAIN \
+for v in GROOT_VERSION MAX_STEPS GLOBAL_BATCH_SIZE NUM_GPUS TUNE_VISUAL USE_COTRAIN \
          COTRAIN_HF_REPO COTRAIN_MIX_RATIO TRAIN_TEST_SPLIT TRAIN_SPLIT_RATIO \
          SKIP_DOWNLOAD SKIP_CONVERT SKIP_GIT_PULL RESUME KISSKI_PROJECT_DIR \
          RL_NUM_ENVS RL_ITERATIONS NUM_EPISODES EPISODE_LENGTH_S WANDB_PROJECT; do
   [[ -n "${!v:-}" ]] && { export "$v"; ENVLINE+="$v=${!v} "; }
 done
+
+# N1.7: Modell + gated Backbone muessen VOR dem Job im HF-Cache liegen (Compute-Nodes sind
+# offline; kisski_submit.sh prueft das erst im Job, also nach der Queue-Wartezeit). Hier auf
+# dem Login-Node vorziehen — und wenn der Cache fehlt, gleich den Backbone-Zugriff pruefen.
+if [[ "$ACTION" == train || "$ACTION" == openloop ]]; then
+  source "$REPO_DIR/Training/scripts/lib_groot_version.sh"
+  if [[ "$(groot_normalize_version "${GROOT_VERSION:-1.6}" 2>/dev/null)" == "1.7" ]]; then
+    _data="${DATA_DIR:-${KISSKI_PROJECT_DIR:-/mnt/vast-kisski/projects/kisski-humrob}/data}"
+    _bb=("$_data"/hf_cache/hub/models--nvidia--Cosmos-Reason2-2B/snapshots/*/config.json)
+    if [[ ! -f "${_bb[0]}" || ! -f "$_data/models/GR00T-N1.7-3B/config.json" ]]; then
+      [[ -z "${HF_TOKEN:-}" && -f "${HF_TOKEN_FILE:-$HOME/.hf_token}" ]] && \
+        HF_TOKEN="$(tr -d '[:space:]' < "${HF_TOKEN_FILE:-$HOME/.hf_token}")"
+      HF_TOKEN="${HF_TOKEN:-}" groot_check_backbone_access "nvidia/Cosmos-Reason2-2B" || exit 1
+      err "GROOT_VERSION=1.7: Modell und/oder Backbone fehlen noch im HF-Cache unter $_data."
+      err "  Der Zugriff passt — jetzt hier auf dem Login-Node vorab laden (Befehle:"
+      err "  docs/training/kisski-hpc.md, oder kisski_submit.sh nennt sie beim Abbruch)."
+      exit 1
+    fi
+  fi
+fi
 
 echo ""
 log "Einreichen als:"

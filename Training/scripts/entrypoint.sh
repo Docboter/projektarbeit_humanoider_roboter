@@ -138,6 +138,14 @@ else
     export HF_TOKEN
     ok "HF_TOKEN gesetzt (${#HF_TOKEN} Zeichen)"
 fi
+# N1.7: Zugriff auf das gated Backbone VOR allen Downloads pruefen (sonst faellt es erst nach
+# dem ~7-GB-Modell-Download auf). Liegt es schon im Cache, ist der Zugriff egal.
+if [[ -n "${GROOT_BACKBONE_REPO:-}" ]] && \
+   ! compgen -G "$HF_HOME/hub/models--${GROOT_BACKBONE_REPO//\//--}/snapshots/*/config.json" >/dev/null; then
+    log "Zugriff auf gated Backbone $GROOT_BACKBONE_REPO pruefen"
+    groot_check_backbone_access || exit 1
+    ok "Zugriff auf $GROOT_BACKBONE_REPO bestaetigt"
+fi
 echo ""
 
 # ── Verzeichnisse anlegen ─────────────────────────────────────────────────────
