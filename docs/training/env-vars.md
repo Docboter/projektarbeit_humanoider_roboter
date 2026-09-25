@@ -51,7 +51,7 @@ lokal **identisch**. Der Entrypoint (`/scripts/entrypoint.sh`) liest sie ein.
 | `HF_HOME` | `$DATA_DIR/hf_cache` | HF-Cache-Verzeichnis. Nur für `GROOT_VERSION=1.7` relevant: das Cosmos-Reason2-2B-Backbone wird bei **jedem** Checkpoint-Laden erneut vom Hub gezogen, sofern es nicht schon im Cache liegt — der Cache muss deshalb persistent sein (liegt standardmäßig im Container-FS bzw. auf dem KISSKI-VAST-Mount). |
 | `MAX_STEPS` | `20000` | Anzahl Trainings-Steps. Auf ~241–301 Block-Stacking-Episoden sättigt BC früh; 20k konvergieren sauber (Lauf 1 war bei 30k bereits konvergiert). KISSKI-Multi-GPU-Default: `44000`. |
 | `GLOBAL_BATCH_SIZE` | `8` | Globale Batch-Size (8 für < 40 GB VRAM, 32 für 4x A100 80 GB) |
-| `NUM_GPUS` | `1` | Anzahl genutzter GPUs |
+| `NUM_GPUS` | `1` | Anzahl genutzter GPUs. `>1` startet `torchrun`. Bei `1` und mehreren sichtbaren Karten setzen die Trainings-Launcher `CUDA_VISIBLE_DEVICES=0`, sonst wickelt der HF-Trainer das Modell in `nn.DataParallel` (N1.7 bricht dann mit `StopIteration` ab). Ein vorgegebenes `CUDA_VISIBLE_DEVICES` bleibt unangetastet — andere Karte also z. B. per `-e CUDA_VISIBLE_DEVICES=1` bzw. `DOCKER_GPUS='"device=1"'` |
 | `WANDB_PROJECT` | `gr00t-g1-dex3` | W&B-Projektname |
 | `DATA_DIR` | `/data` | Datenverzeichnis im Container |
 | `SKIP_DOWNLOAD` | `0` | `1` = HF-Download überspringen (Daten schon vorhanden) |

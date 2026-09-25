@@ -204,6 +204,15 @@ if [[ "$NUM_GPUS" -gt 1 ]]; then
     log "Multi-GPU-Modus: torchrun mit $NUM_GPUS Prozessen (DeepSpeed ZeRO-2, per_device = $GLOBAL_BATCH_SIZE / $NUM_GPUS)."
 else
     LAUNCHER=(python)
+    # Sieht der Prozess mehrere Karten, packt der HF-Trainer das Modell ohne torchrun in
+    # nn.DataParallel — N1.7 stirbt daran mit StopIteration (self.parameters() der Replika
+    # ist leer), N1.6 verteilt still. Einzel-GPU heisst hier deshalb: genau eine Karte zeigen.
+    # Ein vorgegebenes CUDA_VISIBLE_DEVICES (SLURM, Hand) bleibt unangetastet.
+    if [[ -z "${CUDA_VISIBLE_DEVICES:-}" ]] \
+        && [[ "$(nvidia-smi -L 2>/dev/null | grep -c '^GPU ')" -gt 1 ]]; then
+        export CUDA_VISIBLE_DEVICES=0
+        warn "NUM_GPUS=1, aber mehrere GPUs sichtbar — nutze nur GPU 0 (CUDA_VISIBLE_DEVICES=0)."
+    fi
 fi
 
 # Launch-Skript versionsabhängig: launch_cotrain.py (N1.6) bzw. launch_cotrain_n17.py
