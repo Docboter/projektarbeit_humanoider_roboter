@@ -37,6 +37,12 @@ stehen als `test` für die Open-Loop-Eval auf **ungesehenen** Episoden bereit.
 - Der Patch greift, **bevor** der Datensatz beim Job-Start gesharded wird — eine spätere
   Änderung an `info.json` wirkt nicht mehr auf einen laufenden Job.
 
+> **Stand 2026-10-11:** Der Split wurde bisher in einem Trainingslauf scharf geschaltet: Lauf 3
+> (`g1_dex3_blockstacking_vision_v2`, W&B `tp1nc699`, 4 GPUs, 12,5 h). Der Sweep (6 Test-Episoden ×
+> 300 Steps) ergab als besten Checkpoint 30000 (Test-MSE 0,00716 gegen 0,00898 bei 44000); der
+> gepaarte t-Test (df = 5) 30000 vs. 44000 ist mit t = 1,45 nicht signifikant. Details:
+> [lauf3-vision-split-auswertung.md](../ergebnisse/lauf3-vision-split-auswertung.md).
+
 > **Hinweis 1: Validierung während des Trainings ist im Fork strukturell nicht möglich.**
 > Das ist kein fehlendes Flag, sondern eine Sperre im Code (geprüft 2026-08-13):
 > `training_config.py:100–109` deklariert `enable_open_loop_eval` und drei

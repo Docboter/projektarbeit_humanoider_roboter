@@ -106,7 +106,7 @@ apptainer exec \
     /app/Groot-1.6/.venv/bin/wandb sync /data/g1_dex3_finetune/wandb/offline-run-*/
 ```
 
-Danach sind alle Metriken unter `wandb.ai/<dein-username>/gr00t-g1-dex3` sichtbar.
+Danach sind alle Metriken unter `wandb.ai/<entity>/gr00t-g1-dex3` sichtbar (im Projekt: Entity `projektarbeit_humanoider_roboter`).
 
 ## Mehrere Runs auf einmal syncen
 

@@ -12,8 +12,11 @@
 > `Cube_Stacking_synth_jointspace` (§ 10).
 > Nicht hier: das Co-Training-Verfahren selbst ([co-training.md](co-training.md)).
 
-**Stand:** 2026-09-23 · Handaktions-Fehler in v21 gefunden und behoben (§ 10.1); Neu-Export
+**Stand:** 2026-10-11 · Handaktions-Fehler in v21 gefunden und behoben (§ 10.1); Neu-Export
 `_jointspace` harmonisiert (§ 10.2); zwei Läufe als KISSKI-Kette vorbereitet (§ 10.4).
+`cotrain_synth_v1` (W&B `7z81177r`) ist am 2026-09-07 nach 138 s **abgebrochen** und hat kein
+Ergebnis geliefert; die beiden Wiederholungsläufe (`synth_jointspace`, `synth_v22`) liegen in
+W&B bisher nicht vor — es gibt **kein Co-Training-Ergebnis**.
 
 ---
 
@@ -383,10 +386,10 @@ Folge: auf der Achse `kLeftHandThumb0` lag das Kommando für `left_hand_index_0`
 | `cube_stacking_synth_v22` (korrigiert) | 0,045 rad |
 | `cube_stacking_synth_jointspace_v21` | 0,013 rad |
 
-**Konsequenz für `cotrain_synth_v1`:** die synth-Stichproben (10 %) haben der Hand
-widersprüchliche Ziele beigebracht. Die Sweep-MSE auf echten Episoden bleibt als Zahl gültig,
-eine `span`-Aussage über den synth-Anteil ist aus diesem Lauf **nicht** ableitbar. Die
-Wiederholung mit korrigierten Daten ist der Lauf `synth_v22` (§ 10.4).
+**Konsequenz für `cotrain_synth_v1`:** die synth-Stichproben (10 %) hätten der Hand
+widersprüchliche Ziele beigebracht. Der Lauf brach laut W&B am 2026-09-07 nach 138 s ab (es
+gibt keine auswertbaren Checkpoints); eine Aussage über den synth-Anteil ist aus ihm ohnehin
+nicht ableitbar. Die Wiederholung mit korrigierten Daten ist der Lauf `synth_v22` (§ 10.4).
 
 Behoben in `convert` (Handaktion über die gemessenen `rows` umsortiert). Damit das nie wieder
 still passiert, prüft `verify` jetzt je Achse, ob die Aktion ihrem eigenen State folgt

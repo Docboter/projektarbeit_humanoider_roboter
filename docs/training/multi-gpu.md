@@ -6,7 +6,7 @@
 
 Status: **umgesetzt** (Launcher + SLURM-Defaults auf 4× A100). Dieses Dokument hält fest, **warum**
 sich Multi-GPU lohnt und **was geändert wurde**. Die KISSKI-Defaults stehen jetzt auf 4× A100
-(`NUM_GPUS=4`, `GLOBAL_BATCH_SIZE=32`, `MAX_STEPS=44000`, `LEARNING_RATE=2e-4`); für 1× A100 genügt
+(`NUM_GPUS=4`, `GLOBAL_BATCH_SIZE=32`, `MAX_STEPS=44000`, `LEARNING_RATE=2e-4` im Standardlauf, `1e-4` + Warmup `0.1` bei `TUNE_VISUAL=1`/`USE_COTRAIN=1`); für 1× A100 genügt
 `NUM_GPUS=1 GLOBAL_BATCH_SIZE=8 MAX_STEPS=175000 sbatch Training/kisski_submit.sh`.
 
 > **Kernbefund:** Die eigentliche verteilte Trainingslogik (DDP / DeepSpeed ZeRO, Gradient-Sync,
@@ -20,7 +20,7 @@ sich Multi-GPU lohnt und **was geändert wurde**. Die KISSKI-Defaults stehen jet
 
 | Vorteil | Details |
 |---|---|
-| **~3,5× schnelleres Training** | Single-Node-A100 mit NVLink skaliert typisch zu 80–95 %. Der 175k-Schritte-Lauf (~30 h auf 1 GPU) sinkt auf grob **~8–10 h**. |
+| **~3,5× schnelleres Training** | Single-Node-A100 mit NVLink skaliert typisch zu 80–95 %. Der 175k-Schritte-Lauf (Lauf 1: 21,4 h auf 1× A100) entspricht auf 4 GPUs 44k Schritten; gemessen: Lauf 2 (Vision) 8,4 h, Lauf 3 (Vision + Split) 12,5 h. |
 | **Größerer effektiver Batch** | Alternativ gleiche Walltime, aber 4× größerer Batch → stabilere Gradienten. `global_batch_size` wird über die GPUs aufgeteilt (`per_device = global // num_gpus`). |
 | **Mehr Experimente pro Zeit** | Kürzere Iterationszyklen → schnelleres Hyperparameter-Tuning, mehr Läufe im 48-h-Walltime-Fenster. |
 | **Optimizer-State-Sharding (DeepSpeed ZeRO-2)** | Der 13 GB große `optimizer.pt` wird über die GPUs verteilt → weniger VRAM-Druck pro GPU, Spielraum für größere Batches. |
@@ -63,9 +63,15 @@ uv run --no-sync "${LAUNCHER[@]}" "$GROOT_ROOT/gr00t/experiment/launch_finetune.
 NUM_GPUS="${NUM_GPUS:-4}"
 GLOBAL_BATCH_SIZE="${GLOBAL_BATCH_SIZE:-32}"   # MUSS durch NUM_GPUS teilbar → per_device=8
 MAX_STEPS="${MAX_STEPS:-44000}"                # ~5 Epochen bei Batch 32 (1/4 von 175k bei Batch 8)
-LEARNING_RATE="${LEARNING_RATE:-2e-4}"         # sqrt-skaliert für 4× größeren Batch (1e-4 × √4)
+# LR/Warmup hängen vom Modus ab (Standardlauf vs. TUNE_VISUAL/USE_COTRAIN):
+LEARNING_RATE="${LEARNING_RATE:-2e-4}"         # Standardlauf: sqrt-skaliert (1e-4 × √4), Warmup 0.05
+#   TUNE_VISUAL=1 / USE_COTRAIN=1: LEARNING_RATE 1e-4, WARMUP_RATIO 0.1 (keine Skalierung)
 ```
 
+> **Welche Läufe nutzten was?** Lauf 1 (1 GPU, Batch 8) lief mit 1e-4/Warmup 0,05. Die
+> 4-GPU-Läufe 2 und 3 waren Vision-Läufe und nutzten daher **1e-4 / Warmup 0,1** (laut W&B),
+> **nicht** die 2e-4 — der sqrt-skalierte Wert gilt nur für den Standardlauf (ohne Vision-Encoder),
+> der auf 4 GPUs bisher nicht gefahren wurde.
 > **Achtung — MAX_STEPS mitskalieren:** Ein 4× größerer Batch verarbeitet pro Schritt 4× mehr
 > Daten. Bliebe `MAX_STEPS=175000`, wären das ~20 statt 5 Epochen (Overtraining). Deshalb sinkt
 > die Default-Schrittzahl auf `44000`. `LEARNING_RATE` wird von `kisski_submit.sh` explizit durch
@@ -97,7 +103,7 @@ Die `44 000` sind also exakt das 1:4-Äquivalent des früheren 175 000-Schritte-
 \* bei ~281 000 Frames im Datensatz: `Samples / 281 000 ≈ 5`.
 
 > **„Gleiches Budget" ≠ „gleiches Ergebnis".** Ein 4× größerer Batch hat weniger Gradienten-Updates
-> und eine andere Optimierungs­dynamik. Deshalb ist die LR √-skaliert auf `2e-4`
+> und eine andere Optimierungs­dynamik. Deshalb ist die LR im Standardlauf √-skaliert auf `2e-4`
 > ([kisski_submit.sh](../../Training/kisski_submit.sh), `LEARNING_RATE`). Bei sehr großen Batches
 > kann die Konvergenz pro gesehenem Sample dennoch leicht schlechter ausfallen als bei Batch 8 —
 > im Zweifel den finalen Checkpoint beider Läufe per Sim-Eval vergleichen.

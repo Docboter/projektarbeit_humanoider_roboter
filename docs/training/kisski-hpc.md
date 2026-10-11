@@ -33,7 +33,7 @@ Ein anderes KISSKI-Projekt braucht genau eine Zeile — das wirkt, weil alle Skr
 `#SBATCH --export=ALL` tragen:
 
 ```bash
-KISSKI_PROJECT_DIR=/mnt/vast-kisski/projects/<projekt> sbatch Training/kisski_submit.sh
+KISSKI_PROJECT_DIR=/mnt/vast-kisski/projects/<projekt> sbatch --export=ALL Training/kisski_submit.sh
 ```
 
 **SLURM-Logs** schreiben alle Skripte nach `logs/` **relativ zum Aufrufverzeichnis** von
@@ -64,7 +64,7 @@ Vollständige Referenz und Migrationsschritte: [portabilitaet.md](../portabilita
 > - Die KISSKI-Trainings-GPUs **A100 und H100 haben keine RT-Cores** — sie sind reine Compute-GPUs.
 >   Das bildbasierte RL-Rollout kann darauf nicht (effizient/stabil) rendern.
 > - Die einzige RT-Core-fähige KISSKI-Karte (RTX 5000 auf der `jupyter`-Partition) ist eine
->   **Turing-GPU und damit zu alt für Isaac Sim 4.x**.
+>   **Turing-GPU und damit zu alt für Isaac Sim 5.1/6.0**.
 >
 > → Es gibt auf KISSKI **keine** Partition, die bildbasiertes RL ausführen kann. Der realistische
 > Weg ist **vast.ai** mit einer **L40 / RTX 4090 / A6000** (Ampere+ **mit** RT-Cores) — siehe
@@ -134,7 +134,7 @@ als vorhanden angenommen). Für den allerersten Lauf — wenn noch keine Daten a
 Cluster-Storage liegen — muss `SKIP_DOWNLOAD=0` explizit gesetzt werden:
 
 ```bash
-SKIP_DOWNLOAD=0 HF_TOKEN=hf_... WANDB_API_KEY=... sbatch Training/kisski_submit.sh
+SKIP_DOWNLOAD=0 HF_TOKEN=hf_... WANDB_API_KEY=... sbatch --export=ALL Training/kisski_submit.sh
 ```
 
 Der Entrypoint lädt Modell und Datensatz dann selbst von HuggingFace (~25 GB, ca. 10–30 min).
@@ -174,39 +174,43 @@ Pfade und Branch sind über `REPO_DIR`, `GITHUB_BRANCH` und `GROOT_FORK_DIR` üb
 > Details: [cli-menuefuehrung.md](../weiterfuehrend/cli-menuefuehrung.md)
 
 
-> **WICHTIG — Variablen als Inline-Prefix angeben.** Alle Tokens und Overrides müssen **direkt vor
-> `sbatch` in einer Zeile** stehen (per `\` umgebrochen), **nicht** als getrennte `export`-Zeilen
-> davor. Grund: Das Script setzt `#SBATCH --export=ALL`, das aber nur die Umgebung des
-> `sbatch`-Aufrufs **selbst** an den Job weiterreicht. Getrennte `export`-Zeilen landen je nach
-> Shell/Session (z. B. in einer `screen`-Session) nicht zuverlässig in genau dieser Umgebung —
-> als Inline-Prefix sind die Variablen hingegen garantiert Teil davon.
+> **WICHTIG — `SBATCH_EXPORT=none` auf dem Login-Knoten.** KISSKI setzt diese Variable und
+> überstimmt damit das `#SBATCH --export=ALL` im Skript: Variablen, die nur inline vor `sbatch`
+> stehen, kommen **nicht** im Job an. Zwei Wege, die funktionieren:
+>
+> 1. **Token-Dateien (Standard, siehe Kopfkommentar von `kisski_submit.sh`):** einmalig
+>    `~/.hf_token` und `~/.wandb_key` (mode 600) anlegen — das Skript liest sie selbst ein, danach
+>    genügt `sbatch Training/kisski_submit.sh`.
+> 2. **`--export=ALL` auf der Kommandozeile** (schlägt die Env-Variable); `kisski_menu.sh` setzt
+>    es immer.
 
 ```bash
-# Auf dem Login-Knoten — ALLES in EINEM Befehl, Variablen direkt vor sbatch:
+# Variante mit Token-Dateien (einmalig: printf 'hf_...\n' > ~/.hf_token && chmod 600 ~/.hf_token usw.):
+sbatch Training/kisski_submit.sh
+
+# Variante über die Umgebung — mit --export=ALL:
 HF_TOKEN=hf_... \
 WANDB_API_KEY=... \
-sbatch Training/kisski_submit.sh
+sbatch --export=ALL Training/kisski_submit.sh
 ```
 
-Mit optionalen Trainings-Overrides (ebenfalls als Inline-Prefix, einfach weitere Zeilen davor):
+Mit optionalen Trainings-Overrides (ebenfalls vor `sbatch`, mit `--export=ALL`):
 
 ```bash
-HF_TOKEN=hf_... \
-WANDB_API_KEY=... \
 MAX_STEPS=175000 \
 GLOBAL_BATCH_SIZE=32 \
-sbatch Training/kisski_submit.sh
+sbatch --export=ALL Training/kisski_submit.sh
 ```
 
 SLURM gibt die Job-ID aus, z. B. `Submitted batch job 12345678`.
 
-> **`WANDB_API_KEY` ist Pflicht** (nicht optional): `run_finetuning.sh` läuft mit `USE_WANDB=1` als
-> Default und **bricht ohne Key sofort ab** — auch im Offline-Modus, da die Key-Prüfung vor dem
-> Offline-Check greift. Wer ohne W&B trainieren will, setzt zusätzlich `USE_WANDB=0` davor.
+> **`WANDB_API_KEY` ist optional:** der Entrypoint setzt `USE_WANDB=1` nur, wenn ein Key da ist,
+> und trainiert sonst mit Warnung ohne W&B. Der Key wird jedoch gebraucht, um die Läufe später
+> zu syncen (siehe [W&B-Offline-Sync](wandb-offline-sync.md)). Nur wer `run_finetuning.sh` direkt
+> mit `USE_WANDB=1` ohne Key aufruft, bekommt einen Abbruch.
 >
-> **Tipp:** Tokens nicht dauerhaft in `.bashrc` speichern. Stattdessen in eine nicht-eingecheckte
-> `.env`-Datei auf dem Cluster schreiben und die Werte beim Submit referenzieren, z. B.
-> `HF_TOKEN=$(grep -oP 'HF_TOKEN=\K.*' ~/.env) WANDB_API_KEY=... sbatch …`.
+> **Tipp:** Tokens nicht dauerhaft in `.bashrc` speichern; die mode-600-Dateien (`~/.hf_token`,
+> `~/.wandb_key`) sind der vorgesehene Weg.
 
 Alle Env-Vars sind in der [Konfigurationsreferenz](env-vars.md) beschrieben.
 
@@ -243,7 +247,7 @@ sbatch --export=ALL Training/kisski_submit.sh
   (das Standard-Skript bleibt unverändert).
 - Eigener Output-Namespace: `…/data/g1_dex3_finetune/**blockstacking_vision**/` — überschreibt
   also keine Standard-Läufe. Experiment-Name: `g1_dex3_blockstacking_vision_v1`.
-- **Lernrate `1e-4`** statt der Standard-`2e-4`. Begründung: Die Config hat *eine globale LR*
+- **Lernrate `1e-4`** statt der 4-GPU-Standard-`2e-4` (sqrt-skaliert). Begründung: Die Config hat *eine globale LR*
   für alle trainierbaren Parameter — der große vortrainierte Eagle-ViT teilt sie sich mit dem
   leichten Action-Head. `2e-4` würde die vortrainierten Visual-Features destabilisieren.
 - **`WARMUP_RATIO=0.1`** (statt `0.05`) für einen sanfteren Start.
@@ -288,13 +292,14 @@ USE_AUGMENTATION=0 sbatch --export=ALL Training/kisski_submit.sh
 Nach dem Lauf steht die Checkpoint-Auswahl an — nicht blind den letzten Step nehmen:
 
 ```bash
-RUN_DIR=/data/g1_dex3_finetune/blockstacking_vision sbatch Training/kisski_open_loop_eval.sh
+RUN_DIR=/data/g1_dex3_finetune/blockstacking_vision sbatch --export=ALL Training/kisski_open_loop_eval.sh
 ```
 
 **Mehrere Läufe hintereinander** (Warteschlange statt Einzel-Einreichen):
 [`kisski_chain.sh`](../../Training/kisski_chain.sh) reicht je Lauf Training + Sweep ein, die
 Trainings per `--dependency=afterany` nacheinander, jeder Sweep per `afterok` hinter seinem
-Training. Die Läufe sind im Skript als Voreinstellungen hinterlegt (`--list`); Datensätze und
+Training. Die Läufe sind im Skript als Voreinstellungen hinterlegt (`--list`; aktuell `synth_jointspace` und
+`synth_v22`, beides Co-Training mit dem Fremd-Datensatz, siehe [synth-datensatz.md](synth-datensatz.md)); Datensätze und
 freie Namespaces werden vor dem Einreichen geprüft.
 
 ```bash
@@ -379,15 +384,15 @@ Die wichtigsten Stellschrauben in [Training/kisski_submit.sh](../../Training/kis
 > `-c` und `--mem` entsprechend reduzieren; Hintergrund und Messung in
 > [multi-gpu.md](multi-gpu.md) — mit 4 GPUs reichten 256 GB RAM nicht (OOM-Kill der Dataloader).
 
-Trainings-Parameter werden entweder dauerhaft im Script geändert oder pro Lauf als Inline-Prefix
-direkt vor `sbatch` übergeben (siehe [Schritt 3](#schritt-3--tokens-setzen-und-job-einreichen) —
-**nicht** als getrennte `export`-Zeilen, sonst landen sie nicht im Job):
+Trainings-Parameter werden entweder dauerhaft im Script geändert oder pro Lauf vor `sbatch`
+übergeben (siehe [Schritt 3](#schritt-3--tokens-setzen-und-job-einreichen) — mit `--export=ALL`,
+sonst landen sie wegen `SBATCH_EXPORT=none` nicht im Job):
 
 ```bash
 GLOBAL_BATCH_SIZE=32 \
 MAX_STEPS=50000 \
 HF_TOKEN=hf_... WANDB_API_KEY=... \
-sbatch Training/kisski_submit.sh
+sbatch --export=ALL Training/kisski_submit.sh
 ```
 
 ---

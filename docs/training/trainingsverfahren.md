@@ -60,6 +60,10 @@ LoRA:
 | Projector | `tune_projector = True` | **trainiert** |
 | Diffusion-/Action-Head | `tune_diffusion_model = True` | **trainiert** |
 
+> **Varianten:** `TUNE_VISUAL=1` trainiert zusätzlich den Vision-Encoder (`run_finetuning_vision.sh`;
+> Läufe 2 und 3), `USE_COTRAIN=1` setzt `--tune_visual` ebenfalls (`run_finetuning_cotrain.sh`). Der
+> LLM-Teil bleibt in allen Varianten eingefroren. Die Tabelle gilt für den Standardlauf (Lauf 1).
+
 → Das breite Welt-/Sprachwissen des VLM bleibt erhalten; angepasst werden nur **Projector** und
 **Action-Head**, die das Wissen auf unsere konkrete Roboter-Aktion abbilden. Das spart Speicher
 und reduziert Overfitting auf den kleinen Datensatz.
@@ -101,7 +105,7 @@ Der Action-Head ist eine **Flow-Matching-/Diffusions-Policy**:
   (Flow-Matching-Loss, konditioniert auf VL-Embedding + Zustand).
 - Bei der **Inferenz** wird die Aktion iterativ **entrauscht** (Integration in
   `num_inference_timesteps` Schritten, `gr00t_n1d6.py`), bis die finale Aktions-Sequenz steht.
-- Bilder werden zusätzlich per **Color-Jitter** augmentiert (`--color_jitter_params` in
+- Bilder werden (bei `USE_AUGMENTATION=1`, Default) zusätzlich per **Color-Jitter** augmentiert (`--color_jitter_params` in
   `run_finetuning.sh`), um Robustheit gegen Beleuchtungs-/Farbschwankungen zu erhöhen.
 
 ## 6. Datensatz
@@ -122,7 +126,7 @@ Vor dem Training konvertiert die Pipeline den Datensatz ins LeRobot-Format und e
 > ⚠️ **Nicht mehr der aktuelle KISSKI-Default.** Die Tabelle beschreibt den ersten Lauf auf
 > **einer** A100. Seit der Multi-GPU-Umstellung gilt in
 > [`kisski_submit.sh`](../../Training/kisski_submit.sh): `MAX_STEPS=44000`,
-> `GLOBAL_BATCH_SIZE=32`, `NUM_GPUS=4`, `LEARNING_RATE=2e-4` (Nicht-Vision-Pfad).
+> `GLOBAL_BATCH_SIZE=32`, `NUM_GPUS=4`, `LEARNING_RATE=2e-4` (Nicht-Vision-Pfad; Vision-/Co-Training-Pfad: `1e-4`, Warmup `0.1` — so liefen Lauf 2 und 3).
 > Hintergrund: [multi-gpu.md](multi-gpu.md).
 
 Gesetzt in [Training/kisski_submit.sh](../../Training/kisski_submit.sh) bzw.
@@ -132,20 +136,21 @@ Gesetzt in [Training/kisski_submit.sh](../../Training/kisski_submit.sh) bzw.
 |---|---|---|
 | `MAX_STEPS` | 175.000 | ~5 Epochen (281k Frames / Batch 8 ≈ 35k Schritte/Epoche); das Konfig-Feld `num_train_epochs = 3` wird davon überschrieben |
 | `GLOBAL_BATCH_SIZE` | 8 | A100 80 GB verträgt mehr (siehe [env-vars.md](env-vars.md)) |
-| `LEARNING_RATE` | 1e-4 | aktueller Default: `2e-4` |
+| `LEARNING_RATE` | 1e-4 | KISSKI-Default (Standardlauf, 4 GPUs): `2e-4`; lokal weiter `1e-4` |
 | `WARMUP_RATIO` | 0.05 | |
 | `WEIGHT_DECAY` | 1e-5 | |
 | Optimierer | AdamW | (HF-Trainer-Default) |
 | Aktions-Horizont | 16 Schritte | |
 | Objektiv | Flow-Matching-Loss | |
-| `SAVE_STEPS` / `SAVE_TOTAL_LIMIT` | 5.000 / 40 | 35 Checkpoints über den 175k-Lauf verteilt. Skript-Default ist inzwischen `SAVE_STEPS=2000` (Vision-Variante: 1000) |
+| `SAVE_STEPS` / `SAVE_TOTAL_LIMIT` | 5.000 / 40 | 35 Checkpoints über den 175k-Lauf verteilt. `kisski_submit.sh` nutzt weiter 5000/40; die lokalen Skript-Defaults sind `SAVE_STEPS=2000` (Vision-/Co-Training-Variante: 1000) |
 
 ## 8. Abgrenzung — was es *nicht* ist
 
-- **Kein RL:** keine Belohnung, kein Environment-Feedback, keine Exploration während des Trainings.
+- **Kein RL:** in diesem BC-Training gibt es keine Belohnung und keine Exploration. (RL-Fine-tuning
+  mit FPO ist ein separater Pfad im Sim-Image, siehe [rl-anleitung](../weiterfuehrend/rl-anleitung.md).)
 - **Kein Training von Grund auf:** wir starten von NVIDIAs vortrainierten Gewichten.
-- **Kein Full-Fine-tuning:** VLM-Backbone (Vision + Sprache) bleibt eingefroren; nur Projector +
-  Action-Head werden trainiert.
+- **Kein Full-Fine-tuning:** das Sprach-Backbone bleibt immer eingefroren; im Standardlauf auch der
+  Vision-Encoder (nur Projector + Action-Head), mit `TUNE_VISUAL=1` wird der Vision-Encoder mittrainiert.
 - **Kein Multi-Task/Multi-Embodiment-Training:** ein Embodiment (G1+Dex3), eine Aufgabe
   (Block-Stacking).
 

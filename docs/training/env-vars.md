@@ -45,7 +45,7 @@ lokal **identisch**. Der Entrypoint (`/scripts/entrypoint.sh`) liest sie ein.
 | `SKIP_TRAIN` | `0` | `1` = nur Setup, dann Shell |
 | `SHELL_ON_ERROR` | `0` | `1` = bei Fehler in Shell fallen statt zu beenden |
 | `TUNE_VISUAL` | `0` | `1` = Vision-Encoder mittrainieren (`--tune_visual`). Entrypoint startet dann `run_finetuning_vision.sh` mit eigenem Output-/Experiment-Namespace (`blockstacking_vision`). LLM bleibt eingefroren. Höherer VRAM-Bedarf. |
-| `LEARNING_RATE` | `1e-4` | Lernrate (`--learning_rate`); KISSKI-Multi-GPU-Default: `2e-4` |
+| `LEARNING_RATE` | `1e-4` | Lernrate (`--learning_rate`); KISSKI-Multi-GPU-Default im Standardlauf: `2e-4` (sqrt-skaliert); bei `TUNE_VISUAL=1`/`USE_COTRAIN=1` bleibt es auf KISSKI bei `1e-4` (so liefen Lauf 2/3) |
 | `WEIGHT_DECAY` | `1e-5` | Gewichtszerfall (`--weight_decay`) |
 | `WARMUP_RATIO` | `0.05` | Anteil Warmup-Steps (`--warmup_ratio`); bei `TUNE_VISUAL=1` auf KISSKI: `0.1` |
 | `DATALOADER_WORKERS` | `8` | Dataloader-Worker (`--dataloader_num_workers`); KISSKI-Default: `4` |
@@ -81,7 +81,7 @@ Der gerenderte Datensatz entsteht auf dem **Sim-Server** (RT-Core-GPU) mit
 |---|---|---|
 | `COTRAIN_DATASET_PATH` | `/data/cotrain/g1_dex3_rendered` | Gerenderter Datensatz im Container (LeRobot v2.1, wie der echte). |
 | `COTRAIN_HF_REPO` | *(leer)* | HF-**Dataset**-Repo; wird geladen, wenn `COTRAIN_DATASET_PATH` leer ist. |
-| `COTRAIN_MIX_RATIO` | `0.5` ⚠️ | ⚠️ **Der Code-Default ist `0.5`, empfohlen wird `0.25`** — beides steht so im Repo, seit dem Menü-Abgleich vom 2026-08-20 dokumentiert. Entweder den Default in [`run_finetuning_cotrain.sh`](../../Training/scripts/run_finetuning_cotrain.sh) auf `0.25` ziehen oder die Empfehlung streichen. Anteil gerenderter Stichproben (Sampling-Wahrscheinlichkeit, **kein** Längenverhältnis). **Für den ersten Lauf 0.25 setzen:** bei 60 gerenderten gegen 240 echte Episoden sähe das Modell sonst jedes Sim-Bild 4× so oft wie jedes echte, und die Hälfte aller Updates entfiele auf ein Viertel des Bewegungsrepertoires. |
+| `COTRAIN_MIX_RATIO` | `0.5` ⚠️ | ⚠️ **Der Code-Default ist `0.5`, empfohlen wird `0.25`** — beides steht so im Repo, seit dem Menü-Abgleich vom 2026-08-20 dokumentiert. Auf KISSKI ist `kisski_submit.sh` bereits auf `0.25` gesetzt; lokal/direkt gilt der Skript-Default von [`run_finetuning_cotrain.sh`](../../Training/scripts/run_finetuning_cotrain.sh), `0.5` — dort `COTRAIN_MIX_RATIO=0.25` explizit setzen. Anteil gerenderter Stichproben (Sampling-Wahrscheinlichkeit, **kein** Längenverhältnis). **Für den ersten Lauf 0.25 setzen:** bei 60 gerenderten gegen 240 echte Episoden sähe das Modell sonst jedes Sim-Bild 4× so oft wie jedes echte, und die Hälfte aller Updates entfiele auf ein Viertel des Bewegungsrepertoires. |
 | `TRAIN_TEST_SPLIT` | `1` **hier** | Im Co-Training-Skript standardmäßig an — ohne zurückgehaltene Episoden fehlt die Leitplanke, an der ein Rückschritt auf der Realdomäne sichtbar würde. |
 
 Die Renderer-seitigen Variablen (`RENDER_EPISODES`, `RENDER_STAGE`, `RENDER_MAX_FRAMES`, …)
@@ -104,8 +104,8 @@ stehen in [co-training.md §7](co-training.md#7-env-vars) und in `./Simulation/s
 
 | Variable | Default | Beschreibung |
 |---|---|---|
-| `OUTPUT_DIR` | `/data/g1_dex3_finetune/blockstacking` (Vision-Lauf: `…_vision`) | Wurzel des Lauf-Namespace. |
-| `EXPERIMENT_NAME` | `g1_dex3_blockstacking_v1` (Vision: `…_vision_v1`) | Unterverzeichnis **und** W&B-Run-Name. Für jeden neuen Lauf hochzählen. |
+| `OUTPUT_DIR` | `/data/g1_dex3_finetune/blockstacking` (Vision-Lauf: `…_vision`, Co-Training: `…_cotrain`) | Wurzel des Lauf-Namespace. |
+| `EXPERIMENT_NAME` | `g1_dex3_blockstacking_v1` (Vision: `…_vision_v1`, Co-Training: `…_cotrain_v1`) | Unterverzeichnis **und** W&B-Run-Name. Für jeden neuen Lauf hochzählen. |
 | `RESUME` | `0` | `1` = Fortsetzen ist gewollt (z. B. nach Walltime-Abbruch). `0` = Abbruch, wenn schon Checkpoints da sind. |
 
 Auf KISSKI werden alle drei seit 2026-08-13 von `kisski_submit.sh` durchgereicht.

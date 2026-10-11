@@ -278,12 +278,12 @@ apptainer pull $HOME/images/projekt-humanoider-roboter.sif \
 
 # Job einreichen:
 export HF_TOKEN=hf_...  WANDB_API_KEY=...  GLOBAL_BATCH_SIZE=32
-sbatch Training/kisski_submit.sh
+sbatch --export=ALL Training/kisski_submit.sh
 ```
 
 > Nach jedem neuen Push (Schritt D0) muss die `.sif`-Datei **neu erzeugt** werden, damit die Änderungen auf dem Cluster ankommen — `apptainer pull` überschreibt eine bestehende `.sif` nicht automatisch, ggf. vorher löschen oder `--force` verwenden.
 
-Standardmäßig ist der Vision-Encoder eingefroren. Soll er **mittrainiert** werden, mit
+Standardmäßig ist der Vision-Encoder eingefroren. (Co-Training mit gerenderten Bildern: `USE_COTRAIN=1`, siehe [co-training.md](co-training.md); ein Ergebnis steht noch aus.) Soll er **mittrainiert** werden, mit
 `TUNE_VISUAL=1` einreichen (LR, Warmup und Output-Namespace werden dann automatisch
 angepasst) — Details: [Vision-Encoder mittrainieren](kisski-hpc.md#variante--vision-encoder-mittrainieren-tune_visual1).
 
@@ -406,7 +406,7 @@ Das Image enthält den GR00T-Code (`/app/Groot-1.6`), alle Python-Abhängigkeite
 3. **Download** — falls `/data/models/GR00T-N1.6-3B` und `/data/unitreerobotics/G1_Dex3_BlockStacking_Dataset` leer sind: `huggingface-cli download` (~25 GB). Sonst übersprungen (idempotent).
 4. **Konvertierung** — falls `modality.json` fehlt: `convert_v3_to_v2_standalone.py` + Kopieren der Modalitäts-Config. Sonst übersprungen.
 5. **W&B-Login** — falls `WANDB_API_KEY` gesetzt: `wandb login` mit dem Key.
-6. **Training** — `bash /scripts/run_finetuning.sh` → `uv run python gr00t/experiment/launch_finetune.py` mit den Parametern aus den Env-Vars.
+6. **Training** — Standard: `bash /scripts/run_finetuning.sh`; bei `USE_COTRAIN=1` `run_finetuning_cotrain.sh`, bei `TUNE_VISUAL=1` `run_finetuning_vision.sh` (Co-Training hat Vorrang). Alle rufen `gr00t/experiment/launch_finetune.py` (Co-Training: `launch_cotrain.py`) mit den Parametern aus den Env-Vars auf.
 
 Logs werden in `/data/logs/finetune-<timestamp>.log` geschrieben.
 
@@ -431,7 +431,7 @@ Mit dem Launcher: `./Training/setup_and_train_dockerhub_pull.sh --resume`. Manue
 > *Container* neu (Daten und Checkpoints bleiben erhalten), und **das Training setzt dabei
 > automatisch am letzten Checkpoint fort** — nicht bei Step 0. Der Trainer löst das über
 > `get_last_checkpoint(output_dir)` auf und stellt `TrainerState` (inkl. `global_step`) sowie
-> den Optimizer wieder her ([`trainer.py:244`](../../app/Groot-1.6/gr00t/experiment/trainer.py));
+> den Optimizer wieder her ([`trainer.py:254`](../../app/Groot-1.6/gr00t/experiment/trainer.py));
 > findet er **keinen** Checkpoint, loggt er eine Warnung und startet regulär bei Step 0. Nicht
 > abschaltbar (kein `--resume_from_checkpoint`-CLI-Flag) — bewusst von vorn trainieren geht nur
 > mit anderem `EXPERIMENT_NAME`/`OUTPUT_DIR` oder durch Wegräumen der vorhandenen
@@ -474,7 +474,7 @@ Beliebig lange — solange du den Host nicht abschießt bzw. die vast.ai-Instanz
 
 ### Wie evaluiere ich das fertige Modell?
 
-Siehe [Train-Test-Split](train-test-split.md) und den Inference-Abschnitt in [`FINETUNING_GUIDE.md`](../../app/Groot-1.6/examples/G1_DEX3/FINETUNING_GUIDE.md).
+Der Fork hat keine Validierung im Training: Checkpoints werden nach dem Lauf mit `checkpoint_sweep.py` auf den zurückgehaltenen Episoden verglichen (Training mit `TRAIN_TEST_SPLIT=1`, siehe [Train-Test-Split](train-test-split.md) und [env-vars.md](env-vars.md#checkpoint-auswahl-nach-dem-lauf-checkpoint_sweeppy)); Closed-Loop-Eval im Simulator: [sim-eval-anleitung.md](../simulation/sim-eval-anleitung.md). Siehe außerdem den Inference-Abschnitt in [`FINETUNING_GUIDE.md`](../../app/Groot-1.6/examples/G1_DEX3/FINETUNING_GUIDE.md).
 
 ---
 
