@@ -6,8 +6,9 @@
 > Abnahmelauf-Befund stehen in wuerfellage-rekonstruktion-bewertung.md bzw.
 > wuerfellage-rekonstruktion-lauf35-befund.md.
 
-**Stand:** 2026-08-17 · Verfahren gebaut und lokal geprüft, **Abnahme-Test gegen den Renderer
-offen** · Vorgeschichte: [co-training.md](../training/co-training.md) §3.0/§3.2a
+**Stand:** 2026-10-11 (Verfahren: 2026-08-17, Gierwinkel: 2026-08-25) · Position: im Sim-Render auf
+rund 1 cm bestätigt (`layoutcheck`, 2026-08-22, [Befund](wuerfellage-rekonstruktion-lauf35-befund.md) §8);
+dass die **reale** Kopfkamera derselben Pose folgt, ist weiterhin nicht belegt · Vorgeschichte: [co-training.md](../training/co-training.md) §3.0/§3.2a
 
 Dieses Dokument beschreibt, **wie die Position der drei Würfel aus den realen
 Trainingsaufnahmen bestimmt wird** und **wie die daraus gewonnenen Bildkoordinaten in
@@ -102,7 +103,7 @@ Realvideo Episode n, Frame 0
    ├─ (a) HSV-Segmentierung rot / grün / gelb           → binäre Masken
    ├─ (b) größte zusammenhängende Fläche je Farbe       → Blob
    ├─ (c) Schwerpunkt des Blobs                         → Pixel (u, v)
-   ├─ (d) Pixel → Kamerastrahl → Schnitt mit z = 0.915  → (x, y) env-lokal
+   ├─ (d) Pixel → Kamerastrahl → Schnitt mit z = 0.895  → (x, y) env-lokal
    ├─ (e) Bias-Korrektur (aus dem Abnahme-Test)         → (x, y) korrigiert
    └─ (f) Mittel über beide High-Kameras                → layout.json
                                                              │
@@ -116,6 +117,71 @@ grau. In HSV trennt das sauber: Tisch und Arme scheitern an der Sättigung, die 
 Helligkeitswert.
 
 | Würfel | Env-Objekt | Farbton H | S ≥ | V ≥ |
+|---|---|---|---|---|
+| rot | `block_0` | < 15° oder > 345° | 0,40 | 0,18 |
+| grün | `block_1` | 75°–175° | 0,28 | 0,15 |
+| gelb | `block_2` | 35°–70° | 0,35 | 0,28 |
+
+Die Zuordnung Farbe → `block_i` ist die aus
+[`g1_dex3_blockstack_env.py`](../../Simulation/g1_dex3_sim/g1_dex3_blockstack_env.py). Die
+RGB→HSV-Umrechnung ist in numpy ausgeschrieben statt aus OpenCV geholt — das Werkzeug soll auch in
+einem Container ohne `cv2` laufen.
+
+### (b)/(c) Blob und Schwerpunkt
+
+Pro Maske die größte zusammenhängende Fläche (4-Nachbarschaft), Mindestfläche 120 px; deren
+Pixelschwerpunkt ist `(u, v)`. **Bekannter Bias:** der Blob ist die Silhouette eines schräg von oben
+gesehenen Würfels (Deckfläche **plus** zugewandte Seitenfläche), sein Schwerpunkt liegt daher zur
+Kamera hin verschoben — siehe (e).
+
+### (d) Rückprojektion
+
+Pixel → Kamerastrahl → Schnitt mit der Würfelebene z = 0,895 (`Z_CUBE_CENTER`, Mittelpunkt eines auf
+dem 0,87 m hohen Tisch ruhenden 5-cm-Würfels), im Modul
+[`camera_geometry.py`](../../Simulation/g1_dex3_sim/camera_geometry.py). Bis zum 2026-08-22 stand
+hier 0,915; die Würfel ruhen aber bei 0,895, der Rest-Bias in x war genau diese falsche Ebene
+([Befund](wuerfellage-rekonstruktion-lauf35-befund.md) §8).
+
+### (e) Bias-Korrektur
+
+Additive Verschiebung `(dx, dy)` in Metern (`--bias`, bzw. `LAYOUT_BIAS="dx dy"`), **gemessen**, nicht
+geschätzt: `detect --expect` auf einem gerenderten Sim-Bild mit bekannten Würfelpositionen liefert das
+mittlere Residuum. Die Streuung bleibt.
+
+### (f) Zwei Kameras
+
+`cam_left_high` und `cam_right_high` liefern je eine Schätzung; gespeichert wird das Mittel, die
+Differenz als `camera_spread_cm` im `layout.json`. Die Stereobasis beträgt nur 4,7 cm bei ~0,50 m
+Motivabstand: ein Fehler im **Kameramodell** verschiebt beide Strahlen fast gleich und ist in dieser
+Differenz unsichtbar — sie prüft die **Detektion**, nicht die Pose.
+
+### (g) Gierwinkel um die eigene z-Achse
+
+Bis zum 2026-08-25 rekonstruierte das Verfahren die Drehung nicht: `place_cubes` und `_reset_idx`
+schrieben ein Identitäts-Quaternion, jeder Würfel stand achsparallel. Im Realdatensatz liegen sie
+schräg (§6). Das ist derselbe Fehler wie eine falsche Position, nur im Drehfreiheitsgrad: die
+Realaktion richtete die Hand nach einem Würfel bei ψ aus, das Bild zeigt ihn bei 0°.
+
+`extract_block_layout.yaw_from_top_face` trifft zwei Entscheidungen:
+
+1. **Erst zurückprojizieren, dann messen.** Die Deckflächenpixel werden auf `Z_CUBE_TOP` = 0,920
+   geschnitten; dort ist die Fläche wieder ein Quadrat. Die naheliegende Min-Area-Box im Bild
+   (`top_face_blob`) misst mitsamt Perspektive und rastet auf der Kleinmaske zu Bildachsen ein.
+2. **Das 4. Winkelmoment statt einer Box.** `Σ (dx + i·dy)^4` hat die Phase 4·ψ; jedes Pixel geht
+   stetig ein, es gibt kein Raster zum Einrasten.
+
+Davor steht der **Deckflächenschnitt** über die Helligkeit (Schwelle seit 2026-08-25 per Otsu
+gemessen statt fix das 70. Perzentil, siehe §4/§5). Dazu zwei Prüfmerkmale: die **Formprobe**
+(Diagonale/Kante der zurückprojizierten Fläche, ideal √2 = 1,41; < 1 heißt Phase um 45° umgeschlagen
+und wird zurückgedreht) und das **Zwei-Kamera-Tor** (beide Kopfkameras müssen sich einig sein). Die
+Breite muss die volle Spannweite sein — die 5.–95.-Perzentil-Variante zerstört die Unterscheidung
+(Verhältnis 1,08 statt 1,41).
+
+Abnahme: `extract_block_layout.py selftest` (bzw. `server_rl_run.sh yawcheck`) rendert Würfel
+bekannter Drehung durch dasselbe Kameramodell und misst über den vollen Weg (Farbmaske, Blobwahl,
+Deckflächenschnitt) zurück — 18 Winkel × 5 Orte × 2 Kameras:
+
+| Maskenrauschen | Tor behält | Fehler Median | p90 | Ausreißer > 20° |
 |---|---|---|---|---|
 | 0,00 | 99 % | 0,08° | 0,32° | 0/89 |
 | 0,01 | 99 % | 0,08° | 0,27° | 0/89 |
@@ -145,8 +211,7 @@ Die Abnahme gegen den **echten Renderer** ist `detect --expect-yaw` mit `cubes_y
 `render_manifest.json` — dieselbe Rolle, die `--expect` für die Position spielt. Der `selftest`
 teilt sich mit dem Schätzer die Kameraannahme und kann sie deshalb nicht prüfen.
 
-Die Schritte (b)–(f) des Diagramms sind hier nicht mehr im Detail dokumentiert; die
-per-Schritt-Diagnose und die v4-Gate-Bewertung stehen in
+Ein Code-Audit des Parallelpfads B (`pick_anchored_homography`) steht in
 [wuerfellage-rekonstruktion-bewertung.md](wuerfellage-rekonstruktion-bewertung.md).
 
 ## 4. Der Probelauf und was er ergab
@@ -296,24 +361,20 @@ unterscheidbar.
 
 | Artefakt | Inhalt |
 |---|---|
-| `replay_anchors.json` | v4-Anker, Ablehnungsgründe, Action-Hashes und Bilddiagnosen |
-| `geometry_calibration.json` | gültige v4-Homographien, Fit/Holdout und Qualitätswerte |
-| `calibration_report.json` | vollständiger Bericht auch bei fehlgeschlagenem Gate |
-| `cube_poses.json` | v4-Anfangsposen der separat ausgewählten Ziel-Episoden |
-| `replay_manifest.json` | v2-Render-, Projektions- und Griffdiagnose |
+| `layout.json` | je Episode Position (x, y), `camera_spread_cm` und `cubes_yaw_deg` (`null` = nicht belastbar gemessen); Standardpfad `/data/cotrain/layout.json` |
+| `layout_debug/` | Debug-PNGs der Detektion (`LAYOUT_DEBUG_DIR`) — annotiert, **keine** Messgrundlage für den Winkel |
+| `render_manifest.json` | Ausgabe von `render`, enthält `cubes_yaw_deg` für `detect --expect-yaw` |
 
 ```bash
-REPLAY_CALIBRATION_NUM_EPISODES=40 \
-REPLAY_CALIBRATION_HOLDOUT_RATIO=0.2 \
-REPLAY_CALIBRATION_SEED=17 \
-./Simulation/server_rl_run.sh replay-calibrate
-
-REPLAY_EPISODE_IDS="0 12 41" REPLAY_OVERWRITE=1 \
-./Simulation/server_rl_run.sh replay-poses
-
-DR_ENABLED=0 REPLAY_EPISODE_IDS="0 12 41" REPLAY_OVERWRITE=1 \
-./Simulation/server_rl_run.sh replay-render
+./Simulation/server_rl_run.sh layout          # layout.json aus den Realvideos
+./Simulation/server_rl_run.sh layoutreport    # woran der Gierwinkel scheitert
+./Simulation/server_rl_run.sh topface         # Deckflächenschnitt vermessen
+./Simulation/server_rl_run.sh yawcheck        # Schätzer gegen synthetische Würfel
+./Simulation/server_rl_run.sh layoutcheck     # Kameramodell gegen ein Renderbild
+./Simulation/server_rl_run.sh render          # Co-Training-Datensatz mit layout.json
 ```
 
-Die vollständige Bedienung und alle Umgebungsvariablen stehen in
-[replay-videos-aus-realdaten.md](replay-videos-aus-realdaten.md).
+Der frühere Parallelpfad B (`replay-prepare` → `replay-calibrate` → `replay-poses` →
+`replay-render`, Artefakte `replay_anchors.json`, `geometry_calibration.json`, `cube_poses.json`)
+wurde nach dem Abnahmelauf ([Befund](wuerfellage-rekonstruktion-lauf35-befund.md)) aufgegeben; sein
+Protokoll steht in [replay-videos-aus-realdaten.md](replay-videos-aus-realdaten.md).

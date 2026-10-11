@@ -8,12 +8,17 @@
 
 Dieses Dokument fasst Erkenntnisse zusammen, die beim Aufbau des Sim-Eval-Workflows
 gewonnen wurden und in keinem anderen Dokument stehen. Stand: 2026-05-31
-(Abschnitte 10–16 ergänzt bis 2026-06-05).
+(Abschnitte 10–16 ergänzt bis 2026-06-05; Korrekturhinweise zu Isaac-Sim-Version, Beckenhöhe,
+Finger-Vorzeichen und Würfel-z nachgetragen bis 2026-10-11).
 
 **Lesehilfe:**
 - Kalibrierung & aktueller Stand: §10–§11, §13–§15
 - Build-/Runtime-Fixes (Referenz): §1–§9
 - Doku-Meta: §16
+
+> **Achtung (Stand 2026-10-11):** Alle Sim-Greifzahlen vor dem 2026-08-24 (u. a. die 2,8 cm aus §13) wurden
+> mit falsch gespiegelten Fingergelenken und Beckenhöhe 0,85 m gemessen (§13.2, g1_dex3_cfg.py) und sind
+> nur historisch belegt; eine Neumessung mit der korrigierten Szene steht aus.
 
 > **Neuere Erkenntnisse (August 2026)** — Isaac-Sim-6.0-Migration, Kamera-Pose-Bug und
 > Neukalibrierung (Sichtfeld, Montagepunkt, Stereobasis), Domain-Gap-Neumessung sowie die
@@ -29,12 +34,14 @@ gewonnen wurden und in keinem anderen Dokument stehen. Stand: 2026-05-31
 ### Quadro RTX 5000 (KISSKI `jupyter`-Partition) — **nicht kompatibel**
 
 [`archiv/gpu-kompatibilitaet.md`](archiv/gpu-kompatibilitaet.md) klassifiziert die RTX 5000 als prinzipiell geeignet.
-Das ist **falsch für Isaac Lab 2.3.2 / Isaac Sim 5.1**:
+Das ist **falsch für Isaac Lab 2.3.2 / Isaac Sim 5.1** (Stand der Analyse, Juni 2026; die
+standalone-Sim läuft seit 2026-08-07/08 auf Isaac Lab 3.0.0-beta2 / Isaac Sim 6.0 — am Ergebnis
+ändert das nichts, die RTX 5000 bleibt zu alt):
 
-- Isaac Sim 4.x setzt **Ampere (RTX 30xx) als Mindestanforderung** voraus.
+- Isaac Sim 5.1 setzt **Ampere (RTX 30xx) als Mindestanforderung** voraus.
 - Die RTX 5000 ist **Turing** (SM 7.5) — eine Generation zu alt.
 - RT-Cores sind vorhanden, aber die Compute-Capability und Treiber-Features reichen
-  für Isaac Sim 4.x nicht aus.
+  für Isaac Sim 5.1 nicht aus.
 - **Konsequenz:** Die Closed-Loop-Sim auf KISSKI ist mit dem aktuellen Isaac-Lab-Image
   nicht möglich. Optionen:
   - Älteres Isaac-Lab-Image (1.x oder frühe 2.x) testen, das Turing noch unterstützt.
@@ -64,8 +71,8 @@ Für GR00T-Inference (ohne Sim) auf A100 geeignet, nicht für die Closed-Loop-Si
 Für **vast.ai** wurde eine **kombinierte Ein-Container-Architektur** implementiert:
 
 ```text
-Dockerfile.standalone
-└── nvcr.io/nvidia/isaac-lab:2.3.2  (Basis)
+Dockerfile.standalone   (bis 2026-08-26 `Dockerfile.vastai`)
+└── nvcr.io/nvidia/isaac-lab:3.0.0-beta2-post1  (Basis; bis 2026-08-06 isaac-lab:2.3.2 = Isaac Sim 5.1)
     ├── Isaac Lab / Isaac Sim        (bereits im Basis-Image)
     └── GR00T N1.6 Policy           (isolierte venv: /app/Groot-1.6/.venv)
 ```
@@ -270,7 +277,7 @@ ModuleNotFoundError: No module named 'zmq'
 
 **Ursache:** Server und Sim-Client laufen in **zwei verschiedenen Python-Umgebungen**:
 - GR00T-Server: `/app/Groot-1.6/.venv/bin/python` (3.10) — hier wurde `pyzmq` installiert
-- Sim-Client: Isaac Sims gebündeltes Python `/workspace/isaaclab/_isaac_sim/python.sh` (**3.11**)
+- Sim-Client: Isaac Sims gebündeltes Python `/workspace/isaaclab/_isaac_sim/python.sh` (damals **3.11**, Isaac Sim 5.1; unter Isaac Sim 6.0 ist es 3.12)
   via `isaaclab.sh -p` — hier fehlte `pyzmq`.
 
 `client.py` braucht `msgpack`, `numpy`, `zmq`. In Isaac Sims Python sind `numpy` (1.26) und
@@ -427,7 +434,7 @@ deckte einen echten Geometrie-Bug auf, den kein Training ausgleichen könnte:
 - Würfel-Startpos + Sampling in den erreichbaren Bereich: `block_x_range (0.30,0.40)`,
   `block_y_range (-0.20,0.20)`, `block_z_surface 0.895`.
 - High-Cam-Ziel `(0.5,0,0.73)→(0.40,0,0.86)` + Szenen-Cam-Ziel angehoben (Tisch ist höher).
-- Roboter NICHT abgesenkt (die weltfesten Kameras sind auf Becken z=0.85 kalibriert).
+- Roboter NICHT abgesenkt (die weltfesten Kameras sind auf Becken z=0.85 kalibriert). *Stand 2026-10-11: die Beckenhöhe ist seit 2026-08-24 gemessen 0,764 m (Basis x −0,057 m), siehe `g1_dex3_cfg.py` und [diagnose-chronik.md](../ergebnisse/diagnose-chronik.md).*
 
 **Nach dem Fix (Greif-Test `--grasp-test`, Würfel exakt an die Greifpunkte gesetzt):**
 min Hand→Würfel-Distanz **5,9 cm** (war 21,6), Würfel-**Anhebung 1,0 cm**, Würfel sichtbar
@@ -453,7 +460,7 @@ Diese Session hat die Greif-Physik der Sim systematisch kalibriert, ausgehend vo
 `max_cube_lift = 1,0 cm` (kein Greifen). Endergebnis: **2,8 cm — Greifen validiert**.
 
 > ⚠️ **Einschränkung (2026-08-08) — inzwischen aufgelöst:** Das Ergebnis „2,8 cm — Greifen
-> validiert" wurde unter Isaac Sim 4.x gemessen. Nach der Isaac-Sim-6.0-Migration hob derselbe
+> validiert" wurde unter Isaac Sim 5.1 (Isaac Lab 2.3.2, vor der Migration) gemessen. Nach der Isaac-Sim-6.0-Migration hob derselbe
 > Replay-Testtyp zunächst **keinen Würfel mehr an** (0,0 cm, trotz vollständigem Fingerschluss).
 >
 > **Aufgelöst mit Lauf 29 (2026-08-12):** Ursache war der Referenzpunkt der Greif-Diagnostik —
@@ -461,7 +468,7 @@ Diese Session hat die Greif-Physik der Sim systematisch kalibriert, ausgehend vo
 > hebt die Hand einen Würfel **7,9 cm**; die Greif-Physik war nie defekt. Details:
 > [../ergebnisse/diagnose-chronik.md](../ergebnisse/diagnose-chronik.md) (Läufe 25–29).
 
-### 14.1 Finger-Aktuatoren (`g1_dex3_cfg.py`)
+### 13.1 Finger-Aktuatoren (`g1_dex3_cfg.py`)
 
 | Parameter | Vorher | Nachher | Begründung |
 |---|---|---|---|
@@ -471,7 +478,7 @@ Diese Session hat die Greif-Physik der Sim systematisch kalibriert, ausgehend vo
 | `solver_position_iter` | 4 | **8** | Bessere Kontaktauflösung bei Mehrfach-Kontakt (Finger + Würfel) |
 | `solver_velocity_iter` | 0 | **1** | Stabilerere Kontaktdynamik |
 
-### 14.2 Der „Sign-Convention-Fix" war selbst der Fehler (zurückgenommen 2026-08-24)
+### 13.2 Der „Sign-Convention-Fix" war selbst der Fehler (zurückgenommen 2026-08-24)
 
 > Bis 2026-08-24 stand hier ein Fix, der `middle_0` und `index_0` **beider** Hände negierte
 > (`_SIGN_FLIP_IDX = [17, 19, 24, 26]`), dazu negierte Startwerte in `DATASET_INIT_STATE` und
@@ -511,7 +518,7 @@ Maßgeblich ist dabei `observation.state` (was das Gelenk erreicht **hat**), nic
 kommandiert wurde stellenweise deutlich mehr (`left_index_0` bis −1,762 gegen −1,089 erreicht),
 das hat auch die reale Hand nicht ausgefahren.
 
-### 14.3 Würfel-Reibung (`g1_dex3_blockstack_env.py`)
+### 13.3 Würfel-Reibung (`g1_dex3_blockstack_env.py`)
 
 Standard-PhysX-Reibung (~0,5) ließ den Würfel trotz korrektem Griff herausgleiten.
 
@@ -524,7 +531,7 @@ Standard-PhysX-Reibung (~0,5) ließ den Würfel trotz korrektem Griff herausglei
 Auf allen 3 Würfeln gesetzt. Wert 3,0 entspricht gummierter Greiffläche — für 50 g Würfel
 notwendig, um Haltekraft während der Arm-Bewegung (Trägheitskräfte) zu gewährleisten.
 
-### 14.4 Tischhöhe und Würfelposition
+### 13.4 Tischhöhe und Würfelposition
 
 **Diagnose aus Replay-Logs:**
 ```text
@@ -538,8 +545,8 @@ Die Handflächen erreichen z ≈ 0,937–0,944. Würfel-Oberkante muss auf diese
 | Konfiguration | Vorher | Nachher |
 |---|---|---|
 | Tischhöhe | 0,87 m | **0,87 m** (unverändert — höherer Tisch blockiert Arme im Closed-Loop) |
-| `block_z_surface` | 0,895 | **0,915** (Oberkante z=0,940 ≈ tiefster Handpunkt) |
-| Würfel-Initialpositionen (z) | 0,895 | **0,915** |
+| `block_z_surface` | 0,895 | **0,915** (Oberkante z=0,940 ≈ tiefster Handpunkt) — *seit 2026-08-22 wieder 0,895: die Würfel fielen ohnehin auf 0,895 zurück* |
+| Würfel-Initialpositionen (z) | 0,895 | **0,915** — *aktuell 0,895* |
 | Grasp-Test grüner Würfel | (0,36, −0,18) | **(0,37, −0,16)** (rechte Handposition gemessen) |
 
 > **Wichtig:** Tisch über 0,87 m anheben blockiert die Arme im Closed-Loop — Modell versucht
@@ -547,7 +554,7 @@ Die Handflächen erreichen z ≈ 0,937–0,944. Würfel-Oberkante muss auf diese
 > Roboter zappelt. Cube-z-surface erhöhen ohne Tischhöhe zu ändern ist die korrekte Lösung.
 > Die Würfel „schweben" dabei 2,5 cm über der Tischoberfläche — für die Sim-Eval akzeptabel.
 
-### 14.5 Replay-Ergebnisse vor/nach der Kalibrierung
+### 13.5 Replay-Ergebnisse vor/nach der Kalibrierung
 
 | Metrik | Vor Session | Nach Session |
 |---|---|---|
@@ -559,7 +566,7 @@ Die Handflächen erreichen z ≈ 0,937–0,944. Würfel-Oberkante muss auf diese
 Die erhöhte Endposition der Würfel (`(0,38, 0,15)` statt `(0,35, 0,20)` Startposition) bestätigt
 echten Kontakt: Würfel wurden tatsächlich bewegt, nicht nur gestreift.
 
-### 14.6 Closed-Loop-Eval (checkpoint-175000) — Diagnose
+### 13.6 Closed-Loop-Eval (checkpoint-175000) — Diagnose
 
 **Beobachtetes Verhalten:** Hände liegen auf dem Tisch, Roboter führt kleine, ungerichtete
 Bewegungen aus, keine Greifaktion.

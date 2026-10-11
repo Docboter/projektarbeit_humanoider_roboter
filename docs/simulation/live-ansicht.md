@@ -19,6 +19,8 @@ Umgesetzt am 2026-08-13.
 > das Restrisiko des Isaac-Sim-6.0-Ports. Deshalb steht [Schritt 2](#schritt-2--phase-0-prüfen-livecheck)
 > (`livecheck`) vor dem ersten echten Lauf, und bei `LIVESTREAM=0` bleibt das bisherige
 > Verhalten **bit-identisch** — die Live-Variante kann nichts kaputt machen, was vorher lief.
+> Stand 2026-10-11: In Repo und Chronik ist weiterhin kein Hardware-Test des Viewports
+> (nativer Client oder `webview`) dokumentiert.
 
 ---
 
@@ -238,7 +240,7 @@ genau das: der Scope liegt nicht auf npmjs.org, und die NVIDIA-Adresse ist nicht
 oder gefiltert. Paketname und Version sind dann trotzdem richtig.
 
 **Was das ist.** Isaac Sim 6.0 hat keinen eingebauten Browser-Client mehr — der alte auf
-Port 8211 entfiel mit 5.x (Defekt D1). NVIDIA liefert stattdessen einen separaten
+Port 8211 entfiel mit Isaac Sim 6.0 (Defekt D1). NVIDIA liefert stattdessen einen separaten
 Web-Viewer, eine kleine React/Vite-App. [`Dockerfile.webviewer`](../../Simulation/Dockerfile.webviewer)
 baut sie; `webview` startet sie als **eigenen kleinen Container** neben `groot-rl`.
 
@@ -319,7 +321,7 @@ mehr aus den Messergebnissen herauszurechnen.
 ## Tempo — warum der Roboter in Zeitlupe läuft
 
 Die Sim rechnet langsamer als Echtzeit. **Erste Messung auf Hardware (2026-08-13,
-`LIVESTREAM=2`, 1 Env):**
+`LIVESTREAM=2`, 1 Env; belegt die Eval-Laufzeit — ein Client-Handshake ist damit nicht dokumentiert):**
 
 ```text
 … Step 150/3600 (17s, 8.6 Steps/s, 3.5x Echtzeit) | Obs 0% · Inferenz 5% · Sim+Render 94%

@@ -18,7 +18,7 @@ Lösung**, mit Verweis auf die jeweilige Detail-Doku.
 **Ursache:** `GLOBAL_BATCH_SIZE` zu groß für die verfügbare VRAM.
 
 **Lösung:** `GLOBAL_BATCH_SIZE` zuerst halbieren. Richtwerte siehe
-[training/env-vars.md → VRAM-Richtwerte](training/env-vars.md). Full Fine-tuning braucht laut
+[training/env-vars.md](training/env-vars.md) (`GLOBAL_BATCH_SIZE`-Zeile und VRAM-Hinweis am Ende). Full Fine-tuning braucht laut
 NVIDIA ≥ 40 GB; unter 24 GB ist OOM praktisch garantiert.
 
 ### W&B-Pflicht / Training bricht wegen fehlendem Key ab
@@ -29,7 +29,7 @@ NVIDIA ≥ 40 GB; unter 24 GB ist OOM praktisch garantiert.
 ohne gültigen Key bricht `run_finetuning.sh` ab.
 
 **Lösung:** Entweder `WANDB_API_KEY=...` setzen **oder** explizit `USE_WANDB=0` übergeben, um
-ohne W&B zu trainieren. Siehe [training/env-vars.md](training/env-vars.md#L19).
+ohne W&B zu trainieren. Siehe [training/env-vars.md](training/env-vars.md) (Zeile `USE_WANDB`).
 
 ### W&B-Charts bleiben leer / Daten fehlen online
 
@@ -41,7 +41,7 @@ gepuffert, nicht live hochgeladen (relevant v. a. auf KISSKI ohne Internet auf d
 **Lösung:** Nach dem Lauf manuell synchronisieren — Schritt für Schritt in
 [training/wandb-offline-sync.md](training/wandb-offline-sync.md). Wo Internet verfügbar ist
 (vast.ai, eigener Server), lässt sich der Default per `WANDB_MODE=online` überschreiben
-([entrypoint.sh:175](../Training/scripts/entrypoint.sh#L175)).
+([entrypoint.sh:181](../Training/scripts/entrypoint.sh#L181)).
 
 ### Training startet nach `docker start` wieder bei Step 0
 
@@ -57,7 +57,7 @@ oder der erste Checkpoint war zum Abbruchzeitpunkt noch nicht geschrieben (`SAVE
 
 **Lösung:** Prüfen, ob `/data/g1_dex3_finetune/blockstacking/g1_dex3_blockstacking_v1/checkpoint-*`
 existiert, und ob `EXPERIMENT_NAME` unverändert ist. Details:
-[training/anleitung.md → Fortsetzen nach Abbruch](training/anleitung.md).
+[training/anleitung.md → B7. Training pausieren und fortsetzen](training/anleitung.md).
 
 ---
 
@@ -81,7 +81,7 @@ besonders für 4-GPU-Jobs. Max. Walltime 48 h.
 nach `/data`. Der alte SCRATCH-SCC-Speicher (`/scratch/`) wurde **am 2026-03-31 abgeschaltet**.
 
 **Lösung:** Checkpoints vom VAST-Projekt-Storage holen — siehe
-[training/kisski-hpc.md → Checkpoint-Export](training/kisski-hpc.md).
+[training/kisski-hpc.md → Checkpoints nach dem Training sichern](training/kisski-hpc.md).
 
 ---
 
@@ -151,6 +151,15 @@ Messstand nach Kamera-Neukalibrierung (2026-08-08): mittlere Cosine-Distanz **0,
 > **Lauf 34** maß den daraufhin trainierten Vision-Checkpoint (`TUNE_VISUAL=1` + Jitter + Split)
 > im Closed Loop: Fingerspanne **27,6 % statt 20,5 %** (p = 3,3 · 10⁻⁴) — die Maßnahme wirkt,
 > `lifted` bleibt aber 0/10. Details: [ergebnisse/diagnose-chronik.md](ergebnisse/diagnose-chronik.md).
+>
+> **Vorbehalt (Stand 2026-10-11):** Lauf 34 ist die letzte Closed-Loop-Messung mit Policy; alle
+> späteren Läufe (bis 2026-08-26) waren Scan-/Render-/Layout-/Tipcheck-Läufe ohne Policy. Am
+> 2026-08-24 wurde die falsche Spiegelung der vier proximalen Fingergelenke entfernt (die Hand
+> konnte in keinem früheren Lauf ganz schließen, die Policy bekam einen verfälschten State) und die
+> Beckenhöhe von 0,85 auf 0,764 m korrigiert. **Alle Greifzahlen davor (0/20, 20,5 %, 27,6 %,
+> Meilensteine von Lauf 34) stehen unter diesem Vorbehalt; eine Neumessung mit der korrigierten
+> Szene steht aus.** Auch das `span`-Gate (Lauf 32/33) lief auf Trainingsepisoden; die Messung auf
+> den ausgehaltenen Testepisoden (240–300) ist offen.
 
 **Lösung:** Der wirksame Hebel ist der Vision-Encoder — mit Realdaten allein aber ausgereizt.
 Nächster Schritt ist **Co-Training auf echten + gerenderten Bildern**

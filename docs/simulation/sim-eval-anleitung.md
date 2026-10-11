@@ -225,6 +225,11 @@ siehe [../portabilitaet.md](../portabilitaet.md)). Die weiteren Aktionen — Rep
 [../weiterfuehrend/rl-anleitung.md](../weiterfuehrend/rl-anleitung.md); die
 Env-Var-Referenz in [CLAUDE.md](../../CLAUDE.md) gilt für beide Wege.
 
+Der letzte Closed-Loop-Lauf mit trainierter Policy war Lauf 34 (2026-08-14, 10 Episoden × 40 s,
+Checkpoint `groot-g1dex3-vision-v2-30000`): 0/10 Erfolge, kein Würfel angehoben. Er stammt noch
+aus der Szene vor den Geometrie-Korrekturen vom 2026-08-24; Neumessung offen. Einzelheiten:
+[../ergebnisse/diagnose-chronik.md](../ergebnisse/diagnose-chronik.md).
+
 Die Schritte 4-7 unten betreffen nur **Weg B (vast.ai)**.
 
 ---
@@ -368,8 +373,8 @@ Der Sim-Client schreibt in die Container-Stdout. Im vast.ai-Portal unter
 # PID des Isaac-Lab-Prozesses finden
 pgrep -a python | grep run_g1_dex3_sim_eval
 
-# Output live verfolgen (falls in Datei umgeleitet)
-tail -f /data/logs/sim_client.log
+# Output live verfolgen (der Entrypoint spiegelt alles nach /data/logs/entrypoint.log)
+tail -f /data/logs/entrypoint.log
 ```
 
 ### Fortschritt ablesen
@@ -602,6 +607,12 @@ scp -P <port> root@<ip>:/data/sim_videos_replay/_debug_obs_cam_*.png ./
 > Das Wegdriften im Modell-Eval von checkpoint-3000 ist also dem **untrainierten Modell**
 > zuzuschreiben, nicht der Config. Details in
 > [`umsetzungsnotizen.md`](umsetzungsnotizen.md) §11.
+>
+> **Einschränkung (Stand 2026-10-11):** Dieser Befund stammt von vor dem 2026-08-24. Damals waren
+> vier proximale Fingergelenke fälschlich gespiegelt (die Hand konnte nie ganz schließen) und die
+> Beckenhöhe stand bei 0,85 m statt 0,764 m ([`umsetzungsnotizen.md`](umsetzungsnotizen.md) §13.2).
+> „Greifen funktioniert physikalisch" gilt daher nur eingeschränkt; eine Neumessung mit der
+> korrigierten Szene steht aus.
 
 ---
 

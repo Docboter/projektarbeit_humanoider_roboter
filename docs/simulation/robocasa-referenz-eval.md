@@ -78,8 +78,9 @@ docker exec -e RC_PRESET=top -e RC_N_EPISODES=100 \
 
 [`Simulation/server_robocasa_ref_run.sh`](../../Simulation/server_robocasa_ref_run.sh) automatisiert Pfad A:
 ein langlebiger „Workbench"-Container (`sleep infinity`), in dem Setup und Eval per `docker exec` laufen — so
-bleiben Modell-Cache und `robocasa_uv`-Venv zwischen Läufen erhalten. Server-Pfade sind als Defaults verdrahtet
-(`/home/lmuecke/project/data/RoboCasa → /data`, Image, `--gpus all`); alles per `RC_*`-Env überschreibbar.
+bleiben Modell-Cache und `robocasa_uv`-Venv zwischen Läufen erhalten. Der Host-Datenpfad kommt aus `RC_HOST_DATA_DIR` (Default `$HOME/groot-robocasa-data → /data`,
+serverspezifisch per `.env.local` setzbar, siehe [../portabilitaet.md](../portabilitaet.md); bis 2026-08 war er fest
+auf einen Server-Pfad verdrahtet), dazu Image und `--gpus all`; alles per `RC_*`-Env überschreibbar.
 
 ```bash
 ./Simulation/server_robocasa_ref_run.sh preflight              # Torch + flash-attn auf GPU (Blackwell/sm_120)

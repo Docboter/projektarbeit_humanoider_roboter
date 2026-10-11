@@ -5,7 +5,7 @@
 > Block-Stacking-Task, in einer zur DEX3-Eval parallelen Pipeline? Vorbereitung — erster Lauf
 > steht aus.
 
-Status: Vorbereitung — erster Lauf steht aus (Stand 2026-08-18)
+Status: Vorbereitung — erster Lauf steht aus (Stand 2026-10-11; in Repo und Chronik ist kein Baseline-Lauf dokumentiert)
 
 Vergleichs-Baseline zum DEX3-Fine-Tune: Wie gut stapelt das **un-finetunte Basismodell
 `nvidia/GR00T-N1.6-3B`** mit dem **stock Unitree-G1-Greifer** (Dex1-Parallelgreifer,
@@ -52,7 +52,7 @@ GR00T-Server (--embodiment-tag UNITREE_G1)  ←─ ZMQ :5555 ─→  Isaac-Lab-S
 | Datei | Zweck |
 |---|---|
 | `Simulation/g1_gripper_sim/g1_gripper_cfg.py` | Articulation: 14 Arm- + 4 Greifer-Joints policy-gesteuert; Beine/Waist per PD auf Default fixiert; eine `ego_view`-Kamera am `torso_link`. |
-| `Simulation/g1_gripper_sim/g1_gripper_blockstack_env.py` | **Identische** Tisch-/Würfel-/Erfolgs-Logik wie DEX3 (vergleichbare Metrik); 16-DOF-Action (14 Arm + 2 Hand). |
+| `Simulation/g1_gripper_sim/g1_gripper_blockstack_env.py` | Tisch-/Würfel-/Erfolgs-Logik als **Kopie** der DEX3-Env (vergleichbare Metrik); 16-DOF-Action (14 Arm + 2 Hand). **Achtung, Drift:** die Kopie wurde nicht mitgezogen — hier stehen noch Tischhöhe 0,89 m, Würfel-z 0,915 und Torso-Höhe 0,85 m, in der DEX3-Env seit 2026-08-22/24 0,87 m, 0,895 und Becken 0,764 m (Basis x −0,057). Vor dem ersten Lauf angleichen, sonst ist die Metrik nicht vergleichbar. |
 | `Simulation/g1_gripper_sim/client_g1.py` | `UNITREE_G1`-Modality-Keys; legs/waist zero-gefüllt; Loco-Manip-Actions (waist/base_height/navigate) verworfen. |
 | `Simulation/scripts/dump_unitree_g1_dims.py` | Liest die exakten Pro-Gruppe-Dims **zur Laufzeit** aus den Checkpoint-Statistiken (nichts hartkodiert). |
 | `Simulation/g1_gripper_sim/run_g1_gripper_sim_eval.py` | Eval-Loop; gleiches Results-JSON-Format wie DEX3 → direkter Zahlenvergleich. |
@@ -115,7 +115,7 @@ Diese Schritte sind **noch nicht** automatisiert/erledigt und müssen vor dem er
 
 - [ ] **Torso-/Pelvis-Höhe & Reichweite sichten.** Der Torso ist fixiert (`fix_root_link=True`,
   `pos.z=0.85`); die Beine hängen kosmetisch (Tabletop-Aufgabe). Im ersten Video prüfen, dass
-  die Arme den Tisch (`z≈0.89`) erreichen; ggf. `pos.z` in `g1_gripper_cfg.py` anpassen.
+  die Arme den Tisch erreichen (in `g1_gripper_blockstack_env.py` Oberfläche `z=0.89`, DEX3-Env: 0,87); ggf. `pos.z` in `g1_gripper_cfg.py` anpassen.
 
 - [ ] **Greifer-Richtung verifizieren.** `GRIPPER_OPEN=0.0245` / `GRIPPER_CLOSE=-0.02` als
   offen/zu angenommen. Im Debug-Video prüfen, ob „schließen" die Finger zusammenführt; bei
