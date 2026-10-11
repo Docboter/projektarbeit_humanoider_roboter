@@ -2,7 +2,8 @@
 
 > **TL;DR:** Auswertung des zweiten Trainingslaufs mit mittrainiertem Vision-Encoder
 > (`tune_visual=true`, ohne Augmentierung) als Gegenprobe zu Lauf 1 — die Closed-Loop-Policy
-> kollabiert auf reines Arm-Zurückziehen. Kurzfazit der Befunde in §1.
+> kollabiert auf reines Arm-Zurückziehen. Kurzfazit der Befunde in §1. Messung unter alter Sim-Geometrie
+> (Nachtrag 2026-10-11 in §4); die „ohne Augmentierung"-Zuschreibung ist git-seitig nicht eindeutig (§6.1).
 
 **Erstellt:** 2026-06-05 · **Run-ID:** `ajgoskon` (W&B-Projekt `gr00t-g1-dex3`, Entity
 `projektarbeit_humanoider_roboter`) · **Modell:** GR00T N1.6 (3,29 Mrd. Parameter),
@@ -45,7 +46,7 @@ Task „stack the blocks".
 | State | `finished` |
 | Start | 2026-06-04 23:51 UTC |
 | Laufzeit | ~30.172 s (**~8,4 h**) |
-| GPUs / Global-Batch | **4 GPUs** (aus Durchsatz abgeleitet, s. u.) / per-device 8 → **global 32** |
+| GPUs / Global-Batch | **4 GPUs** (aus Durchsatz abgeleitet, s. u.; W&B-Config: global 32) / per-device 8 → **global 32** |
 | Steps | **44.000** (`num_train_epochs = 3`) |
 | Durchsatz | **1,46 Steps/s**, **46,7 Samples/s** |
 | Trainierbare Teile | **Vision-Encoder** + Projector + Diffusion-Head + oberste 4 LLM-Layer + VLLN |
@@ -99,6 +100,12 @@ Attraktor.
 | Closed-Loop-Verhalten | Anfahren (~15 s), dann **Einfrieren** | nur **Arme zurückziehen** (Kollaps) |
 | Erfolgsrate | 0 / 20 | 0 (kein Aufgabenfortschritt) |
 | Interpretation | unbrauchbare Sim-Features → „nichts tun" | Politik auf degenerierte Bewegung kollabiert |
+
+> **Nachtrag 2026-10-11 — Messbedingungen.** Der Closed-Loop-Eval dieses Laufs entstand mit der alten
+> Sim-Geometrie (Beckenhöhe 0,85 m, Basis x 0, Vorzeichenspiegelung der vier proximalen
+> Fingergelenke, die erst am 2026-08-24 als Fehler erkannt und entfernt wurde; Läufe 38–51 in der
+> [Chronik](diagnose-chronik.md)). Die Policy bekam also einen verfälschten Handzustand. Ob der
+> „Kollaps" daran mitlag, ist nicht nachgemessen; eine Wiederholung mit korrigierter Sim fehlt.
 
 > **Hinweis zur Belastbarkeit:** Für Lauf 2 liegt (noch) **keine** separate Open-Loop-MSE-
 > und keine erneute Domain-Gap-Messung des Vision-Checkpoints vor; die Bewertung stützt
@@ -161,6 +168,15 @@ riskiert den beobachteten Kollaps.
 > [Domain-Gap-Messung](domain-gap-analyse.md) ist `cam_left_wrist` (0,36), eine
 > Nahbereichskamera. Der Lauf ist ein begründeter billiger Test, keine Erfolgsgarantie; das
 > Gate dafür steht in [next-steps.md](../../next-steps.md).
+>
+> **Vorbehalt 2026-10-11 (ungeklärt):** Das Git-Log widerspricht „Lauf 2 hatte gar keinen Jitter".
+> `run_finetuning_vision.sh` (erstmals in `caabf76`, 2026-06-05, direkt nach dem Lauf) und
+> `run_finetuning.sh` (`b3bf656`) hatten `--color_jitter_params brightness 0.3 contrast 0.4
+> saturation 0.5 hue 0.08` **fest verdrahtet** — dieselben Werte wie später in Lauf 3. Die W&B-Config
+> zeigt für `i6n1t613`, `ajgoskon` und `tp1nc699` identisch `0.1/0.1/0.1/0.1` und trennt die Läufe
+> daher nicht. Der Unterschied Lauf 2 ↔ Lauf 3 ist belegt nur beim **Split** (und Neustart), nicht
+> sicher bei der Augmentierung. Die Gegenprobe-Lesart dieses Abschnitts und von Lauf 3 §7/§8.3
+> ist entsprechend mit Vorsicht zu lesen.
 >
 > Bis 2026-08-13 kannte `run_finetuning_vision.sh` den Schalter ohnehin nicht — der
 > Color-Jitter war dort **fest verdrahtet**, `USE_AUGMENTATION` wirkungslos. Beides ist

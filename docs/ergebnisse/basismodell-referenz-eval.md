@@ -4,7 +4,7 @@
 > auf dem RoboCasa-GR-1-Tabletop-Benchmark, um zu prüfen, ob die eigene GR00T-Inferenz-Pipeline
 > NVIDIAs publizierte Erfolgsquoten reproduziert. Befund im Kurzfazit direkt darunter.
 
-**Stand:** 2026-07-19 · **Status:** ✅ Phase 1 validiert — Aggregat-Mittel über 12 Tasks **47,7 % ≈ 47,8 %** erwartet. `full`-Lauf nach ~2 h **manuell** bei 12/24 Tasks gestoppt (Re-Run der restlichen 12 offen).
+**Stand:** 2026-07-19 (seither unverändert, Stand der Prüfung 2026-10-11) · **Status:** ✅ Phase 1 validiert — Aggregat-Mittel über 12 Tasks **47,7 % ≈ 47,8 %** erwartet. `full`-Lauf nach ~2 h **manuell** bei 12/24 Tasks gestoppt (Re-Run der restlichen 12 offen).
 
 Ausführung der in [basismodell-referenzaufgabe.md](../simulation/basismodell-referenzaufgabe.md) geplanten
 **Phase 1**: das **un-finetunte** Basismodell `nvidia/GR00T-N1.6-3B` (zero-shot, Embodiment `GR1`) auf dem
@@ -17,6 +17,13 @@ Pipeline** NVIDIAs publizierte Erfolgsquoten reproduziert. Bedienung: [robocasa-
 > Rauschen heraus. Damit ist die GR00T-Inferenz-Hälfte (Checkpoint-Laden, `--embodiment-tag GR1`, Sim-Policy-Wrapper,
 > ZMQ, Obs/Action-Mapping) **extern bestätigt**. Kernkonsequenz: Die **0 % im Isaac-Lab-Closed-Loop**
 > ([sim-bewertung.md](sim-bewertung.md)) sind der **visuelle Domain-Gap**, **nicht** eine kaputte Harness.
+>
+> **Nachtrag 2026-10-11:** Das Ergebnis validiert nur die GR00T-Inferenz-Hälfte (RoboCasa/MuJoCo), nicht
+> die eigene Isaac-Lab-Szene (siehe §4). Dort wurde am 2026-08-24 tatsächlich ein Sim-Fehler gefunden
+> (Fingergrundgelenke standen durch eine falsche Vorzeichenspiegelung still, Beckenhöhe/Basis-x
+> falsch; [Chronik, Läufe 38–51](diagnose-chronik.md#läufe-3846-runs2026082302-runs202608240512-die-fingergrundgelenke-standen-still)).
+> „Harness nicht kaputt" gilt daher nur für die Inferenz-Pipeline; der Domain-Gap als alleinige
+> Ursache der 0 % ist plausibel, aber nicht mehr bewiesen.
 
 ---
 
@@ -93,7 +100,7 @@ Problem, keine GPU/OOM/Walltime-Grenze.
   → **like-for-like**. Fehlende Distraktor-Vielfalt würde die Quote eher **nach oben** verzerren, erklärt die −8,7 pp
   also nicht. (Verifiziert am RoboCasa-Quellcode: `kitchen_object_utils.py`, `tabletop_24dc.py`.)
 - **Beide GPUs ausgelastet:** Das **Modell** läuft komplett auf **`cuda:0`** (`device="cuda"`, kein `device_map` —
-  [gr00t_policy.py:30](../../app/Groot-1.6/gr00t/policy/gr00t_policy.py#L30)). GPU 1 kommt **allein vom
+  [`gr00t_policy.py`](../../app/Groot-1.6/gr00t/policy/gr00t_policy.py) (`model.to(device=device, …)`)). GPU 1 kommt **allein vom
   MuJoCo/EGL-Rendering** der `n_envs` parallelen robosuite-Umgebungen. Harmlos. Zum Freihalten von GPU 1:
   Container mit `RC_GPUS='"device=0"'` pinnen.
 

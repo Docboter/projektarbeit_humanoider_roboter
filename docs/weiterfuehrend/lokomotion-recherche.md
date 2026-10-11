@@ -7,7 +7,7 @@
 > **Frage:** Aktuell steht der Roboter fix an einer Position und manipuliert nur den Tisch.
 > Was ist nötig, damit er sich **bewegen** (laufen, drehen, neu positionieren) kann?
 >
-> **Stand:** 2026-06-05 · reine Recherche (Code-Analyse + Internetquellen), noch keine Umsetzung.
+> **Stand:** 2026-06-05 (Code-Verweise am 2026-10-11 nachgeführt) · reine Recherche (Code-Analyse + Internetquellen), noch keine Umsetzung.
 
 ---
 
@@ -41,7 +41,7 @@ genau so) ist **Entkopplung**: ein RL-Lauf-Controller steuert den **Unterkörper
 
 ### 1.1 Der Sim-Root-Link ist festgeschweißt
 
-In [`Simulation/g1_dex3_sim/g1_dex3_cfg.py`](../../Simulation/g1_dex3_sim/g1_dex3_cfg.py#L122-L129):
+In [`Simulation/g1_dex3_sim/g1_dex3_cfg.py`](../../Simulation/g1_dex3_sim/g1_dex3_cfg.py) (`articulation_props`, Z. ~160–168):
 
 ```python
 articulation_props=sim_utils.ArticulationRootPropertiesCfg(
@@ -55,7 +55,7 @@ articulation_props=sim_utils.ArticulationRootPropertiesCfg(
 ```
 
 `fix_root_link=True` ersetzt das freie Floating-Base-Gelenk durch eine starre Verbindung
-zur Welt. Der Torso schwebt bei `pos=(0.0, 0.0, 0.85)` ohne Schwerkrafteinfluss auf die
+zur Welt. Der Torso steht bei `pos=(-0.057, 0.0, 0.764)` (seit 2026-08-24; vorher `(0, 0, 0.85)`) ohne Schwerkrafteinfluss auf die
 Basis. Das war eine **bewusste Vereinfachung** für die Manipulations-Eval: kein
 Balance-Controller nötig, der Roboter kippt nicht um. Derselbe Trick steckte auch in
 `phase_b_test.py` (Skript wurde 2026-08-26 bei der Repo-Bereinigung entfernt; der Aufruf ist
@@ -65,7 +65,7 @@ dokumentiert).
 ### 1.2 Der Action-/State-Vektor hat keine Beine
 
 Aus [`examples/G1_DEX3/README.md`](../../app/Groot-1.6/examples/G1_DEX3/README.md) und
-[`g1_dex3_cfg.py`](../../Simulation/g1_dex3_sim/g1_dex3_cfg.py#L7-L12):
+[`g1_dex3_cfg.py`](../../Simulation/g1_dex3_sim/g1_dex3_cfg.py) (Modul-Docstring):
 
 ```
 [0:7]   left_arm    — Shoulder P/R/Y, Elbow, Wrist R/P/Y
@@ -80,7 +80,7 @@ haben **keinen Aktuator** und damit keinen Antrieb.
 
 ### 1.3 Die Beine sind aber im Asset vorhanden
 
-[`convert_urdf_to_usd.py`](../../Simulation/g1_dex3_sim/convert_urdf_to_usd.py#L18-L52)
+[`convert_urdf_to_usd.py`](../../Simulation/g1_dex3_sim/convert_urdf_to_usd.py)
 baut das USD aus:
 
 ```python
@@ -202,8 +202,8 @@ einsatzfähige RL-Lauf-Policies für den G1:
 - **Export:** JIT/ONNX, läuft mit ~50 Hz auf dem realen Roboter.
 
 > ⚠️ **Isaac-Lab-Versionskonflikt beachten:** `unitree_rl_lab` verlangt Isaac Lab 2.3 /
-> Isaac Sim 5.1. Die Sim-Eval dieses Projekts läuft auf einer eigenen Isaac-Lab-Version
-> (siehe Sim-Dockerfiles). Vor einer Integration die Versionen abgleichen.
+> Isaac Sim 5.1. Die Sim-Eval dieses Projekts läuft seit 2026-08-08 auf Isaac Lab 3.0.0-beta2-post1 / Isaac Sim 6.0
+> (zuvor 2.3.2 / Sim 5.1, also genau die Version von `unitree_rl_lab`). Vor einer Integration die Versionen abgleichen.
 
 ### 4.1 Auf der realen Hardware ist es ebenfalls entkoppelt
 
@@ -235,10 +235,10 @@ Arme + Hände = bestehendes, fine-getuntes GR00T-Modell. Entspricht GR00T N1.5/N
 
 **In der Simulation (Isaac Lab):**
 1. `fix_root_link=True` → **`False`** in
-   [`g1_dex3_cfg.py`](../../Simulation/g1_dex3_sim/g1_dex3_cfg.py#L128); Basis als
+   [`g1_dex3_cfg.py`](../../Simulation/g1_dex3_sim/g1_dex3_cfg.py) (`fix_root_link`); Basis als
    Floating Base freigeben.
 2. **Boden/Ground-Plane** + Schwerkraft auf die Basis; Start-`pos.z` auf reale Stehhöhe
-   (~0.74 m Pelvis) statt 0.85 m schwebend.
+   (Pelvis, gemessen 0,764 m — bereits der aktuelle Default, s. o.).
 3. **Aktuatoren für Beine (12) + Taille** ergänzen (Hip/Knee/Ankle/Waist) mit passenden
    PD-Gains aus `unitree_rl_lab`/`unitree_rl_gym`.
 4. **Lokomotions-Policy laden** (JIT/ONNX) und im Control-Loop die Beingelenke ansteuern;

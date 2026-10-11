@@ -5,7 +5,7 @@
 > Umsetzungsstand pro Teil direkt im Status-Banner unten.
 
 **Status:** **Spur B gebaut** ([`live_view.py`](../../Simulation/g1_dex3_sim/live_view.py), 2026-08-08) ·
-**Spur A gebaut** (2026-08-13, D1–D4 + D6 behoben) — **beide noch nie auf Hardware gesehen** ·
+**Spur A gebaut** (2026-08-13, D1–D4 + D6 behoben) — **für beide kein dokumentierter Client-Test auf Hardware** (Stand 2026-10-11; die Zeitmessung vom 2026-08-13 mit `LIVESTREAM=2` belegt nur die Eval-Laufzeit, keine Client-Verbindung) ·
 **Erstellt:** 2026-06-02 · **Revision v2:** 2026-08-07 · **v3:** 2026-08-08 · **v4:** 2026-08-13
 
 > ## Umsetzungsstand
@@ -38,8 +38,8 @@ einer vast.ai-Instanz**. Drei Dinge haben sich seither verschoben:
 | Änderung | Konsequenz für den Livestream |
 |---|---|
 | **Primäre Plattform ist jetzt `ikr-ki-server-01`** (2× RTX PRO 6000 Blackwell, Treiber 610.43.02), erreichbar **direkt im Netz/VPN** — siehe [`server_rl_run.sh`](../../Simulation/server_rl_run.sh) | Das vast.ai-Kernproblem (zufälliges Port-Mapping ⇄ SDP-eingebetteter Port) **entfällt vollständig**. Ports sind frei wählbar, UDP funktioniert. Das ist die mit Abstand günstigste Ausgangslage für WebRTC. |
-| **Isaac-Sim-6.0-Port** (Basis-Image `isaac-lab:3.0.0-beta2-post1` statt `2.3.2`), erzwungen durch den Blackwell-Segfault unter Treiber 610.x | Der Browser-Client auf **Port 8211 existiert in Isaac Sim 6.0 nicht mehr**; die Kit-Settings-Pfade haben sich geändert. Unser bestehender Livestream-Code zielt noch auf 4.5/5.x → **§2 Defekte**. |
-| **Drei Lauf-Typen** sollen live beobachtbar sein: RL-Fine-tuning, Sim-Eval, Baseline-Eval | RL hat **keinerlei** Livestream-Logik ([`rl_finetune.py:150`](../../Simulation/g1_dex3_sim/rl_finetune.py#L150) hardcodet `AppLauncher(headless=True, …)`), und ein tagelanger RL-Lauf passt schlecht zum WebRTC-Modell („nur ein Client, keine Reconnect-Semantik"). → **Zwei Spuren, §1.** |
+| **Isaac-Sim-6.0-Port** (Basis-Image `isaac-lab:3.0.0-beta2-post1` statt `2.3.2`), erzwungen durch den Blackwell-Segfault unter Treiber 610.x | Der Browser-Client auf **Port 8211 existiert in Isaac Sim 6.0 nicht mehr**; die Kit-Settings-Pfade haben sich geändert. Unser bestehender Livestream-Code zielt noch auf 5.x → **§2 Defekte**. |
+| **Drei Lauf-Typen** sollen live beobachtbar sein: RL-Fine-tuning, Sim-Eval, Baseline-Eval | RL hat **keinerlei** Livestream-Logik ([`rl_finetune.py`](../../Simulation/g1_dex3_sim/rl_finetune.py) hardcodete damals `AppLauncher(headless=True, …)`; inzwischen ist das über `LIVESTREAM` schaltbar, siehe D5), und ein tagelanger RL-Lauf passt schlecht zum WebRTC-Modell („nur ein Client, keine Reconnect-Semantik"). → **Zwei Spuren, §1.** |
 
 **Hardware-Voraussetzung ist erfüllt:** WebRTC braucht NVENC; die RTX PRO 6000 Blackwell hat
 **vier NVENC-Engines (9. Generation)**. Die Sim-GPU-Regel (Ampere+ mit RT-Cores) und die
@@ -80,8 +80,8 @@ Der Plan baut beide, aber mit klarer Zuständigkeit:
 
 ## 2. Befund am bestehenden Code — 6 konkrete Defekte
 
-Der v1-Code in [`entrypoint_sim.sh`](../../Simulation/scripts/entrypoint_sim.sh#L270-L296) und
-[`entrypoint_baseline.sh`](../../Simulation/scripts/entrypoint_baseline.sh#L204-L210) ist
+Der v1-Code in [`entrypoint_sim.sh`](../../Simulation/scripts/entrypoint_sim.sh) und
+[`entrypoint_baseline.sh`](../../Simulation/scripts/entrypoint_baseline.sh) (Stand v1; der Block ist seither nach `lib_livestream.sh` gewandert) ist
 strukturell richtig (opt-in, `--headless` korrekt weggelassen wegen
 [IsaacLab#381](https://github.com/isaac-sim/IsaacLab/issues/381)), hat aber sechs Punkte, die
 vor dem ersten Test korrigiert bzw. verifiziert werden müssen:
@@ -198,14 +198,14 @@ Läufe bleibt bit-identisch.
 
 | Lauf | Datei / Zeile | Frame-Quelle |
 |---|---|---|
-| Sim-Eval | [`run_g1_dex3_sim_eval.py:187-189`](../../Simulation/g1_dex3_sim/run_g1_dex3_sim_eval.py#L187-L189) — direkt neben `frames.append(frame)` | `obs_step["video.cam_scene"]` (bereits gerendert, Fallback `cam_left_high`) |
+| Sim-Eval | [`run_g1_dex3_sim_eval.py`](../../Simulation/g1_dex3_sim/run_g1_dex3_sim_eval.py) (Z. ~388) — direkt neben `frames.append(frame)` | `obs_step["video.cam_scene"]` (bereits gerendert, Fallback `cam_left_high`) |
 | Baseline-Eval | derselbe Codepfad (nutzt dasselbe Eval-Skript) | dito |
-| RL | Rollout-Schleife in [`rl_finetune.py`](../../Simulation/g1_dex3_sim/rl_finetune.py#L230-L290), zusätzlich Metriken am Iterations-Ende (`reward_mean`, `success`, [Zeile 283](../../Simulation/g1_dex3_sim/rl_finetune.py#L283)) | `obs[f"video.{cam}"][0]` — Env 0 der vektorisierten Envs |
+| RL | Rollout-Schleife in [`rl_finetune.py`](../../Simulation/g1_dex3_sim/rl_finetune.py) (`live.publish_obs`, Z. ~374), zusätzlich Metriken am Iterations-Ende (`reward_mean`, `success_rate`, Z. ~502) | `obs[f"video.{cam}"][0]` — Env 0 der vektorisierten Envs |
 
 **Kostenpunkt — die offene Frage ist beantwortet (2026-08-08, Code-Befund):** `cam_scene` **wird
 im RL-Lauf gerendert**. Sie steht in
-[`G1Dex3BlockstackEnv.cameras`](../../Simulation/g1_dex3_sim/g1_dex3_blockstack_env.py#L351)
-(mit dem Kommentar „nur fürs Video"), `_get_observations()` iteriert über *alle* Einträge dieses
+[`G1Dex3BlockstackEnv.cameras`](../../Simulation/g1_dex3_sim/g1_dex3_blockstack_env.py)
+(mit dem Kommentar „nur fürs Video"; inzwischen abschaltbar über `SCENE_CAM=0`), `_get_observations()` iteriert über *alle* Einträge dieses
 Dicts, und `get_obs_batched()` reicht sie als `video.cam_scene` an den RL-Trainer durch. Der
 Rollout hat das Bild also ohnehin in der Hand — **kein zusätzlicher Render-Pass**, nur ein
 GPU→CPU-Copy (~1 MB) und die JPEG-Kodierung. Letztere läuft in einem eigenen Thread und nur,

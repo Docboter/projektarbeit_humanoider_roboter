@@ -2,7 +2,14 @@
 
 > **TL;DR:** RL-Recherche und Umsetzungsplan (FPO-Fine-tuning): Bausteine, Phasen-Plan,
 > GPU-Rendering-Konflikt und Status der bereits gebauten Teile. Gepflegte Statusquelle — aktueller
-> Stand „Pipeline läuft end-to-end, Lernwirkung offen“ im Banner direkt darunter.
+> Stand „Pipeline lief end-to-end, Lernwirkung offen, Co-Training zuerst“ im Banner direkt darunter.
+
+> **Stand 2026-10-11:** Seit dem ersten vollen Durchlauf (2026-08-08) gibt es keine dokumentierten
+> RL-Läufe; die Wirkung ist nicht gezeigt. Am 2026-08-24 wurde die Sim-Geometrie korrigiert
+> (falsche Fingerspiegelung entfernt, Beckenhöhe 0,764 m, Basis x −0,057 m; [Chronik, Läufe 38–51](../ergebnisse/diagnose-chronik.md#läufe-3846-runs2026082302-runs202608240512-die-fingergrundgelenke-standen-still)) —
+> alle Greif-Zahlen unten stammen aus der alten Geometrie, eine Neumessung steht aus. Nächster Schritt
+> ist Co-Training ([co-training.md](../training/co-training.md)); der einzige Co-Training-Lauf
+> (`cotrain_synth_v1`) brach am 2026-09-07 nach 138 s ab.
 
 > **Status: Pipeline läuft end-to-end, Lernwirkung noch offen.** Dieses Dokument beschreibt
 > Motivation, Bausteine und Phasen-Plan. Der **FPO-RL-Pfad ist gebaut** (Algorithmus-Kern gegen
@@ -31,7 +38,10 @@
 > **✅ Bestätigt durch das `span`-Gate (Lauf 32, 2026-08-13).** Dieselbe Policy auf **echten
 > Datensatz-Bildern** erreicht ein Median-Verhältnis von **1,00** (fünf Trajektorien, 0,84–1,01) —
 > sie kommandiert die volle Greifbewegung, sobald die Bilder echt sind. Nach der vorregistrierten
-> Regel (`≥ 70 %`) ist damit der **Domain-Gap die Ursache** und „Griff nie gelernt" ausgeschlossen.
+> Regel (`≥ 70 %`) ist damit der **Domain-Gap die wahrscheinlichste Ursache**; „Griff nie gelernt" gilt
+> als weitgehend ausgeschlossen. **Vorbehalt (2026-10-11):** die Trajektorien 0–4 sind
+> Trainingsepisoden und 2,0944 rad ist das De-Normalisierungs-Maximum — Auswendiglernen ist nicht
+> ausgeschlossen, die Messung auf zurückgehaltenen Episoden fehlt.
 > `TUNE_VISUAL=1` war damit der begründete nächste Lauf, RL kommt danach.
 > Details: [diagnose-chronik.md](../ergebnisse/diagnose-chronik.md#lauf-32-runs2026081301-das-span-gate-ist-entschieden--a1).
 >
@@ -99,7 +109,7 @@ Die [Abschluss-Auswertung des ersten Laufs](../ergebnisse/lauf1-auswertung.md) h
 **Genau hier setzt RL an:** RL optimiert direkt auf **Aufgaben-Erfolg** (Reward) und exploriert
 dabei selbst Zustände jenseits der Demonstrationen — es lernt also gerade die Korrekturen, die BC
 fehlen. In der aktuellen Forschung hebt RL-Fine-tuning von VLA-Policies Erfolgsraten typischerweise
-**massiv** an (z. B. π·RL: LIBERO 57,6 % → 97,6 %; ManiSkill-MultiTask 41,6 % → 85,7 %, siehe
+**massiv** an (z. B. πRL, ManiSkill: π₀ 41,6 % → 85,7 %, siehe
 [Quellen](#8-quellen)).
 
 ---
@@ -142,7 +152,7 @@ Das Herzstück von RL.
 > `reward_mode = "binary"` (Default, für Eval/Ablation) und `reward_mode = "shaped"` mit dem
 > dichten RL-Reward in `_shaped_reward`
 > ([`g1_dex3_blockstack_env.py`](../../Simulation/g1_dex3_sim/g1_dex3_blockstack_env.py),
-> `reward_mode` bei Z. 438, Gewichte 440–445, `_shaped_reward` ab 1070). Der folgende Abschnitt
+> `reward_mode` bei Z. ~466, Gewichte `rew_*` ~470–473, `_shaped_reward` ab ~1249). Der folgende Abschnitt
 > beschreibt die Ausgangslage vor dieser Umsetzung.
 
 Ausgangslage: Das Env lieferte nur einen **binären Success-Reward**, ausdrücklich für Ablationen
@@ -177,8 +187,9 @@ Modellklasse (flow-basierte VLA mit eingefrorenem VLM + trainierbarem Action-Exp
 das deckt sich 1:1 mit unserem Setup (`tune_llm=False`, `tune_visual=False`, nur Projector +
 Action-Head trainierbar, siehe [trainingsverfahren.md §2](../training/trainingsverfahren.md)).
 
-> ✅ **Entschieden und umgesetzt wurde stattdessen FPO** (Flow Policy Optimization,
-> arXiv 2510.09976) — siehe [`rl_finetune.py:26`](../../Simulation/g1_dex3_sim/rl_finetune.py).
+> ✅ **Entschieden und umgesetzt wurde stattdessen FPO** (Flow Policy Optimization aus „Flow Matching Policy Gradients",
+> McAllister et al., arXiv 2507.21053) — siehe [`rl_finetune.py`](../../Simulation/g1_dex3_sim/rl_finetune.py)
+> (Modul-Docstring, seit 2026-10-11 korrigiert).
 > FPO ersetzt das exakte Likelihood-Verhältnis durch den Flow-Matching-Verlust und braucht
 > deshalb keine SDE-Umformulierung. π·RL bleibt hier als dokumentierte Alternative stehen.
 
@@ -187,7 +198,7 @@ RL erzeugt Daten durch **eigenes Agieren** (Rollouts), nicht aus einem Datensatz
 und Sim müssen pro Schritt kommunizieren.
 → ✅ **Gebaut.** [`rl_finetune.py`](../../Simulation/g1_dex3_sim/rl_finetune.py) lädt die Policy
 **in-process** (kein ZMQ) und ist damit gradientenfähig; die batched Observations liefert
-`get_obs_batched` ([`g1_dex3_blockstack_env.py:1175`](../../Simulation/g1_dex3_sim/g1_dex3_blockstack_env.py)).
+`get_obs_batched` ([`g1_dex3_blockstack_env.py`](../../Simulation/g1_dex3_sim/g1_dex3_blockstack_env.py), Z. ~1410).
 Der ZMQ-Policy-Client [`client.py`](../../Simulation/g1_dex3_sim/client.py) bleibt der Pfad für die
 Closed-Loop-**Eval**. Ursprüngliche Einschätzung: „teilweise vorhanden — für RL muss die Schleife
 gradientenfähig und hochparallel werden".
@@ -195,7 +206,7 @@ gradientenfähig und hochparallel werden".
 ### 3.5 Rechenleistung — und ein projektspezifischer GPU-Konflikt ⚠️
 RL ist **deutlich teurer** als BC: Pro Optimierungsschritt müssen **Sim + Rendering + Policy-
 Inferenz (mehrfaches Entrauschen) + Backprop** laufen, und RL braucht **viele parallele
-Environments** für Stichproben-Effizienz (π·RL nutzt z. B. **320 parallele Envs** auf **8× H100**).
+Environments** für Stichproben-Effizienz (πRL nutzt z. B. **320 parallele Envs** in ManiSkill).
 
 **Der Haken in diesem Projekt** (siehe [umsetzungsnotizen.md](../simulation/umsetzungsnotizen.md)
 und CLAUDE.md): Bildbasiertes RL braucht **Kamera-Rendering**, und Isaac Sims Raytracing braucht
@@ -246,8 +257,8 @@ Da viel Infrastruktur schon steht, ist der Delta-Aufwand überschaubarer als ein
 **Neu zu bauen (das eigentliche RL-Delta):**
 
 > ✅ **Alle vier Punkte sind inzwischen umgesetzt** — `_shaped_reward`
-> ([Env:1070](../../Simulation/g1_dex3_sim/g1_dex3_blockstack_env.py)), `get_obs_batched`
-> ([Env:1175](../../Simulation/g1_dex3_sim/g1_dex3_blockstack_env.py)),
+> ([Env](../../Simulation/g1_dex3_sim/g1_dex3_blockstack_env.py), Z. ~1249), `get_obs_batched`
+> ([Env](../../Simulation/g1_dex3_sim/g1_dex3_blockstack_env.py), Z. ~1410),
 > [`rl_finetune.py`](../../Simulation/g1_dex3_sim/rl_finetune.py) (FPO statt RLinf-VLA) und
 > [`kisski_rl_submit.sh`](../../Training/kisski_rl_submit.sh). Die Liste steht als historischer
 > Delta-Plan.
@@ -333,7 +344,7 @@ allem **(a) ein echter Reward**, **(b) echte Parallelität (`num_envs>1`)** und 
   vast.ai (Pfad A) bleibt als Fallback dokumentiert.
 - [ ] **Render-Durchsatz-Benchmark** (Vorbereitung, kein RL): Auf der gewählten GPU messen, wie viele
   parallele Envs **mit** 4-Kamera-Rendering bei akzeptabler FPS laufen (Anhaltspunkt Literatur: 320
-  Envs auf 8× H100, aber **ohne** RT-Cores). Ergebnis bestimmt realistische `num_envs`.
+  Envs bei πRL/ManiSkill, aber **ohne** RT-Cores). Ergebnis bestimmt realistische `num_envs`.
 - [ ] **Algorithmus & Framework fixieren**: π·RL (Flow-SDE+PPO) vs. FPO vs. ReinFlow; eigenes
   RL-Framework (z. B. RLinf-VLA) anbinden **oder** Loss in GR00T-Trainer integrieren. → Entscheidung +
   1 Absatz Begründung in dieses Dokument.
@@ -439,8 +450,8 @@ Reihenfolge, die mit **kleinstem Aufwand** zum ersten echten Lernsignal führt:
 - [Isaac Lab — GPU-beschleunigtes Robot-Learning-Framework](https://developer.nvidia.com/isaac/lab)
 
 **RL-Fine-tuning von Flow-/Diffusions-VLAs (2025):**
-- [πRL: Online RL Fine-tuning for Flow-based VLAs (arXiv 2510.25889)](https://arxiv.org/html/2510.25889v1) — Flow-Noise/Flow-SDE, PPO > GRPO, 320 parallele Envs, 8× H100.
-- [Reinforcement Fine-Tuning of Flow-Matching Policies for VLA Models — FPO (arXiv 2510.09976)](https://arxiv.org/html/2510.09976v1) — likelihood-freier PPO-Proxy.
+- [πRL: Online RL Fine-tuning for Flow-based VLAs (Chen, Kang, Liu et al., arXiv 2510.25889)](https://arxiv.org/html/2510.25889v1) — Flow-Noise/Flow-SDE, PPO > GRPO, ManiSkill mit 320 parallelen Envs (π₀ 41,6 % → 85,7 %).
+- [Flow Matching Policy Gradients — FPO (McAllister et al., arXiv 2507.21053)](https://arxiv.org/abs/2507.21053) — likelihood-freier PPO-Proxy.
 - [ReinFlow: Fine-tuning Flow Matching Policy with Online RL (arXiv 2505.22094)](https://arxiv.org/pdf/2505.22094)
 - [Reinforcement Learning for Flow-Matching Policies (arXiv 2507.15073)](https://arxiv.org/pdf/2507.15073)
 - [REFINE-DP: Diffusion Policy Fine-tuning for Humanoid Loco-manipulation via RL (arXiv 2603.13707)](https://arxiv.org/pdf/2603.13707)

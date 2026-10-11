@@ -2,7 +2,8 @@
 
 > **TL;DR:** Auswertung des dritten Trainingslaufs (Vision-Encoder + Color-Jitter + 80/20-Split) —
 > erste echte Validierung mit zurückgehaltenen Episoden. Checkpoint-Sweep belegt Overfitting
-> (U-Kurve, bester Checkpoint 30.000). Kurzfazit in §1.
+> (U-Kurve, bester Checkpoint 30.000). Kurzfazit in §1. Stand 2026-10-11: es gibt keinen neueren
+> Trainingslauf; die Closed-Loop-Zahlen (§8.3) stammen aus der alten Sim-Geometrie.
 
 **Erstellt:** 2026-08-14 · **Run-ID:** `tp1nc699` (W&B-Projekt `gr00t-g1-dex3`, Entity
 `projektarbeit_humanoider_roboter`) · **Modell:** GR00T N1.6 (3,29 Mrd. Parameter),
@@ -17,6 +18,18 @@ Finetune mit aufgetautem Vision-Encoder (`tune_visual = true`), Color-Jitter akt
 >
 > Datengrundlage: die W&B-Kurven von `tp1nc699` und der Checkpoint-Sweep
 > [`Simulation/runs/20260814/01/checkpoint_sweep.json`](../../Simulation/runs/20260814/01/checkpoint_sweep.json).
+
+> **Nachtrag 2026-10-11 — was seit diesem Dokument passiert ist.** (1) Die Closed-Loop-Messung
+> (Lauf 34, §8.3) lief vor der Korrektur vom 2026-08-24: vier proximale Fingergelenke standen durch
+> eine falsche Vorzeichenspiegelung still, Beckenhöhe 0,85 statt 0,764 m, Basis x 0 statt −0,057 m
+> ([Chronik, Läufe 38–51](diagnose-chronik.md#läufe-3846-runs2026082302-runs202608240512-die-fingergrundgelenke-standen-still)).
+> Der Vergleich 27,6 % vs. 20,5 % bleibt innerhalb derselben Geometrie gültig, die Absolutwerte
+> und `lifted 0/10` sind neu zu messen. (2) Das `span`-Verhältnis 1,00 auf echten Bildern bezieht
+> sich auf Trainingsepisoden; es fehlt die Messung auf zurückgehaltenen Episoden. (3) Ob Lauf 2
+> wirklich ohne Jitter lief, ist ungeklärt (siehe Vorbehalt in
+> [lauf2-vision-auswertung.md](lauf2-vision-auswertung.md) §6.1). (4) Der nächste Schritt ist
+> Co-Training; `cotrain_synth_v1` brach am 2026-09-07 nach 138 s ab, ein neuer Lauf gab es nicht
+> ([co-training.md](../training/co-training.md)).
 
 ---
 
@@ -289,8 +302,10 @@ mechanisch, statt nur Nebenprodukt von mehr Kontakt zu sein.
 
 **Einordnung für diesen Lauf:** damit ist `TUNE_VISUAL=1` **mit** Augmentierung als Maßnahme
 belegt — die Gegenprobe zu [`lauf2-vision-auswertung.md`](lauf2-vision-auswertung.md) §6.2 ist
-bestanden, wo derselbe Schalter *ohne* Jitter zum Politik-Kollaps führte. Der Gap ist damit
-allerdings nicht geschlossen: 27,6 % in der Sim gegen 100 % auf echten Bildern. Die vollständige
+bestanden, wo derselbe Schalter *ohne* Jitter zum Politik-Kollaps führte (Vorbehalt zur
+Jitter-Zuschreibung: siehe Nachtrag oben). Der Gap ist damit
+allerdings nicht geschlossen: 27,6 % in der Sim gegen 100 % auf echten Bildern (Letzteres auf
+Trainingsepisoden gemessen, s. Nachtrag oben). Die vollständige
 Auswertung steht in
 [diagnose-chronik.md, Läufe 33/34](diagnose-chronik.md#läufe-3334-runs2026081403-runs2026081404-der-tune_visual-checkpoint-im-closed-loop).
 
@@ -303,7 +318,7 @@ Befund für die Ausarbeitung.
 
 ## 9. Offene Punkte
 
-- **Split-Verifikation** (Abschnitt 6) — bis dahin stehen alle Zahlen unter Vorbehalt.
+- **Split-Verifikation** (Abschnitt 6) — bis dahin stehen alle Zahlen unter Vorbehalt (Stand 2026-10-11: keine Prüfung dokumentiert; die W&B-Config nennt 240 Train-/61 Test-Episoden).
 - **Nachgeschärfter Sweep** mit 20 Episoden über die volle Episodenlänge (8.1).
 - ~~**Verhaltens-Evaluation** von checkpoint-30000~~ — erledigt am 2026-08-14 (8.3).
 - **Erneute Domain-Gap-Messung** mit dem getunten Encoder aus Lauf 3 — ist der Gap durch das

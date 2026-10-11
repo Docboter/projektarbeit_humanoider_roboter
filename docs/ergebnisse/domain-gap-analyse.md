@@ -23,22 +23,19 @@ Da `tune_visual = false`, sind die Gewichte identisch mit dem frozen GR00T-ViT �
 
 **Script:** [`Simulation/scripts/measure_domain_gap.py`](../../Simulation/scripts/measure_domain_gap.py)
 
-**Ausführung:** im `lucam03/projekt-humanoider-roboter-sim-vastai`-Container (hat GR00T-venv mit torch + transformers)
+**Ausführung (aktuell):** im langlebigen Sim-Container auf dem eigenen Server (Image `lucam03/projekt-humanoider-roboter-sim-standalone`; früher `…-sim-vastai`, umbenannt, siehe [portabilitaet.md](../portabilitaet.md)):
 
 ```bash
-docker run --rm \
-  -v "$REPO/Simulation/camera_reference:/workspace/camera_reference:ro" \
-  -v "$REPO/Simulation/runs/20260602/02:/workspace/sim_debug:ro" \
-  -v "$REPO/Simulation/scripts:/workspace/scripts:ro" \
-  -v "$HOME/.cache/huggingface:/root/.cache/huggingface" \
-  -v "/tmp/output:/output" \
-  lucam03/projekt-humanoider-roboter-sim-vastai:latest \
-  /app/Groot-1.6/.venv/bin/python /workspace/scripts/measure_domain_gap.py
+./Simulation/server_rl_run.sh cams   # Sim-Frames nach /data/cam_dump/ (dump_camera_poses.py)
+./Simulation/server_rl_run.sh gap    # misst; Ergebnis /data/cam_dump/domain_gap_results.json
 ```
+
+Die Erstmessung vom Juni lief noch per einmaligem `docker run` des damaligen Images gegen
+`Simulation/runs/20260602/02/_debug_obs_cam_*.png`; dieser Weg ist ersetzt.
 
 **Frames:**
 - Real: `Simulation/camera_reference/dataset_cam_*.png` (aus dem Teleop-Datensatz)
-- Sim: `Simulation/runs/20260602/02/_debug_obs_cam_*.png` (Isaac Sim Debug-Frames)
+- Sim: `/data/cam_dump/<cam>.png` (Ausgabe von `cams`, Pose = Reset-Pose)
 
 **Metrik:** Cosine-Distanz zwischen CLS-/Pooled-Embeddings (0 = identisch, ~0.5–0.7 = zufälliges Bildpaar)
 
@@ -83,10 +80,21 @@ verfehlt das vorab festgelegte Kriterium von < 0,35. Konsequenz nach der in
 Albedo-Versuch, sondern Option 3 (`TUNE_VISUAL=1`) — vorher aber Schritt 3 (BC-Erfolgsrate in der
 Sim), der die Zielgröße direkt misst statt über den Proxy.
 
+> **Nachtrag 2026-10-11 — Messung nicht neu gefahren, Geometrie seither geändert.** Die Zahlen
+> oben stammen von 2026-08-08 (Beckenhöhe 0,85 m, Basis x 0, Vorzeichenspiegelung der
+> Fingergelenke). Am 2026-08-24 wurden Beckenhöhe (0,764 m), Basis x (−0,057 m) und die
+> Fingerspiegelung korrigiert ([Chronik, Läufe 38–51](diagnose-chronik.md#läufe-3846-runs2026082302-runs202608240512-die-fingergrundgelenke-standen-still)).
+> Da die Kennzahl Szeneninhalt (Armpose, Roboter–Tisch-Abstand) mitmisst, kann sich der
+> Kamera-Anteil verschoben haben — besonders bei `cam_left_wrist`. Eine Neumessung mit der
+> korrigierten Geometrie (und mit dem `TUNE_VISUAL`-Encoder aus Lauf 3) steht aus; es gibt keine
+> neuere Gap-Messung als 2026-08-08.
+
 > **Nachtrag: Schritt 3 ist gelaufen.** Lauf 30 (2026-08-12) misst die BC-Erfolgsrate in der Sim
 > mit **0/20**. Nach der vorregistrierten Regel ist `TUNE_VISUAL=1` damit bestätigt. Lauf 30 zeigt
 > zusätzlich, dass die Politik nur ~19 % der demonstrierten Fingerspannweite kommandiert — der
-> Befund zeigt also auf Wahrnehmung/Politik, nicht nur auf das Rendering. Details:
+> Befund zeigt also auf Wahrnehmung/Politik, nicht nur auf das Rendering. (Vorbehalt: Lauf 30
+> entstand mit dem später als fehlerhaft erkannten Fingerzustand der Sim, Läufe 38–46; und das
+> `span`-Gate, das den Domain-Gap „bestätigte", wurde auf Trainingsepisoden gemessen.) Details:
 > [`diagnose-chronik.md`](diagnose-chronik.md).
 
 ---

@@ -2,7 +2,8 @@
 
 > **TL;DR:** Abschluss-Auswertung des ersten kompletten Trainingslaufs (175.000 Steps, frozen
 > Vision-Encoder): W&B-Metriken, Verhaltens-Evaluation (Closed-Loop, Replay, Open-Loop) und Diagnose
-> des Domain-Gaps. Ausgangsdokument, auf das spätere Läufe verweisen; Kurzfazit in §1.
+> des Domain-Gaps. Ausgangsdokument, auf das spätere Läufe verweisen; Kurzfazit in §1. Stand der Sim-Geometrie
+> hat sich seither geändert (Nachtrag 2026-10-11 am Ende von §8.2).
 
 **Erstellt:** 2026-06-03 · **Run-ID:** `i6n1t613` (W&B-Projekt `gr00t-g1-dex3`, Entity
 `projektarbeit_humanoider_roboter`) · **Modell:** GR00T N1.6 (3,29 Mrd. Parameter),
@@ -23,7 +24,7 @@ Partial-Finetune auf Unitree G1 + DEX3, Task „stack the blocks".
   **friert dann ein**; kein Greifen, kein Stapel.
 - **Ursachenkette über drei Diagnosen eindeutig eingegrenzt:** Das Modell ist
   **grundsätzlich fähig** (sagt bei echten Beobachtungen gute Arm-Actions vorher), die
-  Sim/Config **führt Aktionen korrekt aus** — der Closed-Loop scheitert dennoch. Der
+  Sim/Config **führt Aktionen korrekt aus** (unter dem Vorbehalt aus dem Nachtrag in §8.2: vier Finger-Grundgelenke standen damals still) — der Closed-Loop scheitert dennoch. Der
   einzige Unterschied zwischen „funktioniert" und „friert ein" sind die **Beobachtungen**.
   → Wahrscheinliche Hauptursache: **visueller Domain-Gap** (reale Trainingsbilder vs.
   synthetische Isaac-Sim-Renderings) bei **eingefrorenem Vision-Encoder**.
@@ -176,7 +177,13 @@ dieselbe Policy 19 % der Fingerspanne und erreicht 0/20. Das ist die schärfste
 Formulierung des Domain-Gaps, die das Projekt hat, unabhängig gemessen und deckungsgleich
 mit dem `span`-Gate aus Lauf 32 (Verhältnis 1,00 auf Realbildern, siehe
 [diagnose-chronik.md](diagnose-chronik.md)). „Griff nie gelernt" ist damit ein
-zweites Mal ausgeschlossen, und die Trainingspipeline ist entlastet.
+zweites Mal weitgehend ausgeschlossen, und die Trainingspipeline ist entlastet.
+
+> **Nachtrag 2026-10-11 — Vorbehalt zur Belegkraft.** Das `span`-Verhältnis 1,00 (Lauf 32) wurde auf
+> den Trajektorien 0–4 gemessen, und das sind **Trainingsepisoden** (Lauf 1 hatte keinen Split);
+> zudem ist 2,0944 rad zugleich das De-Normalisierungs-Maximum. Auswendiglernen der Greifbewegung
+> ist damit nicht ausgeschlossen; die Messung auf zurückgehaltenen Episoden steht aus. „Domain-Gap
+> bestätigt" ist deshalb die plausibelste, nicht die einzig mögliche Lesart.
 
 ---
 
@@ -252,10 +259,10 @@ liegen **nicht** am Training.
 ### 8.2 Sim-Kalibrierung: Replay-Durchbruch
 
 Nach einer systematischen Kalibrierungs-Session (Details in
-[`umsetzungsnotizen.md §14`](../simulation/umsetzungsnotizen.md)) wurde das Replay-Ergebnis
+[`umsetzungsnotizen.md` §11 und §13](../simulation/umsetzungsnotizen.md)) wurde das Replay-Ergebnis
 von `max_cube_lift = 1,0 cm` (kein Greifen) auf **2,8 cm** (Greifen bestätigt) verbessert.
 
-> ⚠️ **Einschränkung (2026-08-08) — inzwischen aufgelöst:** Dieser Befund gilt für Isaac Sim 4.x.
+> ⚠️ **Einschränkung (2026-08-08) — inzwischen aufgelöst:** Dieser Befund gilt für Isaac Sim 5.1 (`isaac-lab:2.3.2`; im Juni stand dort fälschlich „4.x").
 > Nach der Isaac-Sim-6.0-Migration hob derselbe Replay-Testtyp zunächst keinen Würfel mehr an
 > (0,0 cm).
 > **Aufgelöst mit Lauf 29 (2026-08-12):** Ursache war der Referenzpunkt der Messung — sie lief
@@ -278,6 +285,14 @@ Die wesentlichen Fixes:
 4. **Würfelhöhe**: `block_z_surface` 0,895→0,915 — Würfel-Oberkante jetzt bei z=0,940,
    entspricht dem tiefsten gemessenen Handpunkt (links z=0,937, rechts z=0,944).
 
+> **Nachtrag 2026-10-11 — Punkte 1 und 4 sind überholt.** (1) Der „Sign-Convention-Fix" war falsch:
+> der Datensatz ist bereits seitenweise in USD-Konvention aufgezeichnet, die Spiegelung drehte die
+> vier proximalen Fingergelenke aus ihrer Grenze, sie bewegten sich nicht (Läufe 38–46, entfernt am
+> 2026-08-24). Die Hand konnte nie ganz schließen, die Policy sah einen verfälschten Zustand. (4)
+> `block_z_surface` ist seit Lauf 37 wieder 0,895 (Ruhelage unverändert). Außerdem Beckenhöhe
+> 0,85 → 0,764 m und Basis x −0,057 m. Alle Greifzahlen dieses Dokuments (Replay 2,8 cm,
+> Closed Loop) stammen aus der alten Geometrie; Neumessung steht aus. Siehe
+> [diagnose-chronik.md](diagnose-chronik.md#läufe-3846-runs2026082302-runs202608240512-die-fingergrundgelenke-standen-still).
 ### 8.3 Closed-Loop-Diagnose bestätigt
 
 Das Closed-Loop-Verhalten mit `checkpoint-175000` auf vast.ai (L40):
@@ -322,6 +337,11 @@ Die Diagnose ist damit **dreifach bestätigt**:
 
 #### Option B: Reinforcement Learning (RL)
 
+> **Nachtrag 2026-10-11:** Umgesetzt wurde nicht Trajectory-Level-REINFORCE, sondern FPO
+> (`rl_finetune.py`, Shaped Reward, batched Env); eine Iteration lief im August 2026 auf Hardware
+> durch, eine Lernwirkung ist nicht gezeigt, Co-Training soll vor RL kommen
+> ([reinforcement-learning-plan.md](../weiterfuehrend/reinforcement-learning-plan.md)).
+
 **Machbar, mittlerer bis hoher Aufwand** (~2–3 Wochen Engineering):
 
 | Aspekt | Bewertung |
@@ -350,5 +370,5 @@ Für dieses Projekt (kein echter Roboter verfügbar):
 1. **Sim-Diagnose als vollständig abgeschlossen betrachten:** Replay-Funktionalität und
    Domain-Gap-Ursache sind belegt — das ist ein valides wissenschaftliches Ergebnis.
 2. **RL als Ausblick/Erweiterung formulieren** (falls kein Zeitrahmen mehr vorhanden).
-3. **Falls Zeit:** REINFORCE-Ansatz auf vast.ai umsetzen — die Infrastruktur (Env,
-   Reward-Grundlage, Docker-Pipeline) ist fertig.
+3. **Falls Zeit:** RL umsetzen — inzwischen als FPO gebaut (siehe Nachtrag bei Option B), auf dem
+   eigenen Server statt vast.ai.

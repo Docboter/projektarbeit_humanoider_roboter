@@ -85,10 +85,10 @@ das Flow-Matching-Ziel an. Das ist **kein** Generalisierungssignal (s. Abschnitt
   (~0,057 bei 11k → ~0,010 bei 115k). Die Optimierung läuft problemlos und ist nicht
   stehengeblieben.
 - **Overfitting: nicht sichtbar, strukturelles Risiko eher moderat-niedrig:**
-  1. nur **~3 Epochen** (175k Steps ≈ 3 Durchläufe, `num_train_epochs=3`),
+  1. wenige Epochen (`num_train_epochs=3` ist nur der Konfig-Wert; effektiv ≈ 5 Datendurchläufe, siehe [lauf1-auswertung.md](lauf1-auswertung.md) §2),
   2. **Partial-Finetune** (nur Projector + Diffusion + 4 LLM-Layer + VLLN; Backbone &
      Visual eingefroren) → wenige trainierbare Parameter,
-  3. **kräftige Augmentation** (color jitter, albumentations).
+  3. Color-Jitter (`--color_jitter_params` war im Launcher dieser Zeit fest verdrahtet; ob er wirksam war, ist aus der W&B-Config nicht ablesbar — dort steht für alle drei Läufe `0.1/0.1/0.1/0.1`).
 - Das eigentliche *unbeobachtete* Risiko ist „stilles Overfitting" in späteren
   Epochen — der weiter sinkende Train-Loss (bis Step 115k) kann sowohl echte
   Verbesserung als auch beginnende Anpassung an die Trainingsdaten sein; ohne
@@ -169,15 +169,17 @@ Siehe [train-test-split.md](../training/train-test-split.md).
 |---|---|---|
 | `save_steps` / `save_total_limit` | 5000 / 40 | ~35 Checkpoints × ~6 GB ≈ **~200 GB** auf `/data` (VAST-Projektspeicher) — beobachten |
 | `deepspeed_stage` | 2 (single GPU) | ZeRO-2 spart Optimizer-Memory, ok |
-| `color_jitter` (Modell) | hue .08 / contrast .4 / bright .3 / sat .5 | kräftige Augmentation → gut gegen Overfitting |
+| `color_jitter` | Launcher: hue .08 / contrast .4 / bright .3 / sat .5; W&B-Config: je 0,1 | Farb-Jitter, keine Geometrie-Augmentation; Widerspruch Launcher/W&B ungeklärt |
 | `dataloader_num_workers` | 8 | passt |
 | Trainable Teile | projector + diffusion + 4 LLM-Layer + VLLN; LLM/Visual frozen | Standard-GR00T-Partial-Finetune |
 | `optim` / Precision | adamw_torch / bf16 + tf32 | sinnvoll |
-| `last-error.md` (Repo-Root) | Sim-Joint-Limits | separater **Sim-Eval**-Bug (DEX3-Finger-Default-Pose außerhalb der USD-Limits), **kein** Trainingsproblem |
+| `last-error.md` (Repo-Root, existiert nicht mehr) | Sim-Joint-Limits | war ein separater **Sim-Eval**-Bug (DEX3-Finger-Default-Pose außerhalb der USD-Limits), **kein** Trainingsproblem |
 
 ---
 
 ## 7. Kurzfazit
+
+> **Nachtrag 2026-10-11:** Endstand laut W&B: 21,4 h, End-Loss ≈ 0,008, **kein aktiver Train/Test-Split** (alle 301 Episoden trainiert). Die Empfehlungen aus §5 (größerer Batch, Split + Sweep) sind in Lauf 2/3 umgesetzt.
 
 Der laufende Lauf ist mit 175.000 Steps **sauber konfiguriert** (LR-Schedule korrekt,
 Trainingsdynamik gesund, keine NaN). **Für den laufenden Job ist nichts zu ändern.**

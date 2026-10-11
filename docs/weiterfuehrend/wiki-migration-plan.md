@@ -7,7 +7,7 @@
 
 ## Ausgangsfrage
 
-Lässt sich die vorhandene Dokumentation unter [`docs/`](.) leicht in den GitHub-Wiki-Tab des
+Lässt sich die vorhandene Dokumentation unter [`docs/`](..) leicht in den GitHub-Wiki-Tab des
 Repos übertragen, statt sie dort separat zu pflegen?
 
 ## Kurzantwort
@@ -30,7 +30,7 @@ pushen — kein Spezialtool nötig.
 3. **Dateien kopieren** — Inhalte aus `docs/` ins Wiki-Repo übertragen. Unterordner
    (`training/`, `simulation/`, `ergebnisse/`, `weiterfuehrend/`) werden vom Wiki-Repo technisch
    mitgetragen, tauchen aber nicht automatisch strukturiert in der Sidebar auf.
-4. **Startseite + Navigation** — [`docs/README.md`](README.md) wird sinnvollerweise zu
+4. **Startseite + Navigation** — [`docs/README.md`](../README.md) wird sinnvollerweise zu
    `Home.md`; zusätzlich eine `_Sidebar.md` anlegen, sonst zeigt GitHub nur eine flache
    A–Z-Liste aller Seitentitel.
 5. **Commit & Push** ins Wiki-Repo — Seiten erscheinen sofort im Wiki-Tab.
@@ -38,7 +38,7 @@ pushen — kein Spezialtool nötig.
 ## Blocker / worauf achten
 
 - **Links außerhalb von `docs/` brechen.** Mehrere Docs verlinken relativ auf Dateien im
-  Submodul `app/Groot-1.6/examples/G1_DEX3/` (siehe [`docs/README.md`](README.md#submodul-dokumentation-appgroot-16examplesg1_dex3)):
+  Submodul `app/Groot-1.6/examples/G1_DEX3/` (siehe [`docs/README.md`](../README.md#submodul-dokumentation-appgroot-16examplesg1_dex3)):
   `SETUP_DOCUMENTATION.md`, `FINETUNING_GUIDE.md`, `README.md`. Die liegen nicht im Wiki-Repo und
   wären dort unerreichbar — diese Links müssten auf volle GitHub-Blob-URLs
   (`https://github.com/<user>/<repo>/blob/main/app/...`) umgeschrieben werden.

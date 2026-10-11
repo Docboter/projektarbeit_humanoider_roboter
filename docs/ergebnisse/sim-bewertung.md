@@ -4,6 +4,15 @@
 > Code-Verifikation und Literaturrecherche, warum 0 % Erfolg der erwartete Real→Sim-Gap ist und
 > Open-Loop-MSE die valide Metrik bleibt.
 
+> **Nachtrag 2026-10-11:** Die Review-Aussage „Steuerungspfad stimmt nachweislich" ist überholt: am
+> 2026-08-24 wurde ein Sim-Fehler gefunden und behoben (falsche Vorzeichenspiegelung ließ vier
+> proximale Fingergelenke stillstehen, Beckenhöhe 0,85→0,764 m, Basis x −0,057 m;
+> [Chronik, Läufe 38–51](diagnose-chronik.md#läufe-3846-runs2026082302-runs202608240512-die-fingergrundgelenke-standen-still)).
+> Die 0-%-Ergebnisse stammen aus dieser fehlerhaften Geometrie; „0 % = erwarteter Real→Sim-Gap"
+> ist plausibel, aber nicht mehr sauber von diesem Fehler getrennt. Das SIMPLER-Beispiel in §1 war
+> außerdem falsch wiedergegeben und ist korrigiert. Auch die Aussage zu `TUNE_VISUAL` in §2 ist
+> durch Lauf 34 relativiert (Fingerspanne 27,6 % statt 20,5 % mit Augmentierung, `lifted` weiter 0/10).
+
 Tiefenreview der Closed-Loop-Sim-Eval: Ist der aktuelle Aufbau methodisch sinnvoll und
 technisch korrekt? Grundlage sind (a) eine Code-Verifikation gegen die echte GR00T-Trainings-
 konfiguration und (b) eine belegte Literaturrecherche (Quellen jeweils verlinkt).
@@ -23,8 +32,11 @@ ist das erwartete Ergebnis des Real→Sim-Gaps, nicht ein Urteil über das Model
 
 Kanonische Referenz: **SIMPLER (CoRL 2024)**, gebaut für Real→Sim-Eval von VLAs.
 
-- Beispiel, das unser Ergebnis 1:1 spiegelt: **Octo-Base „Pick Coke Can" = 0 %** mit ungetuntem
-  Roboter/Erscheinungsbild → **29,3 %** nachdem das Erscheinungsbild an Real angeglichen wurde.
+- Zahlen aus dem SIMPLER-Paper (Li et al. 2024), Aufgabe „Pick Coke Can": Octo-Base real
+  **29,3 %**, in SIMPLER mit Visual Matching **17,0 %**, mit Variant Aggregation **0,6 %**;
+  RT-1 (konvergiert) 85,7 % (VM) bzw. 89,8 % (VA). Der Gap ist also je nach Modell und
+  Erscheinungsbild-Angleichung groß, aber „0 % ohne / 29,3 % mit Visual Matching" stimmt nicht
+  (frühere Fassung dieses Dokuments).
 - SIMPLERs empfohlene Methode ist **„Visual Matching"**: echte Hintergründe einblenden, reale
   Texturen auf Sim-Objekte projizieren, Roboter umfärben, Licht angleichen.
 - **PreviewSurface-Quader (unser Setup) sind der Worst Case** für einen Real-Bild-Encoder.
@@ -47,7 +59,8 @@ Die Trainings-Doku framt **`TUNE_VISUAL`** (Vision-Encoder fine-tunen) als Domai
 > Einen Encoder gegen den Sim-Gap robust zu machen gelingt **nur, wenn er Sim-Bilder (oder
 > DR-Bilder) im *Training* sieht.** Wir trainieren ausschließlich auf *echten* Teleop-Bildern und
 > sehen Sim erst zur Eval-Zeit. `TUNE_VISUAL` auf Realdaten macht den Encoder **nicht** robust
-> gegen Isaac-Sim-Renderings.
+> gegen Isaac-Sim-Renderings. (Stand 2026-10-11: Lauf 3/34 zeigt mit Color-Jitter-Augmentierung einen
+> messbar positiven, aber unzureichenden Effekt — siehe Nachtrag oben.)
 
 Aus demselben Grund ist **Domain Randomization zur Eval-Zeit (`dr_enabled=True`) konzeptionell
 rückwärts**: DR ist eine *Trainings*-Technik. Auf eingefrorene, nie variiert trainierte Gewichte
@@ -102,10 +115,10 @@ Quellen:
 
 | Prio | Datei | Befund | Maßnahme |
 |---|---|---|---|
-| ✅ | [`g1_dex3_cfg.py:149-159`](../../Simulation/g1_dex3_sim/g1_dex3_cfg.py#L149-L159) | Kommentar behauptete „Arme = relative Deltas, im Loop addiert" — Code wendet **alle 28 Dims absolut** an. Widersprach der korrekten `_pre_physics_step`-Docstring. | **Erledigt 2026-08-21:** Kommentar auf ABSOLUTE Targets korrigiert, plus die gemessenen Tracking-Werte als Beleg gegen die wiederkehrende „PD-Gains zu weich"-These. |
-| 🟠 | [`g1_dex3_blockstack_env.py:280`](../../Simulation/g1_dex3_sim/g1_dex3_blockstack_env.py#L280) | `dr_enabled=True` bei Eval bringt für eingefrorenen Encoder nichts (s. §2). | Für Eval auf `False` (oder als Trainings-Augmentierung verschieben). |
-| 🟠 | [`g1_dex3_blockstack_env.py:259-260`](../../Simulation/g1_dex3_sim/g1_dex3_blockstack_env.py#L259-L260) | `policy_hz=30.0`, real aber 28,57 Hz (`dt=1/200`, `decimation=7`). | Label auf 28,57 setzen **oder** `dt=1/210` für echte 30 Hz. |
-| 🟡 | [`g1_dex3_blockstack_env.py:625-655`](../../Simulation/g1_dex3_sim/g1_dex3_blockstack_env.py#L625-L655) | Erfolg verlangt vollständige 3er-Säule (alle Paare xy<3 cm + Höhe>8 cm + stabil). | Gegen die echte Dataset-Task abgleichen (stapelt sie 2 oder 3?). |
+| ✅ | [`g1_dex3_cfg.py`](../../Simulation/g1_dex3_sim/g1_dex3_cfg.py) (Aktuator-Kommentar zu Armen/Händen) | Kommentar behauptete „Arme = relative Deltas, im Loop addiert" — Code wendet **alle 28 Dims absolut** an. Widersprach der korrekten `_pre_physics_step`-Docstring. | **Erledigt 2026-08-21:** Kommentar auf ABSOLUTE Targets korrigiert, plus die gemessenen Tracking-Werte als Beleg gegen die wiederkehrende „PD-Gains zu weich"-These. |
+| 🟠 | [`g1_dex3_blockstack_env.py`](../../Simulation/g1_dex3_sim/g1_dex3_blockstack_env.py) (`dr_enabled`, Z. ~452) | `dr_enabled=True` bei Eval bringt für eingefrorenen Encoder nichts (s. §2). Unverändert offen: Default ist weiter `True` (`DR_ENABLED=0` schaltet ab). | Für Eval auf `False` (oder als Trainings-Augmentierung verschieben). |
+| 🟠 | [`g1_dex3_blockstack_env.py`](../../Simulation/g1_dex3_sim/g1_dex3_blockstack_env.py) (`policy_hz`, `dt`, `decimation`, Z. ~405–419) | `policy_hz=30.0`, real aber 28,57 Hz (`dt=1/200`, `decimation=7`) — weiter so im Code. | Label auf 28,57 setzen **oder** `dt=1/210` für echte 30 Hz. |
+| 🟡 | [`g1_dex3_blockstack_env.py`](../../Simulation/g1_dex3_sim/g1_dex3_blockstack_env.py) (`_check_success`, Z. ~1303) | Erfolg verlangt vollständige 3er-Säule (alle Paare xy<3 cm + Höhe>8 cm + stabil). | Gegen die echte Dataset-Task abgleichen (stapelt sie 2 oder 3?). |
 
 ---
 

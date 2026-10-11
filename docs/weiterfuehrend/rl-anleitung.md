@@ -13,10 +13,13 @@ statt nur Aktions-Nachahmung (Hintergrund: [reinforcement-learning-plan.md](rein
 > ## Status: Pipeline läuft end-to-end — Lernwirkung des RL noch offen
 >
 > Seit 2026-08-08 auf eigener RT-Core-Hardware im Dauerbetrieb. Greif-Physik-Blocker gefallen mit
-> **Lauf 29**; **Lauf 32** (`span`-Gate) bestätigte den Domain-Gap als Ursache. **Lauf 34**: der
+> **Lauf 29**; **Lauf 32** (`span`-Gate) stützt den Domain-Gap als Ursache (gemessen auf
+> Trainingsepisoden, Messung auf zurückgehaltenen steht aus). **Lauf 34**: der
 > `TUNE_VISUAL`-Checkpoint hebt die Sim-Fingerspanne auf **27,6 %** (statt 20,5 %), `lifted` bleibt
 > **0/10** → nächster Schritt ist [Co-Training](../training/co-training.md) auf gerenderten Bildern,
-> RL danach. Lernwirkung des RL selbst weiter offen.
+> RL danach. Lernwirkung des RL selbst weiter offen. **Stand 2026-10-11:** seit 2026-08-08 kein
+> dokumentierter RL-Lauf; die Sim-Geometrie wurde am 2026-08-24 korrigiert (Fingerspiegelung, Beckenhöhe,
+> Basis x), die Greif-Zahlen der Chronik sind neu zu messen.
 >
 > **Status & Details:** [reinforcement-learning-plan.md](reinforcement-learning-plan.md) (die eine
 > gepflegte Statusquelle) · **Lauf-Historie:** [diagnose-chronik.md](../ergebnisse/diagnose-chronik.md).
@@ -164,7 +167,7 @@ HuggingFace hoch — identisch zur Sim-Eval, [sim-eval-anleitung.md Schritt 2](.
 # Modell-Repo (einmalig, privat reicht)
 huggingface-cli repo create groot-g1dex3-checkpoint --type model --private
 # besten BC-Checkpoint hochladen
-huggingface-cli upload luca-mue/groot-g1dex3-checkpoint ./checkpoint-20000/ --repo-type model
+huggingface-cli upload luca-mue/groot-g1dex3-checkpoint ./checkpoint-30000/ --repo-type model   # z. B. der beste Sweep-Checkpoint
 ```
 
 Im Container `HF_CHECKPOINT_REPO=<hf-user>/groot-g1dex3-checkpoint` setzen → der Entrypoint lädt
@@ -412,7 +415,7 @@ Startet der Server nicht (Port belegt, Pillow fehlt), schaltet sich die Live-Ans
 ### Schritt 7 — LIVE-CHECK: auf Hardware nachgezogene Stellen
 
 Diese Stellen waren im Code als `# >>> LIVE-CHECK` markiert und ließen sich erst auf echter
-Hardware final verifizieren. Alle drei sind am 2026-08-07 auf der RTX PRO 6000 Blackwell
+Hardware final verifizieren. Die ersten drei sind am 2026-08-07 auf der RTX PRO 6000 Blackwell
 (Isaac Sim 6.0) durchlaufen und korrigiert worden — hier als Nachschlagewerk, falls beim
 Portieren auf eine andere Checkpoint-/Embodiment-Kombination Ähnliches auftritt:
 
@@ -484,7 +487,7 @@ Befunde: [diagnose-chronik.md](../ergebnisse/diagnose-chronik.md#lauf-29-der-wü
 
 **`span` — Domain-Gap vs. „Griff nie gelernt" trennen.** Vergleicht die von der Policy kommandierte
 Fingerspanne auf **echten** Datensatz-Bildern gegen die Ground-Truth-Spanne derselben Episode — der
-Diskriminator zwischen (a1) Domain-Gap und (a2) nie gelerntem Griff.
+Diskriminator zwischen (a1) Domain-Gap und (a2) nie gelerntem Griff. Vorbehalt: die bisher gemessenen Trajektorien 0–4 sind Trainingsepisoden — mit einem Split-Checkpoint (Lauf 3) `SPAN_TRAJ_IDS` auf Test-Episoden (≥ 240) setzen, um Auswendiglernen auszuschließen.
 Aufruf: `HF_TOKEN=... ./Simulation/server_rl_run.sh span` (lädt den echten Datensatz bei Bedarf
 selbst nach, ~1 h einmalig; `SPAN_AUTO_FETCH=0` schaltet das ab).
 Ergebnis: stdout-Tabelle + `finger_span_openloop.json` im jeweiligen `runs/<datum>/<lauf>/`-Ordner.
