@@ -3,46 +3,27 @@
 \chapter*{Zusammenfassung}
 \addcontentsline{toc}{chapter}{Zusammenfassung}
 
-Diese Projektarbeit beschreibt das Fine-Tuning des \ac{vla}-Modells
-\textbf{NVIDIA GR00T~N1.6} auf einem humanoiden Roboter des Typs
-\textbf{Unitree~G1} mit \textbf{DEX3-Hand} für eine Block-Stacking-Aufgabe.
-Mittels \acl{il} wird das vortrainierte 3,3-Mrd.-Parameter-Modell selektiv
-(eingefrorenes Vision-Language-Backbone, trainierter Flow-Matching-Aktionskopf)
-an Aufgabe und Embodiment angepasst. Die Trainingsinfrastruktur basiert auf einem
-über Umgebungsvariablen konfigurierten Container, der identisch lokal (Docker) und
-auf dem \ac{hpc}-Cluster KISSKI der GWDG Göttingen (Apptainer/\ac{slurm}, NVIDIA
-A100/H100) läuft.
+Diese Projektarbeit untersucht das Fine-Tuning des \ac{vla}-Modells NVIDIA
+GR00T~N1.6 für eine Block-Stacking-Aufgabe auf dem humanoiden Roboter
+Unitree~G1 mit DEX3-Hand. Das vortrainierte Modell wird per \acl{il} auf rund
+300 Demonstrationen angepasst. Die Arbeit umfasst eine Container-Umgebung, die
+lokal und auf dem \ac{hpc}-Cluster KISSKI der GWDG läuft, drei Trainingsläufe,
+eine Simulationsumgebung in NVIDIA Isaac~Lab, die Validierung der Checkpoints
+und eine Reihe von Diagnosewerkzeugen.
 
-Das Training konvergierte über 175\,000~Schritte sauber. In der geschlossenen
-Simulationsschleife (NVIDIA Isaac~Lab) erreichte die Politik jedoch $0/20$~Erfolge
-und \enquote{fror ein}. Eine Dreifach-Diagnose (Open-Loop, Replay, Closed-Loop)
-isolierte den visuellen \textbf{Domain-Gap} zwischen realen Trainingsbildern und
-synthetischen Simulationsbildern als Ursache; eine SigLIP-basierte Messung
-quantifizierte ihn (kritisch: die Handgelenk-Kamera). Literaturgestützt
-(SIMPLER) wird gezeigt, dass dieses Null-Resultat für ein auf Realbildern
-trainiertes Modell mit eingefrorenem Encoder \emph{erwartbar} ist und kein Urteil
-über die Modellqualität darstellt. Nachgelagerte Arbeiten erhärteten diese
-Diagnose: Die Inferenz-Pipeline reproduzierte einen unabhängigen, publizierten
-Benchmark (RoboCasa GR-1: 47,7\,\% gemessen vs.\ 47,8\,\% erwartet) und ist
-damit als Fehlerquelle ausgeschlossen; Kamera-Neukalibrierung und
-Albedo-Korrekturen senkten den mittleren Domain-Gap unter die
-Real$\to$Real-Referenz. Den direktesten Beleg lieferte ein Vergleich der
-kommandierten Fingerspanne: Dieselbe Politik führt auf \emph{echten} Bildern
-die volle Greifbewegung aus, in der Simulation nur ein Fünftel davon -- die
-Politik hat das Greifen also gelernt und ruft es nur bei synthetischer
-Beobachtung nicht ab. Ein dritter Trainingslauf mit zurückgehaltener Testmenge
-zeigte zudem, dass die bis dahin blinde Checkpoint-Auswahl systematisch falsch
-war: Der letzte Checkpoint ist um 25\,\% schlechter als der beste. Ergänzend
-wurden eine FPO-basierte Reinforcement-Learning-Pipeline sowie eine
-Werkzeugkette für Co-Training auf gerenderten Bildern implementiert; der
-jeweilige Lernnachweis steht aus. Eine abschließende geometrische
-Rekonstruktion der Simulationsszene deckte drei unabhängige Fehler auf --
-darunter eine zuvor als Korrektur verbuchte Vorzeichen-Spiegelung, die die Hand
-in allen bisherigen Simulationsläufen unvollständig schließen ließ; die
-simulationsseitigen Greifzahlen stehen dadurch unter ausdrücklichem Vorbehalt.
-Die Arbeit schließt mit einer methodischen Empfehlung (Open-Loop-Eval und reale
-Rollouts statt Closed-Loop-Sim als Benchmark) sowie einem Ausblick auf
-Co-Training, den produktiven RL-Einsatz und Lokomotion.
+Alle drei Trainingsläufe konvergierten stabil. In der Simulation löste jedoch
+keine Politik die Aufgabe. Der zuletzt getestete Checkpoint (Stand
+14.08.2026) nähert sich den Würfeln und berührt sie, schließt die Hand aber
+nicht weit genug, um einen Würfel anzuheben. Die Diagnosetests deuten darauf
+hin, dass vor allem der visuelle Unterschied zwischen realen und simulierten
+Bildern dafür verantwortlich ist: Auf realen Bildern kommandiert dieselbe
+Politik die volle Greifbewegung, in der Simulation nur ein Fünftel bis ein
+Viertel davon. Wie groß dieser Anteil ist, bleibt offen, weil später ein
+Fehler in der Ansteuerung der simulierten Hand gefunden wurde. Ein Lauf mit
+zurückgehaltener Testmenge zeigte zudem, dass der letzte Checkpoint nicht der
+beste ist. Die Arbeit beschreibt die größten Hindernisse im Projekt, leitet
+Empfehlungen für Folgeprojekte ab und skizziert Co-Training mit simulierten
+Bildern sowie Reinforcement Learning als nächste Schritte.
 
 \bigskip
 \noindent\textbf{Schlüsselwörter:}
@@ -50,7 +31,6 @@ Humanoider Roboter,
 \ac{vla},
 Fine-Tuning,
 \ac{il},
-Flow Matching,
 Domain-Gap,
 Sim-to-Real,
 Unitree G1,
@@ -61,42 +41,26 @@ NVIDIA GR00T
 \chapter*{Abstract}
 \addcontentsline{toc}{chapter}{Abstract}
 
-This project report describes the fine-tuning of the \textbf{NVIDIA GR00T~N1.6}
-\ac{vla} model on a \textbf{Unitree~G1} humanoid robot with \textbf{DEX3 hand} for
-a block-stacking task. Using \acl{il}, the pre-trained 3.3-billion-parameter model
-is adapted selectively (frozen vision-language backbone, trained flow-matching
-action head). The training infrastructure is a container configured purely via
-environment variables, running identically on a local machine (Docker) and on the
-KISSKI \ac{hpc} cluster of GWDG Göttingen (Apptainer/\ac{slurm}, NVIDIA A100/H100).
+This project report examines the fine-tuning of the NVIDIA GR00T~N1.6
+\ac{vla} model for a block-stacking task on the Unitree~G1 humanoid robot
+with DEX3 hand. The pre-trained model is adapted via \acl{il} on roughly 300
+demonstrations. The work covers a container environment that runs locally and
+on the KISSKI \ac{hpc} cluster of GWDG, three training runs, a simulation
+environment in NVIDIA Isaac~Lab, checkpoint validation and a set of diagnostic
+tools.
 
-Training converged cleanly over 175{,}000 steps. In the closed-loop simulation
-(NVIDIA Isaac~Lab), however, the policy achieved $0/20$ successes and
-\enquote{froze}. A three-way diagnosis (open-loop, replay, closed-loop) isolated
-the visual \textbf{domain gap} between real training images and synthetic
-simulation images as the cause, quantified via SigLIP embeddings (the wrist camera
-being critical). Supported by the literature (SIMPLER), the report shows that this
-null result is \emph{expected} for a model trained on real images with a frozen
-encoder and does not constitute a verdict on model quality. Follow-up work
-corroborated this diagnosis: the inference pipeline reproduced an independent,
-published benchmark (RoboCasa GR-1: 47.7\,\% measured vs.\ 47.8\,\% expected),
-ruling it out as an error source, and camera recalibration together with albedo
-corrections reduced the mean domain gap below the real-to-real reference. The
-most direct evidence came from comparing the commanded finger span: on
-\emph{real} images the same policy performs the full grasping motion, but only
-one fifth of it in simulation -- the policy has therefore learned to grasp and
-simply fails to invoke it under synthetic observation. A third training run
-with a genuinely held-out test set further showed that the previously blind
-checkpoint selection was systematically wrong: the final checkpoint is 25\,\%
-worse than the best one. In addition, an FPO-based reinforcement-learning
-pipeline and a tool chain for co-training on rendered images were implemented;
-evidence of actual learning is pending for both. A concluding geometric
-reconstruction of the simulation scene uncovered three independent errors --
-among them a sign inversion previously recorded as a fix, which left the hand
-unable to close fully in every simulation run to date; the simulation-side
-grasping figures are therefore reported with an explicit caveat. The work
-concludes with a methodological recommendation (open-loop evaluation and
-real-world rollouts rather than closed-loop simulation as a benchmark) and an
-outlook on co-training, productive RL deployment, and locomotion.
+All three training runs converged stably, yet no policy solved the task in
+simulation. The most recently tested checkpoint (as of 14~August~2026)
+approaches and touches the cubes but does not close the hand far enough to
+lift one. The diagnostic tests indicate that the visual difference between
+real and simulated images is the main cause: on real images the same policy
+commands the full grasping motion, in simulation only one fifth to one quarter
+of it. How large this share is remains open, because an error in the control
+of the simulated hand was found later. A run with a held-out test set also
+showed that the last checkpoint is not the best one. The report describes the
+main obstacles of the project, derives recommendations for follow-up projects
+and outlines co-training with simulated images and reinforcement learning as
+next steps.
 
 \bigskip
 \noindent\textbf{Keywords:}
@@ -104,7 +68,6 @@ Humanoid Robot,
 \ac{vla},
 Fine-Tuning,
 \ac{il},
-Flow Matching,
 Domain Gap,
 Sim-to-Real,
 Unitree G1,

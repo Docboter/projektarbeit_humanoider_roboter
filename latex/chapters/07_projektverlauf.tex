@@ -1,166 +1,169 @@
 % chapters/07_projektverlauf.tex
 
-\chapter{Projektverlauf und Lessons Learned}
+\chapter{Projektverlauf, Hindernisse und Lessons Learned}
 \label{chap:projektverlauf}
 
-Die fachlichen Befunde sind in \cref{chap:ergebnisse,chap:diskussion}
-dargestellt. Dieses Kapitel wechselt die Perspektive und reflektiert den
-Projekt\emph{verlauf}: die größeren Hindernisse und wie mit ihnen umgegangen
-wurde (\cref{sec:hindernisse}), die daraus abgeleiteten Lehren für ein
-nächstes vergleichbares Projekt (\cref{sec:lessons}), die Wahl der
-Arbeitsmittel (\cref{sec:arbeitsmittel}) und die Rolle KI-gestützter
-Entwicklung (\cref{sec:ki-entwicklung}). Das Fazit in \cref{chap:fazit}
-bleibt davon getrennt fachlich.
-
-\section{Hindernisse im Projektverlauf}
+\section{Große Hindernisse im Projektverlauf}
 \label{sec:hindernisse}
 
-Organisatorisch prägend war die \textbf{Beschaffungsphase am Projektbeginn}:
-Bevor der erste Trainingslauf starten konnte, mussten die Rechenressourcen
-überhaupt erst verfügbar gemacht werden -- der Zugang zum KISSKI-Cluster,
-die Evaluation von Cloud-GPU-Anbietern (vast.ai u.\,a.) als Überbrückung und
-die Abstimmung über den institutseigenen GPU-Server. Das kostete zu Beginn
-erhebliche Kalenderzeit, die nicht durch Mehrarbeit kompensierbar war, weil
-sie aus Antrags- und Wartefristen bestand. Ein zweiter organisatorischer
-Engpass zog sich länger hin: die \textbf{Wartezeit auf den Zugriff auf den
-institutseigenen Server}. Die Closed-Loop-Simulation wich deshalb zunächst
-auf gemietete vast.ai-Instanzen aus; erst mit dem Serverzugang (ab Juli~2026)
-wurden Referenz-Eval und RL-Fine-Tuning praktikabel, da beide lange
-interaktive Sitzungen auf RT-Core-Hardware erfordern.
-\Cref{tab:hindernisse} fasst die größeren Hindernisse zusammen; die
-technischen sind an den genannten Stellen im Detail behandelt.
+\paragraph{Rechenressourcen.}
+Zu Projektbeginn mussten Rechenressourcen erst beschafft werden: der Zugang
+zum KISSKI-Cluster, gemietete Cloud-GPUs als Übergangslösung und schließlich
+ein Server am Institut. Durch Antrags- und Wartezeiten begannen die
+Trainingsläufe später als geplant. Erst beim Aufsetzen der Simulation fiel
+auf, dass keine GPU des Clusters Isaac~Sim ausführen kann. Training und
+Simulation mussten daher auf unterschiedlicher Hardware laufen, Checkpoints
+wurden über Hugging Face zwischen beiden übertragen. Bis Juli~2026 lief die
+Simulation nur auf gemieteten GPUs; Referenzaufgabe, Kalibrierung und
+Reinforcement Learning wurden erst danach in größerem Umfang möglich.
 
-\begin{table}[htb]
-  \centering
-  \begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{5.6cm}X}
-    \toprule
-    \textbf{Hindernis} & \textbf{Auswirkung und Umgang} \\
-    \midrule
-    Beschaffung der Rechenressourcen zum Projektstart
-      & verzögerter Beginn der Trainingsläufe; KISSKI-Antrag, vast.ai als
-        Überbrückung \\
-    Wartezeit auf den institutseigenen GPU-Server
-      & Sim-Eval nur auf Miet-GPUs, RL unmöglich; ab Juli~2026
-        Blackwell-Server \\
-    A100/H100 ohne RT-Cores (\cref{sec:eval-methodik})
-      & Cluster kann die Sim-Eval nicht ausführen; Aufgabenteilung Training
-        (KISSKI) / Simulation (RT-Core-Hardware) \\
-    Visueller Domain-Gap (\cref{sec:diagnose,sec:span-gate})
-      & Closed-Loop-Sim als Benchmark unbrauchbar ($0/20$); diagnostiziert,
-        Gegenmaßnahmen: Visual Matching, Co-Training, RL \\
-    Isaac-Sim-Absturz auf Blackwell (\cref{sec:neukalibrierung})
-      & Sim-Stack blockiert; Migration auf Isaac~Sim~6.0 \\
-    Kamera-Orientierungsbug 95--137° (\cref{sec:neukalibrierung})
-      & fünf Diagnose-Läufe fehlinterpretiert; unabhängige USD-Messquelle,
-        berechnete Neukalibrierung \\
-    Widerrufener Vorzeichen-Fix (\cref{sec:vorzeichen-widerruf})
-      & alle Sim-Greifzahlen unter Vorbehalt; Rücknahme, Neumessung
-        ausstehend \\
-    Host-RAM-Engpass Multi-GPU (\cref{sec:multi-gpu})
-      & abgebrochene Jobs; weniger Dataloader-Worker, mehr Speicher \\
-    Fork erzwingt \texttt{eval\_strategy="no"} (\cref{sec:eval-methodik})
-      & keine Validierung im Training; nachgelagerter Checkpoint-Sweep \\
-    \bottomrule
-  \end{tabularx}
-  \caption{Die größeren Hindernisse des Projekts: organisatorische (oben)
-    und technische (unten) mit Auswirkung und Umgang.}
-  \label{tab:hindernisse}
-\end{table}
+\paragraph{Sehr neue Hardware.}
+Der Institutsserver ist mit Blackwell-GPUs ausgestattet. Die bis dahin
+verwendete Simulationsversion (Isaac~Lab~2.3.2 mit Isaac~Sim~5.1) stürzte
+darauf beim Start ab, und der Grafiktreiber des Servers ließ sich nicht
+ändern. Die Simulation musste deshalb auf eine Vorabversion von Isaac~Lab~3.0
+mit Isaac~Sim~6.0 umgestellt werden, mit neuer Python-Version, neuen
+Abhängigkeiten und geänderten Schnittstellen. Die Umstellung deckte zugleich
+mehrere bis dahin unbemerkte Fehler auf.
 
-\section{Lessons Learned}
-\label{sec:lessons}
+\paragraph{Fehler ohne Fehlermeldung.}
+Die meiste Zeit kosteten Fehler, die keine Meldung erzeugten: ein
+Train/Test-Split, der nicht aktiv war, Einstellungen zur Validierung, die
+nirgends ausgewertet werden, ein konfiguriertes Sichtfeld, das nie angewendet
+wurde, um über 90° falsch ausgerichtete Kameras und Gelenksollwerte, die die
+Simulation stillschweigend begrenzte. Jeder dieser Fehler führte zu
+plausiblen, aber falschen Ergebnissen, und mehrere bauten aufeinander auf. Die
+Vorzeichenumkehr der Fingergelenke etwa wurde eingeführt, um ein Symptom zu
+beheben, und erst Wochen später als Ursache eines anderen erkannt.
 
-Aus dem Verlauf lassen sich konkrete Lehren ableiten -- formuliert als das,
-was in einem nächsten vergleichbaren Projekt \emph{anders} liefe:
+\paragraph{Fehlende Informationen im Datensatz.}
+Der öffentliche Datensatz enthält weder Würfelpositionen noch
+Kamerakalibrierung noch die genaue Aufstellung des Roboters. Alles davon
+musste aus den Bildern rekonstruiert werden. Ein extern aufgenommener
+Simulationsdatensatz, der für das Co-Training genutzt werden sollte, hatte ein
+anderes Datenschema und musste erst aufwendig umgewandelt werden.
 
-\begin{description}
-  \item[Validierung von Beginn an erzwingen.] Held-out-Split und
-    Checkpoint-Sweep kamen erst mit dem dritten Lauf -- die Läufe~1 und~2
-    werteten dadurch blind den letzten Checkpoint aus, der nachweislich um
-    25\,\% schlechter ist als der beste (\cref{sec:lauf3}). Künftig gehören
-    Split und nachgelagerte Checkpoint-Auswahl zur Definition-of-Done des
-    \emph{ersten} Laufs, nicht zur Nachrüstung.
-  \item[Das Messinstrument vor dem Experiment validieren.] Die
-    SIMPLER-Literatur hätte vorhergesagt, dass Closed-Loop-Sim ohne Visual
-    Matching für dieses Modell $\approx 0\,\%$ liefert
-    (\cref{sec:einordnung-null}) -- gelesen wurde sie erst nach dem
-    $0/20$-Befund. Vor dem Training klären: Womit wird Erfolg gemessen, und
-    ist dieses Instrument für das konkrete Modell überhaupt valide?
-  \item[Referenz-Benchmarks früh fahren.] Die RoboCasa-Gegenprobe schloss
-    die eigene Inferenz-Kette als Fehlerquelle aus (\cref{sec:robocasa}) --
-    aber erst im Juli. Früher gefahren hätte sie Wochen an Unsicherheit
-    gespart. Verallgemeinert: Jede selbstgebaute Eval-Kette zuerst an einem
-    publizierten Sollwert reproduzieren, dann eigene Messungen vertrauen.
-  \item[Grundwahrheit vor abgeleiteten Messungen beschaffen.] Szene und
-    Geometrie wurden erst spät gegen die Bilddaten verifiziert; drei
-    unabhängige Geometriefehler und der fehlerhafte Vorzeichen-Fix blieben
-    dadurch monatelang unentdeckt (\cref{sec:geometrie}). Die Messregeln aus
-    \cref{sec:messartefakte} (unabhängige Kontrollgrößen, Kontaktflächen
-    statt Körper-Frames, Sättigungszustände protokollieren) gehören von
-    Projektbeginn an institutionalisiert, nicht als Reaktion auf Artefakte.
-  \item[Hardware-Anforderungen als Matrix, nicht als Summe.] Dass die
-    stärksten Trainings-GPUs (A100/H100) die Simulation \emph{nicht}
-    ausführen können, wurde erst beim Aufsetzen der Sim-Eval entdeckt.
-    Anforderungen wie RT-Cores, Treiber-/Simulator-Kompatibilität und
-    VRAM-Klassen sind vorab pro Arbeitspaket zu erheben
-    (\cref{sec:arbeitsmittel}).
-  \item[Dokumentation als Projektgedächtnis führen.] Diagnose-Chronik,
-    TL;DR-Konvention und automatische Drift-Checks machten Widerrufe wie den
-    Vorzeichen-Fix überhaupt erst sauber rückverfolgbar
-    (\doc{docs/ergebnisse/diagnose-chronik.md}). Diese Disziplin früh zu
-    etablieren kostet wenig und zahlt sich spätestens bei der ersten
-    zurückgenommenen \enquote{Korrektur} aus.
-\end{description}
+\paragraph{Umgang mit Containern und Cluster.}
+Weil Daten und Checkpoints im Container liegen, hätte ein versehentliches
+Löschen alle Ergebnisse vernichtet. Ein gestoppter Container setzte beim
+Neustart unbemerkt einen alten Lauf fort. Auf dem Cluster brach ein Job wegen
+zu vieler Datenlade-Prozesse am Arbeitsspeicher ab, das Logging musste offline
+laufen, und der bisherige Scratch-Speicher wurde während des Projekts
+abgeschaltet. Jedes dieser Probleme ist einzeln schnell gelöst, zusammen
+banden sie aber viel Zeit, die für die eigentliche Untersuchung fehlte.
 
 \section{Wahl der Arbeitsmittel}
 \label{sec:arbeitsmittel}
 
-Die wichtigste organisatorische Empfehlung an vergleichbare Projekte lautet:
-\textbf{Rechenressourcen vor Projektbeginn klären und beantragen} --
-Antrags- und Wartefristen bestimmen sonst den kritischen Pfad, wie die
-Beschaffungsphase dieses Projekts gezeigt hat (\cref{sec:hindernisse}).
+Die wichtigste organisatorische Erkenntnis ist, dass die Arbeitsmittel vor
+Projektbeginn geklärt sein sollten. Antrags- und Wartezeiten bestimmen sonst
+den Zeitplan, und eine fehlende Fähigkeit wie das Rendering auf RT-Cores fällt
+erst auf, wenn sie gebraucht wird. Vor dem Start sollte für jede Teilaufgabe
+feststehen, welche Hardware sie braucht und wo diese verfügbar ist.
 
-Inhaltlich hat sich dabei die \textbf{größere, professionell betriebene
-Infrastruktur} (KISSKI-Klasse) gegenüber einem kleinen Institutsserver als
-vorzugswürdig erwiesen: bei der \emph{Kapazität} (A100/H100 mit
-80--94~GB VRAM; der Vier-GPU-Lauf absolvierte dieselbe Datenmenge in 8,4
-statt 21,4~Stunden), bei der \emph{Verfügbarkeit} (\ac{slurm}-Warteschlange und
-professioneller Betrieb statt Konkurrenz um einen Einzelserver samt eigener
-Treiber- und Wartungsverantwortung) und bei der \emph{Skalierbarkeit}
-(Batch-Größen und parallele Läufe, die lokal unerreichbar sind). Zugleich
-zeigt der Verlauf, dass ein Cluster allein nicht genügt: Sonderanforderungen
-wie RT-Core-Rendering, lange interaktive Diagnose-Sitzungen und das
-RL-Fine-Tuning brauchten den lokalen Blackwell-Server. Die Konsequenz ist
-keine Entweder-oder-Entscheidung, sondern eine gezielte Kombination -- das
-skalierende Training auf den Cluster, Simulation und Interaktives auf
-dedizierte lokale Hardware -- auf Basis einer vorab erstellten
-Anforderungsmatrix (\cref{sec:lessons}). Einzuplanen ist außerdem, dass sehr
-neue Hardware Software-Risiken mitbringt: Auf der Blackwell-Generation lief
-der etablierte Simulator-Stack erst nach Migration auf Isaac~Sim~6.0
-(\cref{sec:neukalibrierung}).
+Dabei sollte nach Möglichkeit auf größere Dienste gesetzt werden. Der
+KISSKI-Cluster hat sich für das Training bewährt: GPUs mit 80 bis 94~GB
+Speicher, mehrere GPUs pro Job, eine Warteschlange, die viele Läufe
+nacheinander abarbeitet, ein dauerhafter Projektspeicher, Dokumentation und
+Support durch das Rechenzentrum. Mit vier GPUs dauerte ein Lauf 8 statt
+21~Stunden. Ein einzelner Server eines Hochschulinstituts kann das nicht
+bieten. Er steht nur einer Gruppe zur Verfügung, fällt bei einem Defekt
+vollständig aus, und Treiber oder Systemsoftware lassen sich nicht immer an
+den Bedarf anpassen, wie die erzwungene Umstellung auf Isaac~Sim~6.0 gezeigt
+hat. In diesem Projekt war der Institutsserver trotzdem nötig, weil der
+Cluster keine GPUs für die Simulation hat. Für ein Folgeprojekt empfiehlt es
+sich daher, früh zu prüfen, ob ein größerer Anbieter, etwa ein anderes
+Rechenzentrum oder ein Cloud-Anbieter mit L40- oder RTX-GPUs, auch die
+Simulation abdecken kann, und einen Institutsserver nur für interaktive
+Fehlersuche zu nutzen.
 
-\section{KI-gestützte Entwicklung}
+\section{Entwicklungsumgebung und KI-gestützte Entwicklung}
 \label{sec:ki-entwicklung}
+\label{sec:entwicklungsumgebung}
 
-Projektbegleitend wurde mit \textbf{Claude Code} ein agentisches
-KI-Entwicklungswerkzeug eingesetzt (inklusive projektspezifischer Skills,
-MCP-Server-Anbindungen u.\,a.\ an Weights\,\&\,Biases und GitHub sowie
-Subagenten für Recherche- und Prüfaufgaben). Für die in dieser Arbeit
-erreichte Breite -- Trainingsinfrastruktur, Simulationsumgebung, die
-Diagnose-Werkzeugkette aus \cref{tab:werkzeuge} und eine umfangreiche
-technische Dokumentation neben dem eigentlichen Studienbetrieb -- war diese
-Arbeitsweise praktisch unerlässlich. Konkret trug sie bei: bei der
-Entwicklung und Iteration der Diagnoseskripte, bei der statistischen
-Auswertung der Läufe und der Pflege der Ergebnisdokumente, bei größeren
-Refactorings (Bedienoberfläche, Portabilität) und bei der
-Konsistenzsicherung der Dokumentation (Konventions- und Drift-Prüfungen).
+Entwickelt wurde in Visual Studio Code mit der Erweiterung für Claude
+Code~\cite{claudecode2025}, einem KI-Assistenten, der im Repository Dateien
+liest und ändert, Befehle ausführt und über Erweiterungen auf externe Dienste
+zugreift. Er wurde für Diagnoseskripte, die statistische Auswertung der Läufe,
+Umbauten am Code, die Pflege der Dokumentation und die Überarbeitung dieser
+Ausarbeitung eingesetzt. Bei einem Projekt dieser Größe, mit rund 50
+Dokumentationsseiten, über 50 protokollierten Diagnoseläufen, zwei Container-Images und drei
+Rechenumgebungen, war diese Umgebung praktisch unerlässlich. Wirksam wurde sie
+aber erst durch ihre Konfiguration:
 
-Einzuordnen ist das nüchtern: Das Werkzeug ersetzt weder Fachurteil noch
-Verifikation. Die Messartefakt-Lehren aus \cref{sec:messartefakte} gelten
-unverändert auch für KI-generierte Diagnosen -- jeder maßgebliche Befund
-wurde gegen unabhängige Messungen geprüft, und Fehlschlüsse (etwa der
-zunächst plausible Vorzeichen-Fix) entstanden und fielen unabhängig vom
-Werkzeug durch dieselbe methodische Kontrolle. Der belastbare Effekt war
-eine deutlich höhere Umsetzungs- und Diagnosegeschwindigkeit bei
-gleichbleibender Verantwortung der Verfasser für alle Inhalte; die formale
-Offenlegung erfolgt in der Erklärung zur KI-Nutzung am Ende der Arbeit.
+\begin{description}
+  \item[Projektanweisungen.] Eine Datei im Repository (\texttt{CLAUDE.md})
+    beschreibt Architektur, Konventionen, Befehle und bekannte Fallstricke,
+    etwa dass ein Container nie gelöscht werden darf. Der Assistent liest sie
+    zu Beginn jeder Sitzung und arbeitet dadurch von Anfang an im Kontext des
+    Projekts.
+  \item[Skills.] Skills sind wiederverwendbare Arbeitsanleitungen für den
+    Assistenten. Genutzt wurden unter anderem ein Skill, der das Repository
+    als Wissensgraph abbildet und Fragen zur Codebasis gezielt aus diesem
+    Graphen beantwortet, sowie Skills für wissenschaftliches Arbeiten wie die
+    Prüfung von Literaturangaben.
+  \item[Plugins.] Plugins bündeln Skills, Befehle und automatische Abläufe.
+    Ein Plugin speichert Beobachtungen über Sitzungen hinweg, sodass frühere
+    Befunde und Entscheidungen in neuen Sitzungen verfügbar sind. Weitere
+    kürzen umfangreiche Befehlsausgaben und überwachen den Verbrauch des
+    Kontextfensters, was bei langen Diagnosesitzungen wichtig ist.
+  \item[MCP-Server.] Über das \ac{mcp}~\cite{mcp2024} greift der Assistent
+    direkt auf externe Dienste zu. Angebunden waren \ac{wandb} (Lernkurven
+    und Laufkonfigurationen, etwa für \cref{sec:lernkurven} und
+    \cref{tab:hparams}), Hugging Face (Datensätze und Checkpoints), GitHub
+    (Branches und Pull Requests), eine Websuche für Literatur und
+    Dokumentation sowie eine Dokumentationssuche für Programmbibliotheken.
+\end{description}
+
+Dazu kamen klassische Werkzeuge: \texttt{ruff} und \texttt{pre-commit} für
+einheitlichen Code sowie die Prüfskripte aus \cref{sec:werkzeuge}, die
+Abweichungen zwischen Code und Dokumentation automatisch melden.
+
+Der Assistent beschleunigt die Umsetzung erheblich, ersetzt aber weder
+fachliche Bewertung noch Überprüfung. Mehrere Fehler in diesem Projekt, etwa
+die Prüfung der Kameraausrichtung mit demselben fehlerhaften Code, sind
+genau die Art von Fehlern, die bei schneller, KI-gestützter Entwicklung leicht
+entstehen. In einem früheren Entwurf dieser Arbeit standen zudem falsch
+übernommene Zahlen aus einer Quelle, die erst beim Abgleich mit der
+Originaltabelle auffielen. Ergebnisse wurden deshalb gegen unabhängige
+Messungen und Primärquellen geprüft. Zugangsdaten wie API-Schlüssel dürfen
+nicht in Anweisungen oder Protokollen landen. Die Verantwortung für alle
+Inhalte liegt bei den Verfassern; die Nutzung ist in der Erklärung am Ende
+der Arbeit offengelegt.
+
+\section{Lessons Learned}
+\label{sec:lessons}
+
+Im nächsten Projekt würden wir Folgendes anders machen:
+
+\begin{description}
+  \item[Arbeitsmittel vorab klären.] Hardware je Teilaufgabe erfassen,
+    Zugänge vor Projektbeginn beantragen und größere Dienste einem einzelnen
+    Server vorziehen (\cref{sec:arbeitsmittel}).
+  \item[Validierung ab dem ersten Lauf.] Train/Test-Split und
+    Checkpoint-Auswahl gehören in den ersten Lauf. Ob ein Schalter wirkt,
+    sollte aus dem Protokoll des Laufs geprüft werden, nicht aus der
+    Konfiguration.
+  \item[Bewertungsverfahren vorab prüfen.] Vor dem Training sollte geklärt
+    sein, ob das geplante Messverfahren für das Modell geeignet ist. Die
+    Literatur zeigt, wie stark Simulationsergebnisse vom visuellen Abgleich
+    abhängen. Eine Referenzaufgabe mit bekanntem Ergebnis sollte am Anfang
+    stehen, nicht nach zwei Monaten Fehlersuche.
+  \item[Szene früh gegen reale Daten prüfen.] Positionen, Kameras und
+    Gelenkkonventionen sollten vor der ersten Bewertung mit unabhängigen
+    Mitteln gegen die realen Daten geprüft werden, etwa durch Projektion ins
+    reale Bild.
+  \item[Entscheidungsregeln vorab festlegen.] Bewährt hat sich, vor einer
+    Messung festzulegen, welches Ergebnis zu welchem nächsten Schritt führt.
+    Das verhindert, dass Ergebnisse nachträglich passend gedeutet werden.
+  \item[Kleine, schnelle Messungen.] Ein Test, der in Minuten eine Frage
+    entscheidet, ist mehr wert als ein langer Lauf, dessen Ergebnis mehrere
+    Ursachen haben kann.
+  \item[Entwicklungsumgebung von Beginn an einrichten.] Projektanweisungen,
+    Anbindung an Experiment-Tracking und Datensätze sowie automatische
+    Prüfungen sollten vom ersten Tag an eingerichtet sein.
+  \item[Dokumentation fortlaufend führen.] Ein laufend geführtes Protokoll der
+    Diagnoseläufe hat es ermöglicht, die später zurückgenommene Korrektur der
+    Fingergelenke nachzuvollziehen und alle betroffenen Ergebnisse zu
+    benennen.
+\end{description}

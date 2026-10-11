@@ -1,66 +1,37 @@
 % chapters/02_grundlagen.tex
 
-\chapter{Grundlagen}
+\chapter{Begriffe und Plattform}
 \label{chap:grundlagen}
 
-Dieses Kapitel beschränkt sich auf die projektspezifischen Grundlagen, die
-für die Interpretation des zentralen Befunds -- der Diskrepanz zwischen
-Trainingskonvergenz und Aufgabenerfolg -- gebraucht werden.
+Dieses Kapitel stellt nur die Begriffe zusammen, die für das Verständnis der
+folgenden Kapitel nötig sind. Für Details wird auf die angegebene Literatur
+verwiesen.
 
-\section{Plattform: Unitree G1 mit DEX3-Hand}
+\section{Unitree G1 mit DEX3-Hand}
 \label{sec:humanoide-robotik}
 
-Der in diesem Projekt adressierte \textbf{Unitree~G1} ist ein
-Ganzkörper-Humanoid~\cite{unitree_g1}; ergänzt wird er durch die dreifingrige
-\textbf{DEX3-Hand}, die Feinmanipulation ermöglicht.
+Der Unitree~G1~\cite{unitree_g1} ist ein humanoider Roboter, der hier mit der
+dreifingrigen DEX3-Hand ausgestattet ist. Genutzt werden nur die Gelenke des
+Oberkörpers: je sieben pro Arm und pro Hand, zusammen 28~\acp{dof}. Beine und
+Taille bleiben unbewegt.
 
-Für das Verständnis der Arbeit ist eine saubere Unterscheidung der
-Freiheitsgrade entscheidend, da im Projekt drei verschiedene Zählungen
-nebeneinander auftreten (\cref{tab:dof}): das vollständige \textbf{29-\ac{dof}}-
-Modell des G1 (Beine, Taille, Arme), die reinen \textbf{12-\ac{dof}} der beiden
-Beine sowie der für diese Arbeit relevante \textbf{28-\ac{dof}}-Aktionsraum, der
-ausschließlich Oberkörper -- die beiden Arme und die beiden DEX3-Hände --
-umfasst. Die Beine bleiben im gesamten Projekt unbewegt; warum das so ist und
-wie man es ändern könnte, behandelt \cref{chap:weiterfuehrend}.
-
-\begin{table}[H]
-  \centering
-  \begin{tabularx}{\linewidth}{lrX}
-    \toprule
-    \textbf{Körperteil} & \textbf{\acs{dof}} & \textbf{Gelenke} \\
-    \midrule
-    Bein (je) & 6 & Hüfte Pitch/Roll/Yaw, Knie, Sprunggelenk Pitch/Roll \\
-    Taille (Waist) & 1--3 & Yaw (stets); Roll, Pitch optional \\
-    Arm (je) & 7 & Schulter P/R/Y, Ellenbogen, Handgelenk R/P/Y \\
-    DEX3-Hand (je) & 7 & 3-Finger-Hand, je 7 Gelenke \\
-    \midrule
-    \textbf{Aktionsraum dieser Arbeit} & \textbf{28} &
-      \textbf{2 Arme (14) + 2 Hände (14), nur Oberkörper} \\
-    \bottomrule
-  \end{tabularx}
-  \caption{Freiheitsgrade des Unitree~G1 mit DEX3-Hand. Der in dieser Arbeit
-    genutzte Aktionsraum (28~\acs{dof}) ist hervorgehoben.}
-  \label{tab:dof}
-\end{table}
-
-\section{Vision-Language-Action-Modelle und GR00T N1.6}
+\section{GR00T N1.6}
 \label{sec:vla}
 
-\acp{vla} sind multimodale neuronale Netze, die Kamerabilder, einen
-Sprachbefehl und den Roboterzustand gemeinsam verarbeiten und daraus direkt
-Steuerungsbefehle erzeugen~\cite{openvla2024}.
-\textbf{GR00T~N1}~\cite{groot2025} überträgt dieses Prinzip auf humanoide
-Roboter mit einer \emph{Dual-System}-Architektur
-(\cref{fig:groot-architecture}): \textbf{System~2}, ein \ac{vlm} (bei
-GR00T~N1.6 das NVIDIA-\emph{Eagle}-Backbone), interpretiert Bilder und
-Sprachbefehl zu einem gemeinsamen Vision-Language-Embedding;
-\textbf{System~1}, ein Flow-Matching-Aktionskopf (\cref{sec:flow-matching}),
-generiert daraus in Echtzeit Bewegungssequenzen. Das verwendete Modell besitzt
-\textbf{3,29~Mrd.\ Parameter}; sein Vision-Encoder basiert auf der
-SigLIP-Familie~\cite{zhai2023siglip} -- später wichtig für die
-Quantifizierung des Domain-Gaps (\cref{sec:domain-gap-grundlagen}).
+\acp{vla} verarbeiten Kamerabilder, eine sprachliche Aufgabenbeschreibung und
+den Roboterzustand gemeinsam und erzeugen daraus
+Steuerbefehle~\cite{openvla2024}. GR00T~\cite{groot2025} kombiniert dafür ein
+Vision-Language-Modell (Eagle, Bild-Encoder auf Basis von
+SigLIP~\cite{zhai2023siglip}) mit einem Aktionskopf, der per Flow
+Matching~\cite{lipman2023flow} aus einer verrauschten Aktion schrittweise eine
+Folge von 16 Gelenkbefehlen erzeugt (\cref{fig:groot-architecture}). Das
+verwendete Modell hat 3,29~Mrd.\ Parameter. Für die Arbeit sind zwei
+Eigenschaften wichtig: Der Trainings-Loss misst nur, wie gut Demonstrationen
+nachgeahmt werden. Und die Wahrscheinlichkeit einer Aktion lässt sich nicht
+direkt berechnen, sodass Standardverfahren des Reinforcement Learning wie
+\ac{ppo} nicht unmittelbar anwendbar sind.
 
-\begin{figure}[H]
+\begin{figure}[htb]
   \centering
   \resizebox{\linewidth}{!}{%
   \begin{tikzpicture}[
@@ -82,100 +53,32 @@ Quantifizierung des Domain-Gaps (\cref{sec:domain-gap-grundlagen}).
     \draw[arrow] (sys2) -- node[above, font=\scriptsize\sffamily] {VL-Embedding} (sys1);
     \draw[arrow] (sys1) -- (act);
   \end{tikzpicture}}
-  \caption{Dual-System-Architektur von GR00T~N1.6 (nach~\cite{groot2025}).
-    System~2 (Eagle-\ac{vlm}) verarbeitet Bilder, Sprache und Zustand;
-    System~1 (Flow-Matching-Aktionskopf) erzeugt daraus einen Chunk von
-    16~zukünftigen Aktionen.}
+  \caption{Aufbau von GR00T~N1.6 (nach~\cite{groot2025}).}
   \label{fig:groot-architecture}
 \end{figure}
 
-\section{Imitation Learning und Behavior Cloning}
+\section{Behavior Cloning}
 \label{sec:imitation-learning}
-
-Das Fine-Tuning erfolgt per \acf{bc}, der einfachsten Form des \acl{il}: Das
-Modell wird überwacht darauf trainiert, zu jedem beobachteten Zustand die
-demonstrierte Aktion vorherzusagen~\cite{hussein2017imitation}. \ac{bc} ist
-dateneffizient und stabil, hat aber eine strukturelle Schwäche: Trainiert wird
-nur auf der Zustandsverteilung der Demonstrationen. Weicht der Roboter zur
-Laufzeit auch nur geringfügig davon ab, gerät er in unbekannte Zustände, in
-denen die Vorhersagen schlechter werden -- die Abweichung wächst über den
-Zeithorizont an (\emph{compounding errors})~\cite{ross2011dagger}. Dieses
-Phänomen ist die theoretische Erklärung für das später beobachtete
-\enquote{Einfrieren} der Politik im geschlossenen Regelkreis
-(\cref{sec:closed-loop-ergebnis}) und die Hauptmotivation für den
-Reinforcement-Learning-Ausblick (\cref{sec:rl-weiterfuehrend}).
-
-\section{Flow Matching als Aktionskopf}
 \label{sec:flow-matching}
 
-Der Aktionskopf von GR00T~N1.6 regrediert Aktionen nicht deterministisch,
-sondern arbeitet -- wie bei $\pi_0$~\cite{pi0_2024} -- \textbf{generativ} auf
-Basis von \emph{Flow Matching}~\cite{lipman2023flow}, konzeptionell verwandt
-mit Diffusionspolitiken~\cite{diffusion_policy2023}: Das Modell lernt ein
-Geschwindigkeitsfeld, das eine zunächst verrauschte Aktion schrittweise in die
-demonstrierte überführt; trainiert wird der Flow-Matching-Loss auf diesem
-Feld, konditioniert auf Vision-Language-Embedding und Zustand. Zur Inferenz
-entsteht die Aktion durch iteratives Entrauschen einer \ac{ode}-Trajektorie
-(standardmäßig vier Schritte, echtzeitfähig); eine Vorhersage liefert einen
-\emph{Aktions-Chunk} über 16~Zeitschritte, von dem im Regelkreis nur ein Teil
-ausgeführt wird, bevor neu geplant wird (\emph{receding horizon}).
+Das Fine-Tuning erfolgt per \acf{bc}: Das Modell lernt überwacht, zu jedem
+beobachteten Zustand die demonstrierte Aktion
+vorherzusagen~\cite{hussein2017imitation}. Weil nur auf Zuständen aus den
+Demonstrationen trainiert wird, gerät die Politik bei Abweichungen zur
+Laufzeit in unbekannte Zustände, in denen sich Fehler
+aufsummieren~\cite{ross2011dagger}.
 
-Zwei Konsequenzen dieser Architektur tragen die spätere Argumentation: Der
-Trainings-Loss misst \emph{Nachahmungsgüte}, nicht Aufgabenerfolg, und die
-Aktions-Likelihood einer flow-basierten Politik ist nicht direkt berechenbar --
-klassische RL-Verfahren wie \ac{ppo} sind daher nicht unmittelbar anwendbar
-(\cref{sec:rl-weiterfuehrend}).
-
-\section{Datensatzformat: LeRobot}
+\section{Open-Loop, Closed-Loop und Domain-Gap}
+\label{sec:domain-gap-grundlagen}
 \label{sec:lerobot}
 
-Der Demonstrations-Datensatz liegt im \textbf{LeRobot}-Format vor, einem von
-Hugging Face entwickelten Standard für
-Robot-Learning-Datensätze~\cite{lerobot2024}: Episoden aus zeitlich
-synchronisierten RGB-Kamerastreams, propriozeptivem Zustandsvektor,
-Aktionsvektor und Sprach-Task; eine zentrale \texttt{modality.json} beschreibt
-alle Modalitäten und Dimensionen. GR00T erwartet die Format-Version~v2.1, der
-verwendete Datensatz liegt als v3.0 vor; die Konvertierung ist Teil der
-Pipeline (\cref{sec:datensatz}, Modalitätsstruktur im Anhang,
-\cref{anh:datensatz}).
-
-\section{Simulationsbasierte Evaluation und der Domain-Gap}
-\label{sec:domain-gap-grundlagen}
-
-Zur Bewertung einer gelernten Manipulationspolitik bietet sich die Simulation an:
-Sie ist gefahrlos, beliebig wiederholbar und liefert objektive Erfolgsmetriken.
-In dieser Arbeit dient \textbf{NVIDIA Isaac~Lab}~\cite{isaaclab2023} als
-Simulationsumgebung. Dabei sind zwei grundverschiedene Evaluationsmodi zu
-unterscheiden, deren Abgrenzung für das Verständnis der Ergebnisse zentral ist:
-
-\begin{description}
-  \item[Open-Loop-Evaluation] Das Modell sagt Aktionen auf \emph{gehaltenen
-    echten} Trajektorien vorher; gemessen wird der \ac{mse} zur demonstrierten
-    Aktion. Es gibt keinen Regelkreis und somit keinen Domain-Gap. Dies ist
-    NVIDIAs offizielle Checkpoint-Metrik.
-  \item[Closed-Loop-Evaluation] Das Modell steuert den simulierten Roboter
-    tatsächlich: Die Simulation rendert Bilder, das Modell antwortet mit
-    Aktionen, die Simulation führt sie aus -- ein geschlossener Regelkreis.
-    Gemessen wird die Aufgaben-Erfolgsrate.
-\end{description}
-
-\begin{warningbox}[Visueller Domain-Gap]
-  Im geschlossenen Regelkreis sieht das Modell \emph{synthetisch gerenderte}
-  Bilder, trainiert wurde es ausschließlich auf \emph{realen}. Ist der
-  Vision-Encoder eingefroren (bei GR00T~N1.6 der Standard), wurde er nie an
-  Simulationsbilder angepasst; die Differenz der Bildverteilungen -- der
-  \emph{Domain-Gap} -- kann die Politik vollständig destabilisieren.
-  Gegenmaßnahmen sind \acf{dr} im Training~\cite{tobin2017domain} und, für die
-  Evaluation bestehender Modelle, das Angleichen der Sim-Optik an die realen
-  Bilder (\emph{Visual Matching})~\cite{simpler2024}.
-\end{warningbox}
-
-Quantifizieren lässt sich der Domain-Gap über die \emph{Cosine-Distanz} der
-Embeddings realer und simulierter Bilder im selben Bild-Encoder; da der
-GR00T-Vision-Encoder auf SigLIP basiert, kann dafür ein frei verfügbares
-SigLIP-Modell mit identischen Gewichten dienen
-(\cref{sec:domain-gap-ergebnis})~\cite{zhai2023siglip}. Die Studie
-\textbf{SIMPLER}~\cite{simpler2024} zeigt zudem, dass eine Closed-Loop-Sim-Eval
-ohne Visual Matching für ein auf Realbildern trainiertes Modell systematisch
-nahe~$0\,\%$ Erfolg liefert -- der zentrale Referenzpunkt für die Einordnung
-der eigenen Ergebnisse (\cref{chap:diskussion}).
+Bei der Open-Loop-Evaluation sagt das Modell Aktionen zu aufgezeichneten
+realen Episoden vorher; gemessen wird der \ac{mse} zur demonstrierten Aktion.
+Bei der Closed-Loop-Evaluation steuert das Modell einen simulierten Roboter
+(hier in NVIDIA Isaac~Lab~\cite{isaaclab2023}); gemessen wird die
+Erfolgsrate. Im zweiten Fall sieht das Modell gerenderte Bilder, obwohl es nur
+mit realen trainiert wurde. Diesen Unterschied der Bildverteilungen nennt man
+Domain-Gap. Übliche Gegenmaßnahmen sind \acf{dr}~\cite{tobin2017domain}, eine
+Anpassung der Simulationsoptik an reale Bilder (Visual
+Matching)~\cite{simpler2024} und das Mittrainieren auf simulierten
+Bildern~\cite{cotrain2025}.

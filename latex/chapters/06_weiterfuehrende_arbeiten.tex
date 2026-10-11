@@ -3,175 +3,90 @@
 \chapter{Weiterführende Arbeiten}
 \label{chap:weiterfuehrend}
 
-Vier Stränge weisen über den Projektkern hinaus: die \textbf{Lokomotion}
-(recherchiert, nicht implementiert), das \textbf{Co-Training} auf echten und
-gerenderten Bildern (Werkzeugkette vollständig, Lauf ausstehend), die
-\textbf{generative Video-Augmentierung} mit Cosmos-Transfer (paralleler
-Teamstrang, in Entwicklung) und das \textbf{RL-Fine-Tuning} (Pipeline lief
-end-to-end durch, Lernwirkung unbelegt). Die ausführlichen Konzepte liegen in
-\doc{docs/weiterfuehrend/} und \doc{docs/training/co-training.md}; dieses
-Kapitel fasst Argumentation, Entscheidungen und Stand zusammen.
+Die folgenden Arbeiten sind begonnen, aber nicht abgeschlossen. Konzepte,
+Stand und Bedienung beschreiben \doc{docs/weiterfuehrend/README.md},
+\doc{docs/training/co-training.md} und \doc{next-steps.md}.
+
+\section{Co-Training mit simulierten Bildern}
+\label{sec:cotrain}
+
+Wie in \cref{sec:frozen-vs-tuned} diskutiert, hilft das Mittrainieren des
+Bild-Encoders nur, wenn er im Training auch simulierte Bilder sieht. Für
+Co-Training auf realen und simulierten Daten wurden bei vergleichbaren
+Aufgaben deutliche Verbesserungen berichtet~\cite{cotrain2025}. Dafür wurden
+zwei Wege vorbereitet.
+
+Der erste nutzt den eigenen Datensatz. Ein Werkzeug spielt die realen
+Aktionen in der Simulation ab und zeichnet dabei die Bilder der vier Kameras
+auf. So entsteht ein Datensatz aus simulierten Bildern und realen Aktionen,
+der im Training mit dem realen Datensatz gemischt wird; empfohlen ist ein
+Anteil von 25\,\% simulierter Samples. Die Testepisoden werden dabei nicht
+gerendert. Voraussetzung ist eine Szene, die mit der realen übereinstimmt.
+Der gerenderte Datensatz muss deshalb nach den Korrekturen aus
+\cref{sec:geometrie} neu erzeugt werden.
+
+Der zweite nutzt einen extern in der Simulation aufgenommenen Datensatz mit
+16 teleoperierten Episoden. Er passt nicht direkt zum realen Datensatz: Der
+Zustand hat 57 statt 28 Dimensionen, die Bildrate beträgt 50 statt 30~fps, und
+die Arme sind als kartesische Pose statt als Gelenkwinkel angegeben. Ein
+Umwandlungswerkzeug bestimmt die Zuordnung der Gelenke, indem es die Daten
+gegeneinander misst, statt sie anzunehmen (\doc{docs/training/synth-datensatz.md}).
+Ein erster Co-Training-Lauf im September brach nach wenigen Minuten ab;
+danach zeigte sich, dass die umgewandelten Fingerbefehle vertauscht waren.
+Nach der Korrektur wurden neue Läufe für den Cluster vorbereitet, Ergebnisse
+lagen bei Abschluss der Arbeit nicht vor.
+
+Parallel dazu wird im Team ein generativer Ansatz verfolgt: Mit NVIDIA
+Cosmos-Transfer~\cite{cosmostransfer2025} werden die realen Trainingsvideos
+optisch verändert, um die Vielfalt der Trainingsbilder ohne neue
+Demonstrationen zu erhöhen. Dieser Ansatz ist noch in Entwicklung.
+
+\section{Reinforcement-Learning-Fine-Tuning}
+\label{sec:rl-weiterfuehrend}
+\label{sec:rl-verfahren}
+\label{sec:rl-stand}
+
+Behavior Cloning optimiert die Nachahmung der Demonstrationen, nicht den
+Aufgabenerfolg. Reinforcement Learning optimiert dagegen direkt auf den Erfolg
+und kann so Korrekturen lernen, die in den Demonstrationen nicht vorkommen.
+Für flow-basierte \acp{vla} wurde damit in einer Simulation mit 320
+parallelen Umgebungen eine Steigerung der Erfolgsrate von 41,6\,\% auf
+85,7\,\% berichtet~\cite{pirl2025}. Weil sich die Wahrscheinlichkeit einer
+Aktion beim Flow Matching nicht direkt berechnen lässt
+(\cref{sec:vla}), wurde das Verfahren \ac{fpo}~\cite{fpo2025} gewählt, das
+ohne diese Größe auskommt und den vorhandenen Trainings-Loss wiederverwendet.
+
+Implementiert wurde ein Trainer, der nur den Aktionskopf anpasst und die
+Belohnung aus der Isaac-Lab-Umgebung bezieht. Neben der binären Belohnung für
+einen Stapel gibt es eine abgestufte, die die Annäherung der Hand an einen
+Würfel, das Zusammenführen der Würfel und die Turmhöhe belohnt und unruhige
+Gelenkbewegungen bestraft. Weil Rendering mit RT-Cores und Rechenleistung für das Training
+gleichzeitig benötigt werden, läuft er auf dem Blackwell-Server des Instituts.
+Im August~2026 lief erstmals eine vollständige Trainingsiteration
+fehlerfrei durch. Ob das Training die Politik verbessert, ist noch nicht
+gezeigt. Dafür muss die Politik zunächst überhaupt einen Würfel anheben, damit
+die Belohnung ein verwertbares Signal liefert; das Co-Training sollte daher
+vorher durchgeführt werden (\doc{docs/weiterfuehrend/rl-anleitung.md}).
+
+\section{Wechsel auf GR00T N1.7}
+\label{sec:n17}
+
+Ende September wurde die Pipeline auf die Nachfolgeversion GR00T~N1.7
+übertragen. Dafür gibt es ein eigenes Container-Image; erste Testläufe auf dem
+Institutsserver waren erfolgreich. Trainingsläufe auf dem Cluster und eine
+Bewertung in der Simulation stehen noch aus.
 
 \section{Lokomotion}
 \label{sec:locomotion}
 \label{sec:loco-pfade}
 
-Lokomotion ist kein Schalter im bestehenden Modell, sondern eine zweite,
-eigenständige Steuerebene. Drei voneinander unabhängige Blocker verhindern sie
-derzeit (\cref{tab:loco-blocker}). Die Kinematik ist allerdings vollständig
-vorhanden: Das USD-Asset wird aus dem 29-\ac{dof}-\ac{urdf} mit freier Basis
-gebaut; \texttt{fix\_root\_link=True} überschreibt dies nur zur Laufzeit.
-
-\begin{table}[htb]
-  \centering
-  \begin{tabularx}{\linewidth}{lX}
-    \toprule
-    \textbf{Ebene} & \textbf{Blocker} \\
-    \midrule
-    Simulation & \texttt{fix\_root\_link=True} verschweißt den Torso mit der
-      Welt (bewusste Vereinfachung für die Manipulations-Eval); es gibt weder
-      Boden noch Bein-Aktuatoren. \\
-    Modell & Der Aktionsraum umfasst nur 28~\acp{dof} (Arme + Hände); der
-      Aktionskopf kann keine Beinbefehle erzeugen. \\
-    Daten  & Alle \texttt{G1\_Dex3}-Datensätze wurden an einem
-      \emph{stehenden} Roboter teleoperiert; selbst ein perfektes Modell
-      könnte daraus keine Beinaktionen lernen. \\
-    \bottomrule
-  \end{tabularx}
-  \caption{Die drei unabhängigen Lokomotions-Blocker.}
-  \label{tab:loco-blocker}
-\end{table}
-
-NVIDIA adressiert Manipulation und Fortbewegung im selben Humanoiden über
-einen \emph{entkoppelten} \acf{wbc}~\cite{groot2025}: Eine in Isaac~Lab
-trainierte RL-Politik hält mit Beinen und Taille die Balance und folgt
-einfachen Geschwindigkeitsbefehlen $(v_x, v_y, \omega_{\text{yaw}})$, während
-der Oberkörper von \ac{ik} bzw.\ der hier feinabgestimmten
-Manipulations-Politik gesteuert wird. Einsatzfähige RL-Lokomotions-Stacks für
-den G1 existieren (\texttt{unitree\_rl\_gym}, \texttt{unitree\_rl\_lab},
-NVIDIAs \texttt{GR00T-WholeBodyControl}); zu beachten ist ein
-Versionskonflikt -- \texttt{unitree\_rl\_lab} verlangt
-Isaac~Lab~2.3/Isaac~Sim~5.1, die Sim-Eval dieses Projekts läuft auf einer
-anderen Version. Die Recherche
-(\doc{docs/weiterfuehrend/lokomotion-recherche.md}) empfiehlt einen gestuften
-Weg: zunächst eine reine Sim-Lauf-Demo mit einer Stock-Politik (validiert
-Asset, Boden und Aktuatoren), dann die entkoppelte Integration --
-\texttt{fix\_root\_link} lösen, Boden und Schwerkraft ergänzen, Bein- und
-Taillen-Aktuatoren hinzufügen, fertige Lauf-Politik laden, Geschwindigkeits-
-befehle zunächst skriptgesteuert -- und erst langfristig eine unified
-Whole-Body-\ac{vla} mit latenten Aktions-Tokens, die neue
-Ganzkörper-Trainingsdaten erfordert. Das reale Unitree-SDK spiegelt dieselbe
-Entkopplung (\texttt{LocoClient} für Balance, \texttt{arm\_sdk} für die
-GR00T-Targets).
-
-\section{Co-Training auf echten und gerenderten Bildern}
-\label{sec:cotrain}
-
-Die Diskussion in \cref{sec:frozen-vs-tuned} endete mit einer präzisen
-Bedingung: Das Mittrainieren des Vision-Encoders hilft gegen den Domain-Gap
-nur, wenn der Encoder im Training tatsächlich Simulationsbilder sieht --
-in den Läufen~2 und~3 war das nicht erfüllt. Der zweite Hebel, das Angleichen
-der Sim-Optik (Visual Matching), wurde in \cref{sec:neukalibrierung}
-ausgeschöpft; die kritische Handgelenkkamera verfehlte das Zielkriterium
-dennoch knapp. Damit bleibt der dritte Weg: die Simulationsbilder \emph{in den
-Trainingssatz aufnehmen}.
-
-Der Renderer \doc{Simulation/g1\_dex3\_sim/render\_cotrain\_dataset.py} spielt
-dazu die \emph{echten} Datensatz-Aktionen in der Simulation ab und zeichnet
-die vier Policy-Kameras in der kalibrierten Auflösung auf; das Ergebnis ist
-ein LeRobot-Datensatz aus Paaren von \emph{simuliertem Bild} und \emph{realer
-Aktion}. Das Training mischt beide Quellen in einstellbarem Verhältnis
-(empfohlen: ein Viertel gerenderte Samples); die zurückgehaltenen
-Testepisoden werden nie gerendert, damit der Split intakt bleibt. Das
-Verfahren steht und fällt mit der Korrektheit der Simulationsszene -- ein an
-falscher Stelle gerenderter Würfel erzeugt ein Bild-Aktions-Paar, das dem
-Modell etwas Falsches beibringt. Genau deshalb war die geometrische
-Rekonstruktion aus \cref{sec:geometrie} die Voraussetzung dieses Schritts,
-und aus dem Widerruf des Vorzeichen-Fixes (\cref{sec:vorzeichen-widerruf})
-folgt, dass ein zuvor erzeugter gerenderter Datensatz neu zu erzeugen ist.
-Die Werkzeugkette ist vollständig und dokumentiert
-(\doc{docs/training/co-training.md}); der Trainingslauf auf dem gemischten
-Datensatz steht zum Redaktionsschluss aus. Er ist der nächste inhaltliche
-Schritt des Projekts und zugleich Voraussetzung für einen aussagekräftigen
-RL-Lauf (\cref{sec:rl-stand}).
-
-Parallel dazu verfolgt das Team einen \emph{generativen} Ansatz
-(federführend Maximilian Berger, \cref{sec:eigenleistung}): NVIDIAs Video-Weltmodell
-\textbf{Cosmos-Transfer} stylt die realen Trainingsvideos um und erhöht so
-die visuelle Vielfalt der Trainingsverteilung -- Domain Randomization ohne
-neue Teleoperation, komplementär zum gerenderten Datensatz. Die Pipeline ist
-als eigener Container aufgesetzt, zum Redaktionsschluss in Entwicklung und
-nicht Teil der hier bewerteten Ergebnisse.
-
-\section{Reinforcement-Learning-Fine-Tuning}
-\label{sec:rl-weiterfuehrend}
-
-\subsection{Motivation und Verfahren}
-\label{sec:rl-verfahren}
-
-Das bisherige Training ist reines \acl{bc}: Es optimiert
-\enquote{Aktion nachahmen}, nicht \enquote{Aufgabe lösen}. \acl{rl}
-optimiert direkt auf den Aufgabenerfolg und exploriert Zustände jenseits der
-Demonstrationen -- genau die Korrekturen, die \ac{bc} strukturell fehlen
-(\cref{sec:imitation-learning}); $\pi_{\mathrm{RL}}$ hebt die mittlere
-Erfolgsrate flow-basierter \acp{vla} etwa von~$41{,}6\,\%$
-auf~$85{,}7\,\%$~\cite{pirl2025}. Gemeint ist das Fine-Tuning der
-\ac{vla}-Politik, nicht das Low-Level-RL des Ganzkörper-Controllers aus
-\cref{sec:locomotion}. Die zentrale Hürde benennt \cref{sec:flow-matching}:
-Klassisches \ac{ppo} benötigt die Aktions-Likelihood, die der
-Flow-Matching-Kopf nicht liefert; die Forschung 2025 bietet passende
-Verfahren (\cref{tab:rl-verfahren}).
-
-\begin{table}[htb]
-  \centering
-  \begin{tabularx}{\linewidth}{lX}
-    \toprule
-    \textbf{Verfahren} & \textbf{Kerntrick} \\
-    \midrule
-    $\pi_{\mathrm{RL}}$ (Flow-SDE) & \ac{ode}$\to$SDE für handhabbare
-      Likelihood, dann \ac{ppo}; architektonisch am nächsten an
-      GR00T~\cite{pirl2025} \\
-    FPO & likelihood-freier Proxy aus dem Flow-Matching-Loss,
-      \ac{ppo}-Clipping \\
-    ReinFlow & lernbares Rauschnetz $\to$ Markov-Kette mit exakter
-      Likelihood \\
-    \bottomrule
-  \end{tabularx}
-  \caption{RL-Verfahren für flow-basierte Politiken
-    (\doc{docs/weiterfuehrend/reinforcement-learning-plan.md}).}
-  \label{tab:rl-verfahren}
-\end{table}
-
-\subsection{Umsetzung und Stand}
-\label{sec:rl-stand}
-
-Umgesetzt wurde \textbf{FPO}: Sein likelihood-freier Proxy verwendet den
-vorhandenen Flow-Matching-Loss unverändert wieder und greift am wenigsten in
-die GR00T-Trainings-API ein. Der Trainer (\texttt{rl\_finetune.py}) tunt
-ausschließlich den Aktionskopf, regularisiert per KL-Term gegen den
-\ac{bc}-Checkpoint und bezieht seinen geformten Reward aus der entsprechend
-erweiterten Isaac-Lab-Umgebung, die als \texttt{DirectRLEnv} bereits
-RL-tauglich angelegt war. Den Hardware-Konflikt -- bildbasiertes RL braucht
-RT-Core-Rendering \emph{und} Trainings-FLOPs zugleich, während A100/H100
-keine RT-Cores besitzen (\cref{sec:eval-methodik}) -- löste der
-institutseigene Blackwell-Server (zwei RTX~PRO~6000, je 96~GB; das
-KL-Referenzmodell läuft auf der zweiten GPU); der Weg dorthin erforderte die
-Migration auf Isaac~Sim~6.0 (\cref{sec:neukalibrierung}). Am
-\textbf{08.08.2026} terminierte erstmals eine vollständige Trainingsiteration
--- Rollout $\to$ \ac{gae} $\to$ FPO-Update $\to$ Checkpoint -- fehlerfrei
-(Smoke-Test mit zwei parallelen Umgebungen;
-\doc{docs/weiterfuehrend/rl-anleitung.md}).
-
-Damit ist die \emph{Machbarkeit} der Pipeline belegt, nicht ihre
-\emph{Lernwirkung}. Der zwischenzeitlich als Blocker geführte
-Greif-Physik-Befund ist ausgeräumt (\cref{sec:grasp-befund}); an seine Stelle
-treten zwei Voraussetzungen: Erstens muss die Politik überhaupt einen
-hinreichenden Griff kommandieren, damit der geformte Reward einen Gradienten
-liefert -- bei rund einem Viertel der Demonstrations-Spanne wird der
-Stapel-Term praktisch nie erreicht; genau hier setzt das Co-Training an, das
-dem RL-Lauf deshalb vorausgehen sollte. Zweitens sind die Sim-Messungen nach
-den Geometriekorrekturen aus \cref{sec:geometrie} zu wiederholen, damit ein
-belastbarer Nullpunkt existiert (\cref{sec:vorbehalt-greifzahlen}).
-Konzeptionell löst RL zugleich den Domain-Gap auf: Trainiert wird in genau
-der Simulation, in der evaluiert wird -- der Distribution-Shift verschwindet,
-und der Reward erzwingt Handeln statt Einfrieren.
+In dieser Arbeit ist der Roboter in der Simulation fest mit der Umgebung
+verbunden, der Aktionsraum umfasst nur Arme und Hände, und alle Daten wurden
+an einem stehenden Roboter aufgenommen. Für eine Fortbewegung wäre daher eine
+zusätzliche Steuerung nötig. NVIDIA trennt dazu Fortbewegung und
+Manipulation~\cite{groot2025}: Eine per Reinforcement Learning trainierte
+Politik steuert Beine und Gleichgewicht nach vorgegebenen Geschwindigkeiten,
+während der Oberkörper von der Manipulationspolitik gesteuert wird. Für den G1
+gibt es solche Laufpolitiken bereits. Die Recherche empfiehlt, zuerst eine
+vorhandene Laufpolitik in der Simulation zu testen und sie danach mit der
+Manipulationspolitik zu kombinieren (\doc{docs/weiterfuehrend/lokomotion-recherche.md}).

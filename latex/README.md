@@ -1,15 +1,16 @@
 # LaTeX — Projektarbeit (Ausarbeitung)
 
 > [!NOTE]
-> **Stand: 2026-08-26** (Abgabefassung: 35 Seiten Hauptteil / 58 Seiten gesamt, 11pt, baut
-> sauber durch). In der Kompaktierungs-Runde vom 2026-08-26 wurde die Fassung von 45 auf
-> 35 Seiten Hauptteil gebracht (Redundanz + Grundlagen raus, keine Substanzkürzung) und um
-> vier neue Bausteine ergänzt: Beitragsübersicht/Eigenleistung (Kap. 1),
-> Diagnose-Werkzeugkasten (Kap. 3), Checkpoint-U-Kurven-Diagramm (Kap. 4) und das neue
-> **Kapitel 7 „Projektverlauf und Lessons Learned"** (Hindernisse, Lessons Learned,
-> Arbeitsmittel-Wahl, KI-gestützte Entwicklung). **Noch offen:** persönliche
-> Titelseiten-Daten in `preamble/settings.tex`, vollständige Namen der Teammitglieder in
-> der Beitragstabelle (Kap. 1, TODO-Kommentar), Prüfung von `backmatter/erklaerung.tex`.
+> **Stand: 2026-10-11** (28 Seiten Hauptteil / 48 Seiten gesamt, baut sauber durch). Umbau nach
+> Absprache mit dem Betreuer: kein Theorie-/Stand-der-Technik-Kapitel, Kap. 3 geht jede
+> Teilaufgabe (Docker, Training, Simulation, Validierung, Entwicklungswerkzeuge) einzeln durch und
+> verweist für Details auf `docs/`. Neu: Lernkurven aller drei Läufe aus W&B (Kap. 4.1),
+> Verhalten des zuletzt getesteten Checkpoints aus den Videos vom 14.08.2026 (Kap. 4.11),
+> Hindernisse, Arbeitsmittel (KISSKI vs. Institutsserver) und KI-gestützte Entwicklungsumgebung
+> (Kap. 7). Korrigiert: SIMPLER-Zahlen, Hyperparameter (LR 1e-4, Warmup 0,10 laut W&B),
+> Isaac-Sim-Version (5.1 statt „4.x“), Einschränkungen des Fingeröffnungstests (Trainingsepisoden),
+> Statistik (Konfidenzintervalle, t-Test-Details), Bib-Eintrag πRL. **Noch offen:**
+> Matrikelnummern A/B und Abgabedatum in `preamble/settings.tex`.
 
 ## Zweck
 
@@ -32,18 +33,18 @@ latex/
 │   └── zusammenfassung.tex  # Zusammenfassung + englisches Abstract
 ├── chapters/
 │   ├── 01_einleitung.tex                #  Motivation, Ziele, Beitragsübersicht/Eigenleistung
-│   ├── 02_grundlagen.tex                #  VLA, Flow Matching, Domain-Gap (nur Projektspezifisches)
-│   ├── 03_methoden.tex                  #  Infrastruktur, Datensatz, Training, Eval, Werkzeugkasten
-│   ├── 04_ergebnisse.tex                #  Läufe 1–3 (inkl. U-Kurve), Diagnosekette, Geometrie
+│   ├── 02_grundlagen.tex                #  Begriffe und Plattform (bewusst knapp)
+│   ├── 03_methoden.tex                  #  Umsetzung je Teilaufgabe: Docker, Training, Sim, Validierung, Werkzeuge
+│   ├── 04_ergebnisse.tex                #  Lernkurven (W&B), Läufe 1–3, Diagnosekette, Lauf-34-Verhalten, Geometrie
 │   ├── 05_diskussion.tex                #  Einordnung, Messartefakte, Limitierungen
-│   ├── 06_weiterfuehrende_arbeiten.tex  #  Lokomotion, Co-Training, Cosmos, RL
-│   ├── 07_projektverlauf.tex            #  Hindernisse, Lessons Learned, Arbeitsmittel, KI-Einsatz
-│   └── 08_fazit.tex                     #  Fazit und Ausblick (rein fachlich)
+│   ├── 06_weiterfuehrende_arbeiten.tex  #  Co-Training (inkl. Synth-Datensatz), Cosmos, RL, N1.7, Lokomotion
+│   ├── 07_projektverlauf.tex            #  Hindernisse, Arbeitsmittel, Entwicklungsumgebung/KI, Lessons Learned
+│   └── 08_fazit.tex                     #  Fazit (Antworten auf F1–F3) und Ausblick
 ├── backmatter/
 │   ├── anhang.tex           # Datensatz, SLURM, Software, Trainingsdynamik, Szene
 │   └── erklaerung.tex       # Ehrenwörtliche Erklärung ← prüfen
 ├── figures/                 # Abbildungen
-├── references.bib           # Literatur (18 Einträge, 16 zitiert)
+├── references.bib           # Literatur
 ├── Makefile / .latexmkrc    # Build-Konfiguration
 └── main.pdf                 # zuletzt kompiliertes PDF (gitignored)
 ```
@@ -87,7 +88,7 @@ ausgeschlossen.
       `\docBetreuer`, `\docHochschule`, `\docFachbereich`, `\docStudiengang`,
       `\docAbgabedatum`)
 - [ ] Optional: echte Abbildungen in `figures/` einbinden (statt der TikZ-Diagramme/W&B-Plot)
-- [ ] Ehrenwörtliche Erklärung prüfen (`backmatter/erklaerung.tex`)
+- [x] Ehrenwörtliche Erklärung geprüft (Formulierung „keine anderen als die angegebenen Quellen und Hilfsmittel“ ergänzt; gegen Vorlage der Hochschule abgleichen)
 
 ### Inhaltlich offen (hängt am Projekt, nicht am Dokument)
 

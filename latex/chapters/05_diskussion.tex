@@ -3,228 +3,167 @@
 \chapter{Diskussion}
 \label{chap:diskussion}
 
-Die Ergebnisse aus \cref{chap:ergebnisse} wirken auf den ersten Blick
-widersprüchlich: ein sauber konvergiertes Training, aber eine Erfolgsrate von
-$0/20$ im geschlossenen Regelkreis. Dieses Kapitel zeigt, dass dieser Befund
-keine Anomalie, sondern ein in der Literatur dokumentiertes und erwartbares
-Ergebnis ist, und diskutiert seine Konsequenzen für die Bewertung der
-Modellqualität.
-
-\section{Einordnung des Null-Resultats}
+\section{Einordnung des Ergebnisses in der Simulation}
 \label{sec:einordnung-null}
 
-Die zentrale Erkenntnis lautet: \textbf{$0\,\%$ Closed-Loop-Erfolg in einer
-nicht-photorealistischen Simulation mit eingefrorenem Realbild-Encoder ist
-das erwartete Ergebnis des Real$\to$Sim-Gaps -- kein Urteil über das
-Modell.} Die kanonische Referenz ist SIMPLER~\cite{simpler2024}: Die
-Octo-Politik erreicht dort (\enquote{Pick Coke Can}) \textbf{$0\,\%$} Erfolg
-ohne und $29{,}3\,\%$ mit \emph{Visual Matching}. Die hier verwendete
-Szene -- einfache mattierte Quader vor sauberem Hintergrund -- ist für einen
-auf Realbildern trainierten Encoder geradezu der ungünstigste Fall.
+Das Training konvergierte in allen drei Läufen, in der Simulation wurde die
+Aufgabe aber in keiner Episode gelöst. Dass eine nur auf realen Bildern
+trainierte Politik in einer Simulation scheitert, ist nicht ungewöhnlich. Die
+Studie SIMPLER~\cite{simpler2024} zeigt allerdings, dass es stark von der
+Politik abhängt. Bei der Aufgabe \enquote{Pick Coke Can} erreicht die
+Octo-Politik am realen Roboter 29,3\,\%, in der Simulation mit Visual Matching
+17,0\,\% und über visuelle Varianten gemittelt nur 0,6\,\%. RT-1 erreicht in
+derselben Simulation dagegen 85,7\,\% bzw.\ 89,8\,\% und damit etwa seinen
+realen Wert. Ein Ergebnis von null in einer nicht fotorealistischen Simulation
+belegt daher weder, dass das Modell schlecht ist, noch war es zwingend zu
+erwarten. Es muss mit eigenen Messungen eingeordnet werden.
 
-Verstärkt wird dies durch die gemessene Verteilung des Domain-Gaps
-(\cref{sec:domain-gap-ergebnis}): Nicht der Durchschnitt ist das Problem,
-sondern der \emph{eine} kritische Kameraeingang (\texttt{cam\_left\_wrist},
-0,427; nach Neukalibrierung und Albedo-Fixes noch 0,356). Da das \ac{vlm} alle
-vier Kameras gemeinsam einbettet, propagiert ein einzelner stark abweichender
-Eingang in das gesamte Embedding -- die \emph{compounding errors} aus
-\cref{sec:imitation-learning} tun ihr Übriges, bis die Politik in den
-beobachteten \enquote{eingefrorenen} Zustand kollabiert.
+Diese Messungen sprechen überwiegend für ein Wahrnehmungsproblem. Der
+Domain-Gap ist vor allem bei der linken Handgelenkkamera groß
+(\cref{sec:domain-gap-ergebnis}). Auf realen Bildern kommandiert dieselbe
+Politik die volle Greifbewegung, in der Simulation nur ein Fünftel bis ein
+Viertel davon (\cref{sec:span-gate}). Und das Verhalten in den Videos
+(\cref{sec:realperformance}) zeigt eine Politik, die die Würfel findet und
+anfährt, aber nicht in einen Greifablauf übergeht. Drei Punkte schränken diese
+Deutung ein. Die realen Bilder im Fingeröffnungstest stammen aus
+Trainingsepisoden. In der Simulation erhielt die Politik einen teilweise
+falschen Gelenkzustand. Und die Hand konnte sich dort ohnehin nicht
+vollständig schließen (\cref{sec:vorbehalt-greifzahlen}). Welcher Anteil des
+Versagens auf den Domain-Gap entfällt, ist damit offen.
 
-Den Schritt von der Bildähnlichkeit zur \emph{Verhaltensfolge} leistet das
-\texttt{span}-Gate (\cref{sec:span-gate}): Es schließt die Gegenhypothese
-\enquote{nie greifen gelernt} durch eine Messung aus, deren beide Seiten von
-derselben Politik stammen und sich allein in der Beobachtung unterscheiden.
-Der Vorbehalt aus \cref{sec:vorbehalt-greifzahlen} schränkt dabei nur die
-simulationsseitige Hälfte dieser Messung ein, nicht die reale.
-
-\begin{infobox}[Die richtige Metrik für dieses Modell]
-  NVIDIAs offizielle Checkpoint-Evaluation ist nicht die Closed-Loop-Sim, sondern
-  der \textbf{Open-Loop-Action-\ac{mse} auf gehaltenen echten Trajektorien}
-  (\cref{sec:eval-methodik}). Die in \cref{sec:diagnose} dokumentierte gute
-  Open-Loop-Armvorhersage spricht dafür, dass das Modell die Aufgabe im Prinzip
-  gelernt hat; das Closed-Loop-Versagen ist primär ein \emph{Wahrnehmungs}-, kein
-  \emph{Politik}-Problem.
-\end{infobox}
-
-\section{Eingefrorener vs.\ mittrainierter Vision-Encoder}
+\section{Eingefrorener und mittrainierter Bild-Encoder}
 \label{sec:frozen-vs-tuned}
 
-Ein naheliegender Reflex ist, den Vision-Encoder mitzutrainieren
-(\texttt{TUNE\_VISUAL=1}), um ihn an die Simulation anzupassen. Der Schluss
-ist trügerisch: Domain-Invarianz ist eine \emph{im Training erlernte}
-Eigenschaft, kein zur Evaluationszeit umlegbarer Schalter. Ein nur auf
-Realbildern feinabgestimmter Encoder wird gegen Sim-Renderings nicht
-robuster, sondern spezialisiert sich stärker auf das reale Erscheinungsbild;
-\texttt{TUNE\_VISUAL} hilft nur, wenn der Encoder im Training tatsächlich
-Simulations- oder \acf{dr}-variierte Bilder sieht~\cite{tobin2017domain}.
-Hinzu kommt: Bei nur~$\approx$~301~Demonstrationen droht beim Auftauen des
-2-Mrd.-Parameter-Encoders \emph{Catastrophic Forgetting} der generischen
-Vortrainings-Merkmale -- gerade jener, die einen eingefrorenen Encoder
-vergleichsweise sim-tolerant machen. Frozen-Encoder sind für die Sim-Eval
-also tendenziell robuster, getunte besser für den Real$\to$Real-Transfer
-(\doc{docs/ergebnisse/sim-bewertung.md},
-\doc{docs/ergebnisse/domain-gap-analyse.md}).
+Im zweiten Lauf verschlechterte das Mittrainieren des Bild-Encoders das
+Verhalten in der Simulation (\cref{sec:vision-lauf}). Das ist plausibel: Ein
+Encoder, der nur mit realen Bildern nachtrainiert wird, wird dadurch nicht
+robuster gegenüber simulierten Bildern, sondern passt sich stärker an die
+realen an. Bei nur rund 300 Demonstrationen besteht außerdem die Gefahr, dass
+allgemeine Merkmale aus dem Vortraining verloren gehen.
 
-Der zweite Lauf (\cref{sec:vision-lauf}) hat diese Argumentation empirisch
-bestätigt: Bei identischem Trainingsbefund verschlechterte sich das
-Closed-Loop-Verhalten zum reinen Politik-Kollaps. Das Mittrainieren des
-Encoders auf reinen Realdaten ist damit als Sackgasse \emph{belegt}; sinnvoll
-wird es erst zusammen mit sim- oder \acs{dr}-variierten Trainingsbildern.
+Der dritte Lauf mit ebenfalls mittrainiertem Encoder schnitt dagegen besser ab
+als der erste (\cref{sec:realperformance}). Er unterscheidet sich vom zweiten
+durch den Split, möglicherweise durch die Bildaugmentierung
+(\cref{sec:lauf3}) und vor allem dadurch, dass der beste statt des letzten
+Checkpoints getestet wurde. Welcher dieser Punkte den Unterschied ausmacht,
+lässt sich nicht trennen. Falls die Augmentierung erst in Lauf~3 aktiv war,
+könnte sie als einfache Form der \ac{dr} den Encoder etwas robuster gegenüber
+Farb- und Helligkeitsunterschieden gemacht haben. Für eine größere
+Verbesserung muss der Encoder im Training aber auch simulierte oder stark
+variierte Bilder sehen~\cite{tobin2017domain,cotrain2025}.
 
-\section{Validität der Evaluationsmethodik}
+\section{Validität der Bewertung}
 \label{sec:validitaet}
 
-Die kritische Selbstprüfung der Sim-Eval kommt zu einem klaren Urteil: Die
-Simulation ist \textbf{technisch korrekt gebaut, aber als
-Bewertungsinstrument für dieses Modell methodisch am Ziel vorbei} -- der
-Steuerungspfad ist per Replay validiert (\cref{sec:kalibrierung}), die
-Inferenz-Hälfte extern auf 0,1~Prozentpunkte genau (\cref{sec:robocasa}), die
-Closed-Loop-Erfolgsrate misst jedoch primär den Domain-Gap, nicht die
-Modellgüte. Die Durchsicht der Eval-Implementierung fand zudem kleinere
-Mängel -- einen irreführenden Kommentar zur Aktionsanwendung, ein zur
-Evaluationszeit wirkungsloses \ac{dr}-Flag, eine Steuerfrequenz von 28,57
-statt 30~Hz --, von denen keiner das Null-Resultat erklärt
-(\doc{docs/ergebnisse/sim-bewertung.md}). Mehrere zunächst verdächtigte
-Faktoren wurden durch Recherche \emph{entlastet}: der ausgeführte
-Aktionshorizont (8~von~16, eine Lehrbuch-Konvention für
-Receding-Horizon-Politiken), die geringe Frequenzabweichung und die
-absolut/relativ-Umsetzung der Aktionen.
+Die Simulation ist in ihren Teilen geprüft. Der Replay-Test zeigt, dass sie
+greifen kann, die Referenzaufgabe, dass die Inferenz-Kette korrekt arbeitet,
+und der Greiftest mit vorplatziertem Würfel, dass die Kontaktphysik
+funktioniert. Dass ein Gelenk falsch angesteuert wurde, konnte keiner dieser
+Tests aufdecken, weil jeder nur prüft, ob ein Griff überhaupt möglich ist.
+Gefunden wurde der Fehler erst, als die simulierten Fingerkuppen ins reale
+Bild projiziert und mit der realen Hand verglichen wurden.
 
-\section{Messartefakte und ihre Lehren}
+Auch die Messungen selbst haben Grenzen. Die Stichproben sind klein: Für 0/20
+bzw.\ 0/10 Erfolge reicht das 95-\%-Konfidenzintervall bis 17\,\% bzw.\
+31\,\%. Die Checkpoint-Auswahl beruht auf sechs Testepisoden und bewertet nur
+die Anfahrphase. Für den Open-Loop-\ac{mse} fehlt ein einfacher
+Vergleichswert, etwa eine Politik, die die Arme stillhält und die Hand in der
+letzten Stellung lässt; erst damit ließe sich sagen, wie viel besser das
+Modell als eine triviale Vorhersage ist. Die SigLIP-Distanz wurde gegen den
+Unterschied zweier realer Kameras verglichen, nicht gegen dieselbe Kamera in
+verschiedenen Episoden. Und eine Steuerfrequenz von 28,6 statt 30~Hz in einer
+frühen Version der Simulation zeigt, dass auch kleinere Abweichungen vorkommen,
+die das Ergebnis aber nicht erklären.
+
+Als Maß für die Qualität dieses Modells ist die Erfolgsrate in der Simulation
+deshalb nur bedingt geeignet. Sie ist wertvoll für die Fehlersuche und, mit
+den Zwischenstufen aus \cref{sec:validierung}, für den Vergleich von
+Checkpoints. Eine Aussage über die Leistung am realen Roboter erlaubt sie
+nicht.
+
+\section{Fehlerquellen bei Messungen}
 \label{sec:messartefakte}
 
-Die Diagnose-Serien vom August~2026
-(\cref{sec:neukalibrierung,sec:grasp-befund,sec:geometrie}) förderten über die
-Sachbefunde hinaus vier wiederkehrende \emph{Messartefakt-Muster} zutage, die
-für simulationsgestützte Robotik-Evaluationen verallgemeinerbar sind:
+Bei den Untersuchungen im August traten mehrfach ähnliche Messfehler auf, die
+auch für andere simulationsgestützte Arbeiten relevant sein dürften:
 
-\begin{description}
-  \item[Zirkuläre Prüfgrößen.] Der Kamera-Orientierungsfehler
-    (\cref{sec:neukalibrierung}) blieb fünf Diagnose-Läufe lang unentdeckt,
-    weil die Kontrollgröße aus \emph{derselben} fehlerhaften
-    Koordinaten-Umrechnung stammte wie die geprüfte Kamerapose; erst eine
-    unabhängige Messquelle (direkter USD-Zugriff) machte die Abweichung von
-    bis zu~137° sichtbar. Kontrollmessungen müssen den geprüften Codepfad
-    umgehen.
-  \item[Körper-Frames sind keine Kontaktflächen.] Der Abstand
-    \enquote{Hand--Würfel} wurde dreimal nacheinander von einem falschen
-    Referenzpunkt aus gemessen (Handwurzel, Handfläche, distales
-    Fingergelenk -- zuletzt 5,2~cm vor der Fingerkuppe); jede Messung erzeugte
-    eine falsche Zwischen-Schlussfolgerung. Bei 5~cm Würfelkante entscheidet
-    die Wahl des Referenzpunkts über das Vorzeichen des Ergebnisses.
-  \item[Stille Sättigung statt Fehlermeldung.] Der widerrufene Vorzeichen-Fix
-    (\cref{sec:vorzeichen-widerruf}) blieb monatelang unentdeckt, weil die
-    Simulation Gelenkziele außerhalb der Grenzen nicht zurückweist, sondern
-    stumm auf den Grenzwert klemmt -- im Protokoll ununterscheidbar von einem
-    Gelenk am Ziel. Wo ein Stellglied sättigen kann, muss der
-    Sättigungszustand selbst protokolliert werden.
-  \item[Prüfdaten sind nicht Nutzdaten.] Die ursprüngliche Begründung für den
-    Wechsel des Gierwinkel-Schätzers (\cref{sec:gierwinkel}) war auf
-    \emph{annotierten Debug-Bildern} statt echten Datensatzbildern erhoben und
-    maß die eingezeichneten Hilfslinien mit -- aufgefallen an exakt
-    gesättigten Farbwerten, wie sie in Fotografien nicht vorkommen. Auffällig
-    \enquote{saubere} Werte sind ein Anlass zu prüfen, ob die richtigen Daten
-    gemessen wurden.
-\end{description}
-
-Alle vier Muster teilen eine Konsequenz: Quantitative Diagnostik ist nur so
-belastbar wie die Unabhängigkeit und physikalische Bedeutung ihrer Messpunkte.
-Die daraus abgeleiteten Regeln sind in
-\doc{docs/weiterfuehrend/rl-anleitung.md} operationalisiert.
+\begin{itemize}
+  \item Eine Prüfung, die denselben Code verwendet wie das geprüfte System,
+    findet dessen Fehler nicht. So blieb die falsche Kameraausrichtung lange
+    unentdeckt.
+  \item Abstände zwischen Hand und Würfel wurden mehrfach von einem falschen
+    Bezugspunkt aus gemessen (Handwurzel statt Fingerspitze). Bei 5~cm großen
+    Würfeln verändert das die Schlussfolgerung.
+  \item Die Simulation begrenzt unzulässige Gelenkwerte ohne Fehlermeldung.
+    Ohne Protokollierung dieser Begrenzung ist sie nicht von einem korrekt
+    erreichten Ziel zu unterscheiden.
+  \item Kennzahlen, die ein Maximum über die Episode bilden, hängen von der
+    Episodenlänge ab. Eine Messung mit 60 statt 40~s war deshalb nicht mit den
+    vorherigen vergleichbar.
+  \item Eine Auswertung wurde versehentlich auf Bildern mit eingezeichneten
+    Hilfslinien statt auf den Originalbildern durchgeführt.
+\end{itemize}
 
 \section{Limitierungen}
 \label{sec:limitierungen}
 
-\subsection{Vorbehalt gegen alle simulationsseitigen Greifzahlen}
+\subsection{Einschränkung der Messwerte aus der Simulation}
 \label{sec:vorbehalt-greifzahlen}
 
-Die gewichtigste Einschränkung ergab sich erst am Ende und betrifft
-rückwirkend einen Großteil der Messwerte: Die Vorzeichen-Spiegelung der
-Fingergrundgelenke war selbst fehlerhaft (\cref{sec:vorzeichen-widerruf}) und
-wirkte auf Beobachtung \emph{und} Aktion in jedem Laufmodus. Sämtliche
-simulationsseitigen Greifgrößen dieser Arbeit -- die Erfolgsrate~$0/20$, die
-Fingerspannen von 19\,\%, 20,5\,\% und 27,6\,\% -- sind mit einer Hand
-entstanden, die sich nicht vollständig schließen konnte.
+Die fehlerhafte Vorzeichenumkehr der Fingergelenke und die falsche Position
+des Roboters (\cref{sec:geometrie}) wirkten in allen Simulationsläufen mit
+einer Politik. Alle dort gemessenen Werte zum Greifen, also die Erfolgsraten,
+die Fingeröffnungen von 20,5\,\% und 27,6\,\% und die Stufenfolge aus
+\cref{tab:lauf34}, sind daher mit einer Hand entstanden, die sich nicht
+vollständig schließen konnte. Die Politik erhielt außerdem für vier Gelenke
+einen verfälschten Zustand, was ebenfalls zu einer geringeren Fingeröffnung
+führen kann. Nicht betroffen sind die SigLIP-Messung, die Referenzaufgabe,
+der Open-Loop-\ac{mse} und die Messung der Fingeröffnung auf realen Bildern.
 
-Entscheidend ist die saubere Trennung dessen, was der Vorbehalt berührt:
-\textbf{Nicht betroffen} sind die rein bildbasierte SigLIP-Messung
-(\cref{sec:domain-gap-ergebnis,sec:neukalibrierung}), die externe
-Pipeline-Validierung auf anderem Embodiment und Simulator
-(\cref{sec:robocasa}) sowie die \emph{reale} Seite des \texttt{span}-Gates
-(Verhältnis~1,00, open-loop ohne Simulationsbeteiligung).
-\textbf{Betroffen} sind alle in der Simulation erhobenen Greif- und
-Fingerspannenwerte: Für sie existiert seit dem Widerruf eine konkurrierende
-Erklärung -- die Politik sah nicht nur fremde Bilder, sondern auch einen
-verfälschten propriozeptiven Zustand, und beides kann eine zu geringe
-Fingerspanne erzeugen.
+\subsection{Datenmenge}
+Mit rund 300 Demonstrationen ist der Datensatz für das Fine-Tuning eines
+\ac{vla} mit 3,3~Mrd.\ Parametern klein. Die bereits in der Open-Loop-Auswertung
+verrauschten Fingervorhersagen deuten darauf hin, dass Datenmenge oder
+-qualität gerade für die Hand nicht ausreichen.
 
-Die qualitative Kernaussage übersteht das: Dass die Politik das Greifen
-\emph{gelernt} hat und dass ein erheblicher visueller Abstand \emph{besteht},
-zeigen die unbelasteten Messungen. Geschwächt ist die
-\emph{Alleinzuschreibung} des Sim-Versagens an den visuellen Domain-Gap. Die
-saubere Konsequenz -- Wiederholung der Sim-Messungen mit korrigierter
-Geometrie -- war zum Redaktionsschluss nicht mehr möglich; bis dahin sind die
-genannten Prozentwerte als \emph{obere Schranken für das Ausmaß des visuellen
-Effekts} zu lesen, nicht als dessen Messung.
+\subsection{Checkpoint-Auswahl}
+In den ersten beiden Läufen wurde der letzte Checkpoint verwendet, für diese
+Läufe gab es zudem keine Testmenge. Der dritte Lauf zeigt, dass der letzte
+Checkpoint nicht der beste ist (\cref{sec:lauf3}). Wie stark sich das auf die
+Ergebnisse der ersten beiden Läufe in der Simulation ausgewirkt hat, lässt
+sich nachträglich nicht bestimmen.
 
-\subsection{Datenmenge und Datenqualität}
-Mit~$\approx$~301~Demonstrationen liegt der Datensatz am unteren Rand des für
-\ac{vla}-Fine-Tuning Üblichen (typischerweise 500--2000). In Kombination mit
-reinem \acl{bc} begünstigt das die in \cref{sec:imitation-learning} beschriebenen
-\emph{compounding errors}. Zudem waren die Fingerdimensionen schon in der
-Open-Loop-Vorhersage verrauscht -- ein Hinweis auf grenzwertige Datenqualität
-oder -menge gerade für die feinmotorischen DEX3-Gelenke.
+\subsection{Simulator-Version}
+Nach dem Wechsel auf Isaac~Sim~6.0 ließ sich das zuvor erfolgreiche
+Greifen zunächst nicht reproduzieren. Die Ursache lag nicht im Simulator,
+sondern in bereits vorher bestehenden Fehlern der Szene. Ergebnisse aus der
+Simulation sollten daher immer mit der verwendeten Version angegeben und nach
+einem Wechsel erneut geprüft werden.
 
-\subsection{Fehlende Validierung und blinde Checkpoint-Auswahl}
-Da während des Trainings nicht validiert wurde -- strukturell bedingt, der
-Fork erzwingt \texttt{eval\_strategy="no"} per Assertion --, fehlte in den
-Läufen~1 und~2 ein Signal zur Checkpoint-Auswahl; zusammen mit dem inaktiven
-Split (\cref{sec:split-befund}) existiert für Lauf~1 zudem keine gehaltene
-Testmenge. Diese Limitierung ist inzwischen quantifiziert und behoben: Der
-dritte Lauf zeigte per Sweep die U-Kurve (letzter Checkpoint 25\,\%
-schlechter als der beste, \cref{sec:lauf3}) -- rückwirkend ist damit belegt,
-dass Lauf~1 und~2 sehr wahrscheinlich den falschen Checkpoint ausgewertet
-haben. Wie stark das die Closed-Loop-Befunde beeinflusst hat, lässt sich nicht
-mehr rekonstruieren; für künftige Läufe ist die Auswahl durch den Sweep
-methodisch abgesichert.
+\subsection{Übertragung auf den realen Roboter}
+Das Modell wurde nicht auf dem physischen Roboter getestet. Sein Verhalten
+dort ist daher unbekannt.
 
-\subsection{Abhängigkeit von der Simulator-Version}
-Der Wechsel von Isaac~Sim~4.x auf~6.0 zeigte, dass zentrale
-Validierungsergebnisse an die Simulator-Version gebunden sind: Die im Juni
-belegte Greif-Physik ließ sich nach der Migration zunächst nicht reproduzieren
-(\cref{sec:grasp-befund}); die Klärung ergab Entwarnung für den Simulator
-(7,9~cm Hubhöhe), kostete aber Wochen -- der eigentliche Fehler lag in der
-Szenengeometrie (\cref{sec:geometrie}). Die verallgemeinerbare Lehre: Ein
-Versionswechsel lenkt den Verdacht auf den Simulator und verdeckt Fehler, die
-schon vorher bestanden. Sim-Befunde sind mit Version auszuweisen und nach
-Wechseln erneut zu prüfen -- einschließlich der Szene, nicht nur des
-Simulators.
-
-\subsection{Sim-to-Real-Transfer}
-Die Evaluation fand ausschließlich in Simulation statt; das Verhalten auf dem
-\emph{physischen} G1 ist ungeprüft. Warum gerade deshalb ein deutlich
-besseres Abschneiden auf realer Hardware plausibel ist und der reale Roboter
-der Goldstandard der Bewertung bleibt, führt der Ausblick aus
-(\cref{sec:ausblick}).
-
-\section{Methodische Konsequenz}
+\section{Folgerungen für die weitere Bewertung}
 \label{sec:konsequenz}
 
-Aus alledem folgt eine klare Empfehlung für die weitere Bewertung dieses Modells,
-die der in der Literatur etablierten Hierarchie entspricht:
+Für die weitere Bewertung dieses Modells ergibt sich folgende Reihenfolge:
 
 \begin{enumerate}
-  \item \textbf{Open-Loop-Action-\ac{mse}} als primäre, sofort verfügbare
-    Metrik für die Modellqualität (kein Domain-Gap).
-  \item \textbf{Reale Roboter-Rollouts} als Goldstandard.
-  \item \textbf{Closed-Loop-Sim} nur mit SIMPLER-artigem Visual
-    Matching~\cite{simpler2024} oder nach Aufnahme von Sim-Bildern in den
-    Trainingssatz -- andernfalls taugt die Sim als qualitatives Demo- und
-    Debug-Werkzeug, nicht als Modell-Benchmark.
+  \item Open-Loop-\ac{mse} auf allen 61 Testepisoden und über die ganze
+    Episodenlänge, getrennt nach Armen und Händen und mit einer trivialen
+    Vorhersage als Vergleich.
+  \item Fingeröffnung auf realen Bildern der Testepisoden. Liegt sie dort
+    ebenfalls nahe 100\,\%, ist das Greifen tatsächlich gelernt und nicht nur
+    auswendig gelernt.
+  \item Wiederholung der Closed-Loop-Messung mit korrigierter Szene. Ein
+    Kreuzversuch, bei dem die Politik reale Bilder mit dem simulierten Zustand
+    bzw.\ simulierte Bilder mit dem realen Zustand erhält, kann zusätzlich den
+    Einfluss von Bild und Zustand trennen.
+  \item Versuche auf dem realen Roboter als aussagekräftigste Bewertung.
 \end{enumerate}
 
-Die Simulation hat in dieser Arbeit ihren Zweck dennoch erfüllt: Sie hat -- gerade
-durch ihr \enquote{Scheitern} -- den Domain-Gap als zentrale Herausforderung
-sichtbar gemacht und damit den Weg für die in \cref{chap:weiterfuehrend}
-skizzierten Folgearbeiten gewiesen.
+Die Closed-Loop-Simulation eignet sich für eine Bewertung der
+Aufgabenerfüllung erst, wenn simulierte Bilder im Training enthalten sind oder
+die Simulationsoptik an die realen Bilder angepasst ist. Bis dahin ist sie vor
+allem ein Werkzeug zur Fehlersuche.
