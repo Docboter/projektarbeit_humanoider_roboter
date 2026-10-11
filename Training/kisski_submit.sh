@@ -30,7 +30,8 @@
 # Das Skript klont automatisch das GitHub-Repo und lädt Modell + Datensatz
 # von HuggingFace herunter — kein manuelles rsync nötig.
 #
-# Optionale Überschreibungen — ebenfalls als Inline-Prefix vor sbatch:
+# Optionale Überschreibungen — inline vor sbatch, aber nur zusammen mit
+# `sbatch --export=ALL` (siehe oben, SBATCH_EXPORT=none auf dem Login-Node):
 #   GITHUB_REPO, GITHUB_BRANCH, GITHUB_TOKEN, REPO_DIR
 #   MAX_STEPS, SAVE_STEPS, SAVE_TOTAL_LIMIT, GLOBAL_BATCH_SIZE, NUM_GPUS,
 #   WANDB_PROJECT, DATA_DIR, SKIP_GIT_PULL, SKIP_DOWNLOAD, SKIP_CONVERT, SKIP_TRAIN,
@@ -66,9 +67,9 @@ set -euo pipefail
 # fehlschlagen. Die paar Zeilen hier sind der Preis für Selbstgenügsamkeit.
 #
 # EIN Knopf für den Projektspeicher, alles Weitere leitet sich davon ab:
-#     KISSKI_PROJECT_DIR=/mnt/vast-kisski/projects/<projekt> sbatch <dieses Skript>
-# Das wirkt beim Absenden, weil oben `#SBATCH --export=ALL` steht — die Umgebung der
-# Submit-Shell landet unverändert im Job.
+#     KISSKI_PROJECT_DIR=/mnt/vast-kisski/projects/<projekt> sbatch --export=ALL <dieses Skript>
+# Das --export=ALL auf der Kommandozeile ist nötig: KISSKI setzt SBATCH_EXPORT=none, was
+# das `#SBATCH --export=ALL` oben überstimmt (siehe Kopf des Skripts).
 KISSKI_PROJECT_DIR="${KISSKI_PROJECT_DIR:-/mnt/vast-kisski/projects/kisski-humrob}"
 
 # SIF-Ablage. Reihenfolge: eigenes $HOME/images zuerst — genau dorthin lädt der in

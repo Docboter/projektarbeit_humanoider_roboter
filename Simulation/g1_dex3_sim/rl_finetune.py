@@ -24,7 +24,7 @@ NOCH offen (deshalb kein "fertiger" Trainer):
     Hyperparameter (lr, clip, kl_coef, fpo_mc_samples) sind ungetunt.
   - num_envs-Durchsatz mit 4-Kamera-Rendering (Render-FPS-Benchmark, Plan Gruppe 0).
 
-Algorithmus: FPO (Flow Policy Optimization, arXiv 2510.09976) — ersetzt den
+Algorithmus: FPO (Flow Policy Optimization, arXiv 2507.21053, "Flow Matching Policy Gradients") — ersetzt den
 PPO-Likelihood-Ratio durch exp(proxy_new - proxy_old) mit proxy = -L_flow_matching,
 gemittelt ueber K (noise, t)-Ziehungen. Passt zur Flow-Matching-Policy von GR00T,
 ohne explizite Likelihood. VLM bleibt eingefroren (wie im BC-Training).
@@ -236,7 +236,7 @@ def _to_device(obj, dev):
 
 
 def fpo_logprob_proxy(model, inputs_with_action, k_samples, torch):
-    """Likelihood-freier Stand-in fuer log pi(a|s) (FPO, arXiv 2510.09976).
+    """Likelihood-freier Stand-in fuer log pi(a|s) (FPO, arXiv 2507.21053, "Flow Matching Policy Gradients").
 
     action_head.forward(...) zieht intern Rauschen + Zeit t und liefert den
     Flow-Matching-MSE als "action_loss". Wir mitteln -loss ueber K Ziehungen:

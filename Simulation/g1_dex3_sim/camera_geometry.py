@@ -143,8 +143,12 @@ class G1Dex3CameraCfg:
         # a) MONTAGEPUNKT. Die Kameras standen auf z=1.45 und y=±0.08 — also NEBEN und ÜBER
         #    dem Kopf, weshalb der eigene Kopf ein Drittel des Bildes verdeckte (Lauf 16).
         #    Der echte G1 trägt seine Kopfkamera laut URDF im `d435_link`, pelvis-relativ
-        #    (0.0537, 0.0175, 0.4739); das Pelvis sitzt env-lokal auf z=0.85, macht
+        #    (0.0537, 0.0175, 0.4739); das Pelvis sass damals env-lokal auf z=0.85, macht
         #    (0.0537, 0.0175, 1.3239).
+        #    OFFEN (2026-10-11): Seit der Beckenkorrektur auf 0.764 (2026-08-24) ergaebe
+        #    derselbe URDF-Versatz z~1.238. Die Kamera bleibt bewusst bei 1.3239, weil
+        #    diese Pose gegen gerenderte Bilder mit Grundwahrheit geprueft ist — die
+        #    ~8,6 cm Differenz zwischen Kamera- und Beckenmessung sind ungeklaert.
         # b) STEREO-BASIS. ±0.08 wären 16 cm Basis. Aus den beiden Referenzbildern gemessen:
         #    Querversatz 40 px (SAD-Minimum über die Tischplatte), Würfelkantenlänge 40–46 px
         #    bei bekannten 5 cm → Motivabstand ~0.57 m → Basis ~4.7 cm. Der Wert hängt nicht
@@ -229,7 +233,7 @@ class G1Dex3CameraCfg:
         }
 
         # Szenen-Übersichtskamera (NUR fürs aufgenommene Video): zeigt die GANZE Szene —
-        # Roboter (Pelvis z=0.85, Kopf ~1.4) + Tisch (x=0.5) — von schräg vorne-seitlich-oben.
+        # Roboter (Pelvis z=0.764, frueher 0.85; Kopf ~1.3) + Tisch (x=0.5) — von schräg vorne-seitlich-oben.
         # Weltfest. eye in +X (vor dem Tisch), +Y (seitlich), +Z (oben); Blick zurück auf die Mitte.
         scene_eye = (1.8, 1.6, 1.7)
         scene_target = (0.30, 0.0, 0.80)

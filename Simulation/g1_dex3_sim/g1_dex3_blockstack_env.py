@@ -411,7 +411,7 @@ class G1Dex3BlockstackEnvCfg(DirectRLEnvCfg):
 
     # Pflichtfelder von DirectRLEnvCfg
     decimation: int = 7          # Physics-Sub-Steps pro Policy-Step (= render_interval)
-    action_space: int = 28       # Arm-Deltas + Hand-Absolute
+    action_space: int = 28       # absolute Gelenkziele (Server dekodiert die Arm-Deltas des Datensatzes)
     observation_space: int = 28  # nur joints; Bilder gehen separat ans Modell
 
     # Task-Parameter

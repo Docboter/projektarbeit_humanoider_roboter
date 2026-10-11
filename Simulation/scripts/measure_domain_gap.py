@@ -53,7 +53,7 @@ REAL_PATTERN = "dataset_{cam}.png"
 # damit EIN 'gap'-Lauf sagt, welche Beleuchtung den Gap minimiert.
 VARIANT_MARKER = "__"
 
-# Referenzmessung vom 2026-06-04 unter Isaac Sim 4.x (docs/ergebnisse/domain-gap-analyse.md).
+# Referenzmessung vom 2026-06-04 unter Isaac Sim 5.1 (isaac-lab:2.3.2) (docs/ergebnisse/domain-gap-analyse.md).
 # Sie stammt aus der Zeit VOR dem Isaac-Sim-6.0-Port und vor der Kamera-Kalibrierung
 # (Iteration 13/14) — die Deltas unten sagen also, was diese beiden Eingriffe bewirkt haben.
 BASELINE_JUNE = {

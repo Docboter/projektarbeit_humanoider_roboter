@@ -57,9 +57,10 @@ TRAIN_SPLIT_RATIO="${TRAIN_SPLIT_RATIO:-0.8}"
 
 # ── Bild-Augmentierung / Domain Randomization (optional, Standard AN) ──────────
 # Identisch zu run_finetuning.sh. Vorher war der Color-Jitter hier fest verdrahtet,
-# obwohl die Doku USE_AUGMENTATION als Schalter auswies — für den Vision-Lauf ist
-# genau dieser Schalter der entscheidende Unterschied zu Lauf 2 (der lief noch ganz
-# ohne Jitter; USE_AUGMENTATION kam erst danach dazu).
+# obwohl die Doku USE_AUGMENTATION als Schalter auswies. Ob Lauf 2 mit oder ohne
+# Jitter lief, ist nicht belegt: die früheste versionierte Fassung (caabf76, ~2 h nach
+# dem Start von Lauf 2) hat ihn fest drin, und die W&B-Config zeigt bei allen Läufen
+# nur den Modell-Default (0,1), nicht die per CLI gesetzten Werte.
 USE_AUGMENTATION="${USE_AUGMENTATION:-1}"
 CJ_BRIGHTNESS="${CJ_BRIGHTNESS:-0.3}"
 CJ_CONTRAST="${CJ_CONTRAST:-0.4}"
@@ -185,7 +186,7 @@ if [[ "$USE_AUGMENTATION" == "1" ]]; then
         TRAIN_CMD+=(--state_dropout_prob "$STATE_DROPOUT_PROB")
     fi
 else
-    warn "Augmentierung AUS bei --tune_visual — das ist die Konfiguration von Lauf 2,"
+    warn "Augmentierung AUS bei --tune_visual — vermutlich die Konfiguration von Lauf 2 (nicht belegt),"
     warn "die zum Politik-Kollaps geführt hat (siehe docs/ergebnisse/lauf2-vision-auswertung.md)."
     TRAIN_CMD+=(--color_jitter_params brightness 0 contrast 0 saturation 0 hue 0)
 fi
