@@ -13,6 +13,13 @@
 > Checkpoint als Grundfrage jedes Messlaufs —
 > [§13](#13-nachtrag-2026-08-21--ein-einstiegspunkt-und-pfeiltasten).
 >
+> **Nachtrag 2026-10-11 (Zahlen):** Die „19 Aktionen“ in diesem Dokument sind der Stand der
+> Einführung (2026-08-20/21). Inzwischen hat `server_rl_run.sh` **23** Aktionen in 7 Gruppen
+> (neu u. a. `layout`, `layoutcheck`, `layoutreport`, `yawcheck`, `tipcheck`, `topface`,
+> `latency`, `optimize`, `view`, `webview`, `livecheck`); je Aktion gibt es eine
+> `tools/menu/sim-<aktion>.spec`, `tools/test_menu.sh` prüft das (Prüfung 23) und steht
+> unverändert bei **81 Prüfungen**. Historische Zahlen im Text unten bleiben als Protokoll stehen.
+>
 > **Bedienung in einem Satz:** `./run.sh` starten — oder eines der Skripte direkt, ohne
 > Parameter. Beides führt durch; `[←]` bzw. `[z]` führt jederzeit eine Ebene zurück. `MENU=0` bzw. `--no-menu` schaltet das ab, `MENU_ARROWS=0`
 > nur die Pfeiltasten; jeder bisherige Aufruf funktioniert unverändert weiter.
@@ -165,7 +172,7 @@ tools/
     ├── _common-sim.spec     # ★ je Prefix getrennt: LIVE* gehört nicht ins Training
     ├── _common-train.spec
     ├── _common-kisski.spec
-    ├── sim-<aktion>.spec    # 19 Stück, je Aktion von server_rl_run.sh eine
+    ├── sim-<aktion>.spec    # 19 Stück bei Einführung (heute 23), je Aktion von server_rl_run.sh eine
     ├── train-{train,resume,destroy,interactive}.spec
     └── kisski-{train,openloop,rl,sim}.spec
 ```

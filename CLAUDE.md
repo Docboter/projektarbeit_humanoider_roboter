@@ -10,6 +10,8 @@ The container is autonomous: launching the image triggers `/scripts/entrypoint.s
 
 **Storage model:** No host-side persistent storage by default. All data, checkpoints, and logs live in the container filesystem (`/data` is a regular directory inside the image, **not** a volume mount). The container is meant to be long-lived: `stop`/`start` preserves state; only `docker rm` destroys it. This matches the vast.ai semantics where one instance == one container. **Exception — KISSKI:** the cluster uses Apptainer (not Docker) and bind-mounts `/mnt/vast-kisski/projects/kisski-humrob/data` to `/data` inside the container; data therefore persists on the cluster's VAST project storage across job runs. (The old SCRATCH-SCC storage `/scratch/` was decommissioned on 2026-03-31.)
 
+**Status (2026-10-11):** best validated checkpoint is vision-v2 step 30000 (run 3); closed-loop run 34 = 0/10 `lifted`. On 2026-08-24 the sim geometry was corrected (see caveat below) — a re-measurement with the corrected scene, an open-loop MSE on all 61 test episodes and a span gate on held-out episodes (the run-32 gate used training episodes 0–4, so memorisation is not excluded: "domain gap confirmed" is a strong indication, not proof) are pending. External synth dataset harmonised (v22 + `Cube_Stacking_synth_jointspace`, `Training/kisski_chain.sh` presets); first co-training run `cotrain_synth_v1` FAILED on 2026-09-07 after 138 s (W&B `7z81177r`); no co-training or RL result yet. GR00T N1.7 migration lives on branch `training-luca-IKR-IS6.0-GN1.7`. Priorities: [`next-steps.md`](next-steps.md).
+
 Detailed guides (all prose docs live under [`docs/`](docs/README.md)):
 - **Doc navigation hub:** [`docs/README.md`](docs/README.md)
 - **Quickstart (German):** [`docs/quickstart.md`](docs/quickstart.md) — zentrale Systemvoraussetzungen + Schnellstart; SSOT für Accounts/Tokens
@@ -24,7 +26,7 @@ Detailed guides (all prose docs live under [`docs/`](docs/README.md)):
 - **Sim-eval step-by-step (German):** [`docs/simulation/sim-eval-anleitung.md`](docs/simulation/sim-eval-anleitung.md) — shared one-time steps, then IKR server (standard) or vast.ai (cloud alternative)
 - **Sim implementation notes & lessons learned:** [`docs/simulation/umsetzungsnotizen.md`](docs/simulation/umsetzungsnotizen.md)
 - **Results & evaluation (German):** [`docs/ergebnisse/`](docs/ergebnisse/README.md) — run analyses, domain-gap, sim methodology review, plus the **diagnose chronicle** ([`diagnose-chronik.md`](docs/ergebnisse/diagnose-chronik.md), ongoing from run 08 — the project-wide "Lauf N" references resolve here)
-- **Further work / concepts (German):** [`docs/weiterfuehrend/`](docs/weiterfuehrend/README.md) — RL plan + slim operative RL guide ([`rl-anleitung.md`](docs/weiterfuehrend/rl-anleitung.md); RL runs end-to-end on the Blackwell server; run 32 (span gate) confirmed the domain gap, run 34 measured the `TUNE_VISUAL` checkpoint at 27.6% vs 20.5% finger span with `lifted` still 0/10 → next step is co-training, RL after; learning effect still unverified), locomotion research (not implemented), livestream plan (Spur A/WebRTC open; Spur B/MJPEG `LIVE_VIEW` is built)
+- **Further work / concepts (German):** [`docs/weiterfuehrend/`](docs/weiterfuehrend/README.md) — RL plan + slim operative RL guide ([`rl-anleitung.md`](docs/weiterfuehrend/rl-anleitung.md); RL runs end-to-end on the Blackwell server; run 32 (span gate) confirmed the domain gap, run 34 measured the `TUNE_VISUAL` checkpoint at 27.6% vs 20.5% finger span with `lifted` still 0/10 → next step is co-training, RL after; learning effect still unverified; **caveat:** the 2026-08-24 geometry fixes (finger-joint sign flip removed — the hand could not fully close in any earlier run —, pelvis 0.764 m, base x −0.057 m) mean all earlier sim grasp numbers incl. runs 29–34 are provisional until re-measured with the corrected scene; the render dataset for co-training must be regenerated), locomotion research (not implemented), livestream plan (Spur A/WebRTC built but untested on hardware; Spur B/MJPEG `LIVE_VIEW` is built)
 - **Outdated content / changelog raw material:** [`docs/historie.md`](docs/historie.md) — superseded findings are moved here instead of being kept inline (e.g. the former `umgebungsanalyse.md` audit, run-1 fix round, June domain-gap first measurement)
 
 ## Key commands
@@ -63,7 +65,7 @@ unmodified path, and it always prints the equivalent one-liner so you can skip i
 ```
 
 Lists are arrow-key navigable; typing the number always works too. A long action list
-(sim: 19 actions) is split into a group level that previews the action names it contains,
+(sim: 23 actions) is split into a group level that previews the action names it contains,
 so the `preflight → setup → cams → gap → eval → layout → render → rl` chain stays
 readable; `[*]` switches to the full flat list, `[←]`/`[z]` goes back, `?<nr>` explains a
 whole group. Short lists (train, kisski: 4 actions) stay flat.
@@ -75,7 +77,7 @@ also means the arrow layer stays out of the way whenever `TERM` is `dumb` or uns
 
 Engine and parameter specs live in [`tools/`](tools/) (host-only, never copied into an
 image); `tools/gen_docs.sh` checks spec defaults against the scripts and the docs, and
-`tools/test_menu.sh` runs the 81-check acceptance suite. Design and deviations:
+`tools/test_menu.sh` runs the 81-check acceptance suite (sim list: 23 actions in 7 groups). Design and deviations:
 [`docs/weiterfuehrend/cli-menuefuehrung.md`](docs/weiterfuehrend/cli-menuefuehrung.md)
 (§13 covers the router, the arrow keys, the group level, the back path, why KISSKI sits under
 Training, why every measuring run now asks which checkpoint it measures — §13.7 — and how the
@@ -116,7 +118,7 @@ apptainer pull $HOME/images/projekt-humanoider-roboter.sif \
 
 # Submit training job
 export HF_TOKEN=hf_... WANDB_API_KEY=... GLOBAL_BATCH_SIZE=32
-sbatch Training/kisski_submit.sh
+sbatch --export=ALL Training/kisski_submit.sh   # --export=ALL needed (login node sets SBATCH_EXPORT=none); alternative: ~/.hf_token + ~/.wandb_key
 
 # Monitor
 squeue -u $USER
@@ -145,7 +147,7 @@ python Simulation/scripts/upload_checkpoint.py \
 #    → see docs/simulation/sim-eval-anleitung.md Schritt 3, or data/g1_dex3.usd already exists
 ```
 
-On vast.ai: GPU must be **Ampere+ with RT-Cores** (L40, RTX 4090, A6000) — A100/H100 lack RT-Cores; RTX 5000 is Turing (too old for Isaac Sim 4.x). Env vars for the sim container:
+On vast.ai: GPU must be **Ampere+ with RT-Cores** (L40, RTX 4090, A6000) — A100/H100 lack RT-Cores; RTX 5000 is Turing (too old for Isaac Sim 5.1/6.0). Env vars for the sim container:
 
 | Variable | Example | Purpose |
 |---|---|---|
@@ -203,7 +205,7 @@ The entrypoint reads everything from env vars. Defaults are set as `ENV` in the 
 |---|---|---|
 | `HF_TOKEN` | — | **Required.** HuggingFace token |
 | `WANDB_API_KEY` | — | Optional. Without it, training runs without W&B |
-| `MAX_STEPS` | `20000` | Training steps (KISSKI multi-GPU default: 44000) |
+| `MAX_STEPS` | `20000` | Training steps (Dockerfile/entrypoint default; `setup_and_train_dockerhub_pull.sh` defaults to 30000; KISSKI multi-GPU default: 44000) |
 | `GLOBAL_BATCH_SIZE` | `8` | 8 for 8 GB VRAM, 16–32 for 16 GB |
 | `NUM_GPUS` | `1` | GPUs to use |
 | `WANDB_PROJECT` | `gr00t-g1-dex3` | W&B project name |
@@ -254,7 +256,9 @@ repo root
 │   ├── simulation/                     # operative guides: sim-eval-anleitung.md, umsetzungsnotizen.md (READ FIRST),
 │   │                                   #   live-ansicht.md, inferenz-optimierung.md,
 │   │                                   #   wuerfellage-rekonstruktion.md (cube layout handover doc),
-│   │                                   #   baseline-eval.md (stock-gripper baseline, first run pending)
+│   │                                   #   baseline-eval.md (stock-gripper baseline, first run pending),
+│   │                                   #   replay-videos-aus-realdaten.md, wuerfellage-rekonstruktion-bewertung.md /
+│   │                                   #   -lauf35-befund.md, robocasa-referenz-eval.md, basismodell-referenzaufgabe.md
 │   │   └── archiv/                     # superseded planning docs (isaac-lab-plan, sim-docker-build,
 │   │                                   #   kisski-desktop, gpu-kompatibilitaet)
 │   ├── ergebnisse/                     # evaluations: lauf1-zwischenstand.md, lauf1-auswertung.md,
@@ -266,7 +270,7 @@ repo root
 │   ├── weiterfuehrend/                 # reinforcement-learning-plan.md (status source) + rl-anleitung.md
 │   │                                   #   (slim operative guide; run history moved to
 │   │                                   #   ergebnisse/diagnose-chronik.md), lokomotion-recherche.md
-│   │                                   #   (not implemented), livestream-plan.md (Spur A open, Spur B built)
+│   │                                   #   (not implemented), livestream-plan.md (Spur A built but untested on hardware, Spur B built)
 │   ├── fehlerbehebung.md               # cross-cutting troubleshooting
 │   └── portabilitaet.md                # ★ Portability: no host-bound paths in scripts any more.
 │                                       #   server_rl_run.sh reads a gitignored .env.local (template:
@@ -282,7 +286,7 @@ repo root
 │   ├── lib_env_local.sh                # Shared .env.local loader (was duplicated /
 │   │                                   #   missing; the training launchers had none)
 │   ├── gen_docs.sh                     # Drift check: spec default vs. ${VAR:-…} vs. docs
-│   ├── test_menu.sh                    # The §8 acceptance plan, runnable (30 checks)
+│   ├── test_menu.sh                    # The §8 acceptance plan, runnable (81 checks)
 │   ├── check_tldr.sh                   # TL;DR convention guard; --list = one-screen overview
 │   ├── menu/_domains.spec              # ★ Domain list for run.sh (launcher, --needs, help text)
 │   └── menu/*.spec                     # Parameter specs — one file per action
@@ -380,6 +384,10 @@ repo root
 │   │   │                               #   transport path for ~half the grasps (48/116 past 60 % of the
 │   │   │                               #   episode), so the arm grabbed empty air. `server_rl_run.sh
 │   │   │                               #   layout`; verify the camera model first with `layoutcheck`
+│   │   ├── reconstruct_cube_poses.py / replay_calibration.py / collect_replay_anchors.py /
+│   │   │   run_dataset_replay_videos.py / grasp_pose_support.py   # physics-based dataset replay videos +
+│   │   │                               #   cube-pose calibration (older route; the real-image layout above is the one render uses)
+│   │   ├── project_fingertips_check.py # tipcheck: FK fingertips projected into the real image (found the finger-sign bug)
 │   │   ├── dump_camera_poses.py        # Diagnostic: configured vs. actually rendered camera pose + one PNG per cam
 │   │   ├── camera_geometry.py          # Camera poses, intrinsics and the pinhole model (project /
 │   │   │                               #   backproject_to_plane). Isaac-free on purpose — only that way

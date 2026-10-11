@@ -106,7 +106,7 @@ apptainer pull $HOME/images/projekt-humanoider-roboter.sif \
     docker://lucam03/projekt-humanoider-roboter:latest
 
 export HF_TOKEN=hf_... WANDB_API_KEY=...
-sbatch Training/kisski_submit.sh
+sbatch --export=ALL Training/kisski_submit.sh   # --export=ALL nötig (Login-Knoten setzt SBATCH_EXPORT=none), alternativ ~/.hf_token + ~/.wandb_key
 ```
 
 → Storage, Monitoring, Checkpoints zurückholen: [training/kisski-hpc.md](training/kisski-hpc.md)

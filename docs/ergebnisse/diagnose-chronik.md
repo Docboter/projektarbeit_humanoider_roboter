@@ -1,15 +1,24 @@
-# Diagnose-Chronik — Sim- und RL-Läufe 08–52
+# Diagnose-Chronik — Sim- und RL-Läufe 08–53
 
-> **TL;DR:** Chronologisches Protokoll aller Sim-/RL-Diagnoseläufe (Läufe 08–52): Kamera-Fixes,
+> **TL;DR:** Chronologisches Protokoll aller Sim-/RL-Diagnoseläufe (Läufe 08–53): Kamera-Fixes,
 > Domain-Gap-Messungen, Greif-Physik, `span`-Gate, `TUNE_VISUAL` im Closed Loop. Nachschlagewerk für
 > die projektweiten „Lauf N“-Verweise — gezielt den passenden Abschnitt ansteuern statt komplett
 > lesen.
 
 Chronologisches Protokoll der Diagnose-, Kalibrier- und Eval-Läufe der Isaac-Lab-Sim
-(2026-08-08 bis 2026-08-14). Entstanden am 2026-08-18 durch Aufteilung von
+(2026-08-08 bis 2026-08-26; letzter protokollierter Lauf: 53). Entstanden am 2026-08-18 durch Aufteilung von
 [rl-anleitung.md](../weiterfuehrend/rl-anleitung.md), die auf 2197 Zeilen angewachsen war und
-operative Anleitung mit Protokoll vermischte. Die Lauf-Nummern (`Lauf 8` … `Lauf 52`) sind der
+operative Anleitung mit Protokoll vermischte. Die Lauf-Nummern (`Lauf 8` … `Lauf 53`) sind der
 projektweit referenzierte Zähler — andere Dokumente verlinken gezielt auf einzelne Abschnitte hier.
+
+> **Stand 2026-10-11 — Vorbehalt für alle Sim-Greifzahlen vor Lauf 47:** Die Läufe 38–51 haben gezeigt,
+> dass die Sim-Geometrie bis 2026-08-24 falsch war (Vorzeichen-Flip der vier proximalen Fingergelenke —
+> die Hand konnte in keinem früheren Lauf ganz schließen —, Beckenhöhe 0,764 m, Basis x −0,057 m). Alle
+> älteren Closed-Loop-/Greif-Zahlen (u. a. Läufe 29–34) stehen unter diesem Vorbehalt; die Neumessung mit der
+> korrigierten Szene steht aus. Die Spanne-Gate-Messung auf echten Bildern (Lauf 32) nutzte die
+> Trainingsepisoden 0–4 (Verhältnis 1,00 = Obergrenze der De-Normalisierung): Auswendiglernen ist nicht
+> ausgeschlossen, „Domain-Gap bestätigt“ ist ein starker Hinweis, kein Beweis. Die Lauf-Einträge selbst
+> bleiben unverändert (Protokoll).
 
 Für die **operative Bedienung** der Diagnose-Werkzeuge (`gap` · `eval` · `grasp` · `span`) siehe
 [../weiterfuehrend/rl-anleitung.md](../weiterfuehrend/rl-anleitung.md#diagnose-werkzeuge-gap--eval--grasp--span).
@@ -47,8 +56,8 @@ Für den **aktuellen Projektstatus** siehe
 | 31 | Meilenstein-Leiter im Einsatz: erste messbare Würfel-Anhebung im Closed Loop (0,22–1,03 cm) ([Lauf 31](#lauf-31-runs2026081203-die-leiter-im-einsatz--und-zwei-neue-zahlen)) |
 | 32 | `span`-Gate entschieden: Median-Verhältnis 1,00 auf echten Bildern — Domain-Gap (a1) bestätigt, (a2) ausgeschlossen ([Lauf 32](#lauf-32-runs2026081301-das-span-gate-ist-entschieden--a1)) |
 | 33/34 | `TUNE_VISUAL`-Checkpoint im Closed Loop: Fingerspanne 27,6 % (statt 20,5 %), `lifted` bleibt 0/10 ([Läufe 33/34](#läufe-3334-runs2026081403-runs2026081404-der-tune_visual-checkpoint-im-closed-loop)) |
-| 35–37 | Würfellage-Rekonstruktion v4 zweimal abgelehnt; Kameramodell dagegen auf 0,3 cm bestätigt, Würfelebene lag 2 cm zu hoch ([Läufe 35–37](#läufe-3537-runs2026082201-03-die-würfellage-kommt-aus-dem-bild-nicht-aus-der-hand)) |
-| 38–46 | Die vier Fingergrundgelenke standen in **jedem** Lauf still: der „Sign-Convention-Fix" drehte sie aus ihrer Gelenkgrenze, wo sie geklemmt wurden ([Läufe 38–46](#läufe-3846-runs2026082302-runs2026082405-12-die-fingergrundgelenke-standen-still)) |
+| 35–37 | Würfellage-Rekonstruktion v4 zweimal abgelehnt; Kameramodell dagegen auf 0,3 cm bestätigt, Würfelebene lag 2 cm zu hoch ([Läufe 35–37](#läufe-3537-runs202608220103-die-würfellage-kommt-aus-dem-bild-nicht-aus-der-hand)) |
+| 38–46 | Die vier Fingergrundgelenke standen in **jedem** Lauf still: der „Sign-Convention-Fix" drehte sie aus ihrer Gelenkgrenze, wo sie geklemmt wurden ([Läufe 38–46](#läufe-3846-runs2026082302-runs202608240512-die-fingergrundgelenke-standen-still)) |
 | 47–51 | Drei unabhängige Geometriefehler ergaben zusammen ~12 cm: Vorzeichen, Beckenhöhe 0,85→0,764, Basis x 0→−0,057. Restabstand 4,5 cm ([Läufe 49–51](#läufe-4951-auch-die-basis-in-x--die-rekonstruktion-steht)) |
 | 52 | Der **Gierwinkel** der Würfel wurde nie rekonstruiert — Sim stellte sie immer achsparallel. Schätzer gebaut; auf echten Frames scheiterten 13/15 am Deckflächenschnitt, der fest die hellsten 30 % nahm statt der 49–58 %, die die Deckfläche ausmacht. Erste Begründung stützte sich auf annotierte Debug-PNGs und ist zurückgezogen ([Lauf 52](#lauf-52-der-gierwinkel-fehlte-in-jedem-lauf)) |
 | 53 | A/B mit und ohne Gierwinkel (`runs/20260826/01`): der Bildwinkel deckt sich **nicht** mit der Greifachse (Δ im Mittel 27° bei einer 45°-Obergrenze, n=5). Die Sichtprüfung war durch ungeseedete Domain Randomization entwertet — Seed nachgerüstet ([Lauf 53](#lauf-53-der-gierwinkel-und-die-greifachse-widersprechen-sich)) |
@@ -327,7 +336,7 @@ HF_TOKEN=hf_... ./Simulation/server_rl_run.sh cams
 | `cam_left_high` | 0 / 229 / 241 | 6,93 | 26,9 % | Tisch, Würfel, eigene Hand |
 | `cam_right_high` | 0 / 232 / 242 | 7,83 | 18,7 % | dito, gespiegelt |
 | `cam_scene` | 10 / 129 / 243 | 7,75 | 32,1 % | ganze Szene: Roboter, Tisch, drei Würfel |
-| Juni-Referenz (Isaac Sim 4.x) | 32 / 229 / 239 | 6,0 | 11–22 % | — |
+| Juni-Referenz (Isaac Sim 5.1) | 32 / 229 / 239 | 6,0 | 11–22 % | — |
 
 Die High-Cams treffen die Referenz von vor der Migration praktisch exakt. Der Geometrieblock lief
 diesmal durch und ist unauffällig: Boden, Tisch, alle drei Würfel, Band und Roboter stehen
@@ -572,7 +581,7 @@ Kameraparameter:
 Nächster Schritt ist damit nicht die nächste Overlay-Runde, sondern **Schritt 2: den Domain-Gap neu
 messen** (`Simulation/scripts/measure_domain_gap.py`). Der liefert eine Zahl statt eines
 Augenmaßes; die letzten Werte (Mittel 0,26, linke Wrist-Cam 0,43) stammen vom 4. Juni unter
-Isaac Sim 4.x und sagen über den heutigen Stand nichts.
+Isaac Sim 5.1 und sagen über den heutigen Stand nichts.
 
 ### Schritt 2 — Domain-Gap neu messen (`server_rl_run.sh gap`)
 
@@ -597,7 +606,7 @@ Gemessen wird die Kosinus-Distanz der Bild-Embeddings durch `google/siglip-so400
 identisch mit GR00Ts Vision-Backbone, weil das BC-Fine-tuning mit `tune_visual=false` lief. Das
 Skript stellt jeder Kamera ihren Juniwert und das Delta daneben.
 
-| Kamera | 2026-06-04 (Isaac Sim 4.x) | Bewertung damals |
+| Kamera | 2026-06-04 (Isaac Sim 5.1) | Bewertung damals |
 |---|---|---|
 | `cam_left_high` | 0,1477 | moderat |
 | `cam_right_high` | 0,2136 | groß |

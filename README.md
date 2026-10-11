@@ -24,6 +24,14 @@ Training läuft. Derselbe Container läuft lokal, auf Cloud-GPU-Plattformen wie
 > `/mnt/vast-kisski/projects/kisski-humrob/data` als `/data` in den Container gemountet.
 > **Niemals `docker run --rm`** mit diesem Image verwenden.
 
+**Projektstand (2026-10-11):** Bester validierter Checkpoint ist der Vision-Lauf 3 (Step 30.000). Im
+Closed Loop in der Sim hebt noch kein Würfel ab (Lauf 34: `lifted` 0/10). Die Sim-Geometrie wurde
+am 2026-08-24 korrigiert (Fingergelenk-Vorzeichen, Beckenhöhe, Basisposition) — frühere Sim-Greifzahlen
+stehen unter Vorbehalt, die Neumessung steht aus. Co-Training (echt + gerendert bzw. externer
+Synth-Datensatz) und RL haben noch kein Ergebnis; ein erster Co-Training-Lauf scheiterte am 2026-09-07.
+Priorisierte nächste Schritte: [next-steps.md](next-steps.md). Die schriftliche Projektarbeit liegt unter
+[latex/](latex/), eine Migration auf GR00T N1.7 läuft auf dem Branch `training-luca-IKR-IS6.0-GN1.7`.
+
 ---
 
 ## Schnellstart
@@ -41,7 +49,7 @@ Training läuft. Derselbe Container läuft lokal, auf Cloud-GPU-Plattformen wie
 > läuft (kein Docker, kein `sbatch`), bleibt sichtbar und wird mit Grund gesperrt.
 > Mit Pfeiltasten bedienbar, Zahlen gehen weiter.
 >
-> Lange Aktionslisten (Simulation: 19) sind nach Gruppen geschachtelt, wobei jede Gruppe
+> Lange Aktionslisten (Simulation: 23) sind nach Gruppen geschachtelt, wobei jede Gruppe
 > die enthaltenen Aktionen als Vorschau zeigt — `[*]` blendet trotzdem alles auf einen
 > Schirm, `?<nr>` erklärt eine Gruppe. **`[←]` (bzw. `[z]`) führt immer eine Ebene
 > zurück:** aus einer Gruppe in die Übersicht, von dort ins Hauptmenü.
@@ -63,7 +71,7 @@ apptainer pull $HOME/images/projekt-humanoider-roboter.sif \
 
 # Job einreichen:
 export HF_TOKEN=hf_...  WANDB_API_KEY=...
-sbatch Training/kisski_submit.sh
+sbatch --export=ALL Training/kisski_submit.sh   # --export=ALL nötig (Login-Knoten setzt SBATCH_EXPORT=none), alternativ ~/.hf_token + ~/.wandb_key
 ```
 
 **vast.ai:** Instanz mit Image `lucam03/projekt-humanoider-roboter:latest` starten, in den
@@ -93,8 +101,9 @@ Die vollständige Dokumentation liegt unter **[docs/](docs/README.md)**:
 | **Simulation** | [docs/simulation/](docs/simulation/README.md) — Closed-Loop-Eval in Isaac Lab |
 | ↳ Primärer Workflow | [docs/simulation/sim-eval-anleitung.md](docs/simulation/sim-eval-anleitung.md) |
 | ↳ Lessons & Fixes | [docs/simulation/umsetzungsnotizen.md](docs/simulation/umsetzungsnotizen.md) |
-| **Ergebnisse** | [docs/ergebnisse/](docs/ergebnisse/README.md) — Auswertungen, Domain-Gap, Methodik-Review, Baseline |
-| **Weiterführend** | [docs/weiterfuehrend/](docs/weiterfuehrend/README.md) — RL-Plan, Lokomotion, Livestream (Konzepte) |
+| **Ergebnisse** | [docs/ergebnisse/](docs/ergebnisse/README.md) — Auswertungen, Diagnose-Chronik, Domain-Gap, Methodik-Review, Baseline |
+| **Nächste Schritte** | [next-steps.md](next-steps.md) — Stand und Prioritäten |
+| **Weiterführend** | [docs/weiterfuehrend/](docs/weiterfuehrend/README.md) — RL-Plan, Lokomotion, Livestream, CLI-Menüführung |
 | **Portabilität** | [docs/portabilitaet.md](docs/portabilitaet.md) — eigener Rechner / eigenes KISSKI-Projekt: welche Knöpfe zu setzen sind |
 | **Projektstruktur** | [docs/README.md#projektstruktur](docs/README.md#projektstruktur) |
 | **Quickstart** | [docs/quickstart.md](docs/quickstart.md) — Systemvoraussetzungen, Host-Software, Accounts/Tokens, kürzeste Befehlsketten pro Weg |

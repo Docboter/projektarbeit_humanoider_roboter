@@ -2,8 +2,13 @@
 
 > **TL;DR:** Archiviert: Schritt-für-Schritt-Anleitung für den Sim-Container auf der
 > KISSKI-JupyterHPC-Desktop-Umgebung (Quadro RTX 5000) — laut
-> [gpu-kompatibilitaet.md](gpu-kompatibilitaet.md) zu alt für Isaac Sim 4.x. Aktueller Weg:
+> [gpu-kompatibilitaet.md](gpu-kompatibilitaet.md) zu alt für Isaac Sim 5.1. Aktueller Weg:
 > [sim-eval-anleitung.md](../sim-eval-anleitung.md).
+
+> ⚠️ **ARCHIVIERT — überholt, nicht als aktuelle Anleitung verwenden.** Die Quadro RTX 5000 der
+> `jupyter`-Partition ist Turing und für Isaac Sim zu alt; die Sim läuft auf dem IKR-Server
+> (`Simulation/server_rl_run.sh`, Anleitung: [sim-eval-anleitung.md](../sim-eval-anleitung.md)).
+> Das Dokument bleibt nur als Kontext erhalten.
 
 Ziel: Den Isaac-Lab-Sim-Client-Container interaktiv in der **JupyterHPC-Desktop-Umgebung**
 auf KISSKI testen (Phase A des Plans: leere Szene rendert RGB-Bild headless).
@@ -11,10 +16,10 @@ auf KISSKI testen (Phase A des Plans: leere Szene rendert RGB-Bild headless).
 GPU: **Quadro RTX 5000** (`jupyter`-Partition) — einzige GWDG-GPU mit RT-Cores.
 Hintergrund: [gpu-kompatibilitaet.md](gpu-kompatibilitaet.md)
 
-> ⚠️ **Architektur-Vorbehalt (Stand 2026-06): Diese GPU ist für Isaac Sim 4.x zu alt.**
+> ⚠️ **Architektur-Vorbehalt (Stand 2026-06): Diese GPU ist für Isaac Sim 5.1 zu alt.**
 > Die Quadro RTX 5000 hat zwar RT-Cores (anders als A100/H100), ist aber **Turing-Generation
 > (Compute Capability 7.5)** — eine Generation **unter** dem Ampere-Minimum (CC 8.0,
-> ab RTX 30xx), das Isaac Sim 4.x / Isaac Lab 2.3.2 voraussetzt. In der Praxis äußert sich das
+> ab RTX 30xx), das Isaac Sim 5.1 / Isaac Lab 2.3.2 voraussetzt. In der Praxis äußert sich das
 > als `createDLSSContext error` beim Kamera-Rendering. Auf GWDG gibt es damit **keine** GPU, die
 > *beide* Bedingungen (RT-Cores **und** Ampere+) erfüllt: A100/H100 fehlen die RT-Cores, der
 > RTX 5000 fehlt die Architektur-Generation. **Konsequenz:** Diese Anleitung funktioniert nur mit

@@ -4,7 +4,7 @@
 > nächste Schritte und offene Widersprüche zwischen den Ergebnisdokumenten. Bezugspunkt für
 > die Prioritätensetzung, kein Ergebnisbericht selbst.
 
-**Stand:** 2026-08-14 · Grundlage: Ergebnis-Dokumente unter [`docs/ergebnisse/`](docs/ergebnisse/README.md),
+**Stand:** 2026-10-11 (letzte Fassung davor: 2026-08-14) · Grundlage: Ergebnis-Dokumente unter [`docs/ergebnisse/`](docs/ergebnisse/README.md),
 [RL-Plan](docs/weiterfuehrend/reinforcement-learning-plan.md), Trainings-Launcher unter
 [`Training/scripts/`](Training/scripts/).
 
@@ -23,8 +23,32 @@ Die **Messkette ist geschlossen**. Der Reihe nach:
 | Die Checkpoint-Auswahl war bisher nicht nur unbelegt, sondern **falsch**: der letzte Checkpoint ist 25 % schlechter als der beste | [lauf3-vision-split-auswertung.md](docs/ergebnisse/lauf3-vision-split-auswertung.md) |
 | `TUNE_VISUAL` hebt die Sim-Fingerspanne von 20,5 % auf **27,6 %** (vollständige Trennung, p = 3,3 · 10⁻⁴) — und reicht trotzdem nicht: `lifted` 0/10 | Lauf 34, [diagnose-chronik.md](docs/ergebnisse/diagnose-chronik.md) |
 
-Daraus folgt nach der vorregistrierten Regel: **Ursache ist der Domain-Gap**, nicht „Griff nie
-gelernt". Die Kopfzahl des Projekts bleibt damit **0/20 im Closed-Loop**.
+Daraus folgt nach der vorregistrierten Regel: **Ursache ist wahrscheinlich der Domain-Gap**, nicht
+„Griff nie gelernt" — als *starker Hinweis*, nicht als Beweis (siehe Vorbehalte unten). Die Kopfzahl des
+Projekts bleibt **0 Erfolge im Closed-Loop** (0/20 früher, Lauf 34: 0/10).
+
+### Was seit dem 2026-08-14 passiert ist (Stand 2026-10-11)
+
+| Datum | Befund | Beleg |
+|---|---|---|
+| 08-17 bis 08-25 | **Würfellage aus den Realbildern** (Farbblob → Strahl → Würfelebene) ersetzt die Greifpunkt-Rekonstruktion; Würfelebene lag 2 cm zu hoch (korrigiert); **Gierwinkel** der Würfel gemessen (gleichverteilt 0–45°; Umstellung auf zufälligen Gierwinkel offen) | Läufe 35–37, 52, 53 in [diagnose-chronik.md](docs/ergebnisse/diagnose-chronik.md); [wuerfellage-rekonstruktion.md](docs/simulation/wuerfellage-rekonstruktion.md) |
+| 08-24 | **Geometriefehler in der Sim gefunden und behoben:** der Vorzeichen-Flip der vier proximalen Fingergelenke war *falsch* (entfernt) — die Hand konnte in **keinem früheren Lauf** ganz schließen; Beckenhöhe 0,764 m; Basis x −0,057 m | Läufe 38–51 in [diagnose-chronik.md](docs/ergebnisse/diagnose-chronik.md) |
+| 09-07 / 09-23 | Externer Sim-Datensatz `Cube_Stacking_synth` auf das echte Schema harmonisiert; v21 hatte vertauschte Fingerbefehle → v22 und `Cube_Stacking_synth_jointspace`; Presets in `Training/kisski_chain.sh` | [synth-datensatz.md](docs/training/synth-datensatz.md) |
+| 09-07 | Erster Co-Training-Lauf `cotrain_synth_v1` **gescheitert** nach 138 s (W&B `7z81177r`) | [co-training.md](docs/training/co-training.md) |
+| 10-11 | LaTeX-Projektarbeit überarbeitet (`latex/`, 28 Seiten Hauptteil); GR00T-N1.7-Migration läuft auf separatem Branch `training-luca-IKR-IS6.0-GN1.7` | — |
+
+**Konsequenzen und Vorbehalte, die jede Zahl dieses Dokuments betreffen:**
+
+1. **Alle Sim-Greifzahlen vor dem 2026-08-24 stehen unter Vorbehalt** (Läufe 29–34, inkl. 27,6 %
+   Fingerspanne und `lifted` 0/10): die Hand konnte nicht voll schließen, der Roboter stand ~12 cm
+   versetzt. Eine Neumessung mit der korrigierten Szene gibt es noch nicht.
+2. **Der Renderdatensatz für das Co-Training muss neu erzeugt werden** (er entstand mit der
+   fehlerhaften Geometrie).
+3. **Das `span`-Gate (Median 1,00) nutzte die Trainingsepisoden 0–4**, und 2,0944 rad ist zugleich das
+   De-Normalisierungs-Maximum. Auswendiglernen ist damit nicht ausgeschlossen; „Domain-Gap bestätigt /
+   (a2) ausgeschlossen" ist ein starker Hinweis, kein Beweis. Die Messung auf zurückgehaltenen
+   Episoden steht aus.
+4. **Trainingsparameter der Läufe 2/3 (W&B):** Peak-LR 1e-4, Warmup 0,10, 4 GPUs × Batch 8.
 
 > **Ergänzung 2026-08-14 (abends):** Die letzte Zeile ist das Ergebnis des `span`-Gates aus
 > Schritt 3 — und sie ist zweischneidig. Der Vision-Pfad **wirkt nachweislich**: drei von zehn
@@ -47,34 +71,30 @@ gelernt". Die Kopfzahl des Projekts bleibt damit **0/20 im Closed-Loop**.
 
 ---
 
-## 2. Ein Widerspruch in den Docs, vor dem nächsten Lauf zu klären
+## 2. Nächste Schritte — in dieser Reihenfolge (Stand 2026-10-11)
 
-Der [RL-Plan](docs/weiterfuehrend/reinforcement-learning-plan.md) nennt `TUNE_VISUAL=1` als
-begründeten nächsten Lauf.
-[`lauf2-vision-auswertung.md`](docs/ergebnisse/lauf2-vision-auswertung.md) §6.1 sagt wörtlich das
-Gegenteil: *„`tune_visual = true` auf reinen Realdaten nicht weiterverfolgen"* — Lauf 2 kollabierte
-damit auf reines Arm-Zurückziehen. Sinnvoll sei es **nur**, wenn der Encoder sim-ähnliche oder
-DR-variierte Bilder sieht (§6.2).
+| # | Schritt | Warum / Ausgang |
+|---|---|---|
+| 1 | **Open-Loop-MSE auf allen 61 Testepisoden**, volle Länge, getrennt nach Armen und Händen, mit trivialer Baseline (z. B. konstante Pose / letzter Zustand) | Der Sweep aus Lauf 3 nutzte nur 6 Episoden × 300 Steps; ohne Baseline ist die MSE nicht einzuordnen. Billig (`checkpoint_sweep.py`, `EVAL_NUM_TRAJ`/`EVAL_STEPS`) |
+| 2 | **`span`-Gate auf zurückgehaltenen Testepisoden** (`SPAN_TRAJ_IDS` mit Test-Indices) | Schließt die Auswendiglern-Lücke des Lauf-32-Gates; trägt „Domain-Gap bestätigt“ vom Hinweis zum Befund |
+| 3 | **Closed-Loop-Neumessung mit der korrigierten Szene** (identisches Protokoll wie Lauf 34: 10 Episoden × 40 s, Checkpoint vision-v2-30000), optional **Tauschtest** (echtes Bild + Sim-Zustand vs. Sim-Bild + echter Zustand) | Erst damit sind die Sim-Zahlen wieder belastbar; entscheidet, wie groß der Domain-Gap nach der Geometriekorrektur noch ist |
+| 4 | **Renderdatensatz neu erzeugen → Co-Training-Lauf** (eigener Render und/oder Synth v22 / `Cube_Stacking_synth_jointspace`); Ursache des Abbruchs von `cotrain_synth_v1` zuerst klären | Vorregistrierte Regeln in [co-training.md](docs/training/co-training.md) / [synth-datensatz.md](docs/training/synth-datensatz.md) |
+| 5 | **RL (FPO)** erst, wenn die Politik gelegentlich einen Würfel hebt | Ohne Startsignal fehlt dem Reward der Gradient ([RL-Plan](docs/weiterfuehrend/reinforcement-learning-plan.md)) |
+| 6 | **Echter Roboter** | setzt belastbare Sim- bzw. Open-Loop-Zahlen voraus |
 
-**Auflösung:** Diese Bedingung ist inzwischen erfüllt, und zwar erst nachträglich.
+Offene Entscheidung nebenbei: Umstellung der Sim auf zufälligen Würfel-Gierwinkel (gemessen: gleichverteilt
+0–45°).
 
-| | Datum |
-|---|---|
-| Lauf 2 (`ajgoskon`, `tune_visual=true`) | 2026-06-04/05 |
-| Einführung von `USE_AUGMENTATION` (Color-Jitter) | 2026-06-12 (`c3a1cd6`) |
-
-Lauf 2 hatte also **gar keinen Color-Jitter**. Ein neuer `TUNE_VISUAL`-Lauf ist deshalb keine
-Wiederholung — er ist der erste, der die von §6.2 geforderte Voraussetzung überhaupt erfüllt.
-
-**Vorbehalt, der im Ergebnisprotokoll stehen muss:** Color-Jitter variiert Helligkeit, Kontrast,
-Sättigung und Farbton — **nicht** Geometrie, Textur oder Rendering-Stil. Der Ausreißer der
-[Domain-Gap-Messung](docs/ergebnisse/domain-gap-analyse.md) ist `cam_left_wrist` bei **0,36**, eine
-Nahbereichskamera. Dass Farb-Jitter allein diesen Gap schließt, ist nicht gesagt. Der Lauf ist ein
-begründeter, billiger Test — keine Erfolgsgarantie.
+**Erledigt:** Der frühere Widerspruch zwischen RL-Plan und
+[`lauf2-vision-auswertung.md`](docs/ergebnisse/lauf2-vision-auswertung.md) §6.1 (`TUNE_VISUAL` ja/nein) ist
+aufgelöst — Lauf 2 hatte keinen Color-Jitter (`USE_AUGMENTATION` kam erst 2026-06-12, `c3a1cd6`), Lauf 3
+erfüllt die Bedingung aus §6.2. Vorbehalt bleibt: Color-Jitter variiert weder Geometrie noch Textur noch
+Rendering-Stil; `cam_left_wrist` liegt in der [Domain-Gap-Messung](docs/ergebnisse/domain-gap-analyse.md)
+bei 0,36.
 
 ---
 
-## 3. Priorisierte Schritte
+## 3. Bisherige Schritte (Verlauf, Stand der Umsetzung)
 
 ### Schritt 1 — Checkpoint-Auswahl falsifizierbar machen ✅ *umgesetzt 2026-08-13*
 
@@ -198,7 +218,7 @@ Vollständige Auswertung inklusive Episodentabelle, Zuordnung und Vorbehalten:
 der Vision-Pfad ausgereizt. Sie hat sich bewegt — der Pfad ist also **nicht** ausgereizt, aber
 27,6 % gegen 100 % auf echten Bildern heißt auch: er schließt den Gap nicht. Rund 48 GPU-Stunden
 haben ein Drittel des Weges gebracht. Der Rest kommt nicht durch mehr vom Gleichen, sondern muss
-auf der **Sim-Seite** angegangen werden → Schritt 4 ist jetzt der aktive Schritt.
+auf der **Sim-Seite** angegangen werden → Schritt 4. *(Nachtrag 2026-10-11: die 27,6 % und `lifted` 0/10 stammen aus der Zeit vor der Geometriekorrektur vom 2026-08-24 und sind neu zu messen — siehe §1 und §2.)*
 
 <details>
 <summary>Wiederholen (Belege sind gitignored)</summary>
@@ -219,7 +239,12 @@ Vergleich, weshalb Lauf 34 mit 40 s wiederholt wurde.
 
 </details>
 
-### Schritt 4 — 🎯 aktiv: Co-Training auf gerenderten Bildern
+### Schritt 4 — Co-Training auf gerenderten Bildern (Werkzeuge gebaut, Lauf steht aus)
+
+> **Stand 2026-10-11:** der Renderdatensatz ist wegen der Geometriekorrektur vom 2026-08-24 neu zu erzeugen,
+> die Würfellage kommt inzwischen aus den Realbildern (`layout`), und mit `Cube_Stacking_synth` gibt es eine
+> zweite Co-Training-Quelle ([synth-datensatz.md](docs/training/synth-datensatz.md)). Der erste Lauf
+> (`cotrain_synth_v1`) scheiterte am 2026-09-07. Der Text unten ist der Stand vom 2026-08-14.
 
 **Werkzeuge gebaut (2026-08-14), Lauf steht aus.** Vollständige Anleitung inklusive
 Rauchtest, Transportweg und Erfolgsregel: [docs/training/co-training.md](docs/training/co-training.md).
@@ -290,9 +315,9 @@ Erfolg hat**. Einem Nullpunkt-Reward fehlt das Startsignal. Nicht vorziehen.
 
 | Punkt | Aufwand | Status |
 |---|---|---|
-| Hardware-Test der Live-Ansicht: `./Simulation/server_rl_run.sh livecheck`, dann `… view` (Szene ohne Gewichte, braucht kein `HF_TOKEN`). Als Client wahlweise die native App oder `… webview` im Browser — letzteres ohne Installation | ~15 min | Gebaut 2026-08-13, `view`/`webview` 2026-08-17. Der Web-Viewer ist lokal end-to-end geprüft; der **WebRTC-Handshake lief nie auf Hardware**. Bleibt das Bild trotz offenem UDP schwarz: `RL_NETWORK_MODE=host` |
+| Hardware-Test der Live-Ansicht (Stand 2026-10-11 weiterhin offen; nicht belegt, ob inzwischen gelaufen): `./Simulation/server_rl_run.sh livecheck`, dann `… view` (Szene ohne Gewichte, braucht kein `HF_TOKEN`). Als Client wahlweise die native App oder `… webview` im Browser — letzteres ohne Installation | ~15 min | Gebaut 2026-08-13, `view`/`webview` 2026-08-17. Der Web-Viewer ist lokal end-to-end geprüft; der **WebRTC-Handshake lief nie auf Hardware**. Bleibt das Bild trotz offenem UDP schwarz: `RL_NETWORK_MODE=host` |
 | `SCENE_CAM=0` / `RL_AA_MODE=Off` Wirkung auf Steps/s | ~15 min | Ungemessen (~15 % erwartet) |
-| Doku-Abschnitt zur Latenz-Zerlegung in [live-ansicht.md](docs/simulation/live-ansicht.md) | — | **uncommitted** |
+| Doku-Abschnitt zur Latenz-Zerlegung | — | Erledigt: steht in [inferenz-optimierung.md](docs/simulation/inferenz-optimierung.md) |
 
 Nicht dringend, weil keiner davon die 0/20 bewegt.
 
@@ -301,7 +326,7 @@ Nicht dringend, weil keiner davon die 0/20 bewegt.
 ## 5. Was ausdrücklich *kein* nächster Schritt ist
 
 - **Inferenz-Optimierung.** Die Zerlegung `t(n) = 35,6 ms + n × 9,6 ms` steht in
-  [live-ansicht.md](docs/simulation/live-ansicht.md), aber bei 74 ms gegen 267 ms Budget
+  [inferenz-optimierung.md](docs/simulation/inferenz-optimierung.md), aber bei 74 ms gegen 267 ms Budget
   (28 % Auslastung) ist heute nichts zu tun. Das ist ein Planungswerkzeug für die Portierung auf
   Zielhardware, keine offene Baustelle.
 - **`TUNE_VISUAL=1` ohne Augmentierung.** Das wäre die Wiederholung von Lauf 2 mit dem bereits
@@ -309,4 +334,4 @@ Nicht dringend, weil keiner davon die 0/20 bewegt.
 - **Qualitätsmessung der Denoising-Schritte über `open_loop_eval.py --denoising-steps`.** Die
   Option ist im Fork **tot** (deklariert, nirgends angewandt) — sie vergleicht zwei identische
   Läufe. Details und der korrekte Weg stehen in
-  [live-ansicht.md](docs/simulation/live-ansicht.md).
+  [inferenz-optimierung.md](docs/simulation/inferenz-optimierung.md).
