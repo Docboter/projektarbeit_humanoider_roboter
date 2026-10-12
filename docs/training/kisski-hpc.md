@@ -104,6 +104,13 @@ apptainer pull $HOME/images/projekt-humanoider-roboter-n17.sif \
     docker://lucam03/projekt-humanoider-roboter:latest-n17
 ```
 
+> **`/tmp` auf dem Login-Knoten ist ein gemeinsames tmpfs (63 GB, RAM).** Apptainer legt die
+> Layer beim Pull über `TMPDIR` dort ab, nicht über `APPTAINER_TMPDIR`. Der N1.7-Pull brach
+> deshalb am 2026-10-11 mit `no space left on device` ab. Vor dem Pull `TMPDIR` auf den
+> Projektspeicher setzen:
+> `export TMPDIR=/mnt/vast-kisski/projects/kisski-humrob/apptainer-tmp APPTAINER_TMPDIR=$TMPDIR`.
+> Die Warnung „`nodev` mount option set on /mnt/vast-kisski“ ist dabei harmlos.
+
 > Wo [`kisski_submit.sh`](../../Training/kisski_submit.sh) das SIF sucht, steht oben unter
 > [Pfad-Konfiguration](#pfad-konfiguration--zwei-variablen-sonst-nichts): zuerst `$KISSKI_SIF_DIR`
 > (Default `$HOME/images`), dann `$KISSKI_PROJECT_DIR/images`. Wer das Image wie oben nach
@@ -199,21 +206,29 @@ module load apptainer
 # freigeschaltet sein (gleiches Konto wie der Token):
 apptainer exec --bind /mnt/vast-kisski/projects/kisski-humrob/data:/data \
     --env HF_TOKEN=$HF_TOKEN --env HF_HOME=/data/hf_cache \
-    $HOME/images/projekt-humanoider-roboter.sif \
+    $HOME/images/projekt-humanoider-roboter-n17.sif \
     huggingface-cli download nvidia/Cosmos-Reason2-2B
 
 # Basismodell
 apptainer exec --bind /mnt/vast-kisski/projects/kisski-humrob/data:/data \
     --env HF_TOKEN=$HF_TOKEN \
-    $HOME/images/projekt-humanoider-roboter.sif \
+    $HOME/images/projekt-humanoider-roboter-n17.sif \
     huggingface-cli download nvidia/GR00T-N1.7-3B --local-dir /data/models/GR00T-N1.7-3B
 ```
 
+Die heruntergeladene `config.json` bleibt unverändert (`model_name: "nvidia/Cosmos-Reason2-2B"`).
+Den Zugang des Tokens prüft
+`curl -I -H "Authorization: Bearer $HF_TOKEN" https://huggingface.co/nvidia/Cosmos-Reason2-2B/resolve/main/config.json`
+(muss `200` liefern, nicht `401`).
+
 Der Job selbst setzt danach `--env HF_HOME=/data/hf_cache --env HF_HUB_OFFLINE=1`, damit das
-Training den vorab gefüllten Cache trifft, statt (erfolglos) online nachzuladen. **Dieser
-Pfad ist auf KISSKI bislang ungetestet** — N1.7 hat bisher nur Smoke-Tests auf dem IKR-Blackwell
-bestanden (2026-09-25: 1 und 2 GPUs, `TUNE_VISUAL` + Split, Checkpoint-Sweep); Ergebnis und Übergabe-Reihenfolge für KISSKI:
-[groot-n17-migration.md](../weiterfuehrend/groot-n17-migration.md#smoke-test-auf-dem-ikr-blackwell-2026-09-25-und-übergabe-an-kisski).
+Training den vorab gefüllten Cache trifft, statt (erfolglos) online nachzuladen. **Auf KISSKI
+getestet am 2026-10-12** (Job 16630159, 4 × A100, `TUNE_VISUAL=1`, Split, bs 32, 200 Steps:
+bestanden). Voraussetzung ist der Offline-Fix im Fork (`build_processor` in
+`gr00t/model/gr00t_n1d7/processing_gr00t_n1d7.py`): transformers 4.57.3 fragt beim Laden des
+Tokenizers sonst trotz `HF_HUB_OFFLINE=1` die Hub-API ab (`_patch_mistral_regex` →
+`model_info()`) und bricht mit `OfflineModeIsEnabled` ab. Details und Messwerte:
+[groot-n17-migration.md](../weiterfuehrend/groot-n17-migration.md#kisski-smoke-test-2026-10-12).
 
 ---
 

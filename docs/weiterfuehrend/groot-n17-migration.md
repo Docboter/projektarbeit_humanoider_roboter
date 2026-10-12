@@ -305,6 +305,47 @@ Für einen Coding-Agent: Einstieg ist dieser Abschnitt. Die relevanten Code-Pfad
 `sbatch`), `Training/scripts/lib_groot_version.sh`, `Training/scripts/run_finetuning*.sh`,
 `Training/scripts/checkpoint_sweep.py`.
 
+## KISSKI-Smoke-Test (2026-10-12)
+
+> **Kurz:** Übergabe-Schritte 1–4 erledigt, Schritt 4 (kurzer Job) **bestanden** im dritten
+> Anlauf. Apptainer-SIF, Offline-Cache auf VAST und 4 × A100 mit `TUNE_VISUAL` funktionieren.
+> Nötig war ein Offline-Fix im Fork (unten). Nächster Schritt: Vergleichslauf (Übergabe-Schritt 5).
+
+**Aufbau:** SIF aus `:latest-n17` (gleicher Digest wie der IKR-getestete Tag
+`:training-luca-IKR-IS6.0-GN1.7-n17`) unter `$KISSKI_PROJECT_DIR/images/`; Fork-Clone
+`repo-groot-n17` auf `efa0169` + Fix; Modell und Backbone per Login-Knoten in
+`data/models/GR00T-N1.7-3B` bzw. `data/hf_cache`.
+
+```bash
+GROOT_VERSION=1.7 TUNE_VISUAL=1 TRAIN_TEST_SPLIT=1 \
+GLOBAL_BATCH_SIZE=32 MAX_STEPS=200 SAVE_STEPS=100 EXPERIMENT_NAME=smoke_n17 \
+sbatch --export=ALL -t 01:00:00 Training/kisski_submit.sh
+```
+
+| Messgröße | Wert |
+|---|---|
+| Job | 16630159, `kisski`, 4 × A100 80 GB, DeepSpeed ZeRO-2, bs 32 (8 je GPU) |
+| Ergebnis | ✅ 200/200, `checkpoint-100` und `checkpoint-200` geschrieben, `train_loss` 1,119 |
+| Loss | 1,297 (erster Log-Schritt) → 1,153 (Step 100); grad_norm ~0,5, keine NaN/Inf |
+| Durchsatz | **1,38–1,41 Steps/s** bei bs 32 → 30 000 Steps ≈ 6 h |
+| VRAM je GPU (`nvidia-smi`, Step ~100) | **~33 GB** von 80 GB (IKR: ~58 GiB bei bs 8 auf *einer* Karte ohne ZeRO-Verteilung) |
+| Gesamtlaufzeit Job | 9:33 min inkl. Shard-Caching und Speichern |
+
+**Gefundene Fehler (die ersten beiden Anläufe):**
+
+1. **`OfflineModeIsEnabled` beim Laden des Tokenizers** (Jobs 16610629, 16611277). transformers
+   4.57.3 ruft in `_patch_mistral_regex` für jede Hub-ID `huggingface_hub.model_info()` auf,
+   auch mit `HF_HUB_OFFLINE=1`; nur lokale Verzeichnisse überspringen den Aufruf. Ein
+   umgebogenes `model_name` in der Modell-`config.json` reicht nicht:
+   `launch_finetune.py:100` setzt `config.model.model_name = "nvidia/Cosmos-Reason2-2B"` fest,
+   und `get_backbone_cls` akzeptiert nur Namen mit `nvidia/Cosmos-Reason2`. **Fix (Fork):**
+   `build_processor` in `gr00t/model/gr00t_n1d7/processing_gr00t_n1d7.py` löst die Hub-ID bei
+   gesetztem `HF_HUB_OFFLINE` per `snapshot_download(..., local_files_only=True)` auf den
+   lokalen Snapshot auf. Online ändert sich nichts. Die Modell-`config.json` bleibt im Original.
+2. **`no space left on device` beim `apptainer pull`**: `/tmp` auf dem Login-Knoten ist ein
+   gemeinsames tmpfs; `TMPDIR` auf den Projektspeicher setzen (siehe
+   [kisski-hpc.md](../training/kisski-hpc.md)).
+
 ## 1. Was ist GR00T N1.7?
 
 | | |
@@ -452,3 +493,4 @@ N1.6 bleibt vollständig lauffähig: Branch `luca/g1-dex3`, Images `:n16`, Upstr
 | 2026-08-19 | Submodul-Pfad `app/Groot-1.6` beibehalten, **neues** `app/Groot-1.7` daneben | kein Umbenennen/Ersetzen — kleinerer Blast-Radius |
 | 2026-08-19 | **Ein** Image mit beiden venvs (Build-Arg `GROOT_VERSIONS`) statt separater Image-Tags `:n16`/`:n17` | weicht von der ursprünglichen Phase-0-Empfehlung oben ab; einfacherer Rollout, ein Pull genügt |
 | 2026-08-19 | Kein Image gebaut, kein N1.7-Trainings-/Sim-Lauf gefahren | Umsetzung endet vorerst bei Code + Doku; Vergleichslauf und HF-Backbone-Zugang stehen aus |
+| 2026-10-12 | Offline-Fix für den Processor im Fork statt umgebogener Modell-`config.json` | eine Stelle (`build_processor`) deckt Training, Sweep und Inferenz ab; heruntergeladene Modelldateien bleiben unverändert |
