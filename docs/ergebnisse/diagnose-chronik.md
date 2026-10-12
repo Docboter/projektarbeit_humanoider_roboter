@@ -1565,6 +1565,9 @@ plausibel. Erst wenn die Politik in der Sim greift, hat ein Reward-Signal einen 
 Die Antwort auf Lauf 32. Gemessen wird der Checkpoint, den `TUNE_VISUAL=1` produziert hat:
 `g1_dex3_blockstacking_vision_v2`, **checkpoint-30000** — der beste aus dem Checkpoint-Sweep, nicht
 der letzte (der ist 25 % schlechter, s. [lauf3-vision-split-auswertung.md](lauf3-vision-split-auswertung.md)).
+*Nachtrag 2026-10-12:* Die 20×750-Nachmessung widerlegt das — dort ist checkpoint-44000 der beste.
+Die Lauf-34-Zahlen bleiben gültig, gelten aber für checkpoint-30000, nicht für den nach heutigem
+Stand validierten Checkpoint.
 Zwei Läufe am 2026-08-14, beide mit schwarzhändigem Asset, DR an, Exec-Horizon 8:
 
 | Lauf | Konfiguration | Rolle |

@@ -119,8 +119,11 @@ N1.7-Checkpoint.
 **Phase 6 — RL & Co-Training: teilweise.** Co-Training: neuer
 [`Training/scripts/launch_cotrain_n17.py`](../../Training/scripts/launch_cotrain_n17.py)
 (Spiegel der N1.7-`launch_finetune.py` mit derselben Mix-Ratio-Ergänzung wie beim
-N1.6-Pendant); `run_finetuning_cotrain.sh` ruft ihn bei `GROOT_VERSION=1.7` auf. **Kein
-Smoke-Test gefahren.** RL: **nicht portiert.** Das Isaac-Sim-Python im Sim-Image enthält
+N1.6-Pendant); `run_finetuning_cotrain.sh` ruft ihn bei `GROOT_VERSION=1.7` auf.
+**Smoke-Test auf KISSKI bestanden (2026-10-12, Job 16633478):** 1 × A100, bs 8, 100 Steps,
+real + `cube_stacking_synth` (16 Episoden) mit Mix-Ratio 0,1, Split an; Loss 1,18 → 1,08,
+~1,46 Steps/s, `checkpoint-50/100` geschrieben, keine Fehler (Offline-Fix aus dem
+[KISSKI-Smoke-Test](#kisski-smoke-test-2026-10-12) greift auch hier). RL: **nicht portiert.** Das Isaac-Sim-Python im Sim-Image enthält
 weiterhin nur die N1.6-`gr00t`-Installation — `rl_finetune.py`, `entrypoint_rl.sh`,
 `server_rl_run.sh rl/check/optimize` und `kisski_rl_submit.sh` brechen bei N1.7 kontrolliert
 mit einer deutschen Fehlermeldung ab, statt etwas Falsches zu versuchen.
@@ -439,6 +442,9 @@ sbatch --export=ALL -t 01:00:00 Training/kisski_submit.sh
 2. **Login-Knoten:** `GR00T-N1.7-3B` **und** `Cosmos-Reason2-2B` in `/mnt/vast-kisski/projects/kisski-humrob/data` (`models/` bzw. `hf_cache/`) laden; `kisski_submit.sh`: `--env HF_HOME=/data/hf_cache --env HF_HUB_OFFLINE=1`.
 3. **Vergleichslauf:** identische HP wie Lauf 3 (`TUNE_VISUAL=1`, `TRAIN_TEST_SPLIT=1`, Split-Ratio 0.8, bs 32, 30k Steps, gleiche Augmentation), Namespace `blockstacking_vision_n17`.
 4. Sweep auf Held-out wie bei Lauf 3 → U-Kurve N1.7 vs. N1.6 (Lauf 3, ckpt 30000).
+   *Umgesetzt 2026-10-12 mit Abweichungen:* 44k statt 30k Steps, weil die Nachmessung von Lauf 3
+   (20×750) keine U-Kurve zeigt und 44.000 der beste Checkpoint ist; Sweep in beiden Protokollen
+   (6×300 und 20×750). Siehe [lauf4-n17-vergleich.md](../ergebnisse/lauf4-n17-vergleich.md).
 - **Abnahme:** Lauf beendet, Sweep-Tabelle in `docs/ergebnisse/` (neue Datei `lauf4-n17-vergleich.md`), W&B-Offline-Sync.
 
 ### Phase 5 — Sim-Image & Inferenz (`Simulation/Dockerfile.standalone`, Server-Workflow)

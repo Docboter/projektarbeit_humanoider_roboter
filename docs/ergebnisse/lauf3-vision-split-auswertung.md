@@ -4,6 +4,13 @@
 > erste echte Validierung mit zurückgehaltenen Episoden. Checkpoint-Sweep belegt Overfitting
 > (U-Kurve, bester Checkpoint 30.000). Kurzfazit in §1.
 
+> **Nachtrag 2026-10-12 — Overfitting-Befund widerlegt.** Die in §8.1 empfohlene Nachmessung
+> (20 Test-Episoden, volle Länge 750 Steps, Job 16633477) zeigt **keine** U-Kurve: Die
+> Validierungs-MSE fällt monoton bis 44.000 (0,00482), und 44.000 ist signifikant besser als
+> 30.000 (0,00519; gepaart t = 2,15, n = 20). Die U-Kurve unten war ein Artefakt von 6 Episoden
+> à 300 Steps (nur Anfahrphase). §4.1, §5 und die Empfehlung §8.2 („`MAX_STEPS=30000`
+> genügt“) gelten damit **nicht** mehr. Zahlen: [lauf4-n17-vergleich.md](lauf4-n17-vergleich.md) §5.
+
 **Erstellt:** 2026-08-14 · **Run-ID:** `tp1nc699` (W&B-Projekt `gr00t-g1-dex3`, Entity
 `projektarbeit_humanoider_roboter`) · **Modell:** GR00T N1.6 (3,29 Mrd. Parameter),
 Finetune mit aufgetautem Vision-Encoder (`tune_visual = true`), Color-Jitter aktiv,
@@ -266,6 +273,10 @@ sbatch Training/kisski_open_loop_eval.sh
 > Lauf 3 mit kollidierenden Step-Nummern.
 
 ### 8.2 Für den nächsten Lauf: `MAX_STEPS=30000` genügt
+
+> **Überholt (2026-10-12):** Die Nachmessung aus §8.1 zeigt bis 44.000 weiter fallende
+> Validierungs-MSE — siehe Nachtrag oben.
+
 Die letzten 14.000 Steps (≈ 4 h auf 4 GPUs) haben die Validierung verschlechtert. Bei
 gleicher Konfiguration ist alles jenseits von ~30.000 Steps verschenkte Rechenzeit — vorbehalten
 der Nachmessung aus 8.1, die den Umschlagpunkt genauer eingrenzt.

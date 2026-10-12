@@ -995,7 +995,9 @@ danach, **welcher Checkpoint** eigentlich gemessen wird. Der Befund:
 - `CHECKPOINT_PATH` stand in **keiner** Spec. Über das Menü war ein zweiter Checkpoint
   damit gar nicht erreichbar — obwohl genau dieser Vergleich der Punkt ist: Lauf 3
   zeigte eine U-Kurve über die Checkpoints, der beste lag bei 30000, der letzte war
-  25 % schlechter ([lauf3-vision-split-auswertung.md](../ergebnisse/lauf3-vision-split-auswertung.md)).
+  25 % schlechter ([lauf3-vision-split-auswertung.md](../ergebnisse/lauf3-vision-split-auswertung.md);
+  die Nachmessung mit 20×750 vom 2026-10-12 widerlegt die U-Kurve, der Vergleich mehrerer
+  Checkpoints bleibt aber der Punkt).
 - Zehn der 19 Sim-Aktionen rufen `ensure_checkpoint` **selbst** auf (`setup`, `check`,
   `rl`, `eval`, `optimize`, `cams`, `grasp`, `span`, `latency`, `render`). Das
   `--needs "setup"` bei `eval` ist nur ein Hinweis, keine Sperre — ohne vorheriges

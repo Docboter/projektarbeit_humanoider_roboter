@@ -294,7 +294,9 @@ repo root
 │   ├── ergebnisse/                     # evaluations: lauf1-zwischenstand.md, lauf1-auswertung.md,
 │   │                                   #   lauf2-vision-auswertung.md,
 │   │                                   #   lauf3-vision-split-auswertung.md (first real validation:
-│   │                                   #   checkpoint sweep U-curve, best ckpt 30000, last one 25% worse),
+│   │                                   #   6x300 sweep showed a U-curve at 30000 — refuted by the
+│   │                                   #   20x750 re-sweep 2026-10-12: no overfitting, 44000 best),
+│   │                                   #   lauf4-n17-vergleich.md (N1.7 vs. N1.6, in progress),
 │   │                                   #   diagnose-chronik.md (run protocol, ongoing from run 08 — "Lauf N" refs live here),
 │   │                                   #   domain-gap-analyse.md, sim-bewertung.md
 │   ├── weiterfuehrend/                 # reinforcement-learning-plan.md (status source) + rl-anleitung.md

@@ -312,7 +312,7 @@ export HF_TOKEN=hf_... WANDB_API_KEY=...
 export USE_COTRAIN=1
 export COTRAIN_HF_REPO=<user>/g1-dex3-rendered   # oder COTRAIN_DATASET_PATH lokal
 export COTRAIN_MIX_RATIO=0.25
-export MAX_STEPS=30000        # Lauf 3: die letzten 14 000 Steps haben verschlechtert
+export MAX_STEPS=44000        # wie Lauf 3; dessen Nachmessung (20×750) zeigt bis 44k keine Verschlechterung
 export GLOBAL_BATCH_SIZE=32
 sbatch --export=ALL Training/kisski_submit.sh
 ```
@@ -405,7 +405,7 @@ Vor dem Lauf festgeschrieben, damit hinterher nicht die Interpretation wandert.
 | Messung | Referenz | Deutung |
 |---|---|---|
 | **Fingerspanne Sim** (10 Ep. × 40 s) | Lauf 34: Median 0,577 rad = 27,6 % | **Primäres Gate.** Deutlich darüber → der Weg trägt, aufstocken. Auf dem Niveau → Sim-Bilder allein genügen nicht, RL rückt vor. |
-| **Validierungs-MSE echt** (Checkpoint-Sweep) | Lauf 3: 0,00716 | **Leitplanke.** Merklich schlechter → das gerenderte Material verdrängt echtes Lernen, `COTRAIN_MIX_RATIO` senken statt weiterzurendern. |
+| **Validierungs-MSE echt** (Checkpoint-Sweep) | Lauf 3: 0,00716 im 6×300-Protokoll (bester 30.000) · 0,00482 im 20×750-Protokoll (bester 44.000, Nachmessung 2026-10-12) — nur gleiches Protokoll vergleichen | **Leitplanke.** Merklich schlechter → das gerenderte Material verdrängt echtes Lernen, `COTRAIN_MIX_RATIO` senken statt weiterzurendern. |
 | **`lifted`** | Lauf 34: 0/10, best 1,68 cm | Erster echter Verhaltensfortschritt. Die Schwelle liegt nur 0,32 cm über dem heutigen Bestwert. |
 | **Domain-Gap** (`server_rl_run.sh gap`) | Mittel 0,22, `cam_left_wrist` 0,36 | Kontrolle, ob sich die Encoder-Repräsentation wirklich angenähert hat. |
 
@@ -482,6 +482,6 @@ Ehrlich benannt, weil jeder dieser Punkte den Lauf entwerten würde:
 - [next-steps.md](../../next-steps.md) — die Priorisierung, aus der dieser Schritt kommt
 - [diagnose-chronik.md, Läufe 33/34](../ergebnisse/diagnose-chronik.md#läufe-3334-runs2026081403-runs2026081404-der-tune_visual-checkpoint-im-closed-loop) — die Messung, die ihn begründet
 - [lauf2-vision-auswertung.md](../ergebnisse/lauf2-vision-auswertung.md) — warum `tune_visual` auf reinen Realdaten kollabiert
-- [lauf3-vision-split-auswertung.md](../ergebnisse/lauf3-vision-split-auswertung.md) — Checkpoint-Auswahl und Overfitting-Nachweis
+- [lauf3-vision-split-auswertung.md](../ergebnisse/lauf3-vision-split-auswertung.md) — Checkpoint-Auswahl (der dortige Overfitting-Befund ist durch die Nachmessung vom 2026-10-12 widerlegt, siehe den Nachtrag am Anfang der Lauf-3-Auswertung)
 - [train-test-split.md](train-test-split.md) — Split-Mechanik und Checkpoint-Sweep
 - [env-vars.md](env-vars.md) — vollständige Variablenreferenz
