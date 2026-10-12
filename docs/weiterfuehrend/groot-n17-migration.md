@@ -87,7 +87,7 @@ Backbone im HF-Cache liegen — sonst Abbruch mit den nötigen
 Sweep-Tabelle, HF-Zugang zum gated Backbone noch nicht bestätigt (muss je Token beantragt
 werden).
 
-**Phase 5 — Sim-Image & Inferenz: Scripts fertig, Image nicht gebaut, kein Lauf.**
+**Phase 5 — Sim-Image & Inferenz: Sim-Image lokal gebaut, erster N1.7-Sim-Lauf durch (2026-10-12).**
 [`Simulation/Dockerfile.standalone`](../../Simulation/Dockerfile.standalone) baut ebenfalls beide
 venvs (N1.7 mit System-Python 3.12 von Ubuntu 24.04 + `python3.12-dev`, `usd-core` installiert,
 deepspeed entfernt, Build-Time-Smoke-Test); `ENV GROOT_VERSION=auto`; das fest gesetzte
@@ -113,8 +113,24 @@ der N1.7-Fork kennt das Flag noch nicht, und flash-attn ist auf der Turing-RTX-5
 vermutlich blockiert**, bis das Flag auf den N1.7-Fork-Branch portiert ist.
 `kisski_rl_submit.sh` und `kisski_robocasa_ref_submit.sh` brechen bei `GROOT_VERSION=1.7`
 kontrolliert ab (RL nicht portiert; das Embodiment `GR1` ist in N1.7 entfernt).
-**Nicht gemacht:** kein `docker build` des Sim-Images, kein Sim-Eval-Lauf mit einem
-N1.7-Checkpoint.
+**Erster N1.7-Sim-Lauf am 2026-10-12** (Trooper.ai, RTX 4080 Super 32 GB, Treiber 580.178.04).
+Image lokal gebaut mit `update_sim_image.sh --standalone --skip-push` (~36 min, Exit 0, Label
+`de.humrob.groot-versions: "1.6 1.7"`), nicht gepusht — das Image auf Docker Hub ist weiterhin
+N1.6-only. Das gated Backbone `nvidia/Cosmos-Reason2-2B` lädt online problemlos, das Backend
+fällt auf `eager` zurück. Der Phase-D-Assert `(16, 28)` hält, nachdem der Client-Decoder ergänzt
+wurde (Tabelle §2, Zeile „ZMQ-Client“). VRAM-Spitze Sim + N1.7-Server ~11,5 GB; Inferenz
+~223 ms je Chunk (eager); ~214 s Wanduhr je 40-s-Episode, davon 82 % Sim und Rendering.
+
+Ergebnis für `luca-mue/groot-g1dex3-n17-vision-v1-ckpt15000` (10 × 40 s, DR an, Horizont 8):
+0/10 `lifted`, maximale Anhebung 0,83 cm. Der Median der Fingerspanne von 1,93 rad ist hier
+**kein** Greifmaß: Die Hände öffnen und schließen in der Luft (per Video geprüft).
+Open-Loop (`server_rl_run.sh span`) auf echten Bildern, ckpt15000: Verhältnis
+Vorhersage/Ground Truth bei der Fingerspanne im Median 83 % (Train-Episoden 0–4) bzw. 90 %
+(Test-Episoden 240/255/270/285/300); MSE-Median 0,0087 / 0,0064. Das Modell kann also greifen,
+der Engpass ist der Closed Loop in der Sim.
+
+**Abnahme laut Plan noch nicht erfüllt:** Gelaufen sind 10 statt 20 Episoden, und ein Eintrag in
+`diagnose-chronik.md` fehlt.
 
 **Phase 6 — RL & Co-Training: teilweise.** Co-Training: neuer
 [`Training/scripts/launch_cotrain_n17.py`](../../Training/scripts/launch_cotrain_n17.py)
@@ -377,7 +393,7 @@ sbatch --export=ALL -t 01:00:00 Training/kisski_submit.sh
 | Trainings-CLI | `launch_finetune.py` + Flags | gleiche Flags; `embodiment_tag` jetzt `str` | keine Änderung in `run_finetuning*.sh`; `launch_cotrain.py` neu von der N1.7-Vorlage ableiten (Zeilen 135–136 hardcoded Eagle!) |
 | Checkpoints | `gr00t_n1d6`, 32-Layer-DiT | `gr00t_n1d7`, 16-Layer-DiT | **alle bestehenden Checkpoints bleiben N1.6-only**; Neu-Training nötig |
 | Inferenz-Server | `run_gr00t_server.py --model-path … --embodiment-tag NEW_EMBODIMENT --use-sim-policy-wrapper --port` | gleiche Flags (`main` verifiziert) | keine Änderung in `entrypoint_sim.sh:242-248` |
-| ZMQ-Client (vendored `client.py`) | msgpack, `action.<key>` (1,16,7) | gleich; `CHUNK_SIZE=16` kommt aus unseren `delta_indices` | keine Änderung, aber Smoke-Test (`assert shape == (16,28)` in `run_g1_dex3_sim_eval.py:561`) |
+| ZMQ-Client (vendored `client.py`) | msgpack, `action.<key>` (1,16,7) | gleich; `CHUNK_SIZE=16` kommt aus unseren `delta_indices` | **Decoder ergänzt (2026-10-12):** N1.7 antwortet im msgpack_numpy-Format `{nd, type, kind, shape, data}`, nimmt das alte Format aber weiter an. `client.py` dekodiert jetzt beide (abwärtskompatibel). `client_g1.py` bleibt unverändert, weil N1.6-only. Der Assert `(16,28)` in `run_g1_dex3_sim_eval.py` hält |
 | Optimierte Inferenz (`ad0127d`) | Monkeypatch `policy.model.action_head.model.forward`, TRT-Export des DiT | DiT anders (16 Layer, RTC-Optionen), Upstream bringt eigenen Full-Pipeline-TRT | Re-Export + Paritätstest; Option: Upstream-TRT-Pipeline statt eigener |
 | RL (`rl_finetune.py`) | Replikat von `Gr00tN1d6ActionHead.forward` / Processor-Maske (`processing_gr00t_n1d6.py:240-248, 339-341`) | `Gr00tN1d7ActionHead`, `state_history_length`, `options`-Dict | **Neu abgleichen** — höchster Einzelaufwand |
 | Deps/Images | CUDA 12.8, Py 3.10, torch 2.7.1, flash-attn 2.7.4 | EA: nur transformers-Bump · GA: Py 3.12, torch 2.9, flash-attn 2.8.3 | beide Dockerfiles; vast.ai-Basis (`isaac-lab:3.0.0-beta2-post1`, Ubuntu 24.04) hat Python 3.12 nativ |
@@ -385,7 +401,7 @@ sbatch --export=ALL -t 01:00:00 Training/kisski_submit.sh
 
 ## 3. Bestandsaufnahme unserer N1.6-Kopplung (klassifiziert)
 
-**A — unverändert nutzbar (0 Aufwand):** `examples/G1_DEX3/g1_dex3_config.py`, `modality_*.json`, `lib_split.sh` (patcht nur `meta/info.json`), `run_finetuning.sh` / `_vision.sh` / `_cotrain.sh` (nur `MODEL_PATH`-Default), `entrypoint.sh` (nur `MODEL_DIR`), `kisski_submit.sh` (Bind-Mounts bleiben; Kommentar Zeile 345 „Container hat nur gr00t_n1d7-Code, Modell ist aber N1.6" ist mit N1.7 endlich stimmig — **vorher verifizieren, was das SIF heute enthält**), `client.py` / `client_g1.py` (vendored, protokollgleich), `check_action_norm.py` (stdlib, 28-dim-Layout), `entrypoint_sim.sh`-Serverstart, `server_rl_run.sh`, `camera_geometry.py`, Sim-Env.
+**A — unverändert nutzbar (0 Aufwand):** `examples/G1_DEX3/g1_dex3_config.py`, `modality_*.json`, `lib_split.sh` (patcht nur `meta/info.json`), `run_finetuning.sh` / `_vision.sh` / `_cotrain.sh` (nur `MODEL_PATH`-Default), `entrypoint.sh` (nur `MODEL_DIR`), `kisski_submit.sh` (Bind-Mounts bleiben; Kommentar Zeile 345 „Container hat nur gr00t_n1d7-Code, Modell ist aber N1.6" ist mit N1.7 endlich stimmig — **vorher verifizieren, was das SIF heute enthält**), `client_g1.py` (vendored, N1.6-only). **Nicht** protokollgleich: `client.py` (N1.7-Antwortformat, Decoder ergänzt, s. Tabelle §2), `check_action_norm.py` (stdlib, 28-dim-Layout), `entrypoint_sim.sh`-Serverstart, `server_rl_run.sh`, `camera_geometry.py`, Sim-Env.
 
 **B — kleine Anpassung (Zeilen):** `download_data.sh` (+ Cosmos-Backbone in HF-Cache), `Training/Dockerfile:55-56` + `Simulation/Dockerfile.standalone` (Clone-Branch/Pin; `update_image.sh` kann den Pin per `--update-commit` setzen), `.gitmodules` (Branch), `checkpoint_sweep.py` (Import-Check, `EmbodimentTag`-Resolve), `finger_span_openloop.py`, `dump_unitree_g1_dims.py`, Robocasa-Skripte (Modell-ID; **Achtung:** `run_robocasa_ref_eval.sh:51` nutzt `RC_EMBODIMENT_TAG=GR1` — in N1.7 **entfernt**, ebenso das Robocasa-Env im EA-Tag → Referenz-Eval bleibt N1.6 oder entfällt), **`entrypoint_baseline.sh:70,163` + `g1_gripper_sim/` (Stock-G1-Baseline, `UNITREE_G1`, 16-dim Actions): in N1.7 ist `UNITREE_G1` ein *Posttrain*-Tag mit anderer Semantik (Sim-Ganzkörper, `ego_view`, Waist/Nav-Cmds, 50er-Chunk) und **ohne Zero-Shot-Kopf im Base-Modell** → Baseline-Eval in heutiger Form **bricht**; Ersatzkandidat ist der Pretrain-Tag `REAL_G1` (Keys prüfen, §6), `entrypoint_sim.sh:236-241` (Flash-Attn-Pflichthinweis ist N1.7-spezifisch zu prüfen: Qwen3-Backbone fällt auf `sdpa` zurück, wenn flash-attn fehlt).
 
