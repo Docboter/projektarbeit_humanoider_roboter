@@ -19,7 +19,8 @@
 #   HF_CHECKPOINT_REPO   — HF-Modell-Repo für Checkpoint-Download (z. B. user/my-model)
 #   NUM_EPISODES         — Anzahl Eval-Episoden           (default 20)
 #   EXECUTION_HORIZON    — Steps pro Action-Chunk          (default 8)
-#   TASK_DESCRIPTION     — Language-Prompt                 (default "stack the blocks")
+#   TASK_DESCRIPTION     — Language-Prompt                 (default leer = aus dem Datensatz,
+#                          sonst "stack three block"; s. g1_dex3_sim/task_text.py)
 #   ZMQ_PORT             — ZMQ-Port für Server-Kommunikation (default 5555)
 #   ASSET_PATH           — Pfad zum USD-Asset              (default /workspace/assets/g1_dex3_blackhands.usd)
 #   BLACK_HANDS          — 1=Hände schwarz einfärben (Domain-Gap-Fix, default), 0=Original-USD
@@ -113,7 +114,7 @@ EXECUTION_HORIZON="${EXECUTION_HORIZON:-8}"
 # Der Wert bestimmt die Laufzeit direkt und ist deshalb der erste Hebel, wenn eine Eval
 # nicht in ein Zeitfenster passt. Anker: die menschliche Teleop-Demo braucht 39 s.
 EPISODE_LENGTH_S="${EPISODE_LENGTH_S:-0}"
-TASK_DESCRIPTION="${TASK_DESCRIPTION:-stack the blocks}"
+TASK_DESCRIPTION="${TASK_DESCRIPTION:-}"
 ASSET_PATH="${ASSET_PATH:-/workspace/assets/g1_dex3_blackhands.usd}"
 BLACK_HANDS="${BLACK_HANDS:-1}"
 CHECKPOINT_PATH="${CHECKPOINT_PATH:-$DATA_DIR/checkpoints}"

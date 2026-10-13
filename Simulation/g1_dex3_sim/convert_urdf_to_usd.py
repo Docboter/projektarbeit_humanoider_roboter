@@ -13,7 +13,9 @@ Verwendung (im Sim-Container):
 from __future__ import annotations
 
 import argparse
+
 from isaaclab.app import AppLauncher
+
 
 parser = argparse.ArgumentParser(description="URDF → USD Konvertierung für G1+Hand")
 parser.add_argument("--urdf", type=str,
@@ -28,10 +30,11 @@ args = parser.parse_args()
 app_launcher = AppLauncher(args)
 simulation_app = app_launcher.app
 
-import sys
 from pathlib import Path
+import sys
 
 from isaaclab.sim.converters import UrdfConverter, UrdfConverterCfg
+
 
 urdf_path = Path(args.urdf)
 output_path = Path(args.output)
@@ -70,7 +73,7 @@ if usd_file.exists():
     print(f"[convert] Erfolg: USD gespeichert unter {usd_file}")
     print(f"[convert] Dateigröße: {usd_file.stat().st_size / 1024:.0f} KB")
 else:
-    print(f"[convert] FEHLER: USD-Datei wurde nicht erzeugt.")
+    print("[convert] FEHLER: USD-Datei wurde nicht erzeugt.")
     sys.exit(1)
 
 simulation_app.close()

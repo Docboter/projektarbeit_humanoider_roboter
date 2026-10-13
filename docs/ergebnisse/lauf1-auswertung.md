@@ -7,7 +7,7 @@
 
 **Erstellt:** 2026-06-03 · **Run-ID:** `i6n1t613` (W&B-Projekt `gr00t-g1-dex3`, Entity
 `projektarbeit_humanoider_roboter`) · **Modell:** GR00T N1.6 (3,29 Mrd. Parameter),
-Partial-Finetune auf Unitree G1 + DEX3, Task „stack the blocks".
+Partial-Finetune auf Unitree G1 + DEX3, Task „stack three block" (einziger Task des Datensatzes).
 
 > Dies ist die **abschließende** Auswertung des ersten kompletten Laufs (175.000 Steps,
 > abgeschlossen). Die mitlaufende Momentaufnahme während des Trainings steht in

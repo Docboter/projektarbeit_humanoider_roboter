@@ -55,13 +55,16 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
 from pathlib import Path
+import sys
 
 import numpy as np
 
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from camera_geometry import CAMERA_CFG, PinholeCamera  # noqa: E402
+from scene_geometry import CUBE_Z_CENTER  # noqa: E402
+
 
 # Würfelreihenfolge = block_0/1/2 aus g1_dex3_blockstack_env.py. Die Farben dort sind an die
 # Realdaten angeglichen (rot/grün/gelb), deshalb ist die Zuordnung eindeutig.
@@ -81,7 +84,7 @@ HSV_WINDOWS = {
 # Bis 2026-08-22 standen hier 0,915, der Spawnwert der Env, aus dem die Würfel zwei
 # Zentimeter herunterfallen. Gegen die `cams`-Grundwahrheit gemessen kostete das rund 1 cm:
 # Restfehler 1,11 cm (links) / 0,89 cm (rechts) mit 0,915 gegen 0,30 / 0,22 cm mit 0,895.
-Z_CUBE_CENTER = 0.895
+Z_CUBE_CENTER = CUBE_Z_CENTER   # scene_geometry.py
 CUBE_EDGE_M = 0.05
 # Deckflächen-Ebene. Der Gierwinkel wird auf IHR gemessen, nicht auf der Mittelpunktsebene:
 # die sichtbare Deckfläche liegt physisch hier, und nur auf ihrer eigenen Ebene ist ihre
@@ -877,6 +880,19 @@ def select_episodes(root: Path, args) -> list[int]:
         info = json.load(fh)
     total = int(info["total_episodes"])
     n_train = int(total * args.train_ratio)
+    if getattr(args, "held_out", False):
+        # Nur für die EVAL (Startlagen, run_g1_dex3_sim_eval.py --layout): gelesen wird
+        # allein das Startbild, es entsteht kein Trainingsbild. render_cotrain_dataset.py
+        # wählt seine Episoden selbst und rührt diese nie an.
+        test = list(range(n_train, total))
+        if args.episode_ids:
+            bad = [e for e in args.episode_ids if e not in test]
+            if bad:
+                raise SystemExit(f"--held-out mit Trainings-Episoden {bad} (Test: {n_train}–"
+                                 f"{total - 1}).")
+            return sorted(args.episode_ids)
+        n = min(args.num_episodes, len(test))
+        return sorted({test[int(round(i))] for i in np.linspace(0, len(test) - 1, n)})
     if args.episode_ids:
         bad = [e for e in args.episode_ids if e >= n_train]
         if bad:
@@ -907,6 +923,8 @@ def header_mismatch(existing: dict, wanted: dict) -> str:
     if (existing.get("source_dataset")
             and existing["source_dataset"] != wanted["source_dataset"]):
         reasons.append(f"Datensatz {existing['source_dataset']}")
+    if existing.get("split", "train") != wanted.get("split", "train"):
+        reasons.append(f"Split {existing.get('split', 'train')} statt {wanted['split']}")
     return ", ".join(reasons)
 
 
@@ -919,7 +937,9 @@ def run_extract(args) -> int:
     out_path = Path(args.out)
     layout = {"episodes": {}, "cameras": cams, "bias_cm": [round(args.bias[0] * 100, 4),
                                                            round(args.bias[1] * 100, 4)],
-              "z_plane": Z_CUBE_CENTER, "source_dataset": str(root)}
+              "z_plane": Z_CUBE_CENTER, "source_dataset": str(root),
+              # "test" = zurückgehaltene Episoden, nur als Eval-Startlagen (--held-out)
+              "split": "test" if getattr(args, "held_out", False) else "train"}
     # Bestehende Datei IMMER laden. Bis 2026-08-25 fing --overwrite mit einem leeren Dict
     # an; zusammen mit --episode-ids blieben danach nur die neu gerechneten Episoden übrig
     # und der Rest war weg — samt der teuren Bewegungsbeginne. Gemeint war --overwrite nie
@@ -1360,6 +1380,11 @@ def main() -> int:
     e.add_argument("--fresh", action="store_true",
                    help="Vorhandene Datei verwerfen und bei null anfangen. Nötig, wenn "
                         "sich Bias, Würfelebene oder Kameraliste geändert haben.")
+    e.add_argument("--held-out", action="store_true",
+                   help="Die zurückgehaltenen Test-Episoden lesen (ab int(total*train_ratio)) "
+                        "statt der Trainings-Episoden. Ergebnis sind Startlagen für die "
+                        "Closed-Loop-Eval (run_g1_dex3_sim_eval.py --layout), nicht für "
+                        "render — der Renderer wählt seine Episoden selbst und nie Test-Episoden.")
     e.add_argument("--no-motion-onset", action="store_true",
                    help="Bewegungsbeginn NICHT bestimmen. Spart Zeit (sonst wird jedes Video "
                         "einmal in halber Auflösung dekodiert, grob 4 s je Video und Kamera), "

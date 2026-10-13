@@ -26,6 +26,7 @@ import os
 
 from isaaclab.app import AppLauncher
 
+
 parser = argparse.ArgumentParser(description="Dump der vier Policy-Kamera-Standbilder (Sim)")
 parser.add_argument("--asset-path", type=str, default="/data/assets/g1_dex3_blackhands.usd",
                     help="Pfad zum G1+Dex3 USD-Asset (Default: schwarzhändiges Asset)")
@@ -43,10 +44,10 @@ simulation_app = app_launcher.app
 # ---------------------------------------------------------------------------
 # Imports nach AppLauncher-Start
 # ---------------------------------------------------------------------------
+from g1_dex3_blockstack_env import G1Dex3BlockstackEnv, G1Dex3BlockstackEnvCfg
 import numpy as np
 import torch
 
-from g1_dex3_blockstack_env import G1Dex3BlockstackEnv, G1Dex3BlockstackEnvCfg
 
 POLICY_CAMS = ["cam_left_high", "cam_right_high", "cam_left_wrist", "cam_right_wrist"]
 

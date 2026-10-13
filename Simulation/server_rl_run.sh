@@ -146,6 +146,16 @@ SHM_SIZE="${RL_SHM_SIZE:-16g}"
 # sollte NICHT eingeschraenkt werden.
 GPU_ENV=()
 
+# Szenengeometrie-Schalter, die JEDER Sim-Aufruf sehen muss — sonst rechnet layout mit einer
+# anderen Kamera als eval oder tipcheck. Nur gesetzte Variablen werden durchgereicht; leer
+# heisst cfg-Default (g1_dex3_cfg.py / camera_geometry.py). HEAD_CAM_FOLLOWS_PELVIS=1 ist
+# die Gegenhypothese aus Review 3.4: Kopfkamera wandert mit der Beckenkorrektur mit.
+GEOM_ENV=()
+for _v in ROBOT_BASE_X ROBOT_BASE_Z HEAD_CAM_FOLLOWS_PELVIS; do
+  [[ -n "${!_v:-}" ]] && GEOM_ENV+=(-e "$_v=${!_v}")
+done
+unset _v
+
 # Container-Index -> physische GPU, aufsteigend SORTIERT. Das ist keine Kosmetik: die
 # NVIDIA-Container-Runtime ordnet die Geraete nach Host-Index, NICHT nach der Reihenfolge in
 # `--gpus`. Mit RL_GPUS="device=1,0" ist Container-0 also die physische GPU 0 und Container-1
@@ -873,7 +883,7 @@ do_check() {
   # Viewport steht dann allerdings nur kurz, bis der Aufbau geprueft ist.
   live_view_env
   livestream_docker_env
-  out=$(docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" "${LIVE_ENV[@]}" "${LS_ENV[@]}" \
+  out=$(docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" "${GEOM_ENV[@]}" "${LIVE_ENV[@]}" "${LS_ENV[@]}" \
         -e "RL_REF_DEVICE=${RL_REF_DEVICE:-auto}" "$CONTAINER" bash -lc "
     unset VIRTUAL_ENV
     '$ISAAC_PY' '$SIM_DIR/rl_finetune.py' \
@@ -931,7 +941,17 @@ do_eval() {
   local ep_len="${EPISODE_LENGTH_S:-0}"
   log "BC-Erfolgsrate messen: $eps Episoden, Exec-Horizon $horizon," \
       "Episodenlaenge ${ep_len}s$([[ "$ep_len" == "0" ]] && echo ' (cfg-Default 300s)')," \
-      "DR=${DR_ENABLED:-1}"
+      "DR=${DR_ENABLED:-1}, DR_SEED=${DR_SEED:-0}"
+  if [[ -n "${EVAL_LAYOUT:-}" ]]; then
+    docker exec "$CONTAINER" test -f "$EVAL_LAYOUT" \
+      || { err "EVAL_LAYOUT=$EVAL_LAYOUT fehlt im Container. Erst: LAYOUT_HELD_OUT=1 $0 layout"; return 1; }
+    log "  Wuerfel-Start: echte Lagen aus $EVAL_LAYOUT"
+  else
+    warn "Wuerfel starten in den Zufallsbaendern der Env-Cfg - Lagen, die so im Training"
+    warn "  nie vorkamen (Review 3.2). Fuer vergleichbare Zahlen erst"
+    warn "    LAYOUT_HELD_OUT=1 $0 layout"
+    warn "  und dann  EVAL_LAYOUT=/data/eval/layout_heldout.json $0 eval"
+  fi
   if [[ "$ep_len" == "0" ]]; then
     warn "Ohne EPISODE_LENGTH_S laeuft jede Episode bis zu 9000 Steps mit 4 gerenderten"
     warn "  Kameras. Das kann bei 20 Episoden Stunden dauern. Anhaltspunkt: die"
@@ -960,7 +980,17 @@ do_eval() {
     -e "GROOT_TRT_ENGINE_PATH=${GROOT_TRT_ENGINE_PATH:-}" \
     -e "CAMERA_RENDER_EVERY_N=${CAMERA_RENDER_EVERY_N:-1}" \
     -e "EPISODE_LENGTH_S=$ep_len" \
-    -e "TASK_DESCRIPTION=${TASK_DESCRIPTION:-stack the blocks}" \
+    `# Leer = run_g1_dex3_sim_eval.py liest den Text aus meta/tasks.* des Datensatzes` \
+    `# (Fallback "stack three block"). Bis 2026-10-13 stand hier "stack the blocks" -` \
+    `# ein Text, den das Training nie sah (Review 3.1). Leer ueberschreibt auch das` \
+    `# alte ENV eines noch nicht neu gebauten Images; entrypoint_sim.sh wird gesynct.` \
+    -e "TASK_DESCRIPTION=${TASK_DESCRIPTION:-}" \
+    -e "TASK_DATASET_PATH=${TASK_DATASET_PATH:-/data/unitreerobotics/G1_Dex3_BlockStacking_Dataset}" \
+    `# Echte Startlagen (layout.json aus 'LAYOUT_HELD_OUT=1 layout'); leer = Zufallsbaender.` \
+    -e "EVAL_LAYOUT=${EVAL_LAYOUT:-}" \
+    `# Fester Seed fuer DR und Wuerfel-Zufall: A/B-Laeufe vergleichbar. Negativ = zufaellig.` \
+    -e "DR_SEED=${DR_SEED:-0}" \
+    "${GEOM_ENV[@]}" \
     -e "DR_ENABLED=${DR_ENABLED:-1}" \
     -e "RL_GROUND_COLOR=${RL_GROUND_COLOR:-}" \
     `# Render-Hebel (gemessen 2026-08-13: 94 % der Laufzeit sind Sim+Render, 5 % Inferenz).` \
@@ -1075,7 +1105,7 @@ do_cams() {
       "aa=${RL_AA_MODE:-<Isaac-Default>}, dome=${RL_DOME_INTENSITY:-2000}," \
       "sweep=${RL_DOME_SWEEP:-<aus>}, DR=${DR_ENABLED:-1}," \
       "cam=${RL_CAMERA_CLASS:-tiled}) → $HOST_DATA_DIR/cam_dump/"
-  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" \
+  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" "${GEOM_ENV[@]}" \
     -e "RL_AA_MODE=${RL_AA_MODE:-}" \
     -e "RL_DOME_INTENSITY=${RL_DOME_INTENSITY:-2000}" \
     -e "RL_DOME_SWEEP=${RL_DOME_SWEEP:-}" \
@@ -1121,7 +1151,7 @@ do_grasp() {
   if livestream_active; then
     livestream_banner "$(host_addr)"
   fi
-  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" \
+  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" "${GEOM_ENV[@]}" \
     -e "DR_ENABLED=${DR_ENABLED:-0}" \
     -e "RL_GROUND_COLOR=${RL_GROUND_COLOR:-}" \
     -e "SCENE_CAM=${SCENE_CAM:-1}" \
@@ -1317,10 +1347,20 @@ do_layout() {
   ensure_container
   local ds="${SPAN_DATASET:-/data/unitreerobotics/G1_Dex3_BlockStacking_Dataset}"
   ensure_dataset "$ds" || return 1
+  # LAYOUT_HELD_OUT=1: Startlagen der zurueckgehaltenen Episoden (240-300) fuer die
+  # Eval (EVAL_LAYOUT), getrennte Ausgabedatei - render darf sie nie sehen.
+  local held="${LAYOUT_HELD_OUT:-0}"
   local out="${LAYOUT_OUT:-/data/cotrain/layout.json}"
   local eps="${RENDER_EPISODES:-60}"
   local dbg="${LAYOUT_DEBUG_DIR:-/data/cotrain/layout_debug}"
+  # Der Co-Training-Pfad als Ziel waere fuer Test-Episoden falsch (das Menue setzt ihn
+  # als Default mit) - dann auf den Eval-Pfad umlenken. Ein eigener Pfad bleibt.
+  if [[ "$held" == "1" ]]; then
+    [[ "$out" == "/data/cotrain/layout.json" ]] && out="/data/eval/layout_heldout.json"
+    [[ "$dbg" == "/data/cotrain/layout_debug" ]] && dbg="/data/eval/layout_debug"
+  fi
   local extra=""
+  [[ "$held" == "1" ]] && extra+=" --held-out"
   [[ -n "${LAYOUT_BIAS:-}" ]] && extra+=" --bias ${LAYOUT_BIAS}"
   [[ "${LAYOUT_OVERWRITE:-0}" == "1" ]] && extra+=" --overwrite"
   [[ "${LAYOUT_FRESH:-0}" == "1" ]] && extra+=" --fresh"
@@ -1344,7 +1384,7 @@ do_layout() {
   log "  und Kamera. Abschalten mit LAYOUT_NO_MOTION_ONSET=1 (dann kann 'render' aber"
   log "  kein Fenster setzen)."
   log "  Markierte Kontrollbilder: $HOST_DATA_DIR/${dbg#/data/}"
-  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" "$CONTAINER" bash -lc "
+  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" "${GEOM_ENV[@]}" "$CONTAINER" bash -lc "
     unset VIRTUAL_ENV
     '$ISAAC_PY' '$SIM_DIR/extract_block_layout.py' extract \
         --dataset-path '$ds' \
@@ -1356,7 +1396,11 @@ do_layout() {
   ok "Layout: $HOST_DATA_DIR/${out#/data/}"
   echo "  Kontrollbilder ansehen (Kreuz = gefundener Wuerfel):"
   echo "    ls $HOST_DATA_DIR/${dbg#/data/}"
-  echo "  Danach rendern:  RENDER_LAYOUT=$out ./Simulation/server_rl_run.sh render"
+  if [[ "$held" == "1" ]]; then
+    echo "  Danach messen:   EVAL_LAYOUT=$out ./Simulation/server_rl_run.sh eval"
+  else
+    echo "  Danach rendern:  RENDER_LAYOUT=$out ./Simulation/server_rl_run.sh render"
+  fi
 }
 
 # Das Kameramodell gegen den RENDERER pruefen, nicht gegen den eigenen Verstand.
@@ -1377,7 +1421,7 @@ do_layoutcheck() {
   [[ -n "${LAYOUTCHECK_EXPECT_YAW:-}" ]] && yaw_arg="--expect-yaw '${LAYOUTCHECK_EXPECT_YAW}'"
 
   log "Kameramodell gegen gerendertes Bild pruefen: $frame ($cam)"
-  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" "$CONTAINER" bash -lc "
+  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" "${GEOM_ENV[@]}" "$CONTAINER" bash -lc "
     unset VIRTUAL_ENV
     '$ISAAC_PY' '$SIM_DIR/extract_block_layout.py' detect '$frame' \
         --camera '$cam' --expect '$expect' $yaw_arg --debug-dir '$dbg'" || return 1
@@ -1408,7 +1452,7 @@ do_topface() {
   [[ -n "${LAYOUT_MIN_SQUARENESS:-}" ]] && extra+=" --min-squareness ${LAYOUT_MIN_SQUARENESS}"
   [[ -n "${LAYOUT_YAW_TOLERANCE:-}" ]] && extra+=" --yaw-tolerance ${LAYOUT_YAW_TOLERANCE}"
   log "Deckflaechenschnitt vermessen: $eps Episoden gegen Soll 5,0 cm / Formprobe 1,41"
-  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" "$CONTAINER" bash -lc "
+  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" "${GEOM_ENV[@]}" "$CONTAINER" bash -lc "
     unset VIRTUAL_ENV
     '$ISAAC_PY' '$SIM_DIR/extract_block_layout.py' topface \
         --dataset-path '$ds' --num-episodes '$eps' $extra" || return 1
@@ -1428,7 +1472,7 @@ do_layoutreport() {
     err "Layout fehlt: $layout — LAYOUT_OUT setzen oder erst 'layout' laufen lassen."
     return 1
   fi
-  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" "$CONTAINER" bash -lc "
+  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" "${GEOM_ENV[@]}" "$CONTAINER" bash -lc "
     unset VIRTUAL_ENV
     '$ISAAC_PY' '$SIM_DIR/extract_block_layout.py' report '$layout' $extra" || return 1
 }
@@ -1442,7 +1486,7 @@ do_yawcheck() {
   [[ -n "${LAYOUT_YAW_TOLERANCE:-}" ]] && extra+=" --yaw-tolerance ${LAYOUT_YAW_TOLERANCE}"
   [[ -n "${LAYOUT_MIN_SQUARENESS:-}" ]] && extra+=" --min-squareness ${LAYOUT_MIN_SQUARENESS}"
   log "Abnahme des Gierwinkel-Schaetzers gegen synthetische Wuerfel bekannter Drehung"
-  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" "$CONTAINER" bash -lc "
+  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" "${GEOM_ENV[@]}" "$CONTAINER" bash -lc "
     unset VIRTUAL_ENV
     '$ISAAC_PY' '$SIM_DIR/extract_block_layout.py' selftest $extra" || return 1
 }
@@ -1487,7 +1531,7 @@ do_replay_prepare() {
   replay_selection_args || return 1
 
   log "Prüfe Replay-Quelldatensatz: $ds"
-  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" "$CONTAINER" env -u VIRTUAL_ENV \
+  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" "${GEOM_ENV[@]}" "$CONTAINER" env -u VIRTUAL_ENV \
     "$ISAAC_PY" "$SIM_DIR/reconstruct_cube_poses.py" inspect \
       --dataset-path "$ds" "${REPLAY_SELECTION_ARGS[@]}" \
     2>&1 | tee /dev/stderr | grep -c "\[replay-prepare\] fertig" >/dev/null \
@@ -1520,14 +1564,14 @@ do_replay_calibrate() {
   local calibration_selection=( --num-episodes "$count" --start-episode 0 )
 
   log "Sammle Pick-Anker aus Realvideos und wenigen direkten FK-Zuständen."
-  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" -e "DR_ENABLED=0" "$CONTAINER" env -u VIRTUAL_ENV \
+  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" "${GEOM_ENV[@]}" -e "DR_ENABLED=0" "$CONTAINER" env -u VIRTUAL_ENV \
     "$ISAAC_PY" "$SIM_DIR/collect_replay_anchors.py" --headless --enable_cameras \
       --dataset-path "$ds" --out "$anchors" --debug-dir "$debug" \
       --asset-path "$ASSET_PATH" "${calibration_selection[@]}" \
     2>&1 | tee /dev/stderr | grep -c "\[replay-anchor-collection\]" >/dev/null \
     || { err "Sammeln der Replay-Anker fehlgeschlagen (Ausgabe oben)."; return 1; }
   log "Fitte Homographien und prüfe getrennte Holdout-Episoden."
-  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" "$CONTAINER" env -u VIRTUAL_ENV \
+  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" "${GEOM_ENV[@]}" "$CONTAINER" env -u VIRTUAL_ENV \
     "$ISAAC_PY" "$SIM_DIR/reconstruct_cube_poses.py" calibrate \
       --dataset-path "$ds" --anchors "$anchors" --out "$calibration" --debug-dir "$debug" \
       --holdout-ratio "$ratio" --seed "$seed" "${calibration_selection[@]}" \
@@ -1558,7 +1602,7 @@ do_replay_poses() {
     return 1
   fi
   log "Bestimme einmalige Würfel-Startposen für maximal ${REPLAY_NUM_EPISODES:-10} Episoden."
-  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" "$CONTAINER" env -u VIRTUAL_ENV \
+  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" "${GEOM_ENV[@]}" "$CONTAINER" env -u VIRTUAL_ENV \
     "$ISAAC_PY" "$SIM_DIR/reconstruct_cube_poses.py" poses \
       --dataset-path "$ds" --calibration "$calibration" --out "$poses" \
       --debug-dir "$debug" "${overwrite[@]}" "${REPLAY_SELECTION_ARGS[@]}" \
@@ -1599,7 +1643,7 @@ do_replay_render() {
     return 1
   fi
   log "Rendere maximal ${REPLAY_NUM_EPISODES:-10} physikbasierte Replay-Episoden nach $out."
-  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" -e "DR_ENABLED=${DR_ENABLED:-0}" "$CONTAINER" \
+  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" "${GEOM_ENV[@]}" -e "DR_ENABLED=${DR_ENABLED:-0}" "$CONTAINER" \
     env -u VIRTUAL_ENV "$ISAAC_PY" "$SIM_DIR/run_dataset_replay_videos.py" \
       --headless --enable_cameras --dataset-path "$ds" --poses "$poses" \
       --out-dir "$out" --output-mode "$mode" --dataset-out "$dataset_out" \
@@ -1638,7 +1682,7 @@ do_tipcheck() {
     return 1
   fi
   log "Fingerkuppen ins Realbild projizieren: $eps Episoden, Ziel $out"
-  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" -e "DR_ENABLED=0" ${ROBOT_BASE_Z:+-e "ROBOT_BASE_Z=$ROBOT_BASE_Z"} ${ROBOT_BASE_X:+-e "ROBOT_BASE_X=$ROBOT_BASE_X"} \
+  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" "${GEOM_ENV[@]}" -e "DR_ENABLED=0" \
     "$CONTAINER" env -u VIRTUAL_ENV \
     "$ISAAC_PY" "$SIM_DIR/project_fingertips_check.py" --headless --enable_cameras \
       --dataset-path "$ds" --layout "$layout" --out-dir "$out" \
@@ -1724,7 +1768,7 @@ do_render() {
     [[ "$stage" == "both" || "$stage" == "$st" ]] || continue
     log "Stufe '$st' — Datensatz $ds, Ziel $out, $eps Episoden."
     [[ "$st" == "render" ]] && log "  Das dauert. Bei Verbindungsabbruch: Lauf in tmux/screen legen."
-    docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" \
+    docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" "${GEOM_ENV[@]}" \
       -e "DR_ENABLED=${DR_ENABLED:-1}" \
       -e "RL_GROUND_COLOR=${RL_GROUND_COLOR:-}" \
       -e "RL_AA_MODE=${RL_AA_MODE:-}" \
@@ -1825,7 +1869,7 @@ do_view() {
     log "  Live-Ansicht → http://$(host_addr):$LIVE_VIEW_PORT/"
   fi
 
-  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" \
+  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" "${GEOM_ENV[@]}" \
     "${LIVE_ENV[@]}" "${LS_ENV[@]}" \
     -e "DR_ENABLED=$dr" \
     -e "SCENE_CAM=$scene_cam" \

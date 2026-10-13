@@ -592,7 +592,7 @@ Kernursache, warum der eingefrorene Vision-Encoder im Closed-Loop versagt (§13.
 |---|---|---|
 | 1 — Sim-Frames erzeugen | [`g1_dex3_sim/dump_policy_cams.py`](../../Simulation/g1_dex3_sim/dump_policy_cams.py) | Rendert je Policy-Kamera ein `sim_cam_*.png` (im Sim-Container, RT-Core-GPU). |
 | 2 — qualitativ vergleichen | [`compare_domain_gap.sh`](../../Simulation/compare_domain_gap.sh) | Montiert pro Kamera das Dataset-Referenzbild (`Simulation/camera_reference/dataset_cam_*.png`) links neben das Sim-Renderbild rechts → ein beschriftetes Vergleichs-PNG. Lokal lauffähig (nur ImageMagick). |
-| 3 — quantitativ messen | [`scripts/measure_domain_gap.py`](../../Simulation/scripts/measure_domain_gap.py) | Schickt Real- und Sim-Frames durch SigLIP (identische Gewichte zum frozen GR00T-ViT) und misst die Cosine-Distanz der Embeddings → eine Zahl pro Kamera. |
+| 3 — quantitativ messen | [`scripts/measure_domain_gap.py`](../../Simulation/scripts/measure_domain_gap.py) | Schickt Real- und Sim-Frames durch ein vortrainiertes SigLIP (**Näherung**, nicht der Vision-Tower der Policy: vision-v2 lief mit `tune_visual=true`, N1.6 nutzt Eagle) und misst die Cosine-Distanz der Embeddings → eine Zahl pro Kamera. |
 
 **Beispiel (compare, lokal):**
 ```bash

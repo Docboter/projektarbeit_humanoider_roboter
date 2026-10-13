@@ -1,7 +1,7 @@
 # Domain-Gap-Analyse: Real → Isaac Sim
 
 > **TL;DR:** Messung des visuellen Domain-Gaps zwischen realen Trainingsbildern und
-> Isaac-Sim-Renderings per Cosine-Distanz (frozen SigLIP-ViT), inkl. Handlungsoptionen. Relevant, um
+> Isaac-Sim-Renderings per Cosine-Distanz (vortrainiertes SigLIP als Näherung), inkl. Handlungsoptionen. Relevant, um
 > den Real→Sim-Gap als Ursache für Closed-Loop-Fehlschläge zu belegen; Ergebnis in §Ergebnis.
 
 > Aktuelle Messung: 2026-08-08 (`runs/20260808/22`). Die Erstmessung vom 2026-06-04 ist überholt
@@ -12,7 +12,7 @@
 
 ## Fragestellung
 
-Kann der frozen Vision Encoder von GR00T N1.6 reale Teleop-Bilder und synthetische Isaac-Sim-Bilder gleich behandeln? Da `tune_visual = false` während des Fine-Tunings gesetzt war, sind die ViT-Gewichte identisch mit dem vortrainierten SigLIP-Checkpoint — eine Domänenanpassung hat nie stattgefunden.
+Kann der frozen Vision Encoder von GR00T N1.6 reale Teleop-Bilder und synthetische Isaac-Sim-Bilder gleich behandeln? Gemessen wird mit dem vortrainierten SigLIP-Checkpoint als **Näherung**. Die ursprüngliche Annahme, er sei wegen `tune_visual = false` identisch mit dem Encoder der Policy, trifft nicht zu: der beste Checkpoint (vision-v2) lief mit `tune_visual = true`, und N1.6 nutzt das Eagle-Backbone. Die Zahlen sind ein allgemeiner Bildabstand, geeignet zum Vergleich von Sim-Varianten, aber keine Messung der Lücke, die die Policy sieht ([Review §3.6](../projekt-review-2026-10-11.md#36-falsche-annahme-im-domain-gap-skript--inkonsistenz-teilprüfung), korrigiert 2026-10-13).
 
 ---
 

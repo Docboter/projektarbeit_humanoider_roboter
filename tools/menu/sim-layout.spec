@@ -13,6 +13,9 @@ param CHECKPOINT_PATH path "/data/checkpoints/groot-g1dex3-checkpoint" expert \
 param HF_CHECKPOINT_REPO str "luca-mue/groot-g1dex3-checkpoint" expert \
   "HuggingFace-Repo des Checkpoints" "Nicht noetig."
 group "Umfang"
+param LAYOUT_HELD_OUT bool 0 basic \
+  "Zurueckgehaltene Episoden (Eval-Startlagen)" \
+  "1 = Startlagen der Test-Episoden 240-300 nach /data/eval/layout_heldout.json - fuer 'eval' mit EVAL_LAYOUT. 0 = Trainings-Episoden fuer 'render'. Render rendert nie Test-Episoden."
 param RENDER_EPISODES int 60 basic "Anzahl Episoden" --range 1:500
 param LAYOUT_OUT path "/data/cotrain/layout.json" advanced "Ausgabedatei im Container"
 param LAYOUT_OVERWRITE bool 0 advanced "Vorhandene layout.json ueberschreiben"

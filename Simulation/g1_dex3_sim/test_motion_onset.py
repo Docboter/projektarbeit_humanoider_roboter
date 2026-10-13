@@ -11,6 +11,7 @@ from extract_block_layout import (
     find_motion_onset,
 )
 
+
 CAMS = ["cam_left_high", "cam_right_high"]
 
 

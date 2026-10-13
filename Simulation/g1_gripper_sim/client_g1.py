@@ -29,6 +29,7 @@ import msgpack
 import numpy as np
 import zmq
 
+
 # State-Gruppen, die in der Sim real beobachtet werden (Rest wird zero-gefüllt).
 SIM_OBSERVED_STATE = ("left_arm", "right_arm", "left_hand", "right_hand")
 # Action-Gruppen, die in der Sim ausgeführt werden (Rest wird verworfen).
@@ -179,7 +180,7 @@ def build_obs(
     arm_pos: np.ndarray,
     gripper: np.ndarray,
     dims: dict,
-    task_description: str = "stack the blocks",
+    task_description: str = "stack three block",
 ) -> dict:
     """Baut das UNITREE_G1-Observation-Dict im Gr00tSimPolicyWrapper-Flat-Format.
 

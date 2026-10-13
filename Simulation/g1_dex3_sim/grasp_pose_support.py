@@ -7,6 +7,7 @@ from typing import Any
 
 import numpy as np
 
+
 HAND_SLICES = {"left": slice(14, 21), "right": slice(21, 28)}
 
 

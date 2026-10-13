@@ -243,7 +243,7 @@ ENV PATH="/app/Groot-1.6/.venv/bin:${PATH}" \
     ZMQ_PORT="5555" \
     NUM_EPISODES="20" \
     EXECUTION_HORIZON="8" \
-    TASK_DESCRIPTION="stack the blocks" \
+    TASK_DESCRIPTION="" \
     ASSET_PATH="/workspace/assets/g1_dex3_blackhands.usd" \
     # Checkpoint: entweder CHECKPOINT_PATH (Volume) oder HF_CHECKPOINT_REPO (Download)
     CHECKPOINT_PATH="/data/checkpoints" \

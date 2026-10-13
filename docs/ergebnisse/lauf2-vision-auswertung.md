@@ -8,7 +8,7 @@
 **Erstellt:** 2026-06-05 · **Run-ID:** `ajgoskon` (W&B-Projekt `gr00t-g1-dex3`, Entity
 `projektarbeit_humanoider_roboter`) · **Modell:** GR00T N1.6 (3,29 Mrd. Parameter),
 Finetune **mit aufgetautem Vision-Encoder** (`tune_visual = true`) auf Unitree G1 + DEX3,
-Task „stack the blocks".
+Task „stack three block" (einziger Task des Datensatzes).
 
 > Dies ist die Auswertung des **zweiten** vollständigen Laufs. Er ist die direkte
 > Gegenprobe zur Hauptempfehlung aus dem ersten Lauf

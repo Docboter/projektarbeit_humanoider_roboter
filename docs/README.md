@@ -68,7 +68,7 @@ Alle Auswertungen, Messungen und Methodik-Reviews gebündelt — die „Was kam 
 | [ergebnisse/lauf1-zwischenstand.md](ergebnisse/lauf1-zwischenstand.md) | **Zwischenstand 1. Lauf** — W&B-Health-Check des laufenden Trainings (Detail-Charts in [`wandb-run-charts.html`](ergebnisse/wandb-run-charts.html)) |
 | [ergebnisse/diagnose-chronik.md](ergebnisse/diagnose-chronik.md) | **Diagnose-Chronik (fortlaufend ab Lauf 08)** — chronologisches Protokoll der Sim-/RL-Diagnoseläufe: Kamera-Fixes, Domain-Gap-Messläufe, Greif-Physik (Lauf 29), `span`-Gate (Lauf 32), `TUNE_VISUAL` im Closed Loop (Lauf 34), Würfellage aus dem Bild (35–37), Geometriefehler Fingergelenke/Beckenhöhe/Basis (38–51), Gierwinkel (52/53). Die projektweit referenzierten Lauf-Nummern leben hier |
 | [ergebnisse/basismodell-referenz-eval.md](ergebnisse/basismodell-referenz-eval.md) | **Referenz-Eval-Ergebnis** — RoboCasa GR-1, Aggregat 47,7 % über 12 Tasks; validiert die Eval-Pipeline gegen NVIDIAs Zahlen (Re-Run der restlichen 12 Tasks offen) |
-| [ergebnisse/domain-gap-analyse.md](ergebnisse/domain-gap-analyse.md) | **Domain-Gap-Messung** — Cosine-Distanz Real→Sim pro Kamera via frozen SigLIP-ViT. Neumessung 2026-08-08 nach Kamerakalibrierung + Albedo-Fixes: Mittel 0.22, `cam_left_wrist` 0.36 (Juni-Erstmessung 0.26/0.43 überholt) |
+| [ergebnisse/domain-gap-analyse.md](ergebnisse/domain-gap-analyse.md) | **Domain-Gap-Messung** — Cosine-Distanz Real→Sim pro Kamera via vortrainiertes SigLIP (Näherung, nicht der Encoder der Policy). Neumessung 2026-08-08 nach Kamerakalibrierung + Albedo-Fixes: Mittel 0.22, `cam_left_wrist` 0.36 (Juni-Erstmessung 0.26/0.43 überholt) |
 | [ergebnisse/sim-bewertung.md](ergebnisse/sim-bewertung.md) | **Methodik-Review** — Ist Closed-Loop-Sim sinnvoll/korrekt? Belegt: 0-%-Ergebnis ist der erwartete Real→Sim-Gap; Open-Loop-MSE ist die valide Metrik. Mit Code-Befunden + Quellen |
 
 ## Weiterführende Arbeiten
@@ -154,7 +154,7 @@ Diese Sammlung speist das gleichnamige Kapitel der Projektarbeit.
 │   │                          #    view = Szene ohne Gewichte; webview = Viewport im Browser —
 │   │                          #    beides in simulation/live-ansicht.md)
 │   │                          #   layout/layoutcheck/yawcheck/tipcheck/topface/… = Würfellage- und Geometrie-
-│   │                          #   Werkzeuge (23 Aktionen insgesamt, Liste: `./Simulation/server_rl_run.sh --help`)
+│   │                          #   Werkzeuge (27 Aktionen insgesamt, Liste: `./Simulation/server_rl_run.sh --help`)
 │   ├── kisski_sim_submit.sh / kisski_replay_submit.sh / kisski_robocasa_ref_submit.sh   # SLURM-Jobs (Sim läuft auf KISSKI faktisch nicht — nur Replay/Referenz-Reste)
 │   ├── compare_domain_gap.sh  # Dataset- vs. Sim-Kameraframes nebeneinander
 │   ├── server_robocasa_ref_run.sh  # RoboCasa-GR-1-Referenz-Eval (Pipeline-Validierung)

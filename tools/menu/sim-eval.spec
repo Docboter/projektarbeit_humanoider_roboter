@@ -39,6 +39,19 @@ param DR_ENABLED bool 0 basic \
   "Domain-Randomisierung" \
   "Fuer einen sauberen Messlauf aus (0). An nur, wenn die Robustheit gegen Beleuchtung/Texturen geprueft werden soll." \
   --override "Messlauf ohne Randomisierung; das Skript laesst sie sonst offen"
+param EVAL_LAYOUT path "" advanced \
+  "Echte Wuerfel-Startlagen (layout.json)" \
+  "Leer = Zufallsbaender der Env-Cfg; dort liegt rot immer bei y<-0,1 m, in den Realdaten im Median bei +0,11 m (Review 3.2). Fuer vergleichbare Zahlen vorher 'LAYOUT_HELD_OUT=1 layout' fahren und /data/eval/layout_heldout.json eintragen." \
+  --default-from "leer = Zufallsbaender"
+
+param DR_SEED int 0 advanced \
+  "Seed fuer Randomisierung und Wuerfel-Zufall" \
+  "Fest, damit zwei Laeufe sich nur im geprueften Faktor unterscheiden. Negativ = pro Prozess neu auswuerfeln."
+
+param TASK_DESCRIPTION str "" expert \
+  "Sprachbefehl an die Policy" \
+  "Leer = aus meta/tasks.* des Datensatzes, sonst 'stack three block' - der einzige Task im Training. Nur fuer den A/B-Vergleich mit den alten Laeufen 'stack the blocks' eintragen." \
+  --default-from "leer = aus dem Datensatz"
 group "Geschwindigkeit"
 note "Gemessen 2026-08-13: 94 % der Zeit gehen in Sim+Rendering, 5 % in die Inferenz. Die Stellschrauben, die wirklich etwas bringen, sitzen deshalb bei den Kameras — nicht beim Modell."
 

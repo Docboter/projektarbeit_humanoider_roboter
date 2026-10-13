@@ -28,12 +28,23 @@ USD-Asset: data/g1_gripper.usd (erzeugt aus
 
 from __future__ import annotations
 
+from pathlib import Path
+import sys
+
 import numpy as np
 
-import isaaclab.sim as sim_utils
+
+# Szenengeometrie aus dem Dex3-Pfad teilen (Review §3.5): /workspace/g1_dex3_sim liegt im
+# Image neben diesem Verzeichnis. append statt insert, damit nichts von hier überschattet wird.
+_DEX3_DIR = str(Path(__file__).resolve().parent.parent / "g1_dex3_sim")
+if _DEX3_DIR not in sys.path:
+    sys.path.append(_DEX3_DIR)
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
+import isaaclab.sim as sim_utils
 from isaaclab.utils import configclass
+from scene_geometry import ROBOT_BASE_POS  # noqa: E402
+
 
 # ---------------------------------------------------------------------------
 # Joint-Namen (müssen mit dem USD-Asset / der URDF übereinstimmen)
@@ -135,7 +146,9 @@ G1_GRIPPER_CFG = ArticulationCfg(
         ),
     ),
     init_state=ArticulationCfg.InitialStateCfg(
-        pos=(0.0, 0.0, 0.85),
+        # Dieselbe Basis wie die Dex3-Szene (Becken 0.764, x −0.057 seit dem Fix vom
+        # 2026-08-24); vorher 0/0/0.85, Baseline und Dex3 waren nicht vergleichbar.
+        pos=ROBOT_BASE_POS,
         joint_pos=INIT_JOINT_POS,
         joint_vel={".*": 0.0},
     ),

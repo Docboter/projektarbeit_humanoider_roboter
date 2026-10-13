@@ -24,7 +24,7 @@ Die Sim muss exakt diese Observation/Action-Schnittstelle bedienen:
 **Observation (pro Schritt):**
 - **4 RGB-Kameras:** `cam_left_high`, `cam_right_high`, `cam_left_wrist`, `cam_right_wrist`
 - **State (28-dim):** `left_arm[0:7]`, `right_arm[7:14]`, `left_dex3[14:21]`, `right_dex3[21:28]`
-- **Language:** `annotation.human.task_description` (z. B. „stack the blocks")
+- **Language:** `annotation.human.task_description` (im Datensatz einzig „stack three block")
 
 **Action (28-dim, Chunk = 16 Schritte @ 30 Hz ≈ 0.53 s):**
 - `left_arm` / `right_arm`: **RELATIVE** Joint-Position-Deltas (auf aktuelle Gelenkstellung addieren)

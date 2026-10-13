@@ -7,7 +7,6 @@ import json
 import numpy as np
 import pytest
 import replay_calibration
-
 from replay_calibration import (
     CUBE_CENTER_Z_M,
     CUBE_TOP_Z_M,

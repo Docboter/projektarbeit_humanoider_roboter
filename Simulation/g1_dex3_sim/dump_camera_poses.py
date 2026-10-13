@@ -37,6 +37,7 @@ import os
 
 from isaaclab.app import AppLauncher
 
+
 parser = argparse.ArgumentParser(description="Kamera-Posen: konfiguriert vs. gerendert")
 parser.add_argument("--asset-path", type=str, default=None, help="G1+Dex3 USD-Asset")
 parser.add_argument("--out-dir", type=str, default="/data/cam_dump", help="PNG-Ausgabe")
@@ -62,9 +63,9 @@ app_launcher = AppLauncher(args)
 simulation_app = app_launcher.app
 
 # --- erst nach AppLauncher importierbar ---------------------------------------
+from g1_dex3_blockstack_env import G1Dex3BlockstackEnv, G1Dex3BlockstackEnvCfg  # noqa: E402
 import numpy as np  # noqa: E402
 import torch  # noqa: E402
-from g1_dex3_blockstack_env import G1Dex3BlockstackEnv, G1Dex3BlockstackEnvCfg  # noqa: E402
 
 
 def quat_rotate(q, v):

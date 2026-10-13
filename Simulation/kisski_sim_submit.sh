@@ -87,7 +87,7 @@ DATA_DIR="${DATA_DIR:-$KISSKI_PROJECT_DIR/data}"
 # Eval-Parameter
 NUM_EPISODES="${NUM_EPISODES:-20}"
 EXECUTION_HORIZON="${EXECUTION_HORIZON:-8}"
-TASK_DESCRIPTION="${TASK_DESCRIPTION:-stack the blocks}"
+TASK_DESCRIPTION="${TASK_DESCRIPTION:-stack three block}"
 SERVER_PORT="${SERVER_PORT:-5555}"
 
 # G1+Dex3 USD-Asset (muss erzeugt worden sein — siehe ISAAC_LAB_SIM_PLAN.md Abschnitt 3)

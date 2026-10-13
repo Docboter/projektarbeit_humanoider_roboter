@@ -21,16 +21,6 @@ Voraussetzung:
 
 from __future__ import annotations
 
-import os
-
-import isaaclab.sim as sim_utils
-from isaaclab.actuators import ImplicitActuatorCfg
-from isaaclab.assets import ArticulationCfg
-
-# Kameraposen, Intrinsics und das Pinhole-Modell liegen in camera_geometry.py — sie
-# brauchen kein Isaac Lab, und nur deshalb lässt sich das Kameramodell außerhalb des
-# Containers gegen ein gerendertes Bild prüfen. Weiter-exportiert, damit
-# `from g1_dex3_cfg import CAMERA_CFG` unverändert funktioniert.
 from camera_geometry import (  # noqa: F401
     CAMERA_CFG,
     G1Dex3CameraCfg,
@@ -38,6 +28,16 @@ from camera_geometry import (  # noqa: F401
     look_at_world_quat,
     quat_to_matrix,
 )
+from isaaclab.actuators import ImplicitActuatorCfg
+from isaaclab.assets import ArticulationCfg
+import isaaclab.sim as sim_utils
+
+# Kameraposen, Intrinsics und das Pinhole-Modell liegen in camera_geometry.py — sie
+# brauchen kein Isaac Lab, und nur deshalb lässt sich das Kameramodell außerhalb des
+# Containers gegen ein gerendertes Bild prüfen. Weiter-exportiert, damit
+# `from g1_dex3_cfg import CAMERA_CFG` unverändert funktioniert.
+from scene_geometry import ROBOT_BASE_POS
+
 
 # ---------------------------------------------------------------------------
 # Joint-Namen (muss mit dem USD-Asset übereinstimmen)
@@ -163,8 +163,10 @@ G1_DEX3_CFG = ArticulationCfg(
             enabled_self_collisions=False,
             solver_position_iteration_count=8,
             solver_velocity_iteration_count=1,
-            # Unterkörper fixieren: Beine/Waist werden gesperrt; Roboter steht am Tisch.
-            # fix_root_link=True  → stellt den Torso fest (kein Balance-Controller nötig)
+            # fix_root_link=True stellt nur die WURZEL (Becken) fest — kein Balance-Controller
+            # nötig. Beine und Taille werden NICHT gesperrt: sie haben keine Aktuatorgruppe
+            # unten, und _pre_physics_step setzt ihr Ziel bloß auf die aktuelle Position.
+            # Ob der Torso dabei absackt, zeigt waist_drift_max_rad im Eval-Ergebnis.
             fix_root_link=True,
         ),
     ),
@@ -186,8 +188,7 @@ G1_DEX3_CFG = ArticulationCfg(
         # +5,7 cm; mit -0,057 faellt es auf +1,5 (Lauf 51). Traegt wird die Korrektur nicht vom
         # Mittelwert, sondern von der Streuung: die faellt auf JEDER Achse (dx 3,8 -> 2,2, dy
         # 3,7 -> 3,4, dz unveraendert 2,0). Eine blosse Verschiebung taete das nicht.
-        pos=(float(os.environ.get("ROBOT_BASE_X", "-0.057")), 0.0,
-             float(os.environ.get("ROBOT_BASE_Z", "0.764"))),
+        pos=ROBOT_BASE_POS,   # scene_geometry.py, per ROBOT_BASE_X/_Z umstellbar
         # Startpose 1:1 aus dem Dataset (Frame 0) — Hände greifen bereits Richtung Tisch,
         # statt der früheren generischen Ruhepose. Die vier _0-Gelenke sind hier auf die
         # Original-USD-Grenze gekappt, siehe SPAWN_JOINT_POS oben.
@@ -226,9 +227,10 @@ G1_DEX3_CFG = ArticulationCfg(
             armature=0.01,
         ),
         # Hände: positionsgeregelt, ABSOLUTE Targets (siehe Arme oben).
-        # stiffness=60 / effort_limit=20 N·m: reale Dex3-Finger müssen ~50g Würfel gegen
-        # Schwerkraft halten; mit stiffness=20/effort=5 schließen die Distal-Joints nicht
-        # vollständig (per_joint_max_error Index 18/27 war 0.74/0.88 rad im Replay).
+        # stiffness=400 / effort_limit=20 N·m (früher 60, davor 20): reale Dex3-Finger müssen
+        # ~50 g Würfel gegen Schwerkraft halten; mit stiffness=20/effort=5 schlossen die
+        # Distal-Joints nicht vollständig (per_joint_max_error Index 18/27 war 0.74/0.88 rad
+        # im Replay). Die "#60" hinter dem Wert ist der vorige Stand, nicht der gültige.
         "left_hand": ImplicitActuatorCfg(
             joint_names_expr=LEFT_DEX3_JOINTS,
             effort_limit=20.0,

@@ -9,11 +9,12 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
 from pathlib import Path
+import sys
 from typing import Any
 
 import numpy as np
+
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from camera_geometry import CAMERA_CFG, PinholeCamera  # noqa: E402
@@ -32,6 +33,8 @@ from replay_calibration import (  # noqa: E402
     track_colors,
     validate_anchor_document,
 )
+from scene_geometry import CUBE_Z_CENTER  # noqa: E402
+
 
 HEAD_CAMS = ("cam_left_high", "cam_right_high")
 POLICY_CAMS = HEAD_CAMS + ("cam_left_wrist", "cam_right_wrist")
@@ -41,7 +44,7 @@ DEFAULT_VIDEO_TEMPLATE = (
 )
 DEFAULT_DATA_TEMPLATE = "data/chunk-{episode_chunk:03d}/episode_{episode_index:06d}.parquet"
 DEFAULT_CUBE_EDGE_M = 0.05
-DEFAULT_CUBE_CENTER_Z_M = 0.895
+DEFAULT_CUBE_CENTER_Z_M = CUBE_Z_CENTER   # scene_geometry.py
 
 
 def read_info(root: Path) -> dict[str, Any]:

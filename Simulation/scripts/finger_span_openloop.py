@@ -59,18 +59,19 @@ Direkt im Container:
 """
 
 import argparse
+from copy import deepcopy
 import json
 import logging
 import os
 import sys
-from copy import deepcopy
 
-import numpy as np
 from gr00t.data.dataset.lerobot_episode_loader import LeRobotEpisodeLoader
 from gr00t.data.dataset.sharded_single_step_dataset import extract_step_data
 from gr00t.data.embodiment_tags import EmbodimentTag
 from gr00t.eval.open_loop_eval import parse_action_gr00t, parse_observation_gr00t
 from gr00t.policy.gr00t_policy import Gr00tPolicy
+import numpy as np
+
 
 # Welche Aktionsgruppen sind die Finger? Namen statt Indizes, damit eine geänderte
 # Gruppen-Reihenfolge das Ergebnis nicht still verfälscht — genau diese Sorte

@@ -19,6 +19,7 @@ import time
 
 import msgpack
 import numpy as np
+from task_text import DEFAULT_TASK_DESCRIPTION
 import zmq
 
 
@@ -166,7 +167,7 @@ def build_obs(
     cam_left_wrist: np.ndarray,
     cam_right_wrist: np.ndarray,
     joint_pos: np.ndarray,
-    task_description: str = "stack the blocks",
+    task_description: str = DEFAULT_TASK_DESCRIPTION,
 ) -> dict:
     """
     Baut das Observation-Dict im Gr00tSimPolicyWrapper flat-key Format auf.

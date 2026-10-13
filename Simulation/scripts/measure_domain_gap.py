@@ -1,10 +1,18 @@
-# TL;DR: Container-Diagnose: misst Real-vs-Sim-Domain-Gap ueber den eingefrorenen GR00T-ViT.
+# TL;DR: Container-Diagnose: Real-vs-Sim-Bildabstand ueber vortrainiertes SigLIP (Naeherung).
 """
-Domain-Gap-Quantifizierung: Real- (Teleop-) gegen Sim-Frames durch den eingefrorenen GR00T-ViT.
+Domain-Gap-Naeherung: Real- (Teleop-) gegen Sim-Frames durch ein vortrainiertes SigLIP.
 
-Da das BC-Fine-tuning mit tune_visual=false lief, sind die ViT-Gewichte identisch mit dem
-pretrained-Checkpoint google/siglip-so400m-patch14-224. Der Domain-Gap laesst sich damit
-messen, ohne das vollstaendige 6-GB-GR00T-Modell zu laden.
+NAEHERUNG, NICHT DIE WAHRNEHMUNG DER POLICY (korrigiert 2026-10-13, Review §3.6). Frueher
+stand hier, die ViT-Gewichte seien wegen tune_visual=false identisch mit
+google/siglip-so400m-patch14-224. Das trifft nicht zu:
+  * Der beste Checkpoint (vision-v2, Lauf 2/3) wurde mit tune_visual=true trainiert —
+    sein Vision-Tower weicht vom vortrainierten ab.
+  * GR00T N1.6 nutzt das Eagle-Backbone; dessen Vision-Encoder ist nicht das hier
+    geladene siglip-so400m-224 (andere Aufloesung/Gewichte).
+Die Kosinus-Distanz ist damit ein generischer Bildabstand: tauglich, um Sim-Varianten
+untereinander zu vergleichen (Beleuchtung, Materialien), aber KEINE Messung der Luecke,
+die die Policy selbst sieht. Aussagekraeftiger waere das Einbetten mit dem Vision-Tower
+des Checkpoints (offen; braucht das GR00T-venv und die Eagle-Gewichtsstruktur).
 
 Aufruf im Sim-Container (Isaac-Sim-Kit-Python, dort liegt transformers):
   unset VIRTUAL_ENV
@@ -33,9 +41,10 @@ import json
 from pathlib import Path
 
 import numpy as np
-import torch
 from PIL import Image
+import torch
 from transformers import SiglipImageProcessor, SiglipVisionModel
+
 
 SIGLIP_MODEL = "google/siglip-so400m-patch14-224"
 
@@ -151,7 +160,8 @@ def main() -> None:
 
     print("=== Domain-Gap-Quantifizierung ===")
     print(f"Vision-Backbone: {args.model}")
-    print("BC lief mit tune_visual=false -> ViT-Gewichte == pretrained SigLIP\n")
+    print("NAEHERUNG: vortrainiertes SigLIP, NICHT der Vision-Tower des Checkpoints "
+          "(vision-v2 lief mit tune_visual=true, N1.6 nutzt Eagle)\n")
     print(f"Real-Dir: {real_dir}")
     print(f"Sim-Dir:  {sim_dir}\n")
 
@@ -290,6 +300,8 @@ def main() -> None:
 
     payload = {
         "model": args.model,
+        "note": "Naeherung mit vortrainiertem SigLIP, nicht der Vision-Tower der Policy "
+                "(Review 3.6)",
         "real_dir": str(real_dir),
         "sim_dir": str(sim_dir),
         "per_camera": results,

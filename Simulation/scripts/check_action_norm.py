@@ -33,6 +33,7 @@ import argparse
 import json
 from pathlib import Path
 
+
 # Reihenfolge/Slices wie in examples/G1_DEX3/modality_4cam.json
 G1_DEX3_SLICES = {
     "left_arm": (0, 7),

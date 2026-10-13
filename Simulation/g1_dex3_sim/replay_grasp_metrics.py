@@ -226,7 +226,6 @@ def summarize_grasp_trace(
         result["reason"] = "expected_first_pick_not_observed"
         return result
 
-    metric = block_metrics[color]
     color_index = BLOCK_COLORS.index(color)
     expected_lifts = lifts[expected_frame:, color_index]
     run = _longest_true_run(expected_lifts >= lift_threshold_m)

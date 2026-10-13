@@ -37,6 +37,7 @@ from pathlib import Path
 
 from isaaclab.app import AppLauncher
 
+
 # ---------------------------------------------------------------------------
 # CLI-Argumente (eigene, getrennte Defaults — kein Konflikt mit dem Modell-Eval)
 # ---------------------------------------------------------------------------
@@ -71,10 +72,9 @@ simulation_app = app_launcher.app
 # Imports nach AppLauncher-Start
 # ---------------------------------------------------------------------------
 
+from g1_dex3_blockstack_env import G1Dex3BlockstackEnv, G1Dex3BlockstackEnvCfg
 import numpy as np
 import torch
-
-from g1_dex3_blockstack_env import G1Dex3BlockstackEnv, G1Dex3BlockstackEnvCfg
 
 
 def save_video(frames, path):

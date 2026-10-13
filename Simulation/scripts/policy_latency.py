@@ -52,10 +52,11 @@ import json
 import statistics
 import time
 
-import numpy as np
-import torch
 from gr00t.data.embodiment_tags import EmbodimentTag
 from gr00t.policy.gr00t_policy import Gr00tPolicy, Gr00tSimPolicyWrapper
+import numpy as np
+import torch
+
 
 # Gelenk-Aufteilung wie in Simulation/g1_dex3_sim/client.py build_obs(): dieselben
 # Gruppen, dieselben Schlüssel. Weicht das ab, misst der Bench einen anderen
@@ -98,7 +99,7 @@ def main() -> None:
                         "— er gehört nicht in den Mittelwert.")
     p.add_argument("--width", type=int, default=640)
     p.add_argument("--height", type=int, default=480)
-    p.add_argument("--task-description", default="stack the blocks")
+    p.add_argument("--task-description", default="stack three block")
     p.add_argument("--execution-horizon", type=int, default=8,
                    help="Wie viele Schritte eines Chunks ausgeführt werden (Budget-Bezug)")
     p.add_argument("--policy-hz", type=float, default=30.0)

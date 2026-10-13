@@ -2,12 +2,11 @@
 
 import numpy as np
 import pytest
-
 from replay_grasp_metrics import (
     artifact_validation_errors,
     infer_expected_first_pick,
-    mark_episode_existing,
     manifest_compatibility_errors,
+    mark_episode_existing,
     summarize_grasp_trace,
 )
 

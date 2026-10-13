@@ -7,15 +7,21 @@ import hashlib
 from pathlib import Path
 from typing import Any
 
-import numpy as np
-
 # track_colors/find_motion_onset liegen in extract_block_layout, weil sie dort ohne
 # Zirkelbezug auch von der Layout-Extraktion benutzt werden können. Hier weiterexportiert,
 # damit bestehende Importe aus replay_calibration unverändert funktionieren.
 from extract_block_layout import (  # noqa: F401
-    CUBE_COLORS, HSV_WINDOWS, color_mask, find_motion_onset, largest_blob, rgb_to_hsv,
+    CUBE_COLORS,
+    HSV_WINDOWS,
+    color_mask,
+    find_motion_onset,
+    largest_blob,
+    rgb_to_hsv,
     track_colors,
 )
+import numpy as np
+from scene_geometry import CUBE_Z_CENTER
+
 
 # ── Würfelgeometrie und Arbeitsbereich ────────────────────────────────────────
 # Eine Quelle für alle Stufen: der Anker behauptet „hier lag der Würfel", also muss er
@@ -24,7 +30,7 @@ from extract_block_layout import (  # noqa: F401
 # Abnahmelauf 2026-08-22 zehn Anker durchließ, die 3,5–9,9 cm über der Würfeloberseite lagen.
 # Ruhelage, nicht Spawnhöhe: Tischplatte 0,870 + halbe Kantenlänge. Siehe Z_CUBE_CENTER
 # in extract_block_layout.py und die Messung vom 2026-08-22.
-CUBE_CENTER_Z_M = 0.895
+CUBE_CENTER_Z_M = CUBE_Z_CENTER   # scene_geometry.py
 CUBE_EDGE_M = 0.05
 TABLE_TOP_Z_M = CUBE_CENTER_Z_M - CUBE_EDGE_M / 2.0      # 0.870
 CUBE_TOP_Z_M = CUBE_CENTER_Z_M + CUBE_EDGE_M / 2.0       # 0.920

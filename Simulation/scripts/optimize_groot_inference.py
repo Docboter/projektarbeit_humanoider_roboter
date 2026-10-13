@@ -13,22 +13,20 @@ from __future__ import annotations
 import argparse
 from contextlib import contextmanager
 import json
-import os
 from pathlib import Path
 import statistics
 import time
 from typing import Any
 
-import numpy as np
-import torch
-
 from groot_inference_backend import (
     TensorRTDiT,
     checkpoint_fingerprint,
     gpu_fingerprint,
-    install_backend,
     validate_engine_metadata,
 )
+import numpy as np
+import torch
+
 
 CAMERAS = ("cam_left_high", "cam_right_high", "cam_left_wrist", "cam_right_wrist")
 ACTION_KEYS = ("left_arm", "right_arm", "left_dex3", "right_dex3")
@@ -403,7 +401,7 @@ def main() -> None:
     parser.add_argument("--embodiment-tag", default="new_embodiment")
     parser.add_argument("--width", type=int, default=640)
     parser.add_argument("--height", type=int, default=480)
-    parser.add_argument("--task", default="stack the blocks")
+    parser.add_argument("--task", default="stack three block")
     parser.add_argument("--workspace-mb", type=int, default=8192)
     parser.add_argument("--iterations", type=int, default=20)
     parser.add_argument("--warmup", type=int, default=5)

@@ -24,11 +24,12 @@ from __future__ import annotations
 import argparse
 import json
 import os
+from pathlib import Path
 import sys
 import time
-from pathlib import Path
 
 from isaaclab.app import AppLauncher
+
 
 # ---------------------------------------------------------------------------
 # CLI-Argumente
@@ -42,7 +43,7 @@ parser.add_argument("--dims-file", type=str, default="/data/g1_baseline_dims.jso
 parser.add_argument("--num-episodes", type=int, default=20, help="Anzahl Eval-Episoden")
 parser.add_argument("--execution-horizon", type=int, default=8,
                     help="Wie viele Steps eines Chunks ausgeführt werden, bevor neu geplant wird")
-parser.add_argument("--task-description", type=str, default="stack the blocks",
+parser.add_argument("--task-description", type=str, default="stack three block",
                     help="Language-Prompt für die Policy")
 parser.add_argument("--video-dir", type=str, default="/data/sim_videos",
                     help="Verzeichnis für Rollout-Videos (leer = keine Videos)")
@@ -63,12 +64,11 @@ simulation_app = app_launcher.app
 # Imports (nach AppLauncher-Start)
 # ---------------------------------------------------------------------------
 
-import numpy as np
-import torch
-
 from client_g1 import PolicyClient, build_obs, load_dims
 from g1_gripper_blockstack_env import G1GripperBlockstackEnv, G1GripperBlockstackEnvCfg
 from g1_gripper_cfg import CAMERA_CFG
+import numpy as np
+import torch
 
 
 def save_episode_video(frames: list[np.ndarray], episode: int, video_dir: str) -> None:

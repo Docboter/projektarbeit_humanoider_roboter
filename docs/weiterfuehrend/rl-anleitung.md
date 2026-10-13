@@ -465,8 +465,8 @@ Kurzreferenz für die vier `server_rl_run.sh`-Diagnoseaktionen, mit denen die La
 Skript per `docker cp` in den laufenden Container (kein Image-Rebuild, kein `clean` nötig) und
 protokollieren zusätzlich nach `$RL_HOST_DATA_DIR/logs/` (siehe [Schritt 6](#schritt-6--rl-überwachen)).
 
-**`gap` — Domain-Gap messen.** Kosinus-Distanz der Bild-Embeddings (SigLIP, identisch zu GR00Ts
-Vision-Backbone) zwischen Sim-Rendering und echten Dataset-Referenzbildern, je Kamera.
+**`gap` — Domain-Gap messen.** Kosinus-Distanz der Bild-Embeddings (vortrainiertes SigLIP als
+Näherung, nicht GR00Ts eigener Vision-Encoder) zwischen Sim-Rendering und echten Dataset-Referenzbildern, je Kamera.
 Aufruf: `HF_TOKEN=... ./Simulation/server_rl_run.sh cams` (Referenz-Dump), dann
 `./Simulation/server_rl_run.sh gap`. Ergebnis: Tabelle auf stdout +
 `/data/cam_dump/domain_gap_results.json`. Befunde:

@@ -12,8 +12,8 @@ import argparse
 import hashlib
 import json
 import os
-import shutil
 from pathlib import Path
+import shutil
 
 from isaaclab.app import AppLauncher
 
@@ -47,20 +47,20 @@ os.environ["CAM_RES_SCALE"] = "1"
 app_launcher = AppLauncher(args)
 simulation_app = app_launcher.app
 
+from g1_dex3_blockstack_env import G1Dex3BlockstackEnv, G1Dex3BlockstackEnvCfg  # noqa: E402
 import imageio  # noqa: E402
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
-import torch  # noqa: E402
-
-from g1_dex3_blockstack_env import G1Dex3BlockstackEnv, G1Dex3BlockstackEnvCfg  # noqa: E402
 from replay_calibration import action_sha256, top_face_blob  # noqa: E402
 from replay_grasp_metrics import (  # noqa: E402
     artifact_validation_errors,
     infer_expected_first_pick,
-    mark_episode_existing,
     manifest_compatibility_errors,
+    mark_episode_existing,
     summarize_grasp_trace,
 )
+from task_text import DEFAULT_TASK_DESCRIPTION  # noqa: E402
+import torch  # noqa: E402
 
 
 CAMS = ("cam_left_high", "cam_right_high", "cam_left_wrist", "cam_right_wrist", "scene")
@@ -379,7 +379,7 @@ def write_dataset_parquet(path: Path, episode: int, achieved: np.ndarray,
 def finalize_dataset(out: Path, source: Path, info: dict, manifest: dict, fps: float) -> None:
     meta = out / "meta"
     meta.mkdir(parents=True, exist_ok=True)
-    task_map = {0: "stack the blocks"}
+    task_map = {0: DEFAULT_TASK_DESCRIPTION}
     source_tasks = source / "meta" / "tasks.jsonl"
     if source_tasks.is_file():
         task_map = {}
@@ -406,7 +406,7 @@ def finalize_dataset(out: Path, source: Path, info: dict, manifest: dict, fps: f
         record.update(frames=length, task_index=task_index)
         episodes.append({
             "episode_index": episode,
-            "tasks": [task_map.get(task_index, "stack the blocks")],
+            "tasks": [task_map.get(task_index, DEFAULT_TASK_DESCRIPTION)],
             "length": length,
         })
         for key in numeric:
@@ -420,7 +420,7 @@ def finalize_dataset(out: Path, source: Path, info: dict, manifest: dict, fps: f
     else:
         (meta / "tasks.jsonl").write_text(
             json.dumps(
-                {"task_index": 0, "task": "stack the blocks"}, allow_nan=False
+                {"task_index": 0, "task": DEFAULT_TASK_DESCRIPTION}, allow_nan=False
             ) + "\n",
             encoding="utf-8",
         )

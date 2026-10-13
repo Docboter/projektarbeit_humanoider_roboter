@@ -7,7 +7,8 @@ Implementiert als DirectRLEnv (Isaac Lab 2.x):
     - 4 RGB-Kameras (cam_left_high, cam_right_high, cam_left_wrist, cam_right_wrist)
     - 28-dim Joint-State (left_arm + right_arm + left_dex3 + right_dex3)
     - Erfolgsmetrik: Würfel vertikal gestapelt
-    - Episodenlänge: 5400 Steps @ 30 Hz = 180 Sekunden (siehe episode_length_s)
+    - Episodenlänge: 9000 Steps @ 30 Hz = 300 Sekunden (siehe episode_length_s;
+      in der Eval per EPISODE_LENGTH_S meist 40–60 s)
 
 Abnahmekriterien (siehe ISAAC_LAB_SIM_PLAN.md):
     Phase A: leere Szene rendert ein RGB-Bild (EGL headless ok)
@@ -17,33 +18,22 @@ Abnahmekriterien (siehe ISAAC_LAB_SIM_PLAN.md):
 
 from __future__ import annotations
 
-import math
 import os
-from dataclasses import MISSING
 from typing import Any
 
-import numpy as np
-import torch
-
-import isaaclab.sim as sim_utils
+from g1_dex3_cfg import ALL_JOINTS_ORDERED, CAMERA_CFG, DATASET_INIT_STATE, G1_DEX3_CFG
 from isaaclab.assets import Articulation, ArticulationCfg, RigidObject, RigidObjectCfg
 from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sensors import Camera, CameraCfg, TiledCamera, TiledCameraCfg
+from isaaclab.sensors import CameraCfg, TiledCamera, TiledCameraCfg
+import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
-from isaaclab.utils.math import quat_apply, quat_from_euler_xyz, sample_uniform
-
-from g1_dex3_cfg import (
-    ALL_JOINTS_ORDERED,
-    CAMERA_CFG,
-    DATASET_INIT_STATE,
-    G1_DEX3_CFG,
-    LEFT_ARM_JOINTS,
-    LEFT_DEX3_JOINTS,
-    RIGHT_ARM_JOINTS,
-    RIGHT_DEX3_JOINTS,
-)
+from isaaclab.utils.math import quat_apply, sample_uniform
+import numpy as np
+from scene_geometry import CUBE_Z_CENTER, TABLE_POS, TABLE_SIZE
+from task_text import DEFAULT_TASK_DESCRIPTION
+import torch
 
 
 # ---------------------------------------------------------------------------
@@ -140,14 +130,14 @@ class G1Dex3BlockstackSceneCfg(InteractiveSceneCfg):
             # und ruhen doch auf 0.895 (nachgemessen 2026-08-22 mit `server_rl_run.sh cams`).
             # Übrig blieb nur der Fall beim Reset — und eine um 2 cm falsche Ebene für jede
             # Rückprojektion Bild → Tisch. Seit 2026-08-22 spawnen die Würfel dort, wo sie ruhen.
-            size=(0.8, 0.6, 0.87),
+            size=TABLE_SIZE,   # scene_geometry.py, geteilt mit der Gripper-Baseline
             rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
             mass_props=sim_utils.MassPropertiesCfg(mass=50.0),
             collision_props=sim_utils.CollisionPropertiesCfg(),
             # Weiß wie im Dataset (war beige Platzhalter-Farbe).
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.85, 0.85, 0.85)),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 0.435)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=TABLE_POS),
     )
 
     # 3 Würfel (5 cm Kantenlänge, unterschiedliche Farben)
@@ -163,7 +153,7 @@ class G1Dex3BlockstackSceneCfg(InteractiveSceneCfg):
             ),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.1, 0.1)),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.34, -0.15, 0.895)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.34, -0.15, CUBE_Z_CENTER)),
     )
 
     block_1: RigidObjectCfg = RigidObjectCfg(
@@ -178,7 +168,7 @@ class G1Dex3BlockstackSceneCfg(InteractiveSceneCfg):
             ),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.1, 0.6, 0.1)),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.36, 0.0, 0.895)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.36, 0.0, CUBE_Z_CENTER)),
     )
 
     block_2: RigidObjectCfg = RigidObjectCfg(
@@ -195,7 +185,7 @@ class G1Dex3BlockstackSceneCfg(InteractiveSceneCfg):
             # nicht blau). Angleichung an die Trainingsverteilung für den eingefrorenen Vision-Encoder.
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.85, 0.70, 0.10)),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.34, 0.15, 0.895)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.34, 0.15, CUBE_Z_CENTER)),
     )
 
     # Schwarzes Stapel-Band (Landmarke wie im Dataset — dort wird auf einen kleinen
@@ -402,8 +392,12 @@ def _plain_camera_cfg(tc: TiledCameraCfg) -> CameraCfg:
 class G1Dex3BlockstackEnvCfg(DirectRLEnvCfg):
     # Simulation
     sim: SimulationCfg = _make_sim_cfg(
-        dt=1.0 / 200.0,   # 200 Hz Physik
-        render_interval=7, # Alle 7 Physics-Steps → ~28.6 Hz Policy-Obs
+        # 210 Hz Physik / 7 = exakt 30 Hz Policy-Takt, wie der Datensatz (30 fps). Bis
+        # 2026-10-13 war es 1/200 → 28,57 Hz: jeder Aktionsblock lief ~5 % zu langsam,
+        # obwohl policy_hz=30 angenommen wird (Review §3.3). Dieselbe Zeitbasis nutzt
+        # run_dataset_replay_videos.py (dt = 1 / (fps * decimation)) schon länger.
+        dt=1.0 / 210.0,
+        render_interval=7, # = decimation: ein Render je Policy-Step
     )
 
     # Szene
@@ -422,11 +416,15 @@ class G1Dex3BlockstackEnvCfg(DirectRLEnvCfg):
     # unterdruecken; der Eval-Runner rendert dann explizit unmittelbar vor get_action().
     camera_render_every_n: int = 1
 
-    # Block-Sampling-Bereich = erreichbarer Greifraum (aus Replay: Hände greifen bei x≈0.35,
-    # y≈±0.19, z≈0.92). x/y eng um den Greifraum, z = neue Tischoberfläche (0.87) + halbe Würfelhöhe.
+    # Block-Sampling-Bereich der Zufallsbänder. Hergeleitet aus dem Replay mit der ALTEN
+    # Basisposition (vor dem Geometrie-Fix vom 2026-08-24: Hände greifen bei x≈0.35,
+    # y≈±0.19, z≈0.92) und deshalb kein Abbild der Realdaten: dort liegt x bei 0,23–0,50 m,
+    # und die Farben verteilen sich anders über y (Review §3.2). Für Messungen, die mit dem
+    # Training vergleichbar sein sollen, block_layout setzen (Eval: --layout / EVAL_LAYOUT).
+    # z = Tischoberfläche (0.87) + halbe Würfelhöhe.
     block_x_range: tuple[float, float] = (0.30, 0.40)
     block_y_range: tuple[float, float] = (-0.20, 0.20)
-    block_z_surface: float = 0.895    # Tischoberfläche 0.87 + halbe Würfel-Höhe (0.025)
+    block_z_surface: float = CUBE_Z_CENTER    # Tischoberfläche 0.87 + halbe Würfelhöhe
     # Gierwinkel der Würfel beim Reset, in GRAD. Bis zum 2026-08-25 standen sie fest
     # achsparallel; im Realdatensatz liegen sie schräg zur Tischkante (gemessen am
     # 2026-08-25 über 40 Episoden, Median 10°, p90 36° — Zahl noch maskenlimitiert,
@@ -434,6 +432,13 @@ class G1Dex3BlockstackEnvCfg(DirectRLEnvCfg):
     # Vergleichen nichts still ändert; (0, 90) macht die Streuung an.
     # Bei einem 4-zähligen Würfel deckt 0…90° bereits alle Lagen ab.
     block_yaw_range_deg: tuple[float, float] = (0.0, 0.0)
+    # Echte Startlagen statt Zufallsbänder (Review §3.2). Liste von Einträgen
+    # {"key": str, "cubes": [[x, y] × 3], "yaws": [Grad|None × 3]} in Würfelreihenfolge
+    # rot/grün/gelb (= block_0/1/2 = CUBE_COLORS in extract_block_layout.py). Jeder Reset
+    # nimmt den nächsten Eintrag, reihum. Die Zufallsbänder bilden die Startlagen der
+    # Realdaten nicht ab (rot liegt dort meist bei y>0, in den Bändern immer bei y<-0,1);
+    # sie bleiben als zweite Bedingung, um Generalisierung zu messen. None = Bänder.
+    block_layout: list | None = None
 
     # Erfolgsparameter
     stack_xy_tol: float = 0.03  # max. horizontaler Versatz zwischen Würfel-Mittelpunkten
@@ -443,8 +448,10 @@ class G1Dex3BlockstackEnvCfg(DirectRLEnvCfg):
     # der Originalepisode weiterlaufen. Der Default bleibt für Eval/RL unverändert.
     terminate_on_success: bool = True
 
-    # Task-Beschreibung (geht ans Language-Modell)
-    task_description: str = "stack the blocks"
+    # Task-Beschreibung (geht ans Language-Modell). Muss der Text aus dem Training sein —
+    # der Datensatz kennt nur "stack three block" (task_text.py, Review §3.1). Die Eval
+    # überschreibt ihn mit dem aus dem Datensatz gelesenen Text; RL nutzt diesen Default.
+    task_description: str = DEFAULT_TASK_DESCRIPTION
 
     # Domain Randomization: Beleuchtung + Materialfarben pro Episode randomisieren.
     # Ziel: Real→Sim-Gap schließen (gemessen: cam_left_wrist 0.427, Mittel 0.260).
@@ -992,6 +999,10 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
         # lagen sie danach bei z=0.025, also auf dem Boden, 1,5 m vom Tisch entfernt.
         # Mit disjunkten Bändern plus Rand ist Überlappung ausgeschlossen; die x-Achse
         # bleibt voll randomisiert und die y-Gesamtspanne unverändert.
+        if self.cfg.block_layout:
+            self._place_blocks_from_layout(env_ids, env_offset)
+            return
+
         n_blocks = max(len(self.blocks), 1)
         y_lo, y_hi = self.cfg.block_y_range
         slot = (y_hi - y_lo) / n_blocks
@@ -1019,6 +1030,43 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
             )
             block.write_root_velocity_to_sim(
                 torch.zeros(len(env_ids), 6, device=self.device), env_ids=env_ids
+            )
+
+    def _place_blocks_from_layout(self, env_ids, env_offset) -> None:
+        """Würfel auf den nächsten Eintrag von cfg.block_layout setzen (je Env einer).
+
+        Dieselbe Platzierung wie render_cotrain_dataset.place_cubes: x/y aus dem Realbild,
+        Höhe immer die Tischauflage, Gierwinkel aus dem Layout (None → 0°). Der benutzte
+        Eintrag steht danach in self.last_layout_keys, damit die Eval ihn mitschreiben kann.
+        """
+        entries = self.cfg.block_layout
+        n = len(env_ids)
+        # layout_index gesetzt (Eval: = Episodennummer) → genau dieser Eintrag. Der
+        # Auto-Reset von DirectRLEnv am Episodenende ruft _reset_idx ein zweites Mal; ein
+        # reiner Zähler würde dabei jede zweite Lage überspringen.
+        pinned = getattr(self, "layout_index", None)
+        cursor = pinned if pinned is not None else getattr(self, "_layout_cursor", 0)
+        picked = [entries[(cursor + k) % len(entries)] for k in range(n)]
+        if pinned is None:
+            self._layout_cursor = cursor + n
+        self.last_layout_keys = [e.get("key") for e in picked]
+        for i, block in enumerate(self.blocks):
+            pos = torch.tensor(
+                [[float(e["cubes"][i][0]), float(e["cubes"][i][1]), self.cfg.block_z_surface]
+                 for e in picked],
+                device=self.device, dtype=torch.float32,
+            ) + env_offset
+            yaw = torch.tensor(
+                [float((e.get("yaws") or [None] * 3)[i] or 0.0) for e in picked],
+                device=self.device, dtype=torch.float32,
+            )
+            half = torch.deg2rad(yaw) / 2.0
+            quat = torch.zeros(n, 4, device=self.device)
+            quat[:, 0] = torch.cos(half)
+            quat[:, 3] = torch.sin(half)
+            block.write_root_pose_to_sim(torch.cat([pos, quat], dim=-1), env_ids=env_ids)
+            block.write_root_velocity_to_sim(
+                torch.zeros(n, 6, device=self.device), env_ids=env_ids
             )
 
     # ------------------------------------------------------------------

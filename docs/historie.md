@@ -258,7 +258,7 @@ Der eigentliche Denkfehler: Es wurde erheblicher Aufwand in die Sim-Pipeline inv
 > [ergebnisse/domain-gap-analyse.md](ergebnisse/domain-gap-analyse.md). Die folgenden Werte
 > bleiben nur als Vergleichspunkt stehen.
 
-Durchgeführt mit `google/siglip-so400m-patch14-224` (identische Gewichte zum frozen GR00T-ViT).
+Durchgeführt mit `google/siglip-so400m-patch14-224` (damals als identisch zum GR00T-ViT angenommen; die Annahme ist falsch, s. [Review §3.6](projekt-review-2026-10-11.md#36-falsche-annahme-im-domain-gap-skript--inkonsistenz-teilprüfung)).
 Frames: `Simulation/camera_reference/` (Real) vs. `Simulation/runs/202606002/02/` (Isaac Sim).
 Script: [`Simulation/scripts/measure_domain_gap.py`](../Simulation/scripts/measure_domain_gap.py)
 

@@ -13,8 +13,6 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-import numpy as np
-
 from camera_geometry import PinholeCamera
 from extract_block_layout import (
     accept_yaw,
@@ -23,6 +21,7 @@ from extract_block_layout import (
     synthetic_cube_image,
     yaw_delta_deg,
 )
+import numpy as np
 
 
 def measure(yaw_deg: float, camera: str = "cam_left_high",

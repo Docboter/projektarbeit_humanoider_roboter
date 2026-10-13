@@ -65,7 +65,7 @@ unmodified path, and it always prints the equivalent one-liner so you can skip i
 ```
 
 Lists are arrow-key navigable; typing the number always works too. A long action list
-(sim: 23 actions) is split into a group level that previews the action names it contains,
+(sim: 27 actions) is split into a group level that previews the action names it contains,
 so the `preflight → setup → cams → gap → eval → layout → render → rl` chain stays
 readable; `[*]` switches to the full flat list, `[←]`/`[z]` goes back, `?<nr>` explains a
 whole group. Short lists (train, kisski: 4 actions) stay flat.
@@ -77,7 +77,7 @@ also means the arrow layer stays out of the way whenever `TERM` is `dumb` or uns
 
 Engine and parameter specs live in [`tools/`](tools/) (host-only, never copied into an
 image); `tools/gen_docs.sh` checks spec defaults against the scripts and the docs, and
-`tools/test_menu.sh` runs the 81-check acceptance suite (sim list: 23 actions in 7 groups). Design and deviations:
+`tools/test_menu.sh` runs the 81-check acceptance suite (sim list: 27 actions in 7 groups). Design and deviations:
 [`docs/weiterfuehrend/cli-menuefuehrung.md`](docs/weiterfuehrend/cli-menuefuehrung.md)
 (§13 covers the router, the arrow keys, the group level, the back path, why KISSKI sits under
 Training, why every measuring run now asks which checkpoint it measures — §13.7 — and how the
@@ -158,6 +158,9 @@ On vast.ai: GPU must be **Ampere+ with RT-Cores** (L40, RTX 4090, A6000) — A10
 | `NUM_EPISODES` | `20` | Eval episodes |
 | `EPISODE_LENGTH_S` | `40` | Cap episode length in seconds. Unset = up to 9000 steps per episode — 20 episodes can take hours |
 | `SHELL_ON_ERROR` | `1` | Drop to shell on failure (recommended) |
+| `EVAL_LAYOUT` | `/data/eval/layout_heldout.json` | Real cube start poses (held-out episodes 240–300, from `LAYOUT_HELD_OUT=1 server_rl_run.sh layout`). Empty = random bands that do not match the real data |
+| `DR_SEED` | `0` | Fixed seed for domain randomization and cube sampling (default 0); negative = random per process |
+| `TASK_DESCRIPTION` | *(empty)* | Empty = read from the dataset's `meta/tasks.*`, fallback `stack three block` (the only task in training). Before 2026-10-13 every closed-loop run sent `stack the blocks` |
 | `LIVESTREAM` | `0` | `0`=headless (default), `1`=WebRTC public, `2`=WebRTC private/local — **the LIVE variant**: Isaac Sim streams its 3D viewport, opened by the native *Isaac Sim WebRTC Streaming Client* on your own machine. Applies to all four runs (sim-eval, baseline, replay/grasp, RL). Replaces MP4 recording by default. Shared logic in [`lib_livestream.sh`](Simulation/scripts/lib_livestream.sh); guide: [live-ansicht.md](docs/simulation/live-ansicht.md). Built 2026-08-13, **untested on hardware** — run `server_rl_run.sh livecheck` first |
 | `LIVESTREAM_PORT` | `49100` | WebRTC signaling port (TCP). **On vast.ai: set to the externally-mapped port** (internal==external, else SDP port mismatch). `server_rl_run.sh` maps `49100/tcp` + `47998/udp` when creating the container |
 | `LIVESTREAM_MEDIA_PORT` | `47998` | WebRTC media port (UDP) — must pass the firewall, else the client connects but the picture stays black |
@@ -395,6 +398,9 @@ repo root
 │   │   │                               #   re-exports the names, so the env is unaffected
 │   │   ├── g1_dex3_cfg.py              # Articulation config; camera part re-exported from camera_geometry
 │   │   ├── client.py                   # ZMQ policy client + build_obs (state split into modality keys)
+│   │   ├── task_text.py                # Language prompt read from the dataset (Isaac-free; fallback "stack three block")
+│   │   ├── scene_geometry.py           # ONE source for table / cube height / robot base, shared by the
+│   │   │                               #   Dex3 env, the gripper baseline and the layout extraction
 │   │   ├── convert_urdf_to_usd.py      # One-time URDF→USD conversion
 │   │   └── ...
 │   │   ├── isaac_joint_order.txt    # Die 43 Gelenknamen des USD-Assets in ISAAC-Reihenfolge

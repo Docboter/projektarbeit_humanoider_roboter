@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-import numpy as np
-
 from grasp_pose_support import closure_candidates, fingertip_measurement
+import numpy as np
 
 
 def test_closure_candidates_require_coordinated_fingers() -> None:

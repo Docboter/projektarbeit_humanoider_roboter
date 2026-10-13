@@ -234,9 +234,13 @@ richtig angesteuert wird.
 \label{sec:neukalibrierung}
 
 Zur Messung des Domain-Gaps wurden reale und simulierte Bilder derselben
-Szene mit einem SigLIP-Modell eingebettet, das dieselben Gewichte wie der
-eingefrorene Bild-Encoder von GR00T hat, und die Cosinus-Distanz der
-Embeddings verglichen (\cref{tab:domain-gap}). Als Vergleichswert diente die
+Szene mit einem vortrainierten SigLIP-Modell eingebettet und die
+Cosinus-Distanz der Embeddings verglichen (\cref{tab:domain-gap}). Dieses
+Modell ist nicht der Bild-Encoder der Policy: GR00T N1.6 nutzt das
+Eagle-Backbone, und der beste Checkpoint wurde mit mittrainiertem Bild-Encoder
+feinjustiert. Die Distanz ist deshalb ein allgemeiner Bildabstand, der
+Sim-Varianten untereinander vergleichbar macht, aber nicht misst, was die
+Policy selbst sieht. Als Vergleichswert diente die
 Distanz zwischen zwei realen Bildern verschiedener Kameras.
 
 \begin{table}[htb]

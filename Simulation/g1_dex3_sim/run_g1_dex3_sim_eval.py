@@ -28,12 +28,13 @@ from __future__ import annotations
 import argparse
 import json
 import os
+from pathlib import Path
 import sys
 import time
-from pathlib import Path
 
 # Isaac Lab App-Setup MUSS vor allen anderen Imports stehen
 from isaaclab.app import AppLauncher
+
 
 # ---------------------------------------------------------------------------
 # CLI-Argumente
@@ -53,8 +54,9 @@ parser.add_argument(
     help="Wie viele Steps eines 16-Step-Chunks ausgeführt werden, bevor neu geplant wird"
 )
 parser.add_argument(
-    "--task-description", type=str, default="stack the blocks",
-    help="Language-Prompt für die Policy"
+    "--task-description", type=str, default="",
+    help="Language-Prompt für die Policy. Leer = aus meta/tasks.* des echten Datensatzes "
+         "(TASK_DATASET_PATH), sonst 'stack three block' (s. task_text.py)"
 )
 parser.add_argument(
     "--video-dir", type=str, default="/data/sim_videos",
@@ -86,6 +88,13 @@ parser.add_argument(
          "rendert 4 Kameras. Anker für eine sinnvolle Wahl ist die menschliche "
          "Teleop-Demo: replay_episode0.npz hat 1173 Steps = 39 s bei 30 Hz."
 )
+parser.add_argument(
+    "--layout", type=str, default=os.environ.get("EVAL_LAYOUT", ""),
+    help="layout.json aus extract_block_layout.py (am besten mit --held-out erzeugt): "
+         "Würfel starten an echten Startlagen samt Gierwinkel, reihum je Episode. "
+         "Leer = Zufallsbänder aus der Env-Cfg (Startlagen, die so nie im Training "
+         "vorkamen — Review §3.2). Default aus EVAL_LAYOUT."
+)
 
 # Isaac-Lab-eigene Argumente hinzufügen und parsen
 AppLauncher.add_app_launcher_args(parser)
@@ -99,12 +108,13 @@ simulation_app = app_launcher.app
 # Imports (nach AppLauncher-Start)
 # ---------------------------------------------------------------------------
 
-import numpy as np
-import torch
-
 from client import PolicyClient, build_obs
 from g1_dex3_blockstack_env import G1Dex3BlockstackEnv, G1Dex3BlockstackEnvCfg
-from g1_dex3_cfg import CAMERA_CFG, G1_DEX3_CFG
+from g1_dex3_cfg import CAMERA_CFG
+import numpy as np
+from task_text import resolve_task_description
+import torch
+
 
 # ---------------------------------------------------------------------------
 # Video-Aufzeichnung
@@ -168,6 +178,45 @@ def checkpoint_fingerprint(path: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Würfel-Startlagen
+# ---------------------------------------------------------------------------
+
+# Grenze der zurückgehaltenen Episoden: int(301 * 0.8) = 240, wie Training, Sweep und
+# render_cotrain_dataset.select_episodes rechnen (lib_split.sh, TRAIN_SPLIT_RATIO=0.8).
+HELD_OUT_FIRST_EPISODE = 240
+
+
+def load_eval_layout(path: str) -> tuple[list[dict], dict]:
+    """layout.json → (Einträge für cfg.block_layout, Zusammenfassung fürs Ergebnis-JSON).
+
+    Übernommen werden nur Episoden, in denen alle drei Würfel gefunden wurden — eine
+    halbe Lage ist keine echte Startlage. Ein Layout aus Trainings-Episoden wird
+    akzeptiert, aber laut markiert: dann ist Memorisierung nicht ausgeschlossen.
+    """
+    raw = json.loads(Path(path).read_text())
+    episodes = raw.get("episodes", {})
+    entries, skipped = [], []
+    for key in sorted(episodes, key=int):
+        rec = episodes[key]
+        cubes = rec.get("cubes") or []
+        if len(cubes) < 3 or not all(cubes[:3]):
+            skipped.append(int(key))
+            continue
+        entries.append({"key": key, "cubes": cubes[:3], "yaws": rec.get("cubes_yaw_deg")})
+    if not entries:
+        raise SystemExit(f"--layout {path}: keine Episode mit allen drei Würfeln.")
+    train_eps = [int(e["key"]) for e in entries if int(e["key"]) < HELD_OUT_FIRST_EPISODE]
+    info = {
+        "path": path,
+        "split": raw.get("split", "unbekannt"),
+        "episodes": [int(e["key"]) for e in entries],
+        "skipped_incomplete": skipped,
+        "from_training_episodes": train_eps,
+    }
+    return entries, info
+
+
+# ---------------------------------------------------------------------------
 # Gestufte Meilensteine
 # ---------------------------------------------------------------------------
 # Der binäre Stapel-Erfolg steht bei 0/20 und bewegt sich nicht. Eine Maßnahme
@@ -220,6 +269,7 @@ def run_episode(
         env.force_policy_camera_render()
     obs_dict, _ = env.reset()
     client.reset()
+    layout_key = (getattr(env, "last_layout_keys", None) or [None])[0]
 
     frames: list[np.ndarray] = []
     step = 0
@@ -258,6 +308,13 @@ def run_episode(
     # Kontakt-Solver setzt die Würfel direkt nach dem Reset noch zurecht, das zählte
     # sonst als Anhebung (derselbe Fehler, den die Karenzzeit bei block_shift behebt).
     max_cube_lift = 0.0
+
+    # Taille: hat keine Aktuatorgruppe, nur die Wurzel ist fixiert (g1_dex3_cfg.py). Größte
+    # Abweichung der waist_*-Gelenke von der Startpose belegt, ob der Torso absackt und die
+    # Kopfkamera damit eine andere Perspektive bekommt (Review §3.8).
+    waist_ids = [i for i, n in enumerate(env.robot.joint_names) if "waist" in n]
+    waist_start = env.robot.data.joint_pos[0, waist_ids].clone() if waist_ids else None
+    waist_drift = 0.0
 
     max_steps = int(env.cfg.episode_length_s * env.cfg.policy_hz)
 
@@ -378,6 +435,9 @@ def run_episode(
             _t0 = time.perf_counter()
             obs_step, _, terminated, time_out, info = env.step(action_t)
             t_env += time.perf_counter() - _t0
+            if waist_start is not None and not (terminated.any() or time_out.any()):
+                waist_drift = max(waist_drift, float(
+                    (env.robot.data.joint_pos[0, waist_ids] - waist_start).abs().max()))
 
             # Video-Frame nach dem Step erfassen — aus der Szenen-Übersichtskamera (ganze Szene
             # von schräg oben), NICHT der Policy-Kamera. Fallback auf cam_left_high, falls cam_scene
@@ -460,6 +520,9 @@ def run_episode(
             "budget_ms": round(1000 * execution_horizon / env.cfg.policy_hz, 1),
         },
         "success_step": success_step,
+        # Welche echte Startlage (Episodenindex aus layout.json) diese Episode hatte;
+        # None = Zufallsbänder.
+        "layout_episode": layout_key,
         "reach_frame": reach_frame,
         # Abstand zum Zeitpunkt 0 als Bezugsgröße: erst die Differenz zu min_reach_m zeigt,
         # ob die Politik den Abstand überhaupt verkleinert hat oder ob der beste Wert der
@@ -471,6 +534,7 @@ def run_episode(
         "block_shift_m": [round(float(v), 4) for v in block_shift],
         "finger_span_max_rad": round(float(finger_span.max()), 4),
         "max_cube_lift_cm": round(max_cube_lift * 100, 2),
+        "waist_drift_max_rad": round(waist_drift, 4),
         # Gestufte Meilensteine: jede Stufe für sich auswertbar, damit ein 0/20 beim
         # Stapeln nicht mehr die einzige Information der Episode ist.
         "milestones": {
@@ -495,13 +559,21 @@ def main():
     if args.asset_path:
         cfg.scene.robot.spawn.usd_path = args.asset_path
     cfg.execution_horizon = args.execution_horizon
+    # Der Text muss genau der aus dem Training sein. Bis 2026-10-13 stand hier fest
+    # "stack the blocks", der Datensatz kennt nur "stack three block" (Review §3.1).
+    args.task_description, task_source = resolve_task_description(args.task_description)
     cfg.task_description = args.task_description
     cfg.dr_enabled = os.getenv("DR_ENABLED", "1") != "0"
-    # DR_SEED macht die Ziehung reproduzierbar (je Episode ein eigener Strom). Ohne die
-    # Variable bleibt es beim Auswuerfeln pro Prozess — fuer Eval gewollt, weil dort die
-    # Streuung ueber Laeufe hinweg Teil der Messung ist.
-    _dr_seed = os.getenv("DR_SEED", "")
-    cfg.dr_seed = int(_dr_seed) if _dr_seed.strip() else None
+    # DR_SEED macht die Ziehung reproduzierbar (je Episode ein eigener Strom). Default 0:
+    # ohne festen Seed sind A/B-Läufe, die sich in genau einem Faktor unterscheiden
+    # sollen, nicht vergleichbar (Review §3.7). Negativ oder leer = wie früher pro Prozess
+    # auswürfeln (gleiche Konvention wie RENDER_DR_SEED). Derselbe Seed fixiert auch den
+    # Torch-Zufall, aus dem die Zufallsbänder die Würfellagen ziehen.
+    _dr_seed = os.getenv("DR_SEED", "0").strip()
+    cfg.dr_seed = int(_dr_seed) if _dr_seed and int(_dr_seed) >= 0 else None
+    if cfg.dr_seed is not None:
+        torch.manual_seed(cfg.dr_seed)
+        np.random.seed(cfg.dr_seed)
     if cfg.camera_render_every_n > 1 and cfg.camera_render_every_n != args.execution_horizon:
         raise ValueError(
             "CAMERA_RENDER_EVERY_N muss im vergleichbaren schnellen Modus exakt "
@@ -513,6 +585,9 @@ def main():
     # nicht auseinanderlaufen mit dem, was die Umgebung selbst als Episodenende sieht.
     if args.episode_length_s > 0:
         cfg.episode_length_s = args.episode_length_s
+    layout_info: dict = {"path": "", "note": "Zufallsbänder (kein --layout / EVAL_LAYOUT)"}
+    if args.layout:
+        cfg.block_layout, layout_info = load_eval_layout(args.layout)
 
     print("=" * 60)
     print("GR00T N1.6 — G1+Dex3 Closed-Loop Sim Eval")
@@ -529,13 +604,23 @@ def main():
     print(f"  Episoden:         {args.num_episodes}")
     print(f"  Exec-Horizon:     {args.execution_horizon}")
     print(f"  Kamera-Render:    alle {cfg.camera_render_every_n} Policy-Schritt(e)")
-    print(f"  Task:             {args.task_description}")
+    print(f"  Task:             {args.task_description!r}  [{task_source}]")
     print(f"  Video-Dir:        {args.video_dir or '(kein Video)'}")
     print(f"  Asset:            {cfg.scene.robot.spawn.usd_path}")
     _dr_state = "AN" if cfg.dr_enabled else "AUS (DR_ENABLED=0)"
     if cfg.dr_enabled and cfg.dr_seed is not None:
         _dr_state += f", Seed {cfg.dr_seed} je Episode"
     print(f"  Domain Rand.:     {_dr_state}")
+    if args.layout:
+        print(f"  Würfel-Start:     {len(cfg.block_layout)} echte Lagen aus {args.layout} "
+              f"(Split: {layout_info['split']})")
+        if layout_info["from_training_episodes"]:
+            print(f"  [WARNUNG] {len(layout_info['from_training_episodes'])} Lagen stammen aus "
+                  f"TRAININGS-Episoden (< {HELD_OUT_FIRST_EPISODE}) — Memorisierung nicht "
+                  "ausgeschlossen. Für die Messung: layout mit LAYOUT_HELD_OUT=1 erzeugen.")
+    else:
+        print("  Würfel-Start:     Zufallsbänder — NICHT die Startlagen der Realdaten "
+              "(Review §3.2). Echte Lagen: EVAL_LAYOUT=<layout.json>")
     print(
         f"  Episodenlaenge:   {cfg.episode_length_s:.0f}s "
         f"= {int(cfg.episode_length_s * cfg.policy_hz)} Steps"
@@ -565,7 +650,10 @@ def main():
     # Dummy-Test (Phase D Abnahme): get_action mit synthetischer Obs
     dummy_rgb = np.zeros((CAMERA_CFG.height, CAMERA_CFG.width, 3), dtype=np.uint8)
     dummy_joint = np.zeros(28, dtype=np.float32)
-    dummy_obs = build_obs(dummy_rgb, dummy_rgb, dummy_rgb, dummy_rgb, dummy_joint)
+    dummy_obs = build_obs(
+        dummy_rgb, dummy_rgb, dummy_rgb, dummy_rgb, dummy_joint,
+        task_description=args.task_description,
+    )
     dummy_chunk = client.get_action(dummy_obs)
     assert dummy_chunk.shape == (16, 28), f"Unerwartete Chunk-Shape: {dummy_chunk.shape}"
     print(f"[Phase D] Dummy-get_action OK: shape={dummy_chunk.shape}")
@@ -577,6 +665,8 @@ def main():
 
     for ep in range(args.num_episodes):
         print(f"--- Episode {ep + 1}/{args.num_episodes} ---")
+        if cfg.block_layout:
+            env.layout_index = ep   # Lage ep (reihum), s. _place_blocks_from_layout
         ep_result = run_episode(
             env=env,
             client=client,
@@ -670,11 +760,17 @@ def main():
         "checkpoint": ckpt,
         "server": args.server,
         "task_description": args.task_description,
+        "task_description_source": task_source,
         "execution_horizon": args.execution_horizon,
         "policy_hz": cfg.policy_hz,
         "camera_render_every_n": cfg.camera_render_every_n,
         "inference_backend": os.getenv("GROOT_INFERENCE_BACKEND", "eager"),
         "scene_camera_enabled": os.getenv("SCENE_CAM", "1") not in ("0", "false", "no"),
+        # Messaufbau, damit zwei Läufe vergleichbar sind (Review §3.7 / §8 Eval-Manifest)
+        "cube_layout": layout_info,
+        "domain_randomization": {"enabled": cfg.dr_enabled, "seed": cfg.dr_seed},
+        "physics_dt": cfg.sim.dt,
+        "decimation": cfg.decimation,
         "episodes": results,
     }
     summary["episode_length_s"] = cfg.episode_length_s

@@ -81,6 +81,7 @@ from pathlib import Path
 
 from isaaclab.app import AppLauncher
 
+
 # ---------------------------------------------------------------------------
 # CLI (vor dem AppLauncher — Isaac konsumiert eigene Argumente)
 # ---------------------------------------------------------------------------
@@ -206,10 +207,12 @@ simulation_app = app_launcher.app
 # Imports nach AppLauncher-Start
 # ---------------------------------------------------------------------------
 
+from g1_dex3_blockstack_env import G1Dex3BlockstackEnv, G1Dex3BlockstackEnvCfg  # noqa: E402
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
+from task_text import DEFAULT_TASK_DESCRIPTION  # noqa: E402
 import torch  # noqa: E402
-from g1_dex3_blockstack_env import G1Dex3BlockstackEnv, G1Dex3BlockstackEnvCfg  # noqa: E402
+
 
 # Die vier Kameras, die die Policy sieht. Reihenfolge und Namen wie in modality_4cam.json.
 CAMS = ("cam_left_high", "cam_right_high", "cam_left_wrist", "cam_right_wrist")
@@ -779,7 +782,7 @@ def finalize_meta(out: Path, src_info: dict, tasks: dict[int, str], manifest: di
         total_frames += length
         episodes.append({
             "episode_index": ep_idx,
-            "tasks": [rec.get("task", "stack the blocks")],
+            "tasks": [rec.get("task", DEFAULT_TASK_DESCRIPTION)],
             "length": length,
         })
 
@@ -787,7 +790,7 @@ def finalize_meta(out: Path, src_info: dict, tasks: dict[int, str], manifest: di
         for ep in episodes:
             fh.write(json.dumps(ep) + "\n")
 
-    task_map = tasks or {0: "stack the blocks"}
+    task_map = tasks or {0: DEFAULT_TASK_DESCRIPTION}
     with open(meta / "tasks.jsonl", "w") as fh:
         for idx, task in sorted(task_map.items()):
             fh.write(json.dumps({"task_index": idx, "task": task}) + "\n")
@@ -1159,7 +1162,7 @@ def run_render(env_builder, src_root: Path, src_info: dict, episodes: list[int],
             "status": "ok",
             "length": int(achieved.shape[0]),
             "source_window": [start, stop],
-            "task": tasks.get(task_index, "stack the blocks"),
+            "task": tasks.get(task_index, DEFAULT_TASK_DESCRIPTION),
             "task_index": task_index,
             "arm_tracking_error_rad": round(arm_err, 4),
             "hand_tracking_error_rad_end": hand_err_end,

@@ -5,12 +5,13 @@
 from __future__ import annotations
 
 import argparse
+from concurrent.futures import ThreadPoolExecutor
 import json
 import os
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from isaaclab.app import AppLauncher
+
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--dataset-path", required=True)
@@ -31,23 +32,32 @@ os.environ["SCENE_CAM"] = "0"
 app_launcher = AppLauncher(args)
 simulation_app = app_launcher.app
 
+from extract_block_layout import color_mask  # noqa: E402
+from g1_dex3_blockstack_env import G1Dex3BlockstackEnv, G1Dex3BlockstackEnvCfg  # noqa: E402
+from grasp_pose_support import closure_candidates, fingertip_measurement  # noqa: E402
 import imageio.v2 as imageio  # noqa: E402
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
-import torch  # noqa: E402
 from PIL import Image, ImageDraw  # noqa: E402
-
-from g1_dex3_blockstack_env import G1Dex3BlockstackEnv, G1Dex3BlockstackEnvCfg  # noqa: E402
-from grasp_pose_support import closure_candidates, fingertip_measurement  # noqa: E402
-from extract_block_layout import color_mask  # noqa: E402
 from reconstruct_cube_poses import (  # noqa: E402
-    CUBE_COLORS, HEAD_CAMS, data_path, read_info, select_episodes, video_path,
+    CUBE_COLORS,
+    HEAD_CAMS,
+    data_path,
+    read_info,
+    select_episodes,
+    video_path,
 )
 from replay_calibration import (  # noqa: E402
-    CUBE_WORKSPACE_X_M, CUBE_WORKSPACE_Y_M, FINGERTIP_Z_WINDOW_M,
-    action_sha256, find_motion_onset, select_unique_closing_hand,
-    stationary_camera_measurements, track_colors,
+    CUBE_WORKSPACE_X_M,
+    CUBE_WORKSPACE_Y_M,
+    FINGERTIP_Z_WINDOW_M,
+    action_sha256,
+    find_motion_onset,
+    select_unique_closing_hand,
+    stationary_camera_measurements,
+    track_colors,
 )
+import torch  # noqa: E402
 
 
 def load_episode(root: Path, info: dict, episode: int) -> tuple[np.ndarray, np.ndarray]:

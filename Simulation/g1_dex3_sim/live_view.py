@@ -37,11 +37,12 @@ mit sauberem Fallback, damit ein fehlendes Wheel den Lauf nicht kostet.
 
 from __future__ import annotations
 
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import threading
 import time
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
+
 
 _BOUNDARY = "g1dex3frame"
 

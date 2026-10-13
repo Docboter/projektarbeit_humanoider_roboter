@@ -8,7 +8,7 @@
 **Erstellt:** 2026-08-14 · **Run-ID:** `tp1nc699` (W&B-Projekt `gr00t-g1-dex3`, Entity
 `projektarbeit_humanoider_roboter`) · **Modell:** GR00T N1.6 (3,29 Mrd. Parameter),
 Finetune mit aufgetautem Vision-Encoder (`tune_visual = true`), Color-Jitter aktiv,
-**80/20-Train-Test-Split**, Task „stack the blocks".
+**80/20-Train-Test-Split**, Task „stack three block" (einziger Task des Datensatzes).
 
 > Dies ist der **dritte** vollständige Lauf und der erste im ganzen Projekt, für den eine
 > **echte Validierungszahl auf zurückgehaltenen Episoden** existiert. Er löst Schritt 2 aus

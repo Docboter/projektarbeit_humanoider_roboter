@@ -666,8 +666,8 @@ def _sample_action(policy, raw, torch):
     get_action(**collated) aufruft — das entfaltet zu get_action(inputs=batch). model.forward()
     nimmt denselben inneren Batch direkt entgegen, und dort hinein gehoert auch die Aktion.
     """
-    import numpy as np
     from gr00t.data.types import MessageType
+    import numpy as np
 
     unbatched = policy._unbatch_observation(_flat_to_nested(policy, raw))
     processed, states = [], []

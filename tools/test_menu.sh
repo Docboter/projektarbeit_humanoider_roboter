@@ -144,8 +144,8 @@ echo "Schachtelung — Gruppenebene bei langen Listen, flach bei kurzen:"
 # dazukommt (die taucht im Menue nicht auf) oder eine Spec ohne Aktion. Beim Merge des
 # Wuerfel-Zweigs am 2026-08-25 war genau das passiert — vier Aktionen ohne Spec, und
 # Pruefung 23 schlug an, waehrend diese hier noch gruen blieb.
-chki "15a sim wird geschachtelt (23 Aktionen in 7 Gruppen)" \
-     'tty_run "$SIM" "a" | grep -q "alle 23 Aktionen"'
+chki "15a sim wird geschachtelt (27 Aktionen in 7 Gruppen)" \
+     'tty_run "$SIM" "a" | grep -q "alle 27 Aktionen"'
 chki "15b KISSKI bleibt flach (nur 4 Aktionen)" \
      '! tty_run "./Training/kisski_menu.sh --dry-run" "a" | grep -q "alle 4 Aktionen"'
 chki "15c MENU_NEST=1 erzwingt die Gruppenebene auch dort" \
@@ -323,8 +323,10 @@ echo ""
 echo "Struktur und Abgleich:"
 chk  "22  bash -n ueber Bibliotheken, Werkzeug und alle Specs" \
      'for f in tools/lib_menu.sh tools/lib_env_local.sh tools/gen_docs.sh tools/test_menu.sh tools/menu/*.spec; do bash -n "$f" || exit 1; done'
+# Muster mit Bindestrich (replay-*), Optionen wie -h ausgenommen; die Subshell haelt ein
+# "exit 1" aus der Testreihe heraus (vor 2026-10-13 uebersah das Muster replay-* ganz).
 chk  "23  jede Aktion von server_rl_run.sh hat eine Spec" \
-     'for a in $(sed -n "/^case .\\\$ACTION. in$/,/^esac$/p" $SIM | grep -oE "^  [a-z|]+\)" | tr -d " )" | tr "|" "\n" | grep -vE "^(help|down)$"); do [ -f "tools/menu/sim-$a.spec" ] || exit 1; done'
+     '( for a in $(sed -n "/^case .\\\$ACTION. in$/,/^esac$/p" $SIM | grep -oE "^  [a-z|-]+\)" | tr -d " )" | tr "|" "\n" | grep -vE "^(help|down|-.*)$"); do [ -f "tools/menu/sim-$a.spec" ] || exit 1; done )'
 chk  "24  Trainings-Launcher reicht die Feature-Schalter durch" \
      'MENU=0 TUNE_VISUAL=1 HF_TOKEN=hf_x ./Training/setup_and_train_dockerhub_pull.sh --dry-run --skip-pull < /dev/null 2>&1 | grep -q -- "-e TUNE_VISUAL=1"'
 chk  "25  Abgleich Spec <-> Skript <-> Doku (Pruefung 9 des Plans)" \

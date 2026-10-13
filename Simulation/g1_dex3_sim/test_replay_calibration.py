@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-import numpy as np
-
 from camera_geometry import PinholeCamera
+import numpy as np
 from replay_calibration import action_sha256, best_top_face_detection, top_face_blob
 
 

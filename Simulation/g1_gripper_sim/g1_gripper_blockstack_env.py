@@ -18,29 +18,27 @@ from __future__ import annotations
 
 from typing import Any
 
-import numpy as np
-import torch
-
-import isaaclab.sim as sim_utils
-from isaaclab.assets import Articulation, ArticulationCfg, RigidObject, RigidObjectCfg
-from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg
-from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sensors import TiledCamera, TiledCameraCfg
-from isaaclab.sim import SimulationCfg
-from isaaclab.utils import configclass
-from isaaclab.utils.math import sample_uniform
-
-from g1_gripper_cfg import (
+from g1_gripper_cfg import (  # noqa: I001 — setzt auch den Pfad zu scene_geometry
     CAMERA_CFG,
     G1_GRIPPER_CFG,
     GRIPPER_CLOSE,
     GRIPPER_OPEN,
-    LEFT_ARM_JOINTS,
     LEFT_GRIPPER_JOINTS,
     POLICY_ARM_JOINTS,
-    RIGHT_ARM_JOINTS,
     RIGHT_GRIPPER_JOINTS,
 )
+from isaaclab.assets import Articulation, ArticulationCfg, RigidObject, RigidObjectCfg
+from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg
+from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sensors import TiledCamera, TiledCameraCfg
+import isaaclab.sim as sim_utils
+from isaaclab.sim import SimulationCfg
+from isaaclab.utils import configclass
+from isaaclab.utils.math import sample_uniform
+import numpy as np
+from scene_geometry import CUBE_Z_CENTER, TABLE_POS, TABLE_SIZE  # noqa: E402
+import torch
+
 
 # ---------------------------------------------------------------------------
 # Szenenkonfiguration (Tisch + 3 Würfel + Stapel-Band — identisch zum DEX3-Env)
@@ -53,13 +51,13 @@ class G1GripperBlockstackSceneCfg(InteractiveSceneCfg):
     table: RigidObjectCfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/table",
         spawn=sim_utils.CuboidCfg(
-            size=(0.8, 0.6, 0.89),
+            size=TABLE_SIZE,   # scene_geometry.py, wie die Dex3-Szene (vorher 0.89)
             rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
             mass_props=sim_utils.MassPropertiesCfg(mass=50.0),
             collision_props=sim_utils.CollisionPropertiesCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.85, 0.85, 0.85)),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 0.445)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=TABLE_POS),
     )
 
     block_0: RigidObjectCfg = RigidObjectCfg(
@@ -74,7 +72,7 @@ class G1GripperBlockstackSceneCfg(InteractiveSceneCfg):
             ),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.1, 0.1)),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.34, -0.15, 0.915)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.34, -0.15, CUBE_Z_CENTER)),
     )
 
     block_1: RigidObjectCfg = RigidObjectCfg(
@@ -89,7 +87,7 @@ class G1GripperBlockstackSceneCfg(InteractiveSceneCfg):
             ),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.1, 0.6, 0.1)),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.36, 0.0, 0.915)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.36, 0.0, CUBE_Z_CENTER)),
     )
 
     block_2: RigidObjectCfg = RigidObjectCfg(
@@ -104,7 +102,7 @@ class G1GripperBlockstackSceneCfg(InteractiveSceneCfg):
             ),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.85, 0.70, 0.10)),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.34, 0.15, 0.915)),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.34, 0.15, CUBE_Z_CENTER)),
     )
 
     stack_band: RigidObjectCfg = RigidObjectCfg(
@@ -170,7 +168,7 @@ class G1GripperBlockstackSceneCfg(InteractiveSceneCfg):
 @configclass
 class G1GripperBlockstackEnvCfg(DirectRLEnvCfg):
     sim: SimulationCfg = SimulationCfg(
-        dt=1.0 / 200.0,
+        dt=1.0 / 210.0,   # 210/7 = 30 Hz wie Datensatz und Dex3-Env (Review §3.3)
         render_interval=7,
     )
     scene: G1GripperBlockstackSceneCfg = G1GripperBlockstackSceneCfg(num_envs=1, env_spacing=2.0)
@@ -185,13 +183,13 @@ class G1GripperBlockstackEnvCfg(DirectRLEnvCfg):
 
     block_x_range: tuple[float, float] = (0.30, 0.40)
     block_y_range: tuple[float, float] = (-0.20, 0.20)
-    block_z_surface: float = 0.915
+    block_z_surface: float = CUBE_Z_CENTER   # vorher 0.915 (Würfel fielen 2 cm)
 
     stack_xy_tol: float = 0.03
     stack_height_min: float = 0.08
     stack_vel_max: float = 0.05
 
-    task_description: str = "stack the blocks"
+    task_description: str = "stack three block"
 
 
 # ---------------------------------------------------------------------------

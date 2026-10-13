@@ -67,11 +67,12 @@ from __future__ import annotations
 import argparse
 import json
 import os
+from pathlib import Path
 import sys
 import traceback
-from pathlib import Path
 
 from isaaclab.app import AppLauncher
+
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--dataset-path", required=True)
@@ -95,22 +96,17 @@ os.environ["SCENE_CAM"] = "0"
 app_launcher = AppLauncher(args)
 simulation_app = app_launcher.app
 
-import imageio.v2 as imageio  # noqa: E402
-import numpy as np  # noqa: E402
-import pandas as pd  # noqa: E402
-import torch  # noqa: E402
 from camera_geometry import PinholeCamera  # noqa: E402
 from extract_block_layout import CUBE_COLORS  # noqa: E402
 from g1_dex3_blockstack_env import G1Dex3BlockstackEnv, G1Dex3BlockstackEnvCfg  # noqa: E402
+import imageio.v2 as imageio  # noqa: E402
+import numpy as np  # noqa: E402
+import pandas as pd  # noqa: E402
 from PIL import Image, ImageDraw  # noqa: E402
-from reconstruct_cube_poses import (  # noqa: E402
-    HEAD_CAMS,
-    data_path,
-    read_info,
-    select_episodes,
-    video_path,
-)
+from reconstruct_cube_poses import HEAD_CAMS, data_path, read_info, select_episodes, video_path  # noqa: E402
 from replay_calibration import CUBE_CENTER_Z_M  # noqa: E402
+import torch  # noqa: E402
+
 
 DRAW_COLOR = {"rot": (255, 60, 60), "gruen": (60, 220, 60), "gelb": (255, 220, 40)}
 HAND_COLOR = {"left": (80, 160, 255), "right": (255, 140, 0)}

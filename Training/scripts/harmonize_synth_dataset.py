@@ -1216,7 +1216,7 @@ def cmd_convert(args: argparse.Namespace) -> int:
     out.mkdir(parents=True, exist_ok=True)
 
     src_tasks = {int(r["task_index"]): r["task"] for r in read_jsonl(root / "meta" / "tasks.jsonl")}
-    task_text = args.task_text or src_tasks.get(0) or "stack the blocks"
+    task_text = args.task_text or src_tasks.get(0) or "stack three block"
     log(f"Sprach-Annotation für alle Episoden: \"{task_text}\"")
 
     eps = episode_indices(root, info)
