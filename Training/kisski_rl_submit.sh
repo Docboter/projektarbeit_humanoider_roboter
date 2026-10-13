@@ -15,7 +15,7 @@
 # NICHT das BC-Trainingsimage. Startpunkt ist ein BC-Checkpoint (RL verfeinert ihn).
 #
 # Einreichen (sobald RT-Core-Partition feststeht — Platzhalter unten anpassen):
-#   sbatch Training/kisski_rl_submit.sh
+#   sbatch --export=ALL Training/kisski_rl_submit.sh
 #
 # Optionale Überschreibungen (Inline-Prefix vor sbatch, mit --export=ALL):
 #   SIM_SIF, DATA_DIR, CHECKPOINT_PATH, HF_CHECKPOINT_REPO,
@@ -43,8 +43,10 @@ set -euo pipefail
 #
 # EIN Knopf für den Projektspeicher, alles Weitere leitet sich davon ab:
 #     KISSKI_PROJECT_DIR=/mnt/vast-kisski/projects/<projekt> sbatch <dieses Skript>
-# Das wirkt beim Absenden, weil oben `#SBATCH --export=ALL` steht — die Umgebung der
-# Submit-Shell landet unverändert im Job.
+# Das wirkt aber NUR mit `sbatch --export=ALL` auf der Kommandozeile: KISSKI setzt auf dem
+# Login-Node SBATCH_EXPORT=none, und das überstimmt das `#SBATCH --export=ALL` oben — bei
+# einfachem `sbatch` kommen Overrides wie RUN_DIR oder KISSKI_PROJECT_DIR nicht im Job an
+# (siehe kisski_submit.sh). kisski_chain.sh setzt --export=ALL immer.
 KISSKI_PROJECT_DIR="${KISSKI_PROJECT_DIR:-/mnt/vast-kisski/projects/kisski-humrob}"
 
 # SIF-Ablage. Reihenfolge: eigenes $HOME/images zuerst — genau dorthin lädt der in

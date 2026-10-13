@@ -22,20 +22,20 @@ alles außer dem ``datasets``-Block soll identisch bleiben.
 
 Aufruf (macht ``run_finetuning_cotrain.sh``):
     python launch_cotrain.py --cotrain_dataset_path /data/cotrain/g1_dex3_rendered \
-                             --cotrain_mix_ratio 0.5 \
+                             --cotrain_mix_ratio 0.25 \
                              --base_model_path ... --dataset_path ... [wie launch_finetune.py]
 """
 
 import argparse
 import json
 import os
-import sys
 from pathlib import Path
+import sys
 
-import tyro
 from gr00t.configs.base_config import get_default_config
 from gr00t.configs.finetune_config import FinetuneConfig
 from gr00t.experiment.experiment import run
+import tyro
 
 
 # Make sure the user provided modality config is registered.
@@ -59,7 +59,7 @@ def split_own_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
     """
     own = argparse.ArgumentParser(add_help=False)
     own.add_argument("--cotrain_dataset_path", type=str, default="")
-    own.add_argument("--cotrain_mix_ratio", type=float, default=0.5)
+    own.add_argument("--cotrain_mix_ratio", type=float, default=0.25)
     return own.parse_known_args(argv)
 
 

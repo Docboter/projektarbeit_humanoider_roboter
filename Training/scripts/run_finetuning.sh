@@ -204,8 +204,12 @@ log "Training startet — abbrechen mit Ctrl+C."
 echo
 
 cd "$GROOT_ROOT"
+# set +e: unter "set -euo pipefail" beendet eine scheiternde Pipe das Skript sofort, die
+# Fehlermeldung unten mit Exit-Code und Log-Pfad erschiene dann nie (Review 4.2).
+set +e
 "${TRAIN_CMD[@]}" 2>&1 | tee "$LOG_FILE"
 EXIT_CODE=${PIPESTATUS[0]}
+set -e
 
 echo
 if [[ "$EXIT_CODE" == "0" ]]; then

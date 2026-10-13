@@ -45,9 +45,9 @@ param USE_COTRAIN bool 0 basic \
   "Schritt 4. Namensraum blockstacking_cotrain, setzt --tune_visual selbst und hat Vorrang vor TUNE_VISUAL. Braucht einen gerenderten Datensatz aus 'server_rl_run.sh render'. Details: docs/training/co-training.md"
 
 when '[[ "${USE_COTRAIN:-0}" == 1 ]]'
-param COTRAIN_MIX_RATIO float 0.5 basic \
+param COTRAIN_MIX_RATIO float 0.25 basic \
   "Anteil gerenderter Bilder" \
-  "0.25 ist der empfohlene Wert. Zu hoch, und das Modell lernt die Sim statt der Aufgabe." \
+  "0.25 ist der empfohlene Wert und Default. Zu hoch, und das Modell lernt die Sim statt der Aufgabe." \
   --range 0:1
 
 when '[[ "${USE_COTRAIN:-0}" == 1 ]]'
@@ -80,7 +80,8 @@ param SHELL_ON_ERROR bool 0 advanced \
 
 group "Protokollierung"
 param WANDB_PROJECT str "gr00t-g1-dex3" advanced "W&B-Projektname"
-param WANDB_MODE choice offline advanced \
+param WANDB_MODE choice online advanced \
   "W&B-Betriebsart" \
-  "'offline' schreibt nur lokal — der richtige Wert auf einem Rechenknoten ohne Netz (KISSKI). Nachtraeglich synchronisieren: docs/training/wandb-offline-sync.md" \
-  --options "online:direkt melden;offline:nur lokal schreiben;disabled:ganz aus"
+  "Lokal 'online' (der Server hat Netz). 'offline' schreibt nur lokal — der richtige Wert auf einem Rechenknoten ohne Netz (KISSKI, setzt der Entrypoint dort selbst). Nachtraeglich synchronisieren: docs/training/wandb-offline-sync.md" \
+  --options "online:direkt melden;offline:nur lokal schreiben;disabled:ganz aus" \
+  --override "entrypoint.sh setzt unter Apptainer/SLURM offline, sonst online; das Menue laeuft nur lokal"

@@ -289,6 +289,10 @@ echo "==> Schritt 2/2 — Container starten (HF-Download + Training)"
 APPTAINER_ARGS=(
     --nv
     --bind "$DATA_DIR:/data"
+    # DATA_DIR ist hier der HOST-Pfad. Apptainer reicht die Host-Umgebung durch; ein
+    # exportiertes DATA_DIR (kisski_chain.sh, oder "export DATA_DIR=..." wie oben empfohlen)
+    # landete sonst im Entrypoint, der /data erwartet.
+    --env "DATA_DIR=/data"
     --env "TMPDIR=/tmp"
     --env "UV_OFFLINE=1"
     ${HF_TOKEN:+--env "HF_TOKEN=$HF_TOKEN"}
@@ -339,7 +343,8 @@ echo "    Skripte aus Repo: ${REPO_DIR}/Training/scripts"
 
 # G1_DEX3-Konfiguration + LeRobot-Konverter aus dem lucam06/Isaac-GR00T Fork mounten
 # (im Container-Image fehlen diese Dateien — nur die offizielle NVIDIA-Version ist eingebackt).
-# Einmalig: git clone --branch luca/g1-dex3 --depth 1 https://github.com/lucam06/Isaac-GR00T.git /mnt/vast-kisski/projects/kisski-humrob/repo-groot
+# Einmalig: git clone --branch luca/g1-dex3 https://github.com/lucam06/Isaac-GR00T.git /mnt/vast-kisski/projects/kisski-humrob/repo-groot
+#           danach auf den Image-Pin auschecken (Pruefung unten nennt den Befehl).
 GROOT_FORK_DIR="${GROOT_FORK_DIR:-$KISSKI_PROJECT_DIR/repo-groot}"
 if [[ ! -d "$GROOT_FORK_DIR/examples/G1_DEX3" ]]; then
     echo "FEHLER: $GROOT_FORK_DIR/examples/G1_DEX3 nicht gefunden." >&2
@@ -347,10 +352,33 @@ if [[ ! -d "$GROOT_FORK_DIR/examples/G1_DEX3" ]]; then
     echo "       git clone --branch luca/g1-dex3 --depth 1 https://github.com/lucam06/Isaac-GR00T.git $GROOT_FORK_DIR" >&2
     exit 1
 fi
+# Fork-Stand gegen den Pin des Images pruefen (Review 4.5). Der Bind unten ueberdeckt den
+# gr00t-Code im Image; stand repo-groot auf dem Branch-HEAD statt auf dem Pin, lief auf
+# KISSKI anderer Code als im Image (2026-10-11: HEAD dd87740 "(in testing!)" statt 9508b49).
+# Der Pin steht im Dockerfile des Repo-Klons (update_image.sh --update-commit pflegt ihn).
+GROOT_PIN="$(grep -oE 'checkout [0-9a-f]{40}' "${REPO_DIR}/Training/Dockerfile" 2>/dev/null \
+             | head -1 | awk '{print $2}' || true)"
+GROOT_HEAD="$(git -C "$GROOT_FORK_DIR" rev-parse HEAD 2>/dev/null || true)"
+if [[ -n "$GROOT_PIN" && -z "$GROOT_HEAD" && -d "$GROOT_FORK_DIR/gr00t" ]]; then
+    echo "WARNUNG: $GROOT_FORK_DIR ist kein Git-Klon — Stand gegen Pin $GROOT_PIN nicht pruefbar." >&2
+elif [[ -n "$GROOT_PIN" && -n "$GROOT_HEAD" && "$GROOT_HEAD" != "$GROOT_PIN" ]]; then
+    if [[ "${GROOT_FORK_ALLOW_DRIFT:-0}" == "1" ]]; then
+        echo "WARNUNG: $GROOT_FORK_DIR steht auf ${GROOT_HEAD:-?}, Image-Pin ist $GROOT_PIN" \
+             "(GROOT_FORK_ALLOW_DRIFT=1)." >&2
+    else
+        echo "FEHLER: $GROOT_FORK_DIR steht auf ${GROOT_HEAD:-unbekannt}, das Image pinnt" >&2
+        echo "       $GROOT_PIN. Der Lauf wuerde anderen gr00t-Code nutzen als im Image." >&2
+        echo "       Auf dem Login-Knoten angleichen:" >&2
+        echo "         git -C $GROOT_FORK_DIR fetch --depth 1 origin $GROOT_PIN" >&2
+        echo "         git -C $GROOT_FORK_DIR checkout $GROOT_PIN" >&2
+        echo "       Absichtlich anderer Stand: GROOT_FORK_ALLOW_DRIFT=1." >&2
+        exit 1
+    fi
+fi
 APPTAINER_ARGS+=(--bind "$GROOT_FORK_DIR/examples/G1_DEX3:/app/Groot-1.6/examples/G1_DEX3")
 APPTAINER_ARGS+=(--bind "$GROOT_FORK_DIR/scripts/lerobot_conversion:/app/Groot-1.6/scripts/lerobot_conversion")
-# gr00t-Modul aus Fork: Container hat nur gr00t_n1d7-Code, Modell ist aber N1.6 (Gr00tN1d6).
-# Editable install (egg-info) lädt Code direkt aus /app/Groot-1.6/gr00t/.
+# gr00t-Modul aus dem Fork (gleicher Commit wie im Image, s. Pruefung oben) — damit wirken
+# Fork-Aenderungen ohne Image-Rebuild. Editable install laedt aus /app/Groot-1.6/gr00t/.
 APPTAINER_ARGS+=(--bind "$GROOT_FORK_DIR/gr00t:/app/Groot-1.6/gr00t")
 echo "    G1_DEX3-Config aus Fork: $GROOT_FORK_DIR/examples/G1_DEX3"
 echo "    gr00t-Modul (N1.6)  aus Fork: $GROOT_FORK_DIR/gr00t"

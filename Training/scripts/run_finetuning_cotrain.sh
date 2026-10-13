@@ -43,11 +43,15 @@ EMBODIMENT_TAG="${EMBODIMENT_TAG:-NEW_EMBODIMENT}"
 # also ~1,7 GB für 60 Episoden. Das passt bequem in ein HF-Dataset-Repo.
 COTRAIN_DATASET_PATH="${COTRAIN_DATASET_PATH:-/data/cotrain/g1_dex3_rendered}"
 COTRAIN_HF_REPO="${COTRAIN_HF_REPO:-}"
-# Anteil der GERENDERTEN Stichproben. 0.5 = jede zweite. Siehe docs/training/co-training.md
-# zur Begründung des Startwerts und zur Abbruchregel.
-COTRAIN_MIX_RATIO="${COTRAIN_MIX_RATIO:-0.5}"
+# Anteil der GERENDERTEN Stichproben. 0.25 = jede vierte — der empfohlene Startwert, siehe
+# docs/training/co-training.md §4.2. Bis 2026-10-13 stand hier 0.5, der Code widersprach
+# damit der eigenen Empfehlung (Review 4.6); kisski_submit.sh hatte schon 0.25.
+COTRAIN_MIX_RATIO="${COTRAIN_MIX_RATIO:-0.25}"
 
-MAX_STEPS="${MAX_STEPS:-30000}"
+# 20000 wie Dockerfile-ENV und entrypoint.sh — im Image wirkt ohnehin das ENV; der Wert hier
+# griff nur bei einem Aufruf außerhalb des Images und stand bis 2026-10-13 auf 30000 (Review 4.6).
+# Plattform-Defaults setzen die Launcher: lokal 30000, KISSKI 44000.
+MAX_STEPS="${MAX_STEPS:-20000}"
 GLOBAL_BATCH_SIZE="${GLOBAL_BATCH_SIZE:-8}"
 DATALOADER_WORKERS="${DATALOADER_WORKERS:-8}"
 # Entkoppelt die effektive Batchgroesse vom Speicherbedarf. experiment.py rechnet
@@ -254,8 +258,12 @@ log "Training startet — abbrechen mit Ctrl+C."
 echo
 
 cd "$GROOT_ROOT"
+# set +e: unter "set -euo pipefail" beendet eine scheiternde Pipe das Skript sofort, die
+# Fehlermeldung unten mit Exit-Code und Log-Pfad erschiene dann nie (Review 4.2).
+set +e
 "${TRAIN_CMD[@]}" 2>&1 | tee "$LOG_FILE"
 EXIT_CODE=${PIPESTATUS[0]}
+set -e
 
 echo
 if [[ "$EXIT_CODE" == "0" ]]; then

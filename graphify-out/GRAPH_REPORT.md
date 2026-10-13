@@ -1,16 +1,16 @@
 # Graph Report - projektarbeit_humanoider_roboter  (2026-10-13)
 
 ## Corpus Check
-- 349 files · ~979,118 words
+- 349 files · ~980,821 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 5870 nodes · 10103 edges · 345 communities (326 shown, 19 thin omitted)
-- Extraction: 96% EXTRACTED · 4% INFERRED · 0% AMBIGUOUS · INFERRED: 415 edges (avg confidence: 0.73)
+- 5866 nodes · 10092 edges · 359 communities (337 shown, 22 thin omitted)
+- Extraction: 96% EXTRACTED · 4% INFERRED · 0% AMBIGUOUS · INFERRED: 414 edges (avg confidence: 0.73)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `ebe28f5c`
+- Built from commit: `cb68d62e`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -25,19 +25,19 @@
 - Sim-Eval Implementation Notes — Lessons Learned & aktueller Stand
 - Anleitung — GR00T N1.6 Fine-tuning
 - GR00T N1.6 — Unitree G1 + DEX3 Setup-Dokumentation
-- pybind11_fail
+- object
 - render_cotrain_dataset.py
 - class_
 - test_eigen.py
 - Closed-Loop-Sim-Eval — Schritt-für-Schritt-Anleitung
 - G1Dex3BlockstackEnv
 - array
-- dict_readonly
+- operator<
 - sequence
 - doc
-- unitree_legged_sdk.h
-- numpy.h
-- test_constants_and_functions.cpp
+- convert.h
+- string
+- test_tagbased_polymorphic.cpp
 - GR00T N1.6 Fine-tuning — Unitree G1 + DEX3 Hand
 - UDP
 - list
@@ -52,11 +52,11 @@
 - rl_finetune.py
 - print_destroyed
 - test_builtin_casters.py
-- PolicyClient
+- cpp_function
 - constructor_stats.h
 - test_copy_move.cpp
 - function_record
-- run_dataset_replay_videos.py
+- test_replay_grasp_metrics.py
 - cast.h
 - detail/common.h
 - OstreamRedirect
@@ -96,11 +96,11 @@
 - local_bindings.h
 - test_class.cpp
 - Fixes aus dem ersten Trainingsdurchlauf
-- test_smart_ptr.py
+- test_gil_scoped.py
 - Lokomotion des Unitree G1 freischalten — Recherche
 - server_robocasa_ref_run.sh
 - Reinforcement-Learning-Training — Recherche & Umsetzungsplan
-- stl_bind.h
+- handle
 - complex.h
 - Custom
 - internals
@@ -111,7 +111,7 @@
 - Auswertung — dritter Trainingsdurchlauf, Vision-Encoder **mit** Split & Augmentierung (`g1_dex3_blockstacking_vision_v2`)
 - G1GripperBlockstackEnv
 - functional.h
-- Loop
+- chrono.h
 - test_stl_binders.cpp
 - project_fingertips_check.py
 - UserType
@@ -119,18 +119,18 @@
 - test_pick_anchored_calibration.py
 - G1Dex3BlockstackEnvCfg
 - test_numpy_array.cpp
-- test_exceptions.py
+- test_kwargs_and_defaults.py
 - test_numpy_dtypes.cpp
 - Domain-Gap-Analyse: Real → Isaac Sim
 - lib_menu.sh
 - Zwischenstand — erster Trainingsdurchlauf (`g1_dex3_blockstacking_v1`)
 - simulation/README.md
-- rgb_to_hsv
+- numpy.h
 - Custom
 - Custom
 - test_cube_yaw.py
 - stl
-- handle
+- pytypes.h
 - iterator
 - extract_block_layout.py
 - Implementierungsplan — geführte CLI-Menüs für Training und Simulation
@@ -141,12 +141,12 @@
 - Basismodell-Fähigkeiten & Referenzaufgabe zur Sim-Validierung
 - Live-Ansicht — Isaac Sim auf dem eigenen Rechner öffnen
 - _sample_action
-- Capture
+- unpacking_collector
 - different_resolutions
 - CLAUDE.md
 - multi_array_iterator
 - function_call
-- top_face_blob
+- run_dataset_replay_videos.py
 - setup.py
 - teleForceCmd
 - descr.h
@@ -154,7 +154,7 @@
 - test_iostream.py
 - test_sequences_and_iterators.cpp
 - test_sequences_and_iterators.py
-- container_traits
+- T
 - Alloc
 - test_virtual_functions.py
 - Sim-Container auf KISSKI starten — Schritt-für-Schritt-Anleitung
@@ -209,20 +209,20 @@
 - ExampleVirt
 - unitree_ros_to_real/README.md
 - Konkrete technische Bugs
-- test_operator_overloading.py
-- error_scope
+- type_caster_generic
+- Loop
 - RoboCasa GR-1 Referenz-Eval — Bedienung
 - 2026-08-07 — vast.ai-Anleitung: WebRTC-Browser-Client (Port 8211) entfallen
 - setup_and_train_container_build.sh
 - internals.h
-- load_yaw_to_quat
+- test_constants_and_functions.cpp
 - Portabilität — das Repo auf einem fremden Rechner betreiben
 - TEST_SUBMODULE
 - return_value_policy
 - 2026-06-04 — Domain-Gap-Erstmessung (überholt durch Neumessung 2026-08-08)
 - PYBIND11_OVERRIDE_PURE
 - Weiterführende Arbeiten
-- test_numpy_vectorize.py
+- type_caster_base
 - v3.8.6
 - Dokumentation — Übersicht
 - blend
@@ -230,14 +230,14 @@
 - iostream
 - run_extract
 - Widget
-- test_modules.py
+- test_smart_ptr.py
 - type_caster<std::unordered_map<Key, Value, Hash, Equal, Alloc>>
 - void_caster
 - Bewertung der Sim-Umsetzung — Sinnvoll & korrekt? (2026-06-05)
 - type_info
 - Optionale Trainings-Features (getrennt schaltbar)
 - ignore_unused
-- ndarray
+- camera_geometry.py
 - Custom
 - update_sim_image.sh
 - entrypoint.sh
@@ -257,10 +257,13 @@
 - W&B Offline-Sync auf KISSKI
 - entrypoint_rl.sh
 - GPU-Eignung für die Isaac-Sim-Closed-Loop-Sim auf GWDG
+- str
+- state_sub.cpp
 - typeid.h
 - format_descriptor<T, detail::enable_if_t<std::is_arithmetic<T>::value>>
 - test_async.py
-- get_shared_data
+- unitree_legged_sdk.h
+- ._force_camera_prim_orientations
 - process_attribute<is_final>
 - menu_select
 - LaTeX — Projektarbeit (Ausarbeitung)
@@ -278,19 +281,26 @@
 - sibling
 - episode_motion_onsets
 - process_attribute<prepend>
-- pair
+- value_and_holder
 - MsgSerializer
+- dict
 - PYBIND11_EMBEDDED_MODULE
 - select_indices_impl<index_sequence<IPrev...>, I, B, Bs...>
 - operator()
-- TEST_SUBMODULE
+- npy_api
+- C
 - stl.h
+- SimpleStruct
 - Unitree G1 Description (URDF & MJCF)
 - Unitree H1_2 Description (URDF & MJCF)
+- PartialStruct
 - setup
+- type_caster<void>
+- PackedStruct
+- DtypeSizeCheck
 - builtin_exception
 - Ergebnisse & Evaluation
-- _menu_cond_ok
+- DtypeCheck
 - Training — Fine-tuning von GR00T N1.6
 - exactly_one
 - kisski_replay_submit.sh
@@ -302,7 +312,12 @@
 - is_fmt_numeric<T, enable_if_t<std::is_arithmetic<T>::value>>
 - control_via_keyboard.cpp
 - bug-report.md
+- arg
+- size_in_ptrs
+- ArrayStruct
 - summarize_run
+- EnumStruct
+- SimpleStructReordered
 - eigen.h
 - process_attribute<dynamic_attr>
 - test_simple_setup_py
@@ -310,7 +325,7 @@
 - compare_domain_gap.sh
 - metaclass
 - b2_description_mujoco/README.md
-- false_type
+- type_caster<Type, enable_if_t<is_eigen_other<Type>::value>>
 - check-style.sh
 - kisski_rl_submit.sh
 - kisski_submit.sh
@@ -332,12 +347,11 @@
 >
 - .load
 - operators.h
-- Physikbasierte Replay-Videos aus dem Realdatensatz
 - run.sh script
 - kisski_menu.sh
 - GR00T-N1.6: ONNX/TensorRT und schnelleres Sim-Rendering
 - get_cmake_dir
-- .load
+- .conformable
 - 7. Umsetzungsreihenfolge
 - 12. Umsetzungsstand
 - 3. Architektur
@@ -362,18 +376,18 @@
 - `run_trajectory()` --calls--> `slice`  [EXTRACTED]
   Simulation/scripts/finger_span_openloop.py → data/unitree_ros/unitree_ros_to_real/unitree_legged_sdk/python_wrapper/third-party/pybind11/include/pybind11/pytypes.h
 - `main()` --references--> `LoopFunc`  [INFERRED]
-  data/unitree_ros/unitree_ros_to_real/unitree_legged_sdk/example/example_position.cpp → data/unitree_ros/unitree_ros_to_real/unitree_legged_sdk/include/unitree_legged_sdk/loop.h
+  data/unitree_ros/unitree_ros_to_real/unitree_legged_sdk/example/example_joystick.cpp → data/unitree_ros/unitree_ros_to_real/unitree_legged_sdk/include/unitree_legged_sdk/loop.h
+- `main()` --references--> `LoopFunc`  [INFERRED]
+  data/unitree_ros/unitree_ros_to_real/unitree_legged_sdk/example/example_torque.cpp → data/unitree_ros/unitree_ros_to_real/unitree_legged_sdk/include/unitree_legged_sdk/loop.h
 - `main()` --references--> `LoopFunc`  [INFERRED]
   data/unitree_ros/unitree_ros_to_real/unitree_legged_sdk/example/example_velocity.cpp → data/unitree_ros/unitree_ros_to_real/unitree_legged_sdk/include/unitree_legged_sdk/loop.h
 - `main()` --references--> `LoopFunc`  [INFERRED]
   data/unitree_ros/unitree_ros_to_real/unitree_legged_sdk/example/example_walk.cpp → data/unitree_ros/unitree_ros_to_real/unitree_legged_sdk/include/unitree_legged_sdk/loop.h
-- `implicitly_convertible()` --calls--> `pybind11_fail()`  [INFERRED]
-  data/unitree_ros/unitree_ros_to_real/unitree_legged_sdk/python_wrapper/third-party/pybind11/include/pybind11/pybind11.h → data/unitree_ros/unitree_ros_to_real/unitree_legged_sdk/python_wrapper/third-party/pybind11/include/pybind11/detail/common.h
 
 ## Import Cycles
 - None detected.
 
-## Communities (345 total, 19 thin omitted)
+## Communities (359 total, 22 thin omitted)
 
 ### Community 0 - "harmonize_synth_dataset.py"
 Cohesion: 0.09
@@ -389,15 +403,15 @@ Nodes (37): 1. Vorgehen und Belegstatus, 2. Was geprüft und in Ordnung ist, 3.1
 
 ### Community 3 - "class.h"
 Cohesion: 0.08
-Nodes (45): add_patient(), clear_instance(), clear_patients(), deregister_instance(), deregister_instance_impl(), enable_buffer_protocol(), enable_dynamic_attributes(), get_fully_qualified_tp_name() (+37 more)
+Nodes (47): add_patient(), clear_instance(), clear_patients(), deregister_instance(), deregister_instance_impl(), enable_buffer_protocol(), enable_dynamic_attributes(), get_fully_qualified_tp_name() (+39 more)
 
 ### Community 4 - "init.h"
-Cohesion: 0.06
-Nodes (41): Alias, Cpp, alias_constructor, construct(), construct_alias_from_cpp(), construct_or_initialize(), execute(), factory (+33 more)
+Cohesion: 0.05
+Nodes (46): Alias, Cpp, alias_constructor, construct(), construct_alias_from_cpp(), construct_or_initialize(), constructor, execute() (+38 more)
 
 ### Community 5 - "pybind11.h"
-Cohesion: 0.03
-Nodes (82): any_of<is_holder<T>, is_subtype<T>, is_base<T>>, constructor, add_base(), add_class_method(), add_object(), all_type_info_get_cache(), call_operator_delete(), cpp_function (+74 more)
+Cohesion: 0.06
+Nodes (44): any_of<is_holder<T>, is_subtype<T>, is_base<T>>, add_base(), call_operator_delete(), create_extension_module(), def_submodule(), get_overload(), get_override(), get_type_overload() (+36 more)
 
 ### Community 6 - "server_rl_run.sh"
 Cohesion: 0.12
@@ -415,17 +429,17 @@ Nodes (45): 1. `docker cp` auf den Host, 2. Aus dem Container heraus hochladen (
 Cohesion: 0.05
 Nodes (44): 1. Container-Analyse, 2. GR00T N1.6 installieren, 2-Kamera-Datensätze, 3. DEX3-Kompatibilität prüfen, 4-Kamera-Datensätze, 4. Modality-Config erstellen, 5. Datensatz auf HuggingFace suchen, 6. Datensatz vorbereiten (+36 more)
 
-### Community 10 - "pybind11_fail"
-Cohesion: 0.06
-Nodes (26): loader_life_support, PYBIND11_NOINLINE, pybind11_fail(), embedded_module, finalize_interpreter(), initialize_interpreter(), scoped_interpreter, is_valid (+18 more)
+### Community 10 - "object"
+Cohesion: 0.05
+Nodes (28): PyObject, object_api<Derived>::operator()(), PYBIND11_NOINLINE, pybind11_fail(), array_t(), exception, implicitly_convertible(), bool_ (+20 more)
 
 ### Community 11 - "render_cotrain_dataset.py"
 Cohesion: 0.09
 Nodes (48): block_positions(), consistency_report(), episode_paths(), episode_window(), expected_length(), finalize_meta(), find_grasp_points(), grasp_anchor() (+40 more)
 
 ### Community 12 - "class_"
-Cohesion: 0.24
-Nodes (17): class_, has_alias, bind_map(), bind_vector(), Class_, enable_if_t, holder_type, Map (+9 more)
+Cohesion: 0.11
+Nodes (32): class_, has_alias, bind_map(), bind_vector(), container_traits, is_comparable, is_element, is_pair (+24 more)
 
 ### Community 13 - "test_eigen.py"
 Cohesion: 0.06
@@ -436,36 +450,36 @@ Cohesion: 0.05
 Nodes (40): 3a) URDF beschaffen, 3b) USD erzeugen, 3c) USD aufbewahren, 4a) GPU auswählen, 4b) Instance Configuration, `CHECKPOINT_PATH leer oder existiert nicht`, Closed-Loop-Sim-Eval — Schritt-für-Schritt-Anleitung, `createDLSSContext error` / Rendering-Fehler (+32 more)
 
 ### Community 15 - "G1Dex3BlockstackEnv"
-Cohesion: 0.05
-Nodes (32): G1Dex3BlockstackEnv, _matrix_to_quat(), _parse_rgb(), Any, DirectRLEnv, ndarray, Tensor, _quat_to_matrix() (+24 more)
+Cohesion: 0.07
+Nodes (23): G1Dex3BlockstackEnv, Any, DirectRLEnv, Tensor, Würfel auf den nächsten Eintrag von cfg.block_layout setzen (je Env einer).…, Gibt das Observation-Dict zurück: - "joint_pos": (num_envs, 28) float32 — alle…, Ordnet Joint-Namen auf Isaac-Lab-interne Indices ab., Setzt das absolute Positions-Target EINMALIG vor den Physics-Sub-Steps.… (+15 more)
 
 ### Community 16 - "array"
 Cohesion: 0.10
-Nodes (21): buffer, array, array_info, array_info<T[N]>, array_proxy(), byte_offset(), check_dimensions(), check_flags() (+13 more)
+Nodes (20): buffer, data(), S, make_stride(), array, array_proxy(), byte_offset(), check_dimensions() (+12 more)
 
-### Community 17 - "dict_readonly"
-Cohesion: 0.07
-Nodes (10): dict_readonly, key, obj, pos, value, sequence_fast_readonly, sequence_slow_readwrite, index (+2 more)
+### Community 17 - "operator<"
+Cohesion: 0.06
+Nodes (17): accessor, dict_readonly, key, obj, pos, value, generic_iterator, It (+9 more)
 
 ### Community 18 - "sequence"
-Cohesion: 0.12
-Nodes (8): sequence, tuple, item_accessor, list_accessor, sequence_accessor, sequence_iterator, tuple_accessor, tuple_iterator
+Cohesion: 0.19
+Nodes (6): sequence, item_accessor, list_accessor, sequence_accessor, sequence_iterator, tuple_accessor
 
 ### Community 19 - "doc"
-Cohesion: 0.07
-Nodes (24): doc(), Sanitize docstrings and add custom failure explanation, Tests that a properly qualified name is set in __qualname__ (even in pre-3.3,…, test_docstrings(), test_qualname(), parametrize, skipif, xfail (+16 more)
+Cohesion: 0.06
+Nodes (24): doc(), Sanitize docstrings and add custom failure explanation, test_docstrings(), test_docs(), test_passthrough_arguments(), parametrize, skipif, xfail (+16 more)
 
-### Community 20 - "unitree_legged_sdk.h"
-Cohesion: 0.12
-Nodes (23): BmsCmd, BmsState, Cartesian, MotorCmd, MotorState, ConstPtr, HighCmd, HighState (+15 more)
+### Community 20 - "convert.h"
+Cohesion: 0.17
+Nodes (17): BmsCmd, BmsState, Cartesian, ConstPtr, HighCmd, HighState, LowCmd, LowState (+9 more)
 
-### Community 21 - "numpy.h"
-Cohesion: 0.05
-Nodes (53): array_info<char[N]>, array_info_scalar, extents, is_array, is_empty, array_info<std::array<char, N>>, byte_offset_unsafe(), check_dimensions_impl() (+45 more)
+### Community 21 - "string"
+Cohesion: 0.08
+Nodes (26): check_dimensions_impl(), field_descriptor, descr, format, name, offset, format_descriptor<char[N]>, format_descriptor<std::array<char, N>> (+18 more)
 
-### Community 22 - "test_constants_and_functions.cpp"
-Cohesion: 0.05
-Nodes (34): constants_and_functions, C, m, string, print_bytes(), return_bytes(), test_function1(), test_function2() (+26 more)
+### Community 22 - "test_tagbased_polymorphic.cpp"
+Cohesion: 0.11
+Nodes (22): Animal, kind, name, name_of_kind, type_of_kind, Cat, Chihuahua, itype (+14 more)
 
 ### Community 23 - "GR00T N1.6 Fine-tuning — Unitree G1 + DEX3 Hand"
 Cohesion: 0.06
@@ -480,12 +494,12 @@ Cohesion: 0.14
 Nodes (9): list, _values, bind_ConstructorStats(), m, PYBIND11_MODULE(), test_initializer::test_initializer(), test_dtype_ctors(), Initializer (+1 more)
 
 ### Community 26 - "msg"
-Cohesion: 0.09
-Nodes (32): msg(), Sanitize messages and add custom failure explanation, test_inheritance(), test_inheritance_init(), test_instance(), test_reentrant_implicit_conversion_failure(), create_and_destroy(), skipif (+24 more)
+Cohesion: 0.07
+Nodes (36): msg(), Sanitize messages and add custom failure explanation, test_inheritance_init(), test_instance(), test_reentrant_implicit_conversion_failure(), Tests nested (e.g. C++ -> Python -> C++) exception handling, test_custom(), test_error_already_set() (+28 more)
 
 ### Community 27 - "test_class.py"
-Cohesion: 0.07
-Nodes (17): xfail, #511: problem with inheritance + overwritten def_static, Ensure the lifetime of temporary objects created for implicit conversions, Tests that class-specific operator new/delete functions are invoked, Expose protected member functions to Python using a helper class, Tests that simple POD classes can be constructed using C++11 brace…, Instances must correctly increase/decrease the reference count of their types…, test_bind_protected_functions() (+9 more)
+Cohesion: 0.06
+Nodes (20): xfail, #511: problem with inheritance + overwritten def_static, Ensure the lifetime of temporary objects created for implicit conversions, Tests that class-specific operator new/delete functions are invoked, Expose protected member functions to Python using a helper class, Tests that simple POD classes can be constructed using C++11 brace…, Instances must correctly increase/decrease the reference count of their types…, Tests that a properly qualified name is set in __qualname__ (even in pre-3.3,… (+12 more)
 
 ### Community 28 - "LiveView"
 Cohesion: 0.12
@@ -493,7 +507,7 @@ Nodes (7): LiveView, Frame-Slot + HTTP-Server. Haelt immer nur das JEWEILS LETZT
 
 ### Community 29 - "UnitreeJointController"
 Cohesion: 0.06
-Nodes (35): Controller<hardware_interface::EffortJointInterface>, ServoCmd, Subscriber, UnitreeJointController, command, controller_state_publisher_, init, isCalf (+27 more)
+Nodes (33): Controller<hardware_interface::EffortJointInterface>, ServoCmd, Subscriber, UnitreeJointController, command, controller_state_publisher_, init, isCalf (+25 more)
 
 ### Community 30 - "T"
 Cohesion: 0.11
@@ -508,7 +522,7 @@ Cohesion: 0.10
 Nodes (12): Imu, MotorState, NodeHandle, string, Subscriber, WrenchStamped, multiThread, footForce_sub (+4 more)
 
 ### Community 33 - "test_eval_setup.py"
-Cohesion: 0.17
+Cohesion: 0.16
 Nodes (15): PathLike, `meta/tasks.jsonl` (LeRobot v2.1) bzw. `meta/tasks.parquet` (v3.0) → {index:…, Liefert (Text, Herkunft). Reihenfolge: explizit > Datensatz > Konstante.…, read_dataset_tasks(), resolve_task_description(), _args(), _dataset(), Namespace (+7 more)
 
 ### Community 34 - "rl_finetune.py"
@@ -523,9 +537,9 @@ Nodes (18): print_copy_created(), print_created(), print_default_created(), prin
 Cohesion: 0.07
 Nodes (23): skipif, Tests the ability to pass bytes to C++ string-accepting functions. Note that…, Tests support for C++17 string_view arguments and return values, Tests unicode conversion and error reporting., Issue #929 - out-of-range integer values shouldn't be accepted, std::pair <-> tuple & std::tuple <-> tuple, Casters produced with PYBIND11_TYPE_CASTER() should convert nullptr to None, None passed as various argument types should defer to other overloads (+15 more)
 
-### Community 37 - "PolicyClient"
-Cohesion: 0.19
-Nodes (6): PolicyClient, ndarray, Wartet auf Server-Bereitschaft. Gibt True zurück wenn ok., Setzt den Server-internen Policy-State zurück (neue Episode)., Sendet eine Observation (im Gr00tSimPolicyWrapper-Format) und empfängt Action-…, Schlanker ZMQ-REQ-Client, der mit dem GR00T-Policy-Server kommuniziert.…
+### Community 37 - "cpp_function"
+Cohesion: 0.06
+Nodes (35): postcall(), precall(), add_class_method(), add_object(), all_type_info_get_cache(), cpp_function, enum_, enum_base (+27 more)
 
 ### Community 38 - "constructor_stats.h"
 Cohesion: 0.15
@@ -539,16 +553,16 @@ Nodes (19): copy_move_policies, CopyOnlyInt, value, m, return_value_policy, empt
 Cohesion: 0.07
 Nodes (27): function_call::function_call(), function_record, args, data, doc, has_args, has_kw_only_args, has_kwargs (+19 more)
 
-### Community 41 - "run_dataset_replay_videos.py"
-Cohesion: 0.08
-Nodes (56): artifact_validation_errors(), _candidate_pick(), infer_expected_first_pick(), _longest_true_run(), manifest_compatibility_errors(), mark_episode_existing(), Any, ndarray (+48 more)
+### Community 41 - "test_replay_grasp_metrics.py"
+Cohesion: 0.13
+Nodes (30): artifact_validation_errors(), _candidate_pick(), infer_expected_first_pick(), _longest_true_run(), manifest_compatibility_errors(), mark_episode_existing(), Any, ndarray (+22 more)
 
 ### Community 42 - "cast.h"
-Cohesion: 0.04
-Nodes (87): all_of, always_construct_holder, value, arg, flag_noconvert, flag_none, arg::operator=(), arg_v (+79 more)
+Cohesion: 0.06
+Nodes (45): all_of, always_construct_holder, value, get_thread_state_unchecked(), false_type, pair, PyThreadState, T2 (+37 more)
 
 ### Community 43 - "detail/common.h"
-Cohesion: 0.05
+Cohesion: 0.06
 Nodes (38): bool_constant, bools, constexpr_first(), constexpr_last(), deferred_type, exactly_one<P, Default>, first(), format_descriptor (+30 more)
 
 ### Community 44 - "OstreamRedirect"
@@ -556,16 +570,16 @@ Cohesion: 0.11
 Nodes (19): add_ostream_redirect(), class_, unique_ptr, OstreamRedirect, do_stderr_, do_stdout_, redirect_stderr, redirect_stdout (+11 more)
 
 ### Community 45 - "dtype"
-Cohesion: 0.12
-Nodes (12): array_descriptor_proxy(), array_info<std::array<T, N>>, extent, extents, is_array, is_empty, dtype, npy_format_descriptor<T, enable_if_t<array_info<T>::is_array>> (+4 more)
+Cohesion: 0.09
+Nodes (18): array_descriptor_proxy(), array_info<std::array<T, N>>, extent, extents, is_array, is_empty, dtype, PyObject (+10 more)
 
 ### Community 46 - "Würfellage aus den Realbildern — Verfahren, Koordinaten, offene Punkte"
 Cohesion: 0.11
 Nodes (18): 1. Wozu die Würfellage überhaupt gebraucht wird, 2.1 Versuch 1: Greifpunkt aus der Fingerkinematik (`scan.json`), 2.2 Versuch 2: Nur bis zum Griff rendern (`--stop-at-grasp`), 2.3 Was beide gemeinsam haben, 2. Die beiden vorherigen Versuche — und woran sie scheiterten, 3. Das aktuelle Verfahren, 4. Der Probelauf und was er ergab, 5. Der Deckflächenschnitt, auf echten Frames vermessen (+10 more)
 
 ### Community 47 - "PyArrayDescr_Proxy"
-Cohesion: 0.05
-Nodes (39): check_(), PyObject, PyObject_HEAD, PyTypeObject, npy_api, PyArray_Type_, PyArrayDescr_Type_, PyVoidArrType_Type_ (+31 more)
+Cohesion: 0.07
+Nodes (27): PyObject_HEAD, PyArray_Proxy, base, data, descr, dimensions, flags, nd (+19 more)
 
 ### Community 48 - "test_methods_and_attributes.py"
 Cohesion: 0.08
@@ -585,31 +599,31 @@ Nodes (19): base(), call_guard, call_guard<T>, call_guard<T, Ts...>, T, is_opera
 
 ### Community 52 - "buffer_info"
 Cohesion: 0.06
-Nodes (33): string, buffer_info, format, itemsize, m_view, ndim, ownview, ptr (+25 more)
+Nodes (34): m, PYBIND11_MODULE(), buffer_info, format, itemsize, m_view, ndim, ownview (+26 more)
 
 ### Community 53 - "test_stl.py"
 Cohesion: 0.08
 Nodes (24): skipif, Properties use the `reference_internal` policy by default. If the underlying…, #171: Can't return reference wrappers (or STL structures containing them), Passing nullptr or None to an STL container pointer is not expected to work, Trying convert `list` to a `std::vector`, or vice versa, without including…, Check if a string is NOT implicitly converted to a list, which was the behavior…, check fix for issue #1561, std::valarray <-> list (+16 more)
 
 ### Community 54 - "run_g1_dex3_sim_eval.py"
-Cohesion: 0.21
-Nodes (13): PolicyClient, build_obs(), Baut das Observation-Dict im Gr00tSimPolicyWrapper flat-key Format auf. Args:…, checkpoint_fingerprint(), load_eval_layout(), main(), ndarray, Speichert eine Liste von RGB-Frames als MP4. (+5 more)
+Cohesion: 0.11
+Nodes (19): PolicyClient, build_obs(), PolicyClient, ndarray, Wartet auf Server-Bereitschaft. Gibt True zurück wenn ok., Setzt den Server-internen Policy-State zurück (neue Episode)., Sendet eine Observation (im Gr00tSimPolicyWrapper-Format) und empfängt Action-…, Baut das Observation-Dict im Gr00tSimPolicyWrapper flat-key Format auf. Args:… (+11 more)
 
 ### Community 55 - "UnitreeDrawForcePlugin"
 Cohesion: 0.09
 Nodes (20): ConnectionPtr, ElementPtr, NodeHandle, string, Subscriber, WrenchStamped, UnitreeDrawForcePlugin, force_sub (+12 more)
 
 ### Community 56 - "TEST_SUBMODULE"
-Cohesion: 0.11
-Nodes (16): exception, m, string, MyException, MyException2, message, MyException3, message (+8 more)
+Cohesion: 0.13
+Nodes (15): m, string, MyException, MyException2, message, MyException3, message, MyException4 (+7 more)
 
 ### Community 57 - "Auswertung — erster vollständiger Trainingsdurchlauf (`g1_dex3_blockstacking_v1`)"
 Cohesion: 0.08
 Nodes (25): 1. Kurzfazit (TL;DR), 2. Lauf-Eckdaten (abgeschlossen), 3. Trainingsdynamik — gesund ✅, 4.1 Closed-Loop-Sim-Eval (Modell steuert die Sim), 4.2 Open-Loop-Dataset-Replay (echte Aktionen, KEIN Modell), 4.3 Open-Loop-Modell-Eval (echte Dataset-Beobachtungen → predicted vs. GT-Actions), 4. Verhaltens-Evaluation — drei Diagnosen, 5. Synthese & Diagnose (+17 more)
 
 ### Community 58 - "UnitreeFootContactPlugin"
-Cohesion: 0.09
-Nodes (20): ContactSensorPtr, ConnectionPtr, ElementPtr, NodeHandle, Publisher, string, WrenchStamped, UnitreeFootContactPlugin (+12 more)
+Cohesion: 0.10
+Nodes (19): ContactSensorPtr, ConnectionPtr, ElementPtr, NodeHandle, Publisher, string, UnitreeFootContactPlugin, contact_namespace (+11 more)
 
 ### Community 59 - "test_custom_type_casters.cpp"
 Cohesion: 0.13
@@ -617,7 +631,7 @@ Nodes (15): custom_type_casters, ArgAlwaysConverts, ArgInspector1, arg, ArgInspe
 
 ### Community 60 - "Custom"
 Cohesion: 0.10
-Nodes (22): LowCmd, LowState, Custom, cmd, dt, Kd, Kp, motiontime (+14 more)
+Nodes (21): LowCmd, LowState, Custom, cmd, dt, Kd, Kp, motiontime (+13 more)
 
 ### Community 61 - "dump_camera_poses.py"
 Cohesion: 0.17
@@ -632,37 +646,37 @@ Cohesion: 0.23
 Nodes (22): convert_data(), convert_dataset(), convert_episodes_metadata(), convert_info(), convert_tasks(), convert_videos(), copy_global_stats(), _extract_video_segment() (+14 more)
 
 ### Community 64 - "Custom"
-Cohesion: 0.14
-Nodes (14): LowCmd, LowState, Custom, cmd, dt, _keyData, motiontime, RobotControl (+6 more)
+Cohesion: 0.13
+Nodes (15): LowCmd, LowState, Custom, cmd, dt, _keyData, motiontime, RobotControl (+7 more)
 
 ### Community 65 - "type_record"
 Cohesion: 0.09
 Nodes (21): PYBIND11_NOINLINE, type_info, process_attribute<const char *>, process_attribute<T, enable_if_t<is_pyobject<T>::value>>, type_record, bases, buffer_protocol, default_holder (+13 more)
 
 ### Community 66 - "type_info"
-Cohesion: 0.06
-Nodes (41): all_type_info_populate(), name, detail::type_info *get_type_info(const std::type_index &tp,
-                                                          bool throw_if_missing = false)(), detail::type_info* get_type_info(PyTypeObject *type)(), get_global_type_info(), get_local_type_info(), get_object_handle(), get_type_handle() (+33 more)
+Cohesion: 0.09
+Nodes (28): all_type_info_populate(), name, detail::type_info *get_type_info(const std::type_index &tp,
+                                                          bool throw_if_missing = false)(), detail::type_info* get_type_info(PyTypeObject *type)(), get_global_type_info(), get_local_type_info(), get_object_handle(), get_type_handle() (+20 more)
 
 ### Community 67 - "conftest.py"
-Cohesion: 0.12
-Nodes (17): gc_collect(), _make_explanation(), pytest_assertrepr_compare(), pytest_configure(), Hook to insert custom failure explanation, Suppress the desired exception, Run the garbage collector twice (needed when running reference counting tests…, For triple-quote strings (+9 more)
+Cohesion: 0.07
+Nodes (24): Capture, gc_collect(), _make_explanation(), Output, fixture, pytest_assertrepr_compare(), pytest_configure(), Extended `capsys` with context manager and custom equality operators (+16 more)
 
 ### Community 68 - "Implementierungsplan — Live-Ansicht der Isaac-Lab-Sim"
 Cohesion: 0.09
 Nodes (23): 0. Was sich seit v1 geändert hat, 1. Zwei Spuren — und welche wofür, 2. Befund am bestehenden Code — 6 konkrete Defekte, 3.1 Funktionsweise, Ports, Clients (Isaac Sim 6.0), 3.2 Netzkonfiguration auf `ikr-ki-server-01`, 3.3 Code-Änderungen, 3.4 vast.ai-Sonderfall, 3. Spur A — WebRTC-Viewport (+15 more)
 
 ### Community 69 - "pybind11_tests.h"
-Cohesion: 0.08
-Nodes (19): async_module, return_value_policy, RValueCaster, test_initializer, type_caster<RValueCaster>, m, TEST_SUBMODULE(), m (+11 more)
+Cohesion: 0.06
+Nodes (23): async_module, return_value_policy, IncType, RValueCaster, test_initializer, type_caster<RValueCaster>, m, TEST_SUBMODULE() (+15 more)
 
 ### Community 70 - "AliasedHasOpNewDelSize"
 Cohesion: 0.12
 Nodes (12): AliasedHasOpNewDelSize, i, HasOpNewDel, i, HasOpNewDelBoth, i, HasOpNewDelSize, i (+4 more)
 
 ### Community 71 - "pybind11_tests"
-Cohesion: 0.09
-Nodes (5): Tests that returning a pointer to a type that gets converted with a custom type…, test_custom_caster_destruction(), test_noconvert_args(), test_pointers(), pybind11_tests
+Cohesion: 0.05
+Nodes (13): Tests that returning a pointer to a type that gets converted with a custom type…, test_custom_caster_destruction(), test_noconvert_args(), Pydoc needs to be able to provide help() for everything inside a pybind11 module, Registering two things with the same name, test_duplicate_registration(), test_pydoc(), test_pointers() (+5 more)
 
 ### Community 72 - "ExampleMandA"
 Cohesion: 0.10
@@ -682,7 +696,7 @@ Nodes (23): 1. Warum, 2. Was dafür gebaut wurde, 3.0 Zuerst die Würfellage aus
 
 ### Community 76 - "Schritt 3 — BC-Erfolgsrate in der Sim (`server_rl_run.sh eval`)"
 Cohesion: 0.04
-Nodes (46): Antwort (runs/20260808/26): der Griff scheitert auch ohne Modell, Der Test ohne Platzierungs-Annahme: `GRASP_MODE=hold`, Der Vergleich mit Lauf 31 (gleiches Zeitfenster, alter Checkpoint), Diagnose-Chronik — Sim- und RL-Läufe 08–53, Die eigentliche Messung (runs/20260808/25) — die Hand ist am Würfel, Die Würfel „springen" im Video — das ist der Test, kein Bug, Ergebnis (`runs/20260808/19`) — der Gap sitzt in der Belichtung, nicht in der Geometrie, Ergebnis (`runs/20260808/21`) — halb gemessen, und die Hälfte war schon gelöst (+38 more)
+Nodes (47): Antwort (runs/20260808/26): der Griff scheitert auch ohne Modell, Der Test ohne Platzierungs-Annahme: `GRASP_MODE=hold`, Der Vergleich mit Lauf 31 (gleiches Zeitfenster, alter Checkpoint), Diagnose-Chronik — Sim- und RL-Läufe 08–53, Die eigentliche Messung (runs/20260808/25) — die Hand ist am Würfel, Die Würfel „springen" im Video — das ist der Test, kein Bug, Ergebnis (`runs/20260808/19`) — der Gap sitzt in der Belichtung, nicht in der Geometrie, Ergebnis (`runs/20260808/21`) — halb gemessen, und die Hälfte war schon gelöst (+39 more)
 
 ### Community 77 - "env.py"
 Cohesion: 0.10
@@ -700,9 +714,9 @@ Nodes (15): BaseClass, BreaksBase, BreaksTramp, DerivedClass1, DerivedClass2, In
 Cohesion: 0.15
 Nodes (13): 1. Ausgangslage (kurz), 2026-06-04 — Sim-Aufbau: Momentaufnahme "Aktueller Stand", 2026-08-13 — KISSKI: TRAIN_TEST_SPLIT/USE_AUGMENTATION wurden nicht durchgereicht, 2026-08-14 → 2026-08-17 — Co-Training-Renderer: Greifpunkt aus der Fingerkinematik als Hauptweg (überholt), 2. Umgesetzte Fixes (Sim-Asset/Env, kein Retraining), 3. Neue Werkzeuge, 4. `BLACK_HANDS`-Mechanik (selbstheilend), 5. Anwenden & verifizieren (Sim-Container, RT-Core-GPU) (+5 more)
 
-### Community 81 - "test_smart_ptr.py"
-Cohesion: 0.07
-Nodes (22): _python_to_cpp_to_python(), _python_to_cpp_to_python_from_threads(), Calls different C++ functions that come back to Python., Calls different C++ functions that come back to Python, from Python threads., # TODO: FIXME, sometimes returns -11 (segfault) instead of 0 on macOS Python 3.9, Makes sure there is no GIL deadlock when running in a thread. It runs in a…, # TODO: FIXME on macOS Python 3.9, Makes sure there is no GIL deadlock when running in a thread multiple times in… (+14 more)
+### Community 81 - "test_gil_scoped.py"
+Cohesion: 0.14
+Nodes (20): _python_to_cpp_to_python(), _python_to_cpp_to_python_from_threads(), Calls different C++ functions that come back to Python., Calls different C++ functions that come back to Python, from Python threads., # TODO: FIXME, sometimes returns -11 (segfault) instead of 0 on macOS Python 3.9, Makes sure there is no GIL deadlock when running in a thread. It runs in a…, # TODO: FIXME on macOS Python 3.9, Makes sure there is no GIL deadlock when running in a thread multiple times in… (+12 more)
 
 ### Community 82 - "Lokomotion des Unitree G1 freischalten — Recherche"
 Cohesion: 0.10
@@ -716,23 +730,21 @@ Nodes (19): build_eval_env(), collect_videos(), do_clean(), do_eval(), do_fix_fl
 Cohesion: 0.10
 Nodes (20): 1. Warum überhaupt RL? — Motivation aus dem ersten Lauf, 2. Zwei grundverschiedene „RL"-Ebenen — nicht verwechseln, 3.1 Ein Environment mit `reset()` / `step()`, 3.2 Eine **Reward-Funktion**, 3.3 Ein RL-Algorithmus, der zur **Flow-Matching-Policy passt**, 3.4 Rollout-Infrastruktur (Policy ↔ Env-Kommunikation), 3.5 Rechenleistung — und ein projektspezifischer GPU-Konflikt ⚠️, 3. Was ist technisch nötig? — Die Bausteine (+12 more)
 
-### Community 85 - "stl_bind.h"
-Cohesion: 0.20
-Nodes (10): false_type, true_type, is_comparable, is_comparable<
-    T, enable_if_t<container_traits<T>::is_element &&
-                   container_traits<T>::is_comparable>>, is_comparable<T, enable_if_t<container_traits<T>::is_pair>>, value, is_comparable<T, enable_if_t<container_traits<T>::is_vector>>, value (+2 more)
+### Community 85 - "handle"
+Cohesion: 0.10
+Nodes (28): load_bytes(), string_caster, UTF_N, ensure(), args_proxy, delattr(), error_already_set(), generic_item (+20 more)
 
 ### Community 86 - "complex.h"
 Cohesion: 0.11
 Nodes (14): builtin_casters, format_descriptor<std::complex<T>, detail::enable_if_t<std::is_floating_point<T>::value>>, c, value, complex, return_value_policy, string, T (+6 more)
 
 ### Community 87 - "Custom"
-Cohesion: 0.15
-Nodes (14): LowCmd, LowState, Custom, cmd, dt, motiontime, RobotControl, safe (+6 more)
+Cohesion: 0.13
+Nodes (15): main(), LowCmd, LowState, Custom, cmd, dt, motiontime, RobotControl (+7 more)
 
 ### Community 88 - "internals"
-Cohesion: 0.11
-Nodes (19): instance, unordered_set, internals, default_metaclass, direct_conversions, inactive_override_cache, instance_base, loader_patient_stack (+11 more)
+Cohesion: 0.09
+Nodes (22): instance, pair, PyObject, unordered_set, internals, default_metaclass, direct_conversions, inactive_override_cache (+14 more)
 
 ### Community 89 - "EigenProps"
 Cohesion: 0.12
@@ -762,9 +774,9 @@ Nodes (8): G1GripperBlockstackEnv, Any, DirectRLEnv, ndarray, Tensor, Closed-Loo
 Cohesion: 0.29
 Nodes (4): _thread, cast(), Func, return_value_policy
 
-### Community 97 - "Loop"
-Cohesion: 0.09
-Nodes (24): Callback, Clock, string, Loop, _bind_cpu_flag, _bindCPU, entryFunc, functionCB (+16 more)
+### Community 97 - "chrono.h"
+Cohesion: 0.19
+Nodes (13): Clock, _period, duration_caster, get_duration(), duration, return_value_policy, type, type_caster<std::chrono::duration<Rep, Period>> (+5 more)
 
 ### Community 98 - "test_stl_binders.cpp"
 Cohesion: 0.13
@@ -775,32 +787,32 @@ Cohesion: 0.18
 Nodes (22): ImageDraw, annotate(), approach_profile(), chain_env_local(), fingertips_env_local(), hand_joint_ranges(), hand_spread_and_center(), main() (+14 more)
 
 ### Community 100 - "UserType"
-Cohesion: 0.12
-Nodes (10): IncType, UserType, i, ConvertibleFromUserType, i, TestPropRVP, sv1, sv2 (+2 more)
+Cohesion: 0.13
+Nodes (9): UserType, i, ConvertibleFromUserType, i, TestPropRVP, sv1, sv2, v1 (+1 more)
 
 ### Community 101 - "test_eigen.cpp"
-Cohesion: 0.13
-Nodes (18): v, adjust_matrix(), M, Ref, CustomOperatorNew, a, b, get_elem() (+10 more)
+Cohesion: 0.14
+Nodes (17): v, adjust_matrix(), M, Ref, CustomOperatorNew, a, b, get_elem() (+9 more)
 
 ### Community 102 - "test_pick_anchored_calibration.py"
-Cohesion: 0.09
-Nodes (50): apply_homography(), build_calibration(), combine_camera_estimates(), coverage_defects(), deterministic_episode_split(), episode_diagnostic_pixels(), _finite_statistic(), fit_homography() (+42 more)
+Cohesion: 0.07
+Nodes (59): apply_homography(), best_top_face_detection(), build_calibration(), combine_camera_estimates(), coverage_defects(), deterministic_episode_split(), episode_diagnostic_pixels(), _finite_statistic() (+51 more)
 
 ### Community 103 - "G1Dex3BlockstackEnvCfg"
-Cohesion: 0.07
-Nodes (27): CameraCfg, G1Dex3CameraCfg, look_at_world_quat(), quat_to_matrix(), Quaternion (w, x, y, z) für eine Kamera in Isaac-Lab-``convention="world"``. In…, (w, x, y, z) → Rotationsmatrix, deren SPALTEN die Kamera-Achsen im Weltframe…, Kamera-Positionen und Intrinsics — möglichst nah an den Trainingsdaten., main() (+19 more)
+Cohesion: 0.10
+Nodes (19): CameraCfg, main(), G1Dex3BlockstackEnvCfg, G1Dex3BlockstackSceneCfg, _make_sim_cfg(), _plain_camera_cfg(), configclass, DirectRLEnvCfg (+11 more)
 
 ### Community 104 - "test_numpy_array.cpp"
-Cohesion: 0.11
-Nodes (29): arr, arr_t, at_t(), auxiliaries(), string, T, T2, data() (+21 more)
+Cohesion: 0.23
+Nodes (16): arr, arr_t, at_t(), auxiliaries(), T, T2, data(), data_t() (+8 more)
 
-### Community 105 - "test_exceptions.py"
-Cohesion: 0.09
-Nodes (11): Tests nested (e.g. C++ -> Python -> C++) exception handling, test_custom(), test_error_already_set(), test_nested_throws(), test_std_exception(), xfail, Issue/PR #1216 - py::args elements get double-inc_ref()ed when combined with…, test_args_refcount() (+3 more)
+### Community 105 - "test_kwargs_and_defaults.py"
+Cohesion: 0.18
+Nodes (6): xfail, Issue/PR #1216 - py::args elements get double-inc_ref()ed when combined with…, test_args_refcount(), test_function_signatures(), test_keyword_only_args(), test_mixed_args_and_kwargs()
 
 ### Community 106 - "test_numpy_dtypes.cpp"
-Cohesion: 0.04
-Nodes (57): ArrayStruct, a, b, c, d, ComplexStruct, cdbl, cflt (+49 more)
+Cohesion: 0.12
+Nodes (16): ComplexStruct, cdbl, cflt, complex, S, create_recarray(), mkarray_via_buffer(), print_recarray() (+8 more)
 
 ### Community 107 - "Domain-Gap-Analyse: Real → Isaac Sim"
 Cohesion: 0.33
@@ -808,19 +820,19 @@ Nodes (6): Domain-Gap-Analyse: Real → Isaac Sim, Ergebnis, Fragestellung, Hand
 
 ### Community 108 - "lib_menu.sh"
 Cohesion: 0.05
-Nodes (26): argpos(), group(), _MENU_A_ORDER, _MENU_ARG_ORDER, MENU_ARGV, _MENU_ARGVAL, _MENU_D_ORDER, MENU_GROUP_ORDER (+18 more)
+Nodes (22): argpos(), group(), _MENU_A_ORDER, _MENU_ARG_ORDER, MENU_ARGV, _MENU_ARGVAL, _MENU_D_ORDER, MENU_GROUP_ORDER (+14 more)
 
 ### Community 109 - "Zwischenstand — erster Trainingsdurchlauf (`g1_dex3_blockstacking_v1`)"
 Cohesion: 0.20
 Nodes (10): 1. Run-Status (Stand 2026-06-03, ~08:39 UTC), 2. Trainingsdynamik — gesund ✅, 3. Over-/Underfitting — derzeit nicht messbar, 4. LR-Schedule — korrekt für 175k Steps ✅, 5.1 ⚠️ Batch-Size erhöht GPU-Auslastung (größter Hebel), 5.2 ⚠️ Eval ist konfiguriert, aber AUS — über ~21 h kein Generalisierungssignal, 5. Handlungsempfehlungen (für den **nächsten** Lauf, nicht den laufenden), 6. Sonstiges (unkritisch) (+2 more)
 
 ### Community 110 - "simulation/README.md"
-Cohesion: 0.18
-Nodes (9): Archiv, Einstieg, GPU-Anforderung (Kurzfassung), Simulation — Closed-Loop-Eval in Isaac Lab, a) Pipeline-Kern, b) Diagnose, c) Einmalige Setup-Tools, d) Tests (+1 more)
+Cohesion: 0.12
+Nodes (15): Archiv, Einstieg, GPU-Anforderung (Kurzfassung), Simulation — Closed-Loop-Eval in Isaac Lab, Kalibrierung: `pick_anchored_homography` v4, Physikbasierte Replay-Videos aus dem Realdatensatz, Replay, Renderer-Gates und Griffmetrik, Schnellstart (+7 more)
 
-### Community 111 - "rgb_to_hsv"
-Cohesion: 0.20
-Nodes (10): otsu_threshold(), Vektorisiert, ohne cv2/matplotlib — H in Grad, S und V in 0…1., Track the largest color blob per frame; this is used only for motion timing.…, Schwelle zwischen zwei Helligkeitsgipfeln, aus den Daten statt aus einer Quote.…, Aus der Farbmaske die helle DECKFLÄCHE herausschneiden. Nötig, weil nur die…, rgb_to_hsv(), top_face_mask(), track_colors() (+2 more)
+### Community 111 - "numpy.h"
+Cohesion: 0.07
+Nodes (29): array_info, array_info<char[N]>, array_info_scalar, extents, is_array, is_empty, array_info<std::array<char, N>>, array_info<T[N]> (+21 more)
 
 ### Community 112 - "Custom"
 Cohesion: 0.12
@@ -831,24 +843,24 @@ Cohesion: 0.12
 Nodes (11): HighCmd, HighState, LowCmd, LowState, Custom, high_cmd, high_state, high_udp (+3 more)
 
 ### Community 114 - "test_cube_yaw.py"
-Cohesion: 0.09
-Nodes (40): accept_yaw(), mean_yaw_deg(), Sagen, WORAN der Gierwinkel scheitert — aus einer fertigen layout.json. Der…, Ist der Gierwinkel dieses Würfels belastbar? Entscheidend ist, dass **beide…, Mittelwert von Winkeln mod 90° — über die 4-fache Phase, sonst mittelt 1° und…, Abstand zweier Gierwinkel mod 90°, in [0, 45]., run_report(), yaw_delta_deg() (+32 more)
+Cohesion: 0.07
+Nodes (48): accept_yaw(), mean_yaw_deg(), otsu_threshold(), Sagen, WORAN der Gierwinkel scheitert — aus einer fertigen layout.json. Der…, Schwelle zwischen zwei Helligkeitsgipfeln, aus den Daten statt aus einer Quote.…, Ist der Gierwinkel dieses Würfels belastbar? Entscheidend ist, dass **beide…, Mittelwert von Winkeln mod 90° — über die 4-fache Phase, sonst mittelt 1° und…, Abstand zweier Gierwinkel mod 90°, in [0, 45]. (+40 more)
 
 ### Community 115 - "stl"
 Cohesion: 0.11
 Nodes (15): buffers, m, TEST_SUBMODULE(), m, TEST_SUBMODULE(), m, TEST_SUBMODULE(), m (+7 more)
 
-### Community 116 - "handle"
-Cohesion: 0.04
-Nodes (95): PyObject, object_api<Derived>::call(), object_api<Derived>::operator()(), array_t(), ensure(), accessor, add(), append() (+87 more)
+### Community 116 - "pytypes.h"
+Cohesion: 0.06
+Nodes (48): add(), append(), arg, arg_v, arrow_proxy, value, as_unsigned(), bytes (+40 more)
 
 ### Community 117 - "iterator"
-Cohesion: 0.13
-Nodes (16): Type, iterator_state, end, first_or_done, it, make_iterator(), make_key_iterator(), generic_iterator (+8 more)
+Cohesion: 0.20
+Nodes (12): Type, iterator_state, end, first_or_done, it, make_iterator(), make_key_iterator(), iterator (+4 more)
 
 ### Community 118 - "extract_block_layout.py"
-Cohesion: 0.11
-Nodes (43): PinholeCamera, Projektion und Rückprojektion für eine der weltfesten Kameras. Bildachsen in…, Eine der weltfesten Kameras aus der Konfiguration bauen. Nur die drei…, color_mask(), _draw_line(), draw_markers(), draw_yaw_square(), _extent_across() (+35 more)
+Cohesion: 0.09
+Nodes (49): PinholeCamera, Projektion und Rückprojektion für eine der weltfesten Kameras. Bildachsen in…, Eine der weltfesten Kameras aus der Konfiguration bauen. Nur die drei…, color_mask(), _draw_line(), draw_markers(), draw_yaw_square(), _extent_across() (+41 more)
 
 ### Community 119 - "Implementierungsplan — geführte CLI-Menüs für Training und Simulation"
 Cohesion: 0.20
@@ -882,9 +894,9 @@ Nodes (14): Drei Live-Wege — welcher wofür, Env-Var-Referenz, Falls der Viewp
 Cohesion: 0.22
 Nodes (10): _action_spec(), _assemble_phys_action(), _build_action_mask(), _flat_to_nested(), Flaches Sim-Obs-Format -> verschachteltes Format der inneren Gr00tPolicy. GR00T…, (modality_keys, action_horizon, action_dim) des Embodiments. Einzige…, Baut action_mask fuer eine gesampelte Aktion — Semantik wie im Prozessor. Der…, Sampelt eine Aktion; gibt (normalisiert, fpo_inputs, action_mask, physisch)… (+2 more)
 
-### Community 127 - "Capture"
-Cohesion: 0.13
-Nodes (7): Capture, Output, fixture, Extended `capsys` with context manager and custom equality operators, Basic output post-processing and comparison, Custom comparison for output without strict line ordering, Unordered
+### Community 127 - "unpacking_collector"
+Cohesion: 0.12
+Nodes (15): collect_arguments(), policy, string, Tuple, make_tuple(), process(), simple_collector, m_args (+7 more)
 
 ### Community 128 - "different_resolutions"
 Cohesion: 0.14
@@ -895,16 +907,16 @@ Cohesion: 0.12
 Nodes (15): Architecture, Build the image, Code style, Env-var configuration, graphify, Guided menus — `./run.sh` is the one entry point, Important: scripts are COPIED into the image, no host-side data persistence, Interactive shell (entrypoint bypassed when a command is passed) (+7 more)
 
 ### Community 130 - "multi_array_iterator"
-Cohesion: 0.19
-Nodes (10): common_iter, container_type, common_iterator, m_strides, p_ptr, multi_array_iterator, m_common_iterator, m_index (+2 more)
+Cohesion: 0.14
+Nodes (13): common_iter, container_type, common_iterator, m_strides, p_ptr, size, index_at(), itemsize() (+5 more)
 
 ### Community 131 - "function_call"
 Cohesion: 0.10
-Nodes (20): postcall(), precall(), argument_loader, arg_names, argcasters, args_kwargs_are_last, args_pos, has_args (+12 more)
+Nodes (17): argument_loader, arg_names, argcasters, args_kwargs_are_last, args_pos, has_args, has_kwargs, kwargs_pos (+9 more)
 
-### Community 132 - "top_face_blob"
-Cohesion: 0.29
-Nodes (9): action_sha256(), best_top_face_detection(), Select the largest, least occluded top-face detection in early frames., Return a stable hash of the unchanged float32 action tensor., Return the bright upper cube face, falling back to the full color blob. WARNUNG…, top_face_blob(), test_action_hash_detects_any_value_change(), test_best_top_face_detection_uses_largest_stable_candidate() (+1 more)
+### Community 132 - "run_dataset_replay_videos.py"
+Cohesion: 0.17
+Nodes (28): action_sha256(), Return a stable hash of the unchanged float32 action tensor., append_observation(), configure_geometry(), dataset_paths(), episode_path(), finalize_dataset(), frame_from_obs() (+20 more)
 
 ### Community 133 - "setup.py"
 Cohesion: 0.33
@@ -927,16 +939,16 @@ Cohesion: 0.20
 Nodes (8): redirect_stderr(), redirect_stdout(), test_err(), test_multi_captured(), test_not_captured(), test_redirect(), test_redirect_both(), test_redirect_err()
 
 ### Community 138 - "test_sequences_and_iterators.cpp"
-Cohesion: 0.21
-Nodes (11): m, pair, T, NonZeroIterator, ptr_, NonZeroSentinel, operator==(), test_random_access_iterator() (+3 more)
+Cohesion: 0.19
+Nodes (12): A, m, pair, T, NonZeroIterator, ptr_, NonZeroSentinel, operator==() (+4 more)
 
 ### Community 139 - "test_sequences_and_iterators.py"
 Cohesion: 0.16
 Nodes (10): allclose(), isclose(), #2076: Exception raised by len(arg) should be propagated, #181: iterator passthrough did not compile, #388: Can't make iterators via make_iterator() with different r/v policies, Like math.isclose() from Python 3.5, test_iterator_passthrough(), test_iterator_rvp() (+2 more)
 
-### Community 140 - "container_traits"
-Cohesion: 0.40
-Nodes (5): container_traits, is_comparable, is_element, is_pair, is_vector
+### Community 140 - "T"
+Cohesion: 0.14
+Nodes (23): arg::operator=(), arg_v, descr, value, call(), call_impl(), cast_op(), cast_ref() (+15 more)
 
 ### Community 141 - "Alloc"
 Cohesion: 0.19
@@ -963,12 +975,12 @@ Cohesion: 0.13
 Nodes (12): NodeHandle, UnitreeJointController::effortLimits(), UnitreeJointController::init(), UnitreeJointController::positionLimits(), UnitreeJointController::setCommandCB(), UnitreeJointController::setTorqueCB(), UnitreeJointController::starting(), UnitreeJointController::velocityLimits() (+4 more)
 
 ### Community 147 - "Custom"
-Cohesion: 0.11
-Nodes (18): main(), main(), main(), LowCmd, LowState, Custom, cmd, dt (+10 more)
+Cohesion: 0.16
+Nodes (13): LowCmd, LowState, Custom, cmd, dt, motiontime, RobotControl, safe (+5 more)
 
 ### Community 148 - "reconstruct_cube_poses.py"
-Cohesion: 0.21
-Nodes (26): ArgumentParser, add_selection_args(), camera_from_record(), camera_record(), data_path(), format_dataset_path(), load_video_frames(), main() (+18 more)
+Cohesion: 0.20
+Nodes (25): ArgumentParser, add_selection_args(), camera_from_record(), camera_record(), data_path(), format_dataset_path(), load_video_frames(), main() (+17 more)
 
 ### Community 149 - "TEST_SUBMODULE"
 Cohesion: 0.14
@@ -979,8 +991,8 @@ Cohesion: 0.14
 Nodes (11): skipif, #389: rvp::move should fall-through to copy on non-movable objects, Cast some values in C++ via custom type casters and count the number of…, Call some functions that load arguments via custom type casters and count the…, Tests move/copy loads of std::optional arguments, An object with a private `operator new` cannot be returned by value, test_move_and_copy_casts(), test_move_and_copy_load_optional() (+3 more)
 
 ### Community 152 - "_menu_out"
-Cohesion: 0.21
-Nodes (21): _menu_action_explain(), menu_ask(), _menu_ask_argpos(), _menu_ask_one(), _menu_collect_argv(), _menu_confirm_loop(), _menu_domain_explain(), _menu_eof_abort() (+13 more)
+Cohesion: 0.17
+Nodes (24): _menu_action_explain(), menu_ask(), _menu_ask_argpos(), _menu_ask_one(), _menu_collect_argv(), _menu_cond_ok(), _menu_confirm_loop(), _menu_domain_explain() (+16 more)
 
 ### Community 153 - "Development of pybind11"
 Cohesion: 0.15
@@ -1047,12 +1059,12 @@ Cohesion: 0.39
 Nodes (5): err(), log(), preset(), kisski_chain.sh script, warn()
 
 ### Community 169 - "instance"
-Cohesion: 0.14
-Nodes (13): PyObject_HEAD, instance, allocate_layout, deallocate_layout, get_value_and_holder, has_patients, owned, simple_holder_constructed (+5 more)
+Cohesion: 0.11
+Nodes (17): error_scope, trace, type, value, PyObject, instance, allocate_layout, deallocate_layout (+9 more)
 
 ### Community 170 - "collect_replay_anchors.py"
-Cohesion: 0.20
-Nodes (20): evaluate_hand(), hand_measurement(), load_episode(), load_frames(), main(), pick_anchor(), ndarray, Path (+12 more)
+Cohesion: 0.21
+Nodes (19): evaluate_hand(), hand_measurement(), load_episode(), load_frames(), main(), pick_anchor(), ndarray, Path (+11 more)
 
 ### Community 171 - "test_buffers.py"
 Cohesion: 0.17
@@ -1131,7 +1143,7 @@ Cohesion: 0.50
 Nodes (4): m, my_func(), TEST_SUBMODULE(), numpy_vectorize
 
 ### Community 190 - "GR00T N1.6 — Unitree G1 + DEX3 Dexterous Hand"
-Cohesion: 0.20
+Cohesion: 0.18
 Nodes (10): 1. Download a dataset, 2-camera datasets (use `modality_2cam.json`), 2. Fine-tune (4-camera example), 3. Run inference server, 4-camera datasets (use `modality_4cam.json`), Available Datasets, Design decisions, DEX3 Hand — Joint Layout (+2 more)
 
 ### Community 191 - "Würfellage-Rekonstruktion — Bewertung der Implementierung"
@@ -1150,13 +1162,13 @@ Nodes (9): Build, Configuration, Dependencies, Environment, Introduction, Notice
 Cohesion: 0.40
 Nodes (5): Episode-Length-Diskrepanz (behoben), Joint Sign-Flip — Convention-Leak-Risiko, Konkrete technische Bugs, Success-Kriterium möglicherweise unerreichbar, WANDB_MODE=offline als Default
 
-### Community 195 - "test_operator_overloading.py"
-Cohesion: 0.29
-Nodes (4): #393: need to return NotSupported to ensure correct arithmetic operator behavior, #328: first member in a class can't be used in operators, test_nested(), test_operators_notimplemented()
+### Community 195 - "type_caster_generic"
+Cohesion: 0.12
+Nodes (12): caster_t, load(), try_implicit_casts(), type_caster_generic, cpptype, type_caster_generic, typeinfo, value (+4 more)
 
-### Community 196 - "error_scope"
-Cohesion: 0.33
-Nodes (5): error_scope, trace, type, value, PyObject
+### Community 196 - "Loop"
+Cohesion: 0.12
+Nodes (15): Callback, main(), main(), string, Loop, _bind_cpu_flag, _bindCPU, entryFunc (+7 more)
 
 ### Community 197 - "RoboCasa GR-1 Referenz-Eval — Bedienung"
 Cohesion: 0.13
@@ -1167,16 +1179,16 @@ Cohesion: 0.50
 Nodes (4): 2026-08-07 — vast.ai-Anleitung: WebRTC-Browser-Client (Port 8211) entfallen, Allgemeiner Kontext (vor der Kürzung, jetzt in live-ansicht.md abgedeckt), Die lange Veraltet-Warnbox (vor der Kürzung), „Verbinden"-Abschnitt mit Browser-Client-Rest (vor der Kürzung)
 
 ### Community 199 - "setup_and_train_container_build.sh"
-Cohesion: 0.23
-Nodes (11): env_local_load(), lib_env_local.sh script, check_cmd(), COMPOSE_FILE, die(), err(), log(), ok() (+3 more)
+Cohesion: 0.70
+Nodes (4): err(), log(), setup_and_train_container_build.sh script, warn()
 
 ### Community 200 - "internals.h"
-Cohesion: 0.28
-Nodes (6): type_index, translate_exception(), translate_local_exception(), type_equal_to, type_hash, exception_ptr
+Cohesion: 0.21
+Nodes (10): get_shared_data(), PYBIND11_NOINLINE, string, type_index, set_shared_data(), translate_exception(), translate_local_exception(), type_equal_to (+2 more)
 
-### Community 201 - "load_yaw_to_quat"
-Cohesion: 0.50
-Nodes (4): load_yaw_to_quat(), ``render_cotrain_dataset`` importiert Isaac beim Laden — also nur die Funktion…, Der Rückfall muss exakt das alte Verhalten sein, nicht beinahe., test_zero_yaw_is_the_identity_quaternion()
+### Community 201 - "test_constants_and_functions.cpp"
+Cohesion: 0.16
+Nodes (11): constants_and_functions, m, string, print_bytes(), return_bytes(), test_function1(), test_function2(), test_function3() (+3 more)
 
 ### Community 202 - "Portabilität — das Repo auf einem fremden Rechner betreiben"
 Cohesion: 0.12
@@ -1187,8 +1199,8 @@ Cohesion: 0.25
 Nodes (7): callbacks, UnregisteredType, m, TEST_SUBMODULE(), m, TEST_SUBMODULE(), pytypes
 
 ### Community 204 - "return_value_policy"
-Cohesion: 0.04
-Nodes (42): caster_t, cast(), cast_impl(), copyable_holder_caster, holder, Constructor, holder_type, itype (+34 more)
+Cohesion: 0.08
+Nodes (21): cast(), cast_impl(), copyable_holder_caster, holder, holder_type, return_value_policy, shared_ptr, type (+13 more)
 
 ### Community 205 - "2026-06-04 — Domain-Gap-Erstmessung (überholt durch Neumessung 2026-08-08)"
 Cohesion: 0.14
@@ -1197,6 +1209,10 @@ Nodes (14): 2026-06-04 — Domain-Gap-Erstmessung (überholt durch Neumessung 20
 ### Community 206 - "PYBIND11_OVERRIDE_PURE"
 Cohesion: 0.19
 Nodes (7): gil_acquire(), PyModuleDef, PYBIND11_OVERRIDE_PURE(), VirtClass, pure_virtual_func, Movable, TEST_SUBMODULE
+
+### Community 208 - "type_caster_base"
+Cohesion: 0.21
+Nodes (7): Constructor, itype, polymorphic_type_hook, polymorphic_type_hook_base, polymorphic_type_hook_base<itype, detail::enable_if_t<std::is_polymorphic<itype>::value>>, type_caster_base, name
 
 ### Community 209 - "v3.8.6"
 Cohesion: 0.22
@@ -1226,10 +1242,6 @@ Nodes (19): header_mismatch(), Was an einer vorhandenen layout.json nicht zum la
 Cohesion: 0.32
 Nodes (5): string, PyWidget, Widget, message, the_answer
 
-### Community 216 - "test_modules.py"
-Cohesion: 0.25
-Nodes (4): Pydoc needs to be able to provide help() for everything inside a pybind11 module, Registering two things with the same name, test_duplicate_registration(), test_pydoc()
-
 ### Community 217 - "type_caster<std::unordered_map<Key, Value, Hash, Equal, Alloc>>"
 Cohesion: 0.15
 Nodes (16): Compare, map, set, unordered_map, unordered_set, Value, map_caster, set_caster (+8 more)
@@ -1250,9 +1262,9 @@ Nodes (15): PyTypeObject, type_info, cpptype, default_holder, direct_conversions
 Cohesion: 0.25
 Nodes (8): Checkpoint-Auswahl nach dem Lauf ([`checkpoint_sweep.py`](../../Training/scripts/checkpoint_sweep.py)), Co-Training: gerenderten Datensatz dazumischen (`USE_COTRAIN=1`), Konfiguration über Env-Vars, Live-Ansicht des Laufs (nur im Sim-Image, opt-in), LIVE-Variante: Isaac-Sim-Viewport statt Videos (nur im Sim-Image, opt-in), Namespace des Laufs — ⚠️ der Fork setzt ungefragt fort, Optionale Trainings-Features (getrennt schaltbar), RL-Env-Vars (nur im Sim-Image, `entrypoint_rl.sh`)
 
-### Community 223 - "ndarray"
-Cohesion: 0.18
-Nodes (7): ndarray, Weltpunkte (…,3) → Pixel (…,2) als (u, v). Punkte hinter der Kamera: NaN., Blickstrahl (Einheitsvektor im Weltframe) durch die Mitte von Pixel (u, v)., Wie ``ray``, aber für viele Pixel auf einmal: (…, 2) → (…, 3), nicht normiert.…, Viele Pixel (…, 2) auf die Ebene z = ``z_plane`` schneiden → (…, 3). Strahlen,…, Pixel (u, v) auf die waagerechte Ebene z = ``z_plane`` schneiden → (x, y, z)., Wie viele cm auf der Ebene ein Pixel an dieser Stelle abdeckt. Damit werden…
+### Community 223 - "camera_geometry.py"
+Cohesion: 0.10
+Nodes (15): G1Dex3CameraCfg, look_at_world_quat(), ndarray, quat_to_matrix(), Weltpunkte (…,3) → Pixel (…,2) als (u, v). Punkte hinter der Kamera: NaN., Blickstrahl (Einheitsvektor im Weltframe) durch die Mitte von Pixel (u, v)., Wie ``ray``, aber für viele Pixel auf einmal: (…, 2) → (…, 3), nicht normiert.…, Viele Pixel (…, 2) auf die Ebene z = ``z_plane`` schneiden → (…, 3). Strahlen,… (+7 more)
 
 ### Community 224 - "Custom"
 Cohesion: 0.16
@@ -1315,8 +1327,8 @@ Cohesion: 0.25
 Nodes (7): Build, Test, and Development Commands, Coding Style & Naming Conventions, Commit & Pull Request Guidelines, Project Structure & Module Organization, Repository Guidelines, Security & Configuration, Testing Guidelines
 
 ### Community 239 - "gen_docs.sh"
-Cohesion: 0.32
-Nodes (4): check_prefix(), NOTES, same_number(), gen_docs.sh script
+Cohesion: 0.20
+Nodes (8): check_prefix(), NOTES, same_number(), gen_docs.sh script, _menu_load_action(), menu_render_docs(), _menu_reset(), menu_spec_defaults()
 
 ### Community 240 - "W&B Offline-Sync auf KISSKI"
 Cohesion: 0.29
@@ -1330,6 +1342,14 @@ Nodes (6): err(), log(), ok(), entrypoint_rl.sh script, trap_err(), warn()
 Cohesion: 0.25
 Nodes (8): 1. Das Problem: Isaac Sim braucht RT-Cores, 2. GPU-Landschaft auf GWDG, 3. Die Lösung: `jupyter.hpc.gwdg.de` (RTX 5000), 4. Konsequenz für die Zwei-Container-Architektur, 5. Empfohlenes Vorgehen, Caveats, GPU-Eignung für die Isaac-Sim-Closed-Loop-Sim auf GWDG, Quellen
 
+### Community 243 - "str"
+Cohesion: 0.19
+Nodes (10): eval(), eval_file(), exec(), format(), object_api<D>::str(), str, m, TEST_SUBMODULE() (+2 more)
+
+### Community 244 - "state_sub.cpp"
+Cohesion: 0.21
+Nodes (8): MotorCmd, MotorState, IMU, ConstPtr, highStateCallback(), lowStateCallback(), Pid, scoped_ptr
+
 ### Community 245 - "typeid.h"
 Cohesion: 0.60
 Nodes (5): clean_type_id(), erase_all(), PYBIND11_NOINLINE, string, type_id()
@@ -1342,9 +1362,9 @@ Nodes (4): format_descriptor<T, detail::enable_if_t<std::is_arithmetic<T>::value
 Cohesion: 0.47
 Nodes (5): event_loop(), get_await_result(), fixture, test_await(), test_await_missing()
 
-### Community 248 - "get_shared_data"
-Cohesion: 0.67
-Nodes (4): get_shared_data(), PYBIND11_NOINLINE, string, set_shared_data()
+### Community 249 - "._force_camera_prim_orientations"
+Cohesion: 0.18
+Nodes (9): _matrix_to_quat(), _parse_rgb(), ndarray, _quat_to_matrix(), Gibt das Observation-Dict im GR00T-Eingabeformat zurück (numpy, CPU). Wird…, 0.75,0.73,0.70" -> (0.75, 0.73, 0.70). Leer/unparsbar -> None (Default…, (w, x, y, z) -> 3x3-Rotationsmatrix in Spaltenvektor-Konvention (v_welt = R @…, 3x3-Rotationsmatrix (Spaltenvektor-Konvention) -> (w, x, y, z). Shepperd-… (+1 more)
 
 ### Community 251 - "menu_select"
 Cohesion: 0.27
@@ -1406,9 +1426,13 @@ Nodes (3): process_attribute<sibling>, sibling, value
 Cohesion: 0.24
 Nodes (14): episode_motion_onsets(), find_motion_onset(), Return the first run that stays displaced from the first ten valid samples., Ab welchem Frame sich jeder Würfel im Realvideo bewegt. Das ist die Grenze, bis…, _prepare(), Ein Farbverlauf, der genau ab ``onset`` um mehr als die Schwelle abweicht., Leere Videodateien anlegen und ``track_colors`` durch feste Spuren ersetzen., test_first_onset_is_the_earliest_reliable_cube() (+6 more)
 
-### Community 267 - "pair"
-Cohesion: 0.50
-Nodes (3): pair, PyObject, override_hash
+### Community 267 - "value_and_holder"
+Cohesion: 0.20
+Nodes (5): value_and_holder, index, inst, type, vh
+
+### Community 269 - "dict"
+Cohesion: 0.22
+Nodes (4): dict, PythonCallInDestructor, d, dict_iterator
 
 ### Community 270 - "PYBIND11_EMBEDDED_MODULE"
 Cohesion: 0.40
@@ -1422,13 +1446,17 @@ Nodes (5): conditional_t, select_indices_impl, select_indices_impl<index_sequenc
 Cohesion: 0.40
 Nodes (5): Return, true_type, is_input_iterator<T, void_t<decltype(*std::declval<T &>()), decltype(++std::declval<T &>())>>, is_instantiation<Class, Class<Us...>>, operator()()
 
-### Community 275 - "TEST_SUBMODULE"
-Cohesion: 0.50
-Nodes (3): m, TEST_SUBMODULE(), enums
+### Community 274 - "npy_api"
+Cohesion: 0.22
+Nodes (6): check_(), PyTypeObject, npy_api, PyArray_Type_, PyArrayDescr_Type_, PyVoidArrType_Type_
 
 ### Community 276 - "stl.h"
 Cohesion: 0.19
 Nodes (17): call(), cast(), return_value_policy, T, Variant, operator()(), optional_caster, type_caster<std::experimental::optional<T>> (+9 more)
+
+### Community 277 - "SimpleStruct"
+Cohesion: 0.22
+Nodes (9): m, bool_, SimpleStruct, bool_, float_, ldbl_, uint_, TEST_SUBMODULE() (+1 more)
 
 ### Community 278 - "Unitree G1 Description (URDF & MJCF)"
 Cohesion: 0.50
@@ -1438,9 +1466,25 @@ Nodes (3): Overview, Unitree G1 Description (URDF & MJCF), Visulization with [Mu
 Cohesion: 0.50
 Nodes (3): Overview, Unitree H1_2 Description (URDF & MJCF), Visulization with [MuJoCo](https://github.com/google-deepmind/mujoco)
 
+### Community 280 - "PartialStruct"
+Cohesion: 0.22
+Nodes (9): PartialNestedStruct, a, dummy1, dummy2, PartialStruct, dummy2, float_, ldbl_ (+1 more)
+
 ### Community 281 - "setup"
 Cohesion: 0.67
 Nodes (3): generate_doxygen_xml(), Add hook for building doxygen xml when needed, setup()
+
+### Community 282 - "type_caster<void>"
+Cohesion: 0.25
+Nodes (8): type_caster, type_caster<void>, name, type_caster<void_type>, value, void_type, type_caster<unchecked_mutable_reference<T, Dim>>, Dim
+
+### Community 283 - "PackedStruct"
+Cohesion: 0.25
+Nodes (8): NestedStruct, a, b, PackedStruct, bool_, float_, ldbl_, uint_
+
+### Community 284 - "DtypeSizeCheck"
+Cohesion: 0.29
+Nodes (7): string, DtypeSizeCheck, name, size_cpp, size_numpy, get_dtype_size_check(), get_platform_dtype_size_checks()
 
 ### Community 285 - "builtin_exception"
 Cohesion: 0.67
@@ -1450,9 +1494,9 @@ Nodes (3): builtin_exception, set_error, runtime_error
 Cohesion: 0.67
 Nodes (3): Ergebnisse & Evaluation, Verwandte Dokumentation, Zeitleiste
 
-### Community 287 - "_menu_cond_ok"
-Cohesion: 0.67
-Nodes (3): _menu_cond_ok(), menu_replay_line(), menu_summary_for_log()
+### Community 287 - "DtypeCheck"
+Cohesion: 0.33
+Nodes (6): DtypeCheck, numpy, pybind11, get_concrete_dtype_checks(), get_dtype_check(), dtype
 
 ### Community 288 - "Training — Fine-tuning von GR00T N1.6"
 Cohesion: 0.50
@@ -1490,21 +1534,37 @@ Nodes (3): HF_TOKEN, HUGGING_FACE_HUB_TOKEN, download_data.sh script
 Cohesion: 0.67
 Nodes (3): is_fmt_numeric<T, enable_if_t<std::is_arithmetic<T>::value>>, index, value
 
+### Community 300 - "arg"
+Cohesion: 0.50
+Nodes (4): arg, flag_noconvert, flag_none, operator"" _a()
+
+### Community 302 - "size_in_ptrs"
+Cohesion: 0.40
+Nodes (4): PyObject_HEAD, instance_simple_holder_in_ptrs(), log2(), size_in_ptrs()
+
+### Community 303 - "ArrayStruct"
+Cohesion: 0.40
+Nodes (5): ArrayStruct, a, b, c, d
+
 ### Community 304 - "summarize_run"
 Cohesion: 0.70
 Nodes (4): main(), mean(), Path, summarize_run()
 
+### Community 305 - "EnumStruct"
+Cohesion: 0.40
+Nodes (5): EnumStruct, e1, e2, E1, E2
+
+### Community 306 - "SimpleStructReordered"
+Cohesion: 0.40
+Nodes (5): SimpleStructReordered, bool_, float_, ldbl_, uint_
+
 ### Community 307 - "eigen.h"
-Cohesion: 0.18
-Nodes (8): eigen_encapsulate(), eigen_extract_stride, eigen_extract_stride<Eigen::Map<PlainObjectType, MapOptions, StrideType>>, eigen_extract_stride<Eigen::Ref<PlainObjectType, Options, StrideType>>, eigen_ref_array(), load(), type_caster<Type, enable_if_t<is_eigen_other<Type>::value>>, name
+Cohesion: 0.22
+Nodes (7): eigen_extract_stride, eigen_extract_stride<Eigen::Map<PlainObjectType, MapOptions, StrideType>>, eigen_extract_stride<Eigen::Ref<PlainObjectType, Options, StrideType>>, eigen_map_caster, name, load(), type_caster<Type, enable_if_t<is_eigen_dense_map<Type>::value>>
 
 ### Community 310 - "split_own_args"
 Cohesion: 0.40
 Nodes (3): Namespace, Die beiden eigenen Flags vor tyro abfangen. tyro baut sein CLI aus den Feldern…, split_own_args()
-
-### Community 315 - "false_type"
-Cohesion: 0.67
-Nodes (3): false_type, is_input_iterator, is_instantiation
 
 ### Community 328 - "run_trajectory"
 Cohesion: 0.38
@@ -1515,24 +1575,24 @@ Cohesion: 0.18
 Nodes (10): conditional_t, enable_if_t, size(), unchecked_reference, data_, dims_, Dynamic, shape_ (+2 more)
 
 ### Community 343 - "type_caster<CharT, enable_if_t<is_std_char_type<CharT>::value>>"
-Cohesion: 0.13
-Nodes (16): Allocator, basic_string, basic_string_view, CharT, load_bytes(), string_caster, UTF_N, type_caster<CharT, enable_if_t<is_std_char_type<CharT>::value>> (+8 more)
+Cohesion: 0.09
+Nodes (20): Allocator, basic_string, basic_string_view, CharT, type_caster<CharT, enable_if_t<is_std_char_type<CharT>::value>>, name, none, one_char (+12 more)
 
 ### Community 348 - "GitHub-Wiki-Migration (Plan)"
-Cohesion: 0.20
+Cohesion: 0.18
 Nodes (10): Alternative: GitHub Pages (z. B. MkDocs), Ausgangsfrage, Automatische Synchronisierung (docs/ → Wiki), Blocker / worauf achten, GitHub-Wiki-Migration (Plan), Kurzantwort, Offen, Verwandte Dokumentation (+2 more)
 
 ### Community 360 - "Time"
-Cohesion: 0.16
-Nodes (7): m, PYBIND11_MODULE(), robot_interface, build_synthetic_obs(), main(), Observation im flat-key Format des Gr00tSimPolicyWrapper (wie…, Time
+Cohesion: 0.19
+Nodes (5): robot_interface, build_synthetic_obs(), main(), Observation im flat-key Format des Gr00tSimPolicyWrapper (wie…, Time
 
 ### Community 362 - "main"
 Cohesion: 0.31
 Nodes (10): find_checkpoints(), main(), parse_args(), Namespace, Path, Alle checkpoint-<step>-Verzeichnisse unterhalb von run_dir, nach Step sortiert.…, Positionen IM SPLIT — nicht zu verwechseln mit absoluten Episoden-Indizes., split.json, das run_finetuning*.sh beim Aktivieren des Splits ablegt. (+2 more)
 
 ### Community 390 - "Type"
-Cohesion: 0.33
-Nodes (8): CType, cast(), cast_impl(), return_value_policy, Type, type_caster<Type, enable_if_t<is_eigen_dense_plain<Type>::value>>, name, value
+Cohesion: 0.36
+Nodes (7): CType, cast(), cast_impl(), eigen_encapsulate(), eigen_ref_array(), return_value_policy, Type
 
 ### Community 396 - "test_menu.sh"
 Cohesion: 0.39
@@ -1558,11 +1618,11 @@ Nodes (8): EigenConformable, cols, conformable, negativestrides, rows, stride, E
     Eigen::Ref<PlainObjectType, 0, StrideType>,
     enable_if_t<is_eigen_dense_map<Eigen::Ref<PlainObjectType, 0, StrideType>>::value>
 >"
-Cohesion: 0.15
-Nodes (12): eigen_map_caster, name, Ref, unique_ptr, type_caster<
+Cohesion: 0.22
+Nodes (9): Ref, unique_ptr, type_caster<
     Eigen::Ref<PlainObjectType, 0, StrideType>,
     enable_if_t<is_eigen_dense_map<Eigen::Ref<PlainObjectType, 0, StrideType>>::value>
->, copy_or_ref, need_writeable, ref (+4 more)
+>, copy_or_ref, need_writeable, ref, MapType, PlainObjectType (+1 more)
 
 ### Community 421 - ".load"
 Cohesion: 0.36
@@ -1572,13 +1632,9 @@ Nodes (6): type_list, forward_like(), U, load_alternative(), variant_caster<V<Ts
 Cohesion: 0.28
 Nodes (8): execute(), execute_cast(), Class, op_, op_impl, __self(), self_t, undefined_t
 
-### Community 472 - "Physikbasierte Replay-Videos aus dem Realdatensatz"
-Cohesion: 0.33
-Nodes (6): Kalibrierung: `pick_anchored_homography` v4, Physikbasierte Replay-Videos aus dem Realdatensatz, Replay, Renderer-Gates und Griffmetrik, Schnellstart, Variablen, Zielposen: `cube_poses.json` v4
-
 ### Community 477 - "run.sh script"
-Cohesion: 0.33
-Nodes (10): err(), log(), run.sh script, show_context(), start_domain(), usage(), warn(), menu_domain_known() (+2 more)
+Cohesion: 0.20
+Nodes (12): err(), log(), run.sh script, show_context(), start_domain(), usage(), warn(), env_local_load() (+4 more)
 
 ### Community 479 - "kisski_menu.sh"
 Cohesion: 0.70
@@ -1592,9 +1648,9 @@ Nodes (9): Backend auswählen, Einmaliges Setup auf dem IKR-Server, Engine bauen
 Cohesion: 0.42
 Nodes (4): get_cmake_dir(), get_include(), main(), print_includes()
 
-### Community 487 - ".load"
-Cohesion: 0.25
-Nodes (5): data(), row_major, S, make_stride(), Scalar
+### Community 487 - ".conformable"
+Cohesion: 0.33
+Nodes (4): row_major, type_caster<Type, enable_if_t<is_eigen_dense_plain<Type>::value>>, name, value
 
 ### Community 488 - "7. Umsetzungsreihenfolge"
 Cohesion: 0.25
@@ -1619,17 +1675,17 @@ Nodes (5): 4.1 `Simulation/server_rl_run.sh` — 8 Zeilen, 4.2 `Training/setup_a
 ## Knowledge Gaps
 - **1521 isolated node(s):** `compare_domain_gap.sh script`, `kisski_replay_submit.sh script`, `APPTAINER_CACHEDIR`, `APPTAINER_TMPDIR`, `kisski_robocasa_ref_submit.sh script` (+1516 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **19 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **22 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `UnitreeJointController` connect `UnitreeJointController` to `UnitreeJointController::update`, `unitree_legged_sdk.h`, `buffer_info`?**
-  _High betweenness centrality (0.090) - this node is a cross-community bridge._
+- **Why does `UnitreeJointController` connect `UnitreeJointController` to `unitree_legged_sdk.h`, `UnitreeJointController::update`, `state_sub.cpp`?**
+  _High betweenness centrality (0.077) - this node is a cross-community bridge._
 - **Why does `UnitreeJointController::update()` connect `UnitreeJointController::update` to `Time`, `joint_controller.cpp`?**
-  _High betweenness centrality (0.079) - this node is a cross-community bridge._
-- **Why does `PYBIND11_MODULE()` connect `Time` to `buffer_info`?**
-  _High betweenness centrality (0.060) - this node is a cross-community bridge._
+  _High betweenness centrality (0.074) - this node is a cross-community bridge._
+- **Why does `PYBIND11_MODULE()` connect `buffer_info` to `Time`?**
+  _High betweenness centrality (0.063) - this node is a cross-community bridge._
 - **Are the 2 inferred relationships involving `object` (e.g. with `.dec_ref()` and `.inc_ref()`) actually correct?**
   _`object` has 2 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 23 inferred relationships involving `G1Dex3BlockstackEnv` (e.g. with `hand_measurement()` and `main()`) actually correct?**

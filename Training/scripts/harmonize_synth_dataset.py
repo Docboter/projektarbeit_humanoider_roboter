@@ -62,12 +62,13 @@ from __future__ import annotations
 
 import argparse
 import json
+from pathlib import Path
 import shutil
 import sys
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
+
 
 # Reihenfolge wie in modality_4cam.json — sie bestimmt die Spalten von info.json.
 CAMS = ("cam_left_high", "cam_right_high", "cam_left_wrist", "cam_right_wrist")

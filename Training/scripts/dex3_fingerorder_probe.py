@@ -46,10 +46,11 @@ from __future__ import annotations
 
 import argparse
 import itertools
-import xml.etree.ElementTree as ET
 from pathlib import Path
+import xml.etree.ElementTree as ET
 
 import numpy as np
+
 
 URDF = {
     "left": "data/unitree_ros/robots/dexterous_hand_description/dex3_1/dex3_1_l.urdf",

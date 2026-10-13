@@ -1,4 +1,11 @@
-# TL;DR: Windows-Host-Skript — startet das Finetuning im Docker-Container via docker compose exec.
+# TL;DR: VERALTET (2026-10-13) — Windows-Host-Skript, startet das Finetuning per docker compose exec.
+#
+# VERALTET, wird nicht mehr nachgezogen (Review 4.7). Gegenüber run_finetuning.sh fehlen
+# --no-sync, Train/Test-Split, Resume-Guard, USE_AUGMENTATION, GRADIENT_ACCUMULATION_STEPS
+# und die TUNE_VISUAL/USE_COTRAIN-Weiche; Color-Jitter ist fest eingetragen, die Defaults
+# weichen ab (MaxSteps 30000, SaveSteps 1000/5, 2 Worker gegenüber 20000, 2000/10, 8).
+# Ein Lauf hiermit ist mit den Bash-Läufen NICHT vergleichbar. Unter Windows stattdessen in
+# WSL2 ./Training/setup_and_train_dockerhub_pull.sh verwenden.
 # Startet das GR00T-Finetuning *vom Host aus* im Docker-Container (Windows-Variante).
 #
 # Voraussetzungen auf dem Host:
@@ -46,6 +53,10 @@ if (-not $ModalityConfig) { $ModalityConfig = "$GrootRoot/examples/G1_DEX3/g1_de
 
 function Log([string]$msg) { Write-Host "==> $msg" -ForegroundColor Cyan }
 function Err([string]$msg) { Write-Host "!! $msg"  -ForegroundColor Red }
+
+Write-Warning ("run_finetuning.ps1 ist VERALTET: kein Split, kein Resume-Guard, abweichende " +
+               "Defaults. Ergebnisse sind mit run_finetuning.sh nicht vergleichbar. Empfohlen: " +
+               "WSL2 + ./Training/setup_and_train_dockerhub_pull.sh")
 
 function Dc { docker compose -f $ComposeFile @Args }
 

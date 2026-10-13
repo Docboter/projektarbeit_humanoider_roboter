@@ -311,12 +311,12 @@ repo root
 │   ├── kisski_rl_submit.sh             # SLURM job: RL fine-tuning (FPO) — sim SIF, RT-core GPU guard (TEMPLATE)
 │   ├── update_image.sh                 # Host build/push tool (must sit next to Dockerfile)
 │   ├── setup_and_train_dockerhub_pull.sh   # Thin host launcher: docker pull + docker run
-│   ├── setup_and_train_container_build.sh  # Host launcher that builds the image locally
+│   ├── setup_and_train_container_build.sh  # Builds the image locally, then hands over to the pull launcher
 │   └── scripts/                        # COPIED into image at /scripts/
 │       ├── entrypoint.sh               # Autonomous orchestrator (download→convert→train; TUNE_VISUAL routes here)
 │       ├── download_data.sh            # HuggingFace download (model + dataset)
 │       ├── run_finetuning.sh           # Training launcher (called by entrypoint; torchrun for NUM_GPUS>1)
-│       ├── run_finetuning.ps1          # Windows variant of the training launcher
+│       ├── run_finetuning.ps1          # DEPRECATED Windows variant (no split/resume guard; use WSL2 + bash)
 │       ├── run_finetuning_vision.sh    # Vision-encoder variant (TUNE_VISUAL=1, blockstacking_vision namespace)
 │       ├── run_finetuning_cotrain.sh   # ★ Step 4: co-training on real + RENDERED images (USE_COTRAIN=1,
 │       │                               #   blockstacking_cotrain namespace, split on by default)

@@ -23,9 +23,9 @@ when '[[ "${USE_COTRAIN:-0}" == 1 ]]'
 param COTRAIN_HF_REPO str "" basic "HF-Repo des gerenderten Datensatzes" \
   --default-from "run_finetuning_cotrain.sh, leer = optional"
 when '[[ "${USE_COTRAIN:-0}" == 1 ]]'
-param COTRAIN_MIX_RATIO float 0.5 basic \
+param COTRAIN_MIX_RATIO float 0.25 basic \
   "Anteil gerenderter Stichproben" \
-  "Fuer den ersten Lauf 0.25 setzen: bei 60 gerenderten gegen 240 echte Episoden saehe das Modell sonst jedes Sim-Bild viermal so oft wie jedes echte." \
+  "0.25 ist Default und Empfehlung: bei 60 gerenderten gegen 240 echte Episoden saehe das Modell sonst jedes Sim-Bild viermal so oft wie jedes echte." \
   --range 0:1
 
 group "Validierung"

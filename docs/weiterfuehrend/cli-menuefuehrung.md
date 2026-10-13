@@ -709,8 +709,9 @@ dieser beiden Angaben meldet der Bericht als `UNGEPRUEFT`. Derzeit sind es null.
 - **`server_robocasa_ref_run.sh`** (§4.4). Wenige Parameter, seltene Benutzung. Es liest
   seine `.env.local` weiterhin über den eigenen Block — der Umbau auf
   `lib_env_local.sh` wäre eine Verbesserung, gehört aber nicht in diesen Schritt.
-- **`setup_and_train_container_build.sh`.** Teilt sich die Spec mit der Pull-Fassung, ist
-  aber noch nicht verdrahtet. Ein Einzeiler wie in der Pull-Fassung genügt dafür.
+- **`setup_and_train_container_build.sh`.** Seit 2026-10-13 baut er nur noch das Image und
+  übergibt dann an die Pull-Fassung (`--skip-pull`, `DOCKER_HUB_IMAGE=<lokaler Tag>`); Menü,
+  Spec und Speichermodell sind damit dieselben.
 
 ### 12.5 Bedienung
 

@@ -158,9 +158,21 @@ git clone --branch training-luca-KISSKI --depth 1 \
 git clone --branch luca/g1-dex3 --depth 1 \
     https://github.com/lucam06/Isaac-GR00T.git \
     /mnt/vast-kisski/projects/kisski-humrob/repo-groot
+
+# 3) Fork auf den Commit stellen, den das Image pinnt (Training/Dockerfile, "checkout <sha>")
+PIN=$(grep -oE 'checkout [0-9a-f]{40}' \
+      /mnt/vast-kisski/projects/kisski-humrob/repo/Training/Dockerfile | awk '{print $2}')
+git -C /mnt/vast-kisski/projects/kisski-humrob/repo-groot fetch --depth 1 origin "$PIN"
+git -C /mnt/vast-kisski/projects/kisski-humrob/repo-groot checkout "$PIN"
 ```
 
 Pfade und Branch sind über `REPO_DIR`, `GITHUB_BRANCH` und `GROOT_FORK_DIR` überschreibbar.
+
+> **Warum Schritt 3:** `kisski_submit.sh` und `kisski_open_loop_eval.sh` binden
+> `repo-groot/gr00t` über den Code im Image. Steht der Fork auf dem Branch-HEAD, läuft auf
+> KISSKI anderer Code als im Image (Stand 2026-10-11: HEAD `dd87740` „(in testing!) …“ statt
+> Pin `9508b49`). Seit 2026-10-13 brechen beide Jobs in diesem Fall mit einer Anleitung ab;
+> `GROOT_FORK_ALLOW_DRIFT=1` erlaubt einen absichtlich anderen Stand.
 
 ---
 

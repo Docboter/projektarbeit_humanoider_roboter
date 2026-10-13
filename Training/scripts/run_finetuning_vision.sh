@@ -33,7 +33,10 @@ EXPERIMENT_NAME="${EXPERIMENT_NAME:-g1_dex3_blockstacking_vision_v1}"
 MODALITY_CONFIG="${MODALITY_CONFIG:-$GROOT_ROOT/examples/G1_DEX3/g1_dex3_config.py}"
 EMBODIMENT_TAG="${EMBODIMENT_TAG:-NEW_EMBODIMENT}"
 
-MAX_STEPS="${MAX_STEPS:-30000}"
+# 20000 wie Dockerfile-ENV und entrypoint.sh — im Image wirkt ohnehin das ENV; der Wert hier
+# griff nur bei einem Aufruf außerhalb des Images und stand bis 2026-10-13 auf 30000 (Review 4.6).
+# Plattform-Defaults setzen die Launcher: lokal 30000, KISSKI 44000.
+MAX_STEPS="${MAX_STEPS:-20000}"
 GLOBAL_BATCH_SIZE="${GLOBAL_BATCH_SIZE:-8}" #8
 DATALOADER_WORKERS="${DATALOADER_WORKERS:-8}"
 # Entkoppelt die effektive Batchgroesse vom Speicherbedarf. experiment.py rechnet
@@ -211,8 +214,12 @@ log "Training startet — abbrechen mit Ctrl+C."
 echo
 
 cd "$GROOT_ROOT"
+# set +e: unter "set -euo pipefail" beendet eine scheiternde Pipe das Skript sofort, die
+# Fehlermeldung unten mit Exit-Code und Log-Pfad erschiene dann nie (Review 4.2).
+set +e
 "${TRAIN_CMD[@]}" 2>&1 | tee "$LOG_FILE"
 EXIT_CODE=${PIPESTATUS[0]}
+set -e
 
 echo
 if [[ "$EXIT_CODE" == "0" ]]; then

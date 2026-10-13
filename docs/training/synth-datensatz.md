@@ -15,7 +15,9 @@
 **Stand:** 2026-10-11 · Handaktions-Fehler in v21 gefunden und behoben (§ 10.1); Neu-Export
 `_jointspace` harmonisiert (§ 10.2); zwei Läufe als KISSKI-Kette vorbereitet (§ 10.4).
 `cotrain_synth_v1` (W&B `7z81177r`) ist am 2026-09-07 nach 138 s **abgebrochen** und hat kein
-Ergebnis geliefert; die beiden Wiederholungsläufe (`synth_jointspace`, `synth_v22`) liegen in
+Ergebnis geliefert — laut seiner W&B-Konfiguration war er aber gar **kein Co-Training-Lauf** (ein
+Datensatz, `tune_visual: false`, IKR-Server statt KISSKI; Befund in der
+[Diagnose-Chronik](../ergebnisse/diagnose-chronik.md#nachtrag-2026-10-13-cotrain_synth_v1-wb-7z81177r-war-kein-co-training-lauf)); die beiden Wiederholungsläufe (`synth_jointspace`, `synth_v22`) liegen in
 W&B bisher nicht vor — es gibt **kein Co-Training-Ergebnis**.
 
 ---
@@ -387,7 +389,8 @@ Folge: auf der Achse `kLeftHandThumb0` lag das Kommando für `left_hand_index_0`
 | `cube_stacking_synth_jointspace_v21` | 0,013 rad |
 
 **Konsequenz für `cotrain_synth_v1`:** die synth-Stichproben (10 %) hätten der Hand
-widersprüchliche Ziele beigebracht. Der Lauf brach laut W&B am 2026-09-07 nach 138 s ab (es
+widersprüchliche Ziele beigebracht — wäre der Lauf ein Co-Training gewesen; laut W&B lief er
+ohne den Synth-Datensatz (Nachtrag 2026-10-13 in der Diagnose-Chronik). Der Lauf brach laut W&B am 2026-09-07 nach 138 s ab (es
 gibt keine auswertbaren Checkpoints); eine Aussage über den synth-Anteil ist aus ihm ohnehin
 nicht ableitbar. Die Wiederholung mit korrigierten Daten ist der Lauf `synth_v22` (§ 10.4).
 

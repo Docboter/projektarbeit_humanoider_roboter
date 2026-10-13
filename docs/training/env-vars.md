@@ -53,7 +53,7 @@ lokal **identisch**. Der Entrypoint (`/scripts/entrypoint.sh`) liest sie ein.
 | `SAVE_TOTAL_LIMIT` | `10` | Max. Anzahl behaltener Checkpoints (`--save_total_limit`); KISSKI-Default: `40` |
 | `GRADIENT_ACCUMULATION_STEPS` | `1` | Gradienten-Akkumulation (`--gradient_accumulation_steps`). Entkoppelt die effektive Batchgröße vom Speicherbedarf: `experiment.py:188` rechnet `per_device = GLOBAL_BATCH_SIZE / NUM_GPUS`, die Akkumulation kommt oben drauf. Auf einer Karte, deren VRAM teilweise anderweitig belegt ist, hält man damit die Batchgröße des Referenzlaufs, statt sie zu senken und das Optimierungsregime mitzuändern. `1` = aus. |
 | `USE_WANDB` | *auto* | W&B an/aus. Wird vom Entrypoint automatisch gesetzt: `1` wenn `WANDB_API_KEY` vorhanden, sonst `0`. Manuell `USE_WANDB=0` erzwingt Training ohne W&B. |
-| `WANDB_MODE` | `offline` | W&B-Modus (vom Entrypoint gesetzt). `offline` puffert lokal — danach manuell syncen, siehe [wandb-offline-sync.md](wandb-offline-sync.md). |
+| `WANDB_MODE` | *auto* | W&B-Modus, vom Entrypoint gesetzt, falls leer: unter Apptainer/SLURM (KISSKI) `offline` — dort puffert W&B lokal und muss danach gesynct werden, siehe [wandb-offline-sync.md](wandb-offline-sync.md) —, lokal und auf vast.ai `online`. Bis 2026-10-13 war es überall `offline`. Ein gesetzter Wert hat Vorrang. |
 
 ## Optionale Trainings-Features (getrennt schaltbar)
 
@@ -81,7 +81,7 @@ Der gerenderte Datensatz entsteht auf dem **Sim-Server** (RT-Core-GPU) mit
 |---|---|---|
 | `COTRAIN_DATASET_PATH` | `/data/cotrain/g1_dex3_rendered` | Gerenderter Datensatz im Container (LeRobot v2.1, wie der echte). |
 | `COTRAIN_HF_REPO` | *(leer)* | HF-**Dataset**-Repo; wird geladen, wenn `COTRAIN_DATASET_PATH` leer ist. |
-| `COTRAIN_MIX_RATIO` | `0.5` ⚠️ | ⚠️ **Der Code-Default ist `0.5`, empfohlen wird `0.25`** — beides steht so im Repo, seit dem Menü-Abgleich vom 2026-08-20 dokumentiert. Auf KISSKI ist `kisski_submit.sh` bereits auf `0.25` gesetzt; lokal/direkt gilt der Skript-Default von [`run_finetuning_cotrain.sh`](../../Training/scripts/run_finetuning_cotrain.sh), `0.5` — dort `COTRAIN_MIX_RATIO=0.25` explizit setzen. Anteil gerenderter Stichproben (Sampling-Wahrscheinlichkeit, **kein** Längenverhältnis). **Für den ersten Lauf 0.25 setzen:** bei 60 gerenderten gegen 240 echte Episoden sähe das Modell sonst jedes Sim-Bild 4× so oft wie jedes echte, und die Hälfte aller Updates entfiele auf ein Viertel des Bewegungsrepertoires. |
+| `COTRAIN_MIX_RATIO` | `0.25` | Anteil gerenderter Stichproben (Sampling-Wahrscheinlichkeit, **kein** Längenverhältnis). Bis 2026-10-13 stand der Code-Default auf `0.5` und widersprach der Empfehlung; seitdem ist `0.25` überall Default (Skript, `launch_cotrain.py`, `kisski_submit.sh`, Menü). Begründung: bei 60 gerenderten gegen 240 echte Episoden sähe das Modell bei 0.5 jedes Sim-Bild 4× so oft wie jedes echte, und die Hälfte aller Updates entfiele auf ein Viertel des Bewegungsrepertoires. `kisski_chain.sh` setzt für den Synth-Datensatz bewusst `0.10`. |
 | `TRAIN_TEST_SPLIT` | `1` **hier** | Im Co-Training-Skript standardmäßig an — ohne zurückgehaltene Episoden fehlt die Leitplanke, an der ein Rückschritt auf der Realdomäne sichtbar würde. |
 
 Die Renderer-seitigen Variablen (`RENDER_EPISODES`, `RENDER_STAGE`, `RENDER_MAX_FRAMES`, …)
@@ -130,6 +130,7 @@ Episoden. Voraussetzung ist ein Trainingslauf mit `TRAIN_TEST_SPLIT=1`.
 | `EVAL_TRAJ_POSITIONS` | *(leer)* | Statt `EVAL_NUM_TRAJ`: explizite Positionen **im Split** (kommagetrennt). |
 | `EVAL_STEPS` | `300` | Max. Steps je Episode (auf die Episodenlänge gedeckelt). |
 | `EVAL_CHECKPOINTS` | *(leer)* | Nur bestimmte Step-Nummern auswerten; leer = alle gefundenen. |
+| `ALLOW_TRAIN_SPLIT` | `0` | `1` = trotzdem messen, wenn kein `test`-Split existiert, ein anderer Split gewählt ist oder `info.json` nicht zum `split.json` des Laufs passt. Sonst bricht der Sweep seit 2026-10-13 mit Exit ≠ 0 ab, statt Trainings-MSE als Validierung auszugeben. |
 | `EVAL_OUT` | `<run-dir>/checkpoint_sweep.json` | JSON mit Tabelle, bestem Step und den ausgewerteten Episoden. |
 | `EVAL_PLOT_DIR` | `<run-dir>/open_loop_plots` | Plots (Ist- vs. Vorhersage-Aktionen), je Checkpoint und Episode. |
 | `EVAL_DEVICE` | *(leer)* | Torch-Device, z. B. `cuda:1`, wenn die andere GPU belegt ist. |

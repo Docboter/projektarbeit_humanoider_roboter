@@ -2110,3 +2110,32 @@ Eval/RL bleiben unverändert ungeseedet, dort ist die Streuung über Läufe hinw
 Ausbeute nebenbei: 8 von 15 Episoden fielen aus, 5× „kein belastbarer Bewegungsbeginn im Layout",
 3× Fenster unter 60 Frames. 12 von 21 Würfelplätzen bekamen überhaupt einen Winkel — deckt sich mit
 den 61 % aus dem Vollauslauf in Lauf 52.
+
+### Nachtrag 2026-10-13: `cotrain_synth_v1` (W&B `7z81177r`) war kein Co-Training-Lauf
+
+Ausgelesen aus der W&B-Konfiguration und den Systemmetriken des Laufs (Review §4.9):
+
+| Feld | Wert | Erwartet bei Co-Training |
+|---|---|---|
+| `data.datasets` | **ein** Datensatz, nur der echte, `mix_ratio: 1` | zwei; `launch_cotrain.py` gibt dem echten `1 − mix` (0,9) |
+| `model.tune_visual` | **false** | true — `run_finetuning_cotrain.sh` setzt `--tune_visual` immer |
+| `training.num_gpus` / Batch / Schritte | 2 / 8 / 30 000 | KISSKI-Anleitung: 4 / 32 / 44 000 |
+| `training.output_dir` / Name | `blockstacking_cotrain` / `g1_dex3_cotrain_synth_v1` | Anleitung: `…_cotrain_synth` / `…_blockstacking_cotrain_synth_v1` |
+| Host | 2 GPUs mit 300-W-Limit, 3,2-TB-Platte | KISSKI: 4× A100 |
+| RAM des Hosts / Prozesses | 15,7 % / 9,7 GB RSS, 216 GB frei | — |
+| GPU zuletzt | 44 / 40 GB belegt, Auslastung 0 % | — |
+
+Folgerungen:
+- Der Lauf ging durch `launch_finetune.py` (Standardpfad), nicht durch `launch_cotrain.py`, und
+  lief auf dem IKR-Server, nicht auf KISSKI — der lokale Launcher defaultet auf 30 000 Schritte.
+  Die Synth-Daten waren also gar nicht beteiligt. „Erster Co-Training-Lauf gescheitert“ ist damit
+  falsch; es gab bisher **keinen** Co-Training-Lauf. Warum das Routing nicht griff (altes Image ohne
+  `USE_COTRAIN`-Weiche, Variable nicht angekommen oder Aufruf von Hand), lässt W&B nicht erkennen.
+- Ein RAM-OOM des Hosts ist ausgeschlossen. Die vermutete Ursache aus dem Review (2 Datensätze ×
+  4 Worker × 4 Ranks) trifft nicht zu — es gab nur einen Datensatz und 2 Ranks.
+- Die eigentliche Absturzursache steht nur im Log: `/data/logs/finetune-*.log` vom 2026-09-07 im
+  Trainingscontainer des IKR-Servers (`docker cp groot-train:/data/logs ./logs-groot-train`)
+  bzw. `docker logs groot-train`. Ein `slurm-*.err` gibt es nicht.
+- Für die KISSKI-Kette gilt deshalb: der Kurztest `smoke` in `kisski_chain.sh` (50 Schritte,
+  sonst dieselbe Konfiguration, die großen Läufe hängen per `afterok` daran) ist der erste
+  echte Co-Training-Start überhaupt. Im Log auf `[cotrain] Zwei Datensätze:` achten.

@@ -138,6 +138,15 @@ Train-Loss (Konvergenz)
 
 Die ersten 240 Episoden werden zum Training verwendet. Die letzten 61 Episoden werden während des Trainings **nie geladen** und stehen danach für die Evaluation zur Verfügung.
 
+> **Einschränkung (2026-10-13):** Die Normalisierungsstatistik `meta/stats.json` rechnet der
+> Fork über **alle** Episoden, einschließlich der zurückgehaltenen: `generate_stats`
+> (`gr00t/data/stats.py:98`) liest per Glob jede Parquet-Datei des Datensatzes und kennt den
+> Split nicht; eine schon vorhandene `stats.json` wird ohne Neuberechnung weiterverwendet. Min/Max
+> und Quantile der Test-Episoden fließen damit in die Normierung ein. Das ist kein Leck von Bildern
+> oder Aktionsfolgen ins Training, aber die Test-Episoden sind für die Normierung nicht ganz
+> „ungesehen“ — bei 61 von 301 Episoden ein kleiner Effekt, der bei der Interpretation der
+> Validierungs-MSE mitzudenken ist.
+
 > **Korrektur 2026-08-14.** Hier stand vorher `train` = 241 Episoden (0–240) und `test` = 60
 > (241–300). Das ist um eins verschoben: `split_apply()` rechnet
 > `n_train = int(301 × 0.8) = int(240,8) = **240**`. Bestätigt durch den ersten realen

@@ -40,9 +40,10 @@ import argparse
 import gc
 import json
 import os
+from pathlib import Path
 import re
 import sys
-from pathlib import Path
+
 
 GROOT_ROOT = os.environ.get("GROOT_ROOT", "/app/Groot-1.6")
 
@@ -69,6 +70,14 @@ def parse_args() -> argparse.Namespace:
         "--split",
         default=os.environ.get("EVAL_SPLIT", "test"),
         help='Datensatz-Split. "test" = zurückgehaltene Episoden (das ist der Sinn der Übung).',
+    )
+    p.add_argument(
+        "--allow-train-split",
+        action="store_true",
+        default=os.environ.get("ALLOW_TRAIN_SPLIT", "0") == "1",
+        help="Trotzdem messen, wenn kein test-Split existiert, ein anderer als 'test' gewählt "
+        "ist oder info.json nicht zum split.json des Laufs passt. Ohne den Schalter bricht "
+        "der Sweep dann ab — die Zahl wäre Trainings-MSE, die wie eine Validierung aussieht.",
     )
     p.add_argument(
         "--num-trajectories",
@@ -234,7 +243,11 @@ def main() -> int:
     if info_json.is_file():
         with open(info_json) as f:
             splits = json.load(f).get("splits", {})
+    # Seit 2026-10-13 harte Fehler statt Warnungen (Review 4.3): eine Warnung im Log einer
+    # SLURM-Kette liest niemand, die MSE-Tabelle darunter schon.
+    problems: list[str] = []
     if args.split not in splits:
+        problems.append(f"info.json kennt keinen Split '{args.split}'")
         print(
             f"!! WARNUNG: info.json kennt keinen Split '{args.split}' "
             f"(vorhanden: {list(splits) or 'keine'}).",
@@ -253,6 +266,7 @@ def main() -> int:
         # läuft sonst sauber durch und liefert eine Zahl, die wie eine Validierung aussieht,
         # aber Trainings-MSE ist. Passiert leicht, wenn EVAL_SPLIT aus einem früheren
         # Aufruf noch in der Shell steht und per --export=ALL mitwandert.
+        problems.append(f"Split '{args.split}' statt 'test'")
         print(
             f"!! WARNUNG: Es wird auf Split '{args.split}' gemessen, obwohl ein "
             f"test-Split existiert ({splits['test']}).",
@@ -269,6 +283,7 @@ def main() -> int:
     if record and args.split in splits:
         recorded = record.get("splits", {}).get(args.split)
         if recorded and recorded != splits[args.split]:
+            problems.append(f"info.json ({splits[args.split]}) != split.json ({recorded})")
             print(
                 f"!! WARNUNG: info.json sagt {args.split}={splits[args.split]}, das Protokoll "
                 f"des Laufs sagt {recorded}.",
@@ -279,6 +294,13 @@ def main() -> int:
                 "Die Auswertung träfe andere Episoden als zurückgehalten wurden.",
                 flush=True,
             )
+
+    if problems and not args.allow_train_split:
+        sys.exit(
+            "FEHLER: Split-Prüfung fehlgeschlagen — " + "; ".join(problems) + ".\n"
+            "Die Zahl wäre keine Validierung. Absichtlich trotzdem messen: --allow-train-split "
+            "(bzw. ALLOW_TRAIN_SPLIT=1)."
+        )
 
     out_path = Path(args.out) if args.out else run_dir / "checkpoint_sweep.json"
     plot_dir = Path(args.plot_dir) if args.plot_dir else run_dir / "open_loop_plots"
@@ -321,12 +343,12 @@ def main() -> int:
     # Erst hier importieren: --dry-run soll ohne Torch/GR00T laufen.
     if GROOT_ROOT not in sys.path:
         sys.path.insert(0, GROOT_ROOT)
-    import numpy as np
-    import torch
     from gr00t.data.dataset.lerobot_episode_loader import LeRobotEpisodeLoader
     from gr00t.data.embodiment_tags import EmbodimentTag
     from gr00t.eval.open_loop_eval import evaluate_single_trajectory
     from gr00t.policy.gr00t_policy import Gr00tPolicy
+    import numpy as np
+    import torch
 
     device = args.device or ("cuda" if torch.cuda.is_available() else "cpu")
     # Membername ("NEW_EMBODIMENT") und Wert ("new_embodiment") beide akzeptieren:
@@ -347,6 +369,7 @@ def main() -> int:
     results: list[dict] = []
     positions: list[int] = []
     episode_indices: list[int] = []
+    loader = None
 
     for idx, (step, ckpt_path) in enumerate(checkpoints, start=1):
         print(f"── [{idx}/{len(checkpoints)}] checkpoint-{step} ────────────────", flush=True)
@@ -355,13 +378,19 @@ def main() -> int:
             model_path=str(ckpt_path),
             device=device,
         )
-        loader = LeRobotEpisodeLoader(
-            dataset_path=str(dataset_path),
-            modality_configs=policy.get_modality_config(),
-            video_backend="torchcodec",
-            video_backend_kwargs=None,
-            split=args.split,
-        )
+        # EINMAL bauen und für alle Checkpoints wiederverwenden. Der Loader liest den Split
+        # aus info.json; neu gebaut je Checkpoint, konnte ein paralleler Trainingslauf
+        # (kisski_chain.sh: Sweep läuft neben dem nächsten Training, das per split_apply
+        # info.json umschreibt) die Episoden mitten im Sweep austauschen (Review 4.3).
+        # Die Modality-Konfiguration ist innerhalb eines Laufs für alle Checkpoints gleich.
+        if loader is None:
+            loader = LeRobotEpisodeLoader(
+                dataset_path=str(dataset_path),
+                modality_configs=policy.get_modality_config(),
+                video_backend="torchcodec",
+                video_backend_kwargs=None,
+                split=args.split,
+            )
 
         if not positions:
             n_episodes = len(loader)
@@ -422,8 +451,7 @@ def main() -> int:
         print(f"    → Mittel  MSE {mean_mse:.6f}  MAE {mean_mae:.6f}", flush=True)
         print("", flush=True)
 
-        del loader
-        del policy
+        del policy   # der Loader bleibt — er wird für alle Checkpoints wiederverwendet
         gc.collect()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()

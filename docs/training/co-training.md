@@ -8,9 +8,10 @@
 > `USE_COTRAIN`-Pfad, braucht aber vorher eine Schema-Harmonisierung: [synth-datensatz.md](synth-datensatz.md).
 
 **Stand:** 2026-10-11 · Es gibt **noch kein Co-Training-Ergebnis**: kein Lauf mit dem eigenen
-Render-Datensatz, und der einzige Co-Training-Lauf überhaupt (`cotrain_synth_v1` mit dem
-Fremd-Datensatz, W&B `7z81177r`) brach am 2026-09-07 nach 138 s ab; seine Handaktionen waren
-zudem vertauscht (behoben als v22, siehe [synth-datensatz.md](synth-datensatz.md)).
+Render-Datensatz, und der als Co-Training gedachte Lauf `cotrain_synth_v1` (W&B `7z81177r`) brach
+am 2026-09-07 nach 138 s ab — laut seiner W&B-Konfiguration lief er gar nicht als Co-Training
+(ein Datensatz, `tune_visual: false`; [Diagnose-Chronik](../ergebnisse/diagnose-chronik.md#nachtrag-2026-10-13-cotrain_synth_v1-wb-7z81177r-war-kein-co-training-lauf)).
+Die Handaktionen des Synth-Datensatzes waren zudem vertauscht (behoben als v22, siehe [synth-datensatz.md](synth-datensatz.md)).
 **Der Render-Datensatz muss neu erzeugt werden:** die Sim-Geometrie wurde am 2026-08-24
 korrigiert (Vorzeichenflip der vier proximalen Fingergelenke entfernt, Pelvis-Höhe 0,764 m,
 Basis x −0,057 m) — früher gerenderte Sätze (u. a. der erste volle Lauf vom 2026-08-17) zeigen
@@ -474,12 +475,13 @@ Ehrlich benannt, weil jeder dieser Punkte den Lauf entwerten würde:
 | `USE_COTRAIN` | `0` | `1` = Co-Training statt Standard-/Vision-Lauf |
 | `COTRAIN_DATASET_PATH` | `/data/cotrain/g1_dex3_rendered` | Gerenderter Datensatz im Container |
 | `COTRAIN_HF_REPO` | — | HF-Dataset-Repo; wird geladen, wenn der Pfad leer ist |
-| `COTRAIN_MIX_RATIO` | `0.5` im Skript, **0.25 empfohlen** (§4.2) | Anteil gerenderter Stichproben |
+| `COTRAIN_MIX_RATIO` | `0.25` (§4.2) | Anteil gerenderter Stichproben |
 | `TRAIN_TEST_SPLIT` | `1` | Hier standardmäßig **an** — ohne Split fehlt die Leitplanke aus §5 |
 
-> Der Skript-Default für `COTRAIN_MIX_RATIO` steht auf 0.5, weil das der neutrale Wert für
-> „zwei gleichberechtigte Datensätze" ist. Für den konkreten ersten Lauf ist 0.25 die
-> begründete Wahl — deshalb im Aufruf explizit setzen.
+> Der Skript-Default für `COTRAIN_MIX_RATIO` stand bis 2026-10-13 auf 0.5 („zwei
+> gleichberechtigte Datensätze"), die Empfehlung aber auf 0.25. Seitdem ist 0.25 überall der
+> Default (Skript, `launch_cotrain.py`, `kisski_submit.sh`, Menü). Die KISSKI-Kette
+> (`kisski_chain.sh`) setzt für den Synth-Datensatz bewusst 0.10, siehe synth-datensatz.md §7.
 
 ---
 

@@ -13,11 +13,12 @@
 # zurückgehaltene Episoden misst der Sweep gegen Trainingsdaten und kann
 # Overfitting prinzipiell nicht zeigen — er warnt dann laut.
 #
-# Einreichen:
-#   sbatch Training/kisski_open_loop_eval.sh
+# Einreichen (--export=ALL auf der Kommandozeile, sonst kommen Overrides nicht an):
+#   sbatch --export=ALL Training/kisski_open_loop_eval.sh
 #
 # Optionale Überschreibungen (vor sbatch als export):
-#   RUN_DIR, DATASET_PATH, EVAL_SPLIT, EVAL_NUM_TRAJ, EVAL_STEPS, EVAL_CHECKPOINTS
+#   RUN_DIR, DATASET_PATH, EVAL_SPLIT, EVAL_NUM_TRAJ, EVAL_STEPS, EVAL_CHECKPOINTS,
+#   ALLOW_TRAIN_SPLIT
 
 # ── SLURM-Direktiven ──────────────────────────────────────────────────────────
 #SBATCH --job-name=groot-ckpt-sweep
@@ -47,8 +48,10 @@ set -euo pipefail
 #
 # EIN Knopf für den Projektspeicher, alles Weitere leitet sich davon ab:
 #     KISSKI_PROJECT_DIR=/mnt/vast-kisski/projects/<projekt> sbatch <dieses Skript>
-# Das wirkt beim Absenden, weil oben `#SBATCH --export=ALL` steht — die Umgebung der
-# Submit-Shell landet unverändert im Job.
+# Das wirkt aber NUR mit `sbatch --export=ALL` auf der Kommandozeile: KISSKI setzt auf dem
+# Login-Node SBATCH_EXPORT=none, und das überstimmt das `#SBATCH --export=ALL` oben — bei
+# einfachem `sbatch` kommen Overrides wie RUN_DIR oder KISSKI_PROJECT_DIR nicht im Job an
+# (siehe kisski_submit.sh). kisski_chain.sh setzt --export=ALL immer.
 KISSKI_PROJECT_DIR="${KISSKI_PROJECT_DIR:-/mnt/vast-kisski/projects/kisski-humrob}"
 
 # SIF-Ablage. Reihenfolge: eigenes $HOME/images zuerst — genau dorthin lädt der in
@@ -121,6 +124,10 @@ mkdir -p "$APPTAINER_CACHEDIR" "$APPTAINER_TMPDIR"
 APPTAINER_ARGS=(
     --nv
     --bind "$DATA_DIR:/data"
+    # DATA_DIR ist hier der HOST-Pfad. Apptainer reicht die Host-Umgebung durch; ein
+    # exportiertes DATA_DIR (kisski_chain.sh, oder "export DATA_DIR=..." wie oben empfohlen)
+    # landete sonst im Entrypoint, der /data erwartet.
+    --env "DATA_DIR=/data"
     --env "TMPDIR=/tmp"
     --env "UV_OFFLINE=1"
 )
@@ -133,6 +140,29 @@ if [[ -d "$REPO_DIR/Training/scripts" ]]; then
 fi
 
 # gr00t-Modul aus Fork einbinden (falls vorhanden)
+# Fork-Stand gegen den Pin des Images pruefen (Review 4.5). Der Bind unten ueberdeckt den
+# gr00t-Code im Image; stand repo-groot auf dem Branch-HEAD statt auf dem Pin, lief auf
+# KISSKI anderer Code als im Image (2026-10-11: HEAD dd87740 "(in testing!)" statt 9508b49).
+# Der Pin steht im Dockerfile des Repo-Klons (update_image.sh --update-commit pflegt ihn).
+GROOT_PIN="$(grep -oE 'checkout [0-9a-f]{40}' "${REPO_DIR}/Training/Dockerfile" 2>/dev/null \
+             | head -1 | awk '{print $2}' || true)"
+GROOT_HEAD="$(git -C "$GROOT_FORK_DIR" rev-parse HEAD 2>/dev/null || true)"
+if [[ -n "$GROOT_PIN" && -z "$GROOT_HEAD" && -d "$GROOT_FORK_DIR/gr00t" ]]; then
+    echo "WARNUNG: $GROOT_FORK_DIR ist kein Git-Klon — Stand gegen Pin $GROOT_PIN nicht pruefbar." >&2
+elif [[ -n "$GROOT_PIN" && -n "$GROOT_HEAD" && "$GROOT_HEAD" != "$GROOT_PIN" ]]; then
+    if [[ "${GROOT_FORK_ALLOW_DRIFT:-0}" == "1" ]]; then
+        echo "WARNUNG: $GROOT_FORK_DIR steht auf ${GROOT_HEAD:-?}, Image-Pin ist $GROOT_PIN" \
+             "(GROOT_FORK_ALLOW_DRIFT=1)." >&2
+    else
+        echo "FEHLER: $GROOT_FORK_DIR steht auf ${GROOT_HEAD:-unbekannt}, das Image pinnt" >&2
+        echo "       $GROOT_PIN. Der Lauf wuerde anderen gr00t-Code nutzen als im Image." >&2
+        echo "       Auf dem Login-Knoten angleichen:" >&2
+        echo "         git -C $GROOT_FORK_DIR fetch --depth 1 origin $GROOT_PIN" >&2
+        echo "         git -C $GROOT_FORK_DIR checkout $GROOT_PIN" >&2
+        echo "       Absichtlich anderer Stand: GROOT_FORK_ALLOW_DRIFT=1." >&2
+        exit 1
+    fi
+fi
 if [[ -d "$GROOT_FORK_DIR/gr00t" ]]; then
     APPTAINER_ARGS+=(--bind "$GROOT_FORK_DIR/gr00t:/app/Groot-1.6/gr00t")
     echo "    Fork:       $GROOT_FORK_DIR/gr00t"
@@ -151,6 +181,8 @@ SWEEP_ARGS=(
     --plot-dir       "$EVAL_PLOT_DIR"
 )
 [[ -n "$EVAL_CHECKPOINTS" ]] && SWEEP_ARGS+=(--checkpoints "$EVAL_CHECKPOINTS")
+# Ohne test-Split oder bei abweichendem split.json bricht der Sweep ab (Review 4.3).
+[[ "${ALLOW_TRAIN_SPLIT:-0}" == "1" ]] && SWEEP_ARGS+=(--allow-train-split)
 
 echo "==> Starte Checkpoint-Sweep …"
 apptainer exec "${APPTAINER_ARGS[@]}" "$SERVER_SIF" \

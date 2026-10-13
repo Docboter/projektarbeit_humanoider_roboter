@@ -12,7 +12,7 @@
 # Steuerung über Env-Vars (vast.ai: im Feld "Docker options" als -e KEY=VAL setzen):
 #   HF_TOKEN              (Pflicht) HuggingFace-Token mit Zugriff auf das Modell
 #   WANDB_API_KEY         (optional) W&B-API-Key — ohne diesen wird ohne W&B trainiert
-#   MAX_STEPS             (default 30000)
+#   MAX_STEPS             (default 20000; lokaler Launcher 30000, KISSKI 44000)
 #   GLOBAL_BATCH_SIZE     (default 8)
 #   NUM_GPUS              (default 1)
 #   WANDB_PROJECT         (default gr00t-g1-dex3)
@@ -93,6 +93,20 @@ USE_AUGMENTATION="${USE_AUGMENTATION:-1}"
 export TRAIN_TEST_SPLIT USE_AUGMENTATION
 
 export MAX_STEPS GLOBAL_BATCH_SIZE NUM_GPUS WANDB_PROJECT
+
+# Vor GPU-Check, Download und Konvertierung: bis 2026-10-13 kam die Ablehnung erst nach dem
+# ~25-GB-Download und der Konvertierung (Review 4.7).
+# USE_RL=1 → RL-Fine-tuning gewünscht, läuft aber NICHT in diesem BC-Image (kein Isaac Sim).
+# Ehrlicher Hinweis-Schalter: präzise auf den RL-Pfad lenken statt still BC zu fahren.
+if [[ "$USE_RL" == "1" ]]; then
+    err "USE_RL=1 — RL-Fine-tuning (FPO) läuft NICHT im BC-Trainingsimage (kein Isaac Sim enthalten)."
+    err "RL braucht den kombinierten Isaac-Sim + GR00T-Container (Simulation/Dockerfile.standalone) auf"
+    err "einer RT-Core-GPU (L40 / RTX 4090 / A6000). Starte stattdessen:"
+    err "  • Cloud/vast.ai: Sim-Image mit Simulation/scripts/entrypoint_rl.sh"
+    err "  • KISSKI:        sbatch Training/kisski_rl_submit.sh"
+    err "Details: docs/weiterfuehrend/reinforcement-learning-plan.md"
+    exit 1
+fi
 
 # ── GPU-Check ─────────────────────────────────────────────────────────────────
 log "GPU-Check"
@@ -175,15 +189,23 @@ echo ""
 if [[ -n "${WANDB_API_KEY:-}" ]]; then
     export USE_WANDB=1
     export WANDB_API_KEY
-    # Compute-Nodes haben kein Internet → immer Offline-Modus.
-    # Runs werden nach $WANDB_DIR/wandb/offline-run-*/ geschrieben und
-    # nach dem Job auf dem Login-Node per "wandb sync" hochgeladen.
-    export WANDB_MODE="${WANDB_MODE:-offline}"
-    export WANDB_DIR="${WANDB_DIR:-/data/g1_dex3_finetune}"
+    # Offline nur auf dem Cluster: Compute-Nodes haben kein Internet, Runs landen unter
+    # $WANDB_DIR/wandb/offline-run-*/ und werden danach auf dem Login-Node per "wandb sync"
+    # hochgeladen. Lokal und auf vast.ai gibt es Netz — dort bis 2026-10-13 ebenfalls offline,
+    # was jeden Lauf erst nach einem manuellen Sync sichtbar machte (Review 4.7).
+    # Ein gesetztes WANDB_MODE (kisski_submit.sh setzt offline) hat immer Vorrang.
+    if [[ -n "${APPTAINER_NAME:-}${SINGULARITY_NAME:-}${SLURM_JOB_ID:-}" ]]; then
+        export WANDB_MODE="${WANDB_MODE:-offline}"
+    else
+        export WANDB_MODE="${WANDB_MODE:-online}"
+    fi
+    export WANDB_DIR="${WANDB_DIR:-$DATA_DIR/g1_dex3_finetune}"
     mkdir -p "$WANDB_DIR"
-    ok "WANDB_API_KEY gesetzt — Offline-Modus (Projekt: $WANDB_PROJECT)."
+    ok "WANDB_API_KEY gesetzt — Modus $WANDB_MODE (Projekt: $WANDB_PROJECT)."
     ok "Runs werden gespeichert unter: $WANDB_DIR/wandb/"
-    warn "Nach dem Training auf dem Login-Node syncen: wandb sync $WANDB_DIR/wandb/offline-run-*/"
+    if [[ "$WANDB_MODE" == "offline" ]]; then
+        warn "Nach dem Training auf dem Login-Node syncen: wandb sync $WANDB_DIR/wandb/offline-run-*/"
+    fi
 else
     export USE_WANDB=0
     warn "Kein WANDB_API_KEY — Training läuft ohne W&B-Logging."
@@ -209,18 +231,6 @@ printf "    %-20s %s\n" "USE_AUGMENTATION"  "$USE_AUGMENTATION"
 printf "    %-20s %s\n" "USE_RL"            "$USE_RL"
 printf "    %-20s %s\n" "USE_COTRAIN"       "$USE_COTRAIN"
 echo ""
-
-# USE_RL=1 → RL-Fine-tuning gewünscht, läuft aber NICHT in diesem BC-Image (kein Isaac Sim).
-# Ehrlicher Hinweis-Schalter: präzise auf den RL-Pfad lenken statt still BC zu fahren.
-if [[ "$USE_RL" == "1" ]]; then
-    err "USE_RL=1 — RL-Fine-tuning (FPO) läuft NICHT im BC-Trainingsimage (kein Isaac Sim enthalten)."
-    err "RL braucht den kombinierten Isaac-Sim + GR00T-Container (Simulation/Dockerfile.standalone) auf"
-    err "einer RT-Core-GPU (L40 / RTX 4090 / A6000). Starte stattdessen:"
-    err "  • Cloud/vast.ai: Sim-Image mit Simulation/scripts/entrypoint_rl.sh"
-    err "  • KISSKI:        sbatch Training/kisski_rl_submit.sh"
-    err "Details: docs/weiterfuehrend/reinforcement-learning-plan.md"
-    exit 1
-fi
 
 # USE_COTRAIN=1 → Co-Training auf echten UND gerenderten Bildern (Schritt 4). Setzt
 # --tune_visual selbst, deshalb VOR der TUNE_VISUAL-Weiche: ein gesetztes TUNE_VISUAL
