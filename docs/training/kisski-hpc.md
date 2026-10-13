@@ -171,7 +171,7 @@ Compute-Nodes haben keinen Internet-Zugang, deshalb muss das auf dem Login-Knote
 
 ```bash
 # 1) Dieses Repo (liefert Training/scripts/ — Änderungen wirken ohne Image-Rebuild)
-git clone --branch training-luca-KISSKI --depth 1 \
+git clone --branch training-luca-IKR-IS6.0 --depth 1 \
     https://github.com/Docboter/projektarbeit_humanoider_roboter.git \
     /mnt/vast-kisski/projects/kisski-humrob/repo
 

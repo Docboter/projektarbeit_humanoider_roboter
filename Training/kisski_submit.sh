@@ -115,7 +115,9 @@ if [[ ! -d "$(dirname "$DATA_DIR")" ]]; then
 fi
 
 GITHUB_REPO="${GITHUB_REPO:-https://github.com/Docboter/projektarbeit_humanoider_roboter.git}"
-GITHUB_BRANCH="${GITHUB_BRANCH:-training-luca-KISSKI}"
+# Hauptbranch. Bis 2026-10-13 stand hier training-luca-KISSKI — 184 Commits zurück und danach
+# gelöscht; mit SKIP_GIT_PULL=0 hätte ein Job den Klon auf diesen alten Stand zurückgesetzt.
+GITHUB_BRANCH="${GITHUB_BRANCH:-training-luca-IKR-IS6.0}"
 # Repo muss vorab auf dem Login-Node geklont werden (Compute-Nodes haben keinen Internet-Zugang).
 # Einmalig: git clone --branch $GITHUB_BRANCH --depth 1 $GITHUB_REPO /mnt/vast-kisski/projects/kisski-humrob/repo
 REPO_DIR="${REPO_DIR:-$KISSKI_PROJECT_DIR/repo}"
