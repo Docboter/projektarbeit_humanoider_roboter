@@ -177,6 +177,41 @@ Aktuelle Messung: [ergebnisse/domain-gap-analyse.md](ergebnisse/domain-gap-analy
 Vollanalyse: [ergebnisse/lauf1-auswertung.md](ergebnisse/lauf1-auswertung.md) und
 [ergebnisse/lauf3-vision-split-auswertung.md](ergebnisse/lauf3-vision-split-auswertung.md).
 
+### `span`: Datensatz-Download hängt / halber Datensatz
+
+**Symptom:** Der erste `server_rl_run.sh span` lädt den echten Datensatz
+(`unitreerobotics/G1_Dex3_BlockStacking_Dataset`) und bleibt dabei stehen: die letzte
+Fortschrittszeile ist Minuten alt, davor steht `RemoteDisconnected('Remote end closed connection
+without response')` mit `Retrying in 1s`, und unter `$RL_HOST_DATA_DIR/unitreerobotics/` wächst
+nichts mehr. Kein Fehler, kein Abbruch (2026-10-13: ~23 min Stillstand).
+
+**Ursache:** `huggingface-cli download` hängt nach dem Verbindungsabbruch auf einer 0-Byte-Datei
+`*.incomplete`. Gefährlicher ist der naheliegende Neustart: `ensure_dataset` lädt nur, wenn der
+Zielordner **leer** ist. Nach einem halben Download ist er das nicht mehr — ein zweites `span`
+überspringt den Download und konvertiert den unvollständigen Datensatz.
+
+**Prüfen:**
+
+```bash
+du -sb "$RL_HOST_DATA_DIR/unitreerobotics"                       # zweimal im Abstand von 30 s
+find   "$RL_HOST_DATA_DIR/unitreerobotics" -name '*.incomplete'  # hängende Datei
+```
+
+**Lösung:** Den hängenden Prozess beenden (`docker exec groot-rl pkill -f 'huggingface-cli
+download'`; läuft `span` in einer Schleife, vorher diese anhalten), dann **denselben** Download von
+Hand fortsetzen — er lädt nur die fehlenden Dateien:
+
+```bash
+docker exec -e HF_TOKEN -e HUGGING_FACE_HUB_TOKEN="$HF_TOKEN" groot-rl \
+  /app/Groot-1.6/.venv/bin/huggingface-cli download unitreerobotics/G1_Dex3_BlockStacking_Dataset \
+    --repo-type dataset --local-dir /data/unitreerobotics/G1_Dex3_BlockStacking_Dataset
+```
+
+Erst danach `span` neu starten; es meldet „Datensatz vorhanden, aber ohne modality.json — nur
+Konvertierung nachholen“. Vollständig sind 26 Dateien, zusammen **9,18 GB** (8,6 GiB) — die
+„~18 GB“ in der Skriptmeldung sind zu hoch gegriffen. Größen gegen das Repo abgleichen geht mit
+`HfApi().dataset_info(…, files_metadata=True)`.
+
 ### `flash-attn` / `--no-flash-attn`-Fehler auf älterer GPU
 
 **Symptom:** `AssertionError` aus Flash-Attention, bzw. `--no-flash-attn` wird als unbekanntes

@@ -87,7 +87,7 @@ Backbone im HF-Cache liegen — sonst Abbruch mit den nötigen
 Sweep-Tabelle, HF-Zugang zum gated Backbone noch nicht bestätigt (muss je Token beantragt
 werden).
 
-**Phase 5 — Sim-Image & Inferenz: Sim-Image lokal gebaut, erster N1.7-Sim-Lauf durch (2026-10-12).**
+**Phase 5 — Sim-Image & Inferenz: Sim-Image lokal gebaut, N1.7-Sim-Läufe mit ckpt15000 (2026-10-12) und ckpt44000 (2026-10-13).**
 [`Simulation/Dockerfile.standalone`](../../Simulation/Dockerfile.standalone) baut ebenfalls beide
 venvs (N1.7 mit System-Python 3.12 von Ubuntu 24.04 + `python3.12-dev`, `usd-core` installiert,
 deepspeed entfernt, Build-Time-Smoke-Test); `ENV GROOT_VERSION=auto`; das fest gesetzte
@@ -129,8 +129,32 @@ Vorhersage/Ground Truth bei der Fingerspanne im Median 83 % (Train-Episoden 0–
 (Test-Episoden 240/255/270/285/300); MSE-Median 0,0087 / 0,0064. Das Modell kann also greifen,
 der Engpass ist der Closed Loop in der Sim.
 
-**Abnahme laut Plan noch nicht erfüllt:** Gelaufen sind 10 statt 20 Episoden, und ein Eintrag in
-`diagnose-chronik.md` fehlt.
+**Zweiter N1.7-Sim-Lauf am 2026-10-13** mit dem letzten Checkpoint desselben Laufs,
+`luca-mue/groot-g1dex3-n17-vision-v1-ckpt44000` — gleicher Servertyp, gleiches Protokoll, Image
+erneut lokal gebaut (39 min, Exit 0, Label `"1.6 1.7"`). Closed Loop: 0/10 `lifted`, Fingerspanne
+im Median 0,54 rad = 26 % der Demo; die Hand fährt an den Würfel, schließt aber nicht und zieht
+nach ~15 s zurück. Open Loop (`span`): Fingerspanne 77 % (Train) bzw. 94 % (Test) der Ground
+Truth, MSE-Median 0,0035 / 0,0043 — gegenüber ckpt15000 also −60 % / −33 %. Das bessere Modell
+auf echten Bildern kommt im Closed Loop nicht an; die Sim steht auf dem Niveau von N1.6 mit
+`TUNE_VISUAL` (Lauf 34). Episodenwerte, Videobefund und Vergleichstabelle:
+[diagnose-chronik.md, Läufe 54/55](../ergebnisse/diagnose-chronik.md#läufe-5455-die-ersten-n17-checkpoints-in-der-sim).
+
+Befunde aus dem Aufsetzen auf einem frischen Server (2026-10-13):
+
+- **Kein NGC-Login nötig:** Das Basis-Image `nvcr.io/nvidia/isaac-lab:3.0.0-beta2-post1` ließ sich
+  anonym ziehen; der Build lief ohne `docker login nvcr.io` durch.
+- **`RL_SKIP_PULL=1` setzen**, wenn `RL_IMAGE` auf ein lokal gebautes Image zeigt. Sonst zieht
+  `preflight` den gleichnamigen Tag von Docker Hub und kann den lokalen Build überdecken.
+- **`span` parallel zur Eval geht:** zweite Modellinstanz, VRAM-Spitze 18,1 GB statt 11,5 GB.
+  Die Inferenzzeit der Eval steigt währenddessen (Mittel bis 358 ms, Maximum bis 859 ms je Chunk).
+- **Datensatz-Download für `span` kann hängen**, und ein Neustart konvertiert dann einen halben
+  Datensatz — siehe [fehlerbehebung.md](../fehlerbehebung.md#span-datensatz-download-hängt--halber-datensatz).
+- **Kopfzeile im Eval-Log** lautet auch bei N1.7 „GR00T N1.6 — G1+Dex3 Closed-Loop Sim Eval“
+  (fest in `run_g1_dex3_sim_eval.py`); welches Modell läuft, zeigt die Zeile `GR00T N1.7 root=…`
+  des Entrypoints.
+
+**Abnahme laut Plan teilweise erfüllt:** Der Eintrag in `diagnose-chronik.md` steht jetzt
+(Läufe 54/55). Weiterhin offen: gelaufen sind je 10 statt 20 Episoden.
 
 **Phase 6 — RL & Co-Training: teilweise.** Co-Training: neuer
 [`Training/scripts/launch_cotrain_n17.py`](../../Training/scripts/launch_cotrain_n17.py)
@@ -292,7 +316,7 @@ Rechner mit mehreren GPUs ohne SLURM. Auf KISSKI setzt SLURM die Variable selbst
 | Apptainer-SIF, `HF_HUB_OFFLINE=1`, Cache auf VAST | Compute-Knoten haben kein Internet; N1.7 lädt das Backbone bei jedem Modell-Laden | nur KISSKI |
 | A100/H100, Batch > 8 je GPU | VRAM-Grenze mit `TUNE_VISUAL` | nur KISSKI |
 | Aussagekräftige Validierung (voller Lauf + Sweep) | Vergleich N1.7 vs. N1.6 (Lauf 3, ckpt 30000) | KISSKI |
-| Sim-Eval mit N1.7-Checkpoint | Phase 5; Sim-Image noch nicht gebaut | IKR |
+| Sim-Eval mit N1.7-Checkpoint unter Abnahmeprotokoll (20 Episoden) | Phase 5; gelaufen sind 10 Episoden je Checkpoint (ckpt15000, ckpt44000; Läufe 54/55 in der Diagnose-Chronik) | IKR oder Miet-Server mit RT-Cores |
 
 ### Übergabe an KISSKI (Luca)
 

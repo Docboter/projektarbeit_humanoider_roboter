@@ -1,14 +1,14 @@
-# Diagnose-Chronik — Sim- und RL-Läufe 08–52
+# Diagnose-Chronik — Sim- und RL-Läufe 08–55
 
-> **TL;DR:** Chronologisches Protokoll aller Sim-/RL-Diagnoseläufe (Läufe 08–52): Kamera-Fixes,
-> Domain-Gap-Messungen, Greif-Physik, `span`-Gate, `TUNE_VISUAL` im Closed Loop. Nachschlagewerk für
-> die projektweiten „Lauf N“-Verweise — gezielt den passenden Abschnitt ansteuern statt komplett
-> lesen.
+> **TL;DR:** Chronologisches Protokoll aller Sim-/RL-Diagnoseläufe (Läufe 08–55): Kamera-Fixes,
+> Domain-Gap-Messungen, Greif-Physik, `span`-Gate, `TUNE_VISUAL` im Closed Loop, die ersten
+> N1.7-Checkpoints in der Sim. Nachschlagewerk für die projektweiten „Lauf N“-Verweise — gezielt
+> den passenden Abschnitt ansteuern statt komplett lesen.
 
 Chronologisches Protokoll der Diagnose-, Kalibrier- und Eval-Läufe der Isaac-Lab-Sim
 (2026-08-08 bis 2026-08-14). Entstanden am 2026-08-18 durch Aufteilung von
 [rl-anleitung.md](../weiterfuehrend/rl-anleitung.md), die auf 2197 Zeilen angewachsen war und
-operative Anleitung mit Protokoll vermischte. Die Lauf-Nummern (`Lauf 8` … `Lauf 52`) sind der
+operative Anleitung mit Protokoll vermischte. Die Lauf-Nummern (`Lauf 8` … `Lauf 55`) sind der
 projektweit referenzierte Zähler — andere Dokumente verlinken gezielt auf einzelne Abschnitte hier.
 
 Für die **operative Bedienung** der Diagnose-Werkzeuge (`gap` · `eval` · `grasp` · `span`) siehe
@@ -52,6 +52,8 @@ Für den **aktuellen Projektstatus** siehe
 | 47–51 | Drei unabhängige Geometriefehler ergaben zusammen ~12 cm: Vorzeichen, Beckenhöhe 0,85→0,764, Basis x 0→−0,057. Restabstand 4,5 cm ([Läufe 49–51](#läufe-4951-auch-die-basis-in-x--die-rekonstruktion-steht)) |
 | 52 | Der **Gierwinkel** der Würfel wurde nie rekonstruiert — Sim stellte sie immer achsparallel. Schätzer gebaut; auf echten Frames scheiterten 13/15 am Deckflächenschnitt, der fest die hellsten 30 % nahm statt der 49–58 %, die die Deckfläche ausmacht. Erste Begründung stützte sich auf annotierte Debug-PNGs und ist zurückgezogen ([Lauf 52](#lauf-52-der-gierwinkel-fehlte-in-jedem-lauf)) |
 | 53 | A/B mit und ohne Gierwinkel (`runs/20260826/01`): der Bildwinkel deckt sich **nicht** mit der Greifachse (Δ im Mittel 27° bei einer 45°-Obergrenze, n=5). Die Sichtprüfung war durch ungeseedete Domain Randomization entwertet — Seed nachgerüstet ([Lauf 53](#lauf-53-der-gierwinkel-und-die-greifachse-widersprechen-sich)) |
+| 54 | Erster N1.7-Sim-Lauf, `vision-v1` **checkpoint-15000** (2026-10-12): `lifted` 0/10, Anhebung ≤ 0,83 cm; Fingerspanne 1,93 rad, aber die Hände öffnen und schließen in der Luft ([Läufe 54/55](#läufe-5455-die-ersten-n17-checkpoints-in-der-sim)) |
+| 55 | Derselbe Lauf, **checkpoint-44000** (2026-10-13): `lifted` 0/10, Fingerspanne nur noch 25,6 % der Demo — Closed Loop auf dem Niveau von Lauf 34 (N1.6); offene Schleife dagegen MSE −60 % / −33 % gegenüber ckpt15000 ([Läufe 54/55](#läufe-5455-die-ersten-n17-checkpoints-in-der-sim)) |
 
 ---
 
@@ -2104,3 +2106,91 @@ Eval/RL bleiben unverändert ungeseedet, dort ist die Streuung über Läufe hinw
 Ausbeute nebenbei: 8 von 15 Episoden fielen aus, 5× „kein belastbarer Bewegungsbeginn im Layout",
 3× Fenster unter 60 Frames. 12 von 21 Würfelplätzen bekamen überhaupt einen Winkel — deckt sich mit
 den 61 % aus dem Vollauslauf in Lauf 52.
+
+
+### Läufe 54/55: die ersten N1.7-Checkpoints in der Sim
+
+Beide Läufe messen denselben KISSKI-Lauf `g1_dex3_blockstacking_vision_v1` (GR00T **N1.7**,
+`TUNE_VISUAL=1`, 80/20-Split, 44 000 Steps) mit dem Protokoll von Lauf 34: 10 Episoden à 40 s,
+DR an, Exec-Horizon 8, schwarzhändiges Asset, Backend `eager`. Server: Trooper.ai, RTX 4080 Super
+32 GB, Treiber 580.178.04, Sim-Image lokal gebaut (`update_sim_image.sh --standalone --skip-push`,
+Label `de.humrob.groot-versions: "1.6 1.7"`). Aufbau und Einrichtung:
+[groot-n17-migration.md, Phase 5](../weiterfuehrend/groot-n17-migration.md).
+
+| Lauf | Datum | Checkpoint (HF) |
+|---|---|---|
+| 54 | 2026-10-12 | `luca-mue/groot-g1dex3-n17-vision-v1-ckpt15000` |
+| 55 | 2026-10-13 | `luca-mue/groot-g1dex3-n17-vision-v1-ckpt44000` (letzter Checkpoint des Laufs) |
+
+Dass in Lauf 55 wirklich ckpt44000 lief, ist am Gewicht geprüft: SHA256 von
+`model-00002-of-00002.safetensors` lokal = LFS-Hash im HF-Repo (`3050114cb6d1…`), ckpt15000 hat
+andere Hashes. Der Policy-Server lief aus `/app/Groot-1.7`. Die Kopfzeile „GR00T N1.6 — G1+Dex3
+Closed-Loop Sim Eval“ im Eval-Log ist im Client fest verdrahtet und sagt über das Modell nichts.
+
+#### Lauf 55, Episode für Episode
+
+| Ep | Fingerspanne | % Demo | Kuppe→Würfel | Verschiebung | Anhebung | Stufen |
+|---|---|---|---|---|---|---|
+| 1 | 0,498 rad | 24 % | 3,1 cm | 2,4 cm | 0,17 cm | `reached`, `touched` |
+| 2 | 0,566 rad | 27 % | 2,6 cm | 4,3 cm | 1,03 cm | `reached`, `touched` |
+| 3 | 0,568 rad | 27 % | 3,3 cm | 0,5 cm | 1,21 cm | `reached` |
+| 4 | 0,489 rad | 23 % | 4,0 cm | 0,2 cm | 0,03 cm | `reached` |
+| 5 | 0,523 rad | 25 % | 3,9 cm | 0,0 cm | 0,06 cm | `reached` |
+| 6 | 0,501 rad | 24 % | 2,6 cm | 0,9 cm | 0,99 cm | `reached` |
+| 7 | 0,549 rad | 26 % | 4,0 cm | 1,1 cm | 0,26 cm | `reached`, `touched` |
+| 8 | 0,555 rad | 26 % | 2,9 cm | 2,1 cm | 0,12 cm | `reached`, `touched` |
+| 9 | 0,513 rad | 24 % | 4,5 cm | 1,7 cm | 0,00 cm | `touched` |
+| 10 | **0,669 rad** | **32 %** | 2,5 cm | 8,1 cm | **1,82 cm** | + `grasp_attempted` |
+
+Leiter: `reached` 9/10 · `grasp_attempted` **1/10** · `touched` 6/10 · `lifted` **0/10** ·
+`stacked` 0/10. Median Fingerspanne 0,536 rad = **25,6 %** der Demo (2,094 rad).
+
+Die Anhebung ist hier kein Griffmaß: Ep 3 und 6 zeigen rund 1 cm **ohne** `touched` und mit
+weniger als 1 cm Verschiebung, das kommt nicht aus der Hand. Die 1,82 cm in Ep 10 fallen mit
+8,1 cm Verschiebung zusammen — eher geschoben oder gekippt als gehoben.
+
+**Video (Standbilder alle 4 s, Ep 3, 5, 10):** In den ersten 4–8 s fährt eine Hand gezielt an
+einen Würfel; in Ep 3 und 10 legt sich die linke Hand von oben auf den roten. Die Finger bleiben
+dabei halb offen und schließen nicht. Ab etwa 12–16 s ziehen beide Arme zurück, die Hände schweben
+vor dem Oberkörper oder über dem Tisch — oft hochkant mit gespreizten Fingern — und bleiben bis zum
+Episodenende dort. Das Öffnen und Schließen in der Luft aus Lauf 54 tritt nicht mehr auf.
+
+#### Vergleich: Lauf 54 → 55, dazu Lauf 34 (N1.6)
+
+| Messgröße | Lauf 34 (N1.6, vision_v2 ckpt30000) | Lauf 54 (N1.7, ckpt15000) | Lauf 55 (N1.7, ckpt44000) |
+|---|---|---|---|
+| `lifted` | 0/10 | 0/10 | 0/10 |
+| max. Anhebung | 1,68 cm | 0,83 cm | 1,82 cm (geschoben, s. o.) |
+| Fingerspanne Median | 27,6 % | 1,93 rad = 92 % (Luftbewegung, kein Greifen) | 0,536 rad = 25,6 % |
+| `grasp_attempted` | 4/10 | — | 1/10 |
+| `touched` | 10/10 | — | 6/10 |
+| `span` Train 0–4 (Median Vorhersage/GT) | — | 83 % | 77 % |
+| `span` Test 240/255/270/285/300 | — | 90 % | 94 % |
+| `span` MSE-Median Train / Test | — | 0,0087 / 0,0064 | **0,0035 / 0,0043** |
+
+„—“ heißt: für diesen Lauf nicht festgehalten, nicht null.
+
+`span` für Lauf 55 im Einzelnen (Vorhersage/GT der Fingerspanne, MSE über alle 28 Dimensionen):
+Train 0,77 / 0,76 / 0,87 / 0,89 / 0,75, MSE 0,0056 / 0,0030 / 0,0035 / 0,0065 / 0,0015;
+Test 0,94 / 0,94 / 0,91 / 1,01 / 0,86, MSE 0,0048 / 0,0041 / 0,0039 / 0,0043 / 0,0106.
+
+**Lesart.** Auf echten Bildern ist ckpt44000 klar das bessere Modell: der MSE fällt auf den
+Train-Episoden um 60 %, auf den zurückgehaltenen Test-Episoden um 33 %, und die Test-Fingerspanne
+liegt bei 94 % der Demo. Im Closed Loop kommt davon nichts an. Die Fingerspanne fällt von der
+Luftbewegung aus Lauf 54 auf ein Viertel der Demo, und damit genau auf das Niveau, auf dem N1.6
+mit `TUNE_VISUAL` stehen blieb (Lauf 34, 27,6 %). Das ist dasselbe Muster wie Lauf 32 → 34: echte
+Bilder ja, Sim-Bilder nein — der Domain Gap bleibt der Engpass, und ein längeres Training auf
+Realdaten schließt ihn nicht. Bei n = 10 und einem einzigen Griffversuch ist der Rückgang von
+`grasp_attempted` und `touched` gegenüber Lauf 34 kein belastbarer Unterschied zwischen N1.6 und
+N1.7.
+
+**Betrieb.** VRAM-Spitze Sim + N1.7-Server 11 452 MiB; mit parallel laufendem `span` (zweite
+Modellinstanz) 18 065 MiB von 32 760 — kein OOM, beides passt auf eine 32-GB-Karte. Inferenz je
+Chunk: Median der Episodenmittel 197 ms; in Ep 8–10 lief `span` parallel, dort stiegen Mittel und
+Maximum auf bis zu 358 bzw. 859 ms. Die Sim wartet auf jeden Chunk, das Verhalten sollte das nicht
+ändern, nur die Wanduhr (geprüft ist das nicht). Wanduhr Median 201 s je 40-s-Episode, 83 % Sim und
+Rendering.
+
+**Nicht gemessen:** 20 Episoden (die Abnahme laut Migrationsplan), Wrist-Kamera-Videos,
+`latency` in-process, `global_step` im Ergebnis-JSON (`trainer_state.json` ist nicht im HF-Repo).
+Videos nur stichprobenhaft als Standbilder gesichtet.
