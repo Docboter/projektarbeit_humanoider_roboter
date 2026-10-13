@@ -75,7 +75,11 @@ N1.7-Checkpoint. `checkpoint_sweep.py` wurde zwar so angepasst, dass es unter be
 läuft (introspiziert `execution_horizon` vs. `action_horizon`, `decoder_kwargs` vs.
 `video_backend`, `EmbodimentTag.resolve`), aber das ist ungetestet.
 
-**Phase 4 — KISSKI: Scripts fertig, kein Lauf.**
+**Phase 4 — KISSKI: erledigt (2026-10-13).** Vergleichslauf (Job 16634862, 44k Steps, 7 h 53 min)
+und Sweeps in beiden Protokollen fertig; Ergebnis: Open-Loop am Ende gleichauf mit Lauf 3 (n.s.),
+N1.7 lernt früher und trainiert 1,6× schneller —
+[lauf4-n17-vergleich.md](../ergebnisse/lauf4-n17-vergleich.md). Der folgende Absatz ist der
+Stand vom 2026-08-19.
 [`kisski_submit.sh`](../../Training/kisski_submit.sh) reicht `GROOT_VERSION` durch, bindet für
 `1.7` einen zweiten Fork-Clone (`GROOT17_FORK_DIR`, Default
 `$KISSKI_PROJECT_DIR/repo-groot-n17`), setzt `HF_HOME=/data/hf_cache` und
@@ -313,9 +317,9 @@ Rechner mit mehreren GPUs ohne SLURM. Auf KISSKI setzt SLURM die Variable selbst
 
 | Punkt | Warum relevant | Wo prüfbar |
 |---|---|---|
-| Apptainer-SIF, `HF_HUB_OFFLINE=1`, Cache auf VAST | Compute-Knoten haben kein Internet; N1.7 lädt das Backbone bei jedem Modell-Laden | nur KISSKI |
-| A100/H100, Batch > 8 je GPU | VRAM-Grenze mit `TUNE_VISUAL` | nur KISSKI |
-| Aussagekräftige Validierung (voller Lauf + Sweep) | Vergleich N1.7 vs. N1.6 (Lauf 3, ckpt 30000) | KISSKI |
+| ✅ Apptainer-SIF, `HF_HUB_OFFLINE=1`, Cache auf VAST | erledigt 2026-10-12 ([KISSKI-Smoke-Test](#kisski-smoke-test-2026-10-12); braucht den Offline-Fix im Fork) | nur KISSKI |
+| ✅ A100/H100, Batch > 8 je GPU | erledigt: 4 × A100, bs 8 je GPU, ~33 GB je GPU mit `TUNE_VISUAL` | nur KISSKI |
+| ✅ Aussagekräftige Validierung (voller Lauf + Sweep) | erledigt 2026-10-13: Open-Loop gleichauf mit Lauf 3 ([lauf4-n17-vergleich.md](../ergebnisse/lauf4-n17-vergleich.md)) | KISSKI |
 | Sim-Eval mit N1.7-Checkpoint unter Abnahmeprotokoll (20 Episoden) | Phase 5; gelaufen sind 10 Episoden je Checkpoint (ckpt15000, ckpt44000; Läufe 54/55 in der Diagnose-Chronik) | IKR oder Miet-Server mit RT-Cores |
 
 ### Übergabe an KISSKI (Luca)
