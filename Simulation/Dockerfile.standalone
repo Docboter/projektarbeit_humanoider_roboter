@@ -163,7 +163,7 @@ RUN if /app/Groot-1.6/.venv/bin/python -c "import deepspeed" 2>/dev/null; then \
 # (=/data/hf_cache, persistent) — entrypoint_sim.sh lädt es einmalig vor.
 # Build-Arg GROOT_VERSIONS (Default "1.6 1.7") kann den N1.7-Baum weglassen (halbe Größe).
 ARG GROOT_VERSIONS="1.6 1.7"
-ARG GROOT17_COMMIT=cf2032dc26ea2a961823f124b9bf50f17be7f7e5
+ARG GROOT17_COMMIT=288d1de41647808d5117a8a7a30a2c783381a8ef
 RUN if [[ " ${GROOT_VERSIONS} " == *" 1.7 "* ]]; then \
         git clone --branch luca/g1-dex3-n17 https://github.com/lucam06/Isaac-GR00T.git /app/Groot-1.7 \
         && git -C /app/Groot-1.7 checkout "${GROOT17_COMMIT}" \

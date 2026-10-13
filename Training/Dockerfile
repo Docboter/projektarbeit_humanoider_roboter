@@ -108,7 +108,7 @@ RUN if [[ " ${GROOT_VERSIONS} " == *" 1.6 "* ]]; then \
 # /opt/uv/python (bewusst NICHT unter /root, damit es unter Apptainer/KISSKI ohne $HOME-
 # Überlagerung sichtbar bleibt). jsonlines ist in N1.7 bereits reguläre Abhängigkeit.
 # Pin aktualisieren: ./update_image.sh --update-commit (setzt beide Commits).
-ARG GROOT17_COMMIT=cf2032dc26ea2a961823f124b9bf50f17be7f7e5
+ARG GROOT17_COMMIT=288d1de41647808d5117a8a7a30a2c783381a8ef
 ENV UV_PYTHON_INSTALL_DIR=/opt/uv/python
 RUN if [[ " ${GROOT_VERSIONS} " == *" 1.7 "* ]]; then \
         git clone --branch luca/g1-dex3-n17 https://github.com/lucam06/Isaac-GR00T.git /app/Groot-1.7 \
