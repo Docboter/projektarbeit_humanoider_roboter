@@ -2319,8 +2319,8 @@ Logs (jede Aktion außer 'shell' wird gespiegelt):
   Host-Seite:      $HOST_DATA_DIR/logs/<aktion>-<zeitstempel>.log
   Container-Seite: $HOST_DATA_DIR/logs/entrypoint_rl.log   (= /data/logs/… im Container)
 
-GR00T-Version (GROOT_VERSION, Default `auto` = Erkennung aus der Checkpoint-config.json
-im Container; host-seitige docker-exec-Aktionen arbeiten bei `auto` mit 1.6, weil auf dem
+GR00T-Version (GROOT_VERSION, Default 'auto' = Erkennung aus der Checkpoint-config.json
+im Container; host-seitige docker-exec-Aktionen arbeiten bei 'auto' mit 1.6, weil auf dem
 Host kein Checkpoint liegt):
   aktuell N$GROOT_VERSION (Host)  ->  Container: GROOT_VERSION=$GROOT_VERSION_CONTAINER, Baum $GROOT_ROOT
   1.6  Python 3.10, Eagle-Backbone      — der bisherige und weiterhin voreingestellte Weg
