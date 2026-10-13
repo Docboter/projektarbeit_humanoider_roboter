@@ -65,16 +65,17 @@ je Phase fest.
 **Phase 1 — Fork-Branch: fertig.** `app/Groot-1.7` zeigt auf `lucam06/Isaac-GR00T`, Branch
 `luca/g1-dex3-n17`, gepinnter Commit ursprünglich `efa0169` (= Upstream `main` `376ba89` + unser
 G1_DEX3-Beispiel/Konverter + Train/Test-Split-Patch + eine README-Notiz, erneut angewendet), seit
-2026-10-12 `cf2032d` (zusätzlich der Offline-Fix für den Backbone-Processor, nötig auf KISSKI;
-Submodul und `GROOT17_COMMIT` in beiden Dockerfiles seit 2026-10-13 gleich). **`cf2032d` liegt auf
-`origin/luca/g1-dex3-n17`** (geprüft 2026-10-13) — die Sorge aus Review 10-13 §5, der Pin könnte
-wie früher bei N1.6 ungepusht sein, ist damit erledigt.
+2026-10-12 `cf2032d` (zusätzlich der Offline-Fix für den Backbone-Processor, nötig auf KISSKI),
+seit 2026-10-13 **`288d1de`** (`HF_HUB_OFFLINE`-Auswertung korrigiert, siehe unten). Submodul und
+`GROOT17_COMMIT` in beiden Dockerfiles sind gleich (prüft `tools/ci_check_pins.sh` im CI), und der
+Commit liegt auf `origin/luca/g1-dex3-n17` — die Sorge aus Review 10-13 §5, der Pin könnte wie
+früher bei N1.6 ungepusht sein, ist damit erledigt.
 
-> **Vorbereitet, nicht committet (2026-10-13):** Im Offline-Fix galt jeder gesetzte Wert von
+> **Behoben in `288d1de` (2026-10-13):** Im Offline-Fix galt jeder gesetzte Wert von
 > `HF_HUB_OFFLINE` als „offline“, also auch `HF_HUB_OFFLINE=0`. Der Fix (nur `1`/`ON`/`YES`/`TRUE`,
-> Rückfall auf `TRANSFORMERS_OFFLINE`, wie `huggingface_hub` selbst) liegt im Arbeitsbaum des
-> Submoduls (`gr00t/model/gr00t_n1d7/processing_gr00t_n1d7.py`). Offen: Fork-Commit, Push, Pin in
-> Submodul **und** `GROOT17_COMMIT` beider Dockerfiles nachziehen.
+> Rückfall auf `TRANSFORMERS_OFFLINE`, wie `huggingface_hub` selbst) steht in
+> `gr00t/model/gr00t_n1d7/processing_gr00t_n1d7.py`; Fork-Commit gepusht, Pin in Submodul und
+> beiden Dockerfiles nachgezogen. Wirksam erst mit einem neu gebauten N1.7-Image bzw. neuer SIF.
 >
 > **`action_horizon`:** Das N1.7-Modell hat als Default `action_horizon = 40`, unser Embodiment 16.
 > Das wird über `action_mask`, die Loss-Maske und das Abschneiden der Vorhersage auf 16 abgefangen

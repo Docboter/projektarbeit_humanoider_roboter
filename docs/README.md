@@ -318,9 +318,8 @@ Die Ruff-Konfiguration für den eigenen Code steht in der Root-[`pyproject.toml`
 Lokal dieselben Checks: die drei `tools/`-Skripte oben, `ruff check .` und `ruff format --check .`.
 
 **`graphify-out/` gehört nicht ins Repo.** `.gitignore` schließt es (auch unter `latex/`) aus; der
-Graph ist rein lokal und wird mit `graphify update .` neu erzeugt. *(Stand 2026-10-13: Das
-Entfernen der 1250 bisher getrackten Dateien aus dem Index — `git rm -r --cached graphify-out` —
-steht als Commit noch aus.)*
+Graph ist rein lokal und wird mit `graphify update .` neu erzeugt. Seit 2026-10-13 (`76f2775`)
+liegt er nicht mehr im Index; die alte Historie enthält ihn noch.
 
 ## Externe Ressourcen
 
