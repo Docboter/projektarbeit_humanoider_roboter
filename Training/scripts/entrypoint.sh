@@ -34,6 +34,9 @@
 #                                            gerenderten Bildern (run_finetuning_cotrain.sh).
 #                                            Braucht COTRAIN_DATASET_PATH bzw. COTRAIN_HF_REPO;
 #                                            Anleitung: docs/training/co-training.md
+#   GROOT_VERSION          (default 1.6)      — 1.6 | 1.7. Wählt Code-Baum (/app/Groot-1.6 bzw.
+#                                            /app/Groot-1.7), venv, Modell und Output-Namespace
+#                                            aus. Details: lib_groot_version.sh.
 #
 # Bei Aufruf mit Argumenten wird das Skript nicht aktiv — stattdessen wird das
 # Argument direkt ausgeführt (nützlich für `docker run … bash`).
@@ -56,6 +59,16 @@ trap_err() {
 }
 trap 'trap_err $LINENO' ERR
 
+# ── GR00T-Version auflösen (N1.6 | N1.7) ───────────────────────────────────────
+# Muss vor JEDER Verwendung von GROOT_ROOT/MODEL_DIR/venv laufen — auch vor dem
+# Passthrough für manuelle Befehle (docker run … bash), damit auch eine
+# interaktive Shell schon die zur gewählten Version passende venv auf PATH hat.
+DATA_DIR="${DATA_DIR:-/data}"
+export DATA_DIR
+source "$(dirname "${BASH_SOURCE[0]}")/lib_groot_version.sh"
+groot_resolve || { err "GR00T-Versionsauflösung fehlgeschlagen (GROOT_VERSION=${GROOT_VERSION:-})."; exit 1; }
+groot_activate_venv
+
 # ── Manuelle Override-Befehle durchreichen ────────────────────────────────────
 # Wenn der Container z. B. mit `docker run … bash` gestartet wird, einfach
 # diesen Befehl ausführen statt zu trainieren.
@@ -64,18 +77,24 @@ if [[ $# -gt 0 ]]; then
     exec "$@"
 fi
 
+# Ein Image je GR00T-Generation (update_image.sh --groot=…): passt GROOT_VERSION nicht zum
+# Image, hier klar abbrechen statt spaeter mit "python: not found" im Training.
+if [[ ! -x "$GROOT_VENV_PY" ]]; then
+    err "Dieses Image enthaelt GR00T N${GROOT_VERSION} nicht ($GROOT_VENV_PY fehlt)."
+    err "  Images: N1.6 = <konto>/projekt-humanoider-roboter:latest, N1.7 = …:latest-n17 (Team-Konto: lucam03)"
+    err "  Bauen:  ./Training/update_image.sh --groot=${GROOT_VERSION}"
+    exit 1
+fi
+
 # ── Banner ────────────────────────────────────────────────────────────────────
 echo ""
 echo -e "\033[1;35m╔══════════════════════════════════════════════════════════════════╗\033[0m"
-echo -e "\033[1;35m║   GR00T N1.6 Fine-tuning — Container-Entrypoint (vast.ai-ready)  ║\033[0m"
+echo -e "\033[1;35m║   GR00T Fine-tuning — Container-Entrypoint (vast.ai-ready)       ║\033[0m"
 echo -e "\033[1;35m╚══════════════════════════════════════════════════════════════════╝\033[0m"
 echo ""
+log "$(groot_summary)"
 
 # ── Konfiguration ─────────────────────────────────────────────────────────────
-GROOT_ROOT="${GROOT_ROOT:-/app/Groot-1.6}"
-DATA_DIR="${DATA_DIR:-/data}"
-export DATA_DIR
-
 MAX_STEPS="${MAX_STEPS:-20000}"
 GLOBAL_BATCH_SIZE="${GLOBAL_BATCH_SIZE:-8}"
 NUM_GPUS="${NUM_GPUS:-1}"
@@ -133,6 +152,14 @@ else
     export HF_TOKEN
     ok "HF_TOKEN gesetzt (${#HF_TOKEN} Zeichen)"
 fi
+# N1.7: Zugriff auf das gated Backbone VOR allen Downloads pruefen (sonst faellt es erst nach
+# dem ~7-GB-Modell-Download auf). Liegt es schon im Cache, ist der Zugriff egal.
+if [[ -n "${GROOT_BACKBONE_REPO:-}" ]] && \
+   ! compgen -G "$HF_HOME/hub/models--${GROOT_BACKBONE_REPO//\//--}/snapshots/*/config.json" >/dev/null; then
+    log "Zugriff auf gated Backbone $GROOT_BACKBONE_REPO pruefen"
+    groot_check_backbone_access || exit 1
+    ok "Zugriff auf $GROOT_BACKBONE_REPO bestaetigt"
+fi
 echo ""
 
 # ── Verzeichnisse anlegen ─────────────────────────────────────────────────────
@@ -143,7 +170,8 @@ mkdir -p "$DATA_DIR/models" \
          "$DATA_DIR/logs"
 
 # ── Download ──────────────────────────────────────────────────────────────────
-MODEL_DIR="$DATA_DIR/models/GR00T-N1.6-3B"
+# Versionsabhängig: GROOT_MODEL_NAME kommt aus lib_groot_version.sh (groot_resolve).
+MODEL_DIR="${MODEL_DIR:-$DATA_DIR/models/$GROOT_MODEL_NAME}"
 DATASET_DIR="$DATA_DIR/unitreerobotics/G1_Dex3_BlockStacking_Dataset"
 MODALITY_FILE="$DATASET_DIR/meta/modality.json"
 
@@ -220,6 +248,8 @@ if [[ "$SKIP_TRAIN" == "1" ]]; then
 fi
 
 echo "  Konfiguration:"
+printf "    %-20s %s\n" "GROOT_VERSION"     "$GROOT_VERSION"
+printf "    %-20s %s\n" "GROOT_ROOT"        "$GROOT_ROOT"
 printf "    %-20s %s\n" "MAX_STEPS"         "$MAX_STEPS"
 printf "    %-20s %s\n" "GLOBAL_BATCH_SIZE" "$GLOBAL_BATCH_SIZE"
 printf "    %-20s %s\n" "NUM_GPUS"          "$NUM_GPUS"

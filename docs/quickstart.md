@@ -49,11 +49,14 @@ docker run --rm --gpus all nvidia/cuda:12.8.0-base-ubuntu22.04 nvidia-smi
 | Hugging-Face-Token (`hf_...`) | Modell- und Datensatz-Download. Vorher auf huggingface.co die Lizenz von `nvidia/GR00T-N1.6-3B` akzeptieren und Zugriff auf `unitreerobotics/G1_Dex3_BlockStacking_Dataset` sicherstellen | **Ja** (jeder Weg) |
 | W&B-API-Key | Trainings-Monitoring | Lokal optional; auf KISSKI Pflicht (außer `USE_WANDB=0`) |
 | vast.ai-Konto + Guthaben | Miet-GPU für Sim-Eval bzw. Training | Nur Weg vast.ai |
-| Docker-Hub-Login, NGC-API-Key (nvcr.io) | Eigene Images bauen und pushen | Nur Maintainer |
+| Eigenes Docker-Hub-Konto + `docker login`, NGC-API-Key (nvcr.io) | Eigene Images bauen und pushen | Nur wer Images baut |
 
 Drei Konten-Namensräume tauchen im Projekt auf, nicht verwechseln:
-`lucam03` = Docker-Hub-Konto (Images), `lucam06` = GitHub-Konto (Isaac-GR00T-Fork),
-`luca-mue` = Hugging-Face-Konto (Checkpoints/Datasets).
+`lucam03` = Docker-Hub-Konto (Team-Images), `lucam06` = GitHub-Konto (Isaac-GR00T-Fork),
+`luca-mue` = Hugging-Face-Konto (Checkpoints/Datasets). Alle drei sind **öffentlich lesbar** —
+zum Trainieren braucht niemand Rechte daran. **Schreiben** (Images pushen) geht nur auf ein
+Konto, auf dem du Rechte hast: Die Build-Skripte fragen es als `DOCKER_NAMESPACE` ab, und die
+Launcher ziehen dann von dort — siehe [portabilitaet.md § 3.4](portabilitaet.md#34-eigene-images-bauen-eigenes-docker-hub-konto).
 
 ## Repo holen
 

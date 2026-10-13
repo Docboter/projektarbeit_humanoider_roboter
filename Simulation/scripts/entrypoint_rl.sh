@@ -9,6 +9,13 @@
 # das 4-Kamera-Rendering — A100/H100 haben KEINE RT-Cores (siehe
 # docs/weiterfuehrend/reinforcement-learning-plan.md §3.5 und CLAUDE.md).
 #
+# NUR GR00T N1.6. rl_finetune.py läuft im gebündelten Isaac-Sim-Python, und dort ist
+# ausschließlich das N1.6-gr00t installiert (pip install -e /app/Groot-1.6 --no-deps,
+# transformers 4.51.3 für Eagle). Zudem repliziert der Trainer Interna von
+# Gr00tN1d6ActionHead.forward und der Prozessor-Masken. Mit einem N1.7-Checkpoint (oder
+# GROOT_VERSION=1.7) bricht das Skript deshalb sofort ab; die Portierung ist Phase 6 in
+# docs/weiterfuehrend/groot-n17-migration.md.
+#
 # Steuerung über Env-Vars (auf vast.ai im Feld "Docker options" als -e KEY=VAL):
 #   HF_TOKEN              (Pflicht für HF-Download)
 #   HF_CHECKPOINT_REPO   (optional) BC-Checkpoint-Repo auf HF (wird nach CHECKPOINT_PATH geladen)
@@ -122,6 +129,34 @@ if [[ -n "${HF_CHECKPOINT_REPO:-}" && ! -d "$CHECKPOINT_PATH" ]]; then
 fi
 [[ -d "$CHECKPOINT_PATH" ]] || { err "BC-Checkpoint fehlt: $CHECKPOINT_PATH (HF_CHECKPOINT_REPO setzen?)"; exit 1; }
 ok "BC-Checkpoint: $CHECKPOINT_PATH"
+
+# ── GR00T-Version: RL gibt es nur für N1.6 (Begründung im Kopf dieser Datei) ───
+# Früh und deutlich abbrechen statt den Traceback im Isaac-Python abzuwarten: dort käme
+# entweder ein ImportError (gr00t_n1d7 fehlt) oder ein stiller Ladefehler des Checkpoints.
+export GROOT_VERSION_DEFAULT="auto"
+if [[ -r /scripts/lib_groot_version.sh ]]; then
+    # shellcheck source=lib_groot_version.sh
+    source /scripts/lib_groot_version.sh
+    RL_WANT="$(groot_normalize_version "${GROOT_VERSION:-}")"
+    RL_DETECTED="$(groot_detect_version "$CHECKPOINT_PATH" 2>/dev/null || true)"
+    if [[ "$RL_WANT" == "1.7" || "$RL_DETECTED" == "1.7" ]]; then
+        err "RL-Fine-tuning gibt es bislang nur für GR00T N1.6."
+        if [[ "$RL_DETECTED" == "1.7" ]]; then
+            err "  '$CHECKPOINT_PATH' ist ein N1.7-Checkpoint (model_type Gr00tN1d7)."
+        else
+            err "  GROOT_VERSION=1.7 ist gesetzt."
+        fi
+        err "  Grund: rl_finetune.py läuft im Isaac-Sim-Python, dort ist nur das N1.6-gr00t"
+        err "  installiert; der Trainer repliziert außerdem Gr00tN1d6ActionHead.forward und"
+        err "  die Prozessor-Masken. Portierung: docs/weiterfuehrend/groot-n17-migration.md"
+        err "  (Phase 6). Für RL einen N1.6-Checkpoint verwenden."
+        exit 1
+    fi
+    groot_resolve 1.6
+    log "$(groot_summary)"
+else
+    warn "lib_groot_version.sh fehlt im Image — nehme GR00T N1.6 an (RL kann nichts anderes)."
+fi
 
 # USD-Asset prüfen (RL-Env spawnt den Roboter daraus)
 ASSET_FLAG=()

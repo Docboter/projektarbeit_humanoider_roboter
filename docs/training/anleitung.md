@@ -16,6 +16,42 @@ Diese Anleitung beschreibt Schritt für Schritt, wie du das Fine-tuning von **GR
 - Auf vast.ai entspricht ein Container genau einer Instanz: Stop/Start lässt den Container weiterleben, Destroy löscht alles.
 - Vor dem Destroy → Checkpoints exportieren (siehe Abschnitt [Daten retten](#daten-retten)).
 
+## Modellgeneration wählen — N1.6 oder N1.7
+
+Standardmäßig trainiert der Container **GR00T N1.6** (`GROOT_VERSION=1.6`, so wie der Rest
+dieser Anleitung es beschreibt). Seit 2026-08-19 liegt **N1.7** als **paralleler Codebaum**
+vor — auswählbar über eine zusätzliche Env-Var, sonst ändert sich nichts. Seit 2026-09-25
+steckt N1.7 dafür in einem **eigenen Image** (`:latest-n17` statt `:latest`, siehe
+[Weg D](#d0-docker-image-bauen-und-nach-docker-hub-pushen)):
+
+```bash
+-e GROOT_VERSION=1.7
+```
+
+**Voraussetzung:** Zugang zum **gated** HF-Backbone
+[`nvidia/Cosmos-Reason2-2B`](https://huggingface.co/nvidia/Cosmos-Reason2-2B) — auf der
+Model-Page beantragen, mit demselben HF-Konto, zu dem `HF_TOKEN` gehört. Ohne Zugang bricht
+der Download mit einer klaren Fehlermeldung samt Link ab.
+
+**Was sich mit `GROOT_VERSION=1.7` ändert:**
+- Modell `nvidia/GR00T-N1.7-3B` statt `nvidia/GR00T-N1.6-3B` → `/data/models/GR00T-N1.7-3B`.
+- Checkpoints landen in einem eigenen Namespace mit Suffix `_n17`
+  (`/data/g1_dex3_finetune/blockstacking_n17` statt `blockstacking`, entsprechend für
+  `_vision`/`_cotrain`).
+- Der Container nutzt intern den zweiten Codebaum `/app/Groot-1.7` (Python 3.12) statt
+  `/app/Groot-1.6` (Python 3.10) — für die Bedienung ohne Unterschied.
+
+> **Ungetestet:** Es gibt bislang **keinen** abgeschlossenen N1.7-Trainingslauf — weder lokal
+> noch auf KISSKI. Details zum Umsetzungsstand:
+> [groot-n17-migration.md § Stand der Umsetzung](../weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19).
+> Für KISSKI gilt zusätzlich: Modell **und** Backbone müssen vorab auf dem Login-Knoten im
+> HF-Cache liegen — siehe [kisski-hpc.md](kisski-hpc.md#schritt-2b--repos-einmalig-auf-dem-login-knoten-klonen).
+
+Volle Variablenreferenz (inkl. `HF_HOME`, Build-Arg `GROOT_VERSIONS`):
+[env-vars.md](env-vars.md).
+
+---
+
 ## Vier Wege zum Trainieren
 
 > **Ohne Parameter starten führt durch.** Ruft man eines der Host-Skripte ohne Argumente
@@ -229,7 +265,7 @@ Der Ablauf hat drei Stufen: **Docker-Image bauen & nach Docker Hub pushen** → 
 
 ### D0. Docker-Image bauen und nach Docker Hub pushen
 
-Der Cluster zieht das Image per `apptainer pull docker://lucam03/projekt-humanoider-roboter:latest` **direkt von Docker Hub**. Apptainer kann ein Image nur konvertieren, das dort bereits liegt — es baut nichts selbst. Deshalb muss das Docker-Image **vor** der SIF-Konvertierung existieren und aktuell sein.
+Der Cluster zieht das Image per `apptainer pull docker://lucam03/projekt-humanoider-roboter:latest` **direkt von Docker Hub** (bzw. von deinem eigenen Konto, wenn du selbst baust — siehe unten). Apptainer kann ein Image nur konvertieren, das dort bereits liegt — es baut nichts selbst. Deshalb muss das Docker-Image **vor** der SIF-Konvertierung existieren und aktuell sein.
 
 **Wann ist dieser Schritt nötig?**
 
@@ -240,19 +276,36 @@ Der Cluster zieht das Image per `apptainer pull docker://lucam03/projekt-humanoi
 
 **Variante 1 — mit dem Build-Skript (empfohlen):**
 
-[`Training/update_image.sh`](../../Training/update_image.sh) prüft Docker-Login, baut und pusht in einem Rutsch:
+[`Training/update_image.sh`](../../Training/update_image.sh) prüft Docker-Login, baut und pusht in einem Rutsch.
+Gepusht wird auf **dein** Docker-Hub-Konto (`DOCKER_NAMESPACE`): Das Skript fragt beim ersten
+Mal danach (Vorschlag: das angemeldete Konto) und merkt es sich auf Wunsch in `.env.local`.
+Auf `lucam03` kann nur pushen, wer dort Schreibrechte hat. Wer selbst baut, zieht danach auch
+von seinem Konto — `setup_and_train_dockerhub_pull.sh` und `apptainer pull` also mit
+`<dein-konto>/projekt-humanoider-roboter:<tag>`.
 
 ```bash
-docker login                            # einmalig
+docker login                            # einmalig, mit deinem Docker-Hub-Konto
+DOCKER_NAMESPACE=dein-konto ./update_image.sh --groot=1.7   # Konto ohne Rückfrage vorgeben
 cd Training
-./update_image.sh                       # Build + Push (aktueller Dockerfile-Stand)
+./update_image.sh                       # fragt am Terminal nach der Generation (sonst Default 1.6)
+./update_image.sh --groot=1.6           # N1.6-Image bauen + pushen
+./update_image.sh --groot=1.7           # N1.7-Image bauen + pushen
+./update_image.sh --groot=both          # beide venvs in einem Image (~doppelte Größe, nie Default)
 ./update_image.sh --update-commit       # zusätzlich neuesten GR00T-Commit ins Dockerfile eintragen
 ./update_image.sh --no-cache            # Build ohne Cache (z. B. nach flash-attn-Problemen)
 ./update_image.sh --skip-push           # nur lokal bauen, nicht pushen
+./update_image.sh --push-latest         # zusätzlich :latest (bzw. :latest-n17/-n16-n17) setzen + pushen
 ./update_image.sh --dry-run             # nur Befehle anzeigen
 ```
 
-Das Skript taggt das Image doppelt (`:latest` und `:<timestamp>`) und pusht beide.
+Jede Generation bekommt ihr eigenes Image: Das Skript taggt mit `:<repo-branch>-<gen>` (z. B.
+`:training-luca-IKR-IS6.0-GN1.7-n17`, `/`→`-`) und `:<timestamp>-<gen>`, `<gen>` = `n16` |
+`n17` | `n16-n17`, und pusht beide. **`:latest` wird nur mit `--push-latest` angefasst** —
+N1.6 → `:latest` (unverändert, das ziehen `setup_and_train_dockerhub_pull.sh` und die
+KISSKI-`apptainer pull`-Befehle standardmäßig), N1.7 → `:latest-n17`, `both` →
+`:latest-n16-n17`. Die Herkunft steht in OCI-Labels im Image (Repo-Branch/-Commit,
+`de.humrob.repo-dirty`, `de.humrob.groot-versions`, beide Fork-Pins):
+`docker inspect --format '{{json .Config.Labels}}' <image>`.
 *(Das frühere Windows-Pendant `update_image.ps1` wurde entfernt; unter Windows WSL2 verwenden.)*
 
 **Variante 2 — manuell mit `docker` (Linux/macOS/WSL2):**
@@ -260,8 +313,14 @@ Das Skript taggt das Image doppelt (`:latest` und `:<timestamp>`) und pusht beid
 ```bash
 docker login                          # einmalig
 # Build-Context ist Training/ (damit COPY scripts/ funktioniert). --platform für KISSKI-Kompatibilität:
-docker build --platform linux/amd64 -t lucam03/projekt-humanoider-roboter:latest Training/
-docker push lucam03/projekt-humanoider-roboter:latest
+docker build --platform linux/amd64 -t <dein-konto>/projekt-humanoider-roboter:latest Training/
+docker push <dein-konto>/projekt-humanoider-roboter:latest
+
+# N1.7 (eigenes Image, eigenes Tag):
+docker build --platform linux/amd64 \
+  --build-arg GROOT_VERSIONS=1.7 --build-arg GROOT_VERSION_DEFAULT=1.7 \
+  -t lucam03/projekt-humanoider-roboter:latest-n17 Training/
+docker push lucam03/projekt-humanoider-roboter:latest-n17
 ```
 
 Der erste Build dauert ~30–60 min (PyTorch + flash-attn); danach greift der Docker-Cache. Das Dockerfile klont das GR00T-Submodul selbst und checkt einen **gepinnten Commit** aus — `git clone --recurse-submodules` vorab ist nicht nötig.
@@ -275,6 +334,9 @@ Auf dem Login-Knoten wird das (frisch gepushte) Docker-Hub-Image in das Apptaine
 module load apptainer
 apptainer pull $HOME/images/projekt-humanoider-roboter.sif \
     docker://lucam03/projekt-humanoider-roboter:latest
+# Für GROOT_VERSION=1.7 eine eigene SIF (wird von kisski_submit.sh automatisch gewählt):
+apptainer pull $HOME/images/projekt-humanoider-roboter-n17.sif \
+    docker://lucam03/projekt-humanoider-roboter:latest-n17
 
 # Job einreichen:
 export HF_TOKEN=hf_...  WANDB_API_KEY=...  GLOBAL_BATCH_SIZE=32

@@ -309,8 +309,37 @@ def main() -> None:
     env = G1Dex3BlockstackEnv(cfg)
 
     # ── Policy: aktuelle (trainierbar) + eingefrorene Referenz (fuer KL) ───────
-    emb = EmbodimentTag(args.embodiment_tag)
+    # EmbodimentTag aus einem String: N1.7 hat dafuer die Klassenmethode `resolve`
+    # (Name ODER Wert, case-insensitive), N1.6 nur EmbodimentTag(wert)/EmbodimentTag[NAME].
+    _resolve = getattr(EmbodimentTag, "resolve", None)
+    if _resolve is not None:
+        emb = _resolve(args.embodiment_tag)
+    else:
+        try:
+            emb = EmbodimentTag(args.embodiment_tag)
+        except ValueError:
+            emb = EmbodimentTag[args.embodiment_tag.upper()]
     policy = Gr00tPolicy(model_path=args.checkpoint, embodiment_tag=emb, device=device)
+
+    # ── N1.6-Sperre ───────────────────────────────────────────────────────────
+    # Dieser Trainer repliziert Interna von N1.6: Gr00tN1d6ActionHead.forward liefert den
+    # elementweisen "action_loss", der als FPO-Proxy fuer log pi(a|s) dient, und die
+    # Aktions-/Zustandsmasken werden wie in processing_gr00t_n1d6.py von Hand gebaut.
+    # Fuer N1.7 (Gr00tN1d7) ist davon nichts geprueft — und im Isaac-Sim-Python ist
+    # ohnehin nur das N1.6-gr00t installiert. Also hier abbrechen, nicht erst mitten im
+    # Update mit einem KeyError. Portierung: docs/weiterfuehrend/groot-n17-migration.md
+    # (Phase 6).
+    _model_cls = type(policy.model).__name__
+    if _model_cls != "Gr00tN1d6":
+        raise NotImplementedError(
+            f"RL-Fine-tuning ist bislang nur fuer GR00T N1.6 implementiert, geladen wurde "
+            f"'{_model_cls}' ({args.checkpoint}). Der FPO-Trainer haengt an "
+            "Gr00tN1d6ActionHead.forward und den Prozessor-Masken aus "
+            "processing_gr00t_n1d6.py. Portierung: Phase 6 in "
+            "docs/weiterfuehrend/groot-n17-migration.md — bis dahin einen "
+            "N1.6-Checkpoint verwenden."
+        )
+
     ref_policy = Gr00tPolicy(model_path=args.checkpoint, embodiment_tag=emb, device=ref_device)
     model = policy.model
     ref_model = ref_policy.model

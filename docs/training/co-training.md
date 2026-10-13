@@ -54,7 +54,8 @@ Oberflächen-Statistik der Realbilder verlassen.
 |---|---|
 | [`Simulation/g1_dex3_sim/render_cotrain_dataset.py`](../../Simulation/g1_dex3_sim/render_cotrain_dataset.py) | Der Renderer. Zwei Stufen (`scan` → `render`), schreibt einen vollwertigen LeRobot-**v2.1**-Datensatz. |
 | [`Simulation/server_rl_run.sh render`](../../Simulation/server_rl_run.sh) | Wrapper auf dem Sim-Server: Checkpoint + Asset + echter Datensatz sicherstellen, beide Stufen fahren. |
-| [`Training/scripts/launch_cotrain.py`](../../Training/scripts/launch_cotrain.py) | Trainings-Einstieg für **zwei** Datensätze mit Mischungsverhältnis. |
+| [`Training/scripts/launch_cotrain.py`](../../Training/scripts/launch_cotrain.py) | Trainings-Einstieg für **zwei** Datensätze mit Mischungsverhältnis (GR00T N1.6). |
+| [`Training/scripts/launch_cotrain_n17.py`](../../Training/scripts/launch_cotrain_n17.py) | Dasselbe für **GR00T N1.7** (`GROOT_VERSION=1.7`) — Spiegel von N1.7s `launch_finetune.py` mit derselben Mix-Ratio-Ergänzung. `run_finetuning_cotrain.sh` wählt zwischen beiden. Ungetestet (kein Smoke-Lauf), siehe [groot-n17-migration.md](../weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19). |
 | [`Training/scripts/run_finetuning_cotrain.sh`](../../Training/scripts/run_finetuning_cotrain.sh) | Trainings-Launcher (eigener Namespace `blockstacking_cotrain`, `--tune_visual`, Split an). |
 | [`Training/scripts/entrypoint.sh`](../../Training/scripts/entrypoint.sh) | `USE_COTRAIN=1` routet auf den neuen Launcher. |
 
@@ -320,7 +321,7 @@ export HF_TOKEN=hf_... WANDB_API_KEY=...
 export USE_COTRAIN=1
 export COTRAIN_HF_REPO=<user>/g1-dex3-rendered   # oder COTRAIN_DATASET_PATH lokal
 export COTRAIN_MIX_RATIO=0.25
-export MAX_STEPS=30000        # Lauf 3: die letzten 14 000 Steps haben verschlechtert
+export MAX_STEPS=44000        # wie Lauf 3; dessen Nachmessung (20×750) zeigt bis 44k keine Verschlechterung
 export GLOBAL_BATCH_SIZE=32
 sbatch --export=ALL Training/kisski_submit.sh
 ```
@@ -413,7 +414,7 @@ Vor dem Lauf festgeschrieben, damit hinterher nicht die Interpretation wandert.
 | Messung | Referenz | Deutung |
 |---|---|---|
 | **Fingerspanne Sim** (10 Ep. × 40 s) | Lauf 34: Median 0,577 rad = 27,6 % | **Primäres Gate.** Deutlich darüber → der Weg trägt, aufstocken. Auf dem Niveau → Sim-Bilder allein genügen nicht, RL rückt vor. |
-| **Validierungs-MSE echt** (Checkpoint-Sweep) | Lauf 3: 0,00716 | **Leitplanke.** Merklich schlechter → das gerenderte Material verdrängt echtes Lernen, `COTRAIN_MIX_RATIO` senken statt weiterzurendern. |
+| **Validierungs-MSE echt** (Checkpoint-Sweep) | Lauf 3: 0,00716 im 6×300-Protokoll (bester 30.000) · 0,00482 im 20×750-Protokoll (bester 44.000, Nachmessung 2026-10-12) — nur gleiches Protokoll vergleichen | **Leitplanke.** Merklich schlechter → das gerenderte Material verdrängt echtes Lernen, `COTRAIN_MIX_RATIO` senken statt weiterzurendern. |
 | **`lifted`** | Lauf 34: 0/10, best 1,68 cm | Erster echter Verhaltensfortschritt. Die Schwelle liegt nur 0,32 cm über dem heutigen Bestwert. |
 | **Domain-Gap** (`server_rl_run.sh gap`) | Mittel 0,22, `cam_left_wrist` 0,36 | Kontrolle, ob sich die Encoder-Repräsentation wirklich angenähert hat. |
 
@@ -477,6 +478,7 @@ Ehrlich benannt, weil jeder dieser Punkte den Lauf entwerten würde:
 | `COTRAIN_HF_REPO` | — | HF-Dataset-Repo; wird geladen, wenn der Pfad leer ist |
 | `COTRAIN_MIX_RATIO` | `0.25` (§4.2) | Anteil gerenderter Stichproben |
 | `TRAIN_TEST_SPLIT` | `1` | Hier standardmäßig **an** — ohne Split fehlt die Leitplanke aus §5 |
+| `GROOT_VERSION` | `1.6` | `1.7` routet auf `launch_cotrain_n17.py` statt `launch_cotrain.py` und hängt den Checkpoints den Namespace-Suffix `_n17` an (`blockstacking_cotrain_n17`) — ungetestet |
 
 > Der Skript-Default für `COTRAIN_MIX_RATIO` stand bis 2026-10-13 auf 0.5 („zwei
 > gleichberechtigte Datensätze"), die Empfehlung aber auf 0.25. Seitdem ist 0.25 überall der
@@ -490,6 +492,6 @@ Ehrlich benannt, weil jeder dieser Punkte den Lauf entwerten würde:
 - [next-steps.md](../../next-steps.md) — die Priorisierung, aus der dieser Schritt kommt
 - [diagnose-chronik.md, Läufe 33/34](../ergebnisse/diagnose-chronik.md#läufe-3334-runs2026081403-runs2026081404-der-tune_visual-checkpoint-im-closed-loop) — die Messung, die ihn begründet
 - [lauf2-vision-auswertung.md](../ergebnisse/lauf2-vision-auswertung.md) — warum `tune_visual` auf reinen Realdaten kollabiert
-- [lauf3-vision-split-auswertung.md](../ergebnisse/lauf3-vision-split-auswertung.md) — Checkpoint-Auswahl und Overfitting-Nachweis
+- [lauf3-vision-split-auswertung.md](../ergebnisse/lauf3-vision-split-auswertung.md) — Checkpoint-Auswahl (der dortige Overfitting-Befund ist durch die Nachmessung vom 2026-10-12 widerlegt, siehe den Nachtrag am Anfang der Lauf-3-Auswertung)
 - [train-test-split.md](train-test-split.md) — Split-Mechanik und Checkpoint-Sweep
 - [env-vars.md](env-vars.md) — vollständige Variablenreferenz

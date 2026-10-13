@@ -35,8 +35,12 @@
 #   GLOBAL_BATCH_SIZE  (default 8)
 #   NUM_GPUS           (default 1)
 #   WANDB_PROJECT      (default gr00t-g1-dex3)
+#   GROOT_VERSION      (default 1.6)      1.6 | 1.7 — waehlt Code-Baum/Modell/venv im
+#                                         Container (siehe Training/scripts/lib_groot_version.sh)
 #   CONTAINER_NAME     (default groot-train)
-#   DOCKER_HUB_IMAGE   (default lucam03/projekt-humanoider-roboter:latest)
+#   DOCKER_NAMESPACE   (default lucam03) — Docker-Hub-Konto, von dem gezogen wird; eigenes
+#                      Konto, wenn du selbst mit update_image.sh baust (am besten in .env.local)
+#   DOCKER_HUB_IMAGE   (default $DOCKER_NAMESPACE/projekt-humanoider-roboter:latest)
 #   DOCKER_GPUS        (default all) — Wert fuer `docker run --gpus`. Auf einem Rechner,
 #                      der die Karten noch mit etwas anderem teilt, gezielt eine belegen:
 #                      DOCKER_GPUS='"device=0"' ./setup_and_train_dockerhub_pull.sh
@@ -143,7 +147,15 @@ if menu_enabled; then
 fi
 
 # ── Konfiguration ─────────────────────────────────────────────────────────────
-DOCKER_HUB_IMAGE="${DOCKER_HUB_IMAGE:-lucam03/projekt-humanoider-roboter:latest}"
+GROOT_VERSION="${GROOT_VERSION:-1.6}"
+# Docker-Hub-Konto der Images. Ziehen darf jeder vom Team-Konto (oeffentlich); wer selbst
+# baut und pusht, setzt sein Konto — dieselbe Variable, die update_image.sh fuer den Push nimmt.
+DOCKER_NAMESPACE="${DOCKER_NAMESPACE:-lucam03}"
+# Ein Image je GR00T-Generation (update_image.sh --groot=…): N1.6 = :latest, N1.7 = :latest-n17.
+if [[ -z "${DOCKER_HUB_IMAGE-}" && "$GROOT_VERSION" == "1.7" ]]; then
+    DOCKER_HUB_IMAGE="$DOCKER_NAMESPACE/projekt-humanoider-roboter:latest-n17"
+fi
+DOCKER_HUB_IMAGE="${DOCKER_HUB_IMAGE:-$DOCKER_NAMESPACE/projekt-humanoider-roboter:latest}"
 CONTAINER_NAME="${CONTAINER_NAME:-groot-train}"
 
 MAX_STEPS="${MAX_STEPS:-30000}"
@@ -255,6 +267,13 @@ if ! $INTERACTIVE; then
     fi
     ok "HF_TOKEN gesetzt"
 
+    # N1.7: Zugriff auf das gated Backbone JETZT pruefen — vor Image-Pull und Container-Start.
+    if [[ "$GROOT_VERSION" == "1.7" ]]; then
+        ( source "$REPO_DIR/Training/scripts/lib_groot_version.sh" \
+          && groot_check_backbone_access "nvidia/Cosmos-Reason2-2B" ) || exit 1
+        ok "Zugriff auf nvidia/Cosmos-Reason2-2B bestaetigt"
+    fi
+
     if [[ -z "${WANDB_API_KEY:-}" ]]; then
         warn "Kein WANDB_API_KEY gesetzt — Training laeuft ohne W&B-Logging."
     fi
@@ -267,6 +286,18 @@ if $SKIP_PULL; then
     warn "Pull uebersprungen (--skip-pull)."
 else
     invoke_cmd docker pull "$DOCKER_HUB_IMAGE"
+fi
+# Passt die Generation zum Image? update_image.sh schreibt sie ins Label de.humrob.groot-versions.
+# Ohne Label (Images vor 2026-08-19) steckt nur N1.6 drin.
+if ! $DRY_RUN && docker image inspect "$DOCKER_HUB_IMAGE" >/dev/null 2>&1; then
+    _img_versions="$(docker image inspect --format '{{ index .Config.Labels "de.humrob.groot-versions" }}' "$DOCKER_HUB_IMAGE" 2>/dev/null || true)"
+    [[ -n "$_img_versions" && "$_img_versions" != "<no value>" ]] || _img_versions="1.6"
+    if [[ " $_img_versions " != *" $GROOT_VERSION "* ]]; then
+        err "GROOT_VERSION=$GROOT_VERSION, aber $DOCKER_HUB_IMAGE enthaelt nur N$_img_versions."
+        err "  Passendes Image bauen:  ./Training/update_image.sh --groot=$GROOT_VERSION --push-latest"
+        err "  oder eines vorgeben:     DOCKER_HUB_IMAGE=$DOCKER_NAMESPACE/projekt-humanoider-roboter:<tag>"
+        exit 1
+    fi
 fi
 ok "Image bereit: $DOCKER_HUB_IMAGE"
 echo ""
@@ -329,6 +360,7 @@ else
     printf "    %-25s %s\n" "GLOBAL_BATCH_SIZE" "$GLOBAL_BATCH_SIZE"
     printf "    %-25s %s\n" "NUM_GPUS"          "$NUM_GPUS"
     printf "    %-25s %s\n" "WANDB_PROJECT"     "$WANDB_PROJECT"
+    printf "    %-25s %s\n" "GROOT_VERSION"     "$GROOT_VERSION"
     printf "    %-25s %s\n" "CONTAINER_NAME"    "$CONTAINER_NAME"
     # Auch die durchgereichten Schalter anzeigen — sonst faellt nicht auf, wenn einer fehlt.
     for _v in TUNE_VISUAL USE_COTRAIN COTRAIN_MIX_RATIO TRAIN_TEST_SPLIT \
@@ -346,6 +378,7 @@ else
         "-e" "GLOBAL_BATCH_SIZE=$GLOBAL_BATCH_SIZE"
         "-e" "NUM_GPUS=$NUM_GPUS"
         "-e" "WANDB_PROJECT=$WANDB_PROJECT"
+        "-e" "GROOT_VERSION=$GROOT_VERSION"
     )
     [[ -n "${WANDB_API_KEY:-}" ]] && run_args+=("-e" "WANDB_API_KEY=$WANDB_API_KEY")
 

@@ -9,12 +9,23 @@ lokal **identisch**. Der Entrypoint (`/scripts/entrypoint.sh`) liest sie ein.
 
 > **Wo die Defaults stehen:** Ein Teil ist als `ENV` im [Dockerfile](../../Training/Dockerfile)
 > gesetzt (`MAX_STEPS`, `GLOBAL_BATCH_SIZE`, `NUM_GPUS`, `WANDB_PROJECT`, `DATA_DIR`,
-> `SKIP_*`, `SHELL_ON_ERROR`). Die übrigen — u. a. `TUNE_VISUAL`, `USE_RL`,
+> `SKIP_*`, `SHELL_ON_ERROR`, `GROOT_VERSION`, `HF_HOME`). Die übrigen — u. a. `TUNE_VISUAL`, `USE_RL`,
 > `TRAIN_TEST_SPLIT`, `USE_AUGMENTATION`, `LEARNING_RATE`, `SAVE_STEPS`, `WEIGHT_DECAY`,
 > `WARMUP_RATIO` — sind Shell-Defaults in
 > [`entrypoint.sh`](../../Training/scripts/entrypoint.sh) bzw.
 > [`run_finetuning.sh`](../../Training/scripts/run_finetuning.sh). Für die Bedienung macht das
 > keinen Unterschied; beim Suchen im Code schon.
+>
+> **Build-Zeit vs. Laufzeit:** `GROOT_VERSION` wählt zur **Laufzeit** zwischen den Codebäumen,
+> die im Image liegen. Welche Bäume überhaupt **gebaut** werden, entscheidet das
+> Docker-Build-Arg `GROOT_VERSIONS` (Default seit 2026-09-25: `1.6`, ein Image je Generation) —
+> `--build-arg GROOT_VERSIONS=1.7` baut nur den N1.7-Baum, `"1.6 1.7"` beide venvs in einem
+> (Dual-Image, doppelte Größe, nie Default). Bequemer über
+> [`update_image.sh`](../../Training/update_image.sh) `--groot=1.6|1.7|both` (fragt ohne
+> Flag am Terminal, sonst Default `1.6`) — das Skript setzt auch `GROOT_VERSION_DEFAULT`
+> (welche Generation der Container ohne `-e GROOT_VERSION=…` startet) und taggt passend
+> (`:latest` bleibt N1.6, N1.7 → `:latest-n17`). Siehe
+> [`Training/Dockerfile`](../../Training/Dockerfile).
 
 > **Nicht auswendig lernen:** Die Host-Launcher fragen diese Werte ab, wenn man sie ohne
 > Parameter startet, und erklären sie dabei — siehe
@@ -35,9 +46,12 @@ lokal **identisch**. Der Entrypoint (`/scripts/entrypoint.sh`) liest sie ein.
 |---|---|---|
 | `HF_TOKEN` | — | **Pflicht.** HuggingFace-Token (Lese-Berechtigung reicht) |
 | `WANDB_API_KEY` | — | Optional. W&B-Key. Ohne diesen läuft Training ohne W&B. |
+| `GROOT_VERSION` | `1.6` | `1.6` \| `1.7` — wählt die GR00T-Generation (Codebaum `/app/Groot-1.6` bzw. `/app/Groot-1.7`, venv, Modell-Repo, Output-Namespace-Suffix). Auflösung: [`lib_groot_version.sh`](../../Training/scripts/lib_groot_version.sh). `1.7` lädt zusätzlich das **gated** Backbone `nvidia/Cosmos-Reason2-2B` (Zugang separat beantragen) und hängt allen Output-Namespaces `_n17` an (`blockstacking_n17`, `blockstacking_vision_n17`, `blockstacking_cotrain_n17`). **Ungetestet:** Es gibt bislang keinen abgeschlossenen N1.7-Trainingslauf — siehe [groot-n17-migration.md](../weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19). |
+| `DOCKER_NAMESPACE` | — | **Host-seitig**, kein Container-Env. Docker-Hub-Konto der Images: `update_image.sh` / `update_sim_image.sh` pushen dorthin (ohne Angabe fragen sie am Terminal, ohne Terminal Abbruch vor dem Build), die Launcher ziehen von dort (ohne Angabe Team-Konto `lucam03`). Am besten in `.env.local` — siehe [portabilitaet.md § 3.4](../portabilitaet.md#34-eigene-images-bauen-eigenes-docker-hub-konto). |
+| `HF_HOME` | `$DATA_DIR/hf_cache` | HF-Cache-Verzeichnis. Nur für `GROOT_VERSION=1.7` relevant: das Cosmos-Reason2-2B-Backbone wird bei **jedem** Checkpoint-Laden erneut vom Hub gezogen, sofern es nicht schon im Cache liegt — der Cache muss deshalb persistent sein (liegt standardmäßig im Container-FS bzw. auf dem KISSKI-VAST-Mount). |
 | `MAX_STEPS` | `20000` | Anzahl Trainings-Steps. Auf ~241–301 Block-Stacking-Episoden sättigt BC früh; 20k konvergieren sauber (Lauf 1 war bei 30k bereits konvergiert). KISSKI-Multi-GPU-Default: `44000`. |
 | `GLOBAL_BATCH_SIZE` | `8` | Globale Batch-Size (8 für < 40 GB VRAM, 32 für 4x A100 80 GB) |
-| `NUM_GPUS` | `1` | Anzahl genutzter GPUs |
+| `NUM_GPUS` | `1` | Anzahl genutzter GPUs. `>1` startet `torchrun`. Bei `1` und mehreren sichtbaren Karten setzen die Trainings-Launcher `CUDA_VISIBLE_DEVICES=0`, sonst wickelt der HF-Trainer das Modell in `nn.DataParallel` (N1.7 bricht dann mit `StopIteration` ab). Ein vorgegebenes `CUDA_VISIBLE_DEVICES` bleibt unangetastet — andere Karte also z. B. per `-e CUDA_VISIBLE_DEVICES=1` bzw. `DOCKER_GPUS='"device=1"'` |
 | `WANDB_PROJECT` | `gr00t-g1-dex3` | W&B-Projektname |
 | `DATA_DIR` | `/data` | Datenverzeichnis im Container |
 | `SKIP_DOWNLOAD` | `0` | `1` = HF-Download überspringen (Daten schon vorhanden) |
@@ -66,7 +80,7 @@ Diese Schalter aktivieren einzelne Verfahren beim Trainingsstart — alle unabh�
 | `USE_AUGMENTATION` | `1` | Bild-Augmentierung / Domain-Randomization (Color-Jitter, optional Rotation/State-Dropout) gegen den Sim-Real-Domain-Gap. `0` = explizit aus (Color-Jitter auf 0, kein Modell-Default-Jitter). **Gilt seit 2026-08-13 auch für `TUNE_VISUAL=1`** — vorher war der Jitter im Vision-Skript fest verdrahtet und der Schalter dort wirkungslos. |
 | `CJ_BRIGHTNESS` / `CJ_CONTRAST` / `CJ_SATURATION` / `CJ_HUE` | `0.3` / `0.4` / `0.5` / `0.08` | Color-Jitter-Stärken (nur bei `USE_AUGMENTATION=1`). |
 | `RANDOM_ROTATION_ANGLE` | *(leer)* | Max. Rotationswinkel (Grad) für Bild-Rotations-Augmentierung; leer = aus. |
-| `STATE_DROPOUT_PROB` | `0.0` | Dropout-Wahrscheinlichkeit auf den State-Inputs (Regularisierung); `0.0` = aus. |
+| `STATE_DROPOUT_PROB` | *(leer)* | Dropout-Wahrscheinlichkeit auf den State-Inputs (Regularisierung). Leer = Modell-Default der gewählten Generation (N1.6 `0.0`, N1.7 `0.2` — bewusst übernommen, siehe [groot-n17-migration.md § Stand der Umsetzung, Nachtrag 2026-09-25](../weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19)); ein gesetzter Wert (auch `0`) wird immer übergeben. |
 | `USE_RL` | `0` | `1` = RL-Fine-tuning (FPO) gewünscht. Läuft **nicht** im BC-Trainingsimage (kein Isaac Sim): der BC-Entrypoint bricht mit einem Hinweis auf den RL-Pfad ab. RL braucht den kombinierten Isaac-Sim + GR00T-Container ([`Simulation/scripts/entrypoint_rl.sh`](../../Simulation/scripts/entrypoint_rl.sh) bzw. [`Training/kisski_rl_submit.sh`](../../Training/kisski_rl_submit.sh)) auf einer **RT-Core-GPU**. Details: [reinforcement-learning-plan.md](../weiterfuehrend/reinforcement-learning-plan.md). |
 | `USE_COTRAIN` | `0` | `1` = **Co-Training auf echten UND gerenderten Bildern** (Schritt 4). Entrypoint startet [`run_finetuning_cotrain.sh`](../../Training/scripts/run_finetuning_cotrain.sh) mit eigenem Namespace `blockstacking_cotrain`; setzt `--tune_visual` selbst und hat Vorrang vor `TUNE_VISUAL`. Braucht einen gerenderten Datensatz (siehe unten). Anleitung: [co-training.md](co-training.md). |
 

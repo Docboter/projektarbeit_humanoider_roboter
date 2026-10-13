@@ -114,7 +114,7 @@ ISAAC_CACHE="${ISAAC_CACHE:-$KISSKI_PROJECT_DIR/isaac-cache}"
 if [[ ! -f "$SIM_SIF" ]]; then
     echo "FEHLER: Sim-SIF nicht gefunden: $SIM_SIF" >&2
     echo "Einmalig auf dem Login-Node erstellen:" >&2
-    echo "    module load apptainer && apptainer pull $SIM_SIF docker://lucam03/projekt-humanoider-roboter-sim:latest" >&2
+    echo "    module load apptainer && apptainer pull $SIM_SIF docker://${DOCKER_NAMESPACE:-lucam03}/projekt-humanoider-roboter-sim:latest" >&2
     exit 1
 fi
 

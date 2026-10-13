@@ -47,6 +47,19 @@ class MsgSerializer:
             return np.load(io.BytesIO(bytes(obj["as_npy"])), allow_pickle=False)
         if b"__ndarray_class__" in obj:
             return np.load(io.BytesIO(bytes(obj[b"as_npy"])), allow_pickle=False)
+        # N1.7-Server (gr00t/policy/server_client.py) antwortet im msgpack_numpy-Format
+        # {nd, type, kind, shape, data} — Anfragen im Format oben nimmt er weiter an.
+        # msgpack_numpy schreibt bytes-Keys; str-Keys trotzdem mit abfangen.
+        def get(key):
+            return obj.get(key, obj.get(key.encode()))
+        nd = get("nd")
+        if nd is not None and get("type") is not None and get("data") is not None:
+            if get("kind") in ("O", b"O"):
+                raise ValueError("Object-dtype-ndarray abgelehnt (wuerde pickle brauchen).")
+            dtype = np.dtype(get("type"))
+            if nd:
+                return np.frombuffer(bytes(get("data")), dtype=dtype).reshape(get("shape"))
+            return np.frombuffer(bytes(get("data")), dtype=dtype)[0]
         return obj
 
     @staticmethod

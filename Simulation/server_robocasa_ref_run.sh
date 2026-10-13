@@ -61,7 +61,7 @@ if [[ -f "$REPO_DIR/.env.local" ]]; then
 fi
 
 # ── Konfiguration (alle via Env überschreibbar) ──────────────────────────────
-IMAGE="${RC_IMAGE:-lucam03/projekt-humanoider-roboter:latest}"
+IMAGE="${RC_IMAGE:-${DOCKER_NAMESPACE:-lucam03}/projekt-humanoider-roboter:latest}"
 CONTAINER="${RC_CONTAINER:-groot-robocasa-ref}"
 # Host-Verzeichnis, das im Container /data wird. Host-agnostischer Default; der konkrete
 # Pfad eines Servers gehört in .env.local (bis 2026-08 stand hier fest

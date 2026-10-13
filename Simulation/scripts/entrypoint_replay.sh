@@ -33,7 +33,22 @@ err()  { printf '\033[1;31m!! \033[0m %s\n' "$*" >&2; }
 if [[ $# -gt 0 ]]; then exec "$@"; fi
 
 DATA_DIR="${DATA_DIR:-/data}"
-GROOT_ROOT="${GROOT_ROOT:-/app/Groot-1.6}"
+# Der Replay nutzt WEDER Modell NOCH Server — das venv wird hier nur für einen
+# huggingface_hub-Download (USD-Asset) gebraucht, und den können beide. Trotzdem über die
+# Lib, damit im Skript kein fester /app/Groot-1.6-Pfad steht: bei GROOT_VERSION=auto (dem
+# Image-Default) fällt sie auf 1.6 zurück, ein explizites 1.7 wird respektiert.
+if [[ -r /scripts/lib_groot_version.sh ]]; then
+    # shellcheck source=lib_groot_version.sh
+    source /scripts/lib_groot_version.sh
+    REPLAY_VERSION="$(groot_normalize_version "${GROOT_VERSION:-}")"
+    if [[ "$REPLAY_VERSION" == "auto" ]]; then
+        REPLAY_VERSION="1.6"
+    fi
+    groot_resolve "$REPLAY_VERSION"
+else
+    GROOT_ROOT="${GROOT_ROOT:-/app/Groot-1.6}"
+    GROOT_VENV_PY="$GROOT_ROOT/.venv/bin/python"
+fi
 HF_CHECKPOINT_REPO="${HF_CHECKPOINT_REPO:-}"
 ASSET_PATH="${ASSET_PATH:-}"
 
@@ -68,7 +83,7 @@ if [[ -z "$ASSET_PATH" && -n "$HF_CHECKPOINT_REPO" ]]; then
     CKPT_DIR="$DATA_DIR/checkpoints/$(basename "$HF_CHECKPOINT_REPO")"
     if [[ ! -f "$CKPT_DIR/g1_dex3.usd" ]]; then
         log "Lade USD-Asset von HuggingFace: $HF_CHECKPOINT_REPO"
-        "$GROOT_ROOT/.venv/bin/python" - <<EOF
+        "$GROOT_VENV_PY" - <<EOF
 from huggingface_hub import snapshot_download
 snapshot_download(repo_id="${HF_CHECKPOINT_REPO}", local_dir="${CKPT_DIR}",
                   token="${HF_TOKEN:-None}")

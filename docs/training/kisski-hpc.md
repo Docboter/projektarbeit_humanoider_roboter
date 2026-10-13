@@ -95,6 +95,22 @@ apptainer pull $HOME/images/projekt-humanoider-roboter.sif \
 Das erzeugt `$HOME/images/projekt-humanoider-roboter.sif` (~10–15 GB). Diese Datei nur neu
 erstellen, wenn ein neues Image auf Docker Hub gepusht wurde.
 
+**Nur für `GROOT_VERSION=1.7` — eigenes Image, eigene SIF.** Seit 2026-09-25 ist N1.7 ein
+eigenes Docker-Image (`Training/update_image.sh --groot=1.7`, Tag `:latest-n17`); `kisski_submit.sh`
+und `kisski_open_loop_eval.sh` wählen die passende SIF automatisch anhand von `GROOT_VERSION`:
+
+```bash
+apptainer pull $HOME/images/projekt-humanoider-roboter-n17.sif \
+    docker://lucam03/projekt-humanoider-roboter:latest-n17
+```
+
+> **`/tmp` auf dem Login-Knoten ist ein gemeinsames tmpfs (63 GB, RAM).** Apptainer legt die
+> Layer beim Pull über `TMPDIR` dort ab, nicht über `APPTAINER_TMPDIR`. Der N1.7-Pull brach
+> deshalb am 2026-10-11 mit `no space left on device` ab. Vor dem Pull `TMPDIR` auf den
+> Projektspeicher setzen:
+> `export TMPDIR=/mnt/vast-kisski/projects/kisski-humrob/apptainer-tmp APPTAINER_TMPDIR=$TMPDIR`.
+> Die Warnung „`nodev` mount option set on /mnt/vast-kisski“ ist dabei harmlos.
+
 > Wo [`kisski_submit.sh`](../../Training/kisski_submit.sh) das SIF sucht, steht oben unter
 > [Pfad-Konfiguration](#pfad-konfiguration--zwei-variablen-sonst-nichts): zuerst `$KISSKI_SIF_DIR`
 > (Default `$HOME/images`), dann `$KISSKI_PROJECT_DIR/images`. Wer das Image wie oben nach
@@ -140,6 +156,11 @@ SKIP_DOWNLOAD=0 HF_TOKEN=hf_... WANDB_API_KEY=... sbatch --export=ALL Training/k
 Der Entrypoint lädt Modell und Datensatz dann selbst von HuggingFace (~25 GB, ca. 10–30 min).
 Bei allen weiteren Läufen ist `SKIP_DOWNLOAD=1` korrekt (Download wird automatisch übersprungen).
 
+> Zur Einordnung gegen den Hinweis in Schritt 2b unten („Compute-Nodes haben keinen
+> Internet-Zugang"): Für `GROOT_VERSION=1.7` müssen Modell **und** das gated Backbone in jedem
+> Fall vorab auf dem **Login-Knoten** in den HF-Cache geladen werden (siehe unten) — im Job
+> selbst läuft N1.7 mit `HF_HUB_OFFLINE=1`.
+
 ---
 
 ## Schritt 2b — Repos einmalig auf dem Login-Knoten klonen
@@ -159,9 +180,9 @@ git clone --branch luca/g1-dex3 --depth 1 \
     https://github.com/lucam06/Isaac-GR00T.git \
     /mnt/vast-kisski/projects/kisski-humrob/repo-groot
 
-# 3) Fork auf den Commit stellen, den das Image pinnt (Training/Dockerfile, "checkout <sha>")
-PIN=$(grep -oE 'checkout [0-9a-f]{40}' \
-      /mnt/vast-kisski/projects/kisski-humrob/repo/Training/Dockerfile | awk '{print $2}')
+# 3) Fork auf den Commit stellen, den das Image pinnt (Training/Dockerfile, "ARG GROOT16_COMMIT=<sha>")
+PIN=$(sed -nE 's/^ARG GROOT16_COMMIT=([0-9a-f]{40}).*/\1/p' \
+      /mnt/vast-kisski/projects/kisski-humrob/repo/Training/Dockerfile)
 git -C /mnt/vast-kisski/projects/kisski-humrob/repo-groot fetch --depth 1 origin "$PIN"
 git -C /mnt/vast-kisski/projects/kisski-humrob/repo-groot checkout "$PIN"
 ```
@@ -173,6 +194,63 @@ Pfade und Branch sind über `REPO_DIR`, `GITHUB_BRANCH` und `GROOT_FORK_DIR` üb
 > KISSKI anderer Code als im Image (Stand 2026-10-11: HEAD `dd87740` „(in testing!) …“ statt
 > Pin `9508b49`). Seit 2026-10-13 brechen beide Jobs in diesem Fall mit einer Anleitung ab;
 > `GROOT_FORK_ALLOW_DRIFT=1` erlaubt einen absichtlich anderen Stand.
+
+**Nur für `GROOT_VERSION=1.7` — zweiten Fork-Clone anlegen.** `kisski_submit.sh` bindet für
+N1.7 zusätzlich den Fork-Branch `luca/g1-dex3-n17` ein (`GROOT17_FORK_DIR`, Default
+`$KISSKI_PROJECT_DIR/repo-groot-n17`):
+
+```bash
+git clone --branch luca/g1-dex3-n17 --depth 1 \
+    https://github.com/lucam06/Isaac-GR00T.git \
+    /mnt/vast-kisski/projects/kisski-humrob/repo-groot-n17
+```
+
+Danach wie in Schritt 3 auf den Pin auschecken — hier `ARG GROOT17_COMMIT` im
+`Training/Dockerfile`; die Pin-Prüfung in `kisski_submit.sh` nennt den Befehl:
+
+```bash
+PIN17=$(sed -nE 's/^ARG GROOT17_COMMIT=([0-9a-f]{40}).*/\1/p' \
+      /mnt/vast-kisski/projects/kisski-humrob/repo/Training/Dockerfile)
+git -C /mnt/vast-kisski/projects/kisski-humrob/repo-groot-n17 fetch --depth 1 origin "$PIN17"
+git -C /mnt/vast-kisski/projects/kisski-humrob/repo-groot-n17 checkout "$PIN17"
+```
+
+**Nur für `GROOT_VERSION=1.7` — Modell + gated Backbone vorab auf dem Login-Knoten laden.**
+Compute-Nodes haben kein Internet (siehe Hinweis weiter unten); N1.7 braucht zusätzlich zum
+Basismodell das **gated** Backbone `nvidia/Cosmos-Reason2-2B`. `kisski_submit.sh` prüft vor
+jedem Start, ob beide bereits im HF-Cache (`$DATA_DIR/hf_cache`) bzw. unter
+`$DATA_DIR/models/GR00T-N1.7-3B` liegen, und bricht sonst mit genau diesen Befehlen ab:
+
+```bash
+module load apptainer
+
+# Gated Backbone — HF_TOKEN muss vorher auf https://huggingface.co/nvidia/Cosmos-Reason2-2B
+# freigeschaltet sein (gleiches Konto wie der Token):
+apptainer exec --bind /mnt/vast-kisski/projects/kisski-humrob/data:/data \
+    --env HF_TOKEN=$HF_TOKEN --env HF_HOME=/data/hf_cache \
+    $HOME/images/projekt-humanoider-roboter-n17.sif \
+    huggingface-cli download nvidia/Cosmos-Reason2-2B
+
+# Basismodell
+apptainer exec --bind /mnt/vast-kisski/projects/kisski-humrob/data:/data \
+    --env HF_TOKEN=$HF_TOKEN \
+    $HOME/images/projekt-humanoider-roboter-n17.sif \
+    huggingface-cli download nvidia/GR00T-N1.7-3B --local-dir /data/models/GR00T-N1.7-3B
+```
+
+Die heruntergeladene `config.json` bleibt unverändert (`model_name: "nvidia/Cosmos-Reason2-2B"`).
+Den Zugang des Tokens prüft
+`curl -I -H "Authorization: Bearer $HF_TOKEN" https://huggingface.co/nvidia/Cosmos-Reason2-2B/resolve/main/config.json`
+(muss `200` liefern, nicht `401`).
+
+Der Job selbst setzt danach `--env HF_HOME=/data/hf_cache --env HF_HUB_OFFLINE=1`, damit das
+Training den vorab gefüllten Cache trifft, statt (erfolglos) online nachzuladen. **Auf KISSKI
+getestet am 2026-10-12** (Job 16630159, 4 × A100, `TUNE_VISUAL=1`, Split, bs 32, 200 Steps:
+bestanden). Voraussetzung ist der Offline-Fix im Fork (`build_processor` in
+`gr00t/model/gr00t_n1d7/processing_gr00t_n1d7.py`): transformers 4.57.3 fragt beim Laden des
+Tokenizers sonst trotz `HF_HUB_OFFLINE=1` die Hub-API ab (`_patch_mistral_regex` →
+`model_info()`) und bricht mit `OfflineModeIsEnabled` ab. Details und Messwerte:
+[groot-n17-migration.md](../weiterfuehrend/groot-n17-migration.md#kisski-smoke-test-2026-10-12).
 
 ---
 
@@ -212,6 +290,19 @@ Mit optionalen Trainings-Overrides (ebenfalls vor `sbatch`, mit `--export=ALL`):
 MAX_STEPS=175000 \
 GLOBAL_BATCH_SIZE=32 \
 sbatch --export=ALL Training/kisski_submit.sh
+```
+
+Für **GR00T N1.7** statt des Defaults `1.6` genügt eine zusätzliche Zeile im selben Prefix
+(Voraussetzung: N1.7-SIF aus `:latest-n17` gepullt — siehe [Schritt 1](#schritt-1--image-einmalig-zu-sif-konvertieren-auf-dem-login-knoten)
+— sowie zweiter Fork-Clone + Backbone/Modell vorab im Cache, siehe
+[Schritt 2b](#schritt-2b--repos-einmalig-auf-dem-login-knoten-klonen) oben — **ungetestet**,
+siehe [groot-n17-migration.md](../weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19)):
+
+```bash
+HF_TOKEN=hf_... \
+WANDB_API_KEY=... \
+GROOT_VERSION=1.7 \
+sbatch Training/kisski_submit.sh
 ```
 
 SLURM gibt die Job-ID aus, z. B. `Submitted batch job 12345678`.
@@ -423,6 +514,8 @@ mkdir -p $HOME/images
 apptainer pull $HOME/images/projekt-humanoider-roboter.sif \
     docker://lucam03/projekt-humanoider-roboter:latest
 ```
+Bei `GROOT_VERSION=1.7` wird stattdessen `projekt-humanoider-roboter-n17.sif` aus
+`:latest-n17` gesucht — siehe [Schritt 1](#schritt-1--image-einmalig-zu-sif-konvertieren-auf-dem-login-knoten).
 
 ### Job bleibt in Status `PD` (Pending)
 

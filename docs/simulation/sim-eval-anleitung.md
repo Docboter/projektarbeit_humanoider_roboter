@@ -43,7 +43,7 @@ build-spezifischen; der vast.ai-Account wird nur für Weg B gebraucht:
 | Was | Wo |
 |---|---|
 | vast.ai-Account mit Credits (nur Weg B) | https://cloud.vast.ai |
-| Docker-Hub-Login (`lucam03`) | `docker login` lokal |
+| Docker-Hub-Login (eigenes Konto mit Schreibrechten; Team-Konto `lucam03`) | `docker login` lokal; Konto als `DOCKER_NAMESPACE` (fragt das Skript ab) |
 | NGC-API-Key für `nvcr.io` | https://ngc.nvidia.com → API Key |
 | Feingetunter Checkpoint | von KISSKI rsync'd (→ Abschnitt 3) |
 | `g1_dex3.usd` Asset | einmalig erzeugt (→ Abschnitt 4) |
@@ -63,9 +63,21 @@ docker login nvcr.io   # Username: $oauthtoken   Password: <NGC-API-Key>
 
 # Nur bauen, nicht pushen (zum Testen):
 ./Simulation/update_sim_image.sh --standalone --skip-push
+
+# Zusätzlich :latest setzen + pushen (Default: :latest bleibt unangetastet):
+./Simulation/update_sim_image.sh --standalone --push-latest
 ```
 
-Ergebnis: `lucam03/projekt-humanoider-roboter-sim-standalone:latest` auf Docker Hub.
+Gepusht wird auf `DOCKER_NAMESPACE` — das Skript fragt am Terminal danach (Vorschlag: das
+angemeldete Konto) und merkt es sich auf Wunsch in `.env.local`; `server_rl_run.sh` zieht
+dann automatisch von dort. Ohne Angabe ziehen die Launcher vom Team-Konto `lucam03`.
+
+Ergebnis: `<konto>/projekt-humanoider-roboter-sim-standalone:<repo-branch>` (z. B.
+`:training-luca-IKR-IS6.0-GN1.7`) und `:<timestamp>` auf Docker Hub; `:latest` nur mit
+`--push-latest`. Herkunft (Repo-Branch/-Commit, `GROOT_VERSIONS`) steht in OCI-Labels:
+`docker inspect --format '{{json .Config.Labels}}' <image>`. Wer das Branch-Tag nutzt, setzt
+auf dem Server `RL_IMAGE=lucam03/projekt-humanoider-roboter-sim-standalone:<tag>` bzw. trägt es
+auf vast.ai als Image ein.
 
 > **Hinweis:** Das Image ist ~30-40 GB. Genug Plattenplatz einplanen (80+ GB frei).
 
@@ -291,6 +303,8 @@ lucam03/projekt-humanoider-roboter-sim-standalone:latest
 | `SHELL_ON_ERROR` | `1` | Empfohlen (für Debugging) |
 | `BLACK_HANDS` | `1` | Nein (default 1) — färbt die Hände schwarz (Domain-Gap-Fix) |
 | `LIVE_VIEW` | `1` | Nein (default 0) — MJPEG-Live-Ansicht im Browser, Port `LIVE_VIEW_PORT` (8900) |
+| `GROOT_VERSION` | `auto` | Nein (default `auto`) — erkennt N1.6 vs. N1.7 aus dem `model_type` in der Checkpoint-`config.json`; explizit `1.6` oder `1.7` erzwingt eine Generation. `1.7` braucht zusätzlich Zugang zum **gated** Backbone `nvidia/Cosmos-Reason2-2B`. Ungetestet mit echtem N1.7-Checkpoint — siehe [groot-n17-migration.md](../weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19) |
+| `HF_HOME` | — | Nein (default `$DATA_DIR/hf_cache`) — nur für N1.7 relevant: hier landet das Cosmos-Reason2-2B-Backbone, das bei jedem Checkpoint-Laden erneut vom Hub gezogen wird, wenn es nicht schon im Cache liegt |
 
 > Die vollständige Env-Var-Referenz des Sim-Containers steht in
 > [CLAUDE.md](../../CLAUDE.md) („Sim eval"); dort sind auch `LIVE_VIEW_EVERY_N`,
@@ -299,6 +313,13 @@ lucam03/projekt-humanoider-roboter-sim-standalone:latest
 > **Flash-Attention:** Das Modell (Eagle-Block2A-2B-v2) erfordert `flash_attention_2`
 > zwingend; es ist im Image installiert. Es gibt **keine** Möglichkeit, es abzuschalten —
 > `NO_FLASH_ATTN` wird ignoriert. Deshalb sind nur Ampere+-GPUs mit Flash-Attn-Support geeignet.
+
+> **Optimiertes Inferenz-Backend (`GROOT_INFERENCE_BACKEND=compile|tensorrt`) ist N1.6-only.**
+> Der `compile`/`tensorrt`-Pfad ist gegen den N1.6-DiT gebaut (`groot_inference_backend.py`,
+> `optimize_groot_inference.py`, `run_groot_optimized_server.py` prüfen alle auf `Gr00tN1d6`).
+> Bei `GROOT_VERSION=1.7` schaltet `entrypoint_sim.sh` automatisch mit einer Warnung auf
+> `eager` zurück, egal was `GROOT_INFERENCE_BACKEND` sagt. Details:
+> [inferenz-optimierung.md](inferenz-optimierung.md).
 
 > **Hinweis:** Wenn `HF_CHECKPOINT_REPO` gesetzt ist, setzt der Entrypoint `CHECKPOINT_PATH`
 > automatisch auf `/data/checkpoints/<repo-name>/`. `ASSET_PATH` muss trotzdem explizit

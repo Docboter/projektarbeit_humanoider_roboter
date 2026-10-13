@@ -18,7 +18,19 @@
 #                 Erzeugung via Simulation/g1_dex3_sim/convert_urdf_to_usd.py mit
 #                 --urdf .../g1_29dof_mode_15_with_dex1_1.urdf)
 #
+# NUR GR00T N1.6. Der Baseline-Test hängt am Embodiment-Tag UNITREE_G1, und der bedeutet
+# in beiden Versionen etwas anderes:
+#   N1.6: UNITREE_G1 = "unitree_g1"                                   (Tag des Basismodells)
+#   N1.7: UNITREE_G1 = "unitree_g1_full_body_with_waist_height_nav_cmd"
+#         — ein Sim-Full-Body-Post-Train-Tag mit Waist/Height/Nav-Kommandos, für den das
+#         Basismodell keinen Zero-Shot-Kopf mitbringt. Ein Lauf damit würde entweder
+#         scheitern oder etwas messen, das mit dieser Baseline nichts zu tun hat.
+# Mit GROOT_VERSION=1.7 (oder einem N1.7-Basismodell) bricht das Skript deshalb ab.
+# Der nächstliegende N1.7-Kandidat wäre REAL_G1 ("real_g1_relative_eef_relative_joints") —
+# ungeprüft und anderes Aktionsformat (relative EEF), also bewusst nicht eingebaut.
+#
 # Optionale Env-Vars (Defaults unten / im Dockerfile):
+#   GROOT_VERSION (nur 1.6 zulässig, s. o.),
 #   NUM_EPISODES, EXECUTION_HORIZON, TASK_DESCRIPTION, ZMQ_PORT, SKIP_DOWNLOAD,
 #   SHELL_ON_ERROR, LIVESTREAM, LIVESTREAM_PORT, LIVESTREAM_MEDIA_PORT, LIVE_KEEP_VIDEO,
 #   PUBLIC_IP  (alle wie entrypoint_sim.sh; die LIVE-Variante steckt gemeinsam in
@@ -58,7 +70,34 @@ echo ""
 
 # ── Konfiguration ─────────────────────────────────────────────────────────────
 DATA_DIR="${DATA_DIR:-/data}"
-GROOT_ROOT="${GROOT_ROOT:-/app/Groot-1.6}"
+
+# ── GR00T-Version: hier ausschließlich N1.6 (Begründung im Kopf dieser Datei) ──
+# Anders als bei entrypoint_sim.sh entscheidet NICHT der Checkpoint, sondern der
+# Embodiment-Tag: UNITREE_G1 heißt in N1.7 etwas anderes. Default deshalb 1.6.
+export GROOT_VERSION_DEFAULT="1.6"
+if [[ -r /scripts/lib_groot_version.sh ]]; then
+    # shellcheck source=lib_groot_version.sh
+    source /scripts/lib_groot_version.sh
+    GROOT_WANT="$(groot_normalize_version "${GROOT_VERSION:-}")"
+    if [[ "$GROOT_WANT" == "1.7" ]]; then
+        err "GROOT_VERSION=1.7 — der Baseline-Test läuft nur mit GR00T N1.6."
+        err "  Grund: Embodiment-Tag UNITREE_G1 bedeutet in N1.7"
+        err "  'unitree_g1_full_body_with_waist_height_nav_cmd' (Sim-Full-Body-Post-Train,"
+        err "  kein Zero-Shot-Kopf im Basismodell) statt wie in N1.6 schlicht 'unitree_g1'."
+        err "  Entweder GROOT_VERSION=1.6 setzen (Basismodell nvidia/GR00T-N1.6-3B) oder die"
+        err "  Baseline weglassen. Ein N1.7-Gegenstück (REAL_G1) ist ungeprüft."
+        exit 1
+    fi
+    # `auto` ergibt hier 1.6: es gibt nichts zu erkennen, der Tag legt die Version fest.
+    groot_resolve 1.6
+else
+    warn "lib_groot_version.sh fehlt im Image — bleibe fest bei GR00T N1.6."
+    GROOT_VERSION="1.6"
+    GROOT_ROOT="${GROOT_ROOT:-/app/Groot-1.6}"
+    GROOT_VENV_PY="$GROOT_ROOT/.venv/bin/python"
+    groot_detect_version() { return 1; }
+fi
+
 ZMQ_PORT="${ZMQ_PORT:-5555}"
 NUM_EPISODES="${NUM_EPISODES:-20}"
 EXECUTION_HORIZON="${EXECUTION_HORIZON:-8}"
@@ -126,7 +165,7 @@ elif [[ -n "$HF_CHECKPOINT_REPO" ]]; then
         ok "Checkpoint bereits vorhanden: $CHECKPOINT_PATH"
     else
         log "Lade Basismodell von HuggingFace: $HF_CHECKPOINT_REPO"
-        "$GROOT_ROOT/.venv/bin/python" - <<EOF
+        "$GROOT_VENV_PY" - <<EOF
 from huggingface_hub import snapshot_download
 snapshot_download(repo_id="${HF_CHECKPOINT_REPO}", local_dir="${CHECKPOINT_PATH}", token="${HF_TOKEN:-None}")
 print("Download abgeschlossen.")
@@ -140,6 +179,17 @@ else
         exit 1
     fi
     ok "Checkpoint gefunden: $CHECKPOINT_PATH"
+fi
+
+# Auch ein N1.7-BASISMODELL (nvidia/GR00T-N1.7-3B) ist hier falsch — aus demselben
+# Grund wie GROOT_VERSION=1.7 oben. Lieber jetzt abbrechen als nach dem Modell-Laden.
+CKPT_VERSION="$(groot_detect_version "$CHECKPOINT_PATH" 2>/dev/null || true)"
+if [[ "$CKPT_VERSION" == "1.7" ]]; then
+    err "'$CHECKPOINT_PATH' ist ein N1.7-Modell (model_type Gr00tN1d7 in config.json)."
+    err "  Der Baseline-Test ist an den N1.6-Embodiment-Tag UNITREE_G1 ('unitree_g1')"
+    err "  gebunden; in N1.7 heißt derselbe Name etwas anderes (Full-Body-Sim-Tag)."
+    err "  Basismodell nvidia/GR00T-N1.6-3B verwenden (HF_CHECKPOINT_REPO)."
+    exit 1
 fi
 echo ""
 
@@ -159,7 +209,7 @@ echo ""
 
 # ── Pro-Gruppe-Dims introspizieren ────────────────────────────────────────────
 log "Schritt 3/4 — State/Action-Dims aus Checkpoint lesen ($EMBODIMENT_TAG)"
-"$GROOT_ROOT/.venv/bin/python" /scripts/dump_unitree_g1_dims.py \
+"$GROOT_VENV_PY" /scripts/dump_unitree_g1_dims.py \
     --model-path "$CHECKPOINT_PATH" \
     --embodiment-tag unitree_g1 \
     --out "$DIMS_FILE"
@@ -175,7 +225,7 @@ if [[ -n "$LIBCUDA_SO1" ]]; then
 fi
 
 GROOT_SERVER_LOG="$DATA_DIR/logs/groot_server.log"
-"$GROOT_ROOT/.venv/bin/python" "$GROOT_ROOT/gr00t/eval/run_gr00t_server.py" \
+"$GROOT_VENV_PY" "$GROOT_ROOT/gr00t/eval/run_gr00t_server.py" \
     --model-path "$CHECKPOINT_PATH" \
     --embodiment-tag "$EMBODIMENT_TAG" \
     --use-sim-policy-wrapper \

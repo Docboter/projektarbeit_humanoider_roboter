@@ -15,6 +15,12 @@ param WANDB_API_KEY secret "" basic \
   "Weights-&-Biases-Key" \
   "Leer lassen laeuft ohne W&B. Bei einem Lauf ueber Stunden oder Tage ist das Dashboard aber der einzige bequeme Weg, den Verlauf zu sehen." \
   --default-from "Geheimnis - hat per Definition keinen Default"
+group "GR00T-Generation"
+param GROOT_VERSION choice 1.6 basic \
+  "GR00T-Generation" \
+  "Waehlt Code-Baum (/app/Groot-1.6 bzw. /app/Groot-1.7), venv, Modell-Repo und das Namespace-Suffix der Ausgabe (_n17 bei 1.7, damit sich die Laeufe nicht ueberschreiben). Kein 'auto' wie in der Sim: hier gibt es noch keinen Checkpoint, aus dem sich das erkennen liesse. 1.7 laedt zusaetzlich das GATED Backbone nvidia/Cosmos-Reason2-2B — Zugang vorher beantragen. Ungetestet: es gibt bislang keinen abgeschlossenen N1.7-Trainingslauf." \
+  --options "1.6:Python 3.10, Eagle-Backbone (Default);1.7:Python 3.12, Cosmos-Reason2-2B (gated, ungetestet)"
+
 group "Laufumfang"
 param MAX_STEPS int 30000 basic \
   "Trainingsschritte" \

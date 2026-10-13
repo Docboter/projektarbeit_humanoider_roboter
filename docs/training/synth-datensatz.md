@@ -317,7 +317,8 @@ schwach, ist 0,15 der nächste Schritt — nicht 0,25.
 `TRAIN_TEST_SPLIT=1` wirkt in `run_finetuning_cotrain.sh` **nur** auf den echten Datensatz:
 
 * Die entscheidende Validierungszahl ist die MSE auf zurückgehaltenen **echten** Episoden — nur
-  die ist gegen Lauf 3 (0,00716) vergleichbar.
+  die ist gegen Lauf 3 vergleichbar (0,00716 im 6×300-Protokoll, 0,00482 im 20×750-Protokoll —
+  nur gleiches Protokoll vergleichen).
 * 20 % von 16 Episoden wären 3 Test-Episoden. Daraus lässt sich keine belastbare Zahl ziehen, und
   sie kosten 20 % eines ohnehin winzigen Satzes.
 * Ob der synth-Anteil gewirkt hat, misst nicht die Open-Loop-MSE, sondern das `span`-Gate.
@@ -330,13 +331,15 @@ Vorab festgelegt, damit die Auswertung hinterher nicht die Kriterien sucht:
 
 | Frage | Messung | Bezugspunkt |
 |---|---|---|
-| Hat der synth-Anteil der **Realdomäne** geschadet? | `checkpoint_sweep.py`, MSE auf den zurückgehaltenen echten Episoden | Lauf 3: 0,00716 |
+| Hat der synth-Anteil der **Realdomäne** geschadet? | `checkpoint_sweep.py`, MSE auf den zurückgehaltenen echten Episoden | Lauf 3: 0,00716 (6×300) bzw. 0,00482 (20×750) |
 | Hat er den **Domain-Gap** verkleinert? | `server_rl_run.sh span` — kommandierte Fingerspanne gegen Demonstration | Lauf 34: 27,6 % (Lauf 31: 20,5 %) |
 | Kopfzahl | `server_rl_run.sh eval` — `lifted` / Erfolg im Closed-Loop | bisher 0/20 |
 
-Und in dieser Reihenfolge: Die Checkpoint-Auswahl kommt **vor** jeder Sim-Zahl. Lauf 3 hat
-gezeigt, dass der letzte Checkpoint 25 % schlechter sein kann als der beste
-([lauf3-vision-split-auswertung.md](../ergebnisse/lauf3-vision-split-auswertung.md)).
+Und in dieser Reihenfolge: Die Checkpoint-Auswahl kommt **vor** jeder Sim-Zahl. Lauf 3 hatte im
+6×300-Sweep den letzten Checkpoint 25 % schlechter als den besten gezeigt
+([lauf3-vision-split-auswertung.md](../ergebnisse/lauf3-vision-split-auswertung.md)); die
+Nachmessung mit 20×750 (2026-10-12) widerlegt das — dort ist der letzte der beste. Der Sweep
+bleibt trotzdem Pflicht, und zwar im 20×750-Protokoll.
 
 ---
 

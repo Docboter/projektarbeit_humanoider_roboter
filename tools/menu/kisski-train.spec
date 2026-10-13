@@ -4,6 +4,12 @@ action train "BC-Fine-tuning einreichen" \
   --cli "Training/kisski_submit.sh" \
   --hint "Klont das Repo selbst und laedt Modell und Datensatz von HuggingFace — kein manuelles rsync. Tokens liest der Job aus ~/.hf_token und ~/.wandb_key."
 
+group "GR00T-Generation"
+param GROOT_VERSION choice 1.6 basic \
+  "GR00T-Generation" \
+  "Waehlt Code-Baum (/app/Groot-1.6 bzw. /app/Groot-1.7), venv, Modell-Repo und das Namespace-Suffix der Ausgabe (_n17 bei 1.7, damit sich die Laeufe nicht ueberschreiben). Kein 'auto' wie in der Sim: hier gibt es noch keinen Checkpoint, aus dem sich das erkennen liesse. 1.7 laedt zusaetzlich das GATED Backbone nvidia/Cosmos-Reason2-2B — Zugang vorher beantragen. Ungetestet: es gibt bislang keinen abgeschlossenen N1.7-Trainingslauf." \
+  --options "1.6:Python 3.10, Eagle-Backbone (Default);1.7:Python 3.12, Cosmos-Reason2-2B (gated, ungetestet)"
+
 group "Laufumfang"
 param MAX_STEPS int 44000 basic \
   "Trainingsschritte" \

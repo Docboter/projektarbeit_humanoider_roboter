@@ -5,3 +5,7 @@
 [submodule "data/unitree_ros"]
 	path = data/unitree_ros
 	url = https://github.com/unitreerobotics/unitree_ros.git
+[submodule "app/Groot-1.7"]
+	path = app/Groot-1.7
+	url = https://github.com/lucam06/Isaac-GR00T.git
+	branch = luca/g1-dex3-n17

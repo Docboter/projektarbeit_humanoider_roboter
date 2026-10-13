@@ -727,3 +727,66 @@ Aufarbeitung: `docs/simulation/wuerfellage-rekonstruktion.md` §2.1; Befund: co-
 >    → `scan.json`
 > 2. **`render`** — dieselben Episoden mit den Würfeln an genau diesen Punkten (x/y aus dem
 >    Greifpunkt, z = Tischauflage) und in kalibrierter Auflösung 640 × 480. → der Datensatz
+
+---
+
+## 2026-08-19 — GR00T N1.7 als paralleler Pfad eingeführt
+
+**Was geändert wurde:** N1.7 (Cosmos-Reason2-2B/Qwen3-VL-Backbone) ist als **paralleler Pfad**
+neben dem bisherigen N1.6-Pfad gebaut — zur Laufzeit auswählbar über `GROOT_VERSION`
+(`1.6` Default | `1.7` | `auto`), keine Änderung am bestehenden N1.6-Verhalten. **Kein Image
+wurde neu gebaut, kein N1.7-Trainings-/Sim-Lauf hat stattgefunden** — vollständiger
+Umsetzungsstand: [groot-n17-migration.md § Stand der Umsetzung](weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19).
+
+**Kernstücke:**
+- Neuer Submodul-Pfad `app/Groot-1.7` (Fork `lucam06/Isaac-GR00T`, Branch `luca/g1-dex3-n17`,
+  Commit `efa0169`) neben unverändertem `app/Groot-1.6`.
+- Neue gemeinsame Lib `lib_groot_version.sh` (identische Kopie in `Training/scripts/` und
+  `Simulation/scripts/`), löst `GROOT_VERSION` in Codebaum/venv/Modell-Repo/Namespace-Suffix auf.
+- `Training/Dockerfile` und `Simulation/Dockerfile.vastai` bauen standardmäßig **beide**
+  venvs (Build-Arg `GROOT_VERSIONS`, Default `"1.6 1.7"`) — N1.6 weiterhin Python 3.10, N1.7
+  neu Python 3.12 (torch 2.9.0+cu128, flash-attn 2.8.3, transformers 4.57.3).
+- Alle Trainings-Launcher, Entrypoints, `update_image.sh`/`update_sim_image.sh` sowie die
+  KISSKI-SLURM-Skripte (`kisski_submit.sh`, `kisski_open_loop_eval.sh`, `kisski_sim_submit.sh`,
+  `kisski_rl_submit.sh`, `kisski_robocasa_ref_submit.sh`) lesen/reichen `GROOT_VERSION` durch.
+- Neuer `Training/scripts/launch_cotrain_n17.py` (N1.7-Pendant zu `launch_cotrain.py`).
+- N1.7-Checkpoints landen in Namespaces mit Suffix `_n17`.
+- **N1.6-only bleiben:** RL (`rl_finetune.py`/`entrypoint_rl.sh`/`kisski_rl_submit.sh`), das
+  optimierte Inferenz-Backend (`compile`/`tensorrt`), der Stock-G1-Baseline-Test
+  (`entrypoint_baseline.sh`) und die RoboCasa-Referenz-Eval — alle brechen bei
+  `GROOT_VERSION=1.7` kontrolliert mit Begründung ab.
+- Backbone `nvidia/Cosmos-Reason2-2B` ist ein **gated** HF-Repo — Zugang muss separat beantragt
+  werden; `HF_HOME` (Default `$DATA_DIR/hf_cache`) macht den Download persistent.
+
+**Betroffene/neue Dateien (Auswahl):** `Training/Dockerfile`, `Simulation/Dockerfile.vastai`,
+`Training/scripts/lib_groot_version.sh`, `Simulation/scripts/lib_groot_version.sh`,
+`Training/scripts/launch_cotrain_n17.py`, `Training/update_image.sh`,
+`Simulation/update_sim_image.sh`, `Training/kisski_submit.sh`,
+`Training/kisski_open_loop_eval.sh`, `Training/kisski_rl_submit.sh`,
+`Simulation/kisski_sim_submit.sh`, `Simulation/kisski_robocasa_ref_submit.sh`,
+`Simulation/server_rl_run.sh`, `.env.local.example`, `.gitmodules`, sowie alle
+`Training/scripts/entrypoint*.sh`/`run_finetuning*.sh` und `Simulation/scripts/entrypoint_*.sh`.
+Doku-Gegenstück: [groot-n17-migration.md](weiterfuehrend/groot-n17-migration.md),
+[env-vars.md](training/env-vars.md), [kisski-hpc.md](training/kisski-hpc.md),
+[co-training.md](training/co-training.md), [vastai-anleitung.md](simulation/vastai-anleitung.md),
+[fehlerbehebung.md](fehlerbehebung.md), [portabilitaet.md](portabilitaet.md).
+
+## 2026-09-25 — Upstream-Merge, ein Trainings-Image je Generation
+
+**Was geändert wurde:** `training-luca-IKR-IS6.0` (Stand 2026-09-23, 69 Commits) ist per
+**Merge** (kein Rebase) in den N1.7-Branch geholt — der Datensatz
+`unitreerobotics/G1_Dex3_BlockStacking_Dataset` passt dabei ohne Umbau für beide Generationen.
+Das Trainings-Image baut seither standardmäßig nur noch **eine** GR00T-Generation statt beider
+venvs: `Training/update_image.sh --groot=1.6|1.7|both` (Default `1.6`; `both` nie Default),
+Tags `:<branch>-n16|-n17|-n16-n17` bzw. mit `--push-latest` `:latest`/`:latest-n17`. Zusätzlich
+**Entscheidung:** N1.7 trainiert mit den NVIDIA-Standardwerten statt gleichgezogenen — betrifft
+vor allem `STATE_DROPOUT_PROB` (jetzt leer = Modell-Default, N1.6 `0.0`, N1.7 `0.2`, bewusst
+beibehalten statt erzwungen gleichgesetzt). Weiterhin gilt: **kein Image gebaut, kein
+N1.7-Trainings-/Sim-Lauf** — vollständiger Stand:
+[groot-n17-migration.md § Stand der Umsetzung, Nachtrag 2026-09-25](weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19).
+
+**Außerdem am selben Tag — Docker-Hub-Konto frei wählbar.** Bis dahin pushten
+`update_image.sh`/`update_sim_image.sh` fest nach `lucam03`; wer dort keine Schreibrechte hatte,
+scheiterte erst nach dem Build. Jetzt: `DOCKER_NAMESPACE` (Umgebung, `.env.local` oder
+Rückfrage am Terminal), die Launcher ziehen von dort, ohne Angabe weiter von `lucam03`.
+Details: [portabilitaet.md § 3.4](portabilitaet.md#34-eigene-images-bauen-eigenes-docker-hub-konto).

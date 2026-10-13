@@ -16,23 +16,31 @@
 #
 # Der Mischbetrieb selbst steckt schon im Fork (SingleDatasetConfig.mix_ratio); nur der
 # CLI-Einstieg kennt ihn nicht. Deshalb ruft dieses Skript /scripts/launch_cotrain.py
-# statt gr00t/experiment/launch_finetune.py auf — kein Submodul-Eingriff, kein Rebuild.
+# (N1.6) bzw. /scripts/launch_cotrain_n17.py (N1.7, GROOT_VERSION=1.7) statt
+# gr00t/experiment/launch_finetune.py auf — kein Submodul-Eingriff, kein Rebuild.
 #
 # Verwendung (im Container):
 #   COTRAIN_DATASET_PATH=/data/cotrain/g1_dex3_rendered bash /scripts/run_finetuning_cotrain.sh
 #   COTRAIN_MIX_RATIO=0.25 bash /scripts/run_finetuning_cotrain.sh --dry-run
+#   GROOT_VERSION=1.7 bash /scripts/run_finetuning_cotrain.sh   # N1.7-Pfad
 #
 # Logs landen unter /data/logs/.
 
 set -euo pipefail
 
+# ── GR00T-Version auflösen (N1.6 | N1.7) ───────────────────────────────────────
+# Muss vor jeder Verwendung von GROOT_ROOT/MODEL_PATH/OUTPUT_DIR laufen.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib_groot_version.sh
+source "$SCRIPT_DIR/lib_groot_version.sh"
+groot_resolve || { echo "FEHLER: GR00T-Versionsauflösung fehlgeschlagen (GROOT_VERSION=${GROOT_VERSION:-})." >&2; exit 1; }
+
 # ── Trainings-Parameter (alle via Env-Var überschreibbar) ─────────────────────
-GROOT_ROOT="${GROOT_ROOT:-/app/Groot-1.6}"
-MODEL_PATH="${MODEL_PATH:-/data/models/GR00T-N1.6-3B}"
+MODEL_PATH="${MODEL_PATH:-/data/models/$GROOT_MODEL_NAME}"
 DATASET_PATH="${DATASET_PATH:-/data/unitreerobotics/G1_Dex3_BlockStacking_Dataset}"
 # Eigener Output-/Experiment-Namespace — überschreibt weder die Standard- noch die
 # Vision-Läufe. Deren Checkpoints bleiben zum Vergleich erhalten.
-OUTPUT_DIR="${OUTPUT_DIR:-/data/g1_dex3_finetune/blockstacking_cotrain}"
+OUTPUT_DIR="${OUTPUT_DIR:-/data/g1_dex3_finetune/blockstacking_cotrain${GROOT_NS_SUFFIX}}"
 EXPERIMENT_NAME="${EXPERIMENT_NAME:-g1_dex3_blockstacking_cotrain_v1}"
 MODALITY_CONFIG="${MODALITY_CONFIG:-$GROOT_ROOT/examples/G1_DEX3/g1_dex3_config.py}"
 EMBODIMENT_TAG="${EMBODIMENT_TAG:-NEW_EMBODIMENT}"
@@ -80,7 +88,7 @@ CJ_CONTRAST="${CJ_CONTRAST:-0.4}"
 CJ_SATURATION="${CJ_SATURATION:-0.5}"
 CJ_HUE="${CJ_HUE:-0.08}"
 RANDOM_ROTATION_ANGLE="${RANDOM_ROTATION_ANGLE:-}"
-STATE_DROPOUT_PROB="${STATE_DROPOUT_PROB:-0.0}"
+STATE_DROPOUT_PROB="${STATE_DROPOUT_PROB:-}"   # leer = Modell-Default (N1.6: 0.0, N1.7: 0.2)
 
 USE_WANDB="${USE_WANDB:-1}"
 WANDB_PROJECT="${WANDB_PROJECT:-gr00t-g1-dex3}"
@@ -93,7 +101,7 @@ log()  { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 err()  { printf '\033[1;31m!! \033[0m%s\n' "$*" >&2; }
 warn() { printf '\033[1;33m ! \033[0m%s\n' "$*"; }
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# SCRIPT_DIR wurde bereits oben für lib_groot_version.sh gesetzt.
 # shellcheck source=lib_split.sh
 source "$SCRIPT_DIR/lib_split.sh"
 # shellcheck source=lib_resume_guard.sh
@@ -200,10 +208,28 @@ if [[ "$NUM_GPUS" -gt 1 ]]; then
     log "Multi-GPU-Modus: torchrun mit $NUM_GPUS Prozessen (DeepSpeed ZeRO-2, per_device = $GLOBAL_BATCH_SIZE / $NUM_GPUS)."
 else
     LAUNCHER=(python)
+    # Sieht der Prozess mehrere Karten, packt der HF-Trainer das Modell ohne torchrun in
+    # nn.DataParallel — N1.7 stirbt daran mit StopIteration (self.parameters() der Replika
+    # ist leer), N1.6 verteilt still. Einzel-GPU heisst hier deshalb: genau eine Karte zeigen.
+    # Ein vorgegebenes CUDA_VISIBLE_DEVICES (SLURM, Hand) bleibt unangetastet.
+    if [[ -z "${CUDA_VISIBLE_DEVICES:-}" ]] \
+        && [[ "$(nvidia-smi -L 2>/dev/null | grep -c '^GPU ')" -gt 1 ]]; then
+        export CUDA_VISIBLE_DEVICES=0
+        warn "NUM_GPUS=1, aber mehrere GPUs sichtbar — nutze nur GPU 0 (CUDA_VISIBLE_DEVICES=0)."
+    fi
+fi
+
+# Launch-Skript versionsabhängig: launch_cotrain.py (N1.6) bzw. launch_cotrain_n17.py
+# (N1.7) — beide sind Kopien des jeweiligen launch_finetune.py mit derselben minimalen
+# Zwei-Datensätze-Erweiterung (siehe Docstring der jeweiligen Datei).
+if [[ "$GROOT_VERSION" == "1.7" ]]; then
+    COTRAIN_LAUNCHER="$SCRIPT_DIR/launch_cotrain_n17.py"
+else
+    COTRAIN_LAUNCHER="$SCRIPT_DIR/launch_cotrain.py"
 fi
 
 TRAIN_CMD=(
-    uv run --no-sync "${LAUNCHER[@]}" "$SCRIPT_DIR/launch_cotrain.py"
+    uv run --no-sync "${LAUNCHER[@]}" "$COTRAIN_LAUNCHER"
     --cotrain_dataset_path   "$COTRAIN_DATASET_PATH"
     --cotrain_mix_ratio      "$COTRAIN_MIX_RATIO"
     --base_model_path        "$MODEL_PATH"
@@ -229,7 +255,9 @@ if [[ "$USE_AUGMENTATION" == "1" ]]; then
     log "Augmentierung AN — Color-Jitter (b=$CJ_BRIGHTNESS c=$CJ_CONTRAST s=$CJ_SATURATION h=$CJ_HUE)"
     TRAIN_CMD+=(--color_jitter_params brightness "$CJ_BRIGHTNESS" contrast "$CJ_CONTRAST" saturation "$CJ_SATURATION" hue "$CJ_HUE")
     [[ -n "$RANDOM_ROTATION_ANGLE" ]] && TRAIN_CMD+=(--random_rotation_angle "$RANDOM_ROTATION_ANGLE")
-    if [[ "$STATE_DROPOUT_PROB" != "0.0" && "$STATE_DROPOUT_PROB" != "0" ]]; then
+    # state_dropout_prob: leer = NVIDIA-Default der Generation (N1.6 0.0, N1.7 0.2 — bewusst
+    # uebernommen, siehe docs/weiterfuehrend/groot-n17-migration.md); gesetzt = immer uebergeben.
+    if [[ -n "$STATE_DROPOUT_PROB" ]]; then
         TRAIN_CMD+=(--state_dropout_prob "$STATE_DROPOUT_PROB")
     fi
 else

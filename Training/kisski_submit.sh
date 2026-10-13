@@ -11,6 +11,9 @@
 #        mkdir -p $HOME/images
 #        apptainer pull $HOME/images/projekt-humanoider-roboter.sif \
 #            docker://lucam03/projekt-humanoider-roboter:latest
+#      Für GROOT_VERSION=1.7 eine eigene SIF (wird dann automatisch gewählt):
+#        apptainer pull $HOME/images/projekt-humanoider-roboter-n17.sif \
+#            docker://lucam03/projekt-humanoider-roboter:latest-n17
 #
 #   3. Tokens EINMALIG in Dateien hinterlegen (mode 600):
 #        printf 'hf_DEIN_TOKEN\n'    > ~/.hf_token  && chmod 600 ~/.hf_token
@@ -83,9 +86,12 @@ pick_sif() {   # erste EXISTIERENDE Datei gewinnt; sonst der erste Kandidat, dam
 }
 
 # ── Konfiguration ─────────────────────────────────────────────────────────────
+# Ein Image je GR00T-Generation: N1.7 liegt als eigene SIF daneben (aus :latest-n17).
+case "${GROOT_VERSION:-1.6}" in 1.7|n17|N1.7|17) SIF_SUFFIX="-n17" ;; *) SIF_SUFFIX="" ;; esac
 SIF_IMAGE="${SIF_IMAGE:-$(pick_sif \
-    "$KISSKI_SIF_DIR/projekt-humanoider-roboter.sif" \
-    "$KISSKI_PROJECT_DIR/images/projekt-humanoider-roboter.sif")}"
+    "$KISSKI_SIF_DIR/projekt-humanoider-roboter$SIF_SUFFIX.sif" \
+    "$KISSKI_PROJECT_DIR/images/projekt-humanoider-roboter$SIF_SUFFIX.sif")}"
+SIF_DOCKER_TAG="latest"; [[ -n "$SIF_SUFFIX" ]] && SIF_DOCKER_TAG="latest-n17"
 DATA_DIR="${DATA_DIR:-$KISSKI_PROJECT_DIR/data}"
 
 # Prüfen ob DATA_DIR-Pfad vom Compute-Node aus erreichbar ist
@@ -122,6 +128,10 @@ GRADIENT_ACCUMULATION_STEPS="${GRADIENT_ACCUMULATION_STEPS:-1}"
 # eigener Output-Namespace /data/g1_dex3_finetune/blockstacking_vision). Default 0 = Standardlauf.
 # Steht hier oben, weil LR + Warmup davon abhängen.
 TUNE_VISUAL="${TUNE_VISUAL:-0}"
+
+# GR00T-Version: 1.6 (Default, Eagle-Backbone) oder 1.7 (Cosmos-Reason2-2B, gated Backbone,
+# eigener Code-Baum /app/Groot-1.7). Details: Training/scripts/lib_groot_version.sh.
+GROOT_VERSION="${GROOT_VERSION:-1.6}"
 
 # USE_COTRAIN=1 → Co-Training auf echten UND gerenderten Bildern (Schritt 4; Entrypoint
 # startet run_finetuning_cotrain.sh, Namespace /data/g1_dex3_finetune/blockstacking_cotrain).
@@ -175,7 +185,7 @@ CJ_CONTRAST="${CJ_CONTRAST:-0.4}"
 CJ_SATURATION="${CJ_SATURATION:-0.5}"
 CJ_HUE="${CJ_HUE:-0.08}"
 RANDOM_ROTATION_ANGLE="${RANDOM_ROTATION_ANGLE:-}"
-STATE_DROPOUT_PROB="${STATE_DROPOUT_PROB:-0.0}"
+STATE_DROPOUT_PROB="${STATE_DROPOUT_PROB:-}"   # leer = Modell-Default (N1.6: 0.0, N1.7: 0.2)
 
 SKIP_DOWNLOAD="${SKIP_DOWNLOAD:-1}"
 SKIP_CONVERT="${SKIP_CONVERT:-0}"
@@ -220,7 +230,7 @@ if [[ ! -f "$SIF_IMAGE" ]]; then
     echo "Einmalig erstellen:" >&2
     echo "    module load apptainer" >&2
     echo "    mkdir -p \$HOME/images" >&2
-    echo "    apptainer pull \$HOME/images/projekt-humanoider-roboter.sif docker://lucam03/projekt-humanoider-roboter:latest" >&2
+    echo "    apptainer pull \$HOME/images/projekt-humanoider-roboter$SIF_SUFFIX.sif docker://${DOCKER_NAMESPACE:-lucam03}/projekt-humanoider-roboter:$SIF_DOCKER_TAG" >&2
     exit 1
 fi
 
@@ -242,6 +252,7 @@ echo "    LEARNING_RATE:     $LEARNING_RATE"
 echo "    WARMUP_RATIO:      $WARMUP_RATIO"
 echo "    WANDB_PROJECT:     $WANDB_PROJECT"
 echo "    TUNE_VISUAL:       $TUNE_VISUAL"
+echo "    GROOT_VERSION:     $GROOT_VERSION"
 echo "    USE_COTRAIN:       $USE_COTRAIN$([[ "$USE_COTRAIN" == "1" ]] && echo "  (Mischung ${COTRAIN_MIX_RATIO} gerendert)")"
 echo "    TRAIN_TEST_SPLIT:  $TRAIN_TEST_SPLIT  (Ratio=$TRAIN_SPLIT_RATIO)"
 echo "    USE_AUGMENTATION:  $USE_AUGMENTATION"
@@ -341,33 +352,87 @@ fi
 APPTAINER_ARGS+=(--bind "${REPO_DIR}/Training/scripts:/scripts")
 echo "    Skripte aus Repo: ${REPO_DIR}/Training/scripts"
 
+# ── GR00T-Version auflösen (N1.6 default, N1.7 als paralleler Pfad) ──────────
+# Nur groot_normalize_version() — eine reine Funktion ohne Exports. groot_resolve()
+# würde u. a. HF_HOME exportieren; Apptainer reicht die Host-Umgebung standardmäßig in
+# den Container durch, das würde den N1.6-Default (kein HF_HOME gesetzt) unbeabsichtigt
+# verändern. Die übrigen Werte (Wurzelverzeichnis, Namespace-Suffix) daher hier explizit.
+source "${REPO_DIR}/Training/scripts/lib_groot_version.sh"
+GROOT_VERSION="$(groot_normalize_version "$GROOT_VERSION")" || exit 1
+APPTAINER_ARGS+=(--env "GROOT_VERSION=$GROOT_VERSION")
+
+if [[ "$GROOT_VERSION" == "1.7" ]]; then
+    GROOT_TARGET_ROOT="/app/Groot-1.7"
+    GROOT_FORK_DIR="${GROOT17_FORK_DIR:-$KISSKI_PROJECT_DIR/repo-groot-n17}"
+    FORK_BRANCH_HINT="luca/g1-dex3-n17"
+
+    # N1.7 lädt das gated Cosmos-Reason2-2B-Backbone bei JEDEM Checkpoint-Laden vom
+    # HF-Hub nach → Compute-Nodes sind offline, daher fest auf den vorab befüllten Cache lenken.
+    APPTAINER_ARGS+=(--env "HF_HOME=/data/hf_cache" --env "HF_HUB_OFFLINE=1")
+
+    # Preflight: Modell + gated Backbone müssen VORHER auf dem Login-Node im Cache liegen.
+    # $DATA_DIR ist hier der HOST-Pfad (Bind-Ziel /data im Container).
+    BACKBONE_CFG=("$DATA_DIR"/hf_cache/hub/models--nvidia--Cosmos-Reason2-2B/snapshots/*/config.json)
+    MODEL17_CFG="$DATA_DIR/models/GR00T-N1.7-3B/config.json"
+    if [[ ! -f "${BACKBONE_CFG[0]}" || ! -f "$MODEL17_CFG" ]]; then
+        echo "FEHLER: GROOT_VERSION=1.7 braucht Modell + gated Backbone vorab im HF-Cache" >&2
+        echo "       (Compute-Nodes haben kein Internet). Auf dem LOGIN-Node ausführen (huggingface-cli" >&2
+        echo "       liegt in der SIF-venv; HF_TOKEN muss Zugang zum gated Backbone haben):" >&2
+        echo "         module load apptainer" >&2
+        echo "         apptainer exec --bind $DATA_DIR:/data --env HF_TOKEN=\$HF_TOKEN --env HF_HOME=/data/hf_cache \\" >&2
+        echo "             $SIF_IMAGE huggingface-cli download nvidia/Cosmos-Reason2-2B" >&2
+        echo "         apptainer exec --bind $DATA_DIR:/data --env HF_TOKEN=\$HF_TOKEN \\" >&2
+        echo "             $SIF_IMAGE huggingface-cli download nvidia/GR00T-N1.7-3B --local-dir /data/models/GR00T-N1.7-3B" >&2
+        echo "       Zugang zum gated Backbone-Repo vorher beantragen:" >&2
+        echo "         https://huggingface.co/nvidia/Cosmos-Reason2-2B" >&2
+        exit 1
+    fi
+else
+    GROOT_TARGET_ROOT="/app/Groot-1.6"
+    GROOT_FORK_DIR="${GROOT_FORK_DIR:-$KISSKI_PROJECT_DIR/repo-groot}"
+    FORK_BRANCH_HINT="luca/g1-dex3"
+fi
+
 # G1_DEX3-Konfiguration + LeRobot-Konverter aus dem lucam06/Isaac-GR00T Fork mounten
 # (im Container-Image fehlen diese Dateien — nur die offizielle NVIDIA-Version ist eingebackt).
-# Einmalig: git clone --branch luca/g1-dex3 https://github.com/lucam06/Isaac-GR00T.git /mnt/vast-kisski/projects/kisski-humrob/repo-groot
+# Einmalig: git clone --branch $FORK_BRANCH_HINT --depth 1 https://github.com/lucam06/Isaac-GR00T.git $GROOT_FORK_DIR
 #           danach auf den Image-Pin auschecken (Pruefung unten nennt den Befehl).
-GROOT_FORK_DIR="${GROOT_FORK_DIR:-$KISSKI_PROJECT_DIR/repo-groot}"
 if [[ ! -d "$GROOT_FORK_DIR/examples/G1_DEX3" ]]; then
     echo "FEHLER: $GROOT_FORK_DIR/examples/G1_DEX3 nicht gefunden." >&2
     echo "       lucam06-Fork einmalig klonen:" >&2
-    echo "       git clone --branch luca/g1-dex3 --depth 1 https://github.com/lucam06/Isaac-GR00T.git $GROOT_FORK_DIR" >&2
+    echo "       git clone --branch $FORK_BRANCH_HINT --depth 1 https://github.com/lucam06/Isaac-GR00T.git $GROOT_FORK_DIR" >&2
     exit 1
 fi
 # Fork-Stand gegen den Pin des Images pruefen (Review 4.5). Der Bind unten ueberdeckt den
 # gr00t-Code im Image; stand repo-groot auf dem Branch-HEAD statt auf dem Pin, lief auf
 # KISSKI anderer Code als im Image (2026-10-11: HEAD dd87740 "(in testing!)" statt 9508b49).
-# Der Pin steht im Dockerfile des Repo-Klons (update_image.sh --update-commit pflegt ihn).
-GROOT_PIN="$(grep -oE 'checkout [0-9a-f]{40}' "${REPO_DIR}/Training/Dockerfile" 2>/dev/null \
-             | head -1 | awk '{print $2}' || true)"
+# Der Pin steht im Dockerfile des Repo-Klons als ARG GROOT16_COMMIT / GROOT17_COMMIT
+# (update_image.sh --update-commit pflegt ihn). Fehlt er, bricht die Pruefung ab statt still
+# durchzulaufen — mit dem alten Muster `checkout <sha>` waere sie nach dem N1.7-Merge (zwei
+# ARG-Pins) unbemerkt leer gelaufen.
+if [[ "$GROOT_VERSION" == "1.7" ]]; then GROOT_PIN_ARG=GROOT17_COMMIT; else GROOT_PIN_ARG=GROOT16_COMMIT; fi
+GROOT_PIN="$(grep -oE "^ARG ${GROOT_PIN_ARG}=[0-9a-f]{40}" "${REPO_DIR}/Training/Dockerfile" 2>/dev/null \
+             | head -1 | sed "s/^ARG ${GROOT_PIN_ARG}=//" || true)"
 GROOT_HEAD="$(git -C "$GROOT_FORK_DIR" rev-parse HEAD 2>/dev/null || true)"
-if [[ -n "$GROOT_PIN" && -z "$GROOT_HEAD" && -d "$GROOT_FORK_DIR/gr00t" ]]; then
+if [[ -z "$GROOT_PIN" ]]; then
+    if [[ "${GROOT_FORK_ALLOW_DRIFT:-0}" == "1" ]]; then
+        echo "WARNUNG: kein ARG $GROOT_PIN_ARG in ${REPO_DIR}/Training/Dockerfile — Fork-Stand" \
+             "ungeprueft (GROOT_FORK_ALLOW_DRIFT=1)." >&2
+    else
+        echo "FEHLER: kein ARG $GROOT_PIN_ARG=<sha> in ${REPO_DIR}/Training/Dockerfile gefunden —" >&2
+        echo "       der Fork-Stand laesst sich nicht gegen das Image pruefen. Repo-Klon aktuell?" >&2
+        echo "       Absichtlich ohne Pruefung: GROOT_FORK_ALLOW_DRIFT=1." >&2
+        exit 1
+    fi
+elif [[ -z "$GROOT_HEAD" && -d "$GROOT_FORK_DIR/gr00t" ]]; then
     echo "WARNUNG: $GROOT_FORK_DIR ist kein Git-Klon — Stand gegen Pin $GROOT_PIN nicht pruefbar." >&2
-elif [[ -n "$GROOT_PIN" && -n "$GROOT_HEAD" && "$GROOT_HEAD" != "$GROOT_PIN" ]]; then
+elif [[ -n "$GROOT_HEAD" && "$GROOT_HEAD" != "$GROOT_PIN" ]]; then
     if [[ "${GROOT_FORK_ALLOW_DRIFT:-0}" == "1" ]]; then
         echo "WARNUNG: $GROOT_FORK_DIR steht auf ${GROOT_HEAD:-?}, Image-Pin ist $GROOT_PIN" \
              "(GROOT_FORK_ALLOW_DRIFT=1)." >&2
     else
         echo "FEHLER: $GROOT_FORK_DIR steht auf ${GROOT_HEAD:-unbekannt}, das Image pinnt" >&2
-        echo "       $GROOT_PIN. Der Lauf wuerde anderen gr00t-Code nutzen als im Image." >&2
+        echo "       $GROOT_PIN ($GROOT_PIN_ARG). Der Lauf wuerde anderen gr00t-Code nutzen als im Image." >&2
         echo "       Auf dem Login-Knoten angleichen:" >&2
         echo "         git -C $GROOT_FORK_DIR fetch --depth 1 origin $GROOT_PIN" >&2
         echo "         git -C $GROOT_FORK_DIR checkout $GROOT_PIN" >&2
@@ -375,13 +440,14 @@ elif [[ -n "$GROOT_PIN" && -n "$GROOT_HEAD" && "$GROOT_HEAD" != "$GROOT_PIN" ]];
         exit 1
     fi
 fi
-APPTAINER_ARGS+=(--bind "$GROOT_FORK_DIR/examples/G1_DEX3:/app/Groot-1.6/examples/G1_DEX3")
-APPTAINER_ARGS+=(--bind "$GROOT_FORK_DIR/scripts/lerobot_conversion:/app/Groot-1.6/scripts/lerobot_conversion")
+APPTAINER_ARGS+=(--bind "$GROOT_FORK_DIR/examples/G1_DEX3:$GROOT_TARGET_ROOT/examples/G1_DEX3")
+APPTAINER_ARGS+=(--bind "$GROOT_FORK_DIR/scripts/lerobot_conversion:$GROOT_TARGET_ROOT/scripts/lerobot_conversion")
 # gr00t-Modul aus dem Fork (gleicher Commit wie im Image, s. Pruefung oben) — damit wirken
-# Fork-Aenderungen ohne Image-Rebuild. Editable install laedt aus /app/Groot-1.6/gr00t/.
-APPTAINER_ARGS+=(--bind "$GROOT_FORK_DIR/gr00t:/app/Groot-1.6/gr00t")
+# Fork-Aenderungen ohne Image-Rebuild. Editable install laedt aus $GROOT_TARGET_ROOT/gr00t/.
+APPTAINER_ARGS+=(--bind "$GROOT_FORK_DIR/gr00t:$GROOT_TARGET_ROOT/gr00t")
+echo "    GROOT_VERSION:           $GROOT_VERSION  (root=$GROOT_TARGET_ROOT)"
 echo "    G1_DEX3-Config aus Fork: $GROOT_FORK_DIR/examples/G1_DEX3"
-echo "    gr00t-Modul (N1.6)  aus Fork: $GROOT_FORK_DIR/gr00t"
+echo "    gr00t-Modul aus Fork:    $GROOT_FORK_DIR/gr00t"
 
 [[ -n "${WANDB_API_KEY:-}" ]] && APPTAINER_ARGS+=(--env "WANDB_API_KEY=$WANDB_API_KEY")
 # Compute-Nodes haben kein Internet — W&B immer im Offline-Modus betreiben.

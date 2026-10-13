@@ -2,29 +2,52 @@
 # TL;DR: Host-Werkzeug — baut das Docker-Image neu und pusht es nach Docker Hub.
 # update_image.sh
 #
-# Bringt das Docker-Image lucam03/projekt-humanoider-roboter:latest auf den
-# neuesten Stand:
+# Bringt das Docker-Image <konto>/projekt-humanoider-roboter:latest auf den
+# neuesten Stand. <konto> = DOCKER_NAMESPACE — dein Docker-Hub-Konto; ohne Angabe wird am
+# Terminal gefragt (und auf Wunsch in .env.local gemerkt), ohne Terminal bricht der Push ab:
 #
-#   1. Neuesten Commit der Isaac-GR00T-Repo ermitteln
+#   1. Neuesten Commit der Isaac-GR00T-Repo ermitteln — fuer BEIDE Fork-Branches
+#      (N1.6: luca/g1-dex3 -> ARG GROOT16_COMMIT, N1.7: luca/g1-dex3-n17 -> ARG GROOT17_COMMIT)
 #   2. Dockerfile aktualisieren (falls --update-commit gesetzt und Commit neuer)
-#   3. Image bauen (docker build)
-#   4. Nach Docker Hub pushen
+#   3. Image bauen (docker build) — EINE Modellgeneration je Image (Default N1.6);
+#      --groot=1.7 baut das N1.7-Image, --groot=both beide venvs in einem (nie Default).
+#      Ohne --groot und am Terminal fragt ein Menue (MENU=0 / --no-menu schaltet es ab).
+#   4. Nach Docker Hub pushen (auf DOCKER_NAMESPACE — Schreibrechte dort noetig)
 #
 # Verwendung:
-#   ./update_image.sh                    # Build + Push (aktueller Dockerfile)
+#   ./update_image.sh                    # Build + Push (fragt am Terminal nach der Generation)
+#   ./update_image.sh --groot=1.6        # N1.6-Image (Default ohne Terminal)
+#   ./update_image.sh --groot=1.7        # N1.7-Image
+#   ./update_image.sh --groot=both       # beide venvs in einem Image (~doppelte Groesse)
 #   ./update_image.sh --update-commit    # Neuesten GR00T-Commit eintragen + bauen
 #   ./update_image.sh --no-cache         # Build ohne Docker-Cache
 #   ./update_image.sh --skip-push        # Nur bauen, nicht pushen
+#   ./update_image.sh --push-latest      # zusaetzlich :latest taggen + pushen (sonst NICHT angefasst)
 #   ./update_image.sh --dry-run          # Befehle anzeigen, nichts ausfuehren
+#
+# Tags & Herkunft (seit 2026-08-19):
+#   Jeder Build bekommt :<repo-branch>-<gen> (z. B. :training-luca-IKR-IS6.0-GN1.7-n17,
+#   '/' -> '-') und :<zeitstempel>-<gen>, mit <gen> = n16 | n17 | n16-n17 — so ueberschreiben
+#   sich N1.6- und N1.7-Build desselben Branches nicht. :latest wird NUR mit --push-latest
+#   gesetzt/gepusht: N1.6 -> :latest (wie bisher, das ziehen alle Launcher), N1.7 ->
+#   :latest-n17, beide -> :latest-n16-n17. Zusaetzlich tragen die Images
+#   OCI-Labels (docker inspect --format '{{json .Config.Labels}}' <image>):
+#     org.opencontainers.image.revision / .source / .created, de.humrob.repo-branch,
+#     de.humrob.repo-dirty, de.humrob.groot-versions, de.humrob.groot16-commit, .groot17-commit
 #
 # Voraussetzungen:
 #   docker login   (einmalig; Token wird in ~/.docker/config.json gespeichert)
 #   git (im PATH)
 #
 # Umgebungsvariablen (optional, vor dem Aufruf setzen):
-#   DOCKER_IMAGE   (default: lucam03/projekt-humanoider-roboter)
-#   GROOT_REPO     (default: https://github.com/lucam06/Isaac-GR00T.git)
-#   GROOT_BRANCH   (default: luca/g1-dex3)
+#   DOCKER_NAMESPACE (default: fragen) — Docker-Hub-Konto fuer den Push; auch aus .env.local.
+#                    Mit --skip-push/--dry-run ohne Angabe: Team-Konto lucam03 (nur lokale Tags)
+#   DOCKER_IMAGE     (default: $DOCKER_NAMESPACE/projekt-humanoider-roboter) — ganzer Name, schlaegt
+#                    DOCKER_NAMESPACE
+#   GROOT_REPO       (default: https://github.com/lucam06/Isaac-GR00T.git)
+#   GROOT_BRANCH     (default: luca/g1-dex3)      — N1.6-Fork-Branch -> ARG GROOT16_COMMIT
+#   GROOT17_BRANCH   (default: luca/g1-dex3-n17)  — N1.7-Fork-Branch -> ARG GROOT17_COMMIT
+#   GROOT_VERSIONS   (default: 1.6)               — wie --groot: 1.6 | 1.7 | both ("1.6 1.7")
 
 set -euo pipefail
 
@@ -32,14 +55,20 @@ set -euo pipefail
 UPDATE_COMMIT=0
 NO_CACHE=0
 SKIP_PUSH=0
+PUSH_LATEST=0
 DRY_RUN=0
 SHOW_HELP=0
+GROOT_ARG=""
 
 for arg in "$@"; do
     case "$arg" in
+        --groot=*)       GROOT_ARG="${arg#*=}" ;;
+        --menu)          MENU=1 ;;
+        --no-menu)       MENU=0 ;;
         --update-commit) UPDATE_COMMIT=1 ;;
         --no-cache)      NO_CACHE=1 ;;
         --skip-push)     SKIP_PUSH=1 ;;
+        --push-latest)   PUSH_LATEST=1 ;;
         --dry-run)       DRY_RUN=1 ;;
         -h|--help)       SHOW_HELP=1 ;;
         *)
@@ -83,12 +112,57 @@ invoke_cmd() {
 }
 
 # ── Konfiguration ────────────────────────────────────────────────────────────
-DOCKER_IMAGE="${DOCKER_IMAGE:-lucam03/projekt-humanoider-roboter}"
+# DOCKER_IMAGE wird erst NACH dem Menue festgelegt (Konto kann dort gefragt werden).
+DOCKER_NAMESPACE="${DOCKER_NAMESPACE:-}"
 GROOT_REPO="${GROOT_REPO:-https://github.com/lucam06/Isaac-GR00T.git}"
 GROOT_BRANCH="${GROOT_BRANCH:-luca/g1-dex3}"
-
+GROOT17_BRANCH="${GROOT17_BRANCH:-luca/g1-dex3-n17}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# .env.local (gitignoriert) kann DOCKER_NAMESPACE dauerhaft setzen; Vorrang: Umgebung > .env.local.
+if [[ -f "$REPO_DIR/tools/lib_env_local.sh" ]]; then
+    # shellcheck source=../tools/lib_env_local.sh
+    source "$REPO_DIR/tools/lib_env_local.sh"
+    env_local_load "$REPO_DIR"
+fi
+# shellcheck source=../tools/lib_docker_ns.sh
+source "$REPO_DIR/tools/lib_docker_ns.sh"
+
+# ── GR00T-Generation waehlen ─────────────────────────────────────────────────
+# Vorrang: --groot=… > GROOT_VERSIONS aus der Umgebung > Menue (nur am Terminal) > 1.6.
+# Nie stillschweigend beide: das Dual-Image ist doppelt so gross und selten noetig.
+[[ -n "$GROOT_ARG" ]] && GROOT_VERSIONS="$GROOT_ARG"
+if [[ -z "${GROOT_VERSIONS:-}" && -f "$REPO_DIR/tools/lib_menu.sh" && $SHOW_HELP -eq 0 ]]; then
+    # shellcheck source=../tools/lib_menu.sh
+    source "$REPO_DIR/tools/lib_menu.sh"
+    _MENU_LAUNCHER="./Training/update_image.sh"
+    if menu_enabled; then
+        menu_ask "$REPO_DIR/tools/menu" image build || exit 0
+    fi
+fi
+GROOT_VERSIONS="${GROOT_VERSIONS:-1.6}"
+case "$GROOT_VERSIONS" in
+    1.6|n16)                          GROOT_VERSIONS="1.6"     GROOT_IMAGE_TAG="n16" ;;
+    1.7|n17)                          GROOT_VERSIONS="1.7"     GROOT_IMAGE_TAG="n17" ;;
+    both|"1.6 1.7"|"1.7 1.6"|"1.6,1.7") GROOT_VERSIONS="1.6 1.7" GROOT_IMAGE_TAG="n16-n17" ;;
+    *) exit_fatal "Unbekannte GR00T-Generation '$GROOT_VERSIONS' (erlaubt: 1.6, 1.7, both)" ;;
+esac
+# Default-Generation im Image = die erste gebaute (bei both: 1.6, wie bisher).
+GROOT_VERSION_DEFAULT="${GROOT_VERSIONS%% *}"
 DOCKERFILE="$SCRIPT_DIR/Dockerfile"
+
+# ── Docker-Hub-Konto ─────────────────────────────────────────────────────────
+# Frueher fest lucam03 — wer dort keine Schreibrechte hatte, scheiterte erst NACH dem Build.
+# Jetzt: expliziter DOCKER_IMAGE > DOCKER_NAMESPACE (Umgebung/.env.local/Menue) > Rueckfrage.
+if [[ -z "${DOCKER_IMAGE:-}" ]]; then
+    if [[ $SKIP_PUSH -eq 1 || $DRY_RUN -eq 1 ]] && [[ -z "$DOCKER_NAMESPACE" ]]; then
+        DOCKER_NAMESPACE="$DOCKER_NAMESPACE_TEAM"   # nur lokale Tags, kein Push
+    elif [[ $SHOW_HELP -eq 0 ]]; then
+        docker_ns_require_push "$REPO_DIR" || exit 1
+    fi
+    DOCKER_IMAGE="$DOCKER_NAMESPACE/projekt-humanoider-roboter"
+fi
 
 if [[ ! -f "$DOCKERFILE" ]]; then
     exit_fatal "Dockerfile nicht gefunden: $DOCKERFILE"
@@ -97,7 +171,7 @@ fi
 # ── Banner ───────────────────────────────────────────────────────────────────
 echo ""
 echo "${C_MAGENTA}╔══════════════════════════════════════════════════════════════════╗${C_RESET}"
-echo "${C_MAGENTA}║   GR00T N1.6 — Docker-Image Update                               ║${C_RESET}"
+echo "${C_MAGENTA}║   GR00T Training — Docker-Image Update                           ║${C_RESET}"
 echo "${C_MAGENTA}╚══════════════════════════════════════════════════════════════════╝${C_RESET}"
 echo ""
 if [[ $DRY_RUN -eq 1 ]]; then warn "DRY-RUN aktiv — es werden keine Befehle ausgefuehrt."; fi
@@ -120,14 +194,9 @@ if ! docker info >/dev/null 2>&1; then
 fi
 ok "Docker-Daemon laeuft"
 
+ok "Ziel-Image: $DOCKER_IMAGE"
 if [[ $SKIP_PUSH -eq 0 && $DRY_RUN -eq 0 ]]; then
-    if ! docker info 2>/dev/null | grep -q "Username"; then
-        warn "Nicht bei Docker Hub angemeldet."
-        log "Starte 'docker login' ..."
-        if ! docker login; then exit_fatal "Docker-Login fehlgeschlagen."; fi
-    else
-        ok "Bereits bei Docker Hub angemeldet"
-    fi
+    docker_ns_check_login || exit_fatal "Docker-Login fehlgeschlagen."
 fi
 echo ""
 
@@ -136,56 +205,87 @@ echo ""
 # ══════════════════════════════════════════════════════════════════════════════
 log "Schritt 2/4 — Isaac-GR00T Commit pruefen"
 
-# Aktuell gepinnten Commit aus dem Dockerfile lesen
-CURRENT_COMMIT="$(grep -oE 'checkout [0-9a-f]{40}' "$DOCKERFILE" | head -n1 | awk '{print $2}')"
-
-if [[ -z "$CURRENT_COMMIT" ]]; then
-    warn "Kein gepinnter Commit im Dockerfile gefunden — ueberspringe Commit-Check."
-else
-    ok "Aktuell gepinnter Commit: ${CURRENT_COMMIT:0:12}..."
-
-    # Neuesten Remote-Commit ermitteln (ohne vollstaendigen Clone)
-    LATEST_COMMIT="$(git ls-remote "$GROOT_REPO" "refs/heads/$GROOT_BRANCH" 2>/dev/null | awk '{print $1}' | head -n1 || true)"
-
-    if [[ -z "$LATEST_COMMIT" ]]; then
-        warn "Konnte Remote-Commit nicht ermitteln (kein Netzwerk oder Repo nicht erreichbar?)."
-    elif [[ "$LATEST_COMMIT" == "$CURRENT_COMMIT" ]]; then
-        ok "Dockerfile ist bereits auf dem neuesten Stand (${LATEST_COMMIT:0:12}...)."
+# Gepinnte Commits aus dem Dockerfile lesen: ARG GROOT16_COMMIT=<sha> / ARG GROOT17_COMMIT=<sha>
+# (seit dem N1.7-Pfad zwei Pins; die alte Form `checkout <sha>` gibt es nicht mehr).
+read_pin() {  # $1 = ARG-Name
+    grep -oE "^ARG $1=[0-9a-f]{40}" "$DOCKERFILE" | head -n1 | sed "s/^ARG $1=//"
+}
+check_pin() {  # $1 = Label, $2 = ARG-Name, $3 = Branch
+    local label="$1" arg="$2" branch="$3" current latest
+    current="$(read_pin "$arg")"
+    if [[ -z "$current" ]]; then
+        warn "$label: kein gepinnter Commit (ARG $arg) im Dockerfile gefunden — ueberspringe."
+        return 0
+    fi
+    ok "$label: gepinnter Commit ${current:0:12}... (Branch $branch)"
+    latest="$(git ls-remote "$GROOT_REPO" "refs/heads/$branch" 2>/dev/null | awk '{print $1}' | head -n1 || true)"
+    if [[ -z "$latest" ]]; then
+        warn "$label: Remote-Commit nicht ermittelbar (kein Netzwerk oder Branch $branch fehlt?)."
+    elif [[ "$latest" == "$current" ]]; then
+        ok "$label: Dockerfile ist bereits auf dem neuesten Stand."
     else
-        warn "Neuer Commit verfuegbar!"
-        warn "  Aktuell: ${CURRENT_COMMIT:0:12}..."
-        warn "  Neu:     ${LATEST_COMMIT:0:12}..."
-
+        warn "$label: Neuer Commit verfuegbar!"
+        warn "  Aktuell: ${current:0:12}..."
+        warn "  Neu:     ${latest:0:12}..."
         if [[ $UPDATE_COMMIT -eq 1 ]]; then
-            log "Aktualisiere Dockerfile (--update-commit) ..."
+            log "$label: Aktualisiere Dockerfile (--update-commit) ..."
             if [[ $DRY_RUN -eq 0 ]]; then
-                # In-Place-Ersetzung des 40-stelligen Commit-Hashes
-                sed -i "s/$CURRENT_COMMIT/$LATEST_COMMIT/g" "$DOCKERFILE"
-                ok "Dockerfile aktualisiert: $CURRENT_COMMIT -> $LATEST_COMMIT"
+                sed -i "s/^ARG $arg=$current/ARG $arg=$latest/" "$DOCKERFILE"
+                ok "$label: Dockerfile aktualisiert: $current -> $latest"
             else
-                echo "${C_YELLOW}[dry-run] Ersetze '$CURRENT_COMMIT' -> '$LATEST_COMMIT' in Dockerfile${C_RESET}"
+                echo "${C_YELLOW}[dry-run] Ersetze ARG $arg=$current -> $latest in Dockerfile${C_RESET}"
             fi
-            CURRENT_COMMIT="$LATEST_COMMIT"
         else
-            warn "Dockerfile wird NICHT aktualisiert (kein --update-commit)."
-            warn "Zum Aktualisieren: ./update_image.sh --update-commit"
+            warn "$label: Dockerfile wird NICHT aktualisiert (kein --update-commit)."
+            warn "  Zum Aktualisieren: ./update_image.sh --update-commit"
         fi
     fi
-fi
+}
+[[ " $GROOT_VERSIONS " == *" 1.6 "* ]] && check_pin "N1.6" GROOT16_COMMIT "$GROOT_BRANCH"
+[[ " $GROOT_VERSIONS " == *" 1.7 "* ]] && check_pin "N1.7" GROOT17_COMMIT "$GROOT17_BRANCH"
+CURRENT_COMMIT="$(read_pin GROOT16_COMMIT)"
+CURRENT_COMMIT17="$(read_pin GROOT17_COMMIT)"
 echo ""
 
-# ══════════════════════════════════════════════════════════════════════════════
-# SCHRITT 3 — Docker-Image bauen
-# ══════════════════════════════════════════════════════════════════════════════
-log "Schritt 3/4 — Docker-Image bauen"
 
 BUILD_TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
-IMAGE_LATEST="${DOCKER_IMAGE}:latest"
-IMAGE_DATED="${DOCKER_IMAGE}:${BUILD_TIMESTAMP}"
+BUILD_CREATED="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-BUILD_CMD=(docker build --platform linux/amd64)
+# Herkunft aus dem Repo (Branch/Commit dieses Repos, nicht des GR00T-Forks) — landet als
+# Image-Tag :<branch> und in den OCI-Labels. Ausserhalb eines Git-Checkouts: "unknown".
+REPO_BRANCH="$(git -C "$SCRIPT_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)"
+REPO_COMMIT="$(git -C "$SCRIPT_DIR" rev-parse HEAD 2>/dev/null || echo unknown)"
+REPO_DIRTY="false"
+if [[ "$REPO_COMMIT" != "unknown" ]] && ! git -C "$SCRIPT_DIR" diff --quiet HEAD -- . 2>/dev/null; then
+    REPO_DIRTY="true"
+fi
+REPO_SOURCE="$(git -C "$SCRIPT_DIR" remote get-url origin 2>/dev/null || echo unknown)"
+# Docker-Tag: nur [A-Za-z0-9_.-], max. 128 Zeichen, kein '/' (Branch 'a/b' -> 'a-b').
+BRANCH_TAG="$(printf '%s' "$REPO_BRANCH" | sed -E 's#[^A-Za-z0-9_.-]+#-#g; s#^[.-]+##' | cut -c1-128)"
+[[ -n "$BRANCH_TAG" && "$BRANCH_TAG" != "HEAD" ]] || BRANCH_TAG="detached-${REPO_COMMIT:0:12}"
+
+# N1.6 behaelt :latest (das ziehen setup_and_train_*.sh, docker-compose und der KISSKI-Pull);
+# jede andere Generation bekommt ihr eigenes :latest-<gen>.
+if [[ "$GROOT_IMAGE_TAG" == "n16" ]]; then LATEST_TAG="latest"; else LATEST_TAG="latest-$GROOT_IMAGE_TAG"; fi
+IMAGE_LATEST="${DOCKER_IMAGE}:${LATEST_TAG}"
+IMAGE_DATED="${DOCKER_IMAGE}:${BUILD_TIMESTAMP}-${GROOT_IMAGE_TAG}"
+IMAGE_BRANCH="${DOCKER_IMAGE}:${BRANCH_TAG:0:120}-${GROOT_IMAGE_TAG}"
+
+BUILD_CMD=(docker build --platform linux/amd64 --build-arg "GROOT_VERSIONS=$GROOT_VERSIONS"
+           --build-arg "GROOT_VERSION_DEFAULT=$GROOT_VERSION_DEFAULT")
+BUILD_CMD+=(--label "org.opencontainers.image.revision=$REPO_COMMIT"
+            --label "org.opencontainers.image.source=$REPO_SOURCE"
+            --label "org.opencontainers.image.created=$BUILD_CREATED"
+            --label "de.humrob.repo-branch=$REPO_BRANCH"
+            --label "de.humrob.repo-dirty=$REPO_DIRTY"
+            --label "de.humrob.groot-versions=$GROOT_VERSIONS"
+            --label "de.humrob.groot16-commit=${CURRENT_COMMIT:-unknown}"
+            --label "de.humrob.groot17-commit=${CURRENT_COMMIT17:-unknown}")
 if [[ $NO_CACHE -eq 1 ]]; then BUILD_CMD+=(--no-cache); fi
-BUILD_CMD+=(-t "$IMAGE_LATEST" -t "$IMAGE_DATED" "$SCRIPT_DIR")
+BUILD_CMD+=(-t "$IMAGE_BRANCH" -t "$IMAGE_DATED")
+if [[ $PUSH_LATEST -eq 1 ]]; then BUILD_CMD+=(-t "$IMAGE_LATEST"); fi
+BUILD_CMD+=("$SCRIPT_DIR")
+[[ "$REPO_DIRTY" == "true" ]] && warn "Repo hat uncommittete Aenderungen unter Training/ — Label de.humrob.repo-dirty=true."
 
 log "Baue: ${BUILD_CMD[*]}"
 if [[ $NO_CACHE -eq 1 ]]; then warn "Build ohne Cache — das kann 30-60 Minuten dauern (flash-attn)."; fi
@@ -193,8 +293,9 @@ echo ""
 
 invoke_cmd "${BUILD_CMD[@]}"
 
-ok "Image gebaut: $IMAGE_LATEST"
+ok "Image gebaut: $IMAGE_BRANCH"
 ok "Image gebaut: $IMAGE_DATED"
+if [[ $PUSH_LATEST -eq 1 ]]; then ok "Image gebaut: $IMAGE_LATEST"; else warn ":latest NICHT angefasst (dafuer --push-latest)."; fi
 echo ""
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -205,9 +306,13 @@ log "Schritt 4/4 — Nach Docker Hub pushen"
 if [[ $SKIP_PUSH -eq 1 ]]; then
     warn "Push uebersprungen (--skip-push)."
 else
-    invoke_cmd docker push "$IMAGE_LATEST"
+    invoke_cmd docker push "$IMAGE_BRANCH"
     invoke_cmd docker push "$IMAGE_DATED"
-    ok "Gepusht: $IMAGE_LATEST"
+    ok "Gepusht: $IMAGE_BRANCH"
+    if [[ $PUSH_LATEST -eq 1 ]]; then
+        invoke_cmd docker push "$IMAGE_LATEST"
+        ok "Gepusht: $IMAGE_LATEST"
+    fi
     ok "Gepusht: $IMAGE_DATED"
 fi
 echo ""
@@ -215,13 +320,24 @@ echo ""
 ok "Fertig."
 echo ""
 echo "  Zusammenfassung:"
-printf "    %-20s %s\n" "Image (latest):" "$IMAGE_LATEST"
+printf "    %-20s %s\n" "Image (branch):" "$IMAGE_BRANCH"
 printf "    %-20s %s\n" "Image (dated):"  "$IMAGE_DATED"
+if [[ $PUSH_LATEST -eq 1 ]]; then
+    printf "    %-20s %s\n" "Image (latest):" "$IMAGE_LATEST"
+else
+    printf "    %-20s %s\n" "Image (latest):" "unveraendert (--push-latest zum Aktualisieren)"
+fi
+printf "    %-20s %s\n" "Repo-Branch:"    "$REPO_BRANCH @ ${REPO_COMMIT:0:12}$([[ "$REPO_DIRTY" == "true" ]] && echo ' (dirty)')"
+printf "    %-20s %s\n" "GROOT_VERSIONS:" "$GROOT_VERSIONS"
 if [[ -n "$CURRENT_COMMIT" ]]; then
-    printf "    %-20s %s\n" "GR00T-Commit:" "${CURRENT_COMMIT:0:12}..."
+    printf "    %-20s %s\n" "N1.6-Commit:" "${CURRENT_COMMIT:0:12}..."
+fi
+if [[ -n "${CURRENT_COMMIT17:-}" ]]; then
+    printf "    %-20s %s\n" "N1.7-Commit:" "${CURRENT_COMMIT17:0:12}..."
 fi
 echo ""
 echo "  Naechste Schritte:"
 echo "    * Testen:  ./setup_and_train_dockerhub_pull.sh"
-echo "    * Ziehen:  docker pull $IMAGE_LATEST"
+echo "    * Ziehen:  docker pull $IMAGE_BRANCH"
+echo "    * Herkunft: docker inspect --format '{{json .Config.Labels}}' $IMAGE_BRANCH"
 echo ""

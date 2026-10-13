@@ -119,11 +119,20 @@ for r in "${RUNS[@]}"; do
 done
 [[ -f "$real_mod" ]] || warn "Echter Datensatz nicht gefunden ($real_mod) — modality-Vergleich übersprungen."
 # Dieselbe Fork-Prüfung wie in kisski_submit.sh, nur VOR der Warteschlange (Review 4.5).
-fork="${GROOT_FORK_DIR:-$KISSKI_PROJECT_DIR/repo-groot}"
-pin="$(grep -oE 'checkout [0-9a-f]{40}' "$REPO_DIR/Training/Dockerfile" 2>/dev/null | head -1 | awk '{print $2}' || true)"
+# Die Jobs erben GROOT_VERSION über --export=ALL; Pin und Fork-Klon hängen davon ab.
+case "${GROOT_VERSION:-1.6}" in
+    1.7|n17|N1.7|17) fork="${GROOT17_FORK_DIR:-$KISSKI_PROJECT_DIR/repo-groot-n17}"; pin_arg=GROOT17_COMMIT ;;
+    *)               fork="${GROOT_FORK_DIR:-$KISSKI_PROJECT_DIR/repo-groot}";       pin_arg=GROOT16_COMMIT ;;
+esac
+pin="$(grep -oE "^ARG ${pin_arg}=[0-9a-f]{40}" "$REPO_DIR/Training/Dockerfile" 2>/dev/null \
+       | head -1 | sed "s/^ARG ${pin_arg}=//" || true)"
 head_sha="$(git -C "$fork" rev-parse HEAD 2>/dev/null || true)"
-if [[ -n "$pin" && -n "$head_sha" && "$head_sha" != "$pin" && "${GROOT_FORK_ALLOW_DRIFT:-0}" != "1" ]]; then
-    err "$fork steht auf $head_sha, das Image pinnt $pin — die Jobs brächen ab."
+if [[ "${GROOT_FORK_ALLOW_DRIFT:-0}" == "1" ]]; then
+    :
+elif [[ -z "$pin" ]]; then
+    err "Kein ARG $pin_arg in $REPO_DIR/Training/Dockerfile — die Jobs brächen ab."; fail=1
+elif [[ -n "$head_sha" && "$head_sha" != "$pin" ]]; then
+    err "$fork steht auf $head_sha, das Image pinnt $pin ($pin_arg) — die Jobs brächen ab."
     err "    git -C $fork fetch --depth 1 origin $pin && git -C $fork checkout $pin"; fail=1
 fi
 [[ "$fail" == 0 ]] || { [[ "$DRY_RUN" == 1 ]] && warn "Dry-Run: trotzdem anzeigen." || exit 1; }

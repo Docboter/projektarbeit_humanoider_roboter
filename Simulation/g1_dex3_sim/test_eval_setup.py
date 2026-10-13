@@ -10,9 +10,8 @@ import argparse
 import json
 from pathlib import Path
 
-import pytest
-
 from extract_block_layout import Z_CUBE_CENTER, header_mismatch, select_episodes
+import pytest
 from scene_geometry import CUBE_Z_CENTER, TABLE_HEIGHT, TABLE_POS, TABLE_SIZE
 from task_text import DEFAULT_TASK_DESCRIPTION, resolve_task_description
 

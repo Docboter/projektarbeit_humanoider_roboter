@@ -4,7 +4,7 @@
 > nächste Schritte und offene Widersprüche zwischen den Ergebnisdokumenten. Bezugspunkt für
 > die Prioritätensetzung, kein Ergebnisbericht selbst.
 
-**Stand:** 2026-10-11 (letzte Fassung davor: 2026-08-14) · Grundlage: Ergebnis-Dokumente unter [`docs/ergebnisse/`](docs/ergebnisse/README.md),
+**Stand:** 2026-10-11 (letzte Fassung davor: 2026-08-14), Nachtrag 2026-10-12 (Lauf-3-Nachmessung widerlegt den Overfitting-Befund) · Grundlage: Ergebnis-Dokumente unter [`docs/ergebnisse/`](docs/ergebnisse/README.md),
 [RL-Plan](docs/weiterfuehrend/reinforcement-learning-plan.md), Trainings-Launcher unter
 [`Training/scripts/`](Training/scripts/).
 
@@ -20,7 +20,7 @@ Die **Messkette ist geschlossen**. Der Reihe nach:
 | Die GR00T-Inferenz-Pipeline ist extern bestätigt (47,7 % vs. 47,8 % erwartet) | [basismodell-referenz-eval.md](docs/ergebnisse/basismodell-referenz-eval.md) |
 | Die Politik versucht in der Sim gar keinen Griff (0,39 rad gegen 2,09 rad = **19 %**) | Lauf 30, [diagnose-chronik.md](docs/ergebnisse/diagnose-chronik.md) |
 | Auf **echten** Datensatz-Bildern kommandiert dieselbe Politik die volle Greifbewegung (Verhältnis **1,00**) | Lauf 32, `span`-Gate |
-| Die Checkpoint-Auswahl war bisher nicht nur unbelegt, sondern **falsch**: der letzte Checkpoint ist 25 % schlechter als der beste | [lauf3-vision-split-auswertung.md](docs/ergebnisse/lauf3-vision-split-auswertung.md) |
+| ~~Die Checkpoint-Auswahl war bisher nicht nur unbelegt, sondern **falsch**: der letzte Checkpoint ist 25 % schlechter als der beste~~ **Widerlegt 2026-10-12:** mit 20 Episoden à 750 Steps ist der letzte Checkpoint (44.000) der beste, kein Overfitting. Die Checkpoint-Auswahl per Sweep bleibt trotzdem Pflicht | [lauf3-vision-split-auswertung.md](docs/ergebnisse/lauf3-vision-split-auswertung.md), [lauf4-n17-vergleich.md](docs/ergebnisse/lauf4-n17-vergleich.md) §5 |
 | `TUNE_VISUAL` hebt die Sim-Fingerspanne von 20,5 % auf **27,6 %** (vollständige Trennung, p = 3,3 · 10⁻⁴) — und reicht trotzdem nicht: `lifted` 0/10 | Lauf 34, [diagnose-chronik.md](docs/ergebnisse/diagnose-chronik.md) |
 
 Daraus folgt nach der vorregistrierten Regel: **Ursache ist wahrscheinlich der Domain-Gap**, nicht
@@ -147,6 +147,12 @@ Das Wesentliche:
 | Bester Checkpoint (Validierungs-MSE auf zurückgehaltenen Episoden) | **Step 30.000** — 0,00716 |
 | Letzter Checkpoint (Step 44.000) | 0,00898 → **25 % schlechter** |
 | Trainingsloss im selben Fenster 30k → 44k | 0,0131 → 0,0073 (**−44 %**) |
+
+> **Nachtrag 2026-10-12 — dieser Abschnitt ist überholt.** Die Nachschärfung aus Vorbehalt 1
+> unten (`EVAL_NUM_TRAJ=20 EVAL_STEPS=750`, Job 16633477) zeigt **keine** U-Kurve: Validierungs-MSE
+> 30.000 = 0,00519, 44.000 = 0,00482 (bester; gepaart t = 2,15, n = 20). Die Schere unten war ein
+> Artefakt der 6×300-Auswertung (nur Anfahrphase). Auch der Nebenbefund „`MAX_STEPS=30000`
+> genügt“ gilt nicht mehr. Zahlen: [lauf4-n17-vergleich.md](docs/ergebnisse/lauf4-n17-vergleich.md) §5.
 
 Die Schere zwischen fallendem Trainingsloss und steigender Validierungs-MSE ist der erste
 gemessene Overfitting-Nachweis im Projekt. Schritt 1 hat also unmittelbar getragen: **ohne den
@@ -301,7 +307,9 @@ Validierungs-MSE — die einzige Zahl, die Overfitting sichtbar macht — wäre 
 identischen Protokoll wie Lauf 34 (10 Episoden × **40 s**, nicht verhandelbar) gegen die
 0,577 rad von dort. Leitplanke ist die Validierungs-MSE auf echten Testepisoden gegen die
 0,00716 aus Lauf 3: wird sie merklich schlechter, verdrängt das gerenderte Material echtes
-Lernen → Verhältnis senken statt weiterzurendern.
+Lernen → Verhältnis senken statt weiterzurendern. (Die 0,00716 gelten nur im 6×300-Protokoll;
+im belastbareren 20×750-Protokoll ist die Lauf-3-Referenz 0,00482 bei Step 44.000 — immer mit
+demselben Protokoll vergleichen.)
 
 ### Schritt 5 — RL bleibt hinten an
 
