@@ -1,47 +1,6 @@
 # ============================================================
-# Projektarbeit Humanoider Roboter – Container .gitignore
+# Projektarbeit Humanoider Roboter – .gitignore
 # ============================================================
-
-# --- System-Verzeichnisse ---
-/proc/
-/sys/
-/dev/
-/run/
-/srv/
-/boot/
-/media/
-/mnt/
-/usr/
-/lib
-/lib32
-/lib64
-/libx32
-/sbin
-/bin
-/etc/
-/opt/
-/tmp/
-/var/
-
-# --- Container-spezifisches ---
-/.dockerenv
-/NGC-DL-CONTAINER-LICENSE
-/cuda-keyring_1.0-1_all.deb
-
-# --- /root: enthält nur Tool-Configs & sensible Daten ---
-/root/
-
-# --- Groot-1.6: NVIDIA-Basis ignorieren, eigene Änderungen tracken ---
-/app/Groot-1.6/*
-!/app/Groot-1.6/examples/
-/app/Groot-1.6/examples/*
-!/app/Groot-1.6/examples/G1_DEX3/
-!/app/Groot-1.6/scripts/
-/app/Groot-1.6/scripts/*
-!/app/Groot-1.6/scripts/lerobot_conversion/
-/app/Groot-1.6/scripts/lerobot_conversion/*
-!/app/Groot-1.6/scripts/lerobot_conversion/convert_v3_to_v2_standalone.py
-!/app/Groot-1.6/uv.lock
 
 # --- Große Modell-Gewichte (>100 MB, GitHub-Limit) ---
 /data/models/
@@ -62,8 +21,6 @@
 *.mp4
 *.avi
 *.mov
-
-
 
 # --- Training-Logs ---
 /data/logs/
@@ -89,6 +46,7 @@
 **/wandb/
 **/.ipynb_checkpoints/
 **/.triton/
+**/.ruff_cache/
 
 # --- Build-Logs (mit Timestamp im Dateinamen) ---
 Simulation/build_sim_*.log
@@ -104,7 +62,8 @@ Simulation/robocasa_reference/runs/
 .menu/
 
 # --- Graphify-Ausgaben (vollständig generiert, nicht tracken) ---
-#graphify-out/
+# Ohne fuehrenden Slash: trifft graphify-out/ im Repo-Root UND unter latex/.
+graphify-out/
 
 # --- Sensible Dateien (API-Keys) ---
 .env
@@ -118,7 +77,3 @@ venv/
 # --- OS-Artefakte ---
 Thumbs.db
 .DS_Store
-
-# Zustand der gefuehrten CLI-Menues (tools/lib_menu.sh): zuletzt benutzte Antworten
-# und benannte Profile. Rechnerspezifisch, gehoert nicht ins Repo.
-.menu/

@@ -1,0 +1,112 @@
+# TL;DR: Minimales CI ohne GPU (Review 2026-10-13, R2): Menue-/Doku-Checks, ruff, shellcheck, Isaac-freie Sim-Tests, lib_groot_version-Gleichheit und Pin-Abgleich Dockerfile <-> Submodul.
+#
+# Bewusst klein: keine Images, kein Isaac, kein torch. Submodule werden NICHT geklont — der
+# Pin-Check liest die gitlinks aus dem Index (tools/ci_check_pins.sh).
+name: ci
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  RUFF_VERSION: "0.17.0"
+  SHELLCHECK_PY_VERSION: "0.11.0.1"
+  # Kein TTY — die Werkzeuge sollen sich wie in einem Skript verhalten. MENU bleibt ungesetzt:
+  # test_menu.sh prueft das Menue gerade ueber ein eigenes Pseudoterminal.
+  TERM: dumb
+  PYTHONDONTWRITEBYTECODE: "1"
+
+jobs:
+  repo-checks:
+    name: Specs, TL;DR, Menue, Pins
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Spec <-> Skript <-> Doku (tools/gen_docs.sh)
+        run: bash tools/gen_docs.sh </dev/null
+
+      - name: TL;DR-Konvention (tools/check_tldr.sh)
+        run: bash tools/check_tldr.sh </dev/null
+
+      # lib_menu.sh schaltet sich unter CI/GITHUB_ACTIONS bewusst ab (Pruefung 3c testet genau
+      # das, indem sie CI=1 selbst setzt). Fuer die Abnahme muessen beide Variablen weg, sonst
+      # schlagen alle PTY-Pruefungen fehl (lokal gemessen: 25/81 statt 81/81).
+      - name: Menue-Abnahme (tools/test_menu.sh)
+        run: env -u CI -u GITHUB_ACTIONS bash tools/test_menu.sh </dev/null
+
+      - name: lib_groot_version.sh — Training- und Sim-Kopie identisch
+        run: diff -u Training/scripts/lib_groot_version.sh Simulation/scripts/lib_groot_version.sh
+
+      - name: GR00T-Pins in Dockerfiles == Submodul-Stand
+        run: bash tools/ci_check_pins.sh
+
+  lint:
+    name: ruff + shellcheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Werkzeuge installieren (gepinnt)
+        run: python -m pip install "ruff==${RUFF_VERSION}" "shellcheck-py==${SHELLCHECK_PY_VERSION}"
+
+      - name: ruff check
+        run: ruff check --output-format=github Training Simulation Augmentation tools
+
+      # Noch nicht blockierend: beim Einfuehren waeren 50 Dateien umzuformatieren. Nach einem
+      # einmaligen `ruff format Training Simulation Augmentation tools` als eigenem Commit
+      # (am besten in .git-blame-ignore-revs eintragen) continue-on-error entfernen.
+      - name: ruff format --check (noch nicht blockierend)
+        continue-on-error: true
+        run: ruff format --check Training Simulation Augmentation tools
+
+      # Start mit Schwere "error" (aktuell 0 Treffer); warning hat heute 42 Treffer.
+      - name: shellcheck (severity error)
+        run: |
+          git ls-files -z -- '*.sh' ':!:app/**' ':!:data/**' ':!:latex/**' \
+            | xargs -0 shellcheck --severity=error --format=gcc
+
+  sim-unit-tests:
+    name: Isaac-freie Sim-Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      # Die test_*.py in Simulation/g1_dex3_sim brauchen numpy + pytest; test_client_socket.py
+      # zusaetzlich pyzmq + msgpack. test_rl_fpo.py braucht torch und wird per importorskip
+      # uebersprungen (CPU-torch waere ~200 MB Download je Lauf). Kommt ein Test mit Isaac-Import
+      # dazu, gehoert er hier per --ignore heraus oder in ein eigenes Marker-Set.
+      - name: Abhaengigkeiten (gepinnt)
+        run: python -m pip install "numpy==2.2.6" "pytest==9.1.1" "pyzmq==26.4.0" "msgpack==1.1.0"
+
+      - name: pytest
+        working-directory: Simulation/g1_dex3_sim
+        run: python -m pytest -q -p no:cacheprovider test_*.py
+
+      # Augmentation/tests: nur stdlib; der Frame-Check-Test braucht ffmpeg (sonst skip).
+      - name: ffmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+
+      - name: Augmentation-Tests
+        run: python -m unittest discover -s Augmentation/tests -v
