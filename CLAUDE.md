@@ -42,9 +42,10 @@ Detailed guides (all prose docs live under [`docs/`](docs/README.md)):
 - **Fine-tuning step-by-step:** [`app/Groot-1.6/examples/G1_DEX3/FINETUNING_GUIDE.md`](app/Groot-1.6/examples/G1_DEX3/FINETUNING_GUIDE.md)
 - **G1/DEX3 joint layout & datasets:** [`app/Groot-1.6/examples/G1_DEX3/README.md`](app/Groot-1.6/examples/G1_DEX3/README.md)
 - **Sim-eval step-by-step (German):** [`docs/simulation/sim-eval-anleitung.md`](docs/simulation/sim-eval-anleitung.md) — shared one-time steps, then IKR server (standard) or vast.ai (cloud alternative)
+- **Video augmentation with Cosmos-Transfer2.5 (German):** [`docs/augmentation/anleitung.md`](docs/augmentation/anleitung.md) — restyles real training videos into domain-randomized copies, feeds `USE_COTRAIN`. **Built, not yet verified end-to-end** (first real run stopped at the gated `nvidia/Cosmos-Predict2.5-2B`; needs a ~65 GB VRAM Docker server, which the project does not currently have)
 - **Sim implementation notes & lessons learned:** [`docs/simulation/umsetzungsnotizen.md`](docs/simulation/umsetzungsnotizen.md)
 - **Results & evaluation (German):** [`docs/ergebnisse/`](docs/ergebnisse/README.md) — run analyses, domain-gap, sim methodology review, plus the **diagnose chronicle** ([`diagnose-chronik.md`](docs/ergebnisse/diagnose-chronik.md), ongoing from run 08 — the project-wide "Lauf N" references resolve here)
-- **Further work / concepts (German):** [`docs/weiterfuehrend/`](docs/weiterfuehrend/README.md) — RL plan + slim operative RL guide ([`rl-anleitung.md`](docs/weiterfuehrend/rl-anleitung.md); RL runs end-to-end on the Blackwell server, **N1.6-only**; run 32 (span gate) confirmed the domain gap, run 34 measured the `TUNE_VISUAL` checkpoint at 27.6% vs 20.5% finger span with `lifted` still 0/10 → next step is co-training, RL after; learning effect still unverified; **caveat:** the 2026-08-24 geometry fixes (finger-joint sign flip removed — the hand could not fully close in any earlier run —, pelvis 0.764 m, base x −0.057 m) mean all earlier sim grasp numbers incl. runs 29–34 are provisional until re-measured with the corrected scene; the render dataset for co-training must be regenerated), locomotion research (not implemented), livestream plan (Spur A/WebRTC built but untested on hardware; Spur B/MJPEG `LIVE_VIEW` is built), **GR00T N1.7 migration** ([`groot-n17-migration.md`](docs/weiterfuehrend/groot-n17-migration.md) — research/plan plus "Stand der Umsetzung": N1.7 built as a parallel path — second submodule `app/Groot-1.7`, `GROOT_VERSION` runtime switch, one training image per generation by default (`GROOT_VERSIONS` build-arg, `update_image.sh --groot=`); smoke tests passed on the IKR Blackwell 2026-09-25 and on KISSKI 2026-10-12; first full N1.7 run (`g1_dex3_blockstacking_vision_v1`, 44k steps) measured in the sim as runs 54/55 (ckpt44000: 25.6% finger span, `lifted` 0/10 — same pattern as N1.6 run 34), the open-loop comparison against run 3 is in progress ([`lauf4-n17-vergleich.md`](docs/ergebnisse/lauf4-n17-vergleich.md)); `NEW_EMBODIMENT`, CLI, dataset, ZMQ server stay compatible; the Cosmos-Reason2-2B backbone is HF-gated, N1.7 needs Py 3.12/torch 2.9, and N1.6/N1.7 checkpoints are not cross-loadable; RL, the optimized inference backend, the stock-G1 baseline, and the RoboCasa reference eval remain N1.6-only; `STATE_DROPOUT_PROB` left empty = model default (N1.6 `0.0`, N1.7 `0.2`, kept deliberately))
+- **Further work / concepts (German):** [`docs/weiterfuehrend/`](docs/weiterfuehrend/README.md) — RL plan + slim operative RL guide ([`rl-anleitung.md`](docs/weiterfuehrend/rl-anleitung.md); RL runs end-to-end on the Blackwell server, **N1.6-only**; run 32 (span gate) confirmed the domain gap, run 34 measured the `TUNE_VISUAL` checkpoint at 27.6% vs 20.5% finger span with `lifted` still 0/10 → next step is co-training, RL after; learning effect still unverified; **caveat:** the 2026-08-24 geometry fixes (finger-joint sign flip removed — the hand could not fully close in any earlier run —, pelvis 0.764 m, base x −0.057 m) mean all earlier sim grasp numbers incl. runs 29–34 are provisional until re-measured with the corrected scene; the render dataset for co-training must be regenerated), locomotion research (not implemented), livestream plan (Spur A/WebRTC built but untested on hardware; Spur B/MJPEG `LIVE_VIEW` is built), **GR00T N1.7 migration** ([`groot-n17-migration.md`](docs/weiterfuehrend/groot-n17-migration.md) — research/plan plus "Stand der Umsetzung": N1.7 built as a parallel path — second submodule `app/Groot-1.7`, `GROOT_VERSION` runtime switch, one training image per generation by default (`GROOT_VERSIONS` build-arg, `update_image.sh --groot=`); smoke tests passed on the IKR Blackwell 2026-09-25 and on KISSKI 2026-10-12; first full N1.7 run (`g1_dex3_blockstacking_vision_v1`, 44k steps) measured in the sim as runs 54/55 (ckpt44000: 25.6% finger span, `lifted` 0/10 — same pattern as N1.6 run 34), open loop on par with run 3 at the end, learns earlier, trains 1.6× faster ([`lauf4-n17-vergleich.md`](docs/ergebnisse/lauf4-n17-vergleich.md)); `NEW_EMBODIMENT`, CLI, dataset, ZMQ server stay compatible; the Cosmos-Reason2-2B backbone is HF-gated, N1.7 needs Py 3.12/torch 2.9, and N1.6/N1.7 checkpoints are not cross-loadable; RL, the optimized inference backend, the stock-G1 baseline, and the RoboCasa reference eval remain N1.6-only; `STATE_DROPOUT_PROB` left empty = model default (N1.6 `0.0`, N1.7 `0.2`, kept deliberately))
 - **Outdated content / changelog raw material:** [`docs/historie.md`](docs/historie.md) — superseded findings are moved here instead of being kept inline (e.g. the former `umgebungsanalyse.md` audit, run-1 fix round, June domain-gap first measurement)
 
 ## Key commands
@@ -195,6 +196,43 @@ On vast.ai: GPU must be **Ampere+ with RT-Cores** (L40, RTX 4090, A6000) — A10
 | `LIVE_VIEW_CAMS` | `cam_left_high,cam_left_wrist` | Comma-separated cameras shown side by side. Defaults to the **calibrated policy cameras** (= the model's actual input). `cam_scene` is an unvalidated overview cam — diagnose with `server_rl_run.sh cams` ([`dump_camera_poses.py`](Simulation/g1_dex3_sim/dump_camera_poses.py)) |
 | `RL_WANDB_VIDEO_EVERY` | `0` | RL only: log a rollout video to W&B every N iterations (`0` = off) |
 | `GROOT_VERSION` | `auto` | `1.6` \| `1.7` \| `auto` (default here — resolved from the checkpoint's `model_type` in `config.json`). N1.6-only: the optimized inference backend (`compile`/`tensorrt`, falls back to `eager` on N1.7), the stock-G1 baseline (`SIM_MODE=baseline`, `entrypoint_baseline.sh` aborts on N1.7), and RL (`entrypoint_rl.sh` aborts on N1.7). N1.7 sim runs completed 2026-10-12/13 (ckpt15000 and ckpt44000, 10 episodes each, locally built image; the image on Docker Hub is still N1.6-only; set `RL_SKIP_PULL=1` so `preflight` does not pull over the local build) |
+
+### Video augmentation with Cosmos-Transfer2.5 (own server)
+
+Full guide: [`docs/augmentation/anleitung.md`](docs/augmentation/anleitung.md)
+
+```bash
+./Augmentation/update_image.sh --skip-push        # local build; no image on Docker Hub yet
+
+HF_TOKEN=hf_... AUGMENT_EPISODE_LIMIT=2 \
+  ./Augmentation/setup_and_augment_DockerHub-pull.sh --skip-pull
+```
+
+**Status (2026-10-13): built, not verified end-to-end** — the first real run stopped at the
+separately gated `nvidia/Cosmos-Predict2.5-2B`, and no ~65 GB VRAM Docker server is currently
+available (Trooper.ai has 32 GB, KISSKI has no Docker).
+
+Restyles real training videos via NVIDIA Cosmos-Transfer2.5 (video-to-video ControlNet,
+Canny-edge control) into domain-randomized copies — same robot motion, different
+lighting/background/texture. Runs on a dedicated own server (long-lived container, no
+`--rm`/`-v`, same model as Training/), needs an A100/H100-class GPU (~65 GB VRAM). Requires
+manually accepting the "NVIDIA Open Model License Agreement" once on
+`huggingface.co/nvidia/Cosmos-Transfer2.5-2B` AND `huggingface.co/nvidia/Cosmos-Predict2.5-2B`
+(the latter provides shared components like the Wan2.1 VAE/tokenizer) before the first run.
+Output is a LeRobot v2.1 dataset with byte-identical `modality.json` to the real dataset — feed it straight into
+`USE_COTRAIN=1 COTRAIN_DATASET_PATH=...` in the Training image, no training-side changes
+needed (see [co-training.md](docs/training/co-training.md)).
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `HF_TOKEN` | — | **Required.** Needs access to the source dataset AND the gated Cosmos model |
+| `NUM_GPU` | `1` | Cosmos' own var name (`torchrun --nproc_per_node`) — deliberately not `NUM_GPUS` like Training |
+| `AUGMENT_EPISODE_LIMIT` | `2` | Cap for cheap first runs; `0` = all train-split episodes |
+| `AUGMENT_CAMERAS` | all 4 policy cameras | Subset for cheap/visual-QA runs; all 4 required for COTRAIN-usable episodes |
+| `AUGMENT_TRAIN_RATIO` | `0.8` | Must match `TRAIN_SPLIT_RATIO` in the Training image — replicated formula, same contract as `lib_split.sh` |
+| `AUGMENT_MODEL_VARIANT` | `edge` | Cosmos generates the edge (Canny) control on-the-fly, no separate control-video step; `edge/distilled` is faster but needs `COSMOS_EXPERIMENTAL_CHECKPOINTS=1` (set automatically) |
+| `AUGMENT_DISABLE_GUARDRAILS` | `1` | Skips NVIDIA's content-safety filter — avoids a second, separately gated HF repo (`nvidia/Cosmos-Guardrail1`) not needed for internal training-data augmentation |
+| `AUGMENT_HF_REPO` | *(empty)* | If set, uploads the finished dataset after assembly |
 
 ### Build the image
 
@@ -393,6 +431,18 @@ repo root
 │                                       #   eval_strategy=="no"), so validation happens after the run.
 │                                       #   Works under either venv (introspects execution_horizon vs.
 │                                       #   action_horizon, decoder_kwargs vs. video_backend, EmbodimentTag.resolve)
+├── Augmentation/                       # Cosmos-Transfer2.5 video augmentation (own server, long-lived)
+│   ├── Dockerfile                      # Self-contained: clones cosmos-transfer2.5 (pinned commit) +
+│   │                                   #   sparse-checked-out GR00T-fork converter, own tools venv
+│   ├── .dockerignore                   # Same pattern as Training/.dockerignore
+│   ├── update_image.sh                 # Host build/push tool (Docker Hub account: DOCKER_NAMESPACE)
+│   ├── setup_and_augment_DockerHub-pull.sh  # Host launcher (persistent container, no --rm/-v)
+│   └── scripts/                        # COPIED into image at /scripts/
+│       ├── entrypoint.sh               # Download → specs → Cosmos (edge control on-the-fly) → dataset
+│       ├── download_source_dataset.sh  # Reuses Training's dataset repo + vendored v3→v2.1 converter
+│       ├── build_controlnet_specs.py   # Episode/camera/variant → Cosmos spec JSON (edge control on-the-fly)
+│       ├── run_inference.sh            # Thin wrapper around cosmos-transfer2.5's examples/inference.py
+│       └── assemble_dataset.py         # Cosmos output → COTRAIN_DATASET_PATH-compatible LeRobot v2.1 dataset
 ├── Simulation/                         # Closed-loop sim eval
 │   ├── Dockerfile                      # KISSKI-only: slim Isaac Lab sim-client (no GR00T)
 │   ├── Dockerfile.standalone           # Standalone: Isaac Sim + GR00T in one container — IKR server & vast.ai
@@ -512,6 +562,19 @@ At runtime, the container holds (no host mount):
 ├── unitreerobotics/          # ~18 GB
 ├── g1_dex3_finetune/         # checkpoints
 └── logs/                     # training logs
+```
+
+The `Augmentation/` container is a **separate** image with its own `/data` (not shared with
+Training's — each container downloads its own copy of the dataset):
+```
+/data/
+├── unitreerobotics/G1_Dex3_BlockStacking_Dataset/  # same HF repo, own copy
+├── hf_cache/                          # Cosmos-Transfer2.5-2B checkpoint cache
+├── augmentation/
+│   ├── specs/                         # per-episode/camera/variant Cosmos spec JSONs
+│   ├── raw_output/                    # raw Cosmos-restyled videos, pre-assembly
+│   └── g1_dex3_cosmos_augmented/      # assembled LeRobot v2.1 output (→ COTRAIN_DATASET_PATH)
+└── logs/
 ```
 
 **All G1/DEX3 work goes in `app/Groot-1.6/` (N1.6, default) and, for the N1.7 parallel path, `app/Groot-1.7/`.** Each tree has its own venv: `app/Groot-1.6/.venv` (Python 3.10) and `app/Groot-1.7/.venv` (Python 3.12); use `uv run` to invoke the one that matches the tree you're working in.

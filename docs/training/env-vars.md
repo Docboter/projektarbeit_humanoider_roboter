@@ -91,6 +91,11 @@ Der gerenderte Datensatz entsteht auf dem **Sim-Server** (RT-Core-GPU) mit
 (~1–2 GB für 60 Episoden). Vollständige Herleitung der Werte:
 [co-training.md §4](co-training.md#4-die-beiden-entscheidungen--und-wie-sie-begründet-sind).
 
+`COTRAIN_DATASET_PATH`/`COTRAIN_HF_REPO` ist die Quelle egal — statt aus Isaac Lab gerendert
+kann der zweite Datensatz auch per NVIDIA Cosmos-Transfer2.5 aus echten Videos stilvariiert
+entstehen: [`Augmentation/`](../augmentation/anleitung.md). Beide liefern dasselbe
+LeRobot-v2.1-Schema.
+
 | Variable | Default | Beschreibung |
 |---|---|---|
 | `COTRAIN_DATASET_PATH` | `/data/cotrain/g1_dex3_rendered` | Gerenderter Datensatz im Container (LeRobot v2.1, wie der echte). |

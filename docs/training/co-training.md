@@ -58,6 +58,12 @@ Oberflächen-Statistik der Realbilder verlassen.
 | [`Training/scripts/launch_cotrain_n17.py`](../../Training/scripts/launch_cotrain_n17.py) | Dasselbe für **GR00T N1.7** (`GROOT_VERSION=1.7`) — Spiegel von N1.7s `launch_finetune.py` mit derselben Mix-Ratio-Ergänzung. `run_finetuning_cotrain.sh` wählt zwischen beiden. Ungetestet (kein Smoke-Lauf), siehe [groot-n17-migration.md](../weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19). |
 | [`Training/scripts/run_finetuning_cotrain.sh`](../../Training/scripts/run_finetuning_cotrain.sh) | Trainings-Launcher (eigener Namespace `blockstacking_cotrain`, `--tune_visual`, Split an). |
 | [`Training/scripts/entrypoint.sh`](../../Training/scripts/entrypoint.sh) | `USE_COTRAIN=1` routet auf den neuen Launcher. |
+| [`Augmentation/`](../augmentation/anleitung.md) | **Zweite, renderer-unabhängige Quelle** für den zweiten Datensatz: stilvariiert echte Videos per Cosmos-Transfer2.5, statt sie in Isaac Lab neu zu rendern. `run_finetuning_cotrain.sh` unterscheidet nicht, woher der zweite Datensatz kommt — nur `meta/modality.json` muss byte-identisch sein. |
+
+**`USE_COTRAIN` ist renderer-agnostisch.** Ob der zweite Datensatz per Isaac-Lab-Rendering
+(`Simulation/server_rl_run.sh render`) oder per Cosmos-Transfer2.5-Restyling
+([`Augmentation/`](../augmentation/anleitung.md)) entsteht, ist dem Trainings-Image egal —
+beide Wege müssen nur dasselbe LeRobot-v2.1-Schema mit identischer `modality.json` liefern.
 
 **Kein Submodul-Eingriff.** Die Misch-Fähigkeit steckt bereits im Fork
 (`SingleDatasetConfig.mix_ratio`, `ShardedMixtureDataset`); nur der CLI-Einstieg
@@ -404,6 +410,13 @@ umgekehrtem Vorzeichen.
 **0,25** liegt knapp über dem Ausgleichspunkt — ein bewusster kleiner Schubs Richtung Sim,
 ohne die Realdomäne zu verdrängen. Wer mehr Sim-Anteil will, erzeugt **mehr Episoden**
 statt das Verhältnis zu erhöhen; die Formel oben liefert dann den passenden Wert.
+
+**Gilt unverändert für einen Cosmos-Transfer2.5-augmentierten Datensatz** (siehe
+[`Augmentation/`](../augmentation/anleitung.md)) — die Formel `mix* = F_zweiter/(F_zweiter +
+F_echt)` ist renderer-unabhängig, aber **0,25 nicht blind übernehmen**: der konkrete Wert
+hängt an 60-gegen-240-Episoden aus dem Sim-Renderer und muss mit der tatsächlichen
+Frame-Anzahl des Augmentierungs-Datensatzes (`AUGMENT_EPISODE_LIMIT` × `AUGMENT_VARIANTS`)
+neu berechnet werden.
 
 ---
 

@@ -1,16 +1,16 @@
 # Graph Report - projektarbeit_humanoider_roboter  (2026-10-13)
 
 ## Corpus Check
-- 608 files · ~5,473,234 words
+- 617 files · ~5,482,008 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 9736 nodes · 16892 edges · 503 communities (461 shown, 42 thin omitted)
+- 9796 nodes · 16985 edges · 524 communities (477 shown, 47 thin omitted)
 - Extraction: 94% EXTRACTED · 6% INFERRED · 0% AMBIGUOUS · INFERRED: 945 edges (avg confidence: 0.66)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `5d588ae6`
+- Built from commit: `cb4ec6ff`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -25,7 +25,7 @@
 - Sim-Eval Implementation Notes — Lessons Learned & aktueller Stand
 - Anleitung — GR00T N1.6 Fine-tuning
 - GR00T N1.6 — Unitree G1 + DEX3 Setup-Dokumentation
-- object
+- BasePolicy
 - render_cotrain_dataset.py
 - class_
 - test_eigen.py
@@ -40,20 +40,20 @@
 - test_tagbased_polymorphic.cpp
 - GR00T N1.6 Fine-tuning — Unitree G1 + DEX3 Hand
 - UDP
-- ModalityConfig
+- benchmark_inference.py
 - msg
 - test_class.py
 - LiveView
 - UnitreeJointController
 - T
-- run
+- index_sequence
 - multiThread
 - test_eval_setup.py
 - rl_finetune.py
-- constructor_stats.h
+- print_destroyed
 - test_builtin_casters.py
-- pybind11.h
-- ConstructorStats
+- function_call
+- constructor_stats.h
 - test_copy_move.cpp
 - function_record
 - test_replay_grasp_metrics.py
@@ -68,16 +68,16 @@
 - Training/scripts/lib_groot_version.sh
 - attr.h
 - buffer_info
-- generate_stats
-- run_g1_dex3_sim_eval.py
+- _compute_stats_fingerprint
+- Time
 - UnitreeDrawForcePlugin
 - TEST_SUBMODULE
 - Auswertung — erster vollständiger Trainingsdurchlauf (`g1_dex3_blockstacking_v1`)
 - UnitreeFootContactPlugin
 - test_custom_type_casters.cpp
 - Custom
-- stats.py
-- Safety
+- _load_stats_cache
+- FractionalCenterCrop
 - Groot-1.6/scripts/lerobot_conversion/convert_v3_to_v2_standalone.py
 - Custom
 - type_record
@@ -100,7 +100,7 @@
 - Lokomotion des Unitree G1 freischalten — Recherche
 - server_robocasa_ref_run.sh
 - Reinforcement-Learning-Training — Recherche & Umsetzungsplan
-- list
+- pybind11_fail
 - complex.h
 - Custom
 - internals
@@ -110,11 +110,11 @@
 - test_virtual_functions.cpp
 - Auswertung — dritter Trainingsdurchlauf, Vision-Encoder **mit** Split & Augmentierung (`g1_dex3_blockstacking_vision_v2`)
 - G1GripperBlockstackEnv
-- Ergebnisse & Evaluation
+- Augmentation — Video-Augmentierung mit Cosmos-Transfer2.5
 - test_qwen3_rope.py
 - chrono.h
 - test_stl_binders.cpp
-- project_fingertips_check.py
+- convert_v3_to_v2.py
 - UserType
 - test_eigen.cpp
 - test_pick_anchored_calibration.py
@@ -125,7 +125,7 @@
 - Domain-Gap-Analyse: Real → Isaac Sim
 - lib_menu.sh
 - Zwischenstand — erster Trainingsdurchlauf (`g1_dex3_blockstacking_v1`)
-- simulation/README.md
+- wuerfellage-rekonstruktion.md
 - ShardedMixtureDataset
 - Custom
 - Custom
@@ -146,12 +146,12 @@
 - different_resolutions
 - CLAUDE.md
 - multi_array_iterator
-- function_call
+- Groot-1.7/scripts/lerobot_conversion/convert_v3_to_v2_standalone.py
 - run_dataset_replay_videos.py
 - Inhaltsverzeichnis der Läufe
 - teleForceCmd
 - descr.h
-- Pet
+- test_standalone_inference.py
 - test_iostream.py
 - test_sequences_and_iterators.cpp
 - test_sequences_and_iterators.py
@@ -162,7 +162,7 @@
 - HPC-Training auf KISSKI
 - Object
 - joint_controller.cpp
-- Custom
+- Safety
 - reconstruct_cube_poses.py
 - TEST_SUBMODULE
 - test_chrono.py
@@ -181,7 +181,7 @@
 - Baseline-Closed-Loop-Test — stock Unitree G1 + Dex1-Greifer (UNITREE_G1)
 - TEST_SUBMODULE
 - Detail of Packages
-- test_factory_constructors.cpp
+- TestFactory6
 - EndEffectorPose
 - kisski_chain.sh
 - instance
@@ -191,20 +191,20 @@
 - Train-Test-Split (80/20)
 - Was für ein Training wird hier durchgeführt?
 - experiment.py
-- Zweiten Docker-Container für die Sim bauen — Isaac Lab + GR00T-Client
+- check_manifest_alignment.py
 - export_onnx_n1d7.py
 - PolicyClient
 - optimize_groot_inference.py
 - PolicyHorizonSpec
 - ParallelCompile
 - test_callbacks.py
-- PolicyServer
+- MockPolicy
 - Fundamentale Denkfehler
 - Läufe 38–46 (`runs/20260823/02`, `runs/20260824/05`–`12`): Die Fingergrundgelenke standen still
 - Multi-GPU-Training (bis zu 4× A100)
 - 3. Bisherige Schritte (Verlauf, Stand der Umsetzung)
 - entrypoint_replay.sh
-- test_numpy_vectorize.cpp
+- DROID/server_client.py
 - GR00T N1.6 — Unitree G1 + DEX3 Dexterous Hand
 - Würfellage-Rekonstruktion — Bewertung der Implementierung
 - PolicyClient
@@ -216,19 +216,19 @@
 - 2026-08-07 — vast.ai-Anleitung: WebRTC-Browser-Client (Port 8211) entfallen
 - setup_and_train_container_build.sh
 - internals.h
-- test_constants_and_functions.cpp
+- generate_stats
 - Portabilität — das Repo auf einem fremden Rechner betreiben
 - rollout_policy.py
-- modes.py
+- ExportMode
 - 2026-06-04 — Domain-Gap-Erstmessung (überholt durch Neumessung 2026-08-08)
 - test_best_metric_callback_save.py
 - Weiterführende Arbeiten
-- copyable_holder_caster
+- pybind11.h
 - v3.8.6
 - Dokumentation — Übersicht
 - blend
-- g1_gripper_blockstack_env.py
-- iostream
+- scene_geometry.py
+- string
 - run_extract
 - GR00T N1.6 — Unitree G1 + DEX3 Setup-Dokumentation
 - test_smart_ptr.py
@@ -238,7 +238,7 @@
 - type_info
 - Optionale Trainings-Features (getrennt schaltbar)
 - ignore_unused
-- camera_geometry.py
+- ndarray
 - Custom
 - update_sim_image.sh
 - entrypoint.sh
@@ -257,7 +257,7 @@
 - gen_docs.sh
 - W&B Offline-Sync auf KISSKI
 - entrypoint_rl.sh
-- GPU-Eignung für die Isaac-Sim-Closed-Loop-Sim auf GWDG
+- PolicyServer
 - Auswertung — vierter Trainingsdurchlauf, GR00T **N1.7** gegen N1.6 (Lauf 3)
 - Understanding the GR00T Policy API
 - typeid.h
@@ -265,11 +265,11 @@
 - test_async.py
 - Config
 - StateActionProcessor
-- process_attribute<is_final>
+- _libero_demo_dataset
 - menu_select
 - LaTeX — Projektarbeit (Ausarbeitung)
 - Projektarbeit Humanoider Roboter
-- MyBase
+- test_multistep_aggregate.py
 - check_action_norm.py
 - b2_description/README.md
 - b2w_description/README.md
@@ -281,7 +281,7 @@
 - scope
 - sibling
 - episode_motion_onsets
-- process_attribute<prepend>
+- TrainingConfig
 - build_trt_pipeline.py
 - run_or_wait_on_rank0
 - test_build_tensorrt_engine.py
@@ -291,19 +291,19 @@
 - PolicyClient
 - readme.py
 - stl.h
-- SimpleStruct
+- _make_trainer
 - Unitree G1 Description (URDF & MJCF)
 - Unitree H1_2 Description (URDF & MJCF)
-- PartialStruct
+- test_exceptions.py
 - setup
 - Groot-1.7/README.md
-- PackedStruct
-- DtypeSizeCheck
+- Qwen3Backbone
+- TestMsgSerializer
 - GR00T N1.6 Fine-tuning — Unitree G1 + DEX3 Hand
 - Läufe 33/34 (`runs/20260814/03`, `runs/20260814/04`): der TUNE_VISUAL-Checkpoint im Closed Loop
-- DtypeCheck
+- download_droid_sample.py
 - Training — Fine-tuning von GR00T N1.6
-- exactly_one
+- _assign_inv_freq
 - kisski_replay_submit.sh
 - kisski_robocasa_ref_submit.sh
 - kisski_sim_submit.sh
@@ -316,14 +316,14 @@
 - Schritt 2 — Domain-Gap neu messen (`server_rl_run.sh gap`)
 - EndEffectorActionChunk
 - validate_hf_config_alignment.py
-- ArrayStruct
+- test_readme_demo_training_dataset_loads_frames_with_torchcodec
 - summarize_run
-- EnumStruct
-- SimpleStructReordered
+- eigen.h
+- camera_geometry.py
 - test_trt_contract.py
-- process_attribute<dynamic_attr>
+- ._force_camera_prim_orientations
 - test_simple_setup_py
-- launch_cotrain.py
+- qwen3_backbone.py
 - compare_domain_gap.sh
 - metaclass
 - b2_description_mujoco/README.md
@@ -331,11 +331,11 @@
 - EmbodimentTag
 - test_action_head.py
 - runtime.py
-- state_action_processor.py
+- data/utils.py
 - CategorySpecificMLP
 - check-style.sh
 - repair_lerobot_metadata.py
-- JointActionChunk
+- NDArray
 - kisski_rl_submit.sh
 - kisski_submit.sh
 - standalone_inference_script.py
@@ -343,8 +343,8 @@
 - Läufe 54/55: die ersten N1.7-Checkpoints in der Sim
 - get_embodiment_tag_from_env_name
 - MultiStepWrapper
-- return_value_policy
-- dit.py
+- type_caster<CharT, enable_if_t<is_std_char_type<CharT>::value>>
+- gr00t_n1d7/gr00t_n1d7.py
 - test_robocasa_readme_eval_flow
 - test_robocasa_gr1_tabletop_readme_eval_flow
 - load_initial_actions
@@ -353,43 +353,46 @@
 - test_libero_readme_workflow_executes_via_subprocess
 - test_policy_md.py
 - Gr00tN1d7ActionHead
-- trt_model_forward.py
+- calculate_dataset_statistics
 - JointPose
 - eval_so100.py
 - GR00T Deployment & Inference Guide
 - _run_simplerenv_eval
 - TestDatasetStructure
 - test_manifest_alignment.py
-- Time
+- test_repair_lerobot_metadata.py
 - Model Capabilities
 - .resolve
 - Gr00tN1d7Config
 - _hf_local_first_call
-- _random_state
+- test_state_action_processor.py
 - main_gr00t.py
-- test_gr00t_policy.py
+- Type
 - TestGr00tPolicyGPU
-- gr00t_n1d7/gr00t_n1d7.py
+- test_export_onnx_legacy_exporter.py
 - test_fast_copy_tree.py
 - ActionChunk
 - GrootRoboCasa365Env
-- main
+- BestMetricCheckpointCallback
 - GR00T N1.7 on RoboLab
 - LeRobot v2 Requirements
-- BasicPipeline
-- dump_camera_poses.py
+- EigenConformable
+- type_caster<
+    Eigen::Ref<PlainObjectType, 0, StrideType>,
+    enable_if_t<is_eigen_dense_map<Eigen::Ref<PlainObjectType, 0, StrideType>>::value>
+>
 - bootstrap_wheels.sh
-- setup_tensorrt_engines
+- pybind11_tests.cpp
 - _macro_step_env_steps
 - build_processor
 - build_tensorrt_engine.py
 - _run_with_prelude
 - How to prepare your modality configuration
 - seed_everything
-- finetune_new_embodiment.md
+- Finetuning GR00T N1.7 Model for Seeed reBot Arm B601 DM
 - Mask-Guided Background Suppression
 - eval_rebot_arm_dm.py
-- Gr00tN1d7Pipeline
+- Augmentation — Bedienungsanleitung
 - load_hf_model_weights
 - test_so100_readme_workflow_executes_via_subprocess
 - resolve_vit_engine_path
@@ -406,30 +409,30 @@
 - verify
 - TestEmbodimentTagConsistency
 - test_simpler_env_success.py
-- _make_step_data
+- test_gr00t_processor.py
 - _make_dummy_inputs
 - Basismodell-Referenz-Eval — Ergebnis (Pipeline-Validierung)
-- compass.py
+- run_subprocess_step
 - GR00T N1.6 — Unitree G1 + DEX3 Dexterous Hand
 - Fine-tune on Custom Embodiments ("NEW_EMBODIMENT")
-- TestSkipModelWeights
+- _FakeModel
 - DatasetCatalogEntry
 - GR00T DROID
 - SimplerEnv/README.md
-- Hardware Recommendations
+- test_trt_pipeline.py
 - _zero_no_weight_model_parameters
 - _decoder_import_error
 - test_demo_dataset_stats_match_info_shapes
 - test_experiment_run_single_gpu
 - .load
-- UnregisteredBase
+- Augmentation/scripts/entrypoint.sh
 - run_g1_gripper_sim_eval.py
 - CLAUDE.md — Isaac GR00T N1.7
 - Docker Setup for NVIDIA Isaac GR00T
 - Finetuning Models for the SO100/SO101 Robot
 - spark/install_deps.sh
-- TestTagCategories
-- TestTorchcodecRoundtrip
+- setup_and_augment_DockerHub-pull.sh
+- get_frames_by_timestamps
 - check_sim_eval_ready.py
 - test_rollout_max_episode_steps.py
 - TestProcessorVariableImageSize
@@ -442,8 +445,8 @@
 - TestPolicyServerClient
 - deregister_instance
 - robocasa/README.md
-- test_droid.py
-- test_warn_configs.py
+- Augmentation/update_image.sh
+- .load
 - Evaluation
 - Installation
 - Setup
@@ -451,9 +454,9 @@
 - TestTorchcodecMissing
 - test_dit_only_forward_signature.py
 - Test Fixtures
-- TestFixtureCompleteness
+- TestRegisteredPrefixClosure
 - pytest_collection_modifyitems
-- TestImportSafety
+- main
 - build.sh
 - finetune.sh
 - orin/install_deps.sh
@@ -487,6 +490,27 @@
 - 4. Einbau je Einstiegspunkt
 - check_tldr.sh
 - MsgSerializer
+- void_caster
+- G1GripperBlockstackEnvCfg
+- .reverse_lookup
+- IO
+- test_generate_stats_cache_fingerprint.py
+- download_source_dataset.sh
+- .state_delta_indices_array
+- Fine-tuning
+- DiTInputCapture
+- TestEnvPrefixMapping
+- build_controlnet_specs.py
+- LLMInputCapture
+- ViTInputCapture
+- Simulation — Closed-Loop-Eval in Isaac Lab
+- test_robocasa365_gymnasium_groot.py
+- process_attribute<buffer_protocol>
+- builtin_exception
+- is_fmt_numeric<T, enable_if_t<std::is_arithmetic<T>::value>>
+- type_caster<Type, enable_if_t<is_eigen_other<Type>::value>>
+- run_inference.sh
+- robocasa_reference/README.md
 
 ## God Nodes (most connected - your core abstractions)
 1. `handle` - 187 edges
@@ -515,7 +539,7 @@
 ## Import Cycles
 - None detected.
 
-## Communities (503 total, 42 thin omitted)
+## Communities (524 total, 47 thin omitted)
 
 ### Community 0 - "harmonize_synth_dataset.py"
 Cohesion: 0.09
@@ -534,8 +558,8 @@ Cohesion: 0.12
 Nodes (35): add_patient(), clear_instance(), clear_patients(), enable_buffer_protocol(), enable_dynamic_attributes(), get_fully_qualified_tp_name(), Py_buffer, PyObject (+27 more)
 
 ### Community 4 - "init.h"
-Cohesion: 0.06
-Nodes (41): Alias, Cpp, alias_constructor, construct(), construct_alias_from_cpp(), construct_or_initialize(), execute(), factory (+33 more)
+Cohesion: 0.05
+Nodes (46): Alias, Cpp, alias_constructor, construct(), construct_alias_from_cpp(), construct_or_initialize(), constructor, execute() (+38 more)
 
 ### Community 5 - "Umstieg GR00T N1.6 → N1.7: Überblick und Migrationsplan"
 Cohesion: 0.07
@@ -557,53 +581,53 @@ Nodes (46): 1. `docker cp` auf den Host, 2. Aus dem Container heraus hochladen (
 Cohesion: 0.05
 Nodes (44): 1. Container-Analyse, 2. GR00T N1.6 installieren, 2-Kamera-Datensätze, 3. DEX3-Kompatibilität prüfen, 4-Kamera-Datensätze, 4. Modality-Config erstellen, 5. Datensatz auf HuggingFace suchen, 6. Datensatz vorbereiten (+36 more)
 
-### Community 10 - "object"
-Cohesion: 0.06
-Nodes (33): PyObject, object_api<Derived>::call(), object_api<Derived>::operator()(), PYBIND11_NOINLINE, pybind11_fail(), embedded_module, finalize_interpreter(), initialize_interpreter() (+25 more)
+### Community 10 - "BasePolicy"
+Cohesion: 0.07
+Nodes (35): parse_observation_gr00t(), Any, Reshape a flat ``{modality.key: value}`` observation into the nested, batched…, ArgsConfig, evaluate_single_trajectory(), main(), parse_action_gr00t(), plot_trajectory_results() (+27 more)
 
 ### Community 11 - "render_cotrain_dataset.py"
-Cohesion: 0.09
-Nodes (48): block_positions(), consistency_report(), episode_paths(), episode_window(), expected_length(), finalize_meta(), find_grasp_points(), grasp_anchor() (+40 more)
+Cohesion: 0.08
+Nodes (50): block_positions(), build_env(), consistency_report(), episode_paths(), episode_window(), expected_length(), finalize_meta(), find_grasp_points() (+42 more)
 
 ### Community 12 - "class_"
-Cohesion: 0.08
-Nodes (38): class_, has_alias, holder_type, instance, PyObject, value_and_holder, init_holder(), bind_map() (+30 more)
+Cohesion: 0.11
+Nodes (32): class_, has_alias, bind_map(), bind_vector(), container_traits, is_comparable, is_element, is_pair (+24 more)
 
 ### Community 13 - "test_eigen.py"
 Cohesion: 0.06
-Nodes (27): array_copy_but_one(), assert_equal_ref(), assert_keeps_alive(), assert_sparse_equal_ref(), assign_both(), Eigen doesn't support (as of yet) negative strides. When a function takes an…, Tests various ways of returning references and non-referencing copies, Tests Eigen's ability to mutate numpy values (+19 more)
+Nodes (29): array_copy_but_one(), assert_equal_ref(), assert_keeps_alive(), assert_sparse_equal_ref(), assign_both(), Eigen doesn't support (as of yet) negative strides. When a function takes an…, Tests various ways of returning references and non-referencing copies, Tests Eigen's ability to mutate numpy values (+21 more)
 
 ### Community 14 - "Closed-Loop-Sim-Eval — Schritt-für-Schritt-Anleitung"
 Cohesion: 0.05
 Nodes (40): 3a) URDF beschaffen, 3b) USD erzeugen, 3c) USD aufbewahren, 4a) GPU auswählen, 4b) Instance Configuration, `CHECKPOINT_PATH leer oder existiert nicht`, Closed-Loop-Sim-Eval — Schritt-für-Schritt-Anleitung, `createDLSSContext error` / Rendering-Fehler (+32 more)
 
 ### Community 15 - "G1Dex3BlockstackEnv"
-Cohesion: 0.07
-Nodes (23): G1Dex3BlockstackEnv, Any, DirectRLEnv, Tensor, Würfel auf den nächsten Eintrag von cfg.block_layout setzen (je Env einer).…, Gibt das Observation-Dict zurück: - "joint_pos": (num_envs, 28) float32 — alle…, Ordnet Joint-Namen auf Isaac-Lab-interne Indices ab., Setzt das absolute Positions-Target EINMALIG vor den Physics-Sub-Steps.… (+15 more)
+Cohesion: 0.05
+Nodes (45): ImageDraw, G1Dex3BlockstackEnv, Any, DirectRLEnv, Tensor, Würfel auf den nächsten Eintrag von cfg.block_layout setzen (je Env einer).…, Gibt das Observation-Dict zurück: - "joint_pos": (num_envs, 28) float32 — alle…, Ordnet Joint-Namen auf Isaac-Lab-interne Indices ab. (+37 more)
 
 ### Community 16 - "array"
-Cohesion: 0.10
-Nodes (19): buffer, array, array_proxy(), byte_offset(), check_dimensions(), check_flags(), data(), size (+11 more)
+Cohesion: 0.11
+Nodes (19): buffer, array, array_info, array_info<T[N]>, array_proxy(), byte_offset(), check_dimensions(), check_flags() (+11 more)
 
 ### Community 17 - "iterator"
-Cohesion: 0.06
-Nodes (21): Type, iterator_state, end, first_or_done, it, make_iterator(), make_key_iterator(), generic_iterator (+13 more)
+Cohesion: 0.05
+Nodes (29): Type, iterator_state, end, first_or_done, it, make_iterator(), make_key_iterator(), accessor (+21 more)
 
 ### Community 18 - "Gr00tN1d7Processor"
-Cohesion: 0.03
-Nodes (51): main(), save_comparison(), apply_with_replay(), BackgroundNoiseTransform, build_image_transformations(), build_image_transformations_albumentations(), FractionalCenterCrop, FractionalRandomCrop (+43 more)
+Cohesion: 0.04
+Nodes (40): Recursively convert dataclasses and numpy arrays to JSON-serializable format.…, to_json_serializable(), apply_with_replay(), build_image_transformations(), build_image_transformations_albumentations(), LetterBoxTransform, Tensor, Apply albumentations transforms to multiple images with replay functionality.… (+32 more)
 
 ### Community 19 - "doc"
 Cohesion: 0.03
-Nodes (50): doc(), Sanitize docstrings and add custom failure explanation, test_docstrings(), test_dense_signature(), test_sparse_signature(), test_docs(), test_passthrough_arguments(), parametrize (+42 more)
+Nodes (48): doc(), Sanitize docstrings and add custom failure explanation, test_docstrings(), test_docs(), test_passthrough_arguments(), parametrize, skipif, xfail (+40 more)
 
 ### Community 20 - "unitree_legged_sdk.h"
 Cohesion: 0.12
 Nodes (23): BmsCmd, BmsState, Cartesian, MotorCmd, MotorState, ConstPtr, HighCmd, HighState (+15 more)
 
 ### Community 21 - "numpy.h"
-Cohesion: 0.04
-Nodes (55): array_info, array_info<char[N]>, array_info_scalar, extents, is_array, is_empty, array_info<std::array<char, N>>, array_info<T[N]> (+47 more)
+Cohesion: 0.05
+Nodes (48): array_info<char[N]>, array_info_scalar, extents, is_array, is_empty, array_info<std::array<char, N>>, byte_offset_unsafe(), check_dimensions_impl() (+40 more)
 
 ### Community 22 - "test_tagbased_polymorphic.cpp"
 Cohesion: 0.11
@@ -617,13 +641,13 @@ Nodes (33): 1.1 Modellgewichte herunterladen, 1.2 Datensatz bereitstellen, 1.3 A
 Cohesion: 0.06
 Nodes (33): UDP, accessible, blockTimeout, connected, GetRecv, init, InitCmdData, initiativeDisconnect (+25 more)
 
-### Community 25 - "ModalityConfig"
-Cohesion: 0.03
-Nodes (47): BasicDataCollator, Any, Tensor, DatasetFactory, Factory class for building training datasets. Model-agnostic., Build the dataset. Returns a tuple of (train_dataset, eval_dataset)., merge_statistics(), ndarray (+39 more)
+### Community 25 - "benchmark_inference.py"
+Cohesion: 0.06
+Nodes (40): extract_step_data(), DataFrame, ModalityConfig, Path, Initialize single-step dataset with sharding configuration., Create balanced shards by distributing episode timesteps across shards. The…, Get the effective episode length accounting for action horizon., Return the number of shards in the dataset. (+32 more)
 
 ### Community 26 - "msg"
-Cohesion: 0.07
-Nodes (36): msg(), Sanitize messages and add custom failure explanation, test_inheritance(), test_instance(), test_reentrant_implicit_conversion_failure(), Tests nested (e.g. C++ -> Python -> C++) exception handling, test_custom(), test_error_already_set() (+28 more)
+Cohesion: 0.10
+Nodes (31): msg(), Sanitize messages and add custom failure explanation, test_inheritance(), test_instance(), test_reentrant_implicit_conversion_failure(), create_and_destroy(), skipif, Tests py::init_factory() wrapper around various ways of returning the object (+23 more)
 
 ### Community 27 - "test_class.py"
 Cohesion: 0.06
@@ -638,60 +662,60 @@ Cohesion: 0.05
 Nodes (44): Controller<hardware_interface::EffortJointInterface>, ServoCmd, Subscriber, UnitreeJointController, command, controller_state_publisher_, effortLimits, getGains (+36 more)
 
 ### Community 30 - "T"
-Cohesion: 0.11
-Nodes (17): m, ref, shared_ptr, T, unique_ptr, custom_unique_ptr, impl, holder_helper<ref<T>> (+9 more)
+Cohesion: 0.05
+Nodes (29): constants_and_functions, C, m, string, print_bytes(), return_bytes(), test_function1(), test_function2() (+21 more)
 
-### Community 31 - "run"
-Cohesion: 0.15
-Nodes (20): broadcast_trivial, apply_broadcast(), apply_trivial(), broadcast(), Func, remove_reference_t, Return, return_value_policy (+12 more)
+### Community 31 - "index_sequence"
+Cohesion: 0.14
+Nodes (21): broadcast_trivial, index_sequence, apply_broadcast(), apply_trivial(), broadcast(), Func, remove_reference_t, Return (+13 more)
 
 ### Community 32 - "multiThread"
 Cohesion: 0.10
 Nodes (12): Imu, MotorState, NodeHandle, string, Subscriber, WrenchStamped, multiThread, footForce_sub (+4 more)
 
 ### Community 33 - "test_eval_setup.py"
-Cohesion: 0.16
-Nodes (15): PathLike, `meta/tasks.jsonl` (LeRobot v2.1) bzw. `meta/tasks.parquet` (v3.0) → {index:…, Liefert (Text, Herkunft). Reihenfolge: explizit > Datensatz > Konstante.…, read_dataset_tasks(), resolve_task_description(), _args(), _dataset(), Namespace (+7 more)
+Cohesion: 0.17
+Nodes (17): PathLike, Dieselbe Auswahl wie render_cotrain_dataset.py, inklusive Test-Episoden-Sperre., select_episodes(), `meta/tasks.jsonl` (LeRobot v2.1) bzw. `meta/tasks.parquet` (v3.0) → {index:…, Liefert (Text, Herkunft). Reihenfolge: explizit > Datensatz > Konstante.…, read_dataset_tasks(), resolve_task_description(), _args() (+9 more)
 
 ### Community 34 - "rl_finetune.py"
 Cohesion: 0.16
 Nodes (19): build_value_head(), compute_gae(), _env_flag(), _env_int(), fpo_logprob_proxy(), _import_stack(), main(), _obs_batched_to_policy_dict() (+11 more)
 
-### Community 35 - "constructor_stats.h"
-Cohesion: 0.16
-Nodes (24): format_ptrs(), T, print_constr_details(), print_copy_assigned(), print_copy_created(), print_created(), print_default_created(), print_destroyed() (+16 more)
+### Community 35 - "print_destroyed"
+Cohesion: 0.13
+Nodes (21): print_copy_created(), print_created(), print_default_created(), print_destroyed(), print_move_created(), NoConstructor, string, PYBIND11_OVERRIDE() (+13 more)
 
 ### Community 36 - "test_builtin_casters.py"
 Cohesion: 0.07
 Nodes (23): skipif, Tests the ability to pass bytes to C++ string-accepting functions. Note that…, Tests support for C++17 string_view arguments and return values, Tests unicode conversion and error reporting., Issue #929 - out-of-range integer values shouldn't be accepted, std::pair <-> tuple & std::tuple <-> tuple, Casters produced with PYBIND11_TYPE_CASTER() should convert nullptr to None, None passed as various argument types should defer to other overloads (+15 more)
 
-### Community 37 - "pybind11.h"
-Cohesion: 0.03
-Nodes (77): any_of<is_holder<T>, is_subtype<T>, is_base<T>>, postcall(), precall(), constructor, add_base(), add_class_method(), add_object(), all_type_info_get_cache() (+69 more)
+### Community 37 - "function_call"
+Cohesion: 0.04
+Nodes (52): postcall(), precall(), argument_loader, arg_names, argcasters, args_kwargs_are_last, args_pos, has_args (+44 more)
 
-### Community 38 - "ConstructorStats"
-Cohesion: 0.09
-Nodes (18): copy_move_policies, ConstructorStats, copy_assignments, copy_constructions, default_constructions, _instances, move_assignments, move_constructions (+10 more)
+### Community 38 - "constructor_stats.h"
+Cohesion: 0.15
+Nodes (24): ConstructorStats, copy_assignments, copy_constructions, default_constructions, _instances, move_assignments, move_constructions, format_ptrs() (+16 more)
 
 ### Community 39 - "test_copy_move.cpp"
-Cohesion: 0.11
-Nodes (16): CopyOnlyInt, value, return_value_policy, empty, instance_, lacking_copy_ctor, lacking_move_ctor, MoveOnlyInt (+8 more)
+Cohesion: 0.10
+Nodes (19): copy_move_policies, CopyOnlyInt, value, m, return_value_policy, empty, instance_, lacking_copy_ctor (+11 more)
 
 ### Community 40 - "function_record"
-Cohesion: 0.07
-Nodes (27): function_call::function_call(), function_record, args, data, doc, has_args, has_kw_only_args, has_kwargs (+19 more)
+Cohesion: 0.08
+Nodes (26): function_record, args, data, doc, has_args, has_kw_only_args, has_kwargs, is_constructor (+18 more)
 
 ### Community 41 - "test_replay_grasp_metrics.py"
 Cohesion: 0.13
 Nodes (30): artifact_validation_errors(), _candidate_pick(), infer_expected_first_pick(), _longest_true_run(), manifest_compatibility_errors(), mark_episode_existing(), Any, ndarray (+22 more)
 
 ### Community 42 - "cast.h"
-Cohesion: 0.04
-Nodes (82): all_of, always_construct_holder, value, arg, flag_noconvert, flag_none, arg::operator=(), arg_v (+74 more)
+Cohesion: 0.02
+Nodes (116): all_of, caster_t, always_construct_holder, value, arg, flag_noconvert, flag_none, arg::operator=() (+108 more)
 
 ### Community 43 - "detail/common.h"
 Cohesion: 0.04
-Nodes (55): bool_constant, instance::allocate_layout(), bools, builtin_exception, set_error, constexpr_first(), constexpr_last(), deferred_type (+47 more)
+Nodes (50): bool_constant, bools, constexpr_first(), constexpr_last(), deferred_type, exactly_one, found, index (+42 more)
 
 ### Community 44 - "OstreamRedirect"
 Cohesion: 0.10
@@ -722,20 +746,20 @@ Cohesion: 0.10
 Nodes (26): groot_activate_venv(), groot_resolve(), groot_resolve_from_checkpoint(), lib_groot_version.sh script, err(), log(), resume_guard(), lib_resume_guard.sh script (+18 more)
 
 ### Community 51 - "attr.h"
-Cohesion: 0.12
-Nodes (19): base(), call_guard, call_guard<T>, call_guard<T, Ts...>, T, is_operator, keep_alive, multiple_inheritance (+11 more)
+Cohesion: 0.09
+Nodes (25): arithmetic, call_guard, call_guard<T>, call_guard<T, Ts...>, dynamic_attr, function_call::function_call(), is_new_style_constructor, is_operator (+17 more)
 
 ### Community 52 - "buffer_info"
-Cohesion: 0.07
-Nodes (33): m, PYBIND11_MODULE(), buffer_info, format, itemsize, m_view, ndim, ownview (+25 more)
-
-### Community 53 - "generate_stats"
-Cohesion: 0.05
-Nodes (45): calculate_dataset_statistics(), check_stats_validity(), _compute_stats_fingerprint(), generate_stats(), Calculate the dataset statistics of all columns for a list of parquet files.…, Hash the per-feature schema in ``info.json`` that drives…, Return the subset of ``lowdim_features`` whose cached entry is missing or…, Return True iff every feature in ``features`` has a fingerprint-matching cached… (+37 more)
-
-### Community 54 - "run_g1_dex3_sim_eval.py"
 Cohesion: 0.08
-Nodes (21): build_obs(), MsgSerializer, PolicyClient, ndarray, Wartet auf Server-Bereitschaft. Gibt True zurück wenn ok., Setzt den Server-internen Policy-State zurück (neue Episode)., Sendet eine Observation (im Gr00tSimPolicyWrapper-Format) und empfängt Action-…, Baut das Observation-Dict im Gr00tSimPolicyWrapper flat-key Format auf. Args:… (+13 more)
+Nodes (31): buffer_info, format, itemsize, m_view, ndim, ownview, ptr, readonly (+23 more)
+
+### Community 53 - "_compute_stats_fingerprint"
+Cohesion: 0.16
+Nodes (10): check_stats_validity(), _compute_stats_fingerprint(), Hash the per-feature schema in ``info.json`` that drives…, Return the subset of ``lowdim_features`` whose cached entry is missing or…, Return True iff every feature in ``features`` has a fingerprint-matching cached…, _stale_features(), _stub_stat_dict(), TestCheckStatsValidity (+2 more)
+
+### Community 54 - "Time"
+Cohesion: 0.06
+Nodes (23): robot_interface, build_obs(), MsgSerializer, PolicyClient, ndarray, Wartet auf Server-Bereitschaft. Gibt True zurück wenn ok., Setzt den Server-internen Policy-State zurück (neue Episode)., Sendet eine Observation (im Gr00tSimPolicyWrapper-Format) und empfängt Action-… (+15 more)
 
 ### Community 55 - "UnitreeDrawForcePlugin"
 Cohesion: 0.09
@@ -750,8 +774,8 @@ Cohesion: 0.08
 Nodes (25): 1. Kurzfazit (TL;DR), 2. Lauf-Eckdaten (abgeschlossen), 3. Trainingsdynamik — gesund ✅, 4.1 Closed-Loop-Sim-Eval (Modell steuert die Sim), 4.2 Open-Loop-Dataset-Replay (echte Aktionen, KEIN Modell), 4.3 Open-Loop-Modell-Eval (echte Dataset-Beobachtungen → predicted vs. GT-Actions), 4. Verhaltens-Evaluation — drei Diagnosen, 5. Synthese & Diagnose (+17 more)
 
 ### Community 58 - "UnitreeFootContactPlugin"
-Cohesion: 0.06
-Nodes (25): ContactSensorPtr, ConnectionPtr, ElementPtr, NodeHandle, Publisher, string, WrenchStamped, UnitreeFootContactPlugin (+17 more)
+Cohesion: 0.09
+Nodes (20): ContactSensorPtr, ConnectionPtr, ElementPtr, NodeHandle, Publisher, string, WrenchStamped, UnitreeFootContactPlugin (+12 more)
 
 ### Community 59 - "test_custom_type_casters.cpp"
 Cohesion: 0.13
@@ -761,17 +785,17 @@ Nodes (15): custom_type_casters, ArgAlwaysConverts, ArgInspector1, arg, ArgInspe
 Cohesion: 0.10
 Nodes (22): LowCmd, LowState, Custom, cmd, dt, Kd, Kp, motiontime (+14 more)
 
-### Community 61 - "stats.py"
-Cohesion: 0.04
-Nodes (52): compute_eef_9d(), euler_to_rot6d(), ndarray, Convert euler angles (3D) to rotation 6D representation. Uses extrinsic XYZ…, Convert cartesian_position (XYZ + euler 3D) to eef_9d (XYZ + rot6d). Args:…, calculate_stats_for_key(), _compute_relative_action_fingerprint(), _dump_stats_cache_atomic() (+44 more)
+### Community 61 - "_load_stats_cache"
+Cohesion: 0.11
+Nodes (20): _dump_stats_cache_atomic(), _load_stats_cache(), Any, Load a stats JSON cache, treating any unreadable state as "no cache". A stats…, Atomically write *data* as JSON to *path* via tmp-file + ``os.replace``. Avoids…, Path, End-to-end: a corrupt cache from the previous run must not block the next…, Mirrors the production sequence in ``generate_rel_stats``: read existing cache… (+12 more)
 
-### Community 62 - "Safety"
-Cohesion: 0.17
-Nodes (12): Safety, Calf_max, Calf_min, Hip_max, Hip_min, PositionLimit, PositionProtect, PowerProtect (+4 more)
+### Community 62 - "FractionalCenterCrop"
+Cohesion: 0.07
+Nodes (11): BackgroundNoiseTransform, FractionalCenterCrop, FractionalRandomCrop, LetterBoxPad, MaskedColorTransform, ndarray, Replace specified mask regions with random noise. This transform replaces…, Crop a random part of the input based on fractions while maintaining aspect… (+3 more)
 
 ### Community 63 - "Groot-1.6/scripts/lerobot_conversion/convert_v3_to_v2_standalone.py"
-Cohesion: 0.05
-Nodes (86): convert_data(), convert_dataset(), convert_episodes_metadata(), convert_info(), convert_tasks(), convert_videos(), copy_global_stats(), _extract_video_segment() (+78 more)
+Cohesion: 0.23
+Nodes (22): convert_data(), convert_dataset(), convert_episodes_metadata(), convert_info(), convert_tasks(), convert_videos(), copy_global_stats(), _extract_video_segment() (+14 more)
 
 ### Community 64 - "Custom"
 Cohesion: 0.14
@@ -795,8 +819,8 @@ Cohesion: 0.09
 Nodes (23): 0. Was sich seit v1 geändert hat, 1. Zwei Spuren — und welche wofür, 2. Befund am bestehenden Code — 6 konkrete Defekte, 3.1 Funktionsweise, Ports, Clients (Isaac Sim 6.0), 3.2 Netzkonfiguration auf `ikr-ki-server-01`, 3.3 Code-Änderungen, 3.4 vast.ai-Sonderfall, 3. Spur A — WebRTC-Viewport (+15 more)
 
 ### Community 69 - "pybind11_tests.h"
-Cohesion: 0.05
-Nodes (33): async_module, callbacks, _thread, return_value_policy, RValueCaster, test_initializer, type_caster<RValueCaster>, UnregisteredType (+25 more)
+Cohesion: 0.04
+Nodes (37): async_module, callbacks, _thread, return_value_policy, RValueCaster, test_initializer, type_caster<RValueCaster>, UnregisteredType (+29 more)
 
 ### Community 70 - "AliasedHasOpNewDelSize"
 Cohesion: 0.12
@@ -835,8 +859,8 @@ Cohesion: 0.10
 Nodes (15): bind_local(), class_, string, T, LocalBase, i, MixGL, MixGL2 (+7 more)
 
 ### Community 79 - "test_class.cpp"
-Cohesion: 0.12
-Nodes (15): BaseClass, BreaksBase, BreaksTramp, DerivedClass1, DerivedClass2, Invalid, MismatchBase1, MismatchBase2 (+7 more)
+Cohesion: 0.07
+Nodes (26): BaseClass, BreaksBase, BreaksTramp, Chimera, string, unique_ptr, DerivedClass1, DerivedClass2 (+18 more)
 
 ### Community 80 - "Fixes aus dem ersten Trainingsdurchlauf"
 Cohesion: 0.13
@@ -858,9 +882,9 @@ Nodes (19): build_eval_env(), collect_videos(), do_clean(), do_eval(), do_fix_fl
 Cohesion: 0.10
 Nodes (20): 1. Warum überhaupt RL? — Motivation aus dem ersten Lauf, 2. Zwei grundverschiedene „RL"-Ebenen — nicht verwechseln, 3.1 Ein Environment mit `reset()` / `step()`, 3.2 Eine **Reward-Funktion**, 3.3 Ein RL-Algorithmus, der zur **Flow-Matching-Policy passt**, 3.4 Rollout-Infrastruktur (Policy ↔ Env-Kommunikation), 3.5 Rechenleistung — und ein projektspezifischer GPU-Konflikt ⚠️, 3. Was ist technisch nötig? — Die Bausteine (+12 more)
 
-### Community 85 - "list"
-Cohesion: 0.06
-Nodes (20): array_t(), ensure(), borrowed_t, list, sequence, set, stolen_t, tuple (+12 more)
+### Community 85 - "pybind11_fail"
+Cohesion: 0.04
+Nodes (30): PYBIND11_NOINLINE, pybind11_fail(), embedded_module, finalize_interpreter(), initialize_interpreter(), scoped_interpreter, is_valid, exception (+22 more)
 
 ### Community 86 - "complex.h"
 Cohesion: 0.11
@@ -875,8 +899,8 @@ Cohesion: 0.09
 Nodes (22): instance, pair, PyObject, unordered_set, internals, default_metaclass, direct_conversions, inactive_override_cache (+14 more)
 
 ### Community 89 - "EigenProps"
-Cohesion: 0.04
-Nodes (60): CType, cast(), cast_impl(), data(), eigen_array_cast(), eigen_encapsulate(), eigen_extract_stride, eigen_extract_stride<Eigen::Map<PlainObjectType, MapOptions, StrideType>> (+52 more)
+Cohesion: 0.12
+Nodes (19): eigen_array_cast(), EigenProps, cols, descriptor, dynamic, dynamic_stride, fixed, fixed_cols (+11 more)
 
 ### Community 90 - "test_local_bindings.py"
 Cohesion: 0.11
@@ -898,13 +922,13 @@ Nodes (19): 10. Verwendete Artefakte / Quellen, 1. Kurzfazit (TL;DR), 2. Lauf-Ec
 Cohesion: 0.16
 Nodes (8): G1GripperBlockstackEnv, Any, DirectRLEnv, ndarray, Tensor, Closed-Loop-Env für die GR00T-N1.6-Baseline (stock G1 + Dex1-Greifer)., actions: (N, 16) = [left_arm(7), right_arm(7), left_hand(1), right_hand(1)].…, Numpy-Obs (Env 0) für den Eval-Runner / client_g1.build_obs.
 
-### Community 95 - "Ergebnisse & Evaluation"
-Cohesion: 0.67
-Nodes (3): Ergebnisse & Evaluation, Verwandte Dokumentation, Zeitleiste
+### Community 95 - "Augmentation — Video-Augmentierung mit Cosmos-Transfer2.5"
+Cohesion: 0.27
+Nodes (6): Augmentation — Video-Augmentierung mit Cosmos-Transfer2.5, Einstieg, Verwandte Dokumente, Ergebnisse & Evaluation, Verwandte Dokumentation, Zeitleiste
 
 ### Community 96 - "test_qwen3_rope.py"
-Cohesion: 0.05
-Nodes (53): _assign_inv_freq(), _is_gated_repo_error(), BaseException, BatchFeature, device, Module, Tensor, Qwen3Backbone (+45 more)
+Cohesion: 0.10
+Nodes (30): Re-derive Qwen3-VL's vision RoPE ``inv_freq`` via the module's own class.…, recompute_vision_rotary_inv_freq(), _corrupt(), _corrupted_backbone(), _oracle_inv_freq(), _oracle_text_cos_sin(), _oracle_vision_cos_sin(), Module (+22 more)
 
 ### Community 97 - "chrono.h"
 Cohesion: 0.19
@@ -914,9 +938,9 @@ Nodes (13): Clock, _period, duration_caster, get_duration(), duration, return_va
 Cohesion: 0.13
 Nodes (14): unordered_map, Container, m, Map, E_nc, value, El, a (+6 more)
 
-### Community 99 - "project_fingertips_check.py"
-Cohesion: 0.18
-Nodes (22): ImageDraw, annotate(), approach_profile(), chain_env_local(), fingertips_env_local(), hand_joint_ranges(), hand_spread_and_center(), main() (+14 more)
+### Community 99 - "convert_v3_to_v2.py"
+Cohesion: 0.22
+Nodes (22): convert_data(), convert_dataset(), convert_episodes_metadata(), convert_info(), convert_tasks(), convert_videos(), copy_ancillary_directories(), copy_global_stats() (+14 more)
 
 ### Community 100 - "UserType"
 Cohesion: 0.12
@@ -924,27 +948,27 @@ Nodes (10): IncType, UserType, i, ConvertibleFromUserType, i, TestPropRVP, sv1, 
 
 ### Community 101 - "test_eigen.cpp"
 Cohesion: 0.14
-Nodes (17): v, adjust_matrix(), M, Ref, CustomOperatorNew, a, b, get_elem() (+9 more)
+Nodes (16): v, adjust_matrix(), M, Ref, CustomOperatorNew, a, b, get_elem() (+8 more)
 
 ### Community 102 - "test_pick_anchored_calibration.py"
 Cohesion: 0.08
-Nodes (55): apply_homography(), build_calibration(), combine_camera_estimates(), coverage_defects(), deterministic_episode_split(), episode_diagnostic_pixels(), file_sha256(), _finite_statistic() (+47 more)
+Nodes (54): apply_homography(), build_calibration(), combine_camera_estimates(), coverage_defects(), deterministic_episode_split(), episode_diagnostic_pixels(), _finite_statistic(), fit_homography() (+46 more)
 
 ### Community 103 - "G1Dex3BlockstackEnvCfg"
 Cohesion: 0.07
-Nodes (28): CameraCfg, main(), G1Dex3BlockstackEnvCfg, G1Dex3BlockstackSceneCfg, _make_sim_cfg(), _matrix_to_quat(), _parse_rgb(), _plain_camera_cfg() (+20 more)
+Nodes (34): CameraCfg, camera_tangents(), first_attr(), frustum_report(), main(), quat_rotate(), Die USD-Stage direkt befragen — der einzige Zeuge, der nicht aus `cam.data`…, Halbwinkel-Tangenten aus der Intrinsik, die Isaac Lab SELBST meldet. -> (tan_h,… (+26 more)
 
 ### Community 104 - "test_numpy_array.cpp"
-Cohesion: 0.23
-Nodes (16): arr, arr_t, at_t(), auxiliaries(), T, T2, data(), data_t() (+8 more)
+Cohesion: 0.11
+Nodes (29): arr, arr_t, at_t(), auxiliaries(), dtype, string, T, T2 (+21 more)
 
 ### Community 105 - "test_kwargs_and_defaults.py"
 Cohesion: 0.18
 Nodes (6): xfail, Issue/PR #1216 - py::args elements get double-inc_ref()ed when combined with…, test_args_refcount(), test_function_signatures(), test_keyword_only_args(), test_mixed_args_and_kwargs()
 
 ### Community 106 - "test_numpy_dtypes.cpp"
-Cohesion: 0.14
-Nodes (13): ComplexStruct, cdbl, cflt, complex, mkarray_via_buffer(), StringStruct, a, b (+5 more)
+Cohesion: 0.04
+Nodes (54): ArrayStruct, a, b, c, d, ComplexStruct, cdbl, cflt (+46 more)
 
 ### Community 107 - "Domain-Gap-Analyse: Real → Isaac Sim"
 Cohesion: 0.33
@@ -958,13 +982,13 @@ Nodes (22): argpos(), group(), _MENU_A_ORDER, _MENU_ARG_ORDER, MENU_ARGV, _MENU_
 Cohesion: 0.20
 Nodes (10): 1. Run-Status (Stand 2026-06-03, ~08:39 UTC), 2. Trainingsdynamik — gesund ✅, 3. Over-/Underfitting — derzeit nicht messbar, 4. LR-Schedule — korrekt für 175k Steps ✅, 5.1 ⚠️ Batch-Size erhöht GPU-Auslastung (größter Hebel), 5.2 ⚠️ Eval ist konfiguriert, aber AUS — über ~21 h kein Generalisierungssignal, 5. Handlungsempfehlungen (für den **nächsten** Lauf, nicht den laufenden), 6. Sonstiges (unkritisch) (+2 more)
 
-### Community 110 - "simulation/README.md"
-Cohesion: 0.12
-Nodes (15): Archiv, Einstieg, GPU-Anforderung (Kurzfassung), Simulation — Closed-Loop-Eval in Isaac Lab, Kalibrierung: `pick_anchored_homography` v4, Physikbasierte Replay-Videos aus dem Realdatensatz, Replay, Renderer-Gates und Griffmetrik, Schnellstart (+7 more)
+### Community 110 - "wuerfellage-rekonstruktion.md"
+Cohesion: 0.15
+Nodes (11): Kalibrierung: `pick_anchored_homography` v4, Physikbasierte Replay-Videos aus dem Realdatensatz, Replay, Renderer-Gates und Griffmetrik, Schnellstart, Variablen, Zielposen: `cube_poses.json` v4, a) Pipeline-Kern, b) Diagnose (+3 more)
 
 ### Community 111 - "ShardedMixtureDataset"
-Cohesion: 0.04
-Nodes (29): _get_default_pg_tensor_device(), device, Iterable dataset that combines multiple sharded datasets with configurable…, Initialize mixture dataset with datasets, weights, and configuration., Merge dataset statistics across all datasets, grouped by embodiment. Combines…, Return a tensor device supported by the default process-group backend., Get the merged dataset statistics., Generate a schedule of (dataset_index, shard_index) pairs for shard sampling.… (+21 more)
+Cohesion: 0.03
+Nodes (48): Build the dataset. Returns a tuple of (train_dataset, eval_dataset)., _get_default_pg_tensor_device(), merge_statistics(), device, ndarray, Iterable dataset that combines multiple sharded datasets with configurable…, Initialize mixture dataset with datasets, weights, and configuration., Merge dataset statistics across all datasets, grouped by embodiment. Combines… (+40 more)
 
 ### Community 112 - "Custom"
 Cohesion: 0.12
@@ -975,24 +999,24 @@ Cohesion: 0.12
 Nodes (11): HighCmd, HighState, LowCmd, LowState, Custom, high_cmd, high_state, high_udp (+3 more)
 
 ### Community 114 - "test_cube_yaw.py"
-Cohesion: 0.08
-Nodes (44): accept_yaw(), otsu_threshold(), Schwelle zwischen zwei Helligkeitsgipfeln, aus den Daten statt aus einer Quote.…, Ist der Gierwinkel dieses Würfels belastbar? Entscheidend ist, dass **beide…, Abstand zweier Gierwinkel mod 90°, in [0, 45]., yaw_delta_deg(), layout_with(), load_yaw_to_quat() (+36 more)
+Cohesion: 0.07
+Nodes (48): accept_yaw(), mean_yaw_deg(), otsu_threshold(), Sagen, WORAN der Gierwinkel scheitert — aus einer fertigen layout.json. Der…, Schwelle zwischen zwei Helligkeitsgipfeln, aus den Daten statt aus einer Quote.…, Ist der Gierwinkel dieses Würfels belastbar? Entscheidend ist, dass **beide…, Mittelwert von Winkeln mod 90° — über die 4-fache Phase, sonst mittelt 1° und…, Abstand zweier Gierwinkel mod 90°, in [0, 45]. (+40 more)
 
 ### Community 115 - "test_stl.cpp"
-Cohesion: 0.06
-Nodes (24): buffers, m, TEST_SUBMODULE(), m, TEST_SUBMODULE(), m, TEST_SUBMODULE(), m (+16 more)
+Cohesion: 0.07
+Nodes (21): buffers, m, TEST_SUBMODULE(), m, TEST_SUBMODULE(), m, TEST_SUBMODULE(), m (+13 more)
 
 ### Community 116 - "handle"
-Cohesion: 0.04
-Nodes (84): accessor, add(), append(), arg, arg_v, args_proxy, arrow_proxy, value (+76 more)
+Cohesion: 0.03
+Nodes (102): PyObject, load_bytes(), object_api<Derived>::call(), object_api<Derived>::operator()(), string_caster, UTF_N, eval(), eval_file() (+94 more)
 
 ### Community 117 - "Gr00tPolicy"
 Cohesion: 0.05
-Nodes (49): Map a tag value string back to its enum name, or return the value as-is., Gr00tPolicy, Gr00tSimPolicyWrapper, Any, BasePolicy, dtype, ModalityConfig, Unbatch a batched observation into a list of single observations. Args: value:… (+41 more)
+Nodes (39): Gr00tPolicy, Gr00tSimPolicyWrapper, Any, BasePolicy, dtype, ModalityConfig, Unbatch a batched observation into a list of single observations. Args: value:…, Convert a single observation into a VLAStepData object for processing. Args:… (+31 more)
 
 ### Community 118 - "extract_block_layout.py"
-Cohesion: 0.07
-Nodes (59): PinholeCamera, Projektion und Rückprojektion für eine der weltfesten Kameras. Bildachsen in…, Eine der weltfesten Kameras aus der Konfiguration bauen. Nur die drei…, color_mask(), _draw_line(), draw_markers(), draw_yaw_square(), _extent_across() (+51 more)
+Cohesion: 0.10
+Nodes (47): PinholeCamera, Projektion und Rückprojektion für eine der weltfesten Kameras. Bildachsen in…, Eine der weltfesten Kameras aus der Konfiguration bauen. Nur die drei…, color_mask(), _draw_line(), draw_markers(), draw_yaw_square(), _extent_across() (+39 more)
 
 ### Community 119 - "Implementierungsplan — geführte CLI-Menüs für Training und Simulation"
 Cohesion: 0.20
@@ -1003,12 +1027,12 @@ Cohesion: 0.08
 Nodes (17): m, string, DerivedWidget, "Execution frame", "Import error handling", "Pass classes and data between modules defined in C++ and Python", PYBIND11_EMBEDDED_MODULE(), PyWidget (+9 more)
 
 ### Community 121 - "test_methods_and_attributes.cpp"
-Cohesion: 0.18
-Nodes (12): shared_ptr, none1(), none2(), none3(), none4(), none5(), NoneTester, answer (+4 more)
+Cohesion: 0.10
+Nodes (16): shared_ptr, none1(), none2(), none3(), none4(), none5(), NoneTester, answer (+8 more)
 
 ### Community 122 - "test_operator_overloading.cpp"
-Cohesion: 0.21
-Nodes (11): abs(), C1, C2, m, string, hash<Vector2>, operator+(), TEST_SUBMODULE() (+3 more)
+Cohesion: 0.19
+Nodes (12): abs(), C1, C2, m, string, hash<Vector2>, operator+(), TEST_SUBMODULE() (+4 more)
 
 ### Community 123 - "probe"
 Cohesion: 0.30
@@ -1035,36 +1059,36 @@ Cohesion: 0.14
 Nodes (14): chrono, m, different_resolutions, timestamp_h, timestamp_m, timestamp_ms, timestamp_s, timestamp_us (+6 more)
 
 ### Community 129 - "CLAUDE.md"
-Cohesion: 0.12
-Nodes (16): Architecture, Build the image, Code style, Env-var configuration, graphify, Guided menus — `./run.sh` is the one entry point, Important: scripts are COPIED into the image, no host-side data persistence, Interactive shell (entrypoint bypassed when a command is passed) (+8 more)
+Cohesion: 0.11
+Nodes (17): Architecture, Build the image, Code style, Env-var configuration, graphify, Guided menus — `./run.sh` is the one entry point, Important: scripts are COPIED into the image, no host-side data persistence, Interactive shell (entrypoint bypassed when a command is passed) (+9 more)
 
 ### Community 130 - "multi_array_iterator"
-Cohesion: 0.19
-Nodes (10): common_iter, container_type, common_iterator, m_strides, p_ptr, multi_array_iterator, m_common_iterator, m_index (+2 more)
+Cohesion: 0.11
+Nodes (17): common_iter, container_type, common_iterator, m_strides, p_ptr, field_descriptor, descr, format (+9 more)
 
-### Community 131 - "function_call"
-Cohesion: 0.07
-Nodes (24): caster_t, argument_loader, arg_names, argcasters, args_kwargs_are_last, args_pos, has_args, has_kwargs (+16 more)
+### Community 131 - "Groot-1.7/scripts/lerobot_conversion/convert_v3_to_v2_standalone.py"
+Cohesion: 0.23
+Nodes (22): convert_data(), convert_dataset(), convert_episodes_metadata(), convert_info(), convert_tasks(), convert_videos(), copy_global_stats(), _extract_video_segment() (+14 more)
 
 ### Community 132 - "run_dataset_replay_videos.py"
-Cohesion: 0.16
-Nodes (29): action_sha256(), Return a stable hash of the unchanged float32 action tensor., append_observation(), configure_geometry(), dataset_paths(), episode_path(), finalize_dataset(), frame_from_obs() (+21 more)
+Cohesion: 0.13
+Nodes (35): action_sha256(), best_top_face_detection(), Select the largest, least occluded top-face detection in early frames., Return a stable hash of the unchanged float32 action tensor., Return the bright upper cube face, falling back to the full color blob. WARNUNG…, top_face_blob(), append_observation(), configure_geometry() (+27 more)
 
 ### Community 133 - "Inhaltsverzeichnis der Läufe"
 Cohesion: 0.18
 Nodes (11): Diagnose-Chronik — Sim- und RL-Läufe 08–55, Historisch: DLSS-Upscaling (nicht die Ursache), Inhaltsverzeichnis der Läufe, Isaac-Sim-6.0-Migration (2026-08-07) — implementiert und seit 2026-08-08 auf Hardware bestätigt, Kamerabilder gleichmäßig weiß — GELÖST (`runs/20260808/13` + `14`), Kopfkameras kalibrieren — Iteration 13 (2026-08-08), Renderprüfung offen, Läufe 35–37 (`runs/20260822/01`–`03`): Die Würfellage kommt aus dem Bild, nicht aus der Hand, Nachtrag 2026-10-13: `cotrain_synth_v1` (W&B `7z81177r`) war kein Co-Training-Lauf (+3 more)
 
 ### Community 134 - "teleForceCmd"
-Cohesion: 0.15
-Nodes (17): NodeHandle, Publisher, main(), quit(), teleForceCmd, Force, force_pub, Fx (+9 more)
+Cohesion: 0.14
+Nodes (18): NodeHandle, Publisher, main(), quit(), teleForceCmd, Force, force_pub, Fx (+10 more)
 
 ### Community 135 - "descr.h"
 Cohesion: 0.21
 Nodes (12): concat(), descr, text, type_info, int_to_str, int_to_str<0, Digits...>, digits, operator+() (+4 more)
 
-### Community 136 - "Pet"
-Cohesion: 0.18
-Nodes (8): Chimera, string, Dog, Hamster, Pet, m_name, m_species, Rabbit
+### Community 136 - "test_standalone_inference.py"
+Cohesion: 0.15
+Nodes (21): _assert_real_demo_file(), _dataset_path(), InferenceVariant, loaded_variant(), LoadedVariant, _model_path(), edge_device, fixture (+13 more)
 
 ### Community 137 - "test_iostream.py"
 Cohesion: 0.20
@@ -1079,12 +1103,12 @@ Cohesion: 0.16
 Nodes (10): allclose(), isclose(), #2076: Exception raised by len(arg) should be propagated, #181: iterator passthrough did not compile, #388: Can't make iterators via make_iterator() with different r/v policies, Like math.isclose() from Python 3.5, test_iterator_passthrough(), test_iterator_rvp() (+2 more)
 
 ### Community 140 - "LeRobotEpisodeLoader"
-Cohesion: 0.04
-Nodes (44): LeRobotEpisodeLoader, Any, DataFrame, ModalityConfig, ndarray, Path, Initialize LeRobot episode loader with dataset path and modality…, Filter episodes_metadata to only those belonging to self.split. Reads the… (+36 more)
+Cohesion: 0.05
+Nodes (34): LeRobotEpisodeLoader, Any, DataFrame, ModalityConfig, ndarray, Path, Initialize LeRobot episode loader with dataset path and modality…, Filter episodes_metadata to only those belonging to self.split. Reads the… (+26 more)
 
 ### Community 141 - "Alloc"
-Cohesion: 0.24
-Nodes (9): Alloc, Resets the environment using kwargs., Type, list_caster, reserve_maybe(), type_caster<std::deque<Type, Alloc>>, type_caster<std::list<Type, Alloc>>, type_caster<std::vector<Type, Alloc>> (+1 more)
+Cohesion: 0.19
+Nodes (13): Alloc, array_caster, Type, list_caster, reserve_maybe(), type_caster<std::array<Type, Size>>, type_caster<std::deque<Type, Alloc>>, type_caster<std::list<Type, Alloc>> (+5 more)
 
 ### Community 142 - "test_virtual_functions.py"
 Cohesion: 0.13
@@ -1106,13 +1130,13 @@ Nodes (8): atomic, T, Object, m_refCount, toString, ref, m_ptr, ref_tag
 Cohesion: 0.13
 Nodes (12): NodeHandle, UnitreeJointController::effortLimits(), UnitreeJointController::init(), UnitreeJointController::positionLimits(), UnitreeJointController::setCommandCB(), UnitreeJointController::setTorqueCB(), UnitreeJointController::starting(), UnitreeJointController::velocityLimits() (+4 more)
 
-### Community 147 - "Custom"
-Cohesion: 0.16
-Nodes (13): LowCmd, LowState, Custom, cmd, dt, motiontime, RobotControl, safe (+5 more)
+### Community 147 - "Safety"
+Cohesion: 0.08
+Nodes (24): LowCmd, LowState, Custom, cmd, dt, motiontime, safe, state (+16 more)
 
 ### Community 148 - "reconstruct_cube_poses.py"
-Cohesion: 0.26
-Nodes (21): ArgumentParser, add_selection_args(), camera_from_record(), camera_record(), data_path(), format_dataset_path(), load_video_frames(), main() (+13 more)
+Cohesion: 0.25
+Nodes (22): ArgumentParser, add_selection_args(), camera_from_record(), camera_record(), data_path(), format_dataset_path(), load_video_frames(), main() (+14 more)
 
 ### Community 149 - "TEST_SUBMODULE"
 Cohesion: 0.14
@@ -1131,8 +1155,8 @@ Cohesion: 0.15
 Nodes (12): 1. Building from the source directory, 2. Building from SDist, Build recipes, Clang-Tidy, Configuration options, Development of pybind11, Explanation of the SDist/wheel building design, Formatting (+4 more)
 
 ### Community 154 - "process_attribute_default"
-Cohesion: 0.16
-Nodes (11): arithmetic, buffer_protocol, is_new_style_constructor, process_attribute<arithmetic>, process_attribute<buffer_protocol>, process_attribute_default, process_attribute<is_new_style_constructor>, process_attribute<kw_only> (+3 more)
+Cohesion: 0.19
+Nodes (10): base(), T, is_final, process_attribute<base<T>>, process_attribute_default, process_attribute<is_final>, process_attribute<kw_only>, process_attribute<pos_only> (+2 more)
 
 ### Community 155 - "2026-06-04 — Umgebungsanalyse / Audit (Zeitdokument, aufgelöst)"
 Cohesion: 0.22
@@ -1178,9 +1202,9 @@ Nodes (7): call_policies, m, CustomGuard, enabled, DependentGuard, enabled, TEST
 Cohesion: 0.17
 Nodes (11): 1. Stand controller, 2. Position and pose publisher, Build, Dependencies, Detail of Packages, Introduction, Packages:, The description of robots: (+3 more)
 
-### Community 166 - "test_factory_constructors.cpp"
-Cohesion: 0.12
-Nodes (15): string, TestFactory1, value, TestFactory2, value, TestFactory3, value, TestFactory4 (+7 more)
+### Community 166 - "TestFactory6"
+Cohesion: 0.40
+Nodes (3): TestFactory6, alias, value
 
 ### Community 167 - "EndEffectorPose"
 Cohesion: 0.06
@@ -1192,19 +1216,19 @@ Nodes (5): err(), log(), preset(), kisski_chain.sh script, warn()
 
 ### Community 169 - "instance"
 Cohesion: 0.10
-Nodes (18): error_scope, trace, type, value, PyObject, PyObject_HEAD, instance, allocate_layout (+10 more)
+Nodes (19): error_scope, trace, type, value, PyObject, PyObject_HEAD, instance, allocate_layout (+11 more)
 
 ### Community 170 - "collect_replay_anchors.py"
-Cohesion: 0.20
-Nodes (20): evaluate_hand(), hand_measurement(), load_episode(), load_frames(), main(), pick_anchor(), ndarray, Path (+12 more)
+Cohesion: 0.16
+Nodes (23): evaluate_hand(), hand_measurement(), load_episode(), load_frames(), main(), pick_anchor(), ndarray, Path (+15 more)
 
 ### Community 171 - "test_buffers.py"
 Cohesion: 0.17
 Nodes (4): skipif, SquareMatrix is derived from Matrix and inherits the buffer protocol, test_ctypes_from_buffer(), test_inherited_protocol()
 
 ### Community 172 - "Closed-Loop-Simulation für G1 + Dex3 in Isaac Lab — Implementierungsplan"
-Cohesion: 0.17
-Nodes (12): 0. Ausgangs-Spec (aus `examples/G1_DEX3/g1_dex3_config.py`), 10. Voraussetzung vor Phase A, 1. Architektur, 2. Laufumgebung auf KISSKI, 3. Roboter-Asset (kritischer Pfad), 4. Kameras (zweitkritischer Pfad), 5. Szene & Task, 6. Control-Loop (Kern des Sim-Clients) (+4 more)
+Cohesion: 0.06
+Nodes (31): 1. Das Problem: Isaac Sim braucht RT-Cores, 2. GPU-Landschaft auf GWDG, 3. Die Lösung: `jupyter.hpc.gwdg.de` (RTX 5000), 4. Konsequenz für die Zwei-Container-Architektur, 5. Empfohlenes Vorgehen, Caveats, GPU-Eignung für die Isaac-Sim-Closed-Loop-Sim auf GWDG, Quellen (+23 more)
 
 ### Community 173 - "Train-Test-Split (80/20)"
 Cohesion: 0.17
@@ -1215,28 +1239,28 @@ Cohesion: 0.17
 Nodes (12): 1. Lernparadigma: Imitation Learning (Behavior Cloning), 2. Basismodell: GR00T N1.6 (3B) — ein Vision-Language-Action-Modell, 3. Das Embodiment: Unitree G1 + Dex3 (28 DOF), 4. Ein- und Ausgaben, 5. Trainingsobjektiv: Flow Matching, 6. Datensatz, 7. Trainings-Hyperparameter — Lauf 1 (1× A100, historische Referenz), 8. Abgrenzung — was es *nicht* ist (+4 more)
 
 ### Community 175 - "experiment.py"
-Cohesion: 0.05
-Nodes (44): check_resume_compatibility(), Total samples per optimizer step, after gradient accumulation., Reject ``save_only_model=True`` + ``resume_from_checkpoint=True``. HF Trainer…, Training configuration., TrainingConfig, _assert_num_gpus_matches_world_size(), _init_distributed_process_group(), Path (+36 more)
+Cohesion: 0.09
+Nodes (28): _assert_num_gpus_matches_world_size(), _init_distributed_process_group(), Path, Init the NCCL process group with ``device_id=cuda:LOCAL_RANK`` so NCCL binds…, Write ``config.yaml`` / ``conf.yaml`` / ``wandb_config.json``., Write ``initial_actions.npz`` from ``train_dataset``; a falsy payload is a no-…, Main training function., ``num_gpus`` must equal the launcher's data-parallel world size. ``num_gpus``… (+20 more)
 
-### Community 176 - "Zweiten Docker-Container für die Sim bauen — Isaac Lab + GR00T-Client"
-Cohesion: 0.18
-Nodes (11): 0. Warum überhaupt ein zweiter Container?, 1. Strategie-Entscheidung: nicht „from scratch“, sondern auf NVIDIAs Image aufsetzen, 2. Voraussetzungen auf dem Laptop (einmalig), 3. Was kommt in den Container?, 4. Dockerfile, 5. Bauen und pushen (lokal, Laptop), 6. SIF auf KISSKI ziehen (einmalig, Login-Node), 7. Beide Container in einem SLURM-Job starten (+3 more)
+### Community 176 - "check_manifest_alignment.py"
+Cohesion: 0.17
+Nodes (19): _canonical(), detect_drifts(), Drift, _format_drifts(), _is_hw_tied(), load_allowlist(), main(), _parse_dep() (+11 more)
 
 ### Community 177 - "export_onnx_n1d7.py"
-Cohesion: 0.05
-Nodes (49): _apply_rotary_real(), _assert_vision_rotary_matches_analytic(), _consolidate_external_data(), DiTInputCapture, export_action_decoder_to_onnx(), export_action_encoder_to_onnx(), export_dit_to_onnx(), export_llm_to_onnx() (+41 more)
+Cohesion: 0.08
+Nodes (38): _apply_rotary_real(), _assert_vision_rotary_matches_analytic(), _consolidate_external_data(), export_action_decoder_to_onnx(), export_action_encoder_to_onnx(), export_dit_to_onnx(), export_llm_to_onnx(), export_state_encoder_to_onnx() (+30 more)
 
 ### Community 178 - "PolicyClient"
 Cohesion: 0.23
 Nodes (4): PolicyClient, ndarray, Sendet eine Observation und gibt einen (T, 16)-Action-Chunk zurück. Nur…, ZMQ-REQ-Client für den GR00T-Server im UNITREE_G1-Modus. get_action liefert…
 
 ### Community 179 - "optimize_groot_inference.py"
-Cohesion: 0.10
-Nodes (36): test_python_alreadyset_in_destructor(), checkpoint_fingerprint(), gpu_fingerprint(), install_backend(), load_metadata(), metadata_path_for_engine(), Any, Path (+28 more)
+Cohesion: 0.11
+Nodes (34): checkpoint_fingerprint(), gpu_fingerprint(), install_backend(), load_metadata(), metadata_path_for_engine(), Any, Path, PyTorch-kompatibler Callable um eine TensorRT-DiT-Engine. (+26 more)
 
 ### Community 180 - "PolicyHorizonSpec"
-Cohesion: 0.08
-Nodes (45): _as_int_tuple(), PolicyHorizonSpec, Any, ndarray, Resolve the spec from a policy exposing ``get_modality_config``. Args: policy:…, Resolve the spec from a raw ``{modality: ModalityConfig}`` dict.…, ``video_delta_indices`` as the ndarray ``MultiStepWrapper`` expects., ``state_delta_indices`` as an ndarray, or ``None`` if vision-only. (+37 more)
+Cohesion: 0.15
+Nodes (27): _as_int_tuple(), migrate_deprecated_action_horizon_argv(), PolicyHorizonSpec, Any, Resolve the spec from a policy exposing ``get_modality_config``. Args: policy:…, Resolve the spec from a raw ``{modality: ModalityConfig}`` dict.…, Rewrite the deprecated ``--action-horizon`` CLI flag to ``--execution-…, Collapse a list / ndarray / tuple of indices into a plain ``int`` tuple. A… (+19 more)
 
 ### Community 181 - "ParallelCompile"
 Cohesion: 0.09
@@ -1246,9 +1270,9 @@ Nodes (17): auto_cpp_level(), build_ext, has_flag(), ParallelCompile, Pybind11Ex
 Cohesion: 0.20
 Nodes (5): Test if passing a function pointer from C++ -> Python -> C++ yields the…, test_async_async_callbacks(), test_async_callbacks(), test_cpp_function_roundtrip(), test_function_signatures()
 
-### Community 183 - "PolicyServer"
-Cohesion: 0.07
-Nodes (26): PolicyServer, An inference server that spin up a ZeroMQ socket and listen for incoming…, Stop the run loop. Does not release the socket / context — use ``close()``., Release the bound socket and ZMQ context. Idempotent., Simple ping handler that returns a success message., Validate the API token in the request., _can_bind(), _find_free_port() (+18 more)
+### Community 183 - "MockPolicy"
+Cohesion: 0.09
+Nodes (19): _can_bind(), _find_free_port(), MockPolicy, fixture, timeout, Test API token authentication., Return True iff a fresh ZMQ REP socket can bind to ``tcp://host:port``. Used to…, Pin that ``PolicyServer.close()`` / ``__exit__`` actually release the OS port. (+11 more)
 
 ### Community 184 - "Fundamentale Denkfehler"
 Cohesion: 0.40
@@ -1270,9 +1294,9 @@ Nodes (12): 1. Wo das Projekt steht, 2. Nächste Schritte — in dieser Reihenfo
 Cohesion: 0.29
 Nodes (8): err(), livestream_app_flags(), livestream_banner(), log(), ok(), PYTHONUNBUFFERED, entrypoint_replay.sh script, warn()
 
-### Community 189 - "test_numpy_vectorize.cpp"
-Cohesion: 0.50
-Nodes (4): m, my_func(), TEST_SUBMODULE(), numpy_vectorize
+### Community 189 - "DROID/server_client.py"
+Cohesion: 0.15
+Nodes (12): ActionConfig, ActionFormat, ActionRepresentation, ActionType, MessageType, ModalityConfig, MsgSerializer, Enum (+4 more)
 
 ### Community 190 - "GR00T N1.6 — Unitree G1 + DEX3 Dexterous Hand"
 Cohesion: 0.20
@@ -1283,8 +1307,8 @@ Cohesion: 0.09
 Nodes (22): 0. Kernaussagen, 1. Was ist „der aktuelle Ansatz"? — Zwei Pfade, 2. Doku ↔ Code: Abweichungen, 3. Gemeinsamkeiten und Unterschiede zu den Ideen der Doku-Historie, 4. Bewertung, 5.1 Zwei Ziele, ein Renderer, 5.2 Der Anker ist nicht der Würfelmittelpunkt, 5.3 Welcher State gehört in den gerenderten Datensatz? (+14 more)
 
 ### Community 192 - "PolicyClient"
-Cohesion: 0.07
-Nodes (25): ActionConfig, ActionFormat, ActionRepresentation, ActionType, BasePolicy, MessageType, ModalityConfig, MsgSerializer (+17 more)
+Cohesion: 0.11
+Nodes (13): BasePolicy, PolicyClient, ABC, Any, Abstract base class for robotic control policies. This class defines the…, Check if the observation is valid. Args: observation: Dictionary containing the…, Check if the action is valid. Args: action: Dictionary containing the action to…, Compute and return the next action based on current observation. This method… (+5 more)
 
 ### Community 193 - "unitree_ros_to_real/README.md"
 Cohesion: 0.20
@@ -1300,11 +1324,11 @@ Nodes (7): _dns_err(), _dns_say(), _dns_warn(), docker_ns_check_login(), docker_
 
 ### Community 196 - "Loop"
 Cohesion: 0.12
-Nodes (16): Callback, main(), main(), string, Loop, _bind_cpu_flag, _bindCPU, entryFunc (+8 more)
+Nodes (15): Callback, main(), main(), string, Loop, _bind_cpu_flag, _bindCPU, entryFunc (+7 more)
 
 ### Community 197 - "RoboCasa GR-1 Referenz-Eval — Bedienung"
-Cohesion: 0.13
-Nodes (13): Akzeptanzkriterien & Interpretation, Architektur (zwei Prozesse, eine Maschine), Artefakte (alle additiv, ändern nichts Bestehendes), Bekannte Klärungspunkte / Risiken, Env-Var-Referenz (alle Prefix `RC_`, kollisionsfrei), Ergebnis-JSON (`summary-<ts>.json`), Isolation — was bewusst NICHT verändert wird, Pfad A2 — Helferskript für generischen Docker-GPU-Server ★ empfohlen (+5 more)
+Cohesion: 0.17
+Nodes (12): Akzeptanzkriterien & Interpretation, Architektur (zwei Prozesse, eine Maschine), Artefakte (alle additiv, ändern nichts Bestehendes), Bekannte Klärungspunkte / Risiken, Env-Var-Referenz (alle Prefix `RC_`, kollisionsfrei), Ergebnis-JSON (`summary-<ts>.json`), Isolation — was bewusst NICHT verändert wird, Pfad A2 — Helferskript für generischen Docker-GPU-Server ★ empfohlen (+4 more)
 
 ### Community 198 - "2026-08-07 — vast.ai-Anleitung: WebRTC-Browser-Client (Port 8211) entfallen"
 Cohesion: 0.50
@@ -1318,21 +1342,21 @@ Nodes (4): err(), log(), setup_and_train_container_build.sh script, warn()
 Cohesion: 0.21
 Nodes (10): get_shared_data(), PYBIND11_NOINLINE, string, type_index, set_shared_data(), translate_exception(), translate_local_exception(), type_equal_to (+2 more)
 
-### Community 201 - "test_constants_and_functions.cpp"
-Cohesion: 0.09
-Nodes (12): constants_and_functions, C, m, string, print_bytes(), return_bytes(), test_function1(), test_function2() (+4 more)
+### Community 201 - "generate_stats"
+Cohesion: 0.22
+Nodes (8): generate_stats(), _info_json(), A feature dropped from ``info.json`` (e.g. sensor / DOF removed in an upstream…, TestGenerateStatsCache, _write_meta(), Test end-to-end stats generation from demo dataset., Verify generated stats match independent computation from raw parquet data., TestGenerateStats
 
 ### Community 202 - "Portabilität — das Repo auf einem fremden Rechner betreiben"
 Cohesion: 0.11
 Nodes (18): 1. Was sich geändert hat, 2.1 IKR-Server (Docker, `server_rl_run.sh`), 2.2 KISSKI (Apptainer + SLURM), 2.3 Checkliste, 2.4 Sim-Standalone-Image umbenannt (ehemals `sim-vastai`), 2. Migration — das alte Verhalten auf den eigenen Maschinen wiederherstellen, 3.1 Eigener GPU-Server (Docker) — Sim, Greif-Diagnose, RL, 3.2 Anderes KISSKI-Projekt (+10 more)
 
 ### Community 203 - "rollout_policy.py"
-Cohesion: 0.07
-Nodes (37): _collect_rollout_episodes(), create_eval_env(), create_gr00t_sim_policy(), get_gym_env(), get_libero_env_fn(), get_robocasa_env_fn(), get_simpler_env_fn(), MultiStepConfig (+29 more)
+Cohesion: 0.11
+Nodes (27): _collect_rollout_episodes(), create_eval_env(), get_gym_env(), get_libero_env_fn(), get_robocasa_env_fn(), get_simpler_env_fn(), MultiStepConfig, Any (+19 more)
 
-### Community 204 - "modes.py"
-Cohesion: 0.06
-Nodes (42): BenchmarkMode, BuildEngineMode, ExportMode, InferenceMode, PipelineComponent, Allowed values for ``build_tensorrt_engine`` ``--mode``., One N1.7 pipeline component: its display name, the ONNX filename candidates the…, ``enum.StrEnum`` stand-in for Python 3.10 (dGPU/Orin). Members are ``str``… (+34 more)
+### Community 204 - "ExportMode"
+Cohesion: 0.24
+Nodes (12): ExportMode, Allowed values for the ``--export-mode`` flag, shared by the two…, ExportConfig, Configuration for exporting GR00T N1.7 model to ONNX., _engines_built_for(), parametrize, Engines the build stage produces for a ``_MODE_MAP`` row. Mirrors…, _required_for() (+4 more)
 
 ### Community 205 - "2026-06-04 — Domain-Gap-Erstmessung (überholt durch Neumessung 2026-08-08)"
 Cohesion: 0.14
@@ -1342,29 +1366,29 @@ Nodes (14): 2026-06-04 — Domain-Gap-Erstmessung (überholt durch Neumessung 20
 Cohesion: 0.08
 Nodes (45): _broadcast_save_decision(), Broadcast rank-0's `(save_flag, metric_value)` decision to every rank. HF's…, _broadcast_worker(), _callback_collective_worker(), _ensure_no_dist_state(), _FakeArgs, _FakeControl, _FakeState (+37 more)
 
-### Community 208 - "copyable_holder_caster"
-Cohesion: 0.07
-Nodes (25): copyable_holder_caster, holder, Constructor, holder_type, itype, type, unique_ptr, holder_helper (+17 more)
+### Community 208 - "pybind11.h"
+Cohesion: 0.05
+Nodes (48): any_of<is_holder<T>, is_subtype<T>, is_base<T>>, shared_ptr, cast(), Func, return_value_policy, load(), add_base(), call_operator_delete() (+40 more)
 
 ### Community 209 - "v3.8.6"
 Cohesion: 0.22
 Nodes (8): arm, Build, Cpp, Dependencies, Notice, Python, Run, v3.8.6
 
 ### Community 210 - "Dokumentation — Übersicht"
-Cohesion: 0.22
-Nodes (9): Dokumentation — Übersicht, Ergebnisse & Evaluation, Externe Ressourcen, Projektstruktur, Querschnitt (Training + Simulation), Simulation (Closed-Loop-Eval in Isaac Lab), Submodul-Dokumentation (`app/Groot-1.6/examples/G1_DEX3/`), Training (Fine-tuning von GR00T N1.6) (+1 more)
+Cohesion: 0.20
+Nodes (10): Augmentation (Video-Augmentierung mit Cosmos-Transfer2.5), Dokumentation — Übersicht, Ergebnisse & Evaluation, Externe Ressourcen, Projektstruktur, Querschnitt (Training + Simulation), Simulation (Closed-Loop-Eval in Isaac Lab), Submodul-Dokumentation (`app/Groot-1.6/examples/G1_DEX3/`) (+2 more)
 
 ### Community 211 - "blend"
 Cohesion: 0.36
 Nodes (8): blend(), main(), make_panel(), Image, Multipliziert die RGB-Kanäle mit den angegebenen Faktoren (0–1 dämpft, >1…, Alpha-Blend: real (grün-getönt) über sim (rot-getönt). Perfekte Überlappung →…, 3-Panel: Real | Overlay (50 %) | Sim — mit Beschriftung., tint()
 
-### Community 212 - "g1_gripper_blockstack_env.py"
-Cohesion: 0.15
-Nodes (11): G1GripperBlockstackEnvCfg, G1GripperBlockstackSceneCfg, configclass, DirectRLEnvCfg, InteractiveSceneCfg, Szene: Roboter am Tisch mit 3 Würfeln (gespiegelt vom DEX3-Env)., G1GripperCameraCfg, look_at_world_quat() (+3 more)
-
-### Community 213 - "iostream"
+### Community 212 - "scene_geometry.py"
 Cohesion: 0.28
-Nodes (6): m, string, noisy_funct_dual(), noisy_function(), TEST_SUBMODULE(), iostream
+Nodes (5): G1GripperCameraCfg, look_at_world_quat(), configclass, Quaternion (w, x, y, z) für eine Kamera in Isaac-Lab-``convention="world"``.…, Kamera-Posen — ``UNITREE_G1`` erwartet GENAU eine Kamera ``ego_view``.
+
+### Community 213 - "string"
+Cohesion: 0.09
+Nodes (13): string, m, PYBIND11_MODULE(), get_and_replace(), Prepare a temporary directory, cleanup when done, SDist, TemporaryDirectory(), m (+5 more)
 
 ### Community 214 - "run_extract"
 Cohesion: 0.28
@@ -1375,12 +1399,12 @@ Cohesion: 0.04
 Nodes (44): 1. Container-Analyse, 2. GR00T N1.6 installieren, 2-Kamera-Datensätze, 3. DEX3-Kompatibilität prüfen, 4-Kamera-Datensätze, 4. Modality-Config erstellen, 5. Datensatz auf HuggingFace suchen, 6. Datensatz vorbereiten (+36 more)
 
 ### Community 217 - "type_caster<std::unordered_map<Key, Value, Hash, Equal, Alloc>>"
-Cohesion: 0.17
-Nodes (15): Compare, map, set, unordered_map, unordered_set, Value, map_caster, type_caster<std::map<Key, Value, Compare, Alloc>> (+7 more)
+Cohesion: 0.15
+Nodes (16): Compare, map, set, unordered_map, unordered_set, Value, map_caster, set_caster (+8 more)
 
 ### Community 218 - "Gr00tTrainer"
-Cohesion: 0.05
-Nodes (24): _batch_accuracy(), _BatchIterator, Gr00tTrainer, _PrefetchIterator, Any, Tensor, Trainer, Compute token-level accuracy, ignoring ``-100`` label positions. Args: preds:… (+16 more)
+Cohesion: 0.06
+Nodes (16): _batch_accuracy(), _BatchIterator, Gr00tTrainer, _PrefetchIterator, ProfCallback, Any, Tensor, Trainer (+8 more)
 
 ### Community 219 - "Bewertung der Sim-Umsetzung — Sinnvoll & korrekt? (2026-06-05)"
 Cohesion: 0.25
@@ -1394,9 +1418,9 @@ Nodes (15): PyTypeObject, type_info, cpptype, default_holder, direct_conversions
 Cohesion: 0.25
 Nodes (8): Checkpoint-Auswahl nach dem Lauf ([`checkpoint_sweep.py`](../../Training/scripts/checkpoint_sweep.py)), Co-Training: gerenderten Datensatz dazumischen (`USE_COTRAIN=1`), Konfiguration über Env-Vars, Live-Ansicht des Laufs (nur im Sim-Image, opt-in), LIVE-Variante: Isaac-Sim-Viewport statt Videos (nur im Sim-Image, opt-in), Namespace des Laufs — ⚠️ der Fork setzt ungefragt fort, Optionale Trainings-Features (getrennt schaltbar), RL-Env-Vars (nur im Sim-Image, `entrypoint_rl.sh`)
 
-### Community 223 - "camera_geometry.py"
-Cohesion: 0.10
-Nodes (15): G1Dex3CameraCfg, look_at_world_quat(), ndarray, quat_to_matrix(), Weltpunkte (…,3) → Pixel (…,2) als (u, v). Punkte hinter der Kamera: NaN., Blickstrahl (Einheitsvektor im Weltframe) durch die Mitte von Pixel (u, v)., Wie ``ray``, aber für viele Pixel auf einmal: (…, 2) → (…, 3), nicht normiert.…, Viele Pixel (…, 2) auf die Ebene z = ``z_plane`` schneiden → (…, 3). Strahlen,… (+7 more)
+### Community 223 - "ndarray"
+Cohesion: 0.18
+Nodes (7): ndarray, Weltpunkte (…,3) → Pixel (…,2) als (u, v). Punkte hinter der Kamera: NaN., Blickstrahl (Einheitsvektor im Weltframe) durch die Mitte von Pixel (u, v)., Wie ``ray``, aber für viele Pixel auf einmal: (…, 2) → (…, 3), nicht normiert.…, Viele Pixel (…, 2) auf die Ebene z = ``z_plane`` schneiden → (…, 3). Strahlen,…, Pixel (u, v) auf die waagerechte Ebene z = ``z_plane`` schneiden → (x, y, z)., Wie viele cm auf der Ebene ein Pixel an dieser Stelle abdeckt. Damit werden…
 
 ### Community 224 - "Custom"
 Cohesion: 0.16
@@ -1452,7 +1476,7 @@ Nodes (3): 2026-06-04 — Domain-Gap-Erstmessung (Werkzeug-Kontext aus umsetzung
 
 ### Community 237 - "Engine"
 Cohesion: 0.06
-Nodes (31): Engine, dtype, Display engine details (inputs/outputs) on rank 0 only., Deserialize and load a TensorRT engine from file., Return the expected PyTorch dtype for a named input tensor., Set runtime input shape for dynamic dimensions., Execute TRT inference with the given input tensors. Accepts both positional and…, Convert TensorRT data type to PyTorch equivalent. (+23 more)
+Nodes (33): Set up TRT engine for DiT-only acceleration (backward compatible). Only…, _setup_dit_only(), Engine, dtype, Display engine details (inputs/outputs) on rank 0 only., Deserialize and load a TensorRT engine from file., Return the expected PyTorch dtype for a named input tensor., Set runtime input shape for dynamic dimensions. (+25 more)
 
 ### Community 238 - "Repository Guidelines"
 Cohesion: 0.25
@@ -1470,9 +1494,9 @@ Nodes (7): Bereits gesyncte Runs überspringen, Job starten (mit W&B), Live-Trac
 Cohesion: 0.46
 Nodes (7): err(), GROOT_VERSION_DEFAULT, log(), ok(), entrypoint_rl.sh script, trap_err(), warn()
 
-### Community 242 - "GPU-Eignung für die Isaac-Sim-Closed-Loop-Sim auf GWDG"
-Cohesion: 0.25
-Nodes (8): 1. Das Problem: Isaac Sim braucht RT-Cores, 2. GPU-Landschaft auf GWDG, 3. Die Lösung: `jupyter.hpc.gwdg.de` (RTX 5000), 4. Konsequenz für die Zwei-Container-Architektur, 5. Empfohlenes Vorgehen, Caveats, GPU-Eignung für die Isaac-Sim-Closed-Loop-Sim auf GWDG, Quellen
+### Community 242 - "PolicyServer"
+Cohesion: 0.13
+Nodes (9): EndpointHandler, PolicyServer, BasePolicy, An inference server that spin up a ZeroMQ socket and listen for incoming…, Stop the run loop. Does not release the socket / context — use ``close()``., Release the bound socket and ZMQ context. Idempotent., Simple ping handler that returns a success message., Register a new endpoint to the server. Args: name: The name of the endpoint.… (+1 more)
 
 ### Community 243 - "Auswertung — vierter Trainingsdurchlauf, GR00T **N1.7** gegen N1.6 (Lauf 3)"
 Cohesion: 0.25
@@ -1495,12 +1519,16 @@ Cohesion: 0.47
 Nodes (5): event_loop(), get_await_result(), fixture, test_await(), test_await_missing()
 
 ### Community 248 - "Config"
-Cohesion: 0.08
-Nodes (34): _build_safe_tree(), Config, get_default_config(), _load_safe_yaml(), Any, Path, Load config from a plain key/value YAML file into ``self``. Reads via the safe…, Build a fresh ``Config`` from a YAML file saved by :meth:`save`. Same safe-load… (+26 more)
+Cohesion: 0.04
+Nodes (59): _build_safe_tree(), Config, get_default_config(), _load_safe_yaml(), Any, Path, Load config from a plain key/value YAML file into ``self``. Reads via the safe…, Build a fresh ``Config`` from a YAML file saved by :meth:`save`. Same safe-load… (+51 more)
 
 ### Community 249 - "StateActionProcessor"
-Cohesion: 0.07
-Nodes (25): ModalityConfig, Set dataset statistics for normalization. Args: statistics: Nested dict with…, Compute and cache normalization parameters from statistics for all embodiments…, Unified processor for robot state and action data. Handles: - State…, Get total state dimension after processing. Args: embodiment_tag: Embodiment…, Get total action dimension. Args: embodiment_tag: Embodiment identifier…, Initialize unified state and action processor. Args: modality_configs: Nested…, StateActionProcessor (+17 more)
+Cohesion: 0.11
+Nodes (14): ModalityConfig, Set dataset statistics for normalization. Args: statistics: Nested dict with…, Compute and cache normalization parameters from statistics for all embodiments…, Unified processor for robot state and action data. Handles: - State…, Get total state dimension after processing. Args: embodiment_tag: Embodiment…, Get total action dimension. Args: embodiment_tag: Embodiment identifier…, Initialize unified state and action processor. Args: modality_configs: Nested…, StateActionProcessor (+6 more)
+
+### Community 250 - "_libero_demo_dataset"
+Cohesion: 0.15
+Nodes (14): _dataset_usable(), demo_parquet_paths(), _libero_demo_dataset(), _parquet_readable(), fixture, Path, Test the stats file validity checker., Return True if *path* is a real parquet file (not a Git LFS pointer stub). (+6 more)
 
 ### Community 251 - "menu_select"
 Cohesion: 0.27
@@ -1514,9 +1542,9 @@ Nodes (6): Inhaltlich offen (hängt am Projekt, nicht am Dokument), Kompilieren,
 Cohesion: 0.33
 Nodes (6): Dokumentation, GR00T N1.6 Fine-tuning — Unitree G1 mit DEX3-Hand, Projektarbeit Humanoider Roboter, Schnellstart, Voraussetzungen (Kurzfassung), Weiterführende Ressourcen
 
-### Community 254 - "MyBase"
-Cohesion: 0.50
-Nodes (3): unique_ptr, MyBase, MyDerived
+### Community 254 - "test_multistep_aggregate.py"
+Cohesion: 0.18
+Nodes (17): _build_dummy_env_kwargs(), _import_module(), parametrize, Bad ``reward_agg_method`` raises at construction time, not on the first…, Every value in ``AggregateMethod`` constructs cleanly., ``step()`` reports the inner env-steps actually taken in…, ``multistep_wrapper`` imports ``gymnasium``; skip cleanly if it is not…, ``AggregateMethod`` is a string Enum exposing exactly the implemented… (+9 more)
 
 ### Community 255 - "check_action_norm.py"
 Cohesion: 0.53
@@ -1559,16 +1587,20 @@ Cohesion: 0.50
 Nodes (3): process_attribute<sibling>, sibling, value
 
 ### Community 265 - "episode_motion_onsets"
-Cohesion: 0.24
-Nodes (14): episode_motion_onsets(), find_motion_onset(), Return the first run that stays displaced from the first ten valid samples., Ab welchem Frame sich jeder Würfel im Realvideo bewegt. Das ist die Grenze, bis…, _prepare(), Ein Farbverlauf, der genau ab ``onset`` um mehr als die Schwelle abweicht., Leere Videodateien anlegen und ``track_colors`` durch feste Spuren ersetzen., test_first_onset_is_the_earliest_reliable_cube() (+6 more)
+Cohesion: 0.30
+Nodes (11): episode_motion_onsets(), Ab welchem Frame sich jeder Würfel im Realvideo bewegt. Das ist die Grenze, bis…, _prepare(), Ein Farbverlauf, der genau ab ``onset`` um mehr als die Schwelle abweicht., Leere Videodateien anlegen und ``track_colors`` durch feste Spuren ersetzen., test_first_onset_is_the_earliest_reliable_cube(), test_missing_videos_do_not_invent_an_onset(), test_motion_onset_ignores_a_single_stray_frame() (+3 more)
+
+### Community 266 - "TrainingConfig"
+Cohesion: 0.20
+Nodes (12): check_resume_compatibility(), Total samples per optimizer step, after gradient accumulation., Reject ``save_only_model=True`` + ``resume_from_checkpoint=True``. HF Trainer…, Training configuration., TrainingConfig, parametrize, test_training_config_accumulated_mirrors_hf(), parametrize (+4 more)
 
 ### Community 267 - "build_trt_pipeline.py"
-Cohesion: 0.09
-Nodes (35): _copy_export_metadata(), _count_files(), _fmt_elapsed(), main(), PipelineConfig, _print_header(), _print_result(), Enum (+27 more)
+Cohesion: 0.16
+Nodes (25): _copy_export_metadata(), _count_files(), _fmt_elapsed(), main(), PipelineConfig, _print_header(), _print_result(), Enum (+17 more)
 
 ### Community 268 - "run_or_wait_on_rank0"
-Cohesion: 0.09
-Nodes (37): barrier(), _collective_device(), get_rank(), is_dist_avail_and_initialized(), device, Pick the device used for status-broadcast collectives. NCCL backend requires…, Run the body on rank-0 only, broadcasting any rank-0 error to all ranks. Yields…, run_or_wait_on_rank0() (+29 more)
+Cohesion: 0.11
+Nodes (33): barrier(), _collective_device(), get_rank(), is_dist_avail_and_initialized(), device, Pick the device used for status-broadcast collectives. NCCL backend requires…, Run the body on rank-0 only, broadcasting any rank-0 error to all ranks. Yields…, run_or_wait_on_rank0() (+25 more)
 
 ### Community 269 - "test_build_tensorrt_engine.py"
 Cohesion: 0.09
@@ -1587,20 +1619,20 @@ Cohesion: 0.06
 Nodes (35): All rights reserved., ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE, are met:, "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;, CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT, contributors may be used to endorse or promote products derived, Copyright 2007-2008 Miguel A. Figueroa-Villanueva <miguelf at ieee dot org> (+27 more)
 
 ### Community 274 - "PolicyClient"
-Cohesion: 0.09
-Nodes (11): EndpointHandler, MsgSerializer, PolicyClient, Any, BasePolicy, ModalityConfig, Register a new endpoint to the server. Args: name: The name of the endpoint.…, Initialize or reinitialize the socket with current settings (+3 more)
+Cohesion: 0.11
+Nodes (8): MsgSerializer, PolicyClient, Any, ModalityConfig, Initialize or reinitialize the socket with current settings, Call an endpoint on the server. Args: endpoint: The name of the endpoint. data:…, msgpack_numpy serializer with a hard ``allow_pickle=False`` boundary.…, Release the REQ socket and ZMQ context. Idempotent.
 
 ### Community 275 - "readme.py"
 Cohesion: 0.10
-Nodes (31): serial, The complete SO-100 config example in data_config.md executes without error., test_complete_so100_config(), gpu, serial, timeout, The SO-100 modality config block in finetune_new_embodiment.md executes without…, Run Step 3 (finetune) then Step 4 (open-loop eval) from… (+23 more)
+Nodes (28): serial, The complete SO-100 config example in data_config.md executes without error., test_complete_so100_config(), gpu, serial, timeout, The SO-100 modality config block in finetune_new_embodiment.md executes without…, Run Step 3 (finetune) then Step 4 (open-loop eval) from… (+20 more)
 
 ### Community 276 - "stl.h"
-Cohesion: 0.12
-Nodes (25): array_caster, call(), cast(), forward_like(), return_value_policy, T, U, Variant (+17 more)
+Cohesion: 0.19
+Nodes (17): call(), cast(), return_value_policy, T, Variant, operator()(), optional_caster, type_caster<std::experimental::optional<T>> (+9 more)
 
-### Community 277 - "SimpleStruct"
-Cohesion: 0.22
-Nodes (9): m, bool_, SimpleStruct, bool_, float_, ldbl_, uint_, TEST_SUBMODULE() (+1 more)
+### Community 277 - "_make_trainer"
+Cohesion: 0.17
+Nodes (10): _collate(), _make_trainer(), Path, Sibling directories like ``processor/`` / ``experiment_cfg/`` written by…, ``resume_from_checkpoint=True`` + empty output_dir must hard-fail. A silent…, test_raises_when_resume_true_and_only_non_checkpoint_subdirs(), test_raises_when_resume_true_but_no_checkpoint(), _TinyDataset (+2 more)
 
 ### Community 278 - "Unitree G1 Description (URDF & MJCF)"
 Cohesion: 0.50
@@ -1610,25 +1642,21 @@ Nodes (3): Overview, Unitree G1 Description (URDF & MJCF), Visulization with [Mu
 Cohesion: 0.50
 Nodes (3): Overview, Unitree H1_2 Description (URDF & MJCF), Visulization with [MuJoCo](https://github.com/google-deepmind/mujoco)
 
-### Community 280 - "PartialStruct"
-Cohesion: 0.22
-Nodes (9): PartialNestedStruct, a, dummy1, dummy2, PartialStruct, dummy2, float_, ldbl_ (+1 more)
+### Community 280 - "test_exceptions.py"
+Cohesion: 0.12
+Nodes (9): m, PYBIND11_MODULE(), Tests nested (e.g. C++ -> Python -> C++) exception handling, test_custom(), test_error_already_set(), test_nested_throws(), test_python_alreadyset_in_destructor(), test_std_exception() (+1 more)
 
 ### Community 281 - "setup"
 Cohesion: 0.67
 Nodes (3): generate_doxygen_xml(), Add hook for building doxygen xml when needed, setup()
 
 ### Community 282 - "Groot-1.7/README.md"
-Cohesion: 0.06
-Nodes (29): Contributions, Support, Evaluate checkpoint, Finetune, RoboCasa GR1 Tabletop Tasks, RoboCasa GR1 Tabletop Tasks evaluation benchmark result, Checkpoints, Citation (+21 more)
+Cohesion: 0.05
+Nodes (33): Contributions, Support, Evaluate checkpoint, Finetune, RoboCasa GR1 Tabletop Tasks, RoboCasa GR1 Tabletop Tasks evaluation benchmark result, Center of Excellence, Fine-Tuning Hardware (+25 more)
 
-### Community 283 - "PackedStruct"
-Cohesion: 0.25
-Nodes (8): NestedStruct, a, b, PackedStruct, bool_, float_, ldbl_, uint_
-
-### Community 284 - "DtypeSizeCheck"
-Cohesion: 0.29
-Nodes (7): string, DtypeSizeCheck, name, size_cpp, size_numpy, get_dtype_size_check(), get_platform_dtype_size_checks()
+### Community 283 - "Qwen3Backbone"
+Cohesion: 0.21
+Nodes (6): BatchFeature, Qwen3Backbone, Qwen3Backbone is to generate n_queries to represent the future action hidden…, Force the Qwen3-VL vision patch-embed ``Conv3d`` to ``channels_last_3d``. On…, Huggingface will call model.train() at each training_step. To ensure the…, Re-derive Qwen3-VL's non-persistent RoPE ``inv_freq`` buffers once at load.…
 
 ### Community 285 - "GR00T N1.6 Fine-tuning — Unitree G1 + DEX3 Hand"
 Cohesion: 0.06
@@ -1638,17 +1666,17 @@ Nodes (33): 1.1 Modellgewichte herunterladen, 1.2 Datensatz bereitstellen, 1.3 A
 Cohesion: 0.33
 Nodes (6): Der Vergleich mit Lauf 31 (gleiches Zeitfenster, alter Checkpoint), Konsequenz, Lauf 34, Episode für Episode, Läufe 33/34 (`runs/20260814/03`, `runs/20260814/04`): der TUNE_VISUAL-Checkpoint im Closed Loop, Was sich nicht bewegt hat, Zuordnung: es war der Checkpoint
 
-### Community 287 - "DtypeCheck"
-Cohesion: 0.33
-Nodes (6): dtype, DtypeCheck, numpy, pybind11, get_concrete_dtype_checks(), get_dtype_check()
+### Community 287 - "download_droid_sample.py"
+Cohesion: 0.24
+Nodes (11): compute_eef_9d(), euler_to_rot6d(), ndarray, Convert euler angles (3D) to rotation 6D representation. Uses extrinsic XYZ…, Convert cartesian_position (XYZ + euler 3D) to eef_9d (XYZ + rot6d). Args:…, download_droid_files(), extract_episodes(), main() (+3 more)
 
 ### Community 288 - "Training — Fine-tuning von GR00T N1.6"
 Cohesion: 0.50
 Nodes (4): Die vier Wege im Überblick, Einstieg, Training — Fine-tuning von GR00T N1.6, Verwandte Dokumentation
 
-### Community 289 - "exactly_one"
-Cohesion: 0.67
-Nodes (3): exactly_one, found, index
+### Community 289 - "_assign_inv_freq"
+Cohesion: 0.23
+Nodes (11): _assign_inv_freq(), device, Module, Tensor, Write ``value`` onto ``rotary.<name>`` if it differs; return whether it…, Best-effort real (non-meta) device backing a module, defaulting to CPU. RoPE…, Re-derive Qwen3-VL's text RoPE ``inv_freq`` via the module's own class.…, _real_inference_device() (+3 more)
 
 ### Community 290 - "kisski_replay_submit.sh"
 Cohesion: 0.40
@@ -1690,37 +1718,41 @@ Nodes (19): EndEffectorActionChunk, Represents action chunking in Cartesian spac
 Cohesion: 0.15
 Nodes (32): check(), check_dim_a_processor_config(), check_dim_b_config_json(), check_dim_c_embodiment_id(), check_dim_d_statistics(), check_dim_e_documentation(), check_dim_f1_cross_file(), check_dim_f2_modality_json() (+24 more)
 
-### Community 303 - "ArrayStruct"
-Cohesion: 0.40
-Nodes (5): ArrayStruct, a, b, c, d
+### Community 303 - "test_readme_demo_training_dataset_loads_frames_with_torchcodec"
+Cohesion: 0.18
+Nodes (10): edge_device, fixture, parametrize, Concrete README training dataset that ships under demo_data/., Verify that torchcodec decodes non-identical frames for each dataset video., Load concrete README demo training datasets through the real episode loader., ReadmeDemoDatasetEntry, test_dataset_backend_policy_on_sample_video() (+2 more)
 
 ### Community 304 - "summarize_run"
 Cohesion: 0.70
 Nodes (4): main(), mean(), Path, summarize_run()
 
-### Community 305 - "EnumStruct"
-Cohesion: 0.40
-Nodes (5): EnumStruct, e1, e2, E1, E2
+### Community 305 - "eigen.h"
+Cohesion: 0.18
+Nodes (9): eigen_encapsulate(), eigen_extract_stride, eigen_extract_stride<Eigen::Map<PlainObjectType, MapOptions, StrideType>>, eigen_extract_stride<Eigen::Ref<PlainObjectType, Options, StrideType>>, eigen_map_caster, name, eigen_ref_array(), load() (+1 more)
 
-### Community 306 - "SimpleStructReordered"
-Cohesion: 0.40
-Nodes (5): SimpleStructReordered, bool_, float_, ldbl_, uint_
+### Community 306 - "camera_geometry.py"
+Cohesion: 0.23
+Nodes (8): G1Dex3CameraCfg, look_at_world_quat(), quat_to_matrix(), Quaternion (w, x, y, z) für eine Kamera in Isaac-Lab-``convention="world"``. In…, (w, x, y, z) → Rotationsmatrix, deren SPALTEN die Kamera-Achsen im Weltframe…, Kamera-Positionen und Intrinsics — möglichst nah an den Trainingsdaten., Startwert auf die Original-USD-Grenze kappen. Ohne Eintrag unverändert., _spawn_safe()
 
 ### Community 307 - "test_trt_contract.py"
 Cohesion: 0.10
 Nodes (21): _fake_policy(), parametrize, test_action_horizon_mismatch_message_without_sa_seq_len(), test_assert_exec_horizon_within_model(), test_corrupt_metadata_treated_as_absent(), test_engine_action_horizon_mismatch_raises(), test_engine_corrupt_sa_seq_len_raises(), test_engine_matches_policy_ok() (+13 more)
 
-### Community 310 - "launch_cotrain.py"
-Cohesion: 0.22
-Nodes (5): FinetuneConfig, Configuration for fine-tuning a Vision-Language-Action (VLA) model. This…, Namespace, Die beiden eigenen Flags vor tyro abfangen. tyro baut sein CLI aus den Feldern…, split_own_args()
+### Community 308 - "._force_camera_prim_orientations"
+Cohesion: 0.18
+Nodes (9): _matrix_to_quat(), _parse_rgb(), ndarray, _quat_to_matrix(), Gibt das Observation-Dict im GR00T-Eingabeformat zurück (numpy, CPU). Wird…, 0.75,0.73,0.70" -> (0.75, 0.73, 0.70). Leer/unparsbar -> None (Default…, (w, x, y, z) -> 3x3-Rotationsmatrix in Spaltenvektor-Konvention (v_welt = R @…, 3x3-Rotationsmatrix (Spaltenvektor-Konvention) -> (w, x, y, z). Shepperd-… (+1 more)
+
+### Community 310 - "qwen3_backbone.py"
+Cohesion: 0.29
+Nodes (8): _is_gated_repo_error(), BaseException, True if ``exc`` (or any exception it wraps) is a gated/forbidden HF download.…, parametrize, test_detects_actual_gated_repo_error_instance(), test_detects_gated_errors(), test_detects_gated_repo_error_wrapped_as_cause(), test_ignores_unrelated_errors()
 
 ### Community 315 - "ReplayPolicy"
-Cohesion: 0.08
-Nodes (23): _load_json_modality_configs(), main(), ModalityConfig, Path, Load a JSON file whose values are ModalityConfig field dicts. A dataset's…, Configuration for running the GR00T inference server., ServerConfig, Any (+15 more)
+Cohesion: 0.12
+Nodes (14): Any, BasePolicy, ModalityConfig, Path, Preload all actions from the current episode for efficient replay., Validate that the observation has the correct structure and types. This method…, Validate that the action has the correct structure and types. Expected action…, Replay the next action chunk from the dataset. Args: observation: Optional… (+6 more)
 
 ### Community 316 - "EmbodimentTag"
-Cohesion: 0.05
-Nodes (54): DataConfig, Configuration for a single dataset in a mixed-training setup. A list of these…, Dataset configuration (supports single or multiple datasets)., SingleDatasetConfig, register_modality_config(), EmbodimentTag, Enum, Embodiment tags supported by the GR00T N1.7 checkpoint. Pretrain tags (baked… (+46 more)
+Cohesion: 0.04
+Nodes (71): main(), save_comparison(), DataConfig, Dataset configuration (supports single or multiple datasets)., register_modality_config(), FinetuneConfig, Configuration for fine-tuning a Vision-Language-Action (VLA) model. This…, EmbodimentTag (+63 more)
 
 ### Community 317 - "test_action_head.py"
 Cohesion: 0.10
@@ -1730,57 +1762,57 @@ Nodes (19): action_head(), _beta_time_moments(), _make_action_input(), _make_bac
 Cohesion: 0.11
 Nodes (31): checkpoint_tree_ready(), _default_cache_path(), demo_dataset_tree_ready(), _dump_server_log(), fast_copy_tree(), find_nvidia_egl_vendor_file(), get_root(), has_rt_core_gpu() (+23 more)
 
-### Community 319 - "state_action_processor.py"
-Cohesion: 0.10
-Nodes (22): ActionType, ActionFormat, ndarray, Apply state processing (normalization, encoding). Args: state: Dict mapping…, Reverse state processing (denormalization). Args: state: Dict mapping…, Apply action processing (absolute->relative conversion, normalization).…, Reverse action processing (denormalization, relative->absolute conversion).…, Apply both state and action processing together. Convenience method that… (+14 more)
+### Community 319 - "data/utils.py"
+Cohesion: 0.11
+Nodes (22): ndarray, Apply state processing (normalization, encoding). Args: state: Dict mapping…, Reverse state processing (denormalization). Args: state: Dict mapping…, Apply action processing (absolute->relative conversion, normalization).…, Reverse action processing (denormalization, relative->absolute conversion).…, Apply both state and action processing together. Convenience method that…, Reverse both state and action processing together. Args: state: Dict mapping…, apply_sin_cos_encoding() (+14 more)
 
 ### Community 320 - "CategorySpecificMLP"
 Cohesion: 0.08
 Nodes (17): CategorySpecificLinear, CategorySpecificMLP, MultiEmbodimentActionEncoder, Two-layer MLP with category-specific weights for multi-embodiment support., Args: x: [B, T, input_dim] input tensor cat_ids: [B] category/embodiment IDs…, Expand action dimension by copying weights from existing dimensions. Args:…, Action encoder with multi-embodiment support and sinusoidal positional encoding., Args: actions: [B, T, action_dim] action tensor timesteps: [B,] timesteps - a… (+9 more)
 
 ### Community 322 - "repair_lerobot_metadata.py"
-Cohesion: 0.19
-Nodes (29): _atomic_write_text(), _expand_dataset_args(), _file_index(), _format_episode_path(), main(), _missing_required_files(), _original_keys(), parse_args() (+21 more)
+Cohesion: 0.27
+Nodes (20): _atomic_write_text(), _expand_dataset_args(), _file_index(), _format_episode_path(), main(), _missing_required_files(), _original_keys(), parse_args() (+12 more)
 
-### Community 323 - "JointActionChunk"
+### Community 323 - "NDArray"
 Cohesion: 0.12
-Nodes (17): JointActionChunk, ActionFormat, float64, NDArray, Interpolate the action chunking to generate intermediate poses. Must be…, Convert action chunking to the specified action format. Must be implemented by…, Represents action chunking in joint space as a sequence of joint…, Initialize a joint trajectory from a list of joint poses. Args: poses: Sequence… (+9 more)
+Nodes (15): ActionFormat, float64, NDArray, Interpolate the action chunking to generate intermediate poses. Must be…, Convert action chunking to the specified action format. Must be implemented by…, Initialize a joint trajectory from a list of joint poses. Args: poses: Sequence…, Interpolate the joint action chunking to generate intermediate configurations.…, Convert trajectory to array of joint values. Returns: Array with shape (N,… (+7 more)
 
 ### Community 328 - "standalone_inference_script.py"
-Cohesion: 0.04
-Nodes (64): extract_step_data(), DataFrame, Extract and process a single timestep from episode data. Converts raw episode…, Load and process all timesteps in a specific shard. Loads the required episodes…, parse_observation_gr00t(), Any, Recursively convert dataclasses and numpy arrays to JSON-serializable format.…, Reshape a flat ``{modality.key: value}`` observation into the nested, batched… (+56 more)
+Cohesion: 0.03
+Nodes (97): BenchmarkMode, BuildEngineMode, InferenceMode, PipelineComponent, Allowed values for ``build_tensorrt_engine`` ``--mode``., One N1.7 pipeline component: its display name, the ONNX filename candidates the…, ``enum.StrEnum`` stand-in for Python 3.10 (dGPU/Orin). Members are ``str``…, Allowed values for ``verify_n1d7_trt`` ``--mode``. (+89 more)
 
 ### Community 339 - "unchecked_reference"
-Cohesion: 0.15
-Nodes (12): conditional_t, enable_if_t, size(), type_caster<unchecked_mutable_reference<T, Dim>>, unchecked_reference, data_, dims_, Dynamic (+4 more)
+Cohesion: 0.18
+Nodes (10): conditional_t, enable_if_t, size(), unchecked_reference, data_, dims_, Dynamic, shape_ (+2 more)
 
 ### Community 340 - "Läufe 54/55: die ersten N1.7-Checkpoints in der Sim"
 Cohesion: 0.67
 Nodes (3): Lauf 55, Episode für Episode, Läufe 54/55: die ersten N1.7-Checkpoints in der Sim, Vergleich: Lauf 54 → 55, dazu Lauf 34 (N1.6)
 
 ### Community 341 - "get_embodiment_tag_from_env_name"
-Cohesion: 0.10
-Nodes (14): get_embodiment_tag_from_env_name(), Get the EmbodimentTag for a gym-registered environment name. Looks up the…, AST, parametrize, Only the first segment before '/' is used as the prefix., Author-vs-truth closure check for the env-prefix -> EmbodimentTag mapping.…, Extract the leading ``<prefix>/`` from a str or f-string AST node. Returns…, Verify ENV_PREFIX_TO_EMBODIMENT_TAG covers all known benchmarks. (+6 more)
+Cohesion: 0.20
+Nodes (6): get_embodiment_tag_from_env_name(), Get the EmbodimentTag for a gym-registered environment name. Looks up the…, parametrize, Only the first segment before '/' is used as the prefix., Test get_embodiment_tag_from_env_name() for all supported benchmarks., TestGetEmbodimentTagFromEnvName
 
 ### Community 342 - "MultiStepWrapper"
 Cohesion: 0.10
-Nodes (19): aggregate(), AggregateMethod, compress_dict_list(), dict_take_last_n(), MultiStepWrapper, Enum, ndarray, contract: policy-resolved… (+11 more)
+Nodes (21): aggregate(), AggregateMethod, compress_dict_list(), dict_take_last_n(), MultiStepWrapper, Enum, ndarray, contract: policy-resolved… (+13 more)
 
-### Community 343 - "return_value_policy"
-Cohesion: 0.08
-Nodes (25): Allocator, basic_string, basic_string_view, CharT, cast(), cast_impl(), return_value_policy, U (+17 more)
+### Community 343 - "type_caster<CharT, enable_if_t<is_std_char_type<CharT>::value>>"
+Cohesion: 0.17
+Nodes (12): Allocator, basic_string, basic_string_view, CharT, type_caster<CharT, enable_if_t<is_std_char_type<CharT>::value>>, name, one_char, str_caster (+4 more)
 
-### Community 344 - "dit.py"
+### Community 344 - "gr00t_n1d7/gr00t_n1d7.py"
 Cohesion: 0.12
-Nodes (15): AdaLayerNorm, AlternateVLDiT, BasicTransformerBlock, DiT, _is_spark_sm121(), Tensor, Alternate Vision-Language DiT that separates image and non-image tokens during…, _sdpa_context() (+7 more)
+Nodes (16): # NOTE: use an exponential ramp strength to set the remaining unfrozen rtc_steps, AdaLayerNorm, AlternateVLDiT, BasicTransformerBlock, DiT, _is_spark_sm121(), Tensor, Alternate Vision-Language DiT that separates image and non-image tokens during… (+8 more)
 
 ### Community 345 - "test_robocasa_readme_eval_flow"
 Cohesion: 0.11
 Nodes (29): _assert_required_assets_present(), _build_runtime_env(), _git_modules_path(), _move_repo_assets_to_shared(), _point_repo_assets_to_shared(), _prepare_robocasa_repo(), gpu, Path (+21 more)
 
 ### Community 346 - "test_robocasa_gr1_tabletop_readme_eval_flow"
-Cohesion: 0.11
-Nodes (29): _assert_required_assets_present(), _build_runtime_env(), _git_modules_path(), _move_repo_assets_to_shared(), _point_repo_assets_to_shared(), _prepare_robocasa_repo(), gpu, Path (+21 more)
+Cohesion: 0.10
+Nodes (31): _assert_required_assets_present(), _build_runtime_env(), _git_modules_path(), _move_repo_assets_to_shared(), _point_repo_assets_to_shared(), _prepare_robocasa_repo(), gpu, Path (+23 more)
 
 ### Community 347 - "load_initial_actions"
 Cohesion: 0.11
@@ -1795,24 +1827,24 @@ Cohesion: 0.13
 Nodes (14): ndarray, Path, Resize all frames to have the same height for horizontal concatenation. Ensures…, When file_path is None, don't record., VideoRecordingWrapper, DummyEnv, _frame(), _make_wrapper() (+6 more)
 
 ### Community 350 - "test_libero_readme_workflow_executes_via_subprocess"
-Cohesion: 0.11
-Nodes (28): _copy_tree_with_timing(), _dataset_ready(), _git_modules_path(), _libero_submodule_initialized(), _libero_venv_ready(), _point_repo_dataset_to_shared(), _prepare_libero_dataset(), _prepare_libero_repo() (+20 more)
+Cohesion: 0.13
+Nodes (25): _copy_tree_with_timing(), _dataset_ready(), _git_modules_path(), _libero_submodule_initialized(), _libero_venv_ready(), _point_repo_dataset_to_shared(), _prepare_libero_dataset(), _prepare_libero_repo() (+17 more)
 
 ### Community 351 - "test_policy_md.py"
 Cohesion: 0.09
-Nodes (20): _make_policy_md_modality_configs(), mock_processor(), MockProcessor, fixture, Path, PretrainedConfig, PreTrainedModel, Return a MockProcessor instance for policy.md tests. (+12 more)
+Nodes (22): mock_processor(), MockProcessor, fixture, MonkeyPatch, Path, PretrainedConfig, PreTrainedModel, Return a MockProcessor instance for policy.md tests. (+14 more)
 
 ### Community 352 - "Gr00tN1d7ActionHead"
 Cohesion: 0.11
 Nodes (15): Gr00tN1d7ActionHead, Any, BatchFeature, Tensor, Huggingface will call model.train() at each training_step. To ensure the…, Forward pass through the action head. Args: backbone_output: Output from the…, Encode features for the action head. Args: backbone_output: Output from the…, Generate actions using the flow matching diffusion process. Args:… (+7 more)
 
-### Community 353 - "trt_model_forward.py"
-Cohesion: 0.11
-Nodes (27): action_head_tensorrt_forward(), _assert_supports_trt_padding_strip(), close_tensorrt_engines(), closing_tensorrt_engines(), Tensor, qwen3_backbone_full_trt_forward(), qwen3_backbone_llm_trt_forward(), qwen3_backbone_tensorrt_forward() (+19 more)
+### Community 353 - "calculate_dataset_statistics"
+Cohesion: 0.29
+Nodes (5): calculate_dataset_statistics(), Calculate the dataset statistics of all columns for a list of parquet files.…, Test the low-level statistics computation on parquet data., Verify invariants that must hold for any valid dataset statistics. These catch…, TestCalculateDatasetStatistics
 
 ### Community 354 - "JointPose"
-Cohesion: 0.09
-Nodes (14): Convert a relative joint action chunking to an absolute action chunking by…, JointPose, Pose, Abstract base class for robot poses. This class provides common functionality…, Compute relative transformation between two poses. For EndEffectorPose:…, Internal method to compute relative transformation. Must be implemented by…, Create a deep copy of this pose. Must be implemented by subclasses. Returns:…, Represents a robot configuration in joint space. This class stores joint… (+6 more)
+Cohesion: 0.07
+Nodes (20): ActionType, JointActionChunk, Represents action chunking in joint space as a sequence of joint…, Convert a relative joint action chunking to an absolute action chunking by…, JointPose, Pose, Abstract base class for robot poses. This class provides common functionality…, Compute relative transformation between two poses. For EndEffectorPose:… (+12 more)
 
 ### Community 355 - "eval_so100.py"
 Cohesion: 0.11
@@ -1823,8 +1855,8 @@ Cohesion: 0.08
 Nodes (25): Accuracy Issues, Benchmark Results, Build TRT Engines, `build_trt_pipeline.py`, Command-Line Arguments, dGPU Installation, DGX Spark Setup, Download Model and Dataset (+17 more)
 
 ### Community 357 - "_run_simplerenv_eval"
-Cohesion: 0.12
-Nodes (24): gpu, parametrize, timeout, Run a short DROID finetune, then verify server starts with the finetuned…, Verify the DROID inference server starts and accepts connections., test_droid_finetune_and_finetuned_server(), test_droid_readme_server_starts(), gpu (+16 more)
+Cohesion: 0.10
+Nodes (27): gpu, ndarray, parametrize, timeout, Run a short DROID finetune, then verify server starts with the finetuned…, Extract a ``name = np.array(<literal>, ...)`` assignment from source text.…, The slim DROID example vendors DROID_EEF_ROTATION_CORRECT because it runs…, Verify the DROID inference server starts and accepts connections. (+19 more)
 
 ### Community 358 - "TestDatasetStructure"
 Cohesion: 0.08
@@ -1834,9 +1866,9 @@ Nodes (10): dataset_path(), fixture, Validate episodes.jsonl format., Validate t
 Cohesion: 0.09
 Nodes (22): check_module(), fixture, parametrize, Pin the security-fix half of the bundle: main ``cryptography`` must reject the…, PEP 503 normalisation: surface variants of the same name must compare equal., Pin each known HW vs non-HW name explicitly so a typo in the auto-skip pattern…, Cover every PEP 508 surface the real manifests use: extras, version specs, and…, End-to-end on a synthetic 3-manifest input covering presence drift, version… (+14 more)
 
-### Community 360 - "Time"
-Cohesion: 0.17
-Nodes (7): robot_interface, build_synthetic_obs(), main(), String -> EmbodimentTag, in N1.6 wie in N1.7. N1.7 hat dafuer die…, Observation im flat-key Format des Gr00tSimPolicyWrapper (wie…, resolve_embodiment_tag(), Time
+### Community 360 - "test_repair_lerobot_metadata.py"
+Cohesion: 0.56
+Nodes (9): _make_dataset(), Path, _read_jsonl(), test_repair_dataset_drops_episodes_with_missing_required_files(), test_repair_dataset_dry_run_does_not_rewrite_metadata(), test_repair_dataset_noops_when_metadata_matches_files(), _touch(), _write_json() (+1 more)
 
 ### Community 361 - "Model Capabilities"
 Cohesion: 0.09
@@ -1847,32 +1879,32 @@ Cohesion: 0.11
 Nodes (17): Resolve a string to an EmbodimentTag, case-insensitively. Matches by enum…, parametrize, Verify that deprecated N1.6-only tags are fully removed., Verify that EmbodimentTag.resolve() works case-insensitively., Error message should separate base-model, posttrain, and finetuning tags., TestEmbodimentTagResolve, TestRemovedN16Tags, find_checkpoints() (+9 more)
 
 ### Community 363 - "Gr00tN1d7Config"
-Cohesion: 0.13
-Nodes (14): Gr00tN1d7Config, PretrainedConfig, Return a dictionary representation of this config, optionally excluding…, Return a JSON string of this config, optionally excluding augmentation keys., Unified configuration for Gr00tN1d7 model with backbone and action head.…, _make_mock_backbone(), _make_small_config(), fixture (+6 more)
+Cohesion: 0.08
+Nodes (22): Gr00tN1d7Config, PretrainedConfig, Return a dictionary representation of this config, optionally excluding…, Return a JSON string of this config, optionally excluding augmentation keys., Unified configuration for Gr00tN1d7 model with backbone and action head.…, create_model_union_type(), register_model_config(), get_backbone_cls() (+14 more)
 
 ### Community 364 - "_hf_local_first_call"
-Cohesion: 0.15
-Nodes (14): _hf_local_first_call(), Invoke ``orig_func`` (an unwrapped from_pretrained) preferring the local cache.…, _FakeKlass, _make_orig(), If the caller already passed ``local_files_only=True``, honor it: do not retry…, The common warm-cache case: probing with ``local_files_only=True`` succeeds, so…, Cold-cache case: probe raises, fall through to a normal call that the HF Hub…, Sentinel class used as the first argument to a from_pretrained-shaped fn. (+6 more)
-
-### Community 365 - "_random_state"
 Cohesion: 0.12
-Nodes (13): _get_dim_from_stats(), _random_action(), _random_state(), Test state normalization and denormalization roundtrip., Normalize then denormalize should recover original values., Test action normalization and denormalization., Test the combined apply/unapply convenience methods., Get the dimension of a key from its statistics (length of min array). (+5 more)
+Nodes (18): _hf_local_first_call(), Invoke ``orig_func`` (an unwrapped from_pretrained) preferring the local cache.…, _FakeConfig, _FakeKlass, _make_orig(), PretrainedConfig, If the caller already passed ``local_files_only=True``, honor it: do not retry…, The test-only weight-skip path builds model architecture from config without… (+10 more)
+
+### Community 365 - "test_state_action_processor.py"
+Cohesion: 0.09
+Nodes (20): fixture_data(), _get_dim_from_stats(), modality_keys(), processor(), fixture, _random_action(), _random_state(), Test state normalization and denormalization roundtrip. (+12 more)
 
 ### Community 366 - "main_gr00t.py"
 Cohesion: 0.14
 Nodes (19): Args, compute_eef_9d(), _extract_observation(), _load_runtime_deps(), main(), prevent_keyboard_interrupt(), ndarray, Load robot-only dependencies after CLI parsing so --help stays usable. (+11 more)
 
-### Community 367 - "test_gr00t_policy.py"
-Cohesion: 0.13
-Nodes (9): _build_modality_configs(), _make_observation(), _NumpyLanguageSimPolicy, policy(), fixture, test_sim_policy_wrapper_accepts_numpy_language_batches(), TestGr00tPolicyCheckObservation, TestGr00tPolicyGetAction (+1 more)
+### Community 367 - "Type"
+Cohesion: 0.33
+Nodes (8): CType, cast(), cast_impl(), return_value_policy, Type, type_caster<Type, enable_if_t<is_eigen_dense_plain<Type>::value>>, name, value
 
 ### Community 368 - "TestGr00tPolicyGPU"
 Cohesion: 0.13
 Nodes (14): _build_observation(), policy(), fixture, gpu, timeout, Load the policy under a wide timeout and assert it is on GPU., End-to-end GPU inference through Gr00tPolicy., Action values should be finite and within a reasonable magnitude. (+6 more)
 
-### Community 369 - "gr00t_n1d7/gr00t_n1d7.py"
-Cohesion: 0.14
-Nodes (10): create_model_union_type(), register_model_config(), get_backbone_cls(), Gr00tN1d7, PreTrainedModel, # NOTE: use an exponential ramp strength to set the remaining unfrozen rtc_steps, Gr00tN1d7: VLA model with Cosmos-Reason2-2B (Qwen3-VL) backbone., Initialize Gr00tN1d7 model. Args: config: Model configuration… (+2 more)
+### Community 369 - "test_export_onnx_legacy_exporter.py"
+Cohesion: 0.25
+Nodes (8): _is_torch_onnx_export(), N1.7 TRT export relies on dynamic_axes; keep legacy export explicit., A single DiT engine cannot be verified through the four-engine action-head path., The unified pipeline can route dit_only export into verify_n1d7_trt.py., test_all_onnx_exports_use_legacy_exporter_explicitly(), test_dit_only_pipeline_uses_dit_only_verifier(), test_verify_mode_accepts_dit_only_mode(), Call
 
 ### Community 370 - "test_fast_copy_tree.py"
 Cohesion: 0.13
@@ -1886,9 +1918,9 @@ Nodes (10): ActionChunk, Compute the delta action chunking where each pose repre
 Cohesion: 0.22
 Nodes (8): _create_groot_robocasa365_env_class(), _gather_robot_observations(), GrootRoboCasa365Env, _map_obs(), Any, Env, ndarray, _unmap_action()
 
-### Community 373 - "main"
-Cohesion: 0.16
-Nodes (13): _collate(), _load_state_dict(), main(), _parse_args(), Namespace, Path, Tensor, _RandomDataset (+5 more)
+### Community 373 - "BestMetricCheckpointCallback"
+Cohesion: 0.08
+Nodes (24): BestMetricCheckpointCallback, Path, Trainer, TrainerCallback, Save a copy of the model whenever an evaluation metric improves. Works under…, Args: metric_name: Key in the eval ``metrics`` dict to track. trainer: The…, Args: run_name: Name of the experiment run exp_cfg_dir: Path to the directory…, Called after the trainer saves a checkpoint. (+16 more)
 
 ### Community 374 - "GR00T N1.7 on RoboLab"
 Cohesion: 0.11
@@ -1898,28 +1930,34 @@ Nodes (17): Ablation Notes, Example 4-GPU Layout, GR00T N1.7 on RoboLab, Image H
 Cohesion: 0.11
 Nodes (18): Annotation Column Naming, Data (data/chunk-*), Example, Example Parquet File, GR00T LeRobot Extensions to Standard LeRobot, GR00T LeRobot Specific Requirements, LeRobot v2 Requirements, Meta (+10 more)
 
-### Community 376 - "BasicPipeline"
-Cohesion: 0.14
-Nodes (7): BasicPipeline, convert_tensors_to_lists(), ModelPipeline, Path, Create appropriate dataset based on task and mode., Recursively convert tensors to lists in nested dictionaries/lists., A simple pipeline that works for diffusion and flowmatching-based models.
+### Community 376 - "EigenConformable"
+Cohesion: 0.25
+Nodes (8): EigenConformable, cols, conformable, negativestrides, rows, stride, EigenDStride, EigenIndex
 
-### Community 377 - "dump_camera_poses.py"
-Cohesion: 0.17
-Nodes (17): camera_tangents(), first_attr(), frustum_report(), main(), quat_rotate(), Die USD-Stage direkt befragen — der einzige Zeuge, der nicht aus `cam.data`…, Halbwinkel-Tangenten aus der Intrinsik, die Isaac Lab SELBST meldet. -> (tan_h,…, Projiziert Szenenpunkte in eine Kamera. -> Zeilen (name, u, v, dist, drin?).… (+9 more)
+### Community 377 - "type_caster<
+    Eigen::Ref<PlainObjectType, 0, StrideType>,
+    enable_if_t<is_eigen_dense_map<Eigen::Ref<PlainObjectType, 0, StrideType>>::value>
+>"
+Cohesion: 0.22
+Nodes (9): Ref, unique_ptr, type_caster<
+    Eigen::Ref<PlainObjectType, 0, StrideType>,
+    enable_if_t<is_eigen_dense_map<Eigen::Ref<PlainObjectType, 0, StrideType>>::value>
+>, copy_or_ref, need_writeable, ref, MapType, PlainObjectType (+1 more)
 
 ### Community 378 - "bootstrap_wheels.sh"
 Cohesion: 0.14
 Nodes (13): build_torchcodec(), C_INCLUDE_PATH, CMAKE_BUILD_PARALLEL_LEVEL, CPATH, CPLUS_INCLUDE_PATH, CUDA_HOME, CUDA_PATH, LD_LIBRARY_PATH (+5 more)
 
-### Community 379 - "setup_tensorrt_engines"
-Cohesion: 0.13
-Nodes (17): assert_engine_bundle_present(), assert_engine_matches_policy(), assert_grid_thw_matches(), _candidate_metadata_paths(), load_export_metadata(), _policy_action_horizon(), Any, Locations to look for ``export_metadata.json`` given an engine path.… (+9 more)
+### Community 379 - "pybind11_tests.cpp"
+Cohesion: 0.25
+Nodes (6): bind_ConstructorStats(), m, module_, PYBIND11_MODULE(), test_initializer::test_initializer(), Initializer
 
 ### Community 380 - "_macro_step_env_steps"
 Cohesion: 0.18
 Nodes (15): _macro_step_env_steps(), Inner env-steps advanced by one macro-step for ``env_idx``.…, parametrize, gymnasium >=1.0 keeps the (terminal) step's info at the top level., gymnasium 0.29.1 inline autoreset moves the terminal info into final_info; the…, When both are present, final_info (the real terminal step) wins., Steps that carry no env-step count contribute nothing (e.g. a pure autoreset…, A present n_env_steps key with a None entry counts as 0 env-steps, while a… (+7 more)
 
 ### Community 381 - "build_processor"
-Cohesion: 0.17
+Cohesion: 0.18
 Nodes (14): build_processor(), _direct_outputs(), fixture, ndarray, parametrize, The tensors handed over by _apply_vlm_processing (post-change) are CHW uint8 —…, Real Qwen3VL processor; skips when the gated repo is unreachable. Only…, Verbatim reimplementation of the pre-change path: CHW -> PIL -> processor. (+6 more)
 
 ### Community 382 - "build_tensorrt_engine.py"
@@ -1938,8 +1976,8 @@ Nodes (15): Action Modality, Complete Example: SO-100, Configuration Structure, 
 Cohesion: 0.22
 Nodes (13): get_eval_seed(), Read the eval seed from the environment, or return ``default``. Returns…, Seed all standard RNGs and enable deterministic cuDNN / CUDA kernels. Args:…, seed_everything(), fixture, Undo the one piece of global state that can break unrelated tests.…, _restore_deterministic_algorithms(), _sample() (+5 more)
 
-### Community 386 - "finetune_new_embodiment.md"
-Cohesion: 0.18
+### Community 386 - "Finetuning GR00T N1.7 Model for Seeed reBot Arm B601 DM"
+Cohesion: 0.25
 Nodes (7): Closed-Loop Evaluation, Dataset, Evaluation Results, Finetuning, Finetuning GR00T N1.7 Model for Seeed reBot Arm B601 DM, Handling the dataset, Open-Loop Evaluation
 
 ### Community 387 - "Mask-Guided Background Suppression"
@@ -1950,9 +1988,9 @@ Nodes (13): 1. Background noise only, 1. Background Noise Transform, 2. Backgrou
 Cohesion: 0.23
 Nodes (8): eval(), EvalConfig, main(), Any, PolicyClient, wrap, RebotArmDMAdapter, recursive_add_extra_dim()
 
-### Community 389 - "Gr00tN1d7Pipeline"
-Cohesion: 0.21
-Nodes (6): convert_tensors_to_lists(), Gr00tN1d7Pipeline, Path, Create appropriate dataset based on task and mode., Recursively convert tensors to lists in nested dictionaries/lists., Setup model with proper vocabulary expansion.
+### Community 389 - "Augmentation — Bedienungsanleitung"
+Cohesion: 0.22
+Nodes (9): 1. Warum Cosmos-Transfer2.5, und warum dieser Workflow?, 2. Voraussetzung — Lizenzen manuell akzeptieren (einmalig, außerhalb des Containers), 3. Build, 4. Run, 5. Env-Var-Referenz, 6. Ins Training einbinden, 7. Offene Punkte, 8. Nachgelagerte QS (Follow-up, nicht Teil dieses Durchgangs) (+1 more)
 
 ### Community 390 - "load_hf_model_weights"
 Cohesion: 0.16
@@ -1999,8 +2037,8 @@ Cohesion: 0.20
 Nodes (11): _env_flag_enabled(), _hf_env_repr(), _hf_no_weight_model_call(), _patch_hf_local_first(), _patch_mistral(), Human-readable HF cache env (for log lines)., Patch from_pretrained to prefer the local HF cache over network calls. When a…, Suppress 429 / connection errors / hangs from the HuggingFace Hub in mistral… (+3 more)
 
 ### Community 402 - "video_utils.py"
-Cohesion: 0.29
-Nodes (10): _build_decoder(), get_accumulate_timestamp_idxs(), get_all_frames(), get_frames_by_indices(), get_frames_by_timestamps(), _get_video_decoder_cls(), ndarray, Get all frames from a video. Returns: tuple[np.ndarray, np.ndarray]: Frames and… (+2 more)
+Cohesion: 0.33
+Nodes (8): _build_decoder(), get_accumulate_timestamp_idxs(), get_all_frames(), get_frames_by_indices(), _get_video_decoder_cls(), ndarray, Get all frames from a video. Returns: tuple[np.ndarray, np.ndarray]: Frames and…, For each dt window, choose the first timestamp in the window. Assumes…
 
 ### Community 403 - "verify"
 Cohesion: 0.27
@@ -2014,9 +2052,9 @@ Nodes (6): Verify that all EmbodimentTag enum values have matching configs., Eve
 Cohesion: 0.29
 Nodes (9): _action(), _FakeInner, _install_simpler_env_import_stubs(), _make_env(), parametrize, Register lightweight stand-ins for the module's heavy sim imports., Minimal inner env returning a controlled (done, info["success"]) pair., test_step_success_defaults_false_when_predicate_absent() (+1 more)
 
-### Community 406 - "_make_step_data"
-Cohesion: 0.29
-Nodes (7): _make_step_data(), proc_config(), processor(), fixture, Create synthetic VLAStepData matching the fixture config., Test __call__ with VLAStepData messages., TestProcessorCall
+### Community 406 - "test_gr00t_processor.py"
+Cohesion: 0.10
+Nodes (18): _make_step_data(), proc_config(), processor(), fixture, Create synthetic VLAStepData matching the fixture config., Test __call__ with VLAStepData messages., Test VLM input generation., Test action denormalization. (+10 more)
 
 ### Community 407 - "_make_dummy_inputs"
 Cohesion: 0.23
@@ -2026,9 +2064,9 @@ Nodes (6): _make_dummy_inputs(), Create dummy input tensors matching the model's
 Cohesion: 0.20
 Nodes (10): 1. Setup, 2.1 Einzeltask (Top: `PlateToPlate`), 2.2 Aggregat über 24 Tasks (`full`-Lauf, 12/24 abgeschlossen) ★ entscheidend, 2.3 Abbruch (12/24) — manuell gestoppt, 2. Ergebnis, 3. Geklärte Nebenbefunde, 4. Was validiert ist — und was nicht, 5. Reproduktion (+2 more)
 
-### Community 409 - "compass.py"
-Cohesion: 0.21
-Nodes (11): isaaclab_env(), prepare_compass_repo(), prepare_isaaclab(), prepare_x_mobility(), Path, Return the COMPASS repo path, cloning into shared storage if needed. Priority:…, Install the X-Mobility wheel and return the cached checkpoint path. The wheel…, Return a clean env for running isaaclab.sh commands. Strips VIRTUAL_ENV,… (+3 more)
+### Community 409 - "run_subprocess_step"
+Cohesion: 0.18
+Nodes (14): isaaclab_env(), prepare_compass_repo(), prepare_isaaclab(), prepare_x_mobility(), Path, Return the COMPASS repo path, cloning into shared storage if needed. Priority:…, Install the X-Mobility wheel and return the cached checkpoint path. The wheel…, Return a clean env for running isaaclab.sh commands. Strips VIRTUAL_ENV,… (+6 more)
 
 ### Community 410 - "GR00T N1.6 — Unitree G1 + DEX3 Dexterous Hand"
 Cohesion: 0.18
@@ -2037,10 +2075,6 @@ Nodes (10): 1. Download a dataset, 2-camera datasets (use `modality_2cam.json`),
 ### Community 411 - "Fine-tune on Custom Embodiments ("NEW_EMBODIMENT")"
 Cohesion: 0.18
 Nodes (11): Example Evaluation Result, Execute Fine-tuning, Fine-tune on Custom Embodiments ("NEW_EMBODIMENT"), Interpreting the Result: Is My Fine-tune Working?, Key Parameters, `open_loop_eval.py` Parameters, Step 1: Prepare Your Data, Step 2: Prepare Your Modality Configuration (+3 more)
-
-### Community 412 - "TestSkipModelWeights"
-Cohesion: 0.18
-Nodes (5): _FakeConfig, _FakeModel, PretrainedConfig, The test-only weight-skip path builds model architecture from config without…, TestSkipModelWeights
 
 ### Community 413 - "DatasetCatalogEntry"
 Cohesion: 0.31
@@ -2054,9 +2088,9 @@ Nodes (9): 1. Standalone Inference (with demo data), 2. Inference Server (for re
 Cohesion: 0.20
 Nodes (9): Benchmark results, Bridge (WidowX) Evaluation, Bridge (WidowX robot), Evaluate checkpoint, Fine-tune Simpler Env bridge dataset (WidowX robot), Fine-tune Simpler Env fractal dataset (Google robot), Fractal (Google Robot), Fractal (Google Robot) Evaluation (+1 more)
 
-### Community 416 - "Hardware Recommendations"
-Cohesion: 0.20
-Nodes (9): Center of Excellence, Fine-Tuning Hardware, Hardware Recommendations, Inference Hardware, Key Details, Key Insights, Recommended Configurations, Software Requirements (+1 more)
+### Community 416 - "test_trt_pipeline.py"
+Cohesion: 0.29
+Nodes (7): serial, --help exits 0 and surfaces the expected CLI options., Invoking the script without --model-path exits non-zero with a clear error., Patch Gr00tPolicy to drop DiT blocks down to _TRUNCATED_DIT_BLOCKS after init., test_build_trt_pipeline_help(), test_build_trt_pipeline_missing_model_path(), _truncated_policy()
 
 ### Community 417 - "_zero_no_weight_model_parameters"
 Cohesion: 0.38
@@ -2075,12 +2109,12 @@ Cohesion: 0.24
 Nodes (9): fixture, gpu, multigpu, timeout, Run experiment.run() under torchrun with one rank per visible GPU., Run experiment.run() for 1 training step on a single GPU. This verifies that…, test_experiment_run_all_visible_gpus(), test_experiment_run_single_gpu() (+1 more)
 
 ### Community 421 - ".load"
-Cohesion: 0.43
-Nodes (4): type_list, load_alternative(), set_caster, variant_caster<V<Ts...>>
+Cohesion: 0.36
+Nodes (6): type_list, forward_like(), U, load_alternative(), variant_caster<V<Ts...>>, forwarded_type
 
-### Community 422 - "UnregisteredBase"
-Cohesion: 0.20
-Nodes (4): RegisteredDerived, UnregisteredBase, ro_value, rw_value
+### Community 422 - "Augmentation/scripts/entrypoint.sh"
+Cohesion: 0.46
+Nodes (7): err(), HUGGING_FACE_HUB_TOKEN, log(), ok(), entrypoint.sh script, trap_err(), warn()
 
 ### Community 423 - "run_g1_gripper_sim_eval.py"
 Cohesion: 0.36
@@ -2102,13 +2136,13 @@ Nodes (8): Closed-Loop Evaluation, Converting the Dataset, Dataset, Evaluation R
 Cohesion: 0.22
 Nodes (8): C_INCLUDE_PATH, CPATH, CPLUS_INCLUDE_PATH, CUDA_HOME, CUDA_PATH, LD_LIBRARY_PATH, install_deps.sh script, UV_PROJECT_ENVIRONMENT
 
-### Community 428 - "TestTagCategories"
-Cohesion: 0.22
-Nodes (5): Verify PRETRAIN_TAGS, POSTTRAIN_TAGS, and FINETUNE_ONLY_TAGS are correct., Every enum member must be in exactly one category., No tag should appear in more than one category., Pretrain tags should match what's in the base model checkpoint., TestTagCategories
+### Community 428 - "setup_and_augment_DockerHub-pull.sh"
+Cohesion: 0.50
+Nodes (7): err(), fatal(), invoke_cmd(), log(), ok(), setup_and_augment_DockerHub-pull.sh script, warn()
 
-### Community 429 - "TestTorchcodecRoundtrip"
-Cohesion: 0.31
-Nodes (5): fixture, Path, Decode the sample fixture end-to-end through the public helpers., sample_video_path(), TestTorchcodecRoundtrip
+### Community 429 - "get_frames_by_timestamps"
+Cohesion: 0.18
+Nodes (10): get_frames_by_timestamps(), Get frames from a video at specified timestamps. Args: video_path (str): Path…, fixture, Path, serial, Importing video utilities must not import or load torchcodec., Decode the sample fixture end-to-end through the public helpers., sample_video_path() (+2 more)
 
 ### Community 430 - "check_sim_eval_ready.py"
 Cohesion: 0.32
@@ -2146,6 +2180,10 @@ Nodes (6): _build_config(), main(), _parse_args(), Namespace, Path, _write_rank_
 Cohesion: 0.28
 Nodes (8): execute(), execute_cast(), Class, op_, op_impl, __self(), self_t, undefined_t
 
+### Community 439 - "TestPolicyServerClient"
+Cohesion: 0.22
+Nodes (3): Test ZMQ roundtrip communication., Test that kill_server stops the server loop., TestPolicyServerClient
+
 ### Community 440 - "deregister_instance"
 Cohesion: 0.57
 Nodes (7): deregister_instance(), deregister_instance_impl(), instance, type_info, register_instance(), register_instance_impl(), traverse_offset_bases()
@@ -2154,13 +2192,13 @@ Nodes (7): deregister_instance(), deregister_instance_impl(), instance, type_inf
 Cohesion: 0.33
 Nodes (5): Checkpoint Results, Downloading RoboCasa Datasets (Optional), Evaluate checkpoint, Finetune, RoboCasa Evaluation Benchmark
 
-### Community 442 - "test_droid.py"
-Cohesion: 0.40
-Nodes (5): ndarray, Extract a ``name = np.array(<literal>, ...)`` assignment from source text.…, The slim DROID example vendors DROID_EEF_ROTATION_CORRECT because it runs…, test_droid_eef_rotation_correct_mirror_in_sync(), _vendored_array_literal()
+### Community 442 - "Augmentation/update_image.sh"
+Cohesion: 0.50
+Nodes (7): err(), exit_fatal(), invoke_cmd(), log(), ok(), update_image.sh script, warn()
 
-### Community 443 - "test_warn_configs.py"
-Cohesion: 0.40
-Nodes (5): parametrize, Keyword names passed to the ``TrainingArguments(...)`` call in ``run``., test_num_gpus_must_match_world_size(), test_warmup_steps_is_forwarded_to_training_arguments(), _training_arguments_keywords()
+### Community 443 - ".load"
+Cohesion: 0.25
+Nodes (5): data(), row_major, S, make_stride(), Scalar
 
 ### Community 444 - "Evaluation"
 Cohesion: 0.40
@@ -2190,17 +2228,17 @@ Nodes (4): fixture, ``_setup_dit_only`` must install a forward that binds every 
 Cohesion: 0.50
 Nodes (3): Current fixtures, Guidelines, Test Fixtures
 
-### Community 452 - "TestFixtureCompleteness"
-Cohesion: 0.50
-Nodes (3): Guard against fixture drift: the fixture must contain every field that…, Load the fixture, save to a temp dir, and verify the keys are identical. If…, TestFixtureCompleteness
+### Community 452 - "TestRegisteredPrefixClosure"
+Cohesion: 0.38
+Nodes (4): AST, Author-vs-truth closure check for the env-prefix -> EmbodimentTag mapping.…, Extract the leading ``<prefix>/`` from a str or f-string AST node. Returns…, TestRegisteredPrefixClosure
 
 ### Community 453 - "pytest_collection_modifyitems"
 Cohesion: 0.50
 Nodes (3): pytest_collection_modifyitems(), Run ``test_warmup_model_load`` before any inference test that shares its…, hookimpl
 
-### Community 454 - "TestImportSafety"
-Cohesion: 0.50
-Nodes (3): serial, Importing video utilities must not import or load torchcodec., TestImportSafety
+### Community 454 - "main"
+Cohesion: 0.62
+Nodes (6): ffprobe_frame_count(), find_produced_video(), main(), Path, Kopiert `produced` nach `dest`, ggf. auf target_frames getrimmt. Gibt True…, reconcile_frame_count()
 
 ### Community 477 - "run.sh script"
 Cohesion: 0.20
@@ -2238,20 +2276,76 @@ Nodes (5): 2.1 Das Menü erzeugt nur Env-Vars, 2.2 Menü nur bei echtem Terminal
 Cohesion: 0.40
 Nodes (5): 4.1 `Simulation/server_rl_run.sh` — 8 Zeilen, 4.2 `Training/setup_and_train_dockerhub_pull.sh`, 4.3 KISSKI (`Training/kisski_*.sh`, `Simulation/kisski_*.sh`), 4.4 Übrige Skripte, 4. Einbau je Einstiegspunkt
 
+### Community 503 - "void_caster"
+Cohesion: 0.33
+Nodes (6): nullptr_t, type_caster<std::nullptr_t>, void_caster, type_caster<std::experimental::nullopt_t>, type_caster<std::nullopt_t>, nullopt_t
+
+### Community 504 - "G1GripperBlockstackEnvCfg"
+Cohesion: 0.29
+Nodes (6): G1GripperBlockstackEnvCfg, G1GripperBlockstackSceneCfg, configclass, DirectRLEnvCfg, InteractiveSceneCfg, Szene: Roboter am Tisch mit 3 Würfeln (gespiegelt vom DEX3-Env).
+
+### Community 505 - ".reverse_lookup"
+Cohesion: 0.40
+Nodes (3): Map a tag value string back to its enum name, or return the value as-is., Verify reverse_lookup maps tag values back to enum names., TestReverseLookup
+
+### Community 506 - "IO"
+Cohesion: 0.33
+Nodes (3): Write to multiple streams simultaneously., _TeeWriter, IO
+
+### Community 507 - "test_generate_stats_cache_fingerprint.py"
+Cohesion: 0.47
+Nodes (5): dataset(), lowdim_features(), mock_calculate(), fixture, Replace the heavy parquet-driven computation with a counter-stub. Returns a…
+
+### Community 508 - "download_source_dataset.sh"
+Cohesion: 0.60
+Nodes (5): dataset_present(), log(), ok(), download_source_dataset.sh script, warn()
+
+### Community 509 - ".state_delta_indices_array"
+Cohesion: 0.40
+Nodes (3): ndarray, ``video_delta_indices`` as the ndarray ``MultiStepWrapper`` expects., ``state_delta_indices`` as an ndarray, or ``None`` if vision-only.
+
+### Community 510 - "Fine-tuning"
+Cohesion: 0.40
+Nodes (5): Fine-tune on Your Own Robot ("NEW_EMBODIMENT"), Fine-tuning, Humanoid Whole-Body Control (SONIC), Reproducing Benchmark Results, Training Tips
+
+### Community 511 - "DiTInputCapture"
+Cohesion: 0.40
+Nodes (3): DiTInputCapture, Capture DiT forward pass inputs during inference via a pre-forward hook., Pre-forward hook to capture inputs.
+
+### Community 512 - "TestEnvPrefixMapping"
+Cohesion: 0.40
+Nodes (3): Verify ENV_PREFIX_TO_EMBODIMENT_TAG covers all known benchmarks., Prefixes that share a common root must map to the same EmbodimentTag. Guards…, TestEnvPrefixMapping
+
+### Community 513 - "build_controlnet_specs.py"
+Cohesion: 0.60
+Nodes (4): build_spec(), main(), Path, select_episodes()
+
+### Community 516 - "Simulation — Closed-Loop-Eval in Isaac Lab"
+Cohesion: 0.50
+Nodes (4): Archiv, Einstieg, GPU-Anforderung (Kurzfassung), Simulation — Closed-Loop-Eval in Isaac Lab
+
+### Community 519 - "builtin_exception"
+Cohesion: 0.67
+Nodes (3): builtin_exception, set_error, runtime_error
+
+### Community 520 - "is_fmt_numeric<T, enable_if_t<std::is_arithmetic<T>::value>>"
+Cohesion: 0.67
+Nodes (3): is_fmt_numeric<T, enable_if_t<std::is_arithmetic<T>::value>>, index, value
+
 ## Knowledge Gaps
-- **1955 isolated node(s):** `compare_domain_gap.sh script`, `kisski_replay_submit.sh script`, `APPTAINER_CACHEDIR`, `APPTAINER_TMPDIR`, `kisski_robocasa_ref_submit.sh script` (+1950 more)
+- **1969 isolated node(s):** `HUGGING_FACE_HUB_TOKEN`, `run_inference.sh script`, `compare_domain_gap.sh script`, `kisski_replay_submit.sh script`, `APPTAINER_CACHEDIR` (+1964 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **42 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **47 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `EmbodimentTag` connect `EmbodimentTag` to `build_trt_pipeline.py`, `Gr00tN1d7Processor`, `TestEmbodimentTagConsistency`, `_make_step_data`, `ModalityConfig`, `rl_finetune.py`, `TestTagCategories`, `validate_hf_config_alignment.py`, `experiment.py`, `export_onnx_n1d7.py`, `optimize_groot_inference.py`, `generate_stats`, `ReplayPolicy`, `stats.py`, `repair_lerobot_metadata.py`, `standalone_inference_script.py`, `rollout_policy.py`, `get_embodiment_tag_from_env_name`, `test_policy_md.py`, `Time`, `.resolve`, `Gr00tPolicy`?**
-  _High betweenness centrality (0.104) - this node is a cross-community bridge._
-- **Why does `str` connect `object` to `constructor_stats.h`, `pybind11.h`, `ExampleMandA`, `test_constants_and_functions.cpp`, `build_trt_pipeline.py`, `modes.py`, `handle`, `MultiStepWrapper`?**
-  _High betweenness centrality (0.082) - this node is a cross-community bridge._
-- **Why does `object` connect `object` to `function_call`, `pybind11/tests/conftest.py`, `pybind11.h`, `cast.h`, `OstreamRedirect`, `Engine`, `dtype`, `array`, `iterator`, `handle`, `list`, `ParallelCompile`, `return_value_policy`, `dict`, `run`?**
-  _High betweenness centrality (0.071) - this node is a cross-community bridge._
+- **Why does `EmbodimentTag` connect `EmbodimentTag` to `test_standalone_inference.py`, `BasePolicy`, `build_trt_pipeline.py`, `Gr00tN1d7Processor`, `TestEmbodimentTagConsistency`, `test_gr00t_processor.py`, `benchmark_inference.py`, `download_droid_sample.py`, `rl_finetune.py`, `validate_hf_config_alignment.py`, `export_onnx_n1d7.py`, `optimize_groot_inference.py`, `repair_lerobot_metadata.py`, `standalone_inference_script.py`, `rollout_policy.py`, `ExportMode`, `get_embodiment_tag_from_env_name`, `test_policy_md.py`, `.resolve`, `ShardedMixtureDataset`, `Gr00tPolicy`, `Config`, `.reverse_lookup`?**
+  _High betweenness centrality (0.117) - this node is a cross-community bridge._
+- **Why does `str` connect `handle` to `function_call`, `constructor_stats.h`, `standalone_inference_script.py`, `ExampleMandA`, `build_trt_pipeline.py`, `MultiStepWrapper`, `T`?**
+  _High betweenness centrality (0.088) - this node is a cross-community bridge._
+- **Why does `object` connect `handle` to `pybind11/tests/conftest.py`, `function_call`, `cast.h`, `OstreamRedirect`, `Engine`, `dtype`, `array`, `pybind11.h`, `iterator`, `pybind11_fail`, `ParallelCompile`, `dict`, `index_sequence`?**
+  _High betweenness centrality (0.083) - this node is a cross-community bridge._
 - **Are the 43 inferred relationships involving `EmbodimentTag` (e.g. with `main()` and `register_modality_config()`) actually correct?**
   _`EmbodimentTag` has 43 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 2 inferred relationships involving `object` (e.g. with `.dec_ref()` and `.inc_ref()`) actually correct?**

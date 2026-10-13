@@ -191,6 +191,15 @@ if [[ -f "$lib_tr" && -f "$lib_sim" ]] && ! cmp -s "$lib_tr" "$lib_sim"; then
   NOTES+=("ABWEICHUNG  lib/groot  lib_groot_version.sh: Training/scripts und Simulation/scripts unterscheiden sich (diff zeigt wo)")
 fi
 
+# Augmentation/Dockerfile kopiert modality_4cam.json und den v3->v2.1-Konverter aus dem
+# N1.6-Fork (GROOT_FORK_COMMIT). Weicht der Pin von GROOT16_COMMIT des Trainings-Images ab,
+# scheitert spaeter der modality.json-Gleichheitscheck in run_finetuning_cotrain.sh.
+pin_tr="$(sed -nE 's/^ARG GROOT16_COMMIT=([0-9a-f]{40}).*/\1/p' "$REPO_DIR/Training/Dockerfile" 2>/dev/null | head -1)"
+pin_aug="$(sed -nE 's/^ARG GROOT_FORK_COMMIT=([0-9a-f]{40}).*/\1/p' "$REPO_DIR/Augmentation/Dockerfile" 2>/dev/null | head -1)"
+if [[ -n "$pin_aug" && "$pin_aug" != "$pin_tr" ]]; then
+  NOTES+=("ABWEICHUNG  pin/groot  Augmentation/Dockerfile GROOT_FORK_COMMIT=${pin_aug:0:12} != Training/Dockerfile GROOT16_COMMIT=${pin_tr:0:12}")
+fi
+
 # Doppelte Meldungen zusammenfassen: ein Parameter aus _common.spec taucht in jeder
 # Aktion auf und wuerde den Bericht sonst zwanzigfach fluten.
 printf '%s\n' ${NOTES[@]+"${NOTES[@]}"} \

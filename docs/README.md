@@ -35,6 +35,19 @@ Operative Anleitungen zum Trainieren. Die Auswertung der Läufe steht unter [Erg
 | [training/synth-datensatz.md](training/synth-datensatz.md) | **Fremder Sim-Datensatz im Co-Training** (`Fichtl00/Cube_Stacking_synth`) — warum er schematisch nicht passt (57-Dim-State, 50 fps), wie `harmonize_synth_dataset.py` die Gelenk-Zuordnung *misst* statt sie zu raten, begründetes Mischungsverhältnis, vorregistrierte Bewertungsregel |
 | [training/wandb-offline-sync.md](training/wandb-offline-sync.md) | W&B-Offline-Sync auf KISSKI |
 
+## Augmentation (Video-Augmentierung mit Cosmos-Transfer2.5)
+
+Erzeugt zusätzliche Trainingsdaten, indem echte Trainingsvideos per NVIDIA
+Cosmos-Transfer2.5 stilvariiert werden (Domain-Randomization). Läuft auf einem eigenen
+Docker-Server (A100/H100-Klasse). Das Ergebnis speist den Co-Training-Pfad unter Training.
+**Stand 2026-10-13: gebaut, nicht durchgängig erprobt** (erster Lauf scheiterte am gated
+`nvidia/Cosmos-Predict2.5-2B`; passender ~65-GB-Docker-Server fehlt derzeit).
+
+| Dokument | Inhalt |
+|---|---|
+| [augmentation/](augmentation/README.md) | **Einstieg Augmentation** (Index) |
+| [augmentation/anleitung.md](augmentation/anleitung.md) | **Bedienungsanleitung** — Warum Cosmos-Transfer2.5, Build/Run, Env-Var-Referenz, Einbindung ins Training (`USE_COTRAIN`), offene Punkte |
+
 ## Simulation (Closed-Loop-Eval in Isaac Lab)
 
 Operativer Sim-Eval-Workflow. Mess- und Methodik-Ergebnisse stehen unter [Ergebnisse](#ergebnisse--evaluation).
@@ -145,6 +158,16 @@ Diese Sammlung speist das gleichnamige Kapitel der Projektarbeit.
 │       ├── checkpoint_sweep.py        # Checkpoint-Auswahl: Validierungs-MSE jedes Checkpoints
 │       ├── launch_cotrain.py          # Zwei-Datensatz-Einstieg (Co-Training)
 │       └── harmonize_synth_dataset.py # fremden Sim-Datensatz aufs echte Schema umschreiben
+├── Augmentation/               # Cosmos-Transfer2.5-Video-Augmentierung (eigener Docker-Server)
+│   ├── Dockerfile              # Cosmos-Transfer2.5 + vendorter v3→v2.1-Konverter, gepinnter Commit
+│   ├── update_image.sh         # Host-Build/Push-Tool
+│   ├── setup_and_augment_DockerHub-pull.sh  # Host-Launcher (Dauerbetrieb, wie Training/)
+│   └── scripts/                # In das Image kopiert (→ /scripts)
+│       ├── entrypoint.sh       # Download → Specs → Cosmos-Inferenz (Kanten on-the-fly) → Datensatz
+│       ├── download_source_dataset.sh # echter Datensatz + vendorter v3→v2.1-Konverter
+│       ├── build_controlnet_specs.py  # Episode/Kamera/Variante → Cosmos-Spec-JSON (Edge-Control on-the-fly)
+│       ├── run_inference.sh    # dünner Wrapper um examples/inference.py von cosmos-transfer2.5
+│       └── assemble_dataset.py # Cosmos-Rohvideos → COTRAIN_DATASET_PATH-kompatibler Datensatz
 ├── Simulation/                # Sim-Client-Code, Dockerfiles, Build-Tools
 │   ├── Dockerfile             # KISSKI: schlanker Isaac-Lab-Sim-Client
 │   ├── Dockerfile.standalone  # Standalone: kombiniert Isaac Sim + GR00T — IKR-Server & vast.ai
