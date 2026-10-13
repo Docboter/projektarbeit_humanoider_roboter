@@ -26,20 +26,39 @@ MODALITY_FILE="$DATASET_DIR/meta/modality.json"
 mkdir -p "$DATA_DIR/unitreerobotics"
 
 # ── Download (v3.0-Rohformat, inkl. Videos) ────────────────────────────────────
-dataset_present() {
-    [[ -d "$DATASET_DIR" && -n "$(ls -A "$DATASET_DIR" 2>/dev/null || true)" ]]
+# Fertig-Marker NEBEN dem Datensatzordner, nicht darin: der Konverter verschiebt den Ordner
+# nach <name>_v30 und legt das v2.1-Ergebnis neu an — ein Marker darin ginge dabei verloren.
+# Frueher galt jedes nicht leere Verzeichnis als vollstaendig, also auch ein abgebrochener
+# Download.
+DOWNLOAD_DONE="$DATA_DIR/unitreerobotics/.$(basename "$DATASET_DIR").download_done"
+
+download_complete() {
+    [[ -f "$DOWNLOAD_DONE" ]] && return 0
+    # Bestandsordner aus der Zeit vor dem Marker: eine vorhandene modality.json heisst, dass
+    # Download UND Konvertierung schon durchgelaufen sind — Marker nachtragen.
+    if [[ -f "$MODALITY_FILE" ]]; then
+        touch "$DOWNLOAD_DONE"
+        return 0
+    fi
+    return 1
 }
 
 if [[ "$SKIP_DOWNLOAD" == "1" ]]; then
     warn "SKIP_DOWNLOAD=1 — Download uebersprungen."
-elif dataset_present; then
-    ok "Datensatz bereits vorhanden — Download uebersprungen ($DATASET_DIR)."
+elif download_complete; then
+    ok "Datensatz bereits vollstaendig — Download uebersprungen ($DATASET_DIR)."
 else
+    if [[ -d "$DATASET_DIR" && -n "$(ls -A "$DATASET_DIR" 2>/dev/null || true)" ]]; then
+        # Nicht leer, aber ohne Marker: abgebrochener Download. huggingface-cli setzt fort
+        # und laedt nur fehlende Dateien nach.
+        warn "Datensatzordner unvollstaendig (kein Fertig-Marker) — Download wird fortgesetzt."
+    fi
     log "Lade $SOURCE_DATASET_REPO (~18 GB, inkl. Videos)…"
     /opt/venv-tools/bin/huggingface-cli download "$SOURCE_DATASET_REPO" \
         --repo-type dataset \
         --local-dir "$DATASET_DIR" \
         --local-dir-use-symlinks False
+    touch "$DOWNLOAD_DONE"
     ok "Download abgeschlossen."
 fi
 

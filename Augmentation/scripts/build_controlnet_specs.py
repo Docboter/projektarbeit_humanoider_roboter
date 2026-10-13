@@ -50,14 +50,32 @@ DEFAULT_PROMPT_TEMPLATE = (
 VALID_EDGE_THRESHOLDS = {"very_low", "low", "medium", "high", "very_high"}
 
 
-def select_episodes(total_episodes: int, train_ratio: float, limit: int, explicit_ids: list[int]) -> list[int]:
+def compute_n_train(total_episodes: int, train_ratio: float) -> int:
+    """n_train = int(total * ratio), mit Guard 0 < n_train < total.
+
+    n_train == total (z. B. AUGMENT_TRAIN_RATIO=1.0) hiesse: auch die Test-Episoden aus
+    lib_split.sh wuerden augmentiert und kaemen ueber COTRAIN ins Training. n_train == 0
+    liefert nichts zu augmentieren. Beides ist ein Konfigurationsfehler, kein Randfall.
+    """
     n_train = int(total_episodes * train_ratio)
+    if not 0 < n_train < total_episodes:
+        raise SystemExit(
+            f"AUGMENT_TRAIN_RATIO={train_ratio} ergibt n_train={n_train} bei "
+            f"total_episodes={total_episodes} — erlaubt ist nur 0 < n_train < total_episodes. "
+            "AUGMENT_TRAIN_RATIO muss TRAIN_SPLIT_RATIO des Training-Images entsprechen "
+            "(Standard 0.8). Abgebrochen."
+        )
+    return n_train
+
+
+def select_episodes(total_episodes: int, train_ratio: float, limit: int, explicit_ids: list[int]) -> list[int]:
+    n_train = compute_n_train(total_episodes, train_ratio)
     if explicit_ids:
-        bad = [i for i in explicit_ids if i >= n_train]
+        bad = [i for i in explicit_ids if not 0 <= i < n_train]
         if bad:
             raise SystemExit(
-                f"AUGMENT_EPISODE_IDS enthaelt Episoden >= n_train ({n_train}): {bad} — "
-                "das waeren Test-Split-Episoden. Abgebrochen."
+                f"AUGMENT_EPISODE_IDS enthaelt Episoden ausserhalb [0, {n_train}): {bad} — "
+                "das waeren Test-Split- oder ungueltige Episoden. Abgebrochen."
             )
         return sorted(set(explicit_ids))
     if limit <= 0 or limit >= n_train:
@@ -119,7 +137,7 @@ def main() -> None:
 
     print(
         f"total_episodes={total_episodes} train_ratio={train_ratio} "
-        f"n_train={int(total_episodes * train_ratio)} ausgewaehlt={len(episode_ids)} "
+        f"n_train={compute_n_train(total_episodes, train_ratio)} ausgewaehlt={len(episode_ids)} "
         f"episoden={episode_ids}",
         file=sys.stderr,
     )

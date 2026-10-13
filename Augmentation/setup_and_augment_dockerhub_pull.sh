@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # TL;DR: Schlanker Host-Launcher — zieht das Augmentierungs-Image von Docker Hub, startet den autonomen Container.
-# setup_and_augment_DockerHub-pull.sh
+# setup_and_augment_dockerhub_pull.sh
 #
 # Schlankes Host-Skript: zieht das Image von Docker Hub und startet den autonomen
 # Container-Entrypoint. Alle eigentliche Arbeit (Download, Cosmos-Inferenz,
 # Datensatz-Zusammenbau) passiert IM Container — dasselbe Prinzip wie
-# Training/setup_and_train_DockerHub-pull.sh.
+# Training/setup_and_train_dockerhub_pull.sh.
 #
 # Konzept: KEIN persistenter Storage auf dem Host.
 #   * Kein `-v`-Mount nach /data
@@ -14,12 +14,12 @@
 #   * Bei `--destroy` (oder docker rm) ist alles weg
 #
 # Verwendung:
-#   HF_TOKEN=hf_... ./setup_and_augment_DockerHub-pull.sh
-#   ./setup_and_augment_DockerHub-pull.sh --skip-pull           # Image schon lokal
-#   ./setup_and_augment_DockerHub-pull.sh --interactive         # Shell statt Augmentierung
-#   ./setup_and_augment_DockerHub-pull.sh --resume              # Bestehenden Container weiterlaufen lassen
-#   ./setup_and_augment_DockerHub-pull.sh --destroy              # Alten Container loeschen + neu starten
-#   ./setup_and_augment_DockerHub-pull.sh --dry-run             # Nur Befehle anzeigen
+#   HF_TOKEN=hf_... ./setup_and_augment_dockerhub_pull.sh
+#   ./setup_and_augment_dockerhub_pull.sh --skip-pull           # Image schon lokal
+#   ./setup_and_augment_dockerhub_pull.sh --interactive         # Shell statt Augmentierung
+#   ./setup_and_augment_dockerhub_pull.sh --resume              # Bestehenden Container weiterlaufen lassen
+#   ./setup_and_augment_dockerhub_pull.sh --destroy              # Alten Container loeschen + neu starten
+#   ./setup_and_augment_dockerhub_pull.sh --dry-run             # Nur Befehle anzeigen
 #
 # Umgebungsvariablen (vollstaendige Referenz: docs/augmentation/anleitung.md):
 #   HF_TOKEN                 (Pflicht)  HuggingFace-Token — braucht Zugriff auf den Datensatz
@@ -33,6 +33,8 @@
 #   AUGMENT_EDGE_THRESHOLD   (default medium) — very_low/low/medium/high/very_high
 #   AUGMENT_MODEL_VARIANT    (default edge) — "edge/distilled" braucht COSMOS_EXPERIMENTAL_CHECKPOINTS
 #   AUGMENT_DISABLE_GUARDRAILS (default 1) — NVIDIAs Content-Safety-Filter aus (separat gated Repo)
+#   AUGMENT_PREFLIGHT        (default 1)     — kurzer Cosmos-Clip vorab, Framezahl/fps-Check
+#   AUGMENT_FRAME_TOLERANCE  (default 0)     — Frames, die am Videoende ausgeglichen werden duerfen
 #   AUGMENT_HF_REPO          (optional)      — Upload-Ziel nach dem Zusammenbau
 #   SKIP_INFERENCE           (optional)      — nur Specs generieren, dann stoppen
 #   CONTAINER_NAME            (default groot-augment)
@@ -208,7 +210,7 @@ ok "Image bereit: $DOCKER_HUB_IMAGE"
 echo ""
 
 # ── 5. Container starten ──────────────────────────────────────────────────────
-# Bewusst KEIN --rm und KEIN -v — dasselbe Prinzip wie Training/setup_and_train_DockerHub-pull.sh.
+# Bewusst KEIN --rm und KEIN -v — dasselbe Prinzip wie Training/setup_and_train_dockerhub_pull.sh.
 run_args=(
     "docker" "run"
     "--name" "$CONTAINER_NAME"
@@ -226,7 +228,7 @@ else
     for _v in NUM_GPU SOURCE_DATASET_REPO AUGMENT_TRAIN_RATIO AUGMENT_EPISODE_LIMIT \
               AUGMENT_EPISODE_IDS AUGMENT_CAMERAS AUGMENT_VARIANTS AUGMENT_PROMPT_TEMPLATE \
               AUGMENT_EDGE_THRESHOLD AUGMENT_MODEL_VARIANT AUGMENT_NUM_STEPS AUGMENT_DISABLE_GUARDRAILS \
-              AUGMENT_STRICT_FRAME_CHECK \
+              AUGMENT_STRICT_FRAME_CHECK AUGMENT_FRAME_TOLERANCE AUGMENT_PREFLIGHT AUGMENT_PREFLIGHT_FRAMES \
               AUGMENT_OUT_DIR AUGMENT_HF_REPO SKIP_DOWNLOAD SKIP_CONVERT SKIP_INFERENCE \
               SKIP_ASSEMBLE AUGMENT_OVERWRITE SHELL_ON_ERROR; do
         [[ -n "${!_v:-}" ]] && printf "    %-25s %s\n" "$_v" "${!_v}"
@@ -237,7 +239,7 @@ else
     for _v in NUM_GPU SOURCE_DATASET_REPO AUGMENT_TRAIN_RATIO AUGMENT_EPISODE_LIMIT \
               AUGMENT_EPISODE_IDS AUGMENT_CAMERAS AUGMENT_VARIANTS AUGMENT_PROMPT_TEMPLATE \
               AUGMENT_EDGE_THRESHOLD AUGMENT_MODEL_VARIANT AUGMENT_NUM_STEPS AUGMENT_DISABLE_GUARDRAILS \
-              AUGMENT_STRICT_FRAME_CHECK \
+              AUGMENT_STRICT_FRAME_CHECK AUGMENT_FRAME_TOLERANCE AUGMENT_PREFLIGHT AUGMENT_PREFLIGHT_FRAMES \
               AUGMENT_OUT_DIR AUGMENT_HF_REPO SKIP_DOWNLOAD SKIP_CONVERT SKIP_INFERENCE \
               SKIP_ASSEMBLE AUGMENT_OVERWRITE SHELL_ON_ERROR DATA_DIR HF_HOME; do
         [[ -n "${!_v:-}" ]] && run_args+=("-e" "$_v=${!_v}")
@@ -251,10 +253,10 @@ echo ""
 ok "Container beendet (nicht geloescht)."
 echo ""
 echo "  Naechste Schritte:"
-echo "    * Container fortsetzen:  ./setup_and_augment_DockerHub-pull.sh --resume"
+echo "    * Container fortsetzen:  ./setup_and_augment_dockerhub_pull.sh --resume"
 echo "    * Datensatz sichern:     docker cp $CONTAINER_NAME:/data/augmentation ./cosmos_augmented"
 echo "    * Logs sichern:          docker cp $CONTAINER_NAME:/data/logs ./logs"
-echo "    * Alles loeschen:        ./setup_and_augment_DockerHub-pull.sh --destroy"
+echo "    * Alles loeschen:        ./setup_and_augment_dockerhub_pull.sh --destroy"
 echo ""
 echo "  Ins Training einbinden: docs/training/co-training.md (USE_COTRAIN=1,"
 echo "  COTRAIN_DATASET_PATH=<Pfad zum augmentierten Datensatz>)."

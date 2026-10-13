@@ -255,6 +255,6 @@ if [[ -n "$CURRENT_COMMIT" ]]; then
 fi
 echo ""
 echo "  Naechste Schritte:"
-echo "    * Testen:  ./setup_and_augment_DockerHub-pull.sh"
+echo "    * Testen:  ./setup_and_augment_dockerhub_pull.sh"
 echo "    * Ziehen:  docker pull $IMAGE_LATEST"
 echo ""

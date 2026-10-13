@@ -105,7 +105,9 @@ docker_ns_require_push() {
   DOCKER_NAMESPACE="$ans"
   export DOCKER_NAMESPACE
   local envf="$repo_dir/.env.local" yn
-  if ! grep -qs 'DOCKER_NAMESPACE' "$envf"; then
+  # Nur aktive Zeilen zaehlen — ein auskommentiertes '# DOCKER_NAMESPACE=…' (wie in der
+  # Vorlage) setzt nichts und darf das Angebot zum Eintragen nicht unterdruecken.
+  if ! grep -qsE '^[^#]*DOCKER_NAMESPACE' "$envf"; then
     read -r -p "  In .env.local merken (dann fragt keiner mehr, und die Launcher ziehen es auch)? [J/n] " yn </dev/tty || yn=n
     if [[ ! "$yn" =~ ^[nN] ]]; then
       local fresh=0; [[ -f "$envf" ]] || fresh=1   # vor dem >>, das die Datei anlegt

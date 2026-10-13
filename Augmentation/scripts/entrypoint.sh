@@ -41,6 +41,13 @@
 #   AUGMENT_DISABLE_GUARDRAILS (default 1) — NVIDIAs Content-Safety-Filter aus (laedt sonst
 #                            ein zweites, separat gated HF-Repo: nvidia/Cosmos-Guardrail1)
 #   AUGMENT_STRICT_FRAME_CHECK (default 1)
+#   AUGMENT_FRAME_TOLERANCE  (default 0)    — Frame-Abweichung pro Video, die am Ende durch
+#                            Kuerzen bzw. Wiederholen des letzten Frames ausgeglichen wird
+#   AUGMENT_PREFLIGHT        (default 1)    — vor dem Volllauf EINEN kurzen Cosmos-Clip rendern und
+#                            Framezahl/fps gegen die Quelle pruefen (Abbruch nach Minuten statt
+#                            "keine Episode bestanden" nach Stunden)
+#   AUGMENT_PREFLIGHT_FRAMES (default 150)  — Laenge dieses Clips (>93 = zwei Cosmos-Chunks, damit
+#                            auch das Zusammensetzen der Chunks mitgeprueft wird)
 #   AUGMENT_OUT_DIR          (default $DATA_DIR/augmentation/g1_dex3_cosmos_augmented)
 #   AUGMENT_HF_REPO          (default "")   — falls gesetzt: Upload nach dem Zusammenbau
 #   SKIP_INFERENCE           (default 0)    — nach Schritt 4 stoppen (Prompts erst pruefen)
@@ -103,6 +110,9 @@ AUGMENT_MODEL_VARIANT="${AUGMENT_MODEL_VARIANT:-edge}"
 AUGMENT_NUM_STEPS="${AUGMENT_NUM_STEPS:-35}"
 AUGMENT_DISABLE_GUARDRAILS="${AUGMENT_DISABLE_GUARDRAILS:-1}"
 AUGMENT_STRICT_FRAME_CHECK="${AUGMENT_STRICT_FRAME_CHECK:-1}"
+AUGMENT_FRAME_TOLERANCE="${AUGMENT_FRAME_TOLERANCE:-0}"
+AUGMENT_PREFLIGHT="${AUGMENT_PREFLIGHT:-1}"
+AUGMENT_PREFLIGHT_FRAMES="${AUGMENT_PREFLIGHT_FRAMES:-150}"
 AUGMENT_OUT_DIR="${AUGMENT_OUT_DIR:-$DATA_DIR/augmentation/g1_dex3_cosmos_augmented}"
 AUGMENT_HF_REPO="${AUGMENT_HF_REPO:-}"
 SKIP_INFERENCE="${SKIP_INFERENCE:-0}"
@@ -112,11 +122,13 @@ AUGMENT_OVERWRITE="${AUGMENT_OVERWRITE:-0}"
 export NUM_GPU SOURCE_DATASET_REPO AUGMENT_TRAIN_RATIO AUGMENT_EPISODE_LIMIT \
        AUGMENT_EPISODE_IDS AUGMENT_CAMERAS AUGMENT_VARIANTS AUGMENT_EDGE_THRESHOLD \
        AUGMENT_MODEL_VARIANT AUGMENT_NUM_STEPS AUGMENT_DISABLE_GUARDRAILS \
-       AUGMENT_STRICT_FRAME_CHECK AUGMENT_OUT_DIR AUGMENT_OVERWRITE
+       AUGMENT_STRICT_FRAME_CHECK AUGMENT_FRAME_TOLERANCE AUGMENT_PREFLIGHT \
+       AUGMENT_PREFLIGHT_FRAMES AUGMENT_OUT_DIR AUGMENT_OVERWRITE
 
 DATASET_DIR="$DATA_DIR/unitreerobotics/G1_Dex3_BlockStacking_Dataset"
 SPECS_DIR="$DATA_DIR/augmentation/specs"
 RAW_OUTPUT_DIR="$DATA_DIR/augmentation/raw_output"
+PREFLIGHT_DIR="$DATA_DIR/augmentation/preflight"
 WORK_LIST="$SPECS_DIR/work_list.json"
 
 echo "  Konfiguration:"
@@ -131,6 +143,9 @@ printf "    %-24s %s\n" "AUGMENT_VARIANTS"         "$AUGMENT_VARIANTS"
 printf "    %-24s %s\n" "AUGMENT_EDGE_THRESHOLD"   "$AUGMENT_EDGE_THRESHOLD"
 printf "    %-24s %s\n" "AUGMENT_MODEL_VARIANT"    "$AUGMENT_MODEL_VARIANT"
 printf "    %-24s %s\n" "AUGMENT_DISABLE_GUARDRAILS" "$AUGMENT_DISABLE_GUARDRAILS"
+printf "    %-24s %s\n" "AUGMENT_STRICT_FRAME_CHECK" "$AUGMENT_STRICT_FRAME_CHECK"
+printf "    %-24s %s\n" "AUGMENT_FRAME_TOLERANCE"  "$AUGMENT_FRAME_TOLERANCE"
+printf "    %-24s %s\n" "AUGMENT_PREFLIGHT"        "$AUGMENT_PREFLIGHT (${AUGMENT_PREFLIGHT_FRAMES} Frames)"
 printf "    %-24s %s\n" "AUGMENT_OUT_DIR"          "$AUGMENT_OUT_DIR"
 echo ""
 
@@ -268,6 +283,70 @@ mkdir -p "$DATA_DIR/logs"
 N_ITEMS="$("$TOOLS_PYTHON" -c "import json,sys; print(len(json.load(open(sys.argv[1]))))" "$WORK_LIST")"
 log "Arbeitsliste: $N_ITEMS Eintraege (Episode x Kamera x Variante)"
 
+# ── Preflight: ein kurzer Clip, Framezahl/fps gegen die Quelle ─────────────────
+# assemble_dataset.py verwirft bei AUGMENT_STRICT_FRAME_CHECK=1 jede Episode, deren
+# Cosmos-Ausgabe nicht exakt so viele Frames (und dieselben fps) hat wie die Quelle — das
+# zeigt sich sonst erst NACH dem kompletten GPU-Lauf. Hier: das erste noch offene Work-Item
+# mit max_frames=AUGMENT_PREFLIGHT_FRAMES rendern und pruefen. Ergebnis wird pro Spec +
+# Modellvariante gemerkt (.passed), ein Neustart desselben Laufs zahlt den Clip nicht erneut.
+if [[ "$AUGMENT_PREFLIGHT" != "1" ]]; then
+    warn "AUGMENT_PREFLIGHT=0 — Vorabpruefung uebersprungen."
+else
+    PREFLIGHT_LINE="$("$TOOLS_PYTHON" - "$WORK_LIST" "$PREFLIGHT_DIR" "$AUGMENT_PREFLIGHT_FRAMES" \
+        "$AUGMENT_OVERWRITE" <<'PYEOF'
+import json
+import sys
+from pathlib import Path
+
+work_list, preflight_dir = Path(sys.argv[1]), Path(sys.argv[2])
+max_frames, overwrite = int(sys.argv[3]), sys.argv[4] == "1"
+items = json.loads(work_list.read_text())
+pending = [i for i in items if overwrite or not (Path(i["raw_output_dir"]) / ".done").exists()]
+if not pending:
+    print("ALL_DONE")
+    sys.exit(0)
+item = pending[0]
+spec = json.loads(Path(item["spec_path"]).read_text())
+name = f"{item['name']}_preflight"
+spec["name"] = name
+spec["max_frames"] = max_frames
+preflight_dir.mkdir(parents=True, exist_ok=True)
+spec_path = preflight_dir / f"{name}.json"
+spec_path.write_text(json.dumps(spec, indent=2, sort_keys=True))
+print("\t".join([name, str(spec_path), str(preflight_dir / name), item["source_video"]]))
+PYEOF
+)"
+    if [[ "$PREFLIGHT_LINE" == "ALL_DONE" ]]; then
+        ok "Preflight uebersprungen — alle Work-Items sind bereits fertig."
+    else
+        IFS=$'\t' read -r PF_NAME PF_SPEC PF_OUT PF_SOURCE <<<"$PREFLIGHT_LINE"
+        PF_KEY="$(cat "$PF_SPEC" <(echo "$AUGMENT_MODEL_VARIANT") | sha256sum | cut -d' ' -f1)"
+        if [[ -f "$PF_OUT/.passed" && "$(cat "$PF_OUT/.passed")" == "$PF_KEY" \
+              && "$AUGMENT_OVERWRITE" != "1" ]]; then
+            ok "Preflight bereits bestanden fuer diese Spec/Modellvariante ($PF_OUT)."
+        else
+            log "Preflight: $PF_NAME (${AUGMENT_PREFLIGHT_FRAMES} Frames) — vor dem Volllauf"
+            # Eigener Ordner unter $PREFLIGHT_DIR — gefahrlos zu leeren, damit kein altes MP4
+            # die Pruefung besteht.
+            rm -rf "$PF_OUT"
+            mkdir -p "$PF_OUT"
+            bash /scripts/run_inference.sh "$PF_SPEC" "$PF_OUT" 2>&1 | tee -a "$LOG_FILE"
+            if ! "$TOOLS_PYTHON" /scripts/assemble_dataset.py \
+                    --dry-validate "$PF_OUT" --name "$PF_NAME" \
+                    --source-video "$PF_SOURCE" --max-frames "$AUGMENT_PREFLIGHT_FRAMES"; then
+                err "Preflight fehlgeschlagen — der Volllauf wuerde bei"
+                err "AUGMENT_STRICT_FRAME_CHECK=$AUGMENT_STRICT_FRAME_CHECK voraussichtlich jede Episode verwerfen."
+                err "  Optionen: AUGMENT_FRAME_TOLERANCE=<n> (kleine Abweichung am Ende ausgleichen),"
+                err "  AUGMENT_STRICT_FRAME_CHECK=0 (laengere Ausgaben kuerzen),"
+                err "  AUGMENT_PREFLIGHT=0 (Pruefung bewusst ueberspringen). Clip: $PF_OUT"
+                exit 1
+            fi
+            echo "$PF_KEY" > "$PF_OUT/.passed"
+            ok "Preflight bestanden"
+        fi
+    fi
+fi
+
 "$TOOLS_PYTHON" - "$WORK_LIST" "$AUGMENT_OVERWRITE" <<'PYEOF' | tee -a "$LOG_FILE"
 import json
 import subprocess
@@ -283,6 +362,12 @@ for i, item in enumerate(items, 1):
     if done_marker.exists() and not overwrite:
         print(f"[{i}/{len(items)}] uebersprungen (bereits vorhanden): {out_dir}")
         continue
+    # Reste eines abgebrochenen oder ueberschriebenen Laufs entfernen, damit
+    # assemble_dataset.py nicht ein altes oder halbes MP4 greift. Der Ordner gehoert allein
+    # diesem Work-Item (raw_output/<name>).
+    if out_dir.is_dir():
+        for stale in [*out_dir.rglob("*.mp4"), *out_dir.rglob("*.txt"), done_marker]:
+            stale.unlink(missing_ok=True)
     out_dir.mkdir(parents=True, exist_ok=True)
     print(f"[{i}/{len(items)}] Cosmos-Inferenz: {item['spec_path']} -> {out_dir}")
     subprocess.run(
@@ -306,7 +391,8 @@ log "Schritt 4/4 — LeRobot-v2.1-Datensatz zusammenbauen"
     --dataset-dir "$DATASET_DIR" \
     --work-list "$WORK_LIST" \
     --out-dir "$AUGMENT_OUT_DIR" \
-    --strict-frame-check "$AUGMENT_STRICT_FRAME_CHECK"
+    --strict-frame-check "$AUGMENT_STRICT_FRAME_CHECK" \
+    --frame-tolerance "$AUGMENT_FRAME_TOLERANCE"
 ok "Datensatz geschrieben: $AUGMENT_OUT_DIR"
 
 if [[ -n "$AUGMENT_HF_REPO" ]]; then
@@ -320,7 +406,7 @@ echo ""
 log "Fertig."
 echo "  Naechster Schritt — im Training-Image (Training/) als Co-Training-Datensatz nutzen:"
 echo "    USE_COTRAIN=1 COTRAIN_DATASET_PATH=$AUGMENT_OUT_DIR COTRAIN_MIX_RATIO=0.25 \\"
-echo "        ./Training/setup_and_train_DockerHub-pull.sh"
+echo "        ./Training/setup_and_train_dockerhub_pull.sh"
 echo "  (oder COTRAIN_HF_REPO=$AUGMENT_HF_REPO, falls hochgeladen)"
 echo "  Details: docs/training/co-training.md"
 echo ""
