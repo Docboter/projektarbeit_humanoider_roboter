@@ -37,6 +37,7 @@
 #   LOCAL_IMAGE  (default projektarbeit-humanoider-roboter:local, bei 1.7 :local-n17)
 #   BUILD_ARGS   (leer) — zusätzliche Argumente für `docker build`, z. B. "--no-cache"
 #   REPO_DIR     (default ./phr) — Ziel des Bootstrap-Klons
+#   REPO_BRANCH  (default: Branch des umgebenden Checkouts, sonst main) — Branch des Bootstrap-Klons
 
 set -euo pipefail
 
@@ -48,10 +49,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOCAL_IMAGE_SET="${LOCAL_IMAGE:-}"
 LOCAL_IMAGE="${LOCAL_IMAGE:-projektarbeit-humanoider-roboter:local}"
 REPO_URL="https://github.com/Docboter/projektarbeit_humanoider_roboter.git"
-# TODO: Eigentlich sollte der Bootstrap main klonen. Bis der Stand von
-# training-luca-IKR-IS6.0 nach main gemerged ist, zeigt REPO_BRANCH auf den
-# aktiven Arbeitsbranch — nach dem Merge auf "main" umstellen.
-REPO_BRANCH="training-luca-IKR-IS6.0"
+# Branch des Bootstrap-Klons: REPO_BRANCH=… schlaegt alles; sonst der Branch des Checkouts, in
+# dem dieses Skript liegt (falls es in einem liegt), sonst main. Bis 2026-10-13 stand hier fest
+# training-luca-IKR-IS6.0 (Review R5). Detached HEAD zaehlt nicht als Branch.
+_repo_branch="$(git -C "$SCRIPT_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+[[ "$_repo_branch" == "HEAD" ]] && _repo_branch=""
+REPO_BRANCH="${REPO_BRANCH:-${_repo_branch:-main}}"
 
 SKIP_BUILD=0; DRY_RUN=0; PASS=()
 for arg in "$@"; do

@@ -115,12 +115,17 @@ if [[ ! -d "$(dirname "$DATA_DIR")" ]]; then
 fi
 
 GITHUB_REPO="${GITHUB_REPO:-https://github.com/Docboter/projektarbeit_humanoider_roboter.git}"
-# Hauptbranch. Bis 2026-10-13 stand hier training-luca-KISSKI — 184 Commits zurück und danach
-# gelöscht; mit SKIP_GIT_PULL=0 hätte ein Job den Klon auf diesen alten Stand zurückgesetzt.
-GITHUB_BRANCH="${GITHUB_BRANCH:-training-luca-IKR-IS6.0}"
 # Repo muss vorab auf dem Login-Node geklont werden (Compute-Nodes haben keinen Internet-Zugang).
-# Einmalig: git clone --branch $GITHUB_BRANCH --depth 1 $GITHUB_REPO /mnt/vast-kisski/projects/kisski-humrob/repo
+# Einmalig: git clone --branch <branch> --depth 1 $GITHUB_REPO /mnt/vast-kisski/projects/kisski-humrob/repo
 REPO_DIR="${REPO_DIR:-$KISSKI_PROJECT_DIR/repo}"
+# Branch: der, auf dem der Repo-Klon gerade steht (GITHUB_BRANCH=… schlaegt das), sonst main.
+# Bis 2026-10-13 stand hier ein fester Arbeitsbranch (erst training-luca-KISSKI, dann
+# training-luca-IKR-IS6.0) — der brach, sobald ein anderer Branch der Arbeitsstand wurde, und
+# mit SKIP_GIT_PULL=0 setzte ein Job den Klon auf den alten Stand zurueck (Review R5).
+# Detached HEAD (z. B. ein ausgecheckter Commit) zaehlt nicht als Branch -> main.
+_repo_branch="$(git -C "$REPO_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+[[ "$_repo_branch" == "HEAD" ]] && _repo_branch=""
+GITHUB_BRANCH="${GITHUB_BRANCH:-${_repo_branch:-main}}"
 SKIP_GIT_PULL="${SKIP_GIT_PULL:-1}"
 
 # 4× A100 (DeepSpeed ZeRO-2). global_batch_size MUSS durch NUM_GPUS teilbar sein
@@ -182,7 +187,14 @@ SAVE_TOTAL_LIMIT="${SAVE_TOTAL_LIMIT:-40}"
 # Container durchgereicht werden — Apptainer erbt die Job-Umgebung NICHT automatisch.
 # Ohne den Durchgriff bliebe ein `TRAIN_TEST_SPLIT=1 sbatch …` wirkungslos, es gäbe
 # keine zurückgehaltenen Episoden und die Checkpoint-Auswahl bliebe blind.
-TRAIN_TEST_SPLIT="${TRAIN_TEST_SPLIT:-0}"
+# Default je Verfahren wie in entrypoint.sh: Co-Training braucht den Split (run_finetuning_
+# cotrain.sh), sonst 0. Bis 2026-10-13 reichte dieses Skript fuer USE_COTRAIN=1 eine feste 0
+# weiter (Review T1). Ein ausdruecklich gesetzter Wert gilt immer.
+if [[ "$USE_COTRAIN" != "1" ]]; then
+    TRAIN_TEST_SPLIT="${TRAIN_TEST_SPLIT:-0}"
+else
+    TRAIN_TEST_SPLIT="${TRAIN_TEST_SPLIT:-1}"
+fi
 TRAIN_SPLIT_RATIO="${TRAIN_SPLIT_RATIO:-0.8}"
 
 # Namespace des Laufs. Leer = Default des jeweiligen Trainings-Skripts.
@@ -286,21 +298,31 @@ echo "==> Schritt 1/2 — GitHub-Repo (Skripte + Konfiguration)"
 if [[ "$SKIP_GIT_PULL" == "1" ]]; then
     echo "    SKIP_GIT_PULL=1 — übersprungen."
 else
-    # Bei privaten Repos: export GITHUB_TOKEN=ghp_... vor sbatch setzen
+    # Bei privaten Repos: export GITHUB_TOKEN=ghp_... vor sbatch setzen.
+    # Der Token geht NICHT mehr in die Klon-URL: dort landete er bis 2026-10-13 dauerhaft in
+    # $REPO_DIR/.git/config (und in der Prozessliste, Review T4). Stattdessen ein Credential-
+    # Helper, der ihn zur Laufzeit aus der Umgebung liest — argv enthaelt nur den Variablennamen.
+    GIT_AUTH=()
     if [[ -n "${GITHUB_TOKEN:-}" ]]; then
-        REPO_URL="https://${GITHUB_TOKEN}@${GITHUB_REPO#https://}"
-    else
-        REPO_URL="$GITHUB_REPO"
+        export GITHUB_TOKEN
+        # shellcheck disable=SC2016  # $GITHUB_TOKEN soll erst im Helper expandieren
+        GIT_AUTH=(-c credential.helper=
+                  -c 'credential.helper=!f() { echo username=x-access-token; echo "password=${GITHUB_TOKEN}"; }; f')
     fi
 
     if [[ -d "$REPO_DIR/.git" ]]; then
         echo "    Aktualisiere $REPO_DIR auf Branch $GITHUB_BRANCH …"
-        git -C "$REPO_DIR" fetch origin
+        # Altlast aus der Zeit mit Token-URL: origin auf die token-freie URL zuruecksetzen.
+        if git -C "$REPO_DIR" remote get-url origin 2>/dev/null | grep -q '@github.com'; then
+            git -C "$REPO_DIR" remote set-url origin "$GITHUB_REPO"
+            echo "    origin-URL ohne eingebetteten Token neu gesetzt."
+        fi
+        git ${GIT_AUTH[@]+"${GIT_AUTH[@]}"} -C "$REPO_DIR" fetch origin
         git -C "$REPO_DIR" checkout "$GITHUB_BRANCH"
-        git -C "$REPO_DIR" pull --ff-only origin "$GITHUB_BRANCH"
+        git ${GIT_AUTH[@]+"${GIT_AUTH[@]}"} -C "$REPO_DIR" pull --ff-only origin "$GITHUB_BRANCH"
     else
         echo "    Klone nach $REPO_DIR …"
-        git clone --branch "$GITHUB_BRANCH" --depth 1 "$REPO_URL" "$REPO_DIR"
+        git ${GIT_AUTH[@]+"${GIT_AUTH[@]}"} clone --branch "$GITHUB_BRANCH" --depth 1 "$GITHUB_REPO" "$REPO_DIR"
     fi
     echo "    Repo aktuell: $(git -C "$REPO_DIR" log -1 --oneline)"
 fi
@@ -320,7 +342,6 @@ APPTAINER_ARGS=(
     --env "DATA_DIR=/data"
     --env "TMPDIR=/tmp"
     --env "UV_OFFLINE=1"
-    ${HF_TOKEN:+--env "HF_TOKEN=$HF_TOKEN"}
     --env "MAX_STEPS=$MAX_STEPS"
     --env "SAVE_STEPS=$SAVE_STEPS"
     --env "SAVE_TOTAL_LIMIT=$SAVE_TOTAL_LIMIT"
@@ -394,9 +415,10 @@ if [[ "$GROOT_VERSION" == "1.7" ]]; then
         echo "       (Compute-Nodes haben kein Internet). Auf dem LOGIN-Node ausführen (huggingface-cli" >&2
         echo "       liegt in der SIF-venv; HF_TOKEN muss Zugang zum gated Backbone haben):" >&2
         echo "         module load apptainer" >&2
-        echo "         apptainer exec --bind $DATA_DIR:/data --env HF_TOKEN=\$HF_TOKEN --env HF_HOME=/data/hf_cache \\" >&2
+        echo "         export APPTAINERENV_HF_TOKEN=\"\$(cat ~/.hf_token)\"   # Token nicht in die Kommandozeile" >&2
+        echo "         apptainer exec --bind $DATA_DIR:/data --env HF_HOME=/data/hf_cache \\" >&2
         echo "             $SIF_IMAGE huggingface-cli download nvidia/Cosmos-Reason2-2B" >&2
-        echo "         apptainer exec --bind $DATA_DIR:/data --env HF_TOKEN=\$HF_TOKEN \\" >&2
+        echo "         apptainer exec --bind $DATA_DIR:/data \\" >&2
         echo "             $SIF_IMAGE huggingface-cli download nvidia/GR00T-N1.7-3B --local-dir /data/models/GR00T-N1.7-3B" >&2
         echo "       Zugang zum gated Backbone-Repo vorher beantragen:" >&2
         echo "         https://huggingface.co/nvidia/Cosmos-Reason2-2B" >&2
@@ -464,7 +486,11 @@ echo "    GROOT_VERSION:           $GROOT_VERSION  (root=$GROOT_TARGET_ROOT)"
 echo "    G1_DEX3-Config aus Fork: $GROOT_FORK_DIR/examples/G1_DEX3"
 echo "    gr00t-Modul aus Fork:    $GROOT_FORK_DIR/gr00t"
 
-[[ -n "${WANDB_API_KEY:-}" ]] && APPTAINER_ARGS+=(--env "WANDB_API_KEY=$WANDB_API_KEY")
+# Geheimnisse NICHT als --env KEY=WERT: das stand in der Prozessliste des Knotens und war auf
+# geteilten KISSKI-Knoten fuer andere Nutzer lesbar (Review T4). APPTAINERENV_<NAME> setzt die
+# Variable im Container aus der Umgebung, ohne dass der Wert in argv erscheint.
+[[ -n "${HF_TOKEN:-}" ]]      && export APPTAINERENV_HF_TOKEN="$HF_TOKEN"
+[[ -n "${WANDB_API_KEY:-}" ]] && export APPTAINERENV_WANDB_API_KEY="$WANDB_API_KEY"
 # Compute-Nodes haben kein Internet — W&B immer im Offline-Modus betreiben.
 APPTAINER_ARGS+=(--env "WANDB_MODE=offline")
 APPTAINER_ARGS+=(--env "WANDB_DIR=/data/g1_dex3_finetune")

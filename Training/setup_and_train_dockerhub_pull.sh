@@ -148,6 +148,12 @@ fi
 
 # ── Konfiguration ─────────────────────────────────────────────────────────────
 GROOT_VERSION="${GROOT_VERSION:-1.6}"
+# Dieselben Schreibweisen wie im Container (n1.7, 17, …): sonst bekam z. B. "n1.7" unten das
+# N1.6-Image und ein falsches Banner. Die Lib definiert nur Funktionen, sourcen ist folgenlos.
+# shellcheck source=scripts/lib_groot_version.sh
+source "$SCRIPT_DIR/scripts/lib_groot_version.sh"
+GROOT_VERSION="$(groot_normalize_version "$GROOT_VERSION")" || exit 1
+[[ "$GROOT_VERSION" == auto ]] && fatal "GROOT_VERSION=auto geht beim Training nicht — 1.6 oder 1.7 setzen."
 # Docker-Hub-Konto der Images. Ziehen darf jeder vom Team-Konto (oeffentlich); wer selbst
 # baut und pusht, setzt sein Konto — dieselbe Variable, die update_image.sh fuer den Push nimmt.
 DOCKER_NAMESPACE="${DOCKER_NAMESPACE:-lucam03}"
@@ -166,7 +172,8 @@ WANDB_PROJECT="${WANDB_PROJECT:-gr00t-g1-dex3}"
 # ── Banner ────────────────────────────────────────────────────────────────────
 echo ""
 echo -e "\033[35m╔══════════════════════════════════════════════════════════════════╗\033[0m"
-echo -e "\033[35m║   GR00T N1.6 Fine-tuning — Host-Launcher (Container ist autonom) ║\033[0m"
+# Generation aus GROOT_VERSION — bis 2026-10-13 stand hier fest "N1.6", auch bei N1.7-Laeufen.
+echo -e "\033[35m║   GR00T N${GROOT_VERSION} Fine-tuning — Host-Launcher (Container ist autonom) ║\033[0m"
 echo -e "\033[35m╚══════════════════════════════════════════════════════════════════╝\033[0m"
 echo ""
 $DRY_RUN && warn "DRY-RUN aktiv — es werden keine Befehle ausgefuehrt."
@@ -182,8 +189,11 @@ if ! docker info &>/dev/null; then
 fi
 ok "Docker-Daemon laeuft"
 
-# NVIDIA Container Toolkit (nur informativ)
-if docker run --rm --gpus all --entrypoint nvidia-smi \
+# NVIDIA Container Toolkit (nur informativ). Im Dry-Run nicht: der Test startet einen Container
+# und zieht dafuer bei Bedarf das CUDA-Basis-Image — beides soll ein Dry-Run nicht tun.
+if $DRY_RUN; then
+    warn "Dry-Run — GPU-Test (docker run nvidia/cuda …) uebersprungen."
+elif docker run --rm --gpus all --entrypoint nvidia-smi \
        "nvidia/cuda:12.8.0-base-ubuntu22.04" -L &>/dev/null 2>&1; then
     ok "NVIDIA Container Toolkit funktioniert"
 else
@@ -372,15 +382,24 @@ else
     done
     echo ""
 
+    # Geheimnisse nur mit NAMEN uebergeben (`-e HF_TOKEN`): docker liest den Wert dann aus der
+    # eigenen Umgebung. Bis 2026-10-13 stand `-e HF_TOKEN=<wert>` in argv — sichtbar in `ps`
+    # fuer jeden Nutzer des Rechners und im Klartext in der --dry-run-Ausgabe (Review T4).
+    # Dafuer muessen beide exportiert sein; aus .env.local (`: "${HF_TOKEN:=…}"`) sind sie
+    # sonst nur Shell-Variablen.
+    export HF_TOKEN
     run_args+=(
-        "-e" "HF_TOKEN=$HF_TOKEN"
+        "-e" "HF_TOKEN"
         "-e" "MAX_STEPS=$MAX_STEPS"
         "-e" "GLOBAL_BATCH_SIZE=$GLOBAL_BATCH_SIZE"
         "-e" "NUM_GPUS=$NUM_GPUS"
         "-e" "WANDB_PROJECT=$WANDB_PROJECT"
         "-e" "GROOT_VERSION=$GROOT_VERSION"
     )
-    [[ -n "${WANDB_API_KEY:-}" ]] && run_args+=("-e" "WANDB_API_KEY=$WANDB_API_KEY")
+    if [[ -n "${WANDB_API_KEY:-}" ]]; then
+        export WANDB_API_KEY
+        run_args+=("-e" "WANDB_API_KEY")
+    fi
 
     # Bis 2026-08 endete die Liste hier — die Feature-Schalter des Entrypoints waren vom
     # Host aus also gar nicht erreichbar. Wer TUNE_VISUAL=1 ./setup_and_train_… aufrief,
@@ -393,10 +412,13 @@ else
     # run_finetuning_cotrain.sh laesst nur die letzten fuenf Checkpoints ueberleben, und
     # Lauf 3 hat gezeigt, dass der beste in der Mitte liegt. Der checkpoint_sweep haette
     # dann nur noch das Ende zu sehen bekommen.
+    # DATA_DIR und WANDB_DIR fehlen hier bewusst: das sind Container-Pfade (/data …), ein
+    # Host-Wert aus .env.local oder der KISSKI-Doku haette /data im Container verbogen
+    # (Review T3). Ein Host-Verzeichnis als /data: TRAIN_HOST_DATA_DIR.
     for _v in TUNE_VISUAL USE_COTRAIN COTRAIN_MIX_RATIO COTRAIN_DATASET_PATH \
               COTRAIN_HF_REPO TRAIN_TEST_SPLIT TRAIN_SPLIT_RATIO USE_AUGMENTATION \
               USE_RL SKIP_DOWNLOAD SKIP_CONVERT SKIP_TRAIN SHELL_ON_ERROR \
-              WANDB_MODE WANDB_DIR DATA_DIR \
+              WANDB_MODE \
               SAVE_STEPS SAVE_TOTAL_LIMIT LEARNING_RATE WARMUP_RATIO WEIGHT_DECAY \
               DATALOADER_WORKERS GRADIENT_ACCUMULATION_STEPS \
               OUTPUT_DIR EXPERIMENT_NAME RESUME \

@@ -26,7 +26,7 @@
 #   ./update_image.sh --dry-run          # Befehle anzeigen, nichts ausfuehren
 #
 # Tags & Herkunft (seit 2026-08-19):
-#   Jeder Build bekommt :<repo-branch>-<gen> (z. B. :training-luca-IKR-IS6.0-GN1.7-n17,
+#   Jeder Build bekommt :<repo-branch>-<gen> (z. B. :main-n17,
 #   '/' -> '-') und :<zeitstempel>-<gen>, mit <gen> = n16 | n17 | n16-n17 — so ueberschreiben
 #   sich N1.6- und N1.7-Build desselben Branches nicht. :latest wird NUR mit --push-latest
 #   gesetzt/gepusht: N1.6 -> :latest (wie bisher, das ziehen alle Launcher), N1.7 ->
@@ -106,8 +106,12 @@ invoke_cmd() {
         echo "${C_YELLOW}[dry-run] $*${C_RESET}"
         return
     fi
-    if ! "$@"; then
-        exit_fatal "Befehl fehlgeschlagen (Exit-Code $?): $*"
+    # `if ! "$@"` liesse in $? nur noch das Ergebnis der Negation (immer 0) stehen — der
+    # Exit-Code wurde deshalb bis 2026-10-13 stets als 0 gemeldet (Review T5).
+    local rc=0
+    "$@" || rc=$?
+    if [[ $rc -ne 0 ]]; then
+        exit_fatal "Befehl fehlgeschlagen (Exit-Code $rc): $*"
     fi
 }
 

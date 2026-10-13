@@ -35,7 +35,7 @@ N1.7-Spezifika, die aus launch_finetune.py übernommen wurden:
 
 Aufruf (macht run_finetuning_cotrain.sh bei GROOT_VERSION=1.7):
     python launch_cotrain_n17.py --cotrain_dataset_path /data/cotrain/g1_dex3_rendered \
-                                 --cotrain_mix_ratio 0.5 \
+                                 --cotrain_mix_ratio 0.25 \
                                  --base_model_path ... --dataset_path ... [wie launch_finetune.py]
 """
 
@@ -72,7 +72,7 @@ def split_own_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
     """
     own = argparse.ArgumentParser(add_help=False)
     own.add_argument("--cotrain_dataset_path", type=str, default="")
-    own.add_argument("--cotrain_mix_ratio", type=float, default=0.5)
+    own.add_argument("--cotrain_mix_ratio", type=float, default=0.25)
     return own.parse_known_args(argv)
 
 

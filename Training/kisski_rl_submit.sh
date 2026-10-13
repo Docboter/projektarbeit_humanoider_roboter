@@ -134,7 +134,6 @@ APPTAINER_ARGS=(
     --nv
     --bind "$DATA_DIR:/data"
     --env "TMPDIR=/tmp"
-    ${HF_TOKEN:+--env "HF_TOKEN=$HF_TOKEN"}
     ${HF_CHECKPOINT_REPO:+--env "HF_CHECKPOINT_REPO=$HF_CHECKPOINT_REPO"}
     --env "CHECKPOINT_PATH=$CHECKPOINT_PATH"
     --env "RL_NUM_ENVS=$RL_NUM_ENVS"
@@ -145,7 +144,13 @@ APPTAINER_ARGS=(
     --env "RL_CLIP=$RL_CLIP"
     --env "GROOT_VERSION=$GROOT_VERSION"
 )
-[[ -n "${WANDB_API_KEY:-}" ]] && APPTAINER_ARGS+=(--env "WANDB_API_KEY=$WANDB_API_KEY" --env "WANDB_MODE=offline")
+# Geheimnisse ueber APPTAINERENV_<NAME> statt --env KEY=WERT — sonst stuenden sie in der
+# Prozessliste des (geteilten) Knotens (Review T4).
+[[ -n "${HF_TOKEN:-}" ]] && export APPTAINERENV_HF_TOKEN="$HF_TOKEN"
+if [[ -n "${WANDB_API_KEY:-}" ]]; then
+    export APPTAINERENV_WANDB_API_KEY="$WANDB_API_KEY"
+    APPTAINER_ARGS+=(--env "WANDB_MODE=offline")
+fi
 
 # Repo-Sim-Skripte mounten, damit Änderungen ohne Image-Rebuild wirken (analog kisski_submit.sh).
 if [[ -d "${REPO_DIR}/Simulation/g1_dex3_sim" ]]; then

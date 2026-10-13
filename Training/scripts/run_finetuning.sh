@@ -22,18 +22,20 @@ source "$SCRIPT_DIR/lib_groot_version.sh"
 groot_resolve || { echo "FEHLER: GR00T-Versionsauflösung fehlgeschlagen (GROOT_VERSION=${GROOT_VERSION:-})." >&2; exit 1; }
 
 # ── Trainings-Parameter (alle via Env-Var überschreibbar) ─────────────────────
-MODEL_PATH="${MODEL_PATH:-/data/models/$GROOT_MODEL_NAME}"
-DATASET_PATH="${DATASET_PATH:-/data/unitreerobotics/G1_Dex3_BlockStacking_Dataset}"
-OUTPUT_DIR="${OUTPUT_DIR:-/data/g1_dex3_finetune/blockstacking${GROOT_NS_SUFFIX}}"
+# DATA_DIR: Container-seitige Datenwurzel (Default /data wie Dockerfile-ENV und entrypoint.sh).
+# Bis 2026-10-13 waren die Pfade unten fest auf /data codiert (Review T5).
+DATA_DIR="${DATA_DIR:-/data}"
+MODEL_PATH="${MODEL_PATH:-$DATA_DIR/models/$GROOT_MODEL_NAME}"
+DATASET_PATH="${DATASET_PATH:-$DATA_DIR/unitreerobotics/G1_Dex3_BlockStacking_Dataset}"
+OUTPUT_DIR="${OUTPUT_DIR:-$DATA_DIR/g1_dex3_finetune/blockstacking${GROOT_NS_SUFFIX}}"
 EXPERIMENT_NAME="${EXPERIMENT_NAME:-g1_dex3_blockstacking_v1}"
 MODALITY_CONFIG="${MODALITY_CONFIG:-$GROOT_ROOT/examples/G1_DEX3/g1_dex3_config.py}"
 EMBODIMENT_TAG="${EMBODIMENT_TAG:-NEW_EMBODIMENT}"
 
 # Steps: bei ~241–301 Episoden (eine Aufgabe) sättigt Behavior Cloning früh; 20k Schritte
 # reichen für gesunde Konvergenz (Lauf 1 war bei 30k bereits sauber konvergiert), sparen Zeit
-# und reduzieren Memorierung, die den Sim-Domain-Gap verschärft. save_steps=2000 + limit=10
-# → 10 gleichmäßig verteilte Checkpoints über den ganzen Lauf (gute Basis für die Open-Loop-
-# Checkpoint-Auswahl), statt nur der letzten 5 wie zuvor.
+# und reduzieren Memorierung, die den Sim-Domain-Gap verschärft. Checkpoint-Intervall und
+# -Limit: siehe SAVE_STEPS/SAVE_TOTAL_LIMIT weiter unten.
 MAX_STEPS="${MAX_STEPS:-20000}"
 GLOBAL_BATCH_SIZE="${GLOBAL_BATCH_SIZE:-8}" #8
 DATALOADER_WORKERS="${DATALOADER_WORKERS:-8}"
@@ -43,8 +45,14 @@ DATALOADER_WORKERS="${DATALOADER_WORKERS:-8}"
 # man damit die Batchgroesse des Referenzlaufs, statt sie senken und das Optimierungs-
 # regime mitaendern zu muessen. 1 = aus, verhaelt sich exakt wie bisher.
 GRADIENT_ACCUMULATION_STEPS="${GRADIENT_ACCUMULATION_STEPS:-1}"
+# Checkpoints: einheitlich in allen drei Trainings-Skripten (Review T5). Bis 2026-10-13 standen
+# vision/cotrain auf 1000/5 — bei einem 44k-Lauf blieben nur die letzten fuenf Checkpoints, zu
+# wenig fuer checkpoint_sweep.py (der beste muss nicht am Ende liegen). 2000/15 haelt jeden
+# Checkpoint eines Laufs bis 30000 Schritte (Default des Pull-Launchers), bei 44k die letzten
+# 15 ab 16000; Plattenbedarf hoechstens ~330 GB (~22 GB je Checkpoint inkl. optimizer.pt).
+# Knapper Platz: SAVE_TOTAL_LIMIT senken. KISSKI setzt eigene Werte (kisski_submit.sh: 5000/40).
 SAVE_STEPS="${SAVE_STEPS:-2000}"
-SAVE_TOTAL_LIMIT="${SAVE_TOTAL_LIMIT:-10}"
+SAVE_TOTAL_LIMIT="${SAVE_TOTAL_LIMIT:-15}"
 LEARNING_RATE="${LEARNING_RATE:-1e-4}"
 WEIGHT_DECAY="${WEIGHT_DECAY:-1e-5}"
 WARMUP_RATIO="${WARMUP_RATIO:-0.05}"
@@ -134,8 +142,11 @@ if [[ "$USE_WANDB" == "1" ]]; then
         log "W&B Offline-Modus — Login übersprungen (kein Internet auf Compute-Node)."
     else
         cd "$GROOT_ROOT"
-        # wandb liest WANDB_API_KEY automatisch — kein expliziter Login nötig.
-        if uv run --no-sync wandb login --relogin "$WANDB_API_KEY" &>/dev/null; then
+        # wandb.init() liest WANDB_API_KEY selbst aus der Umgebung — ein Login ist nicht noetig.
+        # Bis 2026-10-13 stand hier `wandb login --relogin "$WANDB_API_KEY"`: der Key lag damit
+        # in der Prozessliste (auf geteilten Knoten fuer andere lesbar) und in ~/.netrc (Review
+        # T4). Jetzt nur noch eine Vorab-Pruefung des Keys gegen den Server, ohne ihn in argv.
+        if uv run --no-sync python -c "import sys, wandb; sys.exit(0 if wandb.login(verify=True) else 1)" &>/dev/null; then
             log "W&B-Login OK"
         else
             err "W&B-Login fehlgeschlagen — API-Key ungültig?"
@@ -216,7 +227,7 @@ if [[ "$DRY_RUN" == "1" ]]; then
 fi
 
 # ── 6. Training ausführen, Logs nach /data/logs (= Host-sichtbar) ─────────────
-LOG_DIR="/data/logs"
+LOG_DIR="$DATA_DIR/logs"
 mkdir -p "$LOG_DIR"
 LOG_FILE="$LOG_DIR/finetune-$(date +%Y%m%d-%H%M%S).log"
 log "Logs: $LOG_FILE  (auf dem Host: ./data/logs/$(basename "$LOG_FILE"))"

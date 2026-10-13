@@ -23,8 +23,9 @@
 #   SHELL_ON_ERROR        (default 0)      — auf 1 setzen, um bei Fehler in eine Shell zu fallen
 #   TUNE_VISUAL           (default 0)      — auf 1 setzen, um zusätzlich den Vision-Encoder
 #                                            mitzutrainieren (startet run_finetuning_vision.sh)
-#   TRAIN_TEST_SPLIT      (default 0)      — auf 1 setzen für 80/20-Split (Test-Episoden werden
-#                                            NICHT mittrainiert; an run_finetuning.sh durchgereicht)
+#   TRAIN_TEST_SPLIT      (default 0; bei USE_COTRAIN=1 default 1) — 1 = 80/20-Split (Test-
+#                                            Episoden werden NICHT mittrainiert; an
+#                                            run_finetuning*.sh durchgereicht)
 #   USE_AUGMENTATION      (default 1)      — Bild-Augmentierung/Domain-Randomization (Color-Jitter);
 #                                            0 schaltet sie aus (an run_finetuning.sh durchgereicht)
 #   USE_RL                (default 0)      — RL-Fine-tuning (FPO). Läuft NICHT im BC-Image: braucht
@@ -106,8 +107,16 @@ SKIP_TRAIN="${SKIP_TRAIN:-0}"
 TUNE_VISUAL="${TUNE_VISUAL:-0}"
 USE_RL="${USE_RL:-0}"
 USE_COTRAIN="${USE_COTRAIN:-0}"
-# An run_finetuning.sh durchgereichte BC-Schalter (Defaults dort gesetzt):
-TRAIN_TEST_SPLIT="${TRAIN_TEST_SPLIT:-0}"
+# An run_finetuning*.sh durchgereichte BC-Schalter.
+# TRAIN_TEST_SPLIT: Default je Verfahren. Co-Training braucht den Split (Abbruchregel ueber die
+# Validierungs-MSE auf zurueckgehaltenen ECHTEN Episoden, run_finetuning_cotrain.sh), sonst bleibt
+# es beim bisherigen 0. Bis 2026-10-13 erzwangen Dockerfile-ENV und ein festes `:-0` hier die 0
+# auch fuer USE_COTRAIN=1 (Review T1). Ein ausdruecklich gesetzter Wert gilt immer.
+if [[ "$USE_COTRAIN" != "1" ]]; then
+    TRAIN_TEST_SPLIT="${TRAIN_TEST_SPLIT:-0}"
+else
+    TRAIN_TEST_SPLIT="${TRAIN_TEST_SPLIT:-1}"
+fi
 USE_AUGMENTATION="${USE_AUGMENTATION:-1}"
 export TRAIN_TEST_SPLIT USE_AUGMENTATION
 
@@ -178,23 +187,20 @@ export MODEL_PATH="${MODEL_PATH:-$MODEL_DIR}"
 DATASET_DIR="$DATA_DIR/unitreerobotics/G1_Dex3_BlockStacking_Dataset"
 MODALITY_FILE="$DATASET_DIR/meta/modality.json"
 
-# Heuristik: Modell- und Datensatzordner mit Inhalt → Download überspringen
-data_present() {
-    [[ -d "$MODEL_DIR"   && -n "$(ls -A "$MODEL_DIR"   2>/dev/null || true)" ]] && \
-    [[ -d "$DATASET_DIR" && -n "$(ls -A "$DATASET_DIR" 2>/dev/null || true)" ]]
-}
-
-log "Schritt 1/3 — Download (Modell + Datensatz)"
+# Bis 2026-10-13 stand hier eine "Ordner nicht leer"-Heuristik: ein abgebrochener Download galt
+# als vollstaendig, und bei vorhandenem Modell + Datensatz wurde das N1.7-Backbone nie geladen
+# (Review T5). Jetzt entscheidet download_data.sh je Teil ueber .done-Marker unter
+# $DATA_DIR/.download_state/ und ueberspringt Fertiges selbst — der Aufruf ist also billig,
+# wenn alles da ist, und laeuft deshalb bei jedem Start.
+log "Schritt 1/3 — Download (Modell + Datensatz${GROOT_BACKBONE_REPO:+ + Backbone})"
 if [[ "$SKIP_DOWNLOAD" == "1" ]]; then
     warn "SKIP_DOWNLOAD=1 — Download übersprungen."
-elif data_present; then
-    ok "Daten bereits vorhanden — Download übersprungen."
+else
+    log "Pruefe/lade Modell + Datensatz nach $DATA_DIR (beim ersten Start ~25 GB)…"
+    bash /scripts/download_data.sh
+    ok "Download vollstaendig."
     ok "    Modell:    $MODEL_DIR"
     ok "    Datensatz: $DATASET_DIR"
-else
-    log "Lade Modell + Datensatz nach $DATA_DIR (~25 GB)…"
-    bash /scripts/download_data.sh
-    ok "Download abgeschlossen."
 fi
 echo ""
 

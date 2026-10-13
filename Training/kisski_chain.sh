@@ -120,9 +120,16 @@ done
 [[ -f "$real_mod" ]] || warn "Echter Datensatz nicht gefunden ($real_mod) — modality-Vergleich übersprungen."
 # Dieselbe Fork-Prüfung wie in kisski_submit.sh, nur VOR der Warteschlange (Review 4.5).
 # Die Jobs erben GROOT_VERSION über --export=ALL; Pin und Fork-Klon hängen davon ab.
-case "${GROOT_VERSION:-1.6}" in
-    1.7|n17|N1.7|17) fork="${GROOT17_FORK_DIR:-$KISSKI_PROJECT_DIR/repo-groot-n17}"; pin_arg=GROOT17_COMMIT ;;
-    *)               fork="${GROOT_FORK_DIR:-$KISSKI_PROJECT_DIR/repo-groot}";       pin_arg=GROOT16_COMMIT ;;
+# Normalisieren mit derselben Funktion wie kisski_submit.sh: bis 2026-10-13 kannte das case
+# hier nur vier Schreibweisen, "n1.7" oder "1_7" landeten still beim N1.6-Pin (Review T5).
+# shellcheck source=scripts/lib_groot_version.sh
+source "$REPO_DIR/Training/scripts/lib_groot_version.sh"
+GROOT_VERSION="$(groot_normalize_version "${GROOT_VERSION:-1.6}")" || exit 2
+[[ "$GROOT_VERSION" == auto ]] && { err "GROOT_VERSION=auto geht beim Training nicht — 1.6 oder 1.7 setzen."; exit 2; }
+export GROOT_VERSION
+case "$GROOT_VERSION" in
+    1.7) fork="${GROOT17_FORK_DIR:-$KISSKI_PROJECT_DIR/repo-groot-n17}"; pin_arg=GROOT17_COMMIT ;;
+    *)   fork="${GROOT_FORK_DIR:-$KISSKI_PROJECT_DIR/repo-groot}";       pin_arg=GROOT16_COMMIT ;;
 esac
 pin="$(grep -oE "^ARG ${pin_arg}=[0-9a-f]{40}" "$REPO_DIR/Training/Dockerfile" 2>/dev/null \
        | head -1 | sed "s/^ARG ${pin_arg}=//" || true)"

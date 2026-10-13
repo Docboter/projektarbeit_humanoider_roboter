@@ -34,5 +34,40 @@ services:
       - NUM_GPUS
       - WANDB_PROJECT
       - GROOT_VERSION   # 1.6 (Default) | 1.7 — siehe Training/scripts/lib_groot_version.sh
+      # Bis 2026-10-13 endete die Liste hier — Verfahrens-Schalter und Lauf-Parameter kamen
+      # ueber compose nie im Container an (Review T5). Gleiche Auswahl wie
+      # setup_and_train_dockerhub_pull.sh. Ohne Wert gelistet = nur durchgereicht, wenn auf dem
+      # Host gesetzt; sonst gelten die Defaults aus Dockerfile/entrypoint.sh.
+      # DATA_DIR/WANDB_DIR bewusst NICHT: das sind Container-Pfade (Review T3).
+      - TUNE_VISUAL
+      - USE_COTRAIN
+      - COTRAIN_MIX_RATIO
+      - COTRAIN_DATASET_PATH
+      - COTRAIN_HF_REPO
+      - TRAIN_TEST_SPLIT
+      - TRAIN_SPLIT_RATIO
+      - USE_AUGMENTATION
+      - USE_RL
+      - SKIP_DOWNLOAD
+      - SKIP_CONVERT
+      - SKIP_TRAIN
+      - SHELL_ON_ERROR
+      - WANDB_MODE
+      - SAVE_STEPS
+      - SAVE_TOTAL_LIMIT
+      - LEARNING_RATE
+      - WARMUP_RATIO
+      - WEIGHT_DECAY
+      - DATALOADER_WORKERS
+      - GRADIENT_ACCUMULATION_STEPS
+      - OUTPUT_DIR
+      - EXPERIMENT_NAME
+      - RESUME
+      - CJ_BRIGHTNESS
+      - CJ_CONTRAST
+      - CJ_SATURATION
+      - CJ_HUE
+      - RANDOM_ROTATION_ANGLE
+      - STATE_DROPOUT_PROB
     # Passend zur Generation: im :latest-n17-Image ist /app/Groot-1.6 leer (Review 5.2c).
     working_dir: /app/Groot-${GROOT_VERSION:-1.6}

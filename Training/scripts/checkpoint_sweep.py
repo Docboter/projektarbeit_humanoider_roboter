@@ -47,9 +47,41 @@ import sys
 
 
 # Versionsabhängig (N1.6 vs. N1.7): wird von lib_groot_version.sh (groot_resolve)
-# exportiert, wenn das aufrufende Trainings-Skript sie gesourct hat. Fallback N1.6, falls
-# checkpoint_sweep.py freistehend ohne diesen Kontext aufgerufen wird.
-GROOT_ROOT = os.environ.get("GROOT_ROOT", "/app/Groot-1.6")
+# exportiert, wenn das aufrufende Trainings-Skript sie gesourct hat. Freistehend (ohne diesen
+# Kontext) fiel das Skript bis 2026-10-13 immer auf /app/Groot-1.6 zurück — im N1.7-Image der
+# falsche (leere) Baum (Review T5). Jetzt in der Reihenfolge der Lib:
+#   1. ein GROOT_ROOT, der KEIN Standardpfad ist, gilt als explizit;
+#   2. GROOT_VERSION (gleiche Schreibweisen wie groot_normalize_version);
+#   3. der Baum der laufenden venv (sys.prefix = /app/Groot-1.x/.venv);
+#   4. ein Standard-GROOT_ROOT aus dem Image-ENV;
+#   5. der erste Standardbaum, der wirklich Code enthält; sonst /app/Groot-1.6.
+_STD_ROOTS = {"1.6": "/app/Groot-1.6", "1.7": "/app/Groot-1.7"}
+_VERSION_ALIASES = {
+    "1.6": {"1.6", "n1.6", "16", "n16", "1_6", "n1d6", "gr00t_n1d6", "gr00tn1d6"},
+    "1.7": {"1.7", "n1.7", "17", "n17", "1_7", "n1d7", "gr00t_n1d7", "gr00tn1d7"},
+}
+
+
+def _default_groot_root() -> str:
+    env_root = os.environ.get("GROOT_ROOT", "").rstrip("/")
+    if env_root and env_root not in _STD_ROOTS.values():
+        return env_root
+    version = os.environ.get("GROOT_VERSION", "").strip().lower().replace(" ", "")
+    for ver, aliases in _VERSION_ALIASES.items():
+        if version in aliases:
+            return _STD_ROOTS[ver]
+    venv_tree = str(Path(sys.prefix).parent)
+    if venv_tree in _STD_ROOTS.values():
+        return venv_tree
+    if env_root:
+        return env_root
+    for root in _STD_ROOTS.values():
+        if (Path(root) / "gr00t").is_dir():
+            return root
+    return _STD_ROOTS["1.6"]
+
+
+GROOT_ROOT = _default_groot_root()
 
 
 # ── Argumente ─────────────────────────────────────────────────────────────────

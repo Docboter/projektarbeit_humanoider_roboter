@@ -62,12 +62,14 @@ param COTRAIN_HF_REPO str "" basic \
   "Alternativ COTRAIN_DATASET_PATH, wenn der Datensatz schon im Container liegt." \
   --default-from "run_finetuning_cotrain.sh, leer = optional"
 when '[[ "${USE_COTRAIN:-0}" == 1 ]]'
-param COTRAIN_DATASET_PATH path "/data/cotrain/g1_dex3_rendered" advanced "Pfad des gerenderten Datensatzes im Container"
+param COTRAIN_DATASET_PATH path "/data/cotrain/g1_dex3_rendered" advanced "Pfad des gerenderten Datensatzes im Container" \
+  --override "Skript-Default ist \$DATA_DIR/cotrain/g1_dex3_rendered; im Container ist DATA_DIR=/data, also derselbe Pfad"
 
 group "Validierung"
 param TRAIN_TEST_SPLIT bool 0 basic \
   "80/20-Split aktivieren" \
-  "Haelt Test-Episoden zurueck, damit checkpoint_sweep.py hinterher offene-Schleife-MSE auf UNGESEHENEN Daten messen kann. Der Fork hat keine Validierung waehrend des Trainings (enable_open_loop_eval ist tote Konfiguration), deshalb ist das die einzige Stelle, an der man sie bekommt. Ohne Split ist jede spaetere Checkpoint-Auswahl geraten."
+  "Haelt Test-Episoden zurueck, damit checkpoint_sweep.py hinterher offene-Schleife-MSE auf UNGESEHENEN Daten messen kann. Der Fork hat keine Validierung waehrend des Trainings (enable_open_loop_eval ist tote Konfiguration), deshalb ist das die einzige Stelle, an der man sie bekommt. Ohne Split ist jede spaetere Checkpoint-Auswahl geraten. Bei USE_COTRAIN=1 ist der Default 1." \
+  --suggest '[[ "${USE_COTRAIN:-0}" == 1 ]] && echo "1|Co-Training braucht den Split: seine Abbruchregel misst auf zurueckgehaltenen ECHTEN Episoden (Default 1 bei USE_COTRAIN=1)"'
 when '[[ "${TRAIN_TEST_SPLIT:-0}" == 1 ]]'
 param TRAIN_SPLIT_RATIO float 0.8 advanced "Anteil Trainingsepisoden" --range 0.1:0.99
 
