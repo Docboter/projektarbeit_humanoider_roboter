@@ -1,0 +1,228 @@
+#!/usr/bin/env bash
+# TL;DR: Sim-Container-Entrypoint: startet das FPO-RL-Fine-tuning des GR00T-Action-Heads (rl_finetune.py).
+# entrypoint_rl.sh — RL-Fine-tuning (FPO) im kombinierten Isaac-Sim + GR00T-Container.
+#
+# Läuft autonom: lädt den BC-Checkpoint (HF oder lokal) und startet das
+# FPO-RL-Fine-tuning des GR00T-Action-Heads (rl_finetune.py) in der Block-Stacking-Sim.
+#
+# WICHTIG: braucht eine RT-Core-GPU (Ampere+ mit RT-Cores: L40, RTX 4090, A6000) für
+# das 4-Kamera-Rendering — A100/H100 haben KEINE RT-Cores (siehe
+# docs/weiterfuehrend/reinforcement-learning-plan.md §3.5 und CLAUDE.md).
+#
+# NUR GR00T N1.6. rl_finetune.py läuft im gebündelten Isaac-Sim-Python, und dort ist
+# ausschließlich das N1.6-gr00t installiert (pip install -e /app/Groot-1.6 --no-deps,
+# transformers 4.51.3 für Eagle). Zudem repliziert der Trainer Interna von
+# Gr00tN1d6ActionHead.forward und der Prozessor-Masken. Mit einem N1.7-Checkpoint (oder
+# GROOT_VERSION=1.7) bricht das Skript deshalb sofort ab; die Portierung ist Phase 6 in
+# docs/weiterfuehrend/groot-n17-migration.md.
+#
+# Steuerung über Env-Vars (auf vast.ai im Feld "Docker options" als -e KEY=VAL):
+#   HF_TOKEN              (Pflicht für HF-Download)
+#   HF_CHECKPOINT_REPO   (optional) BC-Checkpoint-Repo auf HF (wird nach CHECKPOINT_PATH geladen)
+#   CHECKPOINT_PATH      (default /data/checkpoints/groot-g1dex3-checkpoint) BC-Startpunkt
+#   RL_NUM_ENVS          (default 16)   parallele Sim-Envs (Render-Durchsatz beachten!)
+#   RL_ITERATIONS        (default 500)  RL-Iterationen
+#   RL_ROLLOUT_STEPS     (default 32)   Env-Steps pro Rollout
+#   RL_LR                (default 1e-5)
+#   RL_KL_COEF           (default 0.1)  KL-Regularisierung gegen den BC-Checkpoint
+#   RL_CLIP              (default 0.2)  PPO/FPO-Clip-Epsilon
+#   RL_SAVE_EVERY        (default 100)  Checkpoint alle N Iterationen (ganzes Modell ~6 GB/Ckpt)
+#   WANDB_API_KEY        (optional)     ohne → ohne W&B
+#   RL_WANDB_VIDEO_EVERY (default 0)    alle N Iterationen einen Rollout als W&B-Video (0 = aus)
+#   SHELL_ON_ERROR       (default 0)    bei Fehler in Shell fallen
+#
+# Live-Ansicht im Browser (opt-in, docs/weiterfuehrend/livestream-plan.md „Spur B"):
+#   LIVE_VIEW            (default 0)    1 = MJPEG-Stream des Rollouts
+#   LIVE_VIEW_PORT       (default 8900) HTTP-Port (Container-Port mappen!)
+#   LIVE_VIEW_EVERY_N    (default 1)    nur jedes n-te Frame senden
+#   LIVE_VIEW_CAMS       (default cam_scene) Kameras, kommagetrennt
+# Diese vier werden hier BEWUSST NICHT als CLI-Flags durchgereicht: rl_finetune.py liest
+# sie selbst als argparse-Defaults. Damit wirken sie auch mit einem älteren Image — auf dem
+# Server ist g1_dex3_sim gemountet, dieses Skript hier dagegen fest im Image.
+#
+# LIVE-Variante mit Isaac-Sim-Viewport (opt-in, „Spur A", docs/simulation/live-ansicht.md):
+#   LIVESTREAM           (default 0)    2 = WebRTC im privaten Netz/VPN, 1 = öffentlich.
+#                                       Isaac Sim läuft dann NICHT headless, sondern streamt
+#                                       seinen Viewport; geöffnet wird er vom nativen
+#                                       „Isaac Sim WebRTC Streaming Client" auf dem PC.
+#   LIVESTREAM_PORT      (default 49100) Signaling, TCP    — mappen!
+#   LIVESTREAM_MEDIA_PORT(default 47998) Medien, UDP       — mappen!
+# Für einen Lauf über Tage bleibt Spur B (LIVE_VIEW) die robustere Wahl: zustandslos,
+# beliebig viele Zuschauer, übersteht Netzabbrüche. Beide lassen sich kombinieren.
+# LIVESTREAM wird — wie LIVE_VIEW — von rl_finetune.py selbst gelesen; hier wird nur die
+# Kit-Settings-Zeile daraus gebaut und als LIVESTREAM_KIT_ARGS exportiert.
+
+set -euo pipefail
+
+# ── Instance-Log ──────────────────────────────────────────────────────────────
+# Alle Ausgaben zusätzlich nach /data/logs/entrypoint_rl.log spiegeln — identisch zu
+# entrypoint_sim.sh / _replay.sh / _baseline.sh, die das längst tun; der RL-Entrypoint
+# war der einzige ohne. Bei einem Lauf über Stunden ist der Terminal-Scrollback als
+# einzige Quelle zu wenig. Erreichbar mit: tail -f /data/logs/entrypoint_rl.log
+mkdir -p "${DATA_DIR:-/data}/logs"
+exec > >(tee -a "${DATA_DIR:-/data}/logs/entrypoint_rl.log") 2>&1
+
+log()  { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
+ok()   { printf '\033[1;32m v \033[0m %s\n' "$*"; }
+warn() { printf '\033[1;33m ! \033[0m %s\n' "$*"; }
+err()  { printf '\033[1;31m!! \033[0m %s\n' "$*" >&2; }
+
+trap_err() {
+    err "RL-Entrypoint mit Fehler beendet (Zeile $1)."
+    if [[ "${SHELL_ON_ERROR:-0}" == "1" ]]; then
+        warn "SHELL_ON_ERROR=1 — falle in interaktive Shell."
+        exec /bin/bash
+    fi
+    exit 1
+}
+trap 'trap_err $LINENO' ERR
+
+# Manuelle Override-Befehle durchreichen.
+if [[ $# -gt 0 ]]; then
+    log "RL-Entrypoint: führe übergebenen Befehl aus: $*"
+    exec "$@"
+fi
+
+SIM_DIR="${SIM_DIR:-/workspace/g1_dex3_sim}"
+CHECKPOINT_PATH="${CHECKPOINT_PATH:-/data/checkpoints/groot-g1dex3-checkpoint}"
+# USD-Roboter-Asset (wie bei der Sim-Eval). Default: g1_dex3.usd im Checkpoint-Verzeichnis,
+# falls per HF_CHECKPOINT_REPO mitgeladen; sonst explizit setzen.
+ASSET_PATH="${ASSET_PATH:-$CHECKPOINT_PATH/g1_dex3.usd}"
+RL_OUTPUT_DIR="${RL_OUTPUT_DIR:-/data/g1_dex3_rl}"
+
+RL_NUM_ENVS="${RL_NUM_ENVS:-16}"
+RL_ITERATIONS="${RL_ITERATIONS:-500}"
+RL_ROLLOUT_STEPS="${RL_ROLLOUT_STEPS:-32}"
+RL_LR="${RL_LR:-1e-5}"
+RL_KL_COEF="${RL_KL_COEF:-0.1}"
+RL_CLIP="${RL_CLIP:-0.2}"
+RL_SAVE_EVERY="${RL_SAVE_EVERY:-100}"
+
+echo ""
+echo -e "\033[1;35m╔══════════════════════════════════════════════════════════════════╗\033[0m"
+echo -e "\033[1;35m║   GR00T N1.6 — RL-Fine-tuning (FPO) auf Block-Stacking           ║\033[0m"
+echo -e "\033[1;35m╚══════════════════════════════════════════════════════════════════╝\033[0m"
+echo ""
+
+# ── GPU-Check (RT-Cores erforderlich) ─────────────────────────────────────────
+log "GPU-Check"
+if ! nvidia-smi -L &>/dev/null; then
+    err "Keine GPU sichtbar. Container ohne --gpus all gestartet?"
+    exit 1
+fi
+nvidia-smi -L | sed 's/^/    /'
+GPU_NAME="$(nvidia-smi --query-gpu=name --format=csv,noheader | head -n1 || true)"
+case "$GPU_NAME" in
+    *A100*|*H100*)
+        warn "GPU '$GPU_NAME' hat KEINE RT-Cores — das 4-Kamera-Rendering ist hier ineffizient/instabil."
+        warn "Empfohlen: L40 / RTX 4090 / A6000 (siehe reinforcement-learning-plan.md §3.5)." ;;
+esac
+ok "GPU: $GPU_NAME"
+echo ""
+
+# ── Checkpoint laden (HF optional) ────────────────────────────────────────────
+if [[ -n "${HF_CHECKPOINT_REPO:-}" && ! -d "$CHECKPOINT_PATH" ]]; then
+    [[ -n "${HF_TOKEN:-}" ]] || { err "HF_CHECKPOINT_REPO gesetzt, aber HF_TOKEN fehlt."; exit 1; }
+    log "Lade BC-Checkpoint von HF: $HF_CHECKPOINT_REPO → $CHECKPOINT_PATH"
+    export HF_TOKEN HUGGING_FACE_HUB_TOKEN="$HF_TOKEN"
+    huggingface-cli download "$HF_CHECKPOINT_REPO" --local-dir "$CHECKPOINT_PATH"
+fi
+[[ -d "$CHECKPOINT_PATH" ]] || { err "BC-Checkpoint fehlt: $CHECKPOINT_PATH (HF_CHECKPOINT_REPO setzen?)"; exit 1; }
+ok "BC-Checkpoint: $CHECKPOINT_PATH"
+
+# ── GR00T-Version: RL gibt es nur für N1.6 (Begründung im Kopf dieser Datei) ───
+# Früh und deutlich abbrechen statt den Traceback im Isaac-Python abzuwarten: dort käme
+# entweder ein ImportError (gr00t_n1d7 fehlt) oder ein stiller Ladefehler des Checkpoints.
+export GROOT_VERSION_DEFAULT="auto"
+if [[ -r /scripts/lib_groot_version.sh ]]; then
+    # shellcheck source=lib_groot_version.sh
+    source /scripts/lib_groot_version.sh
+    RL_WANT="$(groot_normalize_version "${GROOT_VERSION:-}")"
+    RL_DETECTED="$(groot_detect_version "$CHECKPOINT_PATH" 2>/dev/null || true)"
+    if [[ "$RL_WANT" == "1.7" || "$RL_DETECTED" == "1.7" ]]; then
+        err "RL-Fine-tuning gibt es bislang nur für GR00T N1.6."
+        if [[ "$RL_DETECTED" == "1.7" ]]; then
+            err "  '$CHECKPOINT_PATH' ist ein N1.7-Checkpoint (model_type Gr00tN1d7)."
+        else
+            err "  GROOT_VERSION=1.7 ist gesetzt."
+        fi
+        err "  Grund: rl_finetune.py läuft im Isaac-Sim-Python, dort ist nur das N1.6-gr00t"
+        err "  installiert; der Trainer repliziert außerdem Gr00tN1d6ActionHead.forward und"
+        err "  die Prozessor-Masken. Portierung: docs/weiterfuehrend/groot-n17-migration.md"
+        err "  (Phase 6). Für RL einen N1.6-Checkpoint verwenden."
+        exit 1
+    fi
+    groot_resolve 1.6
+    log "$(groot_summary)"
+else
+    warn "lib_groot_version.sh fehlt im Image — nehme GR00T N1.6 an (RL kann nichts anderes)."
+fi
+
+# USD-Asset prüfen (RL-Env spawnt den Roboter daraus)
+ASSET_FLAG=()
+if [[ -f "$ASSET_PATH" ]]; then
+    ASSET_FLAG=(--asset-path "$ASSET_PATH")
+    ok "USD-Asset: $ASSET_PATH"
+else
+    warn "USD-Asset nicht unter $ASSET_PATH — Env nutzt den cfg-Default (g1_dex3_cfg.py)."
+    warn "Bei Bedarf ASSET_PATH setzen oder g1_dex3.usd ins Checkpoint-Repo legen."
+fi
+
+# ── W&B ───────────────────────────────────────────────────────────────────────
+WANDB_FLAG=()
+if [[ -n "${WANDB_API_KEY:-}" ]]; then
+    export WANDB_API_KEY WANDB_MODE="${WANDB_MODE:-offline}"
+    WANDB_FLAG=(--wandb)
+    ok "W&B aktiv (Modus: ${WANDB_MODE})."
+else
+    warn "Kein WANDB_API_KEY — RL läuft ohne W&B."
+fi
+
+# ── Live-Ansicht (rein informativ; rl_finetune.py liest LIVE_VIEW* selbst) ─────
+if [[ "${LIVE_VIEW:-0}" != "0" ]]; then
+    ok "Live-Ansicht an → http://<server-ip>:${LIVE_VIEW_PORT:-8900}/  (Port mappen nicht vergessen)"
+else
+    warn "Live-Ansicht aus (LIVE_VIEW=1 setzen, um im Browser zuzusehen)."
+fi
+
+# ── LIVE-Variante: Isaac-Sim-Viewport per WebRTC („Spur A") ───────────────────
+# rl_finetune.py liest LIVESTREAM selbst (wie LIVE_VIEW*, damit ein Schalter ohne
+# Image-Rebuild wirkt). Hier entsteht nur die versionsabhängige Kit-Settings-Zeile —
+# und die auch nur, wenn von den Default-Ports abgewichen wird.
+if [[ -r /scripts/lib_livestream.sh ]]; then
+    # shellcheck source=lib_livestream.sh
+    source /scripts/lib_livestream.sh
+    livestream_init
+    if livestream_active; then
+        LS_KIT="$(livestream_kit_args)"
+        if [[ -n "$LS_KIT" ]]; then
+            export LIVESTREAM_KIT_ARGS="$LS_KIT"
+            log "Kit-Settings: $LS_KIT"
+        fi
+        livestream_banner
+    fi
+elif [[ "${LIVESTREAM:-0}" != "0" ]]; then
+    warn "LIVESTREAM=$LIVESTREAM, aber lib_livestream.sh fehlt im Image."
+    warn "  rl_finetune.py startet den Stream trotzdem mit Default-Ports (49100/47998)."
+fi
+
+mkdir -p "$RL_OUTPUT_DIR"
+
+# ── RL starten ────────────────────────────────────────────────────────────────
+log "Starte FPO-RL-Fine-tuning (num_envs=$RL_NUM_ENVS, iterations=$RL_ITERATIONS, save_every=$RL_SAVE_EVERY)"
+cd "$SIM_DIR"
+# rl_finetune.py initialisiert Isaac Sim via AppLauncher — muss im Isaac-Sim-Python laufen.
+# VIRTUAL_ENV muss ungesetzt sein, sonst lenkt isaaclab.sh auf das GR00T-venv um.
+unset VIRTUAL_ENV
+exec "${ISAACLAB_PATH}/isaaclab.sh" -p "$SIM_DIR/rl_finetune.py" \
+    --checkpoint     "$CHECKPOINT_PATH" \
+    "${ASSET_FLAG[@]}" \
+    --output-dir     "$RL_OUTPUT_DIR" \
+    --num-envs       "$RL_NUM_ENVS" \
+    --iterations     "$RL_ITERATIONS" \
+    --rollout-steps  "$RL_ROLLOUT_STEPS" \
+    --lr             "$RL_LR" \
+    --kl-coef        "$RL_KL_COEF" \
+    --clip           "$RL_CLIP" \
+    --save-every     "$RL_SAVE_EVERY" \
+    "${WANDB_FLAG[@]}"

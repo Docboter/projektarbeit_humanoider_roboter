@@ -1,0 +1,315 @@
+% preamble/settings.tex — Einstellungen, Konfigurationen, Abkürzungen
+% ═════════════════════════════════════════════════════════════════════
+
+% ── Zeilenumbruch ────────────────────────────────────────────────────
+% Erlaubt TeX, Zeilen im Notfall zu dehnen, statt sie über den Rand ragen
+% zu lassen (reduziert "Overfull \hbox"-Warnungen bei schwer trennbarem Text).
+\setlength{\emergencystretch}{3em}
+
+% ── Metadaten (hier anpassen!) ────────────────────────────────────────
+\newcommand{\docTitle}{Fine-Tuning von NVIDIA GR00T N1.6 für humanoide Roboter-Manipulation}
+\newcommand{\docSubtitle}{Block-Stacking mit dem Unitree G1 und DEX3-Hand}
+% Verfasser: Die Projektarbeit ist eine gemeinsame Arbeit dreier Studierender.
+% \docAuthorA/B/C und die zugehörigen Matrikelnummern werden auf dem Titelblatt
+% und in der ehrenwörtlichen Erklärung einzeln ausgegeben; \docAuthors ist die
+% Fließtext-/PDF-Metadaten-Fassung derselben Liste.
+\newcommand{\docAuthorA}{Maximilian Berger}
+\newcommand{\docAuthorB}{Matthias Späth}
+\newcommand{\docAuthorC}{Luca Mücke}
+% TODO vor Abgabe: Matrikelnummern A/B und Abgabedatum eintragen
+\newcommand{\docMatrikelA}{[Matrikelnummer]}
+\newcommand{\docMatrikelB}{[Matrikelnummer]}
+\newcommand{\docMatrikelC}{539698}
+\newcommand{\docAuthors}{\docAuthorA, \docAuthorB, \docAuthorC}
+\newcommand{\docBetreuer}{Prof. Dr. Matthias Lorenzen}
+\newcommand{\docHochschule}{Hochschule für angewandte Wissenschaften Kempten}
+\newcommand{\docFachbereich}{Fakultät Elektrotechnik}
+\newcommand{\docStudiengang}{Master Automatisierungstechnik und Robotik}
+\newcommand{\docAbgabedatum}{[TT.\,MM.\,JJJJ]}
+
+% ── Hyperref-Konfiguration ────────────────────────────────────────────
+\hypersetup{
+  colorlinks   = true,
+  linkcolor    = NavyBlue,
+  citecolor    = NavyBlue,
+  urlcolor     = BurntOrange,
+  filecolor    = NavyBlue,
+  pdftitle     = {\docTitle},
+  pdfauthor    = {\docAuthors},
+  pdfsubject   = {Projektarbeit},
+  pdfkeywords  = {Humanoider Roboter, GR00T, Fine-Tuning, Imitation Learning,
+                  Unitree G1, DEX3},
+  pdflang      = {de-DE},
+  pdfcreator   = {LuaLaTeX mit hyperref},
+}
+
+% ── cleveref-Bezeichnungen (Deutsch) ─────────────────────────────────
+\crefname{figure}{Abb.}{Abb.}
+\Crefname{figure}{Abbildung}{Abbildungen}
+\crefname{table}{Tab.}{Tab.}
+\Crefname{table}{Tabelle}{Tabellen}
+\crefname{equation}{Gl.}{Gl.}
+\Crefname{equation}{Gleichung}{Gleichungen}
+\crefname{chapter}{Kap.}{Kap.}
+\Crefname{chapter}{Kapitel}{Kapitel}
+\crefname{section}{Abschn.}{Abschn.}
+\Crefname{section}{Abschnitt}{Abschnitte}
+\crefname{listing}{Listing}{Listings}
+\Crefname{listing}{Listing}{Listings}
+\crefname{appendix}{Anh.}{Anh.}
+\Crefname{appendix}{Anhang}{Anhänge}
+
+% ── Caption-Stil ──────────────────────────────────────────────────────
+\captionsetup{
+  font      = small,
+  labelfont = {bf, sf},
+  labelsep  = period,
+  skip      = 6pt,
+}
+\captionsetup[sub]{
+  font      = footnotesize,
+  labelfont = sf,
+}
+
+% ── minted-Standardkonfiguration ─────────────────────────────────────
+\setminted{
+  bgcolor    = gray!8,
+  fontsize   = \small,
+  linenos    = true,
+  breaklines = true,
+  breakanywhere,
+  frame      = leftline,
+  framesep   = 2mm,
+  rulecolor  = NavyBlue!50,
+  numbersep  = 4pt,
+  tabsize    = 4,
+}
+
+% ── Hilfsmakros ──────────────────────────────────────────────────────
+% \doc{pfad} — referenziert eine Datei der Projektdokumentation (Repo-relativ).
+% \detokenize macht Unterstriche/Slashes in Pfaden satzfest; \seqsplit erlaubt
+% Zeilenumbrüche innerhalb des Pfads (statt über den Rand zu ragen). Beides bleibt
+% via \DeclareRobustCommand auch in beweglichen Argumenten (Captions →
+% Tabellen-/Abbildungsverzeichnis) zuverlässig nutzbar.
+\DeclareRobustCommand{\doc}[1]{\texttt{\expandafter\seqsplit\expandafter{\detokenize{#1}}}}
+
+% \TODO[optionaler Hinweis] — setzt roten Platzhalter + Randnotiz
+% In Mathe-Modus und innerhalb von Tabellen/Boxen nur visuellen Marker setzen.
+\newcommand{\TODO}[1][Wert fehlt]{%
+  \ifmmode
+    \text{\textcolor{BrickRed}{\bfseries[??]}}%
+  \else\ifinner
+    \textcolor{BrickRed}{\bfseries[??]}%
+  \else
+    \textcolor{BrickRed}{\bfseries[??]}%
+    \todo[size=\footnotesize, color=BrickRed!15, bordercolor=BrickRed!50]{#1}%
+  \fi\fi
+}
+\DeclareSIUnit{\fps}{fps}
+
+% ── siunitx ──────────────────────────────────────────────────────────
+\sisetup{
+  output-decimal-marker = {,},
+  group-separator       = {\,},
+  group-minimum-digits  = 4,
+}
+
+% ── KOMA-Script Schriftsatz ───────────────────────────────────────────
+\setkomafont{chapter}{\LARGE\bfseries\sffamily}
+\setkomafont{section}{\large\bfseries\sffamily}
+\setkomafont{subsection}{\large\sffamily}
+\setkomafont{subsubsection}{\normalsize\itshape\sffamily}
+\setkomafont{disposition}{\sffamily}
+\addtokomafont{chapterprefix}{\color{NavyBlue!60}}
+\addtokomafont{chapter}{\color{NavyBlue}}
+
+% ── Kopf- und Fußzeile ────────────────────────────────────────────────
+\pagestyle{scrheadings}
+\clearpairofpagestyles
+\KOMAoptions{headsepline=false}                % KOMA-Trennlinie aus (wir zeichnen selbst)
+\automark[chapter]{chapter}                    % Kopfmarke = Kapitelnummer + Titel
+\renewcommand*{\chaptermarkformat}{Kapitel~\thechapter\enskip}
+% Kopfzeile links: "Kapitel XX Kapitelname" + halbbreite Trennlinie darunter.
+% Optional-Arg setzt dasselbe für plain.scrheadings (Kapitelanfangsseiten).
+\ihead[{%
+  \rlap{\raisebox{-7pt}[0pt][0pt]{%
+    \textcolor{NavyBlue!35}{\rule{.5\textwidth}{.4pt}}}}%
+  \headmark%
+}]{%
+  \rlap{\raisebox{-7pt}[0pt][0pt]{%
+    \textcolor{NavyBlue!35}{\rule{.5\textwidth}{.4pt}}}}%
+  \headmark%
+}
+\cfoot[\pagemark]{\pagemark}                   % Seitenzahl mittig unten
+\setkomafont{pageheadfoot}{\small\sffamily}
+\addtokomafont{pagehead}{\color{NavyBlue!75}}  % Kopftext in Akzentfarbe
+\setkomafont{pagenumber}{\sffamily}
+
+% ── Aufzählungen ─────────────────────────────────────────────────────
+\setlist{noitemsep, topsep=0.5\baselineskip}
+\setlist[itemize,1]{label=\textbullet}
+\setlist[itemize,2]{label=\textendash}
+\setlist[enumerate,1]{label=\arabic*.}
+
+% ── tcolorbox-Umgebungen ─────────────────────────────────────────────
+\tcbuselibrary{breakable, skins}
+
+% unbreakable: Boxen werden nie durch einen Seitenumbruch getrennt,
+% sondern bei Platzmangel komplett auf die nächste Seite verschoben.
+\newtcolorbox{infobox}[1][Hinweis]{
+  enhanced, breakable,
+  colback  = NavyBlue!5,
+  colframe = NavyBlue!60,
+  fonttitle = \bfseries\sffamily,
+  title    = {#1},
+}
+\newtcolorbox{warningbox}[1][Achtung]{
+  enhanced, breakable,
+  colback  = BrickRed!5,
+  colframe = BrickRed!60,
+  fonttitle = \bfseries\sffamily,
+  title    = {#1},
+}
+\newtcolorbox{tipbox}[1][Tipp]{
+  enhanced, breakable,
+  colback  = OliveGreen!5,
+  colframe = OliveGreen!60,
+  fonttitle = \bfseries\sffamily,
+  title    = {#1},
+}
+
+% ── acro-Konfiguration ────────────────────────────────────────────────
+\acsetup{make-links = true}
+
+\DeclareAcronym{vla}{
+  short = VLA,
+  long  = Vision-Language-Action,
+}
+\DeclareAcronym{llm}{
+  short = LLM,
+  long  = Large Language Model,
+}
+\DeclareAcronym{il}{
+  short = IL,
+  long  = Imitation Learning,
+}
+\DeclareAcronym{rl}{
+  short = RL,
+  long  = Reinforcement Learning,
+}
+\DeclareAcronym{gpu}{
+  short = GPU,
+  long  = Graphics Processing Unit,
+}
+\DeclareAcronym{hpc}{
+  short = HPC,
+  long  = High-Performance Computing,
+}
+\DeclareAcronym{slurm}{
+  short = SLURM,
+  long  = Simple Linux Utility for Resource Management,
+}
+\DeclareAcronym{api}{
+  short = API,
+  long  = Application Programming Interface,
+}
+\DeclareAcronym{vram}{
+  short = VRAM,
+  long  = Video Random Access Memory,
+}
+\DeclareAcronym{hf}{
+  short = HF,
+  long  = Hugging Face,
+}
+\DeclareAcronym{cnn}{
+  short = CNN,
+  long  = Convolutional Neural Network,
+}
+\DeclareAcronym{moe}{
+  short = MoE,
+  long  = Mixture of Experts,
+}
+\DeclareAcronym{vit}{
+  short = ViT,
+  long  = Vision Transformer,
+}
+\DeclareAcronym{dof}{
+  short = DoF,
+  long  = Degrees of Freedom,
+}
+\DeclareAcronym{fps}{
+  short = FPS,
+  long  = Frames per Second,
+}
+\DeclareAcronym{wandb}{
+  short = W\&B,
+  long  = Weights \& Biases,
+}
+\DeclareAcronym{bc}{
+  short = BC,
+  long  = Behavior Cloning,
+}
+\DeclareAcronym{gae}{
+  short = GAE,
+  long  = Generalized Advantage Estimation,
+}
+\DeclareAcronym{vlm}{
+  short = VLM,
+  long  = Vision-Language-Modell,
+}
+\DeclareAcronym{dr}{
+  short = DR,
+  long  = Domain Randomization,
+}
+\DeclareAcronym{wbc}{
+  short = WBC,
+  long  = Whole-Body Controller,
+}
+\DeclareAcronym{ik}{
+  short = IK,
+  long  = Inverse Kinematik,
+}
+\DeclareAcronym{mse}{
+  short = MSE,
+  long  = Mean Squared Error,
+}
+\DeclareAcronym{ddp}{
+  short = DDP,
+  long  = Distributed Data Parallel,
+}
+\DeclareAcronym{zmq}{
+  short = ZMQ,
+  long  = ZeroMQ,
+}
+\DeclareAcronym{mcp}{
+  short = MCP,
+  long  = Model Context Protocol,
+}
+\DeclareAcronym{ide}{
+  short = IDE,
+  long  = Integrierte Entwicklungsumgebung,
+}
+\DeclareAcronym{fpo}{
+  short = FPO,
+  long  = Flow Policy Optimization,
+}
+\DeclareAcronym{usd}{
+  short = USD,
+  long  = Universal Scene Description,
+}
+\DeclareAcronym{ppo}{
+  short = PPO,
+  long  = Proximal Policy Optimization,
+}
+\DeclareAcronym{ode}{
+  short = ODE,
+  long  = Ordinary Differential Equation,
+}
+\DeclareAcronym{urdf}{
+  short = URDF,
+  long  = Unified Robot Description Format,
+}
+\DeclareAcronym{sft}{
+  short = SFT,
+  long  = Supervised Fine-Tuning,
+}

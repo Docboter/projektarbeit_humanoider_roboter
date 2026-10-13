@@ -1,0 +1,37 @@
+% frontmatter/titelseite.tex
+\begin{titlepage}
+  \thispagestyle{empty}
+
+  \begin{center}
+
+    % ── Hochschul-Logo als Kopf des Titelblatts ──────────────────────
+    \includegraphics[width=6cm]{logo_hochschule}\\[1.5cm]
+
+    {\large\sffamily\bfseries \docHochschule}\\[0.3cm]
+    {\normalsize\sffamily \docFachbereich}\\[0.15cm]
+    {\normalsize\sffamily Studiengang: \docStudiengang}
+
+    \vspace{2.5cm}
+
+    \rule{\textwidth}{1.5pt}\\[0.6cm]
+    {\LARGE\bfseries\sffamily\color{NavyBlue} \docTitle}\\[0.5cm]
+    {\large\sffamily \docSubtitle}\\[0.4cm]
+    \rule{\textwidth}{1.5pt}
+
+    \vspace{1.5cm}
+    {\large\sffamily\itshape Projektarbeit}
+    \vspace{2.5cm}
+
+    \begin{tabular}{@{}l l @{\hspace{1em}} l}
+      \sffamily\textbf{Verfasser:}   & \sffamily \docAuthorA
+                                      & \sffamily Matr.-Nr.\ \docMatrikelA \\[0.15cm]
+                                      & \sffamily \docAuthorB
+                                      & \sffamily Matr.-Nr.\ \docMatrikelB \\[0.15cm]
+                                      & \sffamily \docAuthorC
+                                      & \sffamily Matr.-Nr.\ \docMatrikelC \\[0.5cm]
+      \sffamily\textbf{Betreuer:}    & \sffamily \docBetreuer \\[0.5cm]
+      \sffamily\textbf{Abgabedatum:} & \sffamily \docAbgabedatum \\
+    \end{tabular}
+
+  \end{center}
+\end{titlepage}

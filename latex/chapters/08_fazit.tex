@@ -1,0 +1,58 @@
+% chapters/08_fazit.tex
+
+\chapter{Fazit und Ausblick}
+\label{chap:fazit}
+
+\section{Fazit}
+\label{sec:fazit}
+
+In dieser Arbeit wurde GR00T~N1.6 für eine Block-Stacking-Aufgabe auf dem
+Unitree~G1 mit DEX3-Hand nachtrainiert. Entstanden sind eine
+Container-Umgebung, die lokal und auf dem KISSKI-Cluster auch mit mehreren
+GPUs läuft, eine Simulationsumgebung in Isaac~Lab, ein Verfahren zur
+Checkpoint-Auswahl und eine Reihe von Diagnosewerkzeugen. Die drei Leitfragen
+aus \cref{sec:zielsetzung} lassen sich wie folgt beantworten.
+
+\paragraph{F1: Training.} Das Fine-Tuning ist mit den verfügbaren Daten und
+Ressourcen stabil möglich. Alle drei Läufe konvergierten ohne Instabilitäten
+auf einen Trainings-Loss von etwa 0,007. Auf zurückgehaltenen Episoden ist
+der Fehler nach etwa 30\,000 von 44\,000 Schritten am kleinsten, der letzte
+Checkpoint ist rund 25\,\% schlechter. Die Armbewegungen werden gut
+wiedergegeben, die Fingerbewegungen sind verrauscht. Weil die Auswertung auf
+wenigen Episoden und nur der Anfahrphase beruht und ein Vergleich mit einer
+trivialen Vorhersage fehlt, ist diese Antwort vorläufig.
+
+\paragraph{F2: Simulation.} In der Simulation löst keine der getesteten
+Politiken die Aufgabe. Der zuletzt getestete Checkpoint (Stand 14.08.2026)
+nähert sich den Würfeln, berührt sie in allen Episoden und unternimmt in vier
+von zehn Episoden einen Greifversuch, hebt aber keinen Würfel über die
+Schwelle von 2~cm. Als Maß für die Qualität dieses Modells ist die
+Erfolgsrate in einer Simulation ohne visuellen Abgleich nur bedingt geeignet.
+Sinnvoll ist sie für die Fehlersuche und, mit Zwischenstufen, für den
+Vergleich von Checkpoints.
+
+\paragraph{F3: Ursachen.} Die Diagnosetests deuten darauf hin, dass vor allem
+der Unterschied zwischen realen und simulierten Bildern die Politik am Greifen
+hindert: Auf realen Bildern kommandiert sie die volle Greifbewegung, in der
+Simulation nur ein Fünftel bis ein Viertel. Die Inferenz-Kette wurde an einer
+Referenzaufgabe bestätigt. Wie groß der Anteil des Domain-Gaps ist, bleibt
+aber offen, weil die simulierte Hand sich wegen eines erst spät gefundenen
+Fehlers nicht vollständig schließen konnte und die realen Vergleichsbilder
+aus Trainingsepisoden stammen.
+
+Über die Ergebnisse hinaus zeigt das Projekt, wie viel Zeit Fehler ohne
+Fehlermeldung, fehlende Szeneninformationen und ungeklärte Rechenressourcen
+kosten. Die daraus abgeleiteten Empfehlungen in \cref{sec:lessons} sind für
+Folgeprojekte wahrscheinlich wertvoller als die einzelnen Messwerte.
+
+\section{Ausblick}
+\label{sec:ausblick}
+
+Als Nächstes sollten die kurzen Messungen aus \cref{sec:konsequenz}
+durchgeführt werden: die Fingeröffnung auf realen Testepisoden, der
+Open-Loop-Fehler auf allen Testepisoden mit einer trivialen Vorhersage als
+Vergleich und eine Wiederholung der Closed-Loop-Messung mit korrigierter
+Szene. Danach kann das Co-Training mit simulierten Bildern durchgeführt werden
+und im Anschluss das Reinforcement Learning, für das die Pipeline bereits
+lauffähig ist. Langfristig sind der Test auf dem realen Roboter und die
+Erweiterung um Lokomotion die wichtigsten offenen Schritte.

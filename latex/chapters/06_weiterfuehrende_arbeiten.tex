@@ -1,0 +1,92 @@
+% chapters/06_weiterfuehrende_arbeiten.tex
+
+\chapter{Weiterführende Arbeiten}
+\label{chap:weiterfuehrend}
+
+Die folgenden Arbeiten sind begonnen, aber nicht abgeschlossen. Konzepte,
+Stand und Bedienung beschreiben \doc{docs/weiterfuehrend/README.md},
+\doc{docs/training/co-training.md} und \doc{next-steps.md}.
+
+\section{Co-Training mit simulierten Bildern}
+\label{sec:cotrain}
+
+Wie in \cref{sec:frozen-vs-tuned} diskutiert, hilft das Mittrainieren des
+Bild-Encoders nur, wenn er im Training auch simulierte Bilder sieht. Für
+Co-Training auf realen und simulierten Daten wurden bei vergleichbaren
+Aufgaben deutliche Verbesserungen berichtet~\cite{cotrain2025}. Dafür wurden
+zwei Wege vorbereitet.
+
+Der erste nutzt den eigenen Datensatz. Ein Werkzeug spielt die realen
+Aktionen in der Simulation ab und zeichnet dabei die Bilder der vier Kameras
+auf. So entsteht ein Datensatz aus simulierten Bildern und realen Aktionen,
+der im Training mit dem realen Datensatz gemischt wird; empfohlen ist ein
+Anteil von 25\,\% simulierter Samples. Die Testepisoden werden dabei nicht
+gerendert. Voraussetzung ist eine Szene, die mit der realen übereinstimmt.
+Der gerenderte Datensatz muss deshalb nach den Korrekturen aus
+\cref{sec:geometrie} neu erzeugt werden.
+
+Der zweite nutzt einen extern in der Simulation aufgenommenen Datensatz mit
+16 teleoperierten Episoden. Er passt nicht direkt zum realen Datensatz: Der
+Zustand hat 57 statt 28 Dimensionen, die Bildrate beträgt 50 statt 30~fps, und
+die Arme sind als kartesische Pose statt als Gelenkwinkel angegeben. Ein
+Umwandlungswerkzeug bestimmt die Zuordnung der Gelenke, indem es die Daten
+gegeneinander misst, statt sie anzunehmen (\doc{docs/training/synth-datensatz.md}).
+Ein erster Co-Training-Lauf im September brach nach wenigen Minuten ab;
+danach zeigte sich, dass die umgewandelten Fingerbefehle vertauscht waren.
+Nach der Korrektur wurden neue Läufe für den Cluster vorbereitet, Ergebnisse
+lagen bei Abschluss der Arbeit nicht vor.
+
+Parallel dazu wird im Team ein generativer Ansatz verfolgt: Mit NVIDIA
+Cosmos-Transfer~\cite{cosmostransfer2025} werden die realen Trainingsvideos
+optisch verändert, um die Vielfalt der Trainingsbilder ohne neue
+Demonstrationen zu erhöhen. Dieser Ansatz ist noch in Entwicklung.
+
+\section{Reinforcement-Learning-Fine-Tuning}
+\label{sec:rl-weiterfuehrend}
+\label{sec:rl-verfahren}
+\label{sec:rl-stand}
+
+Behavior Cloning optimiert die Nachahmung der Demonstrationen, nicht den
+Aufgabenerfolg. Reinforcement Learning optimiert dagegen direkt auf den Erfolg
+und kann so Korrekturen lernen, die in den Demonstrationen nicht vorkommen.
+Für flow-basierte \acp{vla} wurde damit in einer Simulation mit 320
+parallelen Umgebungen eine Steigerung der Erfolgsrate von 41,6\,\% auf
+85,7\,\% berichtet~\cite{pirl2025}. Weil sich die Wahrscheinlichkeit einer
+Aktion beim Flow Matching nicht direkt berechnen lässt
+(\cref{sec:vla}), wurde das Verfahren \ac{fpo}~\cite{fpo2025} gewählt, das
+ohne diese Größe auskommt und den vorhandenen Trainings-Loss wiederverwendet.
+
+Implementiert wurde ein Trainer, der nur den Aktionskopf anpasst und die
+Belohnung aus der Isaac-Lab-Umgebung bezieht. Neben der binären Belohnung für
+einen Stapel gibt es eine abgestufte, die die Annäherung der Hand an einen
+Würfel, das Zusammenführen der Würfel und die Turmhöhe belohnt und unruhige
+Gelenkbewegungen bestraft. Weil Rendering mit RT-Cores und Rechenleistung für das Training
+gleichzeitig benötigt werden, läuft er auf dem Blackwell-Server des Instituts.
+Im August~2026 lief erstmals eine vollständige Trainingsiteration
+fehlerfrei durch. Ob das Training die Politik verbessert, ist noch nicht
+gezeigt. Dafür muss die Politik zunächst überhaupt einen Würfel anheben, damit
+die Belohnung ein verwertbares Signal liefert; das Co-Training sollte daher
+vorher durchgeführt werden (\doc{docs/weiterfuehrend/rl-anleitung.md}).
+
+\section{Wechsel auf GR00T N1.7}
+\label{sec:n17}
+
+Ende September wurde die Pipeline auf die Nachfolgeversion GR00T~N1.7
+übertragen. Dafür gibt es ein eigenes Container-Image; erste Testläufe auf dem
+Institutsserver waren erfolgreich. Trainingsläufe auf dem Cluster und eine
+Bewertung in der Simulation stehen noch aus.
+
+\section{Lokomotion}
+\label{sec:locomotion}
+\label{sec:loco-pfade}
+
+In dieser Arbeit ist der Roboter in der Simulation fest mit der Umgebung
+verbunden, der Aktionsraum umfasst nur Arme und Hände, und alle Daten wurden
+an einem stehenden Roboter aufgenommen. Für eine Fortbewegung wäre daher eine
+zusätzliche Steuerung nötig. NVIDIA trennt dazu Fortbewegung und
+Manipulation~\cite{groot2025}: Eine per Reinforcement Learning trainierte
+Politik steuert Beine und Gleichgewicht nach vorgegebenen Geschwindigkeiten,
+während der Oberkörper von der Manipulationspolitik gesteuert wird. Für den G1
+gibt es solche Laufpolitiken bereits. Die Recherche empfiehlt, zuerst eine
+vorhandene Laufpolitik in der Simulation zu testen und sie danach mit der
+Manipulationspolitik zu kombinieren (\doc{docs/weiterfuehrend/lokomotion-recherche.md}).

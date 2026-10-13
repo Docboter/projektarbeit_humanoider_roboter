@@ -1,0 +1,219 @@
+#!/usr/bin/env bash
+# TL;DR: Host-Skript: baut das Sim-Docker-Image (KISSKI oder --standalone) und pusht es zu Docker Hub.
+# update_sim_image.sh — baut das Sim-Docker-Image und pusht es nach Docker Hub.
+#
+# Zwei Zuschnitte:
+#   Standalone  = Isaac Sim + GR00T in einem Container (IKR-Server, vast.ai)
+#   KISSKI      = schlanker Sim-Client ohne GR00T (Apptainer/SLURM)
+#
+# Verwendung:
+#   ./update_sim_image.sh                # KISSKI-Image bauen + pushen (Dockerfile)
+#   ./update_sim_image.sh --standalone   # Standalone-Image bauen + pushen (Dockerfile.standalone)
+#   ./update_sim_image.sh --no-cache     # Build ohne Docker-Cache
+#   ./update_sim_image.sh --skip-push    # Nur bauen, nicht pushen
+#   ./update_sim_image.sh --push-latest  # zusätzlich :latest taggen + pushen (sonst NICHT angefasst)
+#   ./update_sim_image.sh --dry-run      # Befehle anzeigen, nichts ausführen
+#   ./update_sim_image.sh --help
+#
+# --vastai ist als veralteter Alias für --standalone weiter nutzbar.
+#
+# Voraussetzungen:
+#   docker login nvcr.io   (Username: $oauthtoken, Password: NGC-API-Key)
+#   docker login           (Docker Hub, für den Push)
+#
+# Tags & Herkunft (seit 2026-08-19, wie Training/update_image.sh): jeder Build bekommt
+#   :<repo-branch> ('/' -> '-') und :<zeitstempel>; :latest NUR mit --push-latest. OCI-Labels
+#   (org.opencontainers.image.revision/.source/.created, de.humrob.repo-branch, .repo-dirty,
+#   .groot-versions) zeigen die Herkunft: docker inspect --format '{{json .Config.Labels}}' <image>
+#
+# Umgebungsvariablen (optional):
+#   DOCKER_NAMESPACE (default: fragen) — Docker-Hub-Konto für den Push; auch aus .env.local.
+#                  Mit --skip-push/--dry-run ohne Angabe: Team-Konto lucam03 (nur lokale Tags)
+#   DOCKER_IMAGE   (default $DOCKER_NAMESPACE/projekt-humanoider-roboter-sim[-standalone])
+#   GROOT_VERSIONS (default "1.6 1.7") — nur Dockerfile.standalone: welche GR00T-Generationen ins
+#                  Image kommen (Build-Arg). "1.6" = altes, halb so großes Image ohne N1.7-venv.
+
+set -euo pipefail
+
+# ── Logging ─────────────────────────────────────────────────────────────────
+log()  { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
+ok()   { printf '\033[1;32m v \033[0m %s\n' "$*"; }
+warn() { printf '\033[1;33m ! \033[0m %s\n' "$*"; }
+err()  { printf '\033[1;31m!! \033[0m %s\n' "$*" >&2; }
+fatal(){ err "$*"; exit 1; }
+
+# ── Argumente ─────────────────────────────────────────────────────────────────
+NO_CACHE=0; SKIP_PUSH=0; PUSH_LATEST=0; DRY_RUN=0; STANDALONE=0
+for arg in "$@"; do
+    case "$arg" in
+        --no-cache)  NO_CACHE=1 ;;
+        --skip-push) SKIP_PUSH=1 ;;
+        --push-latest) PUSH_LATEST=1 ;;
+        --dry-run)   DRY_RUN=1 ;;
+        --standalone) STANDALONE=1 ;;
+        --vastai|-VastAI)
+            STANDALONE=1
+            printf '\033[1;33m ! \033[0m %s\n' "--vastai ist veraltet, bitte --standalone verwenden (gleiches Verhalten)." ;;
+        --help|-h)   awk 'NR>1 { if (/^#/) { sub(/^# ?/, ""); print; next } exit }' "${BASH_SOURCE[0]}"; exit 0 ;;
+        *)           fatal "Unbekanntes Argument: $arg (--help für Hilfe)" ;;
+    esac
+done
+
+run() {
+    if [[ "$DRY_RUN" == "1" ]]; then
+        printf '\033[1;33m[dry-run]\033[0m %s\n' "$*"
+        return 0
+    fi
+    "$@" || fatal "Befehl fehlgeschlagen (Exit $?): $*"
+}
+
+# ── Konfiguration ─────────────────────────────────────────────────────────────
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Docker-Hub-Konto: nicht mehr fest lucam03 (Push braucht Schreibrechte dort), sondern
+# DOCKER_NAMESPACE aus Umgebung/.env.local, sonst Rückfrage — siehe tools/lib_docker_ns.sh.
+# shellcheck source=../tools/lib_env_local.sh
+source "$REPO_DIR/tools/lib_env_local.sh"
+env_local_load "$REPO_DIR"
+# shellcheck source=../tools/lib_docker_ns.sh
+source "$REPO_DIR/tools/lib_docker_ns.sh"
+DOCKER_NAMESPACE="${DOCKER_NAMESPACE:-}"
+if [[ -z "${DOCKER_IMAGE:-}" ]]; then
+    if [[ "$SKIP_PUSH" == "1" || "$DRY_RUN" == "1" ]] && [[ -z "$DOCKER_NAMESPACE" ]]; then
+        DOCKER_NAMESPACE="$DOCKER_NAMESPACE_TEAM"   # nur lokale Tags, kein Push
+    else
+        docker_ns_require_push "$REPO_DIR" || exit 1
+    fi
+fi
+
+if [[ "$STANDALONE" == "1" ]]; then
+    DOCKER_IMAGE="${DOCKER_IMAGE:-$DOCKER_NAMESPACE/projekt-humanoider-roboter-sim-standalone}"
+    DOCKERFILE="$SCRIPT_DIR/Dockerfile.standalone"
+    TARGET="Standalone: Isaac Sim + GR00T (IKR-Server / vast.ai, Dockerfile.standalone)"
+else
+    DOCKER_IMAGE="${DOCKER_IMAGE:-$DOCKER_NAMESPACE/projekt-humanoider-roboter-sim}"
+    DOCKERFILE="$SCRIPT_DIR/Dockerfile"
+    TARGET="KISSKI/Apptainer (nur Sim-Client)"
+fi
+
+[[ -f "$DOCKERFILE" ]] || fatal "Dockerfile nicht gefunden: $DOCKERFILE"
+
+# ── Banner ────────────────────────────────────────────────────────────────────
+echo ""
+printf '\033[1;35mGR00T N1.6 — Sim-Image Update (%s)\033[0m\n' "$TARGET"
+echo ""
+[[ "$DRY_RUN" == "1" ]] && warn "DRY-RUN aktiv — es werden keine Befehle ausgeführt."
+if [[ "$STANDALONE" == "1" ]]; then
+    warn "Basis-Image: nvcr.io/nvidia/isaac-lab:3.0.0-beta2-post1 (Isaac Sim 6.0, ~20–30 GB)"
+else
+    warn "Basis-Image: nvcr.io/nvidia/isaac-lab:2.3.2 (~20–30 GB)"
+fi
+warn "Bitte 'docker login nvcr.io' vorab ausführen (Username: \$oauthtoken)."
+[[ "$STANDALONE" == "1" ]] && warn "GPU-Anforderung: ≥24 GB VRAM, Ampere+, RT-Cores (RTX 3090/4090/A6000/L40)"
+echo ""
+
+# ── Schritt 1: Voraussetzungen prüfen ──────────────────────────────────────────
+log "Schritt 1/3 — Voraussetzungen prüfen"
+command -v docker >/dev/null 2>&1 || fatal "docker nicht gefunden. https://docs.docker.com/get-docker/"
+docker info >/dev/null 2>&1 || fatal "Docker-Daemon nicht erreichbar. Läuft Docker?"
+ok "Docker-Daemon läuft"
+ok "Ziel-Image: $DOCKER_IMAGE"
+
+if [[ "$SKIP_PUSH" != "1" && "$DRY_RUN" != "1" ]]; then
+    docker_ns_check_login || fatal "Docker-Login fehlgeschlagen."
+fi
+echo ""
+
+# ── Schritt 2: Image bauen ──────────────────────────────────────────────────────
+log "Schritt 2/3 — Image bauen"
+BUILD_TS="$(date +%Y%m%d-%H%M%S)"
+BUILD_CREATED="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+# Herkunft aus dem Repo (Branch/Commit dieses Repos) — Image-Tag :<branch> + OCI-Labels.
+REPO_BRANCH="$(git -C "$SCRIPT_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)"
+REPO_COMMIT="$(git -C "$SCRIPT_DIR" rev-parse HEAD 2>/dev/null || echo unknown)"
+REPO_DIRTY="false"
+if [[ "$REPO_COMMIT" != "unknown" ]] && ! git -C "$SCRIPT_DIR" diff --quiet HEAD -- . 2>/dev/null; then
+    REPO_DIRTY="true"
+fi
+REPO_SOURCE="$(git -C "$SCRIPT_DIR" remote get-url origin 2>/dev/null || echo unknown)"
+BRANCH_TAG="$(printf '%s' "$REPO_BRANCH" | sed -E 's#[^A-Za-z0-9_.-]+#-#g; s#^[.-]+##' | cut -c1-128)"
+[[ -n "$BRANCH_TAG" && "$BRANCH_TAG" != "HEAD" ]] || BRANCH_TAG="detached-${REPO_COMMIT:0:12}"
+
+IMAGE_LATEST="${DOCKER_IMAGE}:latest"
+IMAGE_DATED="${DOCKER_IMAGE}:${BUILD_TS}"
+IMAGE_BRANCH="${DOCKER_IMAGE}:${BRANCH_TAG}"
+
+GROOT_VERSIONS="${GROOT_VERSIONS:-1.6 1.7}"
+BUILD_CMD=(docker build --platform linux/amd64 -f "$DOCKERFILE" --build-arg "GROOT_VERSIONS=$GROOT_VERSIONS")
+BUILD_CMD+=(--label "org.opencontainers.image.revision=$REPO_COMMIT"
+            --label "org.opencontainers.image.source=$REPO_SOURCE"
+            --label "org.opencontainers.image.created=$BUILD_CREATED"
+            --label "de.humrob.repo-branch=$REPO_BRANCH"
+            --label "de.humrob.repo-dirty=$REPO_DIRTY"
+            --label "de.humrob.groot-versions=$GROOT_VERSIONS")
+[[ "$NO_CACHE" == "1" ]] && BUILD_CMD+=(--no-cache)
+BUILD_CMD+=(-t "$IMAGE_BRANCH" -t "$IMAGE_DATED")
+[[ "$PUSH_LATEST" == "1" ]] && BUILD_CMD+=(-t "$IMAGE_LATEST")
+BUILD_CMD+=("$SCRIPT_DIR")
+[[ "$REPO_DIRTY" == "true" ]] && warn "Repo hat uncommittete Änderungen unter Simulation/ — Label de.humrob.repo-dirty=true."
+
+log "Baue: ${BUILD_CMD[*]}"
+[[ "$NO_CACHE" == "1" ]] && warn "Build ohne Cache — Isaac-Lab-Basis ist groß, kann 60+ Minuten dauern."
+echo ""
+run "${BUILD_CMD[@]}"
+ok "Image gebaut: $IMAGE_BRANCH  (Repo-Branch $REPO_BRANCH @ ${REPO_COMMIT:0:12})"
+ok "Image gebaut: $IMAGE_DATED"
+if [[ "$PUSH_LATEST" == "1" ]]; then ok "Image gebaut: $IMAGE_LATEST"; else warn ":latest NICHT angefasst (dafür --push-latest)."; fi
+echo ""
+
+# ── Schritt 3: Push ─────────────────────────────────────────────────────────────
+log "Schritt 3/3 — Nach Docker Hub pushen"
+if [[ "$SKIP_PUSH" == "1" ]]; then
+    warn "Push übersprungen (--skip-push)."
+else
+    run docker push "$IMAGE_BRANCH"
+    run docker push "$IMAGE_DATED"
+    ok "Gepusht: $IMAGE_BRANCH"
+    if [[ "$PUSH_LATEST" == "1" ]]; then
+        run docker push "$IMAGE_LATEST"
+        ok "Gepusht: $IMAGE_LATEST"
+    fi
+    ok "Gepusht: $IMAGE_DATED"
+fi
+echo ""
+
+ok "Fertig."
+echo ""
+echo "  Zusammenfassung:"
+printf "    %-20s %s\n" "Image (branch):" "$IMAGE_BRANCH"
+printf "    %-20s %s\n" "Image (dated):"  "$IMAGE_DATED"
+if [[ "$PUSH_LATEST" == "1" ]]; then
+    printf "    %-20s %s\n" "Image (latest):" "$IMAGE_LATEST"
+else
+    printf "    %-20s %s\n" "Image (latest):" "unverändert (--push-latest zum Aktualisieren)"
+fi
+printf "    %-20s %s\n" "Repo-Branch:"    "$REPO_BRANCH @ ${REPO_COMMIT:0:12}$([[ "$REPO_DIRTY" == "true" ]] && echo ' (dirty)')"
+printf "    %-20s %s\n" "Herkunft:"       "docker inspect --format '{{json .Config.Labels}}' $IMAGE_BRANCH"
+# Im Folgenden das Tag nennen, das dieser Build tatsächlich gesetzt hat.
+IMAGE_REF="$IMAGE_BRANCH"; [[ "$PUSH_LATEST" == "1" ]] && IMAGE_REF="$IMAGE_LATEST"
+echo ""
+echo "  Nächste Schritte:"
+if [[ "$STANDALONE" == "1" ]]; then
+    echo "    1. Auf dem IKR-Server nutzen (Standardweg):"
+    echo "         RL_IMAGE=$IMAGE_REF ./Simulation/server_rl_run.sh"
+    echo "    2. Alternativ auf vast.ai starten:"
+    echo "         Image:          $IMAGE_REF"
+    echo "         GPU:            L40 / RTX 4090 (≥24 GB, Ampere+, RT-Cores)"
+    echo "         Docker Options: --ipc=host --shm-size=16g"
+    echo "         Env:            CHECKPOINT_PATH=/data/checkpoints/checkpoint-XXXX  HF_TOKEN=hf_..."
+    echo "         Ergebnisse vor dem Destroy sichern: docker cp CONTAINER:/data/sim_results ./sim_results"
+    echo "    Anleitung Sim-Eval (IKR & vast.ai): docs/simulation/sim-eval-anleitung.md"
+else
+    echo "    1. SIF auf KISSKI ziehen (Login-Node):"
+    echo "         module load apptainer"
+    echo "         apptainer pull .project/images/projekt-humanoider-roboter-sim.sif docker://$IMAGE_REF"
+    echo "    2. Eval-Job einreichen: sbatch Simulation/kisski_sim_submit.sh"
+fi
+echo ""

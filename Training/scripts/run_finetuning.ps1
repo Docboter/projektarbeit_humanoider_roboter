@@ -1,0 +1,177 @@
+# TL;DR: VERALTET (2026-10-13) — Windows-Host-Skript, startet das Finetuning per docker compose exec.
+#
+# VERALTET, wird nicht mehr nachgezogen (Review 4.7). Gegenüber run_finetuning.sh fehlen
+# --no-sync, Train/Test-Split, Resume-Guard, USE_AUGMENTATION, GRADIENT_ACCUMULATION_STEPS
+# und die TUNE_VISUAL/USE_COTRAIN-Weiche; Color-Jitter ist fest eingetragen, die Defaults
+# weichen ab (MaxSteps 30000, SaveSteps 1000/5, 2 Worker gegenüber 20000, 2000/10, 8).
+# Ein Lauf hiermit ist mit den Bash-Läufen NICHT vergleichbar. Unter Windows stattdessen in
+# WSL2 ./Training/setup_and_train_dockerhub_pull.sh verwenden.
+# Startet das GR00T-Finetuning *vom Host aus* im Docker-Container (Windows-Variante).
+#
+# Voraussetzungen auf dem Host:
+#   - Docker Desktop mit WSL2-Backend
+#   - NVIDIA Container Toolkit (über Docker Desktop)
+#   - Repo geklont, .\data Volume gefüllt (siehe scripts/download_data.sh)
+#
+# Verwendung:
+#   .\scripts\run_finetuning.ps1                          # Defaults (N1.6)
+#   .\scripts\run_finetuning.ps1 -MaxSteps 10000          # einzeln overriden
+#   .\scripts\run_finetuning.ps1 -GrootVersion 1.7        # N1.7-Pfad (Code-Baum, Modell,
+#                                                          #   Output-Namespace passen sich an)
+#   .\scripts\run_finetuning.ps1 -DryRun                  # nur Befehl anzeigen
+#
+# GrootVersion steuert nur die Defaults von GrootRoot/ModelPath/OutputDir — anders als die
+# Bash-Skripte (lib_groot_version.sh) gibt es hier keine venv-Aktivierung/HF_HOME-Logik;
+# die läuft ausschließlich im Container über den Entrypoint.
+#
+# Logs landen unter .\logs\finetune-<timestamp>.log auf dem Host.
+
+[CmdletBinding()]
+param(
+    [string]$Service          = "groot-training",
+    [string]$ComposeFile      = "",
+    [ValidateSet("1.6", "1.7")]
+    [string]$GrootVersion     = "1.6",
+    [string]$GrootRoot        = "",
+    [string]$ModelPath        = "",
+    [string]$DatasetPath      = "/data/unitreerobotics/G1_Dex3_BlockStacking_Dataset",
+    [string]$OutputDir        = "",
+    [string]$ExperimentName   = "g1_dex3_blockstacking_v1",
+    [string]$ModalityConfig   = "",
+    [string]$EmbodimentTag    = "NEW_EMBODIMENT",
+    [int]   $MaxSteps         = 30000,
+    [int]   $GlobalBatchSize  = 8,
+    [int]   $DataloaderWorkers= 2,
+    [int]   $SaveSteps        = 1000,
+    [int]   $SaveTotalLimit   = 5,
+    [string]$LearningRate     = "1e-4",
+    [string]$WeightDecay      = "1e-5",
+    [string]$WarmupRatio      = "0.05",
+    [bool]  $UseWandb         = $true,
+    [string]$WandbProject     = "gr00t-g1-dex3",
+    [switch]$DryRun
+)
+
+$ErrorActionPreference = "Stop"
+
+# ── GR00T-Version: Defaults für GrootRoot/ModelPath/OutputDir ──────────────────
+# Mirror von lib_groot_version.sh (nur die Namens-/Pfad-Zuordnung, kein venv/HF_HOME).
+if ($GrootVersion -eq "1.7") {
+    $GrootModelName = "GR00T-N1.7-3B"
+    $GrootNsSuffix  = "_n17"
+} else {
+    $GrootModelName = "GR00T-N1.6-3B"
+    $GrootNsSuffix  = ""
+}
+if (-not $GrootRoot)  { $GrootRoot  = "/app/Groot-$GrootVersion" }
+if (-not $ModelPath)  { $ModelPath  = "/data/models/$GrootModelName" }
+if (-not $OutputDir)  { $OutputDir  = "/data/g1_dex3_finetune/blockstacking$GrootNsSuffix" }
+
+# ── Pfade ─────────────────────────────────────────────────────────────────────
+$RepoRoot = Split-Path -Parent $PSScriptRoot
+if (-not $ComposeFile)    { $ComposeFile    = Join-Path $RepoRoot "docker-compose.yml" }
+if (-not $ModalityConfig) { $ModalityConfig = "$GrootRoot/examples/G1_DEX3/g1_dex3_config.py" }
+
+function Log([string]$msg) { Write-Host "==> $msg" -ForegroundColor Cyan }
+function Err([string]$msg) { Write-Host "!! $msg"  -ForegroundColor Red }
+
+Write-Warning ("run_finetuning.ps1 ist VERALTET: kein Split, kein Resume-Guard, abweichende " +
+               "Defaults. Ergebnisse sind mit run_finetuning.sh nicht vergleichbar. Empfohlen: " +
+               "WSL2 + ./Training/setup_and_train_dockerhub_pull.sh")
+
+function Dc { docker compose -f $ComposeFile @Args }
+
+# ── 1. Container-Status ───────────────────────────────────────────────────────
+# Ein Image je Generation (docker-compose.yml: :${GROOT_IMAGE_TAG:-latest}); für 1.7 das
+# N1.7-Image wählen und working_dir passend setzen (Review 5.2e). Ein schon laufender
+# Container behält sein Image — die venv-Prüfung unten fängt das ab.
+$env:GROOT_VERSION = $GrootVersion
+if ($GrootVersion -eq "1.7" -and -not $env:GROOT_IMAGE_TAG) { $env:GROOT_IMAGE_TAG = "latest-n17" }
+Log "Prüfe Container-Status …"
+$running = (Dc ps --status running --services 2>$null) -split "`n" | Where-Object { $_ -eq $Service }
+if (-not $running) {
+    Log "Container '$Service' läuft nicht — starte ihn (detached) …"
+    Dc up -d $Service | Out-Null
+} else {
+    Log "Container '$Service' läuft bereits."
+}
+
+# ── 2. Sanity-Checks ──────────────────────────────────────────────────────────
+Log "Prüfe GPU-Sichtbarkeit im Container …"
+Dc exec -T $Service nvidia-smi -L
+if ($LASTEXITCODE -ne 0) { Err "GPU im Container nicht sichtbar"; exit 1 }
+
+Log "Prüfe Modell und Datensatz …"
+$check = @"
+[[ -x '$GrootRoot/.venv/bin/python' ]] || { echo 'FEHLT: $GrootRoot/.venv — das Image enthaelt GR00T N$GrootVersion nicht. Fuer 1.7: Container mit GROOT_IMAGE_TAG=latest-n17 neu erstellen.' >&2; exit 1; }
+[[ -d '$ModelPath'   ]] || { echo 'FEHLT: $ModelPath'   >&2; exit 1; }
+[[ -d '$DatasetPath' ]] || { echo 'FEHLT: $DatasetPath' >&2; exit 1; }
+[[ -f '$DatasetPath/meta/modality.json' ]] || {
+    echo 'modality.json fehlt — kopiere aus examples/G1_DEX3/modality_4cam.json'
+    cp '$GrootRoot/examples/G1_DEX3/modality_4cam.json' '$DatasetPath/meta/modality.json'
+}
+mkdir -p '$OutputDir'
+"@
+Dc exec -T $Service bash -c $check
+if ($LASTEXITCODE -ne 0) { exit 1 }
+
+# ── 3. W&B-Login ──────────────────────────────────────────────────────────────
+if ($UseWandb) {
+    Dc exec -T $Service bash -c "uv run wandb whoami" 2>$null | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        Log "W&B nicht eingeloggt — interaktiver Login (API-Key bereithalten):"
+        Dc exec $Service bash -c "cd '$GrootRoot' && uv run wandb login"
+    } else {
+        Log "W&B-Login OK."
+    }
+}
+
+# ── 4. Trainings-Befehl bauen ─────────────────────────────────────────────────
+$TrainCmd = @(
+    "uv","run","python","$GrootRoot/gr00t/experiment/launch_finetune.py",
+    "--base_model_path",        $ModelPath,
+    "--dataset_path",           $DatasetPath,
+    "--embodiment_tag",         $EmbodimentTag,
+    "--modality_config_path",   $ModalityConfig,
+    "--output_dir",             $OutputDir,
+    "--experiment_name",        $ExperimentName,
+    "--num_gpus",               "1",
+    "--max_steps",              "$MaxSteps",
+    "--save_steps",             "$SaveSteps",
+    "--save_total_limit",       "$SaveTotalLimit",
+    "--global_batch_size",      "$GlobalBatchSize",
+    "--learning_rate",          $LearningRate,
+    "--weight_decay",           $WeightDecay,
+    "--warmup_ratio",           $WarmupRatio,
+    "--dataloader_num_workers", "$DataloaderWorkers",
+    "--color_jitter_params",    "brightness","0.3","contrast","0.4","saturation","0.5","hue","0.08"
+)
+if ($UseWandb) { $TrainCmd += @("--use_wandb","--wandb_project",$WandbProject) }
+
+Log "Trainings-Befehl:"
+Write-Host ("    " + ($TrainCmd -join " "))
+
+if ($DryRun) { Log "Dry-Run — nicht ausgeführt."; exit 0 }
+
+# ── 5. Training ausführen ─────────────────────────────────────────────────────
+$LogDir = Join-Path $RepoRoot "logs"
+New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
+$LogFile = Join-Path $LogDir ("finetune-{0}.log" -f (Get-Date -Format "yyyyMMdd-HHmmss"))
+Log "Logs: $LogFile"
+Log "Training startet — abbrechen mit Ctrl+C (Container läuft weiter)."
+""
+
+# Ein Prozess ohne torchrun: auf GPU 0 festlegen. Sieht er mehrere Karten, greift unter N1.7
+# DataParallel und stürzt ab (gleicher Pin wie run_finetuning.sh, Commit 22c3183; Review 5.2e).
+Dc exec -T -e CUDA_VISIBLE_DEVICES=0 --workdir $GrootRoot $Service @TrainCmd 2>&1 | Tee-Object -FilePath $LogFile
+$ExitCode = $LASTEXITCODE
+
+""
+if ($ExitCode -eq 0) {
+    Log "Training erfolgreich beendet."
+    $last = Dc exec -T $Service bash -c "ls -d $OutputDir/checkpoint-* 2>/dev/null | sort -V | tail -1"
+    Log "Letzter Checkpoint: $last"
+} else {
+    Err "Training mit Exit-Code $ExitCode beendet — siehe $LogFile"
+}
+exit $ExitCode

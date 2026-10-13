@@ -1,0 +1,555 @@
+% chapters/04_ergebnisse.tex
+
+\chapter{Ergebnisse}
+\label{chap:ergebnisse}
+
+Das Kapitel beginnt mit den Lernkurven der drei Trainingsläufe und folgt dann
+dem zeitlichen Ablauf der Bewertung: der ersten Evaluation in der Simulation,
+der Ursachenanalyse, den beiden weiteren Läufen und den Untersuchungen an der
+Simulation von Juli und August~2026. Die zugehörigen Auswertungen mit allen
+Einzelwerten liegen unter \doc{docs/ergebnisse/}.
+
+\section{Lernkurven der Trainingsläufe}
+\label{sec:trainingsverlauf}
+\label{sec:lernkurven}
+
+\Cref{tab:laeufe} fasst die drei Trainingsläufe zusammen.
+\Cref{fig:loss-curve} zeigt ihren Trainings-Loss aus \ac{wandb}. Damit die
+Läufe trotz unterschiedlicher Batch-Größe vergleichbar sind, ist der Loss über
+der Zahl der verarbeiteten Samples aufgetragen.
+
+\begin{table}[htb]
+  \centering
+  \begin{tabularx}{\linewidth}{lXrrr}
+    \toprule
+    Lauf & Konfiguration & Schritte & Dauer & End-Loss \\
+    \midrule
+    1 & 1$\times$A100, Bild-Encoder eingefroren, alle 301 Episoden
+      & 175\,000 & 21,4~h & 0,008 \\
+    2 & 4$\times$A100, Bild-Encoder mittrainiert, alle 301 Episoden
+      & 44\,000 & 8,4~h & 0,007 \\
+    3 & wie Lauf~2, zusätzlich 80/20-Split und Bildaugmentierung\textsuperscript{a}
+      & 44\,000 & 12,5~h & 0,007 \\
+    \bottomrule
+  \end{tabularx}
+  \caption{Die drei Trainingsläufe. End-Loss als gleitender Median der letzten
+    protokollierten Werte; Dauer laut \ac{wandb}. \textsuperscript{a}Ob Lauf~2 bereits mit Augmentierung lief, ist nicht
+    sicher belegt (\cref{sec:lauf3}).}
+  \label{tab:laeufe}
+\end{table}
+
+\begin{figure}[htb]
+  \centering
+  \begin{tikzpicture}
+    \begin{semilogyaxis}[
+      width  = 0.9\textwidth,
+      height = 6.0cm,
+      xlabel = {Verarbeitete Samples (Mio.)},
+      ylabel = {Trainings-Loss (geglättet)},
+      grid   = both,
+      grid style = {line width=0.2pt, draw=gray!30},
+      major grid style = {line width=0.4pt, draw=gray!60},
+      xmin = 0, xmax = 1.42, ymin = 0.004, ymax = 2,
+      legend pos = north east,
+      legend style = {font=\small\sffamily},
+      tick label style = {font=\small\sffamily},
+      label style = {font=\small\sffamily},
+      x tick label style = {/pgf/number format/.cd, fixed, precision=1, use comma},
+    ]
+      \addplot[NavyBlue, thick] coordinates { 
+        (0.001,1.343) (0.003,1.036) (0.012,0.3994) (0.012,0.3725) (0.018,0.2201) (0.019,0.173)
+        (0.020,0.1128) (0.022,0.109) (0.022,0.1002) (0.027,0.0966) (0.030,0.091) (0.032,0.086)
+        (0.038,0.0859) (0.039,0.0859) (0.040,0.0859) (0.042,0.0808) (0.044,0.0808) (0.045,0.0746)
+        (0.048,0.0745) (0.051,0.0704) (0.055,0.0684) (0.083,0.0607) (0.110,0.0459) (0.129,0.0425)
+        (0.158,0.0425) (0.177,0.0432) (0.186,0.0415) (0.204,0.0304) (0.244,0.03) (0.268,0.03)
+        (0.295,0.0327) (0.317,0.0308) (0.345,0.024) (0.375,0.0201) (0.394,0.0217) (0.410,0.026)
+        (0.426,0.0238) (0.445,0.0203) (0.478,0.0197) (0.505,0.0214) (0.535,0.0178) (0.544,0.0178)
+        (0.573,0.0201) (0.605,0.0168) (0.649,0.0203) (0.695,0.021) (0.715,0.0205) (0.745,0.0172)
+        (0.775,0.0154) (0.806,0.0141) (0.839,0.013) (0.865,0.0151) (0.899,0.0143) (0.917,0.0112)
+        (0.954,0.0116) (0.991,0.0116) (1.010,0.0129) (1.049,0.0099) (1.073,0.0106) (1.093,0.0106)
+        (1.106,0.0104) (1.125,0.0112) (1.140,0.01) (1.152,0.008) (1.180,0.0089) (1.200,0.0091)
+        (1.214,0.0079) (1.248,0.0071) (1.265,0.0079) (1.303,0.0094) (1.325,0.0087) (1.350,0.0074)
+        (1.364,0.0074) (1.395,0.00775) (1.400,0.00775)
+       };
+      \addlegendentry{Lauf~1}
+      \addplot[BrickRed, thick, densely dashed] coordinates { 
+        (0.000,1.374) (0.003,1.271) (0.003,1.208) (0.009,1.03) (0.011,1.03) (0.013,1.008)
+        (0.015,0.9641) (0.021,0.7159) (0.024,0.5822) (0.025,0.5649) (0.028,0.4652) (0.028,0.4459)
+        (0.033,0.3298) (0.034,0.3293) (0.043,0.1974) (0.044,0.1834) (0.047,0.1483) (0.048,0.1466)
+        (0.048,0.1375) (0.050,0.134) (0.051,0.1265) (0.080,0.0897) (0.104,0.0742) (0.136,0.067)
+        (0.170,0.0651) (0.196,0.0586) (0.224,0.0538) (0.252,0.0504) (0.293,0.0451) (0.314,0.0401)
+        (0.330,0.0397) (0.353,0.0351) (0.378,0.03) (0.402,0.0316) (0.442,0.0303) (0.459,0.0264)
+        (0.488,0.0263) (0.495,0.027) (0.515,0.0279) (0.561,0.0232) (0.594,0.0221) (0.614,0.0225)
+        (0.641,0.0214) (0.657,0.02) (0.687,0.02) (0.704,0.0181) (0.713,0.0219) (0.730,0.0218)
+        (0.746,0.0207) (0.771,0.0176) (0.798,0.0178) (0.815,0.0148) (0.844,0.0135) (0.859,0.0146)
+        (0.887,0.0147) (0.919,0.0147) (0.959,0.0123) (0.996,0.0128) (1.020,0.0126) (1.047,0.0106)
+        (1.073,0.01) (1.094,0.0101) (1.114,0.0098) (1.145,0.0098) (1.166,0.0092) (1.188,0.0088)
+        (1.218,0.0113) (1.248,0.0095) (1.266,0.0084) (1.287,0.0097) (1.328,0.0068) (1.359,0.0072)
+        (1.372,0.0072) (1.401,0.0066) (1.407,0.0066)
+       };
+      \addlegendentry{Lauf~2}
+      \addplot[OliveGreen, thick, densely dotted] coordinates { 
+        (0.000,1.368) (0.003,1.267) (0.003,1.204) (0.009,1.034) (0.011,1.029) (0.013,1.002)
+        (0.015,0.9464) (0.021,0.7111) (0.024,0.5914) (0.025,0.5838) (0.028,0.4691) (0.028,0.4506)
+        (0.033,0.3325) (0.034,0.3323) (0.043,0.219) (0.044,0.185) (0.047,0.1761) (0.048,0.1663)
+        (0.048,0.1661) (0.050,0.1583) (0.051,0.1396) (0.080,0.0952) (0.104,0.0798) (0.136,0.0727)
+        (0.170,0.0662) (0.196,0.0567) (0.224,0.0584) (0.252,0.0539) (0.293,0.0441) (0.314,0.0389)
+        (0.330,0.0363) (0.353,0.0344) (0.378,0.0342) (0.402,0.0348) (0.442,0.03) (0.459,0.0286)
+        (0.488,0.0298) (0.495,0.0244) (0.515,0.0273) (0.561,0.0257) (0.594,0.023) (0.614,0.0253)
+        (0.641,0.0194) (0.657,0.0189) (0.687,0.0188) (0.704,0.0165) (0.713,0.019) (0.730,0.0205)
+        (0.746,0.0181) (0.771,0.0173) (0.798,0.0179) (0.815,0.0151) (0.844,0.0127) (0.859,0.013)
+        (0.887,0.0165) (0.919,0.0141) (0.959,0.0127) (0.996,0.0127) (1.020,0.0125) (1.047,0.0119)
+        (1.073,0.0106) (1.094,0.0092) (1.114,0.0086) (1.145,0.008) (1.166,0.0076) (1.188,0.0084)
+        (1.218,0.0121) (1.248,0.0109) (1.266,0.0099) (1.287,0.0084) (1.328,0.0066) (1.359,0.0059)
+        (1.372,0.0059) (1.401,0.00645) (1.407,0.00645)
+       };
+      \addlegendentry{Lauf~3}
+    \end{semilogyaxis}
+  \end{tikzpicture}
+  \caption{Trainings-Loss der drei Läufe über der Zahl der verarbeiteten
+    Samples (\ac{wandb}, je 500 Stützstellen, gleitender Median über
+    15~Werte, logarithmische Ordinate).}
+  \label{fig:loss-curve}
+\end{figure}
+
+Alle drei Kurven zeigen denselben Verlauf. Der Loss fällt in den ersten rund
+50\,000 Samples von etwa 1,4 auf unter 0,1, danach langsam und gleichmäßig auf
+etwa 0,007. Spitzen oder Divergenzen treten nicht auf, auch nicht beim
+mittrainierten Bild-Encoder. Lernrate und Gradientennorm verlaufen ebenfalls
+unauffällig: Die Gradientennorm steigt in der Warmup-Phase auf etwa 1,6 bis
+1,7 und fällt danach auf 0,1 bis 0,15 (\cref{anh:trainingsdynamik}).
+
+Zwei Unterschiede sind erkennbar. Lauf~1 senkt den Loss zu Beginn schneller,
+weil er bei kleinerer Batch-Größe pro Sample viermal so viele
+Optimierungsschritte macht. Am Ende liegen alle Läufe gleichauf. Läufe~2 und~3
+unterscheiden sich kaum, obwohl Lauf~3 auf 20\,\% weniger Episoden trainiert. Der Trainings-Loss trennt die Konfigurationen also nicht.
+Er misst nur, wie gut die Trainingsdemonstrationen nachgeahmt werden, und
+sagt nichts über ungesehene Episoden oder den Erfolg in der Simulation. Dass er
+bis zum Ende fällt, während der Fehler auf der Testmenge wieder steigt, zeigt
+\cref{sec:lauf3}.
+
+\section{Fehlende Testmenge im ersten Lauf}
+\label{sec:split-befund}
+
+Bei der Auswertung des ersten Laufs zeigte sich, dass der vorgesehene
+Train/Test-Split nicht aktiv war. Alle 301 Episoden wurden mittrainiert, für
+diesen Checkpoint gibt es keine ungesehene Testmenge. Auch eine Validierung
+während des Trainings fand nicht statt. Die dafür vorgesehenen Einstellungen
+im GR00T-Code werden nirgends ausgewertet, und die Einstellung, die eine
+Auswertung in festen Abständen anfordert, bricht das Training sogar ab. Es
+gab daher kein Kriterium für die Wahl eines Checkpoints, und es wurde der
+letzte verwendet. Split und nachträgliche Checkpoint-Auswahl kamen erst mit
+dem dritten Lauf (\doc{docs/training/train-test-split.md}).
+
+\section{Erste Closed-Loop-Evaluation}
+\label{sec:closed-loop-ergebnis}
+
+In der Simulation bewegte sich der Roboter mit dem Checkpoint des ersten Laufs
+etwa 15~Sekunden lang grob in Richtung der Würfel und kam dann zum
+Stillstand. Für den Rest der dreiminütigen Episode blieb die Bewegung minimal,
+gegriffen oder gestapelt wurde nicht. In 20~Episoden gab es keinen Erfolg
+($0/20$; 95-\%-Konfidenzintervall nach Clopper-Pearson 0 bis 17\,\%). Ein
+früherer Checkpoint zeigte stattdessen ein Abdriften der Hände, ebenfalls ohne
+Fortschritt bei der Aufgabe.
+
+\section{Ursachenanalyse mit drei Tests}
+\label{sec:diagnose}
+
+Um die Ursache einzugrenzen, wurden drei Tests kombiniert, die jeweils einen
+Teil der Pipeline isolieren (\cref{tab:diagnose}).
+
+\begin{table}[htb]
+  \centering
+  \begin{tabularx}{\linewidth}{lXl}
+    \toprule
+    Test & Geprüfter Teil & Ergebnis \\
+    \midrule
+    Open-Loop (reale Bilder) & Modell ohne Regelkreis
+      & Arme gut, Finger verrauscht \\
+    Replay (reale Aktionen)  & Simulation ohne Modell
+      & Greifen möglich \\
+    Closed-Loop (Modell und Simulation) & gesamter Regelkreis
+      & Stillstand \\
+    \bottomrule
+  \end{tabularx}
+  \caption{Die drei Diagnosetests.}
+  \label{tab:diagnose}
+\end{table}
+
+Im Replay-Test werden aufgezeichnete Aktionen ohne Modell in der Simulation
+abgespielt. Weil der Würfel dabei angehoben wurde, kann die Simulation
+grundsätzlich einen Griff ausführen. Der Open-Loop-Test zeigt, dass das Modell
+auf realen Bildern brauchbare Armbewegungen vorhersagt, die Vorhersagen für
+die Finger aber verrauscht sind (\cref{fig:anh-openloop}). Er lief auf
+Episode~0, die im ersten Lauf mittrainiert wurde, und zeigt daher nur, dass
+das Modell die Trainingsdaten wiedergibt. Nur der Closed-Loop-Test schlägt
+fehl. Er unterscheidet sich von den beiden anderen vor allem durch die
+Kamerabilder, die das Modell in der Simulation erhält
+(\cref{fig:domain-gap}), aber auch durch den Gelenkzustand, den die Simulation
+statt des aufgezeichneten liefert. Dass dieser Zustand fehlerhaft war, stellte
+sich erst später heraus (\cref{sec:geometrie}).
+
+\begin{figure}[htb]
+  \centering
+  \begin{subfigure}[t]{0.48\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{figures/sim/real_cam_left_high.png}
+    \caption{Reale Aufnahme}
+    \label{fig:domain-gap-real}
+  \end{subfigure}\hfill
+  \begin{subfigure}[t]{0.48\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{figures/sim/sim_cam_left_high.png}
+    \caption{Simulation}
+    \label{fig:domain-gap-sim}
+  \end{subfigure}
+  \caption{Bild der linken Kopfkamera aus dem Datensatz (a) und aus der
+    Simulation (b). Beleuchtung, Tischoberfläche, Hintergrund und Hände
+    unterscheiden sich deutlich.}
+  \label{fig:domain-gap}
+\end{figure}
+
+\section{Kalibrierung der Simulation}
+\label{sec:kalibrierung}
+
+Damit der Replay-Test als Referenz dienen konnte, musste die Simulation
+zunächst an den realen Aufbau angepasst werden. Die Würfel lagen anfangs rund
+15~cm unterhalb des erreichbaren Arbeitsraums, daher wurden Tisch- und
+Würfelhöhe korrigiert. Für vier Fingergelenke wurde eine Umkehr des
+Vorzeichens eingeführt, weil deren Achsen im Simulationsmodell invertiert
+schienen. Diese Änderung stellte sich später als Fehler heraus
+(\cref{sec:geometrie}). Steifigkeit und Kraft der Fingerantriebe sowie die
+Reibung der Würfel wurden erhöht, damit ein Würfel gehalten werden kann. Die
+Kameraposen wurden über halbtransparente Überlagerungen realer und simulierter
+Bilder angeglichen (\cref{fig:anh-overlay}). Danach hob die Hand im
+Replay-Test vor der Umstellung auf Isaac~Sim~6.0 einen Würfel um 2,8~cm an (Schwelle für
+\enquote{angehoben}: 2~cm). Weil die übrigen Fingergelenke korrekt angesteuert
+wurden, war ein Griff trotz der falschen Umkehr möglich. Der Replay-Test
+belegt damit, dass die Simulation greifen kann, nicht aber, dass jedes Gelenk
+richtig angesteuert wird.
+
+\section{Messung des Domain-Gaps}
+\label{sec:domain-gap-ergebnis}
+\label{sec:sim-fixes}
+\label{sec:neukalibrierung}
+
+Zur Messung des Domain-Gaps wurden reale und simulierte Bilder derselben
+Szene mit einem vortrainierten SigLIP-Modell eingebettet und die
+Cosinus-Distanz der Embeddings verglichen (\cref{tab:domain-gap}). Dieses
+Modell ist nicht der Bild-Encoder der Policy: GR00T N1.6 nutzt das
+Eagle-Backbone, und der beste Checkpoint wurde mit mittrainiertem Bild-Encoder
+feinjustiert. Die Distanz ist deshalb ein allgemeiner Bildabstand, der
+Sim-Varianten untereinander vergleichbar macht, aber nicht misst, was die
+Policy selbst sieht. Als Vergleichswert diente die
+Distanz zwischen zwei realen Bildern verschiedener Kameras.
+
+\begin{table}[htb]
+  \centering
+  \begin{tabular}{lrr}
+    \toprule
+    Kamera & Juni 2026 & August 2026 \\
+    \midrule
+    Kopf links              & 0,148 & 0,112 \\
+    Kopf rechts             & 0,214 & 0,131 \\
+    Handgelenk rechts       & 0,249 & 0,293 \\
+    Handgelenk links        & 0,427 & 0,356 \\
+    \midrule
+    Mittelwert Real$\to$Sim & 0,260 & 0,223 \\
+    Vergleich zweier realer Kameras & 0,273 & 0,273 \\
+    \bottomrule
+  \end{tabular}
+  \caption{Cosinus-Distanz der SigLIP-Embeddings zwischen realen und
+    simulierten Bildern (0 = identisch), vor und nach der Neukalibrierung der
+    Kameras und der Anpassung von Würfel- und Handfarbe.}
+  \label{tab:domain-gap}
+\end{table}
+
+Bei der ersten Messung im Juni lag der Mittelwert mit 0,260 unter dem
+Vergleichswert. Dieser Vergleichswert ist allerdings wenig geeignet, weil er
+zwei verschiedene Blickwinkel vergleicht und damit vor allem den Unterschied
+der Perspektive misst. Aussagekräftiger ist der Vergleich der Kameras
+untereinander: Die linke Handgelenkkamera wich mit 0,427 deutlich stärker ab
+als die Kopfkameras. Da das Modell alle vier Bilder gemeinsam verarbeitet und
+die Handgelenkkamera für das Greifen besonders relevant ist, kann bereits
+dieses eine Bild die Vorhersage beeinflussen. Als erste Maßnahmen wurden die
+Würfel im Gelb des Datensatzes eingefärbt, ein im Datensatz sichtbares
+schwarzes Band ergänzt und die im Simulationsmodell weißen Hände schwarz
+eingefärbt.
+
+Bei der Umstellung auf Isaac~Sim~6.0 im August fiel auf, dass die Kameras um
+95° bis 137° falsch ausgerichtet waren. Der Fehler war zuvor unentdeckt
+geblieben, weil die Prüfung dieselbe fehlerhafte Umrechnung verwendete wie die
+Kamera selbst. Anschließend wurden die Kopfkameras aus den Bilddaten neu
+kalibriert: Das konfigurierte Sichtfeld von 75° war durch einen Fehler nie
+angewendet worden, Montagepunkt und Abstand der beiden Kopfkameras wurden aus
+dem Robotermodell und den Referenzbildern bestimmt. Danach stimmten die
+gerenderten Bilder bis auf wenige Pixel mit den Referenzbildern überein. Die
+Beleuchtung hatte dagegen kaum Einfluss: Eine 25-fach höhere Lichtstärke
+veränderte die Distanz nur um etwa 5\,\%.
+
+Nach diesen Änderungen sank der Mittelwert auf 0,223. Die linke
+Handgelenkkamera verbesserte sich auf 0,356 und verfehlte das vorab
+festgelegte Ziel von unter 0,35 knapp. Die rechte Handgelenkkamera
+verschlechterte sich von 0,249 auf 0,293; eine Ursache dafür wurde nicht
+ermittelt (\doc{docs/ergebnisse/domain-gap-analyse.md}).
+
+\section{Mittrainierter Bild-Encoder}
+\label{sec:vision-lauf}
+
+Eine naheliegende Maßnahme gegen den Domain-Gap ist, den Bild-Encoder
+mitzutrainieren. Das wurde im zweiten Lauf getestet; nur das Sprachmodell
+blieb eingefroren. Das Training verlief so stabil wie der erste Lauf
+(\cref{sec:lernkurven}). In der Simulation wurde das Verhalten des letzten
+Checkpoints aber schlechter: Der Roboter zog nur noch die Arme zurück und
+bewegte sich nicht mehr zu den Würfeln. Eine mögliche Erklärung ist, dass sich
+der Encoder durch das Training auf reale Bilder noch stärker spezialisiert,
+da er nie ein simuliertes Bild gesehen hat (\cref{sec:frozen-vs-tuned}).
+
+\section{Referenzaufgabe}
+\label{sec:robocasa}
+
+Bis Juli beruhte die Analyse nur auf eigenen Tests; ein Fehler in der eigenen
+Inferenz-Kette hätte ebenfalls zu dem Ergebnis führen können. Das nicht
+nachtrainierte Basismodell erreichte auf dem RoboCasa-GR-1-Benchmark über
+zwölf Aufgaben mit je 100 Episoden eine mittlere Erfolgsrate von 47,7\,\%,
+der von NVIDIA veröffentlichte Wert liegt bei 47,8\,\%. Fehler beim Laden des
+Modells und bei der Verarbeitung von Beobachtungen und Aktionen sind damit
+unwahrscheinlich (\doc{docs/ergebnisse/basismodell-referenz-eval.md}).
+
+\section{Kontaktphysik unter Isaac Sim 6.0}
+\label{sec:grasp-befund}
+
+Nach der Umstellung auf Isaac~Sim~6.0 gelang auch im Replay zunächst kein
+Anheben mehr, obwohl die Finger die volle kommandierte Bewegung ausführten.
+Um Platzierung und Kontaktphysik als Ursache zu trennen, wurde der Würfel im
+Moment des Greifens direkt zwischen die Fingerspitzen gesetzt. Dabei wurde er
+um 7,9~cm angehoben. Die Kontaktphysik funktioniert also auch unter
+Isaac~Sim~6.0. Offen blieb, warum die Politik keinen ausreichenden Griff
+kommandiert.
+
+\section{Fingeröffnung auf realen und simulierten Bildern}
+\label{sec:span-gate}
+
+Für das Greifdefizit gab es zwei Erklärungen: Die Politik hat das Greifen
+gelernt, erkennt aber die simulierten Bilder nicht, oder sie hat es gar nicht
+gelernt. In der Simulation allein lassen sich beide nicht unterscheiden. Daher
+wurde die kommandierte Fingeröffnung derselben Politik einmal in der
+Simulation und einmal auf realen Bildern gemessen, jeweils relativ zur
+Öffnung in den Demonstrationen (2,09~rad, \cref{tab:span-gate}).
+
+\begin{table}[htb]
+  \centering
+  \begin{tabular}{llrr}
+    \toprule
+    Checkpoint & Bildquelle & Fingeröffnung (Median) & Anteil \\
+    \midrule
+    Lauf~1, letzter   & Simulation (5 Episoden)     & 0,43~rad  & 20,5\,\% \\
+    Lauf~3, Schritt 30\,000 & Simulation (10 Episoden) & 0,58~rad & 27,6\,\% \\
+    Lauf~1, letzter   & real (5 Trajektorien)       & 2,09~rad  & 100\,\% \\
+    Lauf~3, Schritt 30\,000 & real (5 Trajektorien) & 2,09~rad  & 100\,\% \\
+    \bottomrule
+  \end{tabular}
+  \caption{Kommandierte Fingeröffnung in der Simulation und auf realen Bildern,
+    bezogen auf die Öffnung in den Demonstrationen.}
+  \label{tab:span-gate}
+\end{table}
+
+Auf realen Bildern kommandiert die Politik die volle Greifbewegung (beim ersten Lauf einzelne
+Trajektorien zwischen 84\,\% und 101\,\%), in der Simulation nur ein Fünftel
+bis ein Viertel. Nach der vorab festgelegten Regel (\cref{sec:validierung})
+spricht das für ein Wahrnehmungsproblem. Anders als die SigLIP-Messung
+bewertet dieser Test nicht die Ähnlichkeit der Bilder, sondern ihre Wirkung
+auf das Verhalten.
+
+Die Aussagekraft ist allerdings in zwei Punkten begrenzt. Erstens stammen die
+fünf realen Trajektorien aus den ersten Episoden des Datensatzes, die beide
+Checkpoints im Training gesehen haben; dass die Politik das Greifen nur
+auswendig gelernt hat, ist damit nicht ausgeschlossen. Zweitens entspricht
+2,09~rad dem größten Wert, den die Normierung des Modells zulässt; der Ausgang
+liegt also an seiner oberen Grenze. Die Messung auf den zurückgehaltenen
+Testepisoden steht noch aus. Für die Werte aus der Simulation gilt zusätzlich
+die Einschränkung aus \cref{sec:vorbehalt-greifzahlen}.
+
+\section{Dritter Lauf: Validierung auf der Testmenge}
+\label{sec:lauf3}
+
+Die ersten beiden Läufe hatten keine zurückgehaltene Testmenge und
+verwendeten jeweils den letzten Checkpoint. Der dritte Lauf kombinierte
+mittrainierten Bild-Encoder, Bildaugmentierung und aktiven 80/20-Split.
+Ob Lauf~2 ohne Augmentierung lief, ist allerdings nicht sicher belegt: Die
+in \ac{wandb} protokollierte Konfiguration gibt den per Startbefehl gesetzten
+Farb-Jitter nicht wieder, und die früheste versionierte Fassung des
+Startskripts enthält ihn bereits fest eingebaut.
+Anschließend wurde der Open-Loop-\ac{mse} für jeden Checkpoint berechnet
+(\cref{fig:ckpt-sweep}). Aus Zeitgründen lief diese Auswertung mit den
+Standardeinstellungen des Skripts auf sechs der 61 Testepisoden und jeweils
+nur den ersten 300 Schritten, also im Wesentlichen auf der Anfahrphase.
+
+\begin{figure}[htb]
+  \centering
+  \begin{tikzpicture}
+    \begin{semilogyaxis}[
+      width  = 0.86\textwidth,
+      height = 5.4cm,
+      xlabel = {Trainingsschritt},
+      ylabel = {Loss bzw.\ \ac{mse} (log.)},
+      grid   = both,
+      grid style = {line width=0.2pt, draw=gray!30},
+      major grid style = {line width=0.4pt, draw=gray!60},
+      xmin = 0, xmax = 45000,
+      xtick distance = 10000,
+      scaled x ticks = false,
+      x tick label style = {/pgf/number format/.cd, set thousands separator={\,}, fixed},
+      legend pos = north east,
+      legend style = {font=\small\sffamily},
+      tick label style = {font=\small\sffamily},
+      label style = {font=\small\sffamily},
+    ]
+      \addplot[NavyBlue, thick, mark=*, mark size=1.6pt] coordinates {
+        (5000,0.01335) (10000,0.00915) (15000,0.00911) (20000,0.00780)
+        (25000,0.00752) (30000,0.00716) (35000,0.00763) (40000,0.00855)
+        (44000,0.00898)
+      };
+      \addlegendentry{Test-\ac{mse}}
+      \addplot[BurntOrange, thick, dashed, mark=square*, mark size=1.2pt] coordinates {
+        (2000,0.077) (6000,0.057) (10000,0.036) (14000,0.026) (20000,0.020)
+        (26000,0.016) (30000,0.013) (34000,0.008) (38000,0.008) (42000,0.007)
+        (44000,0.0073)
+      };
+      \addlegendentry{Trainings-Loss}
+    \end{semilogyaxis}
+  \end{tikzpicture}
+  \caption{Trainings-Loss und Open-Loop-\ac{mse} auf Testepisoden im dritten
+    Lauf.}
+  \label{fig:ckpt-sweep}
+\end{figure}
+
+Der Testfehler ist bei Schritt~30\,000 am kleinsten (0,00716) und steigt danach
+bis zum letzten Checkpoint auf 0,00898, während der Trainings-Loss weiter
+fällt. Der letzte Checkpoint ist damit um etwa 25\,\% schlechter als der
+beste, was auf Overfitting hindeutet. Ein gepaarter $t$-Test über die sechs
+Episoden ($\mathit{df} = 5$) zeigt allerdings, dass Schritt~30\,000 nur
+gegenüber den Checkpoints bis Schritt~15\,000 signifikant besser ist. Gegenüber
+dem letzten Checkpoint ist der Unterschied nur eine Tendenz ($t = 1{,}45$,
+$p \approx 0{,}21$). Belastbar ist damit: Ab etwa 20\,000 Schritten ist der
+Lauf auskonvergiert, und der letzte Checkpoint ist nicht der beste
+(\doc{docs/ergebnisse/lauf3-vision-split-auswertung.md}). Weil sich Lauf~3 in
+mehreren Punkten von Lauf~2 unterscheidet, lässt sich ein Effekt keiner einzelnen
+Änderung zuordnen.
+
+\section{Verhalten des zuletzt getesteten Modells in der Simulation}
+\label{sec:realperformance}
+
+Der letzte Closed-Loop-Lauf mit einer trainierten Politik fand am 14.08.2026
+statt. Getestet wurde der beste Checkpoint des dritten Laufs (Schritt~30\,000)
+in zehn Episoden à 40~s mit eingeschalteter \ac{dr} der Szenenfarben und
+-beleuchtung, unter Isaac~Sim~6.0 mit neu kalibrierten Kameras, aber noch vor
+den Geometriekorrekturen aus \cref{sec:geometrie}. Spätere Läufe dienten nur
+noch dem Erzeugen von Trainingsbildern und der Kalibrierung, nicht der
+Bewertung einer Politik. Für die folgende Beschreibung wurden die zehn Videos
+der Übersichtskamera Bild für Bild ausgewertet und den protokollierten
+Kennzahlen gegenübergestellt (\cref{tab:lauf34,fig:lauf34}).
+
+\begin{table}[htb]
+  \centering
+  \begin{tabular}{lrl}
+    \toprule
+    Stufe & Episoden & Kennzahl \\
+    \midrule
+    erreicht (Kuppe $\le$ 4~cm)       & 9/10  & kleinster Abstand 2,3--4,1~cm \\
+    Greifversuch (Öffnung $\ge$ 30\,\%) & 4/10  & Öffnung 24--80\,\%, Median 27,6\,\% \\
+    berührt (Verschiebung $>$ 1~cm)   & 10/10 & Verschiebung 2,8--9,4~cm \\
+    angehoben ($>$ 2~cm)              & 0/10  & größte Anhebung 1,68~cm \\
+    gestapelt                         & 0/10  & -- \\
+    \bottomrule
+  \end{tabular}
+  \caption{Stufenfolge des zuletzt getesteten Checkpoints (Lauf~3,
+    Schritt~30\,000; Messung vom 14.08.2026, 10~Episoden à 40~s).}
+  \label{tab:lauf34}
+\end{table}
+
+\begin{figure}[htb]
+  \centering
+  \includegraphics[width=0.92\linewidth]{figures/sim/lauf34_ep10.png}
+  \caption{Ausschnitte aus Episode~10 der Messung vom 14.08.2026, von links
+    oben nach rechts unten bei 2,5~s, 12,5~s, 20~s und 35~s. Der Roboter
+    blickt in die Kamera. Seine linke Hand (im Bild rechts) berührt zuerst den
+    gelben Würfel, danach bewegt sich die rechte Hand zum roten Würfel und
+    bleibt dort, während der linke Arm in eine erhobene Haltung geht.}
+  \label{fig:lauf34}
+\end{figure}
+
+In allen zehn Episoden zeigt sich dasselbe Muster. In den ersten
+2 bis 3~Sekunden bewegen sich beide Hände gezielt zu den Würfeln; die
+Bewegung ist flüssig und erkennbar auf die Würfel gerichtet. Eine Hand
+erreicht einen Würfel, die Finger schließen sich teilweise um ihn, und der
+Würfel wird dabei angestoßen und um einige Zentimeter verschoben. Zu einem
+festen Griff kommt es nicht. Nach 10 bis 15~Sekunden zieht sich diese Hand
+zurück, der Arm geht in eine erhobene, in den Demonstrationen nicht
+vorkommende Haltung und bleibt dort. Die andere Hand bewegt sich zu einem
+zweiten Würfel und verharrt für den Rest der Episode über ihm, wobei sie ihn
+gelegentlich weiter verschiebt. Ein Ablauf aus Greifen, Anheben und Absetzen,
+wie ihn die Demonstrationen zeigen, kommt in keiner Episode vor.
+
+Gegenüber dem Checkpoint des ersten Laufs ist das ein deutlicher Fortschritt.
+Der Roboter kommt nicht mehr nach wenigen Sekunden zum Stillstand, sondern
+nähert sich den Würfeln, berührt sie in allen Episoden und unternimmt in vier
+Episoden einen erkennbaren Greifversuch mit 60 bis 80\,\% der
+Demonstrationsöffnung. Die Fingeröffnung liegt in jeder der zehn Episoden über
+jeder der fünf Episoden des ersten Laufs (exakter Rangtest, einseitig,
+$p = 3{,}3\cdot10^{-4}$). Die Anhebung steigt mit der Fingeröffnung
+(Spearman $\rho = 0{,}62$), die Verschiebung dagegen nicht ($\rho = 0{,}05$).
+Wo die Politik weiter öffnet und schließt, hebt sich der Würfel also stärker,
+während das Verschieben auf bloßes Anstoßen zurückgeht. Die Schwelle von 2~cm
+für \enquote{angehoben} erreicht aber keine Episode, und die Aufgabe wird
+in keiner gelöst ($0/10$, 95-\%-Konfidenzintervall 0 bis 31\,\%).
+
+Zwei Einschränkungen gelten für diese Messung. Die Hand konnte sich wegen der
+fehlerhaften Vorzeichenumkehr nicht vollständig schließen
+(\cref{sec:geometrie}), und der Roboter stand einige Zentimeter falsch. Ein
+Teil des Greifdefizits kann daher auf die Simulation zurückgehen. Die
+Wiederholung mit korrigierter Szene steht noch aus.
+
+\section{Geometrie der Simulationsszene}
+\label{sec:geometrie}
+\label{sec:wuerfellage}
+\label{sec:vorzeichen-widerruf}
+\label{sec:gierwinkel}
+
+Der Datensatz enthält keine Positionen der Würfel, sie waren bis dahin
+geschätzt worden. Für das geplante Co-Training (\cref{sec:cotrain}), bei dem
+simulierte Bilder mit realen Aktionen kombiniert werden, muss die Szene aber
+mit der realen übereinstimmen. Die Szene wurde daher Ende August aus den
+Bilddaten rekonstruiert.
+
+Bisher wurde die Würfelposition aus dem Zeitpunkt der kleinsten
+Fingeröffnung abgeleitet. Da die Hand beim Transport aber lange geschlossen
+bleibt, lag dieser Zeitpunkt in etwa der Hälfte der Fälle auf dem
+Transportweg statt am Würfel. Stattdessen wird die Würfelposition nun aus dem
+ersten realen Bild bestimmt: Der Würfel wird über seine Farbe erkannt und sein
+Mittelpunkt auf die bekannte Tischebene projiziert. Gegenüber bekannten
+Positionen liegt der Fehler bei 0,3~cm bzw.\ 0,4~cm je Kopfkamera
+(\doc{docs/simulation/wuerfellage-rekonstruktion.md}).
+
+Mit diesen Positionen zeigte sich, dass der Roboter selbst falsch in der
+Szene stand: Beim Abspielen realer Episoden kamen die Fingerspitzen den
+Würfeln nie näher als 10~cm. Dafür gab es drei Ursachen. Die Beckenhöhe war
+mit 0,85~m ohne Quelle angesetzt und wurde auf den gemessenen Wert von
+0,764~m korrigiert. Der Roboter stand 5,7~cm zu weit vorne. Außerdem war die
+in \cref{sec:kalibrierung} eingeführte Vorzeichenumkehr der vier
+Fingergrundgelenke falsch, da der Datensatz diese Gelenke bereits in der
+Konvention des Simulationsmodells enthält. Durch die Umkehr lagen die
+Sollwerte außerhalb des zulässigen Bereichs, und die Simulation begrenzte sie
+ohne Meldung auf den Grenzwert. Die Hand konnte sich deshalb in keinem der
+bisherigen Simulationsläufe vollständig schließen, und die Politik erhielt
+für diese Gelenke einen falschen Zustand. Nach allen drei Korrekturen beträgt
+der Abstand zwischen Fingerspitze und Würfel noch 4,5~$\pm$~1,7~cm
+(\cref{tab:anh-szene}).
+
+Schließlich wurde die Drehung der Würfel um die Hochachse untersucht, die in
+der Simulation immer 0° betrug. Für 110 von 180 Würfeln aus 60 Episoden
+konnte der Winkel aus dem Bild bestimmt werden. Die Werte sind nahezu
+gleichverteilt zwischen 0° und 45° (Median 22,8°), die Würfel liegen in der
+Realität also beliebig gedreht. Ob die Simulation auf zufällige Winkel
+umgestellt wird, war bei Abschluss der Arbeit noch offen, weil die Ergebnisse
+sonst nicht mehr mit den bisherigen Läufen vergleichbar wären.

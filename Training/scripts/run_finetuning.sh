@@ -1,0 +1,246 @@
+#!/usr/bin/env bash
+# TL;DR: Läuft im Container (via entrypoint.sh) — Standard-Finetuning, Vision-Encoder bleibt eingefroren.
+# Startet das GR00T-Finetuning *innerhalb des Containers*.
+#
+# Verwendung (im Container):
+#   bash /scripts/run_finetuning.sh                      # Defaults
+#   MAX_STEPS=10000 bash /scripts/run_finetuning.sh      # einzelne Werte overriden
+#   bash /scripts/run_finetuning.sh --dry-run            # nur Befehl anzeigen
+#
+# Vom Host aus aufrufen:
+#   docker compose exec groot-training bash /scripts/run_finetuning.sh
+#
+# Logs landen unter /data/logs/ — und damit über den Volume-Mount auch auf dem Host.
+
+set -euo pipefail
+
+# ── GR00T-Version auflösen (N1.6 | N1.7) ───────────────────────────────────────
+# Muss vor jeder Verwendung von GROOT_ROOT/MODEL_PATH/OUTPUT_DIR laufen.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib_groot_version.sh
+source "$SCRIPT_DIR/lib_groot_version.sh"
+groot_resolve || { echo "FEHLER: GR00T-Versionsauflösung fehlgeschlagen (GROOT_VERSION=${GROOT_VERSION:-})." >&2; exit 1; }
+
+# ── Trainings-Parameter (alle via Env-Var überschreibbar) ─────────────────────
+MODEL_PATH="${MODEL_PATH:-/data/models/$GROOT_MODEL_NAME}"
+DATASET_PATH="${DATASET_PATH:-/data/unitreerobotics/G1_Dex3_BlockStacking_Dataset}"
+OUTPUT_DIR="${OUTPUT_DIR:-/data/g1_dex3_finetune/blockstacking${GROOT_NS_SUFFIX}}"
+EXPERIMENT_NAME="${EXPERIMENT_NAME:-g1_dex3_blockstacking_v1}"
+MODALITY_CONFIG="${MODALITY_CONFIG:-$GROOT_ROOT/examples/G1_DEX3/g1_dex3_config.py}"
+EMBODIMENT_TAG="${EMBODIMENT_TAG:-NEW_EMBODIMENT}"
+
+# Steps: bei ~241–301 Episoden (eine Aufgabe) sättigt Behavior Cloning früh; 20k Schritte
+# reichen für gesunde Konvergenz (Lauf 1 war bei 30k bereits sauber konvergiert), sparen Zeit
+# und reduzieren Memorierung, die den Sim-Domain-Gap verschärft. save_steps=2000 + limit=10
+# → 10 gleichmäßig verteilte Checkpoints über den ganzen Lauf (gute Basis für die Open-Loop-
+# Checkpoint-Auswahl), statt nur der letzten 5 wie zuvor.
+MAX_STEPS="${MAX_STEPS:-20000}"
+GLOBAL_BATCH_SIZE="${GLOBAL_BATCH_SIZE:-8}" #8
+DATALOADER_WORKERS="${DATALOADER_WORKERS:-8}"
+# Entkoppelt die effektive Batchgroesse vom Speicherbedarf. experiment.py rechnet
+# per_device = global_batch_size / num_gpus (Zeile 188); die Akkumulation kommt oben drauf.
+# Auf einer Karte mit knappem VRAM — etwa wenn andere Dienste die Haelfte belegen — haelt
+# man damit die Batchgroesse des Referenzlaufs, statt sie senken und das Optimierungs-
+# regime mitaendern zu muessen. 1 = aus, verhaelt sich exakt wie bisher.
+GRADIENT_ACCUMULATION_STEPS="${GRADIENT_ACCUMULATION_STEPS:-1}"
+SAVE_STEPS="${SAVE_STEPS:-2000}"
+SAVE_TOTAL_LIMIT="${SAVE_TOTAL_LIMIT:-10}"
+LEARNING_RATE="${LEARNING_RATE:-1e-4}"
+WEIGHT_DECAY="${WEIGHT_DECAY:-1e-5}"
+WARMUP_RATIO="${WARMUP_RATIO:-0.05}"
+
+# ── Train-Test-Split (optional, Standard AUS) ─────────────────────────────────
+# TRAIN_TEST_SPLIT=1 schaltet den 80/20-Split scharf: patcht meta/info.json so, dass
+# nur die ersten TRAIN_SPLIT_RATIO der Episoden als "train" geladen werden; der Rest
+# steht als "test" für die Open-Loop-Eval auf ungesehenen Episoden bereit.
+# Standard (0) → kompletter Datensatz wird trainiert (bisheriges Verhalten).
+TRAIN_TEST_SPLIT="${TRAIN_TEST_SPLIT:-0}"
+TRAIN_SPLIT_RATIO="${TRAIN_SPLIT_RATIO:-0.8}"
+
+# ── Bild-Augmentierung / Domain Randomization (optional, Standard AN) ──────────
+# USE_AUGMENTATION=1 → Color-Jitter + optionale Rotation/State-Dropout werden ans
+# Training übergeben (adressiert den Sim-Real-Domain-Gap des eingefrorenen Encoders).
+# USE_AUGMENTATION=0 → Color-Jitter explizit auf 0 gesetzt (Augmentierung effektiv aus;
+# ein Weglassen der Flags würde sonst die Default-Augmentierung des Modells ziehen).
+USE_AUGMENTATION="${USE_AUGMENTATION:-1}"
+CJ_BRIGHTNESS="${CJ_BRIGHTNESS:-0.3}"
+CJ_CONTRAST="${CJ_CONTRAST:-0.4}"
+CJ_SATURATION="${CJ_SATURATION:-0.5}"
+CJ_HUE="${CJ_HUE:-0.08}"
+RANDOM_ROTATION_ANGLE="${RANDOM_ROTATION_ANGLE:-}"   # leer = keine Rotation
+STATE_DROPOUT_PROB="${STATE_DROPOUT_PROB:-}"   # leer = Modell-Default (N1.6: 0.0, N1.7: 0.2)
+
+USE_WANDB="${USE_WANDB:-1}"
+WANDB_PROJECT="${WANDB_PROJECT:-gr00t-g1-dex3}"
+
+DRY_RUN=0
+[[ "${1:-}" == "--dry-run" ]] && DRY_RUN=1
+
+# ── Helfer ────────────────────────────────────────────────────────────────────
+log()  { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
+err()  { printf '\033[1;31m!! \033[0m%s\n' "$*" >&2; }
+warn() { printf '\033[1;33m ! \033[0m%s\n' "$*"; }
+
+# Split-Logik teilen sich beide Trainings-Skripte. SCRIPT_DIR wurde bereits oben
+# für lib_groot_version.sh gesetzt.
+# shellcheck source=lib_split.sh
+source "$SCRIPT_DIR/lib_split.sh"
+# shellcheck source=lib_resume_guard.sh
+source "$SCRIPT_DIR/lib_resume_guard.sh"
+
+# ── 1. Laufumgebung verifizieren ──────────────────────────────────────────────
+if [[ ! -f /.dockerenv ]] && [[ -z "${APPTAINER_NAME:-}" ]] && [[ -z "${SINGULARITY_NAME:-}" ]]; then
+    err "Dieses Skript muss im Container laufen. Starte z. B.:"
+    err "    docker compose exec groot-training bash /scripts/run_finetuning.sh"
+    err "    apptainer run --nv projekt-humanoider-roboter.sif"
+    exit 1
+fi
+
+[[ -d "$GROOT_ROOT" ]] || { err "GROOT_ROOT existiert nicht: $GROOT_ROOT"; exit 1; }
+
+# ── 2. GPU-Sichtbarkeit prüfen ────────────────────────────────────────────────
+log "Prüfe GPU-Sichtbarkeit …"
+nvidia-smi -L || { err "GPU nicht sichtbar — Container ohne --gpus all gestartet?"; exit 1; }
+
+# ── 3. Modell und Datensatz prüfen ────────────────────────────────────────────
+log "Prüfe Modell und Datensatz …"
+[[ -d "$MODEL_PATH"   ]] || { err "FEHLT: $MODEL_PATH (siehe scripts/download_data.sh)";   exit 1; }
+[[ -d "$DATASET_PATH" ]] || { err "FEHLT: $DATASET_PATH (siehe scripts/download_data.sh)"; exit 1; }
+
+if [[ ! -f "$DATASET_PATH/meta/modality.json" ]]; then
+    log "modality.json fehlt — kopiere aus examples/G1_DEX3/modality_4cam.json"
+    cp "$GROOT_ROOT/examples/G1_DEX3/modality_4cam.json" "$DATASET_PATH/meta/modality.json"
+fi
+
+mkdir -p "$OUTPUT_DIR"
+
+# ── 3a. Gegen stilles Fortsetzen eines alten Laufs absichern ──────────────────
+resume_guard "$OUTPUT_DIR" "$EXPERIMENT_NAME" "$MAX_STEPS" || exit 1
+
+# ── 3b. Train-Test-Split scharf schalten (optional) ───────────────────────────
+# Details und Begründung in lib_split.sh. Default (TRAIN_TEST_SPLIT=0) lässt den
+# kompletten Datensatz trainieren — dann gibt es hinterher aber nichts zu validieren.
+INFO_JSON="$DATASET_PATH/meta/info.json"
+split_apply "$INFO_JSON" "$TRAIN_TEST_SPLIT" "$TRAIN_SPLIT_RATIO" "$OUTPUT_DIR"
+
+# ── 4. W&B-Login (nur via WANDB_API_KEY-Env-Var, kein interaktiver Fallback) ──
+if [[ "$USE_WANDB" == "1" ]]; then
+    if [[ -z "${WANDB_API_KEY:-}" ]]; then
+        err "USE_WANDB=1, aber WANDB_API_KEY ist nicht gesetzt."
+        err "Setze WANDB_API_KEY per Env-Var oder USE_WANDB=0 für Training ohne W&B."
+        exit 1
+    fi
+    if [[ "${WANDB_MODE:-}" == "offline" ]]; then
+        log "W&B Offline-Modus — Login übersprungen (kein Internet auf Compute-Node)."
+    else
+        cd "$GROOT_ROOT"
+        # wandb liest WANDB_API_KEY automatisch — kein expliziter Login nötig.
+        if uv run --no-sync wandb login --relogin "$WANDB_API_KEY" &>/dev/null; then
+            log "W&B-Login OK"
+        else
+            err "W&B-Login fehlgeschlagen — API-Key ungültig?"
+            exit 1
+        fi
+    fi
+fi
+
+# ── 5. Trainings-Befehl bauen ─────────────────────────────────────────────────
+# Launcher: torchrun nur bei Multi-GPU, sonst plain python (rückwärtskompatibel).
+# torchrun spawnt NUM_GPUS Prozesse und setzt WORLD_SIZE/LOCAL_RANK — genau die
+# Env-Vars, die experiment.py für die nccl-Init erwartet. Ohne torchrun bleibt
+# der Lauf Single-GPU, egal welcher Wert in --num_gpus steht.
+NUM_GPUS="${NUM_GPUS:-1}"
+if [[ "$NUM_GPUS" -gt 1 ]]; then
+    LAUNCHER=(torchrun --standalone --nnodes=1 --nproc_per_node="$NUM_GPUS")
+    log "Multi-GPU-Modus: torchrun mit $NUM_GPUS Prozessen (DeepSpeed ZeRO-2, per_device = $GLOBAL_BATCH_SIZE / $NUM_GPUS)."
+else
+    LAUNCHER=(python)
+    # Sieht der Prozess mehrere Karten, packt der HF-Trainer das Modell ohne torchrun in
+    # nn.DataParallel — N1.7 stirbt daran mit StopIteration (self.parameters() der Replika
+    # ist leer), N1.6 verteilt still. Einzel-GPU heisst hier deshalb: genau eine Karte zeigen.
+    # Ein vorgegebenes CUDA_VISIBLE_DEVICES (SLURM, Hand) bleibt unangetastet.
+    if [[ -z "${CUDA_VISIBLE_DEVICES:-}" ]] \
+        && [[ "$(nvidia-smi -L 2>/dev/null | grep -c '^GPU ')" -gt 1 ]]; then
+        export CUDA_VISIBLE_DEVICES=0
+        warn "NUM_GPUS=1, aber mehrere GPUs sichtbar — nutze nur GPU 0 (CUDA_VISIBLE_DEVICES=0)."
+    fi
+fi
+
+TRAIN_CMD=(
+    uv run --no-sync "${LAUNCHER[@]}" "$GROOT_ROOT/gr00t/experiment/launch_finetune.py"
+    --base_model_path        "$MODEL_PATH"
+    --dataset_path           "$DATASET_PATH"
+    --embodiment_tag         "$EMBODIMENT_TAG"
+    --modality_config_path   "$MODALITY_CONFIG"
+    --output_dir             "$OUTPUT_DIR"
+    --experiment_name        "$EXPERIMENT_NAME"
+    --num_gpus               "$NUM_GPUS"
+    --max_steps              "$MAX_STEPS"
+    --save_steps             "$SAVE_STEPS"
+    --save_total_limit       "$SAVE_TOTAL_LIMIT"
+    --global_batch_size      "$GLOBAL_BATCH_SIZE"
+    --learning_rate          "$LEARNING_RATE"
+    --weight_decay           "$WEIGHT_DECAY"
+    --warmup_ratio           "$WARMUP_RATIO"
+    --dataloader_num_workers "$DATALOADER_WORKERS"
+    --gradient_accumulation_steps "$GRADIENT_ACCUMULATION_STEPS"
+)
+
+# ── Bild-Augmentierung / Domain Randomization (optional) ──────────────────────
+if [[ "$USE_AUGMENTATION" == "1" ]]; then
+    log "Augmentierung AN — Color-Jitter (b=$CJ_BRIGHTNESS c=$CJ_CONTRAST s=$CJ_SATURATION h=$CJ_HUE)"
+    TRAIN_CMD+=(--color_jitter_params brightness "$CJ_BRIGHTNESS" contrast "$CJ_CONTRAST" saturation "$CJ_SATURATION" hue "$CJ_HUE")
+    [[ -n "$RANDOM_ROTATION_ANGLE" ]] && TRAIN_CMD+=(--random_rotation_angle "$RANDOM_ROTATION_ANGLE")
+    # state_dropout_prob: leer = NVIDIA-Default der Generation (N1.6 0.0, N1.7 0.2 — bewusst
+    # uebernommen, siehe docs/weiterfuehrend/groot-n17-migration.md); gesetzt = immer uebergeben.
+    if [[ -n "$STATE_DROPOUT_PROB" ]]; then
+        TRAIN_CMD+=(--state_dropout_prob "$STATE_DROPOUT_PROB")
+    fi
+else
+    log "Augmentierung AUS — Color-Jitter explizit auf 0 (kein Modell-Default-Jitter)."
+    TRAIN_CMD+=(--color_jitter_params brightness 0 contrast 0 saturation 0 hue 0)
+    # Auch State-Dropout aus: "Aug aus" heißt keine Regularisierung durch Modell-Defaults.
+    # Ohne Flag trainierte N1.7 hier mit seinem Default 0,2, und ein gesetztes
+    # STATE_DROPOUT_PROB wurde ignoriert (Review 5.2d). Gesetzt = gilt auch hier.
+    TRAIN_CMD+=(--state_dropout_prob "${STATE_DROPOUT_PROB:-0}")
+fi
+
+[[ "$USE_WANDB" == "1" ]] && TRAIN_CMD+=(--use_wandb --wandb_project "$WANDB_PROJECT")
+
+log "Trainings-Befehl:"
+printf '    %s\n' "${TRAIN_CMD[*]}"
+
+if [[ "$DRY_RUN" == "1" ]]; then
+    log "Dry-Run — nicht ausgeführt."
+    exit 0
+fi
+
+# ── 6. Training ausführen, Logs nach /data/logs (= Host-sichtbar) ─────────────
+LOG_DIR="/data/logs"
+mkdir -p "$LOG_DIR"
+LOG_FILE="$LOG_DIR/finetune-$(date +%Y%m%d-%H%M%S).log"
+log "Logs: $LOG_FILE  (auf dem Host: ./data/logs/$(basename "$LOG_FILE"))"
+log "Training startet — abbrechen mit Ctrl+C."
+echo
+
+cd "$GROOT_ROOT"
+# set +e: unter "set -euo pipefail" beendet eine scheiternde Pipe das Skript sofort, die
+# Fehlermeldung unten mit Exit-Code und Log-Pfad erschiene dann nie (Review 4.2).
+set +e
+"${TRAIN_CMD[@]}" 2>&1 | tee "$LOG_FILE"
+EXIT_CODE=${PIPESTATUS[0]}
+set -e
+
+echo
+if [[ "$EXIT_CODE" == "0" ]]; then
+    log "Training erfolgreich beendet."
+    LAST_CKPT=$(find "$OUTPUT_DIR" -maxdepth 3 -type d -name 'checkpoint-*' 2>/dev/null | sort -V | tail -1 || true)
+    [[ -n "$LAST_CKPT" ]] && log "Letzter Checkpoint: $LAST_CKPT"
+    if [[ "$TRAIN_TEST_SPLIT" == "1" ]]; then
+        log "Checkpoint-Auswahl (nicht blind den letzten nehmen):"
+        log "    python /scripts/checkpoint_sweep.py --run-dir $OUTPUT_DIR --dataset-path $DATASET_PATH"
+    fi
+else
+    err "Training mit Exit-Code $EXIT_CODE beendet — siehe $LOG_FILE"
+fi
+exit "$EXIT_CODE"

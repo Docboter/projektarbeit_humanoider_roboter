@@ -1,0 +1,243 @@
+% chapters/03_methoden.tex
+
+\chapter{Umsetzung der Teilaufgaben}
+\label{chap:umsetzung}
+\label{chap:methoden}
+
+Dieses Kapitel beschreibt für jede der fünf Teilaufgaben, was umgesetzt wurde,
+welche Entscheidungen dahinterstehen und welche Probleme dabei auftraten.
+Bedienung und Konfiguration stehen jeweils in der genannten Dokumentation.
+
+\section{Vorgehen}
+\label{sec:vorgehen}
+
+Geplant war ein linearer Ablauf: Container-Umgebung aufbauen, Datensatz
+konvertieren, auf dem Cluster trainieren und die Checkpoints in der Simulation
+bewerten. Nach dem ersten Trainingslauf scheiterte die Politik in der
+Simulation vollständig. Der größte Teil der Projektzeit floss danach in die
+Frage, ob die Ursache im Modell, in der Simulation oder in der Bewertung
+liegt. Dafür entstanden die Validierungsverfahren und Diagnosewerkzeuge aus
+\cref{sec:validierung,sec:werkzeuge}. Jeder Diagnoselauf wurde mit Datum,
+Konfiguration und Ergebnis in einem fortlaufenden Protokoll festgehalten
+(\doc{docs/ergebnisse/diagnose-chronik.md}); auf dessen Laufnummern beziehen
+sich auch die Ergebnisdokumente unter \doc{docs/ergebnisse/}.
+
+\section{Container-Umgebung}
+\label{sec:infrastruktur}
+\label{sec:docker}
+
+Dieselbe Software sollte lokal, auf gemieteten Cloud-GPUs und auf dem
+KISSKI-Cluster laufen. Dazu wurde ein Container-Image gebaut (CUDA~12.8,
+Python~3.10, Paketverwaltung mit \texttt{uv}), das beim Start Download,
+Konvertierung und Training selbstständig nacheinander ausführt. Lokal läuft es
+unter Docker, auf KISSKI wird es in ein Apptainer-Image umgewandelt. Die
+Skripte erkennen die jeweilige Umgebung selbst. Konfiguriert wird das Image
+ausschließlich über Umgebungsvariablen, etwa für Batch-Größe, Schrittzahl,
+Anzahl der GPUs, das Mittrainieren des Bild-Encoders oder den
+Train/Test-Split. Für die Simulation gibt es ein zweites Image, das Isaac~Sim,
+Isaac~Lab und GR00T enthält.
+
+Drei Entscheidungen haben sich auf die Arbeit ausgewirkt:
+
+\begin{itemize}
+  \item Daten, Checkpoints und Logs liegen im Container selbst, nicht auf einem
+    eingebundenen Host-Verzeichnis. Das entspricht dem Modell von vast.ai, bei
+    dem eine Instanz genau ein Container ist. Der Container darf deshalb nur
+    gestoppt, nie gelöscht werden; ein versehentliches Löschen vernichtet alle
+    Ergebnisse. Auf KISSKI wird stattdessen ein Projektverzeichnis des
+    Clusters eingebunden.
+  \item Die Skripte werden beim Bau in das Image kopiert. Jede Änderung
+    erforderte zunächst einen neuen Bau von rund 30~Minuten. Später wurden die
+    Skripte des Repositorys auf KISSKI und im lokalen Starter direkt
+    eingebunden, sodass Änderungen ohne neuen Bau wirksam werden.
+  \item Weil ein gestoppter Container beim Neustart das Training fortsetzt,
+    kam es vor, dass statt eines neuen Laufs unbemerkt ein alter fortgesetzt
+    wurde. Eine Prüfung vor dem Start verhindert das inzwischen.
+\end{itemize}
+
+Ursprünglich enthielten die Skripte feste Pfade der verwendeten Rechner.
+Damit das Repository auch auf anderen Rechnern läuft, werden diese Pfade
+inzwischen aus einer lokalen Konfigurationsdatei bzw.\ aus einem einzigen
+Projektverzeichnis abgeleitet (\doc{docs/portabilitaet.md}). Bedienung und
+Parameter: \doc{docs/training/anleitung.md}, \doc{docs/training/env-vars.md}.
+
+\section{Training}
+\label{sec:training}
+\label{sec:datensatz}
+\label{sec:trainingsverfahren}
+
+\paragraph{Datensatz und Split.}
+Verwendet wurde der öffentliche Datensatz
+G1\_Dex3\_BlockStacking~\cite{g1dex3dataset} mit 301 teleoperierten Episoden
+und rund 281\,000 Einzelbildern bei \qty{30}{\fps}. Jeder Zeitschritt enthält
+die Bilder von vier Kameras (zwei am Kopf, je eine an jedem Handgelenk), den
+28-dimensionalen Gelenkzustand und die Aufgabenbeschreibung. In der Aktion
+sind die Armgelenke als relative Änderungen, die Fingergelenke als absolute
+Zielwinkel angegeben (\cref{anh:datensatz}). GR00T erwartet das LeRobot-Format
+in Version~2.1~\cite{lerobot2024}, der Datensatz liegt in Version~3.0 vor und
+wird beim Start konvertiert. Für die Bewertung auf ungesehenen Daten werden
+die ersten 240 Episoden zum Training und die letzten 61 als Testmenge
+verwendet. Die Aufteilung nach Episodenindex macht den Split ohne Seed
+reproduzierbar. Im ersten Trainingslauf war der Split allerdings noch nicht
+aktiv (\cref{sec:split-befund}).
+
+\paragraph{Trainingsverfahren.}
+Das vortrainierte Modell wird per \acl{bc} nachtrainiert. In der
+Standardkonfiguration bleiben Sprachmodell und Bild-Encoder eingefroren,
+trainiert werden nur die Verbindungsschicht und der Aktionskopf. Optional wird
+der Bild-Encoder mittrainiert. Die Trainingsbilder werden in Helligkeit,
+Kontrast, Sättigung und Farbton zufällig variiert. Eine Validierung während
+des Trainings ist im verwendeten GR00T-Code nicht vorgesehen, die
+Checkpoint-Auswahl erfolgt daher nach dem Training (\cref{sec:validierung}).
+
+% TODO(N1.7, Entscheidung 2026-09-25) — beim Beschreiben der N1.7-Läufe aufnehmen:
+% N1.7 trainiert mit den NVIDIA-Standardwerten, auch wo sie von unseren N1.6-Läufen
+% abweichen. Wichtigster Fall: State-Dropout (zufälliges Ausblenden der 28 Gelenkwinkel
+% im Training, das Modell muss dann allein aus den Bildern handeln) — N1.6: 0.0,
+% N1.7: 0.2. Außerdem normalisiert N1.7 State/Action per Perzentil (q01/q99,
+% use_percentiles=True) statt per Min/Max. Folge: N1.6 vs. N1.7 ist kein reiner
+% Modellvergleich, sondern Modell + Trainingsrezept; bewusst in Kauf genommen, weil
+% das Ziel das bestmögliche N1.7-Ergebnis ist. Details:
+% docs/weiterfuehrend/groot-n17-migration.md (Nachtrag 2026-09-25).
+
+\Cref{tab:hparams} zeigt die beiden verwendeten Konfigurationen, entnommen der
+in \ac{wandb} protokollierten Laufkonfiguration. Beide verarbeiten rund
+1,4~Mio.\ Samples, also etwa fünf Durchläufe durch den Datensatz. Die
+Lernrate wurde bei der größeren Batch-Größe nicht angepasst, der
+Warmup-Anteil wurde verdoppelt.
+
+\begin{table}[htb]
+  \centering
+  \begin{tabular}{lrr}
+    \toprule
+    Parameter & 1$\times$A100 (Lauf~1) & 4$\times$A100 (Läufe~2, 3) \\
+    \midrule
+    Batch-Größe (gesamt)  & 8               & 32 ($4\times8$) \\
+    Trainingsschritte     & 175\,000        & 44\,000 \\
+    Spitzen-Lernrate      & \num{1e-4}      & \num{1e-4} \\
+    Warmup-Anteil         & 0,05            & 0,10 \\
+    Weight Decay          & \num{1e-5}      & \num{1e-5} \\
+    Bild-Encoder          & eingefroren     & mittrainiert \\
+    Optimierer / Precision & \multicolumn{2}{c}{AdamW, bf16 + tf32} \\
+    LR-Scheduler          & \multicolumn{2}{c}{Cosine mit linearem Warmup} \\
+    Aktions-Horizont      & \multicolumn{2}{c}{16 Schritte} \\
+    \bottomrule
+  \end{tabular}
+  \caption{Trainingskonfigurationen laut \ac{wandb}-Laufkonfiguration.}
+  \label{tab:hparams}
+\end{table}
+
+\paragraph{Mehrere GPUs.}
+\label{sec:multi-gpu}
+Der GR00T-Code enthält verteiltes Training bereits (DeepSpeed
+ZeRO-2~\cite{zero2020}). Für den Betrieb auf vier GPUs mussten nur der
+Startbefehl auf \texttt{torchrun} umgestellt und die angeforderten
+\ac{slurm}-Ressourcen angepasst werden. Probleme bereitete der
+Arbeitsspeicher: Mit acht Datenlade-Prozessen pro GPU reichten 256~GB nicht,
+der Job wurde abgebrochen. Mit vier Prozessen pro GPU und 384~GB lief das
+Training stabil. Ein Lauf dauerte so 8 statt 21~Stunden
+(\doc{docs/training/multi-gpu.md}).
+
+\paragraph{KISSKI-Cluster.}
+\label{sec:kisski}
+Trainiert wurde auf dem \ac{hpc}-Cluster KISSKI der GWDG~\cite{kisski} mit
+NVIDIA A100 (80~GB) und H100 (94~GB) bei maximal 48~h Laufzeit pro Job. Jobs
+werden über \ac{slurm} eingereicht (Auszug in \cref{anh:slurm}). Die
+Rechenknoten haben keinen Internetzugang, das Logging mit \ac{wandb} läuft
+daher offline und wird nachträglich synchronisiert. Zugangsdaten wie der
+Hugging-Face-Token müssen explizit an den Job übergeben werden. Ein
+Hilfsskript reiht mehrere Trainingsläufe samt anschließender
+Checkpoint-Auswahl hintereinander in die Warteschlange ein. Während des
+Projekts wurde der bisherige Scratch-Speicher des Clusters abgeschaltet, die
+Daten mussten auf den neuen Projektspeicher umziehen
+(\doc{docs/training/kisski-hpc.md}).
+
+\section{Simulation}
+\label{sec:simulation}
+
+In Isaac~Lab wurde eine Szene mit Roboter, Tisch, drei Würfeln und den vier
+Kameras des Datensatzes aufgebaut, dazu eine Übersichtskamera für Videos. Das
+Robotermodell wurde aus der URDF-Beschreibung von Unitree erzeugt. Die Politik
+wird mit 30~Hz abgefragt, von jedem vorhergesagten Block aus 16 Aktionen
+werden acht ausgeführt. Modell und Simulation laufen als zwei Prozesse, weil
+sie unterschiedliche Python-Versionen benötigen, und tauschen Bilder, Zustand
+und Aktionen über \ac{zmq} aus. Für Videos und Verlaufsdaten zeichnet die
+Simulation zusätzlich Kennzahlen wie den Abstand zwischen Fingerkuppe und
+Würfel, die Fingeröffnung und die Anhebung der Würfel auf.
+
+Isaac~Sim benötigt für das Rendering GPUs mit RT-Cores. Die A100 und H100 des
+Clusters besitzen keine, und die RTX~5000 der interaktiven Partition sind eine
+Generation zu alt. Die Simulation lief deshalb zunächst auf gemieteten
+Cloud-GPUs (vast.ai) und ab Juli~2026 auf einem Server des Instituts mit zwei
+RTX~PRO~6000 (Blackwell). Auf diesem Server stürzte die bisherige Version (Isaac~Sim~5.1) ab, im
+August wurde die Simulation daher auf Isaac~Sim~6.0 und Isaac~Lab~3.0
+umgestellt. Bei dieser Umstellung wurden mehrere Fehler sichtbar, die schon
+vorher bestanden (\cref{sec:domain-gap-ergebnis,sec:geometrie}).
+Anleitung und Umsetzungsnotizen: \doc{docs/simulation/sim-eval-anleitung.md},
+\doc{docs/simulation/umsetzungsnotizen.md}.
+
+\section{Validierung}
+\label{sec:validierung}
+\label{sec:eval-methodik}
+
+\paragraph{Open-Loop-Auswertung und Checkpoint-Auswahl.}
+Der \ac{mse} zwischen vorhergesagter und demonstrierter Aktion wird auf realen
+Episoden gemessen. Weil weder Regelkreis noch simulierte Bilder beteiligt
+sind, ist er vom Domain-Gap unabhängig. Einen absoluten Grenzwert gibt es
+nicht, die Metrik dient dem Vergleich von Checkpoints. Nach dem Training wird
+für jeden gespeicherten Checkpoint der \ac{mse} auf Testepisoden berechnet und
+der mit dem kleinsten Fehler ausgewählt.
+
+\paragraph{Closed-Loop-Evaluation.}
+Erfolg gilt, wenn alle drei Würfel horizontal höchstens 3~cm voneinander
+entfernt, mindestens 8~cm hoch gestapelt und in Ruhe sind. Weil diese binäre
+Größe bei einem Ergebnis von null keine Unterschiede zeigt, wird zusätzlich
+eine Stufenfolge erfasst: Fingerkuppe höchstens 4~cm vom Würfel
+(\enquote{erreicht}), Fingeröffnung mindestens 30\,\% der Demonstration
+(\enquote{Greifversuch}), Würfel mehr als 1~cm verschoben
+(\enquote{berührt}), mehr als 2~cm angehoben (\enquote{angehoben}) und
+gestapelt. Die Schwellen wurden vor den Messungen festgelegt.
+
+\paragraph{Referenzaufgabe.}
+Um Fehler in der eigenen Inferenz-Kette auszuschließen, wurde das nicht
+nachtrainierte Basismodell auf dem RoboCasa-GR-1-Benchmark~\cite{robocasa2024}
+ausgeführt, für den NVIDIA Erfolgsraten veröffentlicht hat
+(\doc{docs/simulation/robocasa-referenz-eval.md}).
+
+\paragraph{Fingeröffnung auf realen und simulierten Bildern.}
+Dieser Test misst die kommandierte Fingeröffnung derselben Politik einmal auf
+realen Bildern aus dem Datensatz und einmal in der Simulation. Liegt der Wert
+auf realen Bildern bei mindestens 70\,\% der Demonstration, gilt das Defizit
+in der Simulation als Wahrnehmungsproblem, sonst als Lernproblem. Auch diese
+Regel wurde vor der Messung festgelegt.
+
+\section{Entwicklungswerkzeuge}
+\label{sec:werkzeuge}
+
+Im Projekt entstanden zwei Gruppen von Werkzeugen. Die erste sind
+Diagnoseskripte, die jeweils einen Teil der Pipeline isoliert prüfen:
+
+\begin{itemize}
+  \item ein Replay, das aufgezeichnete Aktionen ohne Modell in der Simulation
+    abspielt,
+  \item eine Messung des Domain-Gaps über SigLIP-Embeddings und halbtransparente
+    Überlagerungen realer und simulierter Kamerabilder,
+  \item ein Abgleich der Kameraposen zwischen Konfiguration und tatsächlichem
+    Rendering,
+  \item eine statische Prüfung der Normierungsstatistiken des Checkpoints
+    gegen den Datensatz,
+  \item der Vergleich der Fingeröffnung auf realen und simulierten Bildern,
+  \item die Bestimmung der Würfelpositionen und -drehungen aus den realen
+    Bildern und eine Projektion der simulierten Fingerkuppen ins reale Bild,
+  \item eine Messung der reinen Inferenzzeit der Politik.
+\end{itemize}
+
+Die zweite Gruppe betrifft die Bedienung. Ein einziger Einstiegspunkt
+(\texttt{run.sh}) führt per Terminal-Menü zu allen Aktionen für Training,
+Cluster und Simulation und zeigt am Ende den entsprechenden direkten Befehl
+an. Die Parameter jeder Aktion sind in einer Beschreibungsdatei hinterlegt.
+Ein Prüfskript vergleicht deren Standardwerte mit den Skripten und der
+Dokumentation, ein weiteres prüft, ob jede Dokumentationsseite und jedes
+Skript eine Kurzbeschreibung trägt. Diese Prüfungen verhindern, dass Code
+und Dokumentation auseinanderlaufen, was bei rund 50 Dokumentationsseiten
+sonst unvermeidlich wäre (\doc{docs/weiterfuehrend/cli-menuefuehrung.md}).

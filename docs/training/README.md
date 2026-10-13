@@ -1,0 +1,70 @@
+# Training — Fine-tuning von GR00T N1.6
+
+> **TL;DR:** Einstiegspunkt für alle Trainings-Dokumente: welche Datei wann lesen, die vier
+> Wege zum Trainieren (vast.ai, lokal, KISSKI) im Überblick. Für die konkreten Befehle direkt
+> zu [anleitung.md](anleitung.md).
+
+Fine-tuning von NVIDIAs GR00T-N1.6-VLA-Modell auf den Unitree G1 + DEX3-Hand (Block-Stacking).
+Die Umgebung läuft autonom in einem Docker-Container: Env-Vars setzen → der Container erledigt
+Download, Konvertierung und Training. Derselbe Container läuft lokal, auf vast.ai und auf dem
+KISSKI HPC-Cluster.
+
+## Einstieg
+
+| Dokument | Wann lesen |
+|---|---|
+| [trainingsverfahren.md](trainingsverfahren.md) | **Was für ein Training ist das?** Modellarchitektur (GR00T N1.6 VLA), Lernverfahren (Imitation Learning, Flow-Matching), Embodiment, Ein-/Ausgaben — die konzeptionelle Einordnung. |
+| [anleitung.md](anleitung.md) | **Zuerst.** Schritt-für-Schritt — die vier Wege zum Trainieren (vast.ai, lokal mit Launcher-Skript, lokal mit `docker run`, KISSKI), Daten retten, „Was passiert intern?", FAQ. |
+| [kisski-hpc.md](kisski-hpc.md) | **HPC-Training auf KISSKI.** SIF-Konvertierung, VAST-Storage, SLURM-Job, Monitoring, Checkpoint-Export, KISSKI-Troubleshooting (die ausführliche Form von Weg D). |
+| [env-vars.md](env-vars.md) | **Konfigurationsreferenz.** Alle Env-Vars + VRAM-Richtwerte — die Single Source of Truth, auf die `anleitung.md` und `kisski-hpc.md` verweisen. |
+| [multi-gpu.md](multi-gpu.md) | **Multi-GPU (bis 4× A100) — umgesetzt.** Warum sich Multi-GPU lohnt, was geändert wurde (torchrun-Launcher + SLURM-Ressourcen), KISSKI-Defaults (4× A100, `GLOBAL_BATCH_SIZE=32`) und Verifikationsschritte. |
+| [train-test-split.md](train-test-split.md) | 80/20-Datensatz-Split **und Checkpoint-Auswahl** — Implementierung, Nutzung und warum die Validierung erst *nach* dem Lauf stattfinden kann (der Fork hat keine In-Training-Eval: `enable_open_loop_eval` ist tot, `factory.py` sperrt `eval_strategy != "no"`). Werkzeug: [`checkpoint_sweep.py`](../../Training/scripts/checkpoint_sweep.py). |
+| [co-training.md](co-training.md) | **Schritt 4 — echte + gerenderte Bilder.** Warum Lauf 34 (`TUNE_VISUAL`) den richtigen Hebel gefunden, aber nicht weit genug gedreht hat, und wie der Encoder Sim-Bilder ins Training bekommt: Renderer (`server_rl_run.sh render`), Zwei-Datensatz-Training (`USE_COTRAIN=1`), begründete Werte für Episodenzahl und Mischungsverhältnis, vorregistrierte Erfolgsregel. **Werkzeuge gebaut; kein Lauf mit eigenem Render-Datensatz bisher (Stand 2026-10-11), der Datensatz muss nach den Sim-Geometrie-Fixes vom 2026-08-24 neu gerendert werden.** |
+| [synth-datensatz.md](synth-datensatz.md) | **Fremder Sim-Datensatz im Co-Training** (`Fichtl00/Cube_Stacking_synth`, 16 Episoden teleoperierter G1). Er passt schematisch nicht (57-Dim-State statt 28, 50 statt 30 fps, andere Schlüsselnamen); [`harmonize_synth_dataset.py`](../../Training/scripts/harmonize_synth_dataset.py) schreibt ihn um und **misst** die Gelenk-Zuordnung, statt sie zu raten. Begründetes Mischungsverhältnis (0,10 statt 0,25), Split nur auf den echten Episoden, vorregistrierte Bewertungsregel. Gelenkreihenfolge aus der Isaac-Tabelle des eigenen USD-Assets aufgelöst und gegengeprüft. **Werkzeug abgenommen; `cotrain_synth_v1` brach am 2026-09-07 ab (vertauschte Handaktionen), Korrektur als v22 + Re-Export `_jointspace` am 2026-09-23, Wiederholung per `kisski_chain.sh` steht aus, kein Ergebnis bisher.** |
+| [wandb-offline-sync.md](wandb-offline-sync.md) | W&B-Offline-Sync auf KISSKI (Compute-Knoten ohne Internet). |
+
+> Die abgeschlossene Fix-Runde aus dem 1. Lauf (Würfelfarbe, Stapel-Band, `BLACK_HANDS`-Recolor)
+> ist nach [../historie.md](../historie.md) ausgelagert; die Maßnahmen sind längst im Sim-Asset
+> aktiv und operativ in [../simulation/sim-eval-anleitung.md](../simulation/sim-eval-anleitung.md) dokumentiert.
+
+> **Auswertung der Läufe** liegt jetzt unter [`../ergebnisse/`](../ergebnisse/README.md)
+> (W&B-Metriken, Abschluss-Auswertung des 1. Laufs, Domain-Gap, Baseline). Der **RL-Plan** als
+> möglicher nächster Schritt liegt unter [`../weiterfuehrend/reinforcement-learning-plan.md`](../weiterfuehrend/reinforcement-learning-plan.md).
+
+> **Variante — Vision-Encoder mittrainieren:** Mit `TUNE_VISUAL=1` wird zusätzlich der
+> Vision-Encoder feingetunt (LLM bleibt eingefroren). Der Entrypoint startet dann
+> `run_finetuning_vision.sh` mit eigenem Output-/Experiment-Namespace (`blockstacking_vision`).
+> Funktioniert auf allen Wegen (Container, vast.ai, KISSKI). Details: [env-vars.md](env-vars.md)
+> (`TUNE_VISUAL`), Anwendung in [anleitung.md](anleitung.md) und [kisski-hpc.md](kisski-hpc.md).
+
+> **Variante — GR00T N1.7 statt N1.6:** Mit `GROOT_VERSION=1.7` trainiert der Container gegen
+> das N1.7-Modell (Cosmos-Reason2-2B-Backbone) statt N1.6 — als **paralleler Codebaum**, aber
+> **eigenes Image** (`:latest-n17`, `Training/update_image.sh --groot=1.7`), N1.6 bleibt
+> Default. Braucht Zugang zum gated Backbone-Repo. **Ungetestet:**
+> es gibt noch keinen abgeschlossenen N1.7-Trainingslauf. Details: [env-vars.md](env-vars.md)
+> (`GROOT_VERSION`), Auswahl in [anleitung.md](anleitung.md#modellgeneration-wählen--n16-oder-n17),
+> Umsetzungsstand: [groot-n17-migration.md](../weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19).
+
+## Die vier Wege im Überblick
+
+Welcher Weg passt — die konkreten Befehle stehen jeweils in [anleitung.md](anleitung.md):
+
+| Weg | Plattform | Wann | Anleitung |
+|---|---|---|---|
+| A | vast.ai (Cloud-GPU) | kein eigener GPU-Rechner / schneller trainieren | [anleitung.md → Weg A](anleitung.md#weg-a--cloud-training-auf-vastai) |
+| B | Lokal, Launcher-Skript | eigene NVIDIA-GPU (≥ 8 GB), bequem | [anleitung.md → Weg B](anleitung.md#weg-b--lokales-training-mit-dem-launcher-skript) |
+| C | Lokal, `docker run` | maximale Kontrolle, kein Skript | [anleitung.md → Weg C](anleitung.md#weg-c--lokales-training-mit-docker-run) |
+| D | KISSKI HPC (A100/H100) | langes Training per SLURM | [kisski-hpc.md](kisski-hpc.md) |
+
+> **Speicher-Modell:** keine Host-Persistenz — alles lebt im Container-Filesystem. **Niemals
+> `docker run --rm`** verwenden (löscht Daten + Checkpoints). Details: [anleitung.md →
+> Speicher-Modell](anleitung.md#speicher-modell--wichtig-vorab).
+
+## Verwandte Dokumentation
+
+- [Doku-Übersicht](../README.md) — globaler Navigations-Hub
+- [Ergebnisse](../ergebnisse/README.md) — Auswertungen & Messungen der Trainingsläufe
+- [Weiterführende Arbeiten](../weiterfuehrend/README.md) — RL-Plan, Lokomotion, Livestream
+- [Simulation](../simulation/README.md) — Closed-Loop-Eval des fertigen Checkpoints in Isaac Lab
+- [`FINETUNING_GUIDE.md`](../../app/Groot-1.6/examples/G1_DEX3/FINETUNING_GUIDE.md) — volle Parameter-Referenz (Submodul)
+- [`SETUP_DOCUMENTATION.md`](../../app/Groot-1.6/examples/G1_DEX3/SETUP_DOCUMENTATION.md) — Setup & Architektur des G1/DEX3-Embodiments (Submodul)

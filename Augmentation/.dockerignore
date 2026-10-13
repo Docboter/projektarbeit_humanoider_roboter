@@ -1,0 +1,14 @@
+# TL;DR: Haelt den Build-Kontext auf scripts/ beschraenkt — alles andere in Augmentation/
+# sind Host-Launcher (update_image.sh, setup_and_augment_*.sh), die im Image nichts
+# verloren haben und nur unnoetig uebertragen wuerden.
+#
+# Regeln werden von oben nach unten ausgewertet, die LETZTE Uebereinstimmung gewinnt.
+# Dockerfile und .dockerignore selbst gehen trotz `*` immer an den Builder.
+
+*
+!scripts/
+
+# Python-Muell aus dem Arbeitsverzeichnis nicht mitkopieren
+scripts/**/__pycache__/
+scripts/**/*.pyc
+scripts/**/*.pyo

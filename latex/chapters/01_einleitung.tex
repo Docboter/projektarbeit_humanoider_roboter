@@ -1,0 +1,133 @@
+% chapters/01_einleitung.tex
+
+\chapter{Einleitung}
+\label{chap:einleitung}
+
+\section{Motivation}
+\label{sec:motivation}
+
+Humanoide Roboter sollen in einer für Menschen gebauten Umgebung arbeiten und
+dort auch Manipulationsaufgaben übernehmen. Manuell programmierte
+Bewegungsabläufe lassen sich dafür nur schlecht auf neue Aufgaben übertragen.
+Einen anderen Ansatz verfolgen Foundation-Modelle für die Robotik: \acp{vla}
+werden auf großen, heterogenen Datensätzen vortrainiert und anschließend mit
+wenigen Demonstrationen an einen bestimmten Roboter und eine bestimmte Aufgabe
+angepasst~\cite{openvla2024,pi0_2024}. NVIDIA hat mit
+GR00T~N1~\cite{groot2025} ein solches offenes Modell für humanoide Roboter
+veröffentlicht; in dieser Arbeit wird die Nachfolgeversion
+GR00T~N1.6~\cite{groot_repo} verwendet.
+
+\section{Problemstellung}
+\label{sec:problemstellung}
+
+Das Stapeln von Würfeln mit einer mehrfingrigen Hand ist eine kontaktreiche
+Aufgabe, bei der Kamerabilder, Gelenkzustände und Bewegungsablauf gemeinsam
+verarbeitet werden müssen. Für das Projekt ergaben sich daraus folgende
+Herausforderungen:
+
+\begin{itemize}
+  \item Der Aktionsraum umfasst 28~\acp{dof} für Arme und Hände und kombiniert
+    relative und absolute Gelenkwerte.
+  \item Es stehen nur rund 300 teleoperierte Demonstrationen zur Verfügung.
+  \item Das Training des Modells mit 3,3~Mrd.\ Parametern benötigt
+    Rechenressourcen, die nur auf einem \ac{hpc}-Cluster verfügbar waren.
+  \item Ein Test auf dem physischen Roboter war nicht Teil des Projekts.
+    Ob die Politik die Aufgabe löst, kann daher nur in einer Simulation
+    geprüft werden, deren Bilder sich von den realen Trainingsbildern
+    unterscheiden (Domain-Gap).
+\end{itemize}
+
+Der letzte Punkt hat sich im Projektverlauf als der wichtigste herausgestellt.
+
+\section{Zielsetzung, Leitfragen und Abgrenzung}
+\label{sec:zielsetzung}
+
+Das Projekt gliedert sich in fünf Teilaufgaben, die in \cref{chap:umsetzung}
+einzeln beschrieben werden: eine reproduzierbare Container-Umgebung, das
+Training auf dem Cluster, eine Simulationsumgebung, die Validierung der
+trainierten Modelle und die dafür nötigen Entwicklungswerkzeuge. Die Arbeit
+orientiert sich an drei Leitfragen:
+
+\begin{enumerate}
+  \item[F1] Lässt sich GR00T~N1.6 mit den verfügbaren Daten und Ressourcen
+    stabil auf den G1 mit DEX3-Hand nachtrainieren, und wie gut gibt das
+    Modell die Demonstrationen auf ungesehenen Episoden wieder?
+  \item[F2] Wie gut löst das trainierte Modell die Aufgabe in der Simulation,
+    und wie aussagekräftig ist diese Bewertung für ein Modell, das nur mit
+    realen Bildern trainiert wurde?
+  \item[F3] Woran scheitert die Politik in der Simulation, und welche
+    Schritte sind als Nächstes sinnvoll?
+\end{enumerate}
+
+Der Einsatz auf dem physischen Roboter ist nicht Teil dieser Arbeit. Die
+Lokomotion wurde nur recherchiert. Co-Training und Reinforcement Learning sind
+implementiert, ein Trainingslauf, der eine Verbesserung nachweist, steht für
+beide noch aus.
+
+\section{Projektkontext und Eigenleistung}
+\label{sec:eigenleistung}
+
+Das Projekt wurde von Maximilian Berger, Matthias Späth und Luca Mücke
+gemeinsam bearbeitet. Übernommen wurden das vortrainierte Modell samt
+Trainings-Framework (NVIDIA), der Simulator Isaac~Sim/Isaac~Lab, das
+LeRobot-Datenformat, ein öffentlicher Datensatz, das Robotermodell von
+Unitree, das SigLIP-Modell als Messwerkzeug, das RL-Verfahren \ac{fpo} sowie die
+KISSKI-Infrastruktur der GWDG. \Cref{tab:beitraege} zeigt, wer welche
+Arbeitspakete federführend bearbeitet hat.
+
+\begin{table}[htb]
+  \centering
+  \begin{tabularx}{\linewidth}{Xl}
+    \toprule
+    Arbeitspaket & Federführend \\
+    \midrule
+    Container-Trainingspipeline und Anbindung an den KISSKI-Cluster
+      (Basis-Setup gemeinsam im Team) & Luca Mücke \\
+    \addlinespace
+    Roboterkonfiguration im GR00T-Code, Datensatzkonvertierung,
+      Train/Test-Split, Checkpoint-Auswahl & Luca Mücke \\
+    \addlinespace
+    Simulationsumgebung in Isaac~Lab, Kalibrierung und Diagnosewerkzeuge
+      & Luca Mücke \\
+    \addlinespace
+    RL-Fine-Tuning und Co-Training-Werkzeuge & Luca Mücke \\
+    \addlinespace
+    Cloud-Simulation (vast.ai), Inferenz-Optimierung, Replay-Videos,
+      erstes Verfahren zur Bestimmung der Würfellage, Migration auf
+      GR00T~N1.7 & Matthias Späth \\
+    \addlinespace
+    Generative Video-Augmentierung mit Cosmos-Transfer (in Entwicklung)
+      & Maximilian Berger \\
+    \addlinespace
+    Projektdokumentation, Bedienoberfläche, Ausarbeitung & Luca Mücke \\
+    \bottomrule
+  \end{tabularx}
+  \caption{Arbeitspakete und federführende Bearbeiter.}
+  \label{tab:beitraege}
+\end{table}
+
+\section{Verhältnis zur Projektdokumentation}
+\label{sec:doku-verhaeltnis}
+
+Im Projekt-Repository liegt eine technische Dokumentation in Markdown
+(Verzeichnis \doc{docs/}, Einstieg über \doc{docs/README.md} und
+\doc{docs/quickstart.md}). Sie enthält Kommandos, Konfigurationsparameter,
+Schritt-für-Schritt-Anleitungen, Fehlerbehebung und ein laufendes Protokoll
+aller Diagnoseläufe. Diese Ausarbeitung wiederholt diese Inhalte nicht. Sie
+beschreibt, was gemacht wurde, welche Ergebnisse und Hindernisse es gab und
+was sich daraus lernen lässt, und verweist für Details an der jeweiligen
+Stelle auf die Dokumentation. Wer auf dem Projekt aufbauen möchte, beginnt mit
+\doc{docs/quickstart.md}.
+
+\section{Aufbau der Arbeit}
+\label{sec:aufbau}
+
+\Cref{chap:grundlagen} fasst die nötigen Begriffe knapp zusammen.
+\Cref{chap:umsetzung} beschreibt die Umsetzung der fünf Teilaufgaben,
+\cref{chap:ergebnisse} die Ergebnisse, darunter die Lernkurven der
+Trainingsläufe und das Verhalten des zuletzt getesteten Modells in der
+Simulation. \Cref{chap:diskussion} ordnet die Ergebnisse ein.
+\Cref{chap:weiterfuehrend} gibt einen Überblick über weiterführende Arbeiten.
+\Cref{chap:projektverlauf} beschreibt die größten Hindernisse, die
+Arbeitsmittel einschließlich der KI-gestützten Entwicklungsumgebung und die
+Lessons Learned. \Cref{chap:fazit} beantwortet die Leitfragen.

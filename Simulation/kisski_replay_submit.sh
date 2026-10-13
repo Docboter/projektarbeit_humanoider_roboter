@@ -1,0 +1,209 @@
+#!/usr/bin/env bash
+# TL;DR: SLURM-Job (KISSKI): Open-Loop-Dataset-Replay-Diagnose, trennt Sim- von Modell-Fehlern.
+# kisski_replay_submit.sh — SLURM-Skript für die OPEN-LOOP-DATASET-REPLAY-Diagnose auf GWDG
+#
+# ⚠️  ACHTUNG — GPU-INKOMPATIBILITÄT (Stand: docs/simulation/umsetzungsnotizen.md):
+#     Die KISSKI jupyter-Partition hat NUR die Quadro RTX 5000 (Turing, SM 7.5). Isaac Sim 4.x
+#     setzt Ampere (RTX 30xx) als Minimum voraus → das Kamera-Rendering scheitert auf der
+#     RTX 5000 (createDLSSContext-Fehler). A100/H100 fehlen RT-Cores → ebenfalls untauglich.
+#     => Auf KISSKI läuft dieses Skript mit dem aktuellen Sim-Image VORAUSSICHTLICH NICHT durch.
+#        Praktischer Weg fürs Replay: vast.ai mit L40 / RTX 4090 / A6000 (entrypoint_replay.sh).
+#     Dieses Skript bleibt nur für den Fall, dass ein Turing-fähiges, älteres Isaac-Lab-Image
+#     (1.x / frühes 2.x) gebaut wird (siehe umsetzungsnotizen.md).
+#
+# Zweck: trennt eindeutig "Sim/Config-Fehler" von "Modell-Problem".
+#   Statt das GR00T-Modell zu befragen, werden die ECHTEN aufgezeichneten Dataset-Aktionen
+#   (gebündelte Episode 0 von unitreerobotics/G1_Dex3_BlockStacking_Dataset) direkt in
+#   dieselbe Isaac-Lab-Env gespeist. KEIN GR00T-Server, KEIN Modell, KEIN Checkpoint nötig.
+#
+# Interpretation des Ergebnis-Videos (/data/sim_videos_replay/replay_episode0.mp4):
+#   - Arme fahren NACH VORNE zum Tisch + Finger schließen greif-artig  → Sim/Config korrekt,
+#     d.h. das Wegdriften im Closed-Loop liegt am MODELL (Training), nicht an der Config.
+#   - Roboter driftet auch beim Replay weg / bewegt sich unsinnig       → es steckt ein
+#     SIM-Problem drin (Reachability, Achsen-Konvention, Skalierung), das gezielt zu fixen ist.
+#
+# Unterschied zu kisski_sim_submit.sh: dort Closed-Loop mit GR00T-Server; HIER nur der
+# Sim-Client mit aufgezeichneten Aktionen. Daher KEIN Server-SIF, KEIN Port-Warten, schneller.
+#
+# Voraussetzungen (einmalig auf dem Login-Node — identisch zu kisski_sim_submit.sh):
+#   module load apptainer
+#   export APPTAINER_CACHEDIR=/mnt/vast-kisski/projects/kisski-humrob/apptainer-cache
+#   export APPTAINER_TMPDIR=/mnt/vast-kisski/projects/kisski-humrob/apptainer-tmp
+#   apptainer pull ~/.project/dir.project/images/projekt-humanoider-roboter-sim.sif \
+#       docker://lucam03/projekt-humanoider-roboter-sim:latest
+#
+#   # Job einreichen:
+#   sbatch Simulation/kisski_replay_submit.sh
+#   # Greif-Physik-Test (Würfel exakt an die aufgezeichneten Greifpunkte):
+#   GRASP_TEST=1 sbatch Simulation/kisski_replay_submit.sh
+#
+# Optionale Überschreibungen (vor sbatch als export setzen):
+#   SIM_SIF, DATA_DIR, ASSET_PATH, GRASP_TEST, MAX_STEPS
+
+# ── SLURM-Direktiven ──────────────────────────────────────────────────────────
+# WICHTIG: jupyter-Partition wegen RT-Cores (Isaac-Sim-Kamera-Rendering).
+#          A100/H100 fehlen RT-Cores → Rendering scheitert (s. docs/simulation/).
+#SBATCH --job-name=groot-sim-replay
+#SBATCH -p jupyter
+#SBATCH --gres=gpu:RTX5000:1
+#SBATCH -c 16
+#SBATCH --mem=32G
+#SBATCH -t 02:00:00
+# Logpfade sind RELATIV zum Verzeichnis, aus dem `sbatch` aufgerufen wird — in
+# #SBATCH-Zeilen kann SLURM keine Umgebungsvariablen auflösen, ein Knopf wie
+# KISSKI_PROJECT_DIR wirkt hier also nicht. Vor dem ersten Absenden einmal
+#   mkdir -p logs
+# (SLURM legt die Datei an, aber nicht das Verzeichnis — fehlt es, startet der Job
+# gar nicht). Anderer Ort ohne Skript-Änderung:
+#   sbatch --output=/pfad/logs/slurm-replay-%j.out --error=/pfad/logs/slurm-replay-%j.err <skript>
+#SBATCH --output=logs/slurm-replay-%j.out
+#SBATCH --error=logs/slurm-replay-%j.err
+#SBATCH --export=ALL
+
+set -euo pipefail
+
+# ── Portable Pfad-Auflösung ───────────────────────────────────────────────────
+# Bewusst in JEDEM SLURM-Skript dupliziert statt in ein lib-Skript ausgelagert: SLURM
+# kopiert das Batch-Skript vor der Ausführung in sein Spool-Verzeichnis, darum zeigen $0
+# und BASH_SOURCE im Job NICHT mehr ins Repo — ein `source "$(dirname "$0")/lib_…"` würde
+# fehlschlagen. Die paar Zeilen hier sind der Preis für Selbstgenügsamkeit.
+#
+# EIN Knopf für den Projektspeicher, alles Weitere leitet sich davon ab:
+#     KISSKI_PROJECT_DIR=/mnt/vast-kisski/projects/<projekt> sbatch <dieses Skript>
+# Das wirkt beim Absenden, weil oben `#SBATCH --export=ALL` steht — die Umgebung der
+# Submit-Shell landet unverändert im Job.
+KISSKI_PROJECT_DIR="${KISSKI_PROJECT_DIR:-/mnt/vast-kisski/projects/kisski-humrob}"
+
+# SIF-Ablage. Reihenfolge: eigenes $HOME/images zuerst — genau dorthin lädt der in
+# CLAUDE.md und docs/training/kisski-hpc.md dokumentierte `apptainer pull`; danach eine
+# gemeinsame Kopie auf dem Projektspeicher. Eigener Ort: KISSKI_SIF_DIR=… setzen.
+KISSKI_SIF_DIR="${KISSKI_SIF_DIR:-$HOME/images}"
+pick_sif() {   # erste EXISTIERENDE Datei gewinnt; sonst der erste Kandidat, damit die
+    local f    # Fehlermeldung weiter unten einen konkreten Pfad nennen kann
+    for f in "$@"; do [[ -f "$f" ]] && { printf '%s\n' "$f"; return; }; done
+    printf '%s\n' "$1"
+}
+
+# ── Konfiguration ─────────────────────────────────────────────────────────────
+SIM_SIF="${SIM_SIF:-$(pick_sif \
+    "$KISSKI_SIF_DIR/projekt-humanoider-roboter-sim.sif" \
+    "$KISSKI_PROJECT_DIR/images/projekt-humanoider-roboter-sim.sif")}"
+DATA_DIR="${DATA_DIR:-$KISSKI_PROJECT_DIR/data}"
+
+# G1+Dex3 USD-Asset (identisch zum Closed-Loop-Eval). Default = schwarzhändiges Asset
+# (Domain-Gap-Fix); wird bei Bedarf automatisch aus g1_dex3.usd erzeugt. BLACK_HANDS=0 → Original.
+ASSET_PATH="${ASSET_PATH:-/data/assets/g1_dex3_blackhands.usd}"
+BLACK_HANDS="${BLACK_HANDS:-1}"
+
+# 1 = Würfel exakt an die aufgezeichneten Greifpunkte setzen (Greif-Physik prüfen),
+# 0 = Standard-Würfelpositionen der Env.
+GRASP_TEST="${GRASP_TEST:-0}"
+# 0 = alle aufgezeichneten Frames abspielen.
+MAX_STEPS="${MAX_STEPS:-0}"
+
+# Code-/Asset-Pfade (analog zu kisski_sim_submit.sh)
+ASSETS_DIR="${ASSETS_DIR:-$KISSKI_PROJECT_DIR/assets}"
+# Repo-Checkout auf dem Cluster (Compute-Nodes haben kein Internet, deshalb muss das
+# Repo vorab auf dem Login-Node liegen). Eigener Ort: REPO_DIR bzw. SIM_CODE setzen.
+SIM_CODE="${SIM_CODE:-${REPO_DIR:-$KISSKI_PROJECT_DIR/repo}/Simulation}"
+
+# Isaac-Sim-Cache (SIF read-only → auf beschreibbaren Projektspeicher umlenken)
+ISAAC_CACHE="${ISAAC_CACHE:-$KISSKI_PROJECT_DIR/isaac-cache}"
+
+# ── Voraussetzungen prüfen ────────────────────────────────────────────────────
+if [[ ! -f "$SIM_SIF" ]]; then
+    echo "FEHLER: Sim-SIF nicht gefunden: $SIM_SIF" >&2
+    echo "Einmalig auf dem Login-Node erstellen:" >&2
+    echo "    module load apptainer && apptainer pull $SIM_SIF docker://${DOCKER_NAMESPACE:-lucam03}/projekt-humanoider-roboter-sim:latest" >&2
+    exit 1
+fi
+
+mkdir -p "$ISAAC_CACHE"/{kit,kit_data,ov,pip,nv,logs}
+mkdir -p "$DATA_DIR/sim_videos_replay" "$DATA_DIR/sim_results_replay"
+
+# ── Laufumgebung anzeigen ─────────────────────────────────────────────────────
+echo "==> SLURM Job: ${SLURM_JOB_ID:-local} auf $(hostname)"
+echo "    GPU:           $(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null || echo 'unbekannt')"
+echo "    Sim-SIF:       $SIM_SIF"
+echo "    DATA_DIR:      $DATA_DIR"
+echo "    Asset:         $ASSET_PATH"
+echo "    Grasp-Test:    $GRASP_TEST"
+echo "    Max-Steps:     $MAX_STEPS (0 = alle)"
+echo ""
+
+module load apptainer
+
+export APPTAINER_CACHEDIR="${APPTAINER_CACHEDIR:-$KISSKI_PROJECT_DIR/apptainer-cache}"
+export APPTAINER_TMPDIR="${APPTAINER_TMPDIR:-$KISSKI_PROJECT_DIR/apptainer-tmp}"
+mkdir -p "$APPTAINER_CACHEDIR" "$APPTAINER_TMPDIR"
+
+# ── Isaac-Lab-Replay-Client (headless EGL) ────────────────────────────────────
+# ── Domain-Gap-Fix: schwarzhändiges Asset sicherstellen (BLACK_HANDS=0 deaktiviert) ──
+if [[ "$BLACK_HANDS" == "1" ]]; then
+    if [[ ! -f "$ASSETS_DIR/g1_dex3_blackhands.usd" && -f "$ASSETS_DIR/g1_dex3.usd" ]]; then
+        echo "==> Domain-Gap-Fix: erzeuge schwarzhändiges Asset (Recolor) …"
+        apptainer exec --nv \
+            --bind "$DATA_DIR:/data" --bind "$ASSETS_DIR:/data/assets" \
+            --bind "$SIM_CODE/g1_dex3_sim:/workspace/g1_dex3_sim" \
+            "$SIM_SIF" bash -lc '/opt/usdtool/bin/python \
+                /workspace/g1_dex3_sim/recolor_hands_black.py \
+                --in /data/assets/g1_dex3.usd --out /data/assets/g1_dex3_blackhands.usd' \
+            || echo "WARN: Recolor fehlgeschlagen."
+    fi
+    if [[ "$ASSET_PATH" == *g1_dex3_blackhands.usd && ! -f "$ASSETS_DIR/g1_dex3_blackhands.usd" ]]; then
+        echo "WARN: schwarzhändiges Asset fehlt — Fallback auf /data/assets/g1_dex3.usd."
+        ASSET_PATH="/data/assets/g1_dex3.usd"
+    fi
+fi
+
+echo "==> Starte Open-Loop-Dataset-Replay (headless) …"
+
+SIM_APPTAINER_ARGS=(
+    --nv
+    --bind "$DATA_DIR:/data"
+    --bind "$ASSETS_DIR:/data/assets"
+    --bind "$SIM_CODE/g1_dex3_sim:/workspace/g1_dex3_sim"
+    --bind "$ISAAC_CACHE/kit:/isaac-sim/kit/cache"
+    --bind "$ISAAC_CACHE/kit_data:/isaac-sim/kit/data"
+    --bind "$ISAAC_CACHE/ov:/root/.cache/ov"
+    --bind "$ISAAC_CACHE/nv:/root/.cache/nvidia"
+    --bind "$ISAAC_CACHE/pip:/root/.cache/pip"
+    --bind "$ISAAC_CACHE/logs:/root/.local/share/ov/data/Kit/logs"
+    --env "ACCEPT_EULA=Y"
+    --env "PRIVACY_CONSENT=Y"
+    --env "OMNI_KIT_ACCEPT_EULA=yes"
+)
+
+# Optionale Flags zusammenbauen
+REPLAY_FLAGS=""
+[[ "$GRASP_TEST" == "1" ]] && REPLAY_FLAGS="$REPLAY_FLAGS --grasp-test"
+[[ "$MAX_STEPS" != "0" ]] && REPLAY_FLAGS="$REPLAY_FLAGS --max-steps $MAX_STEPS"
+
+# VIRTUAL_ENV muss ungesetzt sein, damit isaaclab.sh sein eigenes Python nutzt.
+apptainer exec "${SIM_APPTAINER_ARGS[@]}" "$SIM_SIF" \
+    bash -lc 'unset VIRTUAL_ENV; export PYTHONUNBUFFERED=1; \
+        ${ISAACLAB_PATH}/isaaclab.sh -p \
+        /workspace/g1_dex3_sim/run_g1_dex3_replay.py \
+        --headless \
+        --enable_cameras \
+        --asset-path '"$ASSET_PATH"' \
+        --video-dir /data/sim_videos_replay \
+        --results-file /data/sim_results_replay/results.json'"$REPLAY_FLAGS"
+
+SIM_EXIT=$?
+echo ""
+echo "==> Replay-Client beendet (Exit-Code: $SIM_EXIT)"
+echo ""
+
+# Ergebnisse ausgeben
+if [[ -f "$DATA_DIR/sim_results_replay/results.json" ]]; then
+    echo "==> Replay-Ergebnisse:"
+    cat "$DATA_DIR/sim_results_replay/results.json"
+    echo ""
+fi
+
+echo "==> Artefakte abrufen (vom Laptop):"
+echo "    rsync -avz $(whoami)@transfer.hpc.gwdg.de:$DATA_DIR/sim_videos_replay ./sim_videos_replay/"
+echo "    rsync -avz $(whoami)@transfer.hpc.gwdg.de:$DATA_DIR/sim_results_replay ./sim_results_replay/"
+
+exit $SIM_EXIT

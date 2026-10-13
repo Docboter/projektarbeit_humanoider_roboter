@@ -1,0 +1,259 @@
+# TL;DR: Articulation-Config (Joints, Aktuatoren) für G1+Dex3; Kamera-Teil aus camera_geometry.py.
+"""
+Articulation-Konfiguration für G1 + Dex3-Hand in Isaac Lab.
+
+Joint-Reihenfolge muss EXAKT mit g1_dex3_config.py aus dem GR00T-Fork
+(examples/G1_DEX3/g1_dex3_config.py) übereinstimmen:
+
+    left_arm  [0:7]  : ShoulderPitch, ShoulderRoll, ShoulderYaw, Elbow,
+                       WristRoll, WristPitch, WristYaw
+    right_arm [7:14] : (analog)
+    left_dex3 [14:21]: Thumb0, Thumb1, Thumb2, Middle0, Middle1, Index0, Index1
+    right_dex3[21:28]: Thumb0, Thumb1, Thumb2, Index0, Index1, Middle0, Middle1
+                       ↑ Achtung: Reihenfolge rechts ≠ links (Quelle: dataset info.json)!
+
+Voraussetzung:
+    Das kombinierte USD-Asset g1_dex3.usd muss vorhanden sein.
+    Pfad: /workspace/assets/g1_dex3.usd  (oder per --asset-path übergeben).
+    Erstellung: Unitree-Dex3-URDF → Isaac-URDF-Importer → USD, dann an G1-Wrists anhängen.
+    Siehe ISAAC_LAB_SIM_PLAN.md Abschnitt 3.
+"""
+
+from __future__ import annotations
+
+from camera_geometry import (  # noqa: F401
+    CAMERA_CFG,
+    G1Dex3CameraCfg,
+    PinholeCamera,
+    look_at_world_quat,
+    quat_to_matrix,
+)
+from isaaclab.actuators import ImplicitActuatorCfg
+from isaaclab.assets import ArticulationCfg
+import isaaclab.sim as sim_utils
+
+# Kameraposen, Intrinsics und das Pinhole-Modell liegen in camera_geometry.py — sie
+# brauchen kein Isaac Lab, und nur deshalb lässt sich das Kameramodell außerhalb des
+# Containers gegen ein gerendertes Bild prüfen. Weiter-exportiert, damit
+# `from g1_dex3_cfg import CAMERA_CFG` unverändert funktioniert.
+from scene_geometry import ROBOT_BASE_POS
+
+
+# ---------------------------------------------------------------------------
+# Joint-Namen (muss mit dem USD-Asset übereinstimmen)
+# ---------------------------------------------------------------------------
+
+LEFT_ARM_JOINTS = [
+    "left_shoulder_pitch_joint",
+    "left_shoulder_roll_joint",
+    "left_shoulder_yaw_joint",
+    "left_elbow_joint",
+    "left_wrist_roll_joint",
+    "left_wrist_pitch_joint",
+    "left_wrist_yaw_joint",
+]
+
+RIGHT_ARM_JOINTS = [
+    "right_shoulder_pitch_joint",
+    "right_shoulder_roll_joint",
+    "right_shoulder_yaw_joint",
+    "right_elbow_joint",
+    "right_wrist_roll_joint",
+    "right_wrist_pitch_joint",
+    "right_wrist_yaw_joint",
+]
+
+# Dex3-Gelenke: exakte Reihenfolge aus g1_dex3_config.py
+LEFT_DEX3_JOINTS = [
+    "left_hand_thumb_0_joint",
+    "left_hand_thumb_1_joint",
+    "left_hand_thumb_2_joint",
+    "left_hand_middle_0_joint",
+    "left_hand_middle_1_joint",
+    "left_hand_index_0_joint",
+    "left_hand_index_1_joint",
+]
+
+RIGHT_DEX3_JOINTS = [
+    "right_hand_thumb_0_joint",
+    "right_hand_thumb_1_joint",
+    "right_hand_thumb_2_joint",
+    "right_hand_index_0_joint",    # Achtung: rechts Index VOR Middle (≠ links)
+    "right_hand_index_1_joint",    # Quelle: g1_dex3_config.py + dataset info.json
+    "right_hand_middle_0_joint",
+    "right_hand_middle_1_joint",
+]
+
+# Alle 28 Joints in der korrekten Reihenfolge (entspricht dem Action-Vektor)
+ALL_JOINTS_ORDERED = (
+    LEFT_ARM_JOINTS + RIGHT_ARM_JOINTS + LEFT_DEX3_JOINTS + RIGHT_DEX3_JOINTS
+)
+
+# Roboter-Startpose = observation.state aus Frame 0 / Episode 0 des Datasets
+# (unitreerobotics/G1_Dex3_BlockStacking_Dataset). Übernimmt die exakte reale Teleop-
+# Startstellung, damit der erste Sim-Frame der Trainingsverteilung entspricht
+# ("adjust the scene to closely match the first frame of the dataset"). Reihenfolge =
+# ALL_JOINTS_ORDERED (left_arm[0:7], right_arm[7:14], left_dex3[14:21], right_dex3[21:28]).
+DATASET_INIT_STATE = [
+    -0.05662,  0.31445,  0.12487, -0.28736,  0.20897,  0.13095, -0.09767,  # left_arm
+    -0.40259, -0.34180, -0.01584,  0.17989,  0.00290, -0.09826,  0.29865,  # right_arm
+    # left_dex3 [thumb0,thumb1,thumb2, middle0,middle1, index0,index1]
+    -0.59676,  1.01160,  0.05485,  0.169,   -0.01227,  0.163,   -0.01201,
+    # right_dex3 [thumb0,thumb1,thumb2, index0,index1, middle0,middle1]
+    -0.70991, -1.01463, -0.21031, -0.171,    0.01391, -0.142,    0.03354,
+]
+
+# Alle 28 Werte sind der ROHE Dataset-Zustand — keine Umrechnung. Bis 2026-08-24 standen hier
+# für middle_0/index_0 beider Hände negierte Werte, passend zu _SIGN_FLIP_IDX. Beides war
+# falsch: der Datensatz ist bereits seitenweise in USD-Konvention aufgezeichnet (links negativ
+# = schließen, rechts positiv = schließen), die Spiegelung drehte die Gelenke aus ihrer Grenze
+# heraus, wo sie geklemmt wurden. Begründung und Messung stehen an _SIGN_FLIP_IDX in
+# g1_dex3_blockstack_env.py. Der leichte Überstand über die Null (links +0,169/+0,163, rechts
+# -0,171/-0,142) ist im Datensatz echt und wird von _widen_finger_joint_limits abgedeckt.
+
+# Original-USD-Grenzen der vier _0-Gelenke. Sie enden auf beiden Seiten exakt an der Null,
+# und genau dort steht der Überstand aus dem Datensatz.
+USD_SPAWN_LIMITS = {
+    "left_hand_middle_0_joint": (-1.571, 0.0),
+    "left_hand_index_0_joint": (-1.571, 0.0),
+    "right_hand_index_0_joint": (0.0, 1.571),
+    "right_hand_middle_0_joint": (0.0, 1.571),
+}
+
+
+def _spawn_safe(joint: str, value: float) -> float:
+    """Startwert auf die Original-USD-Grenze kappen. Ohne Eintrag unverändert."""
+    low, high = USD_SPAWN_LIMITS.get(joint, (value, value))
+    return min(max(value, low), high)
+
+
+# Isaac Lab prüft `init_state` beim Spawn gegen die ORIGINAL-USD-Grenzen und wirft dort einen
+# ValueError ("default positions out of the limits") — noch in `super().__init__()`, also lange
+# bevor `_widen_finger_joint_limits` die Grenzen weiten kann. Deshalb spawnt der Roboter mit
+# gekappten Werten; die echten Datensatzwerte schreibt `_widen_finger_joint_limits` unmittelbar
+# danach in `default_joint_pos` zurück, und von dort liest `_reset_idx`. Der gekappte Zustand
+# lebt also nur bis zum ersten Reset. Einzige Wahrheit bleibt DATASET_INIT_STATE.
+SPAWN_JOINT_POS = {
+    joint: _spawn_safe(joint, value)
+    for joint, value in zip(ALL_JOINTS_ORDERED, DATASET_INIT_STATE)
+}
+
+# ---------------------------------------------------------------------------
+# Articulation-Konfiguration
+# ---------------------------------------------------------------------------
+
+G1_DEX3_CFG = ArticulationCfg(
+    spawn=sim_utils.UsdFileCfg(
+        # Pfad zum kombinierten G1+Dex3 USD-Asset (Default: schwarzhändiges Asset, Domain-Gap-Fix).
+        # Wird beim Env-Start per asset_path-Argument überschrieben; die Launcher (entrypoint_sim.sh,
+        # kisski_*_submit.sh) stellen das schwarzhändige USD per Recolor sicher bzw. fallen aufs
+        # Original zurück. Dieser Default greift nur, wenn die Env ohne --asset-path gestartet wird.
+        usd_path="/data/assets/g1_dex3_blackhands.usd",
+        activate_contact_sensors=False,
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+            disable_gravity=False,
+            retain_accelerations=False,
+            linear_damping=0.0,
+            angular_damping=0.0,
+            max_linear_velocity=1000.0,
+            max_angular_velocity=1000.0,
+            max_depenetration_velocity=1.0,
+        ),
+        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
+            enabled_self_collisions=False,
+            solver_position_iteration_count=8,
+            solver_velocity_iteration_count=1,
+            # fix_root_link=True stellt nur die WURZEL (Becken) fest — kein Balance-Controller
+            # nötig. Beine und Taille werden NICHT gesperrt: sie haben keine Aktuatorgruppe
+            # unten, und _pre_physics_step setzt ihr Ziel bloß auf die aktuelle Position.
+            # Ob der Torso dabei absackt, zeigt waist_drift_max_rad im Eval-Ergebnis.
+            fix_root_link=True,
+        ),
+    ),
+    init_state=ArticulationCfg.InitialStateCfg(
+        # Beckenhoehe, gemessen statt gesetzt. Die frueheren 0.85 waren ein Ansatz ohne Quelle
+        # und stellten den Roboter 8,6 cm zu hoch an den Tisch. Nachgewiesen mit `tipcheck`
+        # (Laeufe 47/48): der Versatz zwischen Fingerkuppen und der Wuerfellage aus dem Realbild
+        # betrug dz = +8,6 cm (Streuung 2,1) bei dy = 0; mit 0.764 faellt er auf +1,0 cm, ohne
+        # dx (+6,1 -> +5,7) oder dy zu veraendern — ein reiner z-Shift, 1:1, also ein starrer
+        # Versatz. Erst dabei umschliessen die Kuppen den Wuerfel ueberhaupt (vorher lagen alle
+        # 48 Messwerte darueber). Der Wert passt zur Beckenhoehe des stehenden G1 (~0,76 m).
+        #
+        # TRAGWEITE: aendert die Reichweite zum Tisch in JEDEM Lauf. Greifzahlen von vor dieser
+        # Korrektur sind nicht direkt vergleichbar. ROBOT_BASE_Z stellt den alten Wert wieder her.
+        # Die Kamerapose wandert NICHT mit: sie steht statisch in camera_geometry.py und ist
+        # gegen Grundwahrheit auf 0,3 cm geprueft.
+        #
+        # ROBOT_BASE_X: -0.057 ist ebenfalls gemessen. Nach der Hoehenkorrektur blieb dx =
+        # +5,7 cm; mit -0,057 faellt es auf +1,5 (Lauf 51). Traegt wird die Korrektur nicht vom
+        # Mittelwert, sondern von der Streuung: die faellt auf JEDER Achse (dx 3,8 -> 2,2, dy
+        # 3,7 -> 3,4, dz unveraendert 2,0). Eine blosse Verschiebung taete das nicht.
+        pos=ROBOT_BASE_POS,   # scene_geometry.py, per ROBOT_BASE_X/_Z umstellbar
+        # Startpose 1:1 aus dem Dataset (Frame 0) — Hände greifen bereits Richtung Tisch,
+        # statt der früheren generischen Ruhepose. Die vier _0-Gelenke sind hier auf die
+        # Original-USD-Grenze gekappt, siehe SPAWN_JOINT_POS oben.
+        joint_pos=SPAWN_JOINT_POS,
+        joint_vel={".*": 0.0},
+    ),
+    actuators={
+        # Arme: positionsgeregelt (PD-Controller), ABSOLUTE Targets — wie die Hände.
+        # Der GR00T-Checkpoint trägt zwar use_relative_action=true, aber der Server
+        # dekodiert das bereits per processor.decode_action() gegen den beobachteten
+        # State zurück. _pre_physics_step() setzt die 28 Werte deshalb DIREKT als
+        # Positions-Target — kein Aufaddieren auf joint_pos (das würde die
+        # Verschiebung verdoppeln und die Arme wegdriften lassen).
+        # Gains gemessen, nicht geschätzt: der Open-Loop-Replay mit echten
+        # Dataset-Aktionen (Läufe 26/27, docs/ergebnisse/diagnose-chronik.md) ergibt
+        # 0,019 rad mittleren Arm-Regelfehler bei Schwelle 0,1 — die Sim folgt den
+        # aufgezeichneten Trajektorien. Wer hier K erhöht, muss D mit √K mitziehen,
+        # sonst kippt der Regler ins Unterdämpfte (Jitter statt besserem Tracking).
+        "left_arm": ImplicitActuatorCfg(
+            joint_names_expr=LEFT_ARM_JOINTS,
+            effort_limit=300.0,
+            velocity_limit=50.0, #20
+            stiffness=100.0, #100
+            damping=10.0,
+            # armature (reflektierte Rotorträgheit, Wert aus Unitree IsaacLab G1_CFG):
+            # stabilisiert den impliziten PD-Regler bei hoher Stiffness numerisch
+            # (verhindert Jitter), ohne die Tracking-Treue zu beeinträchtigen.
+            armature=0.01,
+        ),
+        "right_arm": ImplicitActuatorCfg(
+            joint_names_expr=RIGHT_ARM_JOINTS,
+            effort_limit=300.0,
+            velocity_limit=50.0, #20
+            stiffness=100.0, #100
+            damping=10.0,
+            armature=0.01,
+        ),
+        # Hände: positionsgeregelt, ABSOLUTE Targets (siehe Arme oben).
+        # stiffness=400 / effort_limit=20 N·m (früher 60, davor 20): reale Dex3-Finger müssen
+        # ~50 g Würfel gegen Schwerkraft halten; mit stiffness=20/effort=5 schlossen die
+        # Distal-Joints nicht vollständig (per_joint_max_error Index 18/27 war 0.74/0.88 rad
+        # im Replay). Die "#60" hinter dem Wert ist der vorige Stand, nicht der gültige.
+        "left_hand": ImplicitActuatorCfg(
+            joint_names_expr=LEFT_DEX3_JOINTS,
+            effort_limit=20.0,
+            velocity_limit=100.0, #3
+            stiffness=400.0, #60
+            damping=4.0,
+            armature=0.001,  # kleiner als Arme (Finger-Hardware), analog Unitree IsaacLab
+        ),
+        "right_hand": ImplicitActuatorCfg(
+            joint_names_expr=RIGHT_DEX3_JOINTS,
+            effort_limit=20.0,
+            velocity_limit=100.0, #3
+            stiffness=400.0, #60
+            damping=4.0,
+            armature=0.001,
+        ),
+    },
+)
+
+# ---------------------------------------------------------------------------
+# Kamera-Parameter — siehe camera_geometry.py
+# ---------------------------------------------------------------------------
+# Ausgelagert am 2026-08-17, unverändert übernommen. Dort steht auch, warum eine
+# Rückprojektion (Bild → Weltkoordinate) erst gilt, wenn die Vorwärtsrichtung gegen ein
+# GERENDERTES Bild geprüft ist: der Pose-Bug aus Lauf 13 (95,6° zwischen USD-Stage und
+# cam.data) kostete drei Sim-Läufe, weil diese Prüfung fehlte.
