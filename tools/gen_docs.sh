@@ -181,6 +181,16 @@ fi
 check_prefix sim   "${sim_sources[@]}"
 check_prefix train "${train_sources[@]}"
 
+# lib_groot_version.sh liegt zweimal im Repo: Training/scripts/ (Trainings-Image) und
+# Simulation/scripts/ (Sim-Image) — jedes Image kopiert nur seinen eigenen scripts/-Ordner.
+# Beide Kopien müssen identisch bleiben, sonst lösen Training und Sim GROOT_VERSION
+# unterschiedlich auf (Review 5.5.4). Abweichung = Fehler wie bei den Parametern.
+lib_tr="$REPO_DIR/Training/scripts/lib_groot_version.sh"
+lib_sim="$REPO_DIR/Simulation/scripts/lib_groot_version.sh"
+if [[ -f "$lib_tr" && -f "$lib_sim" ]] && ! cmp -s "$lib_tr" "$lib_sim"; then
+  NOTES+=("ABWEICHUNG  lib/groot  lib_groot_version.sh: Training/scripts und Simulation/scripts unterscheiden sich (diff zeigt wo)")
+fi
+
 # Doppelte Meldungen zusammenfassen: ein Parameter aus _common.spec taucht in jeder
 # Aktion auf und wuerde den Bericht sonst zwanzigfach fluten.
 printf '%s\n' ${NOTES[@]+"${NOTES[@]}"} \

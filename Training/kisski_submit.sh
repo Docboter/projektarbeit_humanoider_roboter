@@ -87,7 +87,19 @@ pick_sif() {   # erste EXISTIERENDE Datei gewinnt; sonst der erste Kandidat, dam
 
 # ── Konfiguration ─────────────────────────────────────────────────────────────
 # Ein Image je GR00T-Generation: N1.7 liegt als eigene SIF daneben (aus :latest-n17).
-case "${GROOT_VERSION:-1.6}" in 1.7|n17|N1.7|17) SIF_SUFFIX="-n17" ;; *) SIF_SUFFIX="" ;; esac
+# GROOT_VERSION VOR der SIF-Wahl normalisieren (Review 5.2a): sonst bekam z. B. "n1.7" oder
+# "N17" die N1.6-SIF, und der Entrypoint brach erst nach der Wartezeit in der Queue ab. Die Lib
+# liegt im Repo-Klon (REPO_DIR, Default unten identisch); fehlt sie, gilt nur 1.6.
+GROOT_LIB="${REPO_DIR:-$KISSKI_PROJECT_DIR/repo}/Training/scripts/lib_groot_version.sh"
+GROOT_VERSION="${GROOT_VERSION:-1.6}"
+if [[ -f "$GROOT_LIB" ]]; then
+    source "$GROOT_LIB"
+    GROOT_VERSION="$(groot_normalize_version "$GROOT_VERSION")" || exit 1
+elif [[ "$GROOT_VERSION" != "1.6" ]]; then
+    echo "FEHLER: GROOT_VERSION=$GROOT_VERSION angefordert, aber $GROOT_LIB fehlt (REPO_DIR korrekt?)." >&2
+    exit 1
+fi
+case "$GROOT_VERSION" in 1.7) SIF_SUFFIX="-n17" ;; *) SIF_SUFFIX="" ;; esac
 SIF_IMAGE="${SIF_IMAGE:-$(pick_sif \
     "$KISSKI_SIF_DIR/projekt-humanoider-roboter$SIF_SUFFIX.sif" \
     "$KISSKI_PROJECT_DIR/images/projekt-humanoider-roboter$SIF_SUFFIX.sif")}"
@@ -354,9 +366,10 @@ echo "    Skripte aus Repo: ${REPO_DIR}/Training/scripts"
 
 # ── GR00T-Version auflösen (N1.6 default, N1.7 als paralleler Pfad) ──────────
 # Nur groot_normalize_version() — eine reine Funktion ohne Exports. groot_resolve()
-# würde u. a. HF_HOME exportieren; Apptainer reicht die Host-Umgebung standardmäßig in
-# den Container durch, das würde den N1.6-Default (kein HF_HOME gesetzt) unbeabsichtigt
-# verändern. Die übrigen Werte (Wurzelverzeichnis, Namespace-Suffix) daher hier explizit.
+# exportiert u. a. HF_HOME aus $DATA_DIR; hier auf dem Host ist das der VAST-Pfad, und
+# Apptainer reicht die Host-Umgebung in den Container durch — dort würde er das
+# HF_HOME=/data/hf_cache des Images überdecken (Review 5.2f). Die übrigen Werte
+# (Wurzelverzeichnis, Namespace-Suffix) daher hier explizit; den Rest löst der Entrypoint.
 source "${REPO_DIR}/Training/scripts/lib_groot_version.sh"
 GROOT_VERSION="$(groot_normalize_version "$GROOT_VERSION")" || exit 1
 APPTAINER_ARGS+=(--env "GROOT_VERSION=$GROOT_VERSION")

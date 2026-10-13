@@ -1,9 +1,10 @@
 # syntax=docker/dockerfile:1
 # TL;DR: Trainings-Image (CUDA 12.8, uv) — ENTRYPOINT ist entrypoint.sh; Build-Kontext ist Training/.
-# Projektarbeit Humanoider Roboter – Unitree G1 mit GR00T N1.6
 # Projektarbeit Humanoider Roboter – Unitree G1 mit GR00T N1.6 **und** N1.7
 #
-# Das Image enthält BEIDE Modellgenerationen nebeneinander; zur Laufzeit wählt GROOT_VERSION:
+# Welche Generation(en) ins Image kommen, bestimmt das Build-Arg GROOT_VERSIONS (Default "1.6";
+# update_image.sh baut ein Image je Generation: :latest = N1.6, :latest-n17 = N1.7). Mit beiden
+# ("1.6 1.7") liegen sie nebeneinander; zur Laufzeit wählt GROOT_VERSION:
 #   GROOT_VERSION=1.6 (Default)  → /app/Groot-1.6  (Fork-Branch luca/g1-dex3,     Python 3.10, Eagle-Backbone)
 #   GROOT_VERSION=1.7            → /app/Groot-1.7  (Fork-Branch luca/g1-dex3-n17, Python 3.12, Cosmos-Reason2-2B)
 # Auflösung (Code-Baum, venv, Modell-Repo, Namespace-Suffix) macht /scripts/lib_groot_version.sh.
@@ -159,8 +160,6 @@ ENV PATH="/app/Groot-${GROOT_VERSION_DEFAULT}/.venv/bin:${PATH}" \
 # ACHTUNG — KEIN Host-Volume: /data liegt im Container-Filesystem und ist die einzige
 # Wahrheit. `docker run --rm` bzw. `docker rm` löscht Daten und Checkpoints unwiderruflich.
 # (Ausnahme KISSKI: dort bind-mountet Apptainer die VAST-Projektablage nach /data.)
-RUN mkdir -p /data/models /data/unitreerobotics /data/G1_Dex3_BlockStacking /data/g1_dex3_finetune /data/logs
-# Datenverzeichnisse anlegen (werden i. d. R. per Volume gemountet)
 # /data/hf_cache = HF_HOME: dort landet das N1.7-Backbone (nvidia/Cosmos-Reason2-2B) beim ersten
 # download_data.sh-Lauf und wird bei jedem Checkpoint-Laden wiederverwendet.
 RUN mkdir -p /data/models /data/unitreerobotics /data/G1_Dex3_BlockStacking /data/g1_dex3_finetune /data/logs /data/hf_cache

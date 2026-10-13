@@ -33,9 +33,11 @@ Training läuft. Derselbe Container läuft lokal, auf Cloud-GPU-Plattformen wie
 Closed Loop in der Sim hebt noch kein Würfel ab (Lauf 34: `lifted` 0/10). Die Sim-Geometrie wurde
 am 2026-08-24 korrigiert (Fingergelenk-Vorzeichen, Beckenhöhe, Basisposition) — frühere Sim-Greifzahlen
 stehen unter Vorbehalt, die Neumessung steht aus. Co-Training (echt + gerendert bzw. externer
-Synth-Datensatz) und RL haben noch kein Ergebnis; ein erster Co-Training-Lauf scheiterte am 2026-09-07.
+Synth-Datensatz) und RL haben noch kein Ergebnis; der als erster Co-Training-Lauf geführte `cotrain_synth_v1`
+(2026-09-07) war laut W&B-Konfiguration keiner (nur der echte Datensatz).
 Priorisierte nächste Schritte: [next-steps.md](next-steps.md). Die schriftliche Projektarbeit liegt unter
-[latex/](latex/), eine Migration auf GR00T N1.7 läuft auf dem Branch `training-luca-IKR-IS6.0-GN1.7`.
+[latex/](latex/). GR00T N1.7 ist als paralleler Pfad wählbar (`GROOT_VERSION=1.7`); der Vergleich mit N1.6
+steht in [lauf4-n17-vergleich.md](docs/ergebnisse/lauf4-n17-vergleich.md).
 
 ---
 

@@ -172,7 +172,7 @@ Diese Sammlung speist das gleichnamige Kapitel der Projektarbeit.
 ├── latex/                     # Projektarbeit/Thesis-Dokument (LuaLaTeX; eigenes Root-Verzeichnis, kein Submodul)
 └── app/                       # Git-Submodul, im Image geklont
     ├── Groot-1.6/             # GR00T N1.6 + eigene G1/DEX3-Configs
-    └── Groot-1.7/             # Ungetrackter Checkout des Parallel-Branches training-luca-IKR-IS6.0-GN1.7 (GR00T N1.7); nicht in .gitmodules — stehen lassen
+    └── Groot-1.7/             # GR00T N1.7 (paralleler Pfad, GROOT_VERSION=1.7) — Submodul, Fork-Branch luca/g1-dex3-n17
 ```
 
 Zur Laufzeit (lokal/vast.ai im Container-Filesystem, auf KISSKI unter dem VAST-Projekt-Storage):

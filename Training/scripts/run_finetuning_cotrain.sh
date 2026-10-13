@@ -264,6 +264,10 @@ else
     warn "Augmentierung AUS. Beim Co-Training weniger kritisch als bei Lauf 2 (die"
     warn "Sim-Bilder liefern die Varianz jetzt selbst), aber es gibt keinen Grund dafür."
     TRAIN_CMD+=(--color_jitter_params brightness 0 contrast 0 saturation 0 hue 0)
+    # Auch State-Dropout aus: "Aug aus" heißt keine Regularisierung durch Modell-Defaults.
+    # Ohne Flag trainierte N1.7 hier mit seinem Default 0,2, und ein gesetztes
+    # STATE_DROPOUT_PROB wurde ignoriert (Review 5.2d). Gesetzt = gilt auch hier.
+    TRAIN_CMD+=(--state_dropout_prob "${STATE_DROPOUT_PROB:-0}")
 fi
 
 [[ "$USE_WANDB" == "1" ]] && TRAIN_CMD+=(--use_wandb --wandb_project "$WANDB_PROJECT")

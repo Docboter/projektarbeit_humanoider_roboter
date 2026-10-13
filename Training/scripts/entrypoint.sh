@@ -171,7 +171,10 @@ mkdir -p "$DATA_DIR/models" \
 
 # ── Download ──────────────────────────────────────────────────────────────────
 # Versionsabhängig: GROOT_MODEL_NAME kommt aus lib_groot_version.sh (groot_resolve).
-MODEL_DIR="${MODEL_DIR:-$DATA_DIR/models/$GROOT_MODEL_NAME}"
+# Exportiert, damit download_data.sh (Ziel) und run_finetuning*.sh (MODEL_PATH) denselben Pfad
+# nutzen — vorher wirkte ein gesetztes MODEL_DIR nur auf die Vorhanden-Prüfung (Review 5.2g).
+export MODEL_DIR="${MODEL_DIR:-$DATA_DIR/models/$GROOT_MODEL_NAME}"
+export MODEL_PATH="${MODEL_PATH:-$MODEL_DIR}"
 DATASET_DIR="$DATA_DIR/unitreerobotics/G1_Dex3_BlockStacking_Dataset"
 MODALITY_FILE="$DATASET_DIR/meta/modality.json"
 

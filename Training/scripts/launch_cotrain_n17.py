@@ -184,6 +184,13 @@ if __name__ == "__main__":
     config.data.shard_size = ft_config.shard_size
     config.data.episode_sampling_rate = ft_config.episode_sampling_rate
     config.data.num_shards_per_epoch = ft_config.num_shards_per_epoch
+    # ds_weights_alpha ersetzt in DatasetFactory.build die mix_ratio-Gewichte durch
+    # len(ds)**alpha — der Mix wäre dann still ein anderer (nur ein print im Log). Review 5.2j.
+    if ft_config.ds_weights_alpha is not None:
+        raise SystemExit(
+            f"ds_weights_alpha={ft_config.ds_weights_alpha} würde --cotrain_mix_ratio "
+            "überschreiben; für Co-Training nicht setzen."
+        )
     config.data.ds_weights_alpha = ft_config.ds_weights_alpha
 
     config.training.save_only_model = ft_config.save_only_model

@@ -82,6 +82,11 @@ Write-Warning ("run_finetuning.ps1 ist VERALTET: kein Split, kein Resume-Guard, 
 function Dc { docker compose -f $ComposeFile @Args }
 
 # ── 1. Container-Status ───────────────────────────────────────────────────────
+# Ein Image je Generation (docker-compose.yml: :${GROOT_IMAGE_TAG:-latest}); für 1.7 das
+# N1.7-Image wählen und working_dir passend setzen (Review 5.2e). Ein schon laufender
+# Container behält sein Image — die venv-Prüfung unten fängt das ab.
+$env:GROOT_VERSION = $GrootVersion
+if ($GrootVersion -eq "1.7" -and -not $env:GROOT_IMAGE_TAG) { $env:GROOT_IMAGE_TAG = "latest-n17" }
 Log "Prüfe Container-Status …"
 $running = (Dc ps --status running --services 2>$null) -split "`n" | Where-Object { $_ -eq $Service }
 if (-not $running) {
@@ -98,6 +103,7 @@ if ($LASTEXITCODE -ne 0) { Err "GPU im Container nicht sichtbar"; exit 1 }
 
 Log "Prüfe Modell und Datensatz …"
 $check = @"
+[[ -x '$GrootRoot/.venv/bin/python' ]] || { echo 'FEHLT: $GrootRoot/.venv — das Image enthaelt GR00T N$GrootVersion nicht. Fuer 1.7: Container mit GROOT_IMAGE_TAG=latest-n17 neu erstellen.' >&2; exit 1; }
 [[ -d '$ModelPath'   ]] || { echo 'FEHLT: $ModelPath'   >&2; exit 1; }
 [[ -d '$DatasetPath' ]] || { echo 'FEHLT: $DatasetPath' >&2; exit 1; }
 [[ -f '$DatasetPath/meta/modality.json' ]] || {
@@ -155,7 +161,9 @@ Log "Logs: $LogFile"
 Log "Training startet — abbrechen mit Ctrl+C (Container läuft weiter)."
 ""
 
-Dc exec -T --workdir $GrootRoot $Service @TrainCmd 2>&1 | Tee-Object -FilePath $LogFile
+# Ein Prozess ohne torchrun: auf GPU 0 festlegen. Sieht er mehrere Karten, greift unter N1.7
+# DataParallel und stürzt ab (gleicher Pin wie run_finetuning.sh, Commit 22c3183; Review 5.2e).
+Dc exec -T -e CUDA_VISIBLE_DEVICES=0 --workdir $GrootRoot $Service @TrainCmd 2>&1 | Tee-Object -FilePath $LogFile
 $ExitCode = $LASTEXITCODE
 
 ""

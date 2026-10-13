@@ -207,8 +207,10 @@ log "Schritt 2/4 — Isaac-GR00T Commit pruefen"
 
 # Gepinnte Commits aus dem Dockerfile lesen: ARG GROOT16_COMMIT=<sha> / ARG GROOT17_COMMIT=<sha>
 # (seit dem N1.7-Pfad zwei Pins; die alte Form `checkout <sha>` gibt es nicht mehr).
-read_pin() {  # $1 = ARG-Name
-    grep -oE "^ARG $1=[0-9a-f]{40}" "$DOCKERFILE" | head -n1 | sed "s/^ARG $1=//"
+read_pin() {  # $1 = ARG-Name; leer, wenn der Pin fehlt
+    # `|| true`: ohne Treffer scheitert grep, und unter `set -euo pipefail` beendete
+    # current="$(read_pin …)" das Skript ohne Meldung — die Warnung in check_pin kam nie (Review 5.2b).
+    { grep -oE "^ARG $1=[0-9a-f]{40}" "$DOCKERFILE" || true; } | head -n1 | sed "s/^ARG $1=//"
 }
 check_pin() {  # $1 = Label, $2 = ARG-Name, $3 = Branch
     local label="$1" arg="$2" branch="$3" current latest

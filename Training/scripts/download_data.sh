@@ -38,7 +38,7 @@ mkdir -p "$DATA_DIR/models" "$DATA_DIR/unitreerobotics" "$DATA_DIR/G1_Dex3_Block
 # GR00T-Modellgewichte (~6 GB; Repo/Name versionsabhängig aus lib_groot_version.sh)
 echo "==> Lade $GROOT_MODEL_NAME Modell ($GROOT_MODEL_REPO)..."
 huggingface-cli download "$GROOT_MODEL_REPO" \
-    --local-dir "$DATA_DIR/models/$GROOT_MODEL_NAME" \
+    --local-dir "${MODEL_DIR:-$DATA_DIR/models/$GROOT_MODEL_NAME}" \
     --local-dir-use-symlinks False
 
 # ── N1.7: gated Backbone in den HF_HOME-Cache laden ───────────────────────────

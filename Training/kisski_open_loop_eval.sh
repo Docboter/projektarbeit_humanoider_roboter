@@ -65,12 +65,6 @@ pick_sif() {   # erste EXISTIERENDE Datei gewinnt; sonst der erste Kandidat, dam
 }
 
 # ── Konfiguration ─────────────────────────────────────────────────────────────
-# Ein Image je GR00T-Generation: N1.7 liegt als eigene SIF daneben (aus :latest-n17).
-case "${GROOT_VERSION:-1.6}" in 1.7|n17|N1.7|17) SIF_SUFFIX="-n17" ;; *) SIF_SUFFIX="" ;; esac
-SERVER_SIF="${SERVER_SIF:-$(pick_sif \
-    "$KISSKI_SIF_DIR/projekt-humanoider-roboter$SIF_SUFFIX.sif" \
-    "$KISSKI_PROJECT_DIR/images/projekt-humanoider-roboter$SIF_SUFFIX.sif")}"
-SIF_DOCKER_TAG="latest"; [[ -n "$SIF_SUFFIX" ]] && SIF_DOCKER_TAG="latest-n17"
 DATA_DIR="${DATA_DIR:-$KISSKI_PROJECT_DIR/data}"
 # Wie in kisski_submit.sh: fester Pfad auf dem Projektspeicher. NICHT über BASH_SOURCE
 # herleiten — sbatch führt eine Kopie aus dem SLURM-Spool aus, nicht die Datei im Repo.
@@ -78,8 +72,9 @@ REPO_DIR="${REPO_DIR:-$KISSKI_PROJECT_DIR/repo}"
 
 # GR00T-Version: 1.6 (Default) oder 1.7 (Cosmos-Reason2-2B, eigener Code-Baum/venv unter
 # /app/Groot-1.7). Nur groot_normalize_version() aus der lib sourcen (reine Funktion, keine
-# Exports) — groot_resolve() würde u. a. HF_HOME exportieren, und Apptainer reicht die
-# Host-Umgebung standardmäßig durch, was den N1.6-Default unbeabsichtigt ändern könnte.
+# Exports). groot_resolve() exportiert u. a. HF_HOME aus $DATA_DIR — hier auf dem Host ist das
+# der VAST-Pfad, und Apptainer reicht die Host-Umgebung in den Container durch. Dort würde er
+# das HF_HOME=/data/hf_cache des Images überdecken. Den Rest löst der Entrypoint im Container.
 GROOT_VERSION="${GROOT_VERSION:-1.6}"
 GROOT_LIB="$REPO_DIR/Training/scripts/lib_groot_version.sh"
 if [[ -f "$GROOT_LIB" ]]; then
@@ -89,6 +84,14 @@ elif [[ "$GROOT_VERSION" != "1.6" ]]; then
     echo "FEHLER: GROOT_VERSION=$GROOT_VERSION angefordert, aber $GROOT_LIB fehlt (REPO_DIR korrekt?)." >&2
     exit 1
 fi
+# SIF erst NACH der Normalisierung wählen (Review 5.2a): sonst bekam z. B. GROOT_VERSION=n1.7
+# die N1.6-SIF, und der Fehler fiel erst nach der Wartezeit in der Queue auf.
+# Ein Image je GR00T-Generation: N1.7 liegt als eigene SIF daneben (aus :latest-n17).
+case "$GROOT_VERSION" in 1.7) SIF_SUFFIX="-n17" ;; *) SIF_SUFFIX="" ;; esac
+SERVER_SIF="${SERVER_SIF:-$(pick_sif \
+    "$KISSKI_SIF_DIR/projekt-humanoider-roboter$SIF_SUFFIX.sif" \
+    "$KISSKI_PROJECT_DIR/images/projekt-humanoider-roboter$SIF_SUFFIX.sif")}"
+SIF_DOCKER_TAG="latest"; [[ -n "$SIF_SUFFIX" ]] && SIF_DOCKER_TAG="latest-n17"
 case "$GROOT_VERSION" in
     1.7) GROOT_TARGET_ROOT="/app/Groot-1.7"; GROOT_NS_SUFFIX="_n17"
          GROOT_FORK_DIR="${GROOT17_FORK_DIR:-$KISSKI_PROJECT_DIR/repo-groot-n17}" ;;

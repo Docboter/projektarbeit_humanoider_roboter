@@ -34,4 +34,5 @@ services:
       - NUM_GPUS
       - WANDB_PROJECT
       - GROOT_VERSION   # 1.6 (Default) | 1.7 — siehe Training/scripts/lib_groot_version.sh
-    working_dir: /app/Groot-1.6
+    # Passend zur Generation: im :latest-n17-Image ist /app/Groot-1.6 leer (Review 5.2c).
+    working_dir: /app/Groot-${GROOT_VERSION:-1.6}
