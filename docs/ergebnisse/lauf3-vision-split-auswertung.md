@@ -1,16 +1,17 @@
 # Auswertung — dritter Trainingsdurchlauf, Vision-Encoder **mit** Split & Augmentierung (`g1_dex3_blockstacking_vision_v2`)
 
 > **TL;DR:** Auswertung des dritten Trainingslaufs (Vision-Encoder + Color-Jitter + 80/20-Split) —
-> erste echte Validierung mit zurückgehaltenen Episoden. Checkpoint-Sweep belegt Overfitting
-> (U-Kurve, bester Checkpoint 30.000). Kurzfazit in §1. Stand 2026-10-11: es gibt keinen neueren
-> Trainingslauf; die Closed-Loop-Zahlen (§8.3) stammen aus der alten Sim-Geometrie.
+> erste echte Validierung mit zurückgehaltenen Episoden. Der ursprüngliche Sweep (6 × 300 Steps)
+> deutete Overfitting an (U-Kurve, bester Checkpoint 30.000) — **überholt** durch die Nachmessung
+> 20 × 750 ([lauf4-n17-vergleich.md §5](lauf4-n17-vergleich.md#5-nachgeschärfter-vergleich-20-episoden--750-steps-volle-länge)): keine U-Kurve, bester Checkpoint 44.000.
+> Kurzfazit in §1; die Closed-Loop-Zahlen (§8.3) stammen aus der alten Sim-Geometrie.
 
 > **Nachtrag 2026-10-12 — Overfitting-Befund widerlegt.** Die in §8.1 empfohlene Nachmessung
 > (20 Test-Episoden, volle Länge 750 Steps, Job 16633477) zeigt **keine** U-Kurve: Die
 > Validierungs-MSE fällt monoton bis 44.000 (0,00482), und 44.000 ist signifikant besser als
 > 30.000 (0,00519; gepaart t = 2,15, n = 20). Die U-Kurve unten war ein Artefakt von 6 Episoden
 > à 300 Steps (nur Anfahrphase). §4.1, §5 und die Empfehlung §8.2 („`MAX_STEPS=30000`
-> genügt“) gelten damit **nicht** mehr. Zahlen: [lauf4-n17-vergleich.md](lauf4-n17-vergleich.md) §5.
+> genügt“) gelten damit **nicht** mehr. Zahlen: [lauf4-n17-vergleich.md §5](lauf4-n17-vergleich.md#5-nachgeschärfter-vergleich-20-episoden--750-steps-volle-länge).
 
 **Erstellt:** 2026-08-14 · **Run-ID:** `tp1nc699` (W&B-Projekt `gr00t-g1-dex3`, Entity
 `projektarbeit_humanoider_roboter`) · **Modell:** GR00T N1.6 (3,29 Mrd. Parameter),
@@ -136,9 +137,12 @@ Action-Horizon 16.
 | 40.000 | 0,00855 | 0,0419 | 0,0071 | 0,0052 | 0,0114 | 0,0031 | 0,0136 | 0,0108 |
 | 44.000 | 0,00898 | 0,0418 | 0,0068 | 0,0049 | 0,0118 | 0,0032 | 0,0138 | 0,0134 |
 
-RMSE bei Step 30.000: **0,085** in normierten Aktionseinheiten.
+RMSE bei Step 30.000: **0,085 rad**. (Korrigiert 2026-10-13: hier stand „in normierten Aktionseinheiten“. Der Fork vergleicht in `gr00t/eval/open_loop_eval.py` die *de-normierten* Policy-Aktionen mit den Rohaktionen des Datensatzes, die Einheit ist also die der Gelenkwinkel.)
 
 ### 4.1 Overfitting ist erstmals sichtbar
+
+> **Überholt durch [lauf4-n17-vergleich.md §5](lauf4-n17-vergleich.md#5-nachgeschärfter-vergleich-20-episoden--750-steps-volle-länge):** Mit 20 vollen Test-Episoden ist die
+> U-Kurve weg; der Abschnitt bleibt als Protokoll der ursprünglichen 6-Episoden-Messung stehen.
 
 Von Step 30.000 bis 44.000:
 
@@ -288,7 +292,8 @@ sbatch Training/kisski_open_loop_eval.sh
 ### 8.2 Für den nächsten Lauf: `MAX_STEPS=30000` genügt
 
 > **Überholt (2026-10-12):** Die Nachmessung aus §8.1 zeigt bis 44.000 weiter fallende
-> Validierungs-MSE — siehe Nachtrag oben.
+> Validierungs-MSE — `MAX_STEPS=30000` genügt also **nicht**, 44.000 ist der bessere Checkpoint.
+> Siehe Nachtrag oben und [lauf4-n17-vergleich.md §5](lauf4-n17-vergleich.md#5-nachgeschärfter-vergleich-20-episoden--750-steps-volle-länge).
 
 Die letzten 14.000 Steps (≈ 4 h auf 4 GPUs) haben die Validierung verschlechtert. Bei
 gleicher Konfiguration ist alles jenseits von ~30.000 Steps verschenkte Rechenzeit — vorbehalten

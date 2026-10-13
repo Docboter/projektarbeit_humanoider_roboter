@@ -490,7 +490,7 @@ Ehrlich benannt, weil jeder dieser Punkte den Lauf entwerten würde:
 | `COTRAIN_DATASET_PATH` | `/data/cotrain/g1_dex3_rendered` | Gerenderter Datensatz im Container |
 | `COTRAIN_HF_REPO` | — | HF-Dataset-Repo; wird geladen, wenn der Pfad leer ist |
 | `COTRAIN_MIX_RATIO` | `0.25` (§4.2) | Anteil gerenderter Stichproben |
-| `TRAIN_TEST_SPLIT` | `1` | Hier standardmäßig **an** — ohne Split fehlt die Leitplanke aus §5 |
+| `TRAIN_TEST_SPLIT` | `1` | Hier standardmäßig **an** — ohne Split fehlt die Leitplanke aus §5. Seit 2026-10-13 gilt das auf **allen** Startwegen; vorher war der Split über Entrypoint (Dockerfile-`ENV TRAIN_TEST_SPLIT=0`) und KISSKI still aus und nur bei direktem Skriptaufruf oder über `kisski_chain.sh` an ([Review 10-13 T1](../projekt-review-2026-10-13.md#3-code-training)). Betroffen wäre nur `cotrain_synth_v1` (2026-09-07, IKR, Entrypoint) — der war laut W&B ohnehin kein Co-Training-Lauf; einen anderen Co-Training-Lauf über diese Wege gibt es nicht |
 | `GROOT_VERSION` | `1.6` | `1.7` routet auf `launch_cotrain_n17.py` statt `launch_cotrain.py` und hängt den Checkpoints den Namespace-Suffix `_n17` an (`blockstacking_cotrain_n17`) — ungetestet |
 
 > Der Skript-Default für `COTRAIN_MIX_RATIO` stand bis 2026-10-13 auf 0.5 („zwei

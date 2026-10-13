@@ -37,10 +37,14 @@ stehen als `test` für die Open-Loop-Eval auf **ungesehenen** Episoden bereit.
 - Der Patch greift, **bevor** der Datensatz beim Job-Start gesharded wird — eine spätere
   Änderung an `info.json` wirkt nicht mehr auf einen laufenden Job.
 
-> **Stand 2026-10-11:** Der Split wurde bisher in einem Trainingslauf scharf geschaltet: Lauf 3
-> (`g1_dex3_blockstacking_vision_v2`, W&B `tp1nc699`, 4 GPUs, 12,5 h). Der Sweep (6 Test-Episoden ×
-> 300 Steps) ergab als besten Checkpoint 30000 (Test-MSE 0,00716 gegen 0,00898 bei 44000); der
-> gepaarte t-Test (df = 5) 30000 vs. 44000 ist mit t = 1,45 nicht signifikant. Details:
+> **Stand 2026-10-13:** Der Split war bisher in zwei Trainingsläufen scharf geschaltet: Lauf 3
+> (N1.6, `g1_dex3_blockstacking_vision_v2`, W&B `tp1nc699`, 4 GPUs, 12,5 h) und Lauf 4 (N1.7,
+> `g1_dex3_blockstacking_vision_v1`, 44k Steps). Bester Checkpoint von Lauf 3 ist **44000**: Die
+> Nachmessung mit 20 Test-Episoden × 750 Steps (2026-10-12) zeigt eine monoton fallende
+> Validierungs-MSE (44000 = 0,00482 gegen 30000 = 0,00519; gepaart t = 2,15, n = 20). Der erste
+> Sweep (6 × 300 Steps) hatte noch 30000 nahegelegt (0,00716 gegen 0,00898, t = 1,45, nicht
+> signifikant) — das ist überholt. Details:
+> [lauf4-n17-vergleich.md §5](../ergebnisse/lauf4-n17-vergleich.md#5-nachgeschärfter-vergleich-20-episoden--750-steps-volle-länge),
 > [lauf3-vision-split-auswertung.md](../ergebnisse/lauf3-vision-split-auswertung.md).
 
 > **Hinweis 1: Validierung während des Trainings ist im Fork strukturell nicht möglich.**

@@ -19,7 +19,7 @@ Kann der frozen Vision Encoder von GR00T N1.6 reale Teleop-Bilder und synthetisc
 ## Methodik
 
 **Modell:** `google/siglip-so400m-patch14-224`
-Da `tune_visual = false`, sind die Gewichte identisch mit dem frozen GR00T-ViT — das 6 GB GR00T-Modell ist nicht nötig.
+Vortrainierter SigLIP-Checkpoint als Näherung — das 6 GB GR00T-Modell ist dafür nicht nötig. (Ursprünglich stand hier, die Gewichte seien wegen `tune_visual = false` identisch mit dem GR00T-ViT; das trifft nicht zu, siehe die korrigierte Fragestellung oben.)
 
 **Script:** [`Simulation/scripts/measure_domain_gap.py`](../../Simulation/scripts/measure_domain_gap.py)
 
@@ -89,8 +89,10 @@ Sim), der die Zielgröße direkt misst statt über den Proxy.
 > korrigierten Geometrie (und mit dem `TUNE_VISUAL`-Encoder aus Lauf 3) steht aus; es gibt keine
 > neuere Gap-Messung als 2026-08-08.
 
-> **Nachtrag: Schritt 3 ist gelaufen.** Lauf 30 (2026-08-12) misst die BC-Erfolgsrate in der Sim
-> mit **0/20**. Nach der vorregistrierten Regel ist `TUNE_VISUAL=1` damit bestätigt. Lauf 30 zeigt
+> **Nachtrag: Schritt 3 ist gelaufen.** Lauf 24 (2026-08-08) misst die BC-Erfolgsrate in der Sim
+> mit **0/20**; Lauf 30 (2026-08-12, nur 2 Episoden) schließt damit die vorregistrierte Regel, nach
+> der `TUNE_VISUAL=1` als bestätigt gilt (zur Belastbarkeit siehe
+> [Review 10-13 §2.1 M2](../projekt-review-2026-10-13.md#21-befunde)). Lauf 30 zeigt
 > zusätzlich, dass die Politik nur ~19 % der demonstrierten Fingerspannweite kommandiert — der
 > Befund zeigt also auf Wahrnehmung/Politik, nicht nur auf das Rendering. (Vorbehalt: Lauf 30
 > entstand mit dem später als fehlerhaft erkannten Fingerzustand der Sim, Läufe 38–46; und das

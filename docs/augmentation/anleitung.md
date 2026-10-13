@@ -96,17 +96,17 @@ Datensatz-Tooling an (Details: Kommentare im [Dockerfile](../../Augmentation/Doc
 
 ```bash
 HF_TOKEN=hf_... AUGMENT_EPISODE_LIMIT=1 AUGMENT_CAMERAS=cam_left_high SKIP_INFERENCE=1 \
-    ./Augmentation/setup_and_augment_DockerHub-pull.sh --skip-pull    # nur Specs generieren, Prompts prüfen
+    ./Augmentation/setup_and_augment_dockerhub_pull.sh --skip-pull    # nur Specs generieren, Prompts prüfen
 
 HF_TOKEN=hf_... AUGMENT_EPISODE_LIMIT=1 \
-    ./Augmentation/setup_and_augment_DockerHub-pull.sh --skip-pull --resume   # billiger Testlauf, alle 4 Kameras
+    ./Augmentation/setup_and_augment_dockerhub_pull.sh --skip-pull --resume   # billiger Testlauf, alle 4 Kameras
 
 HF_TOKEN=hf_... AUGMENT_EPISODE_LIMIT=0 \
-    ./Augmentation/setup_and_augment_DockerHub-pull.sh --skip-pull --resume   # voller, fortsetzbarer Lauf
+    ./Augmentation/setup_and_augment_dockerhub_pull.sh --skip-pull --resume   # voller, fortsetzbarer Lauf
 ```
 
 `--resume` setzt denselben Container fort statt einen neuen zu erzeugen (Daten bleiben
-erhalten — siehe `Augmentation/setup_and_augment_DockerHub-pull.sh --help`).
+erhalten — siehe `Augmentation/setup_and_augment_dockerhub_pull.sh --help`).
 
 ## 5. Env-Var-Referenz
 
@@ -116,7 +116,8 @@ erhalten — siehe `Augmentation/setup_and_augment_DockerHub-pull.sh --help`).
 | `HF_HOME` | `/data/hf_cache` | Cosmos-Checkpoint-Cache, innerhalb `DATA_DIR` |
 | `DATA_DIR` | `/data` | Wie im Training-Image |
 | `NUM_GPU` | `1` | Cosmos' eigener Variablenname (`torchrun --nproc_per_node`) — bewusst **nicht** `NUM_GPUS` wie im Training-Image |
-| `SKIP_DOWNLOAD` | `0` | Datensatz-Download überspringen, falls vorhanden |
+| `MASTER_PORT` | `12341` | `torchrun --master_port` in `run_inference.sh` — nur ändern, wenn auf demselben Rechner schon ein anderer torchrun-Lauf den Port belegt |
+| `SKIP_DOWNLOAD` | `0` | Datensatz-Download überspringen. Vollständig gilt der Download erst mit dem Marker `$DATA_DIR/unitreerobotics/.G1_Dex3_BlockStacking_Dataset.download_done` (seit 2026-10-13; vorher genügte ein nicht leerer Ordner). Neu laden: Ordner und Marker löschen |
 | `SKIP_CONVERT` | `0` | v3.0→v2.1-Konvertierung überspringen, falls `modality.json` existiert |
 | `SOURCE_DATASET_REPO` | `unitreerobotics/G1_Dex3_BlockStacking_Dataset` | HF-Datensatz-Repo |
 | `AUGMENT_TRAIN_RATIO` | `0.8` | **Muss mit `TRAIN_SPLIT_RATIO`** im Training-Image übereinstimmen — dupliziertes Formel-Kontrakt, kein gemeinsames Artefakt (siehe `Training/scripts/lib_split.sh`) |
@@ -129,12 +130,15 @@ erhalten — siehe `Augmentation/setup_and_augment_DockerHub-pull.sh --help`).
 | `AUGMENT_MODEL_VARIANT` | `edge` | Cosmos-Modellwahl laut `cosmos_transfer2/config.py::MODEL_CHECKPOINTS`: `depth`/`edge`/`seg`/`vis` immer verfügbar. `edge/distilled` (schneller, `AUGMENT_NUM_STEPS=4` statt `35`) existiert nur mit `COSMOS_EXPERIMENTAL_CHECKPOINTS=1` — wird automatisch gesetzt, wenn der Name "distilled" enthält. `depth/distilled` existiert **nicht** (nur edge hat eine distillierte Variante) |
 | `AUGMENT_NUM_STEPS` | `35` | Diffusions-Schritte — Cosmos' eigener Default fürs Vollmodell. Bei `edge/distilled` reichen 4 |
 | `AUGMENT_DISABLE_GUARDRAILS` | `1` | NVIDIAs Content-Safety-Filter aus — spart ein zweites, separat gated HF-Repo (`nvidia/Cosmos-Guardrail1`). `0` = an, braucht dann dessen Lizenz-Zustimmung zusätzlich (§2) |
-| `AUGMENT_STRICT_FRAME_CHECK` | `1` | `1` = Episode bei Frame-/FPS-Abweichung verwerfen; `0` = trimmen (nur bei Frame-Überschuss möglich) |
+| `AUGMENT_STRICT_FRAME_CHECK` | `1` | `1` = Episode bei Frame-Abweichung (über `AUGMENT_FRAME_TOLERANCE` hinaus) verwerfen; `0` = überzählige Frames am Ende abschneiden (bei zu wenigen Frames wird trotzdem verworfen). **Eine fps-Abweichung wird immer verworfen**, unabhängig von diesem Schalter — sie verschöbe die Zuordnung Bild↔Aktion |
+| `AUGMENT_FRAME_TOLERANCE` | `0` | ±N Frames je Video, die auch bei `STRICT=1` am Ende ausgeglichen werden (kürzen bzw. letztes Frame wiederholen) |
+| `AUGMENT_PREFLIGHT` | `1` | Vor dem Volllauf **einen** kurzen Cosmos-Clip des ersten offenen Arbeitseintrags rendern und Framezahl/fps gegen die Quelle prüfen; bei Abweichung Abbruch nach Minuten statt „keine Episode bestanden“ nach Stunden. Das Ergebnis wird je Spec und Modellvariante gemerkt (`.passed` unter `$DATA_DIR/augmentation/preflight/`), ein Neustart zahlt den Clip nicht erneut. `0` = überspringen |
+| `AUGMENT_PREFLIGHT_FRAMES` | `150` | Länge des Preflight-Clips; > 93 Frames, damit auch das Zusammensetzen zweier Cosmos-Chunks geprüft wird |
 | `AUGMENT_OUT_DIR` | `$DATA_DIR/augmentation/g1_dex3_cosmos_augmented` | Ziel-Datensatz (LeRobot v2.1) |
 | `AUGMENT_HF_REPO` | `""` | Falls gesetzt: Upload nach Fertigstellung |
 | `SKIP_INFERENCE` | `0` | Nach Spec-Generierung stoppen — Prompts vor der GPU-Zeit prüfen |
 | `SKIP_ASSEMBLE` | `0` | Nach der Inferenz stoppen — Rohvideos vor dem Zusammenbau prüfen |
-| `AUGMENT_OVERWRITE` | `0` | Bereits abgeschlossene Arbeitseinträge erneut ausführen |
+| `AUGMENT_OVERWRITE` | `0` | Wirkt **nur auf die Inferenz**: `1` = bereits abgeschlossene Arbeitseinträge (`.done`) erneut rendern. Der zusammengebaute Datensatz wird dagegen **immer** neu aufgebaut (eigene alte Einträge in `AUGMENT_OUT_DIR` werden vorher entfernt, sonst blieben Episoden über dem neuen `total_episodes` liegen). Ein **fremder**, nicht leerer `AUGMENT_OUT_DIR` (ohne Marker/Manifest von `assemble_dataset.py`) wird abgelehnt — das Skript löscht nie etwas, das es nicht selbst geschrieben hat |
 | `SHELL_ON_ERROR` | `0` | Bei Fehler in eine Shell fallen statt abzubrechen |
 
 ## 6. Ins Training einbinden
@@ -147,8 +151,18 @@ Datensatz — genau der Vertrag, den `USE_COTRAIN=1` im Training-Image prüft
 ```bash
 HF_TOKEN=hf_... WANDB_API_KEY=... \
 USE_COTRAIN=1 COTRAIN_DATASET_PATH=/pfad/zum/augmentierten/datensatz COTRAIN_MIX_RATIO=0.25 \
-    ./Training/setup_and_train_DockerHub-pull.sh
+    ./Training/setup_and_train_dockerhub_pull.sh
 ```
+
+**Was im Ausgabe-Datensatz steht** (seit 2026-10-13):
+
+- `meta/stats.json` wird aus den **Ausgabe**-Parquets neu berechnet — nur Trainings-Episoden,
+  dieselbe Formel wie im GR00T-Fork. Vorher war es eine Kopie der Quelle, die auch die
+  Test-Episoden enthielt.
+- `meta/relative_stats.json` schreibt das Skript nicht; die `DatasetFactory` des Forks berechnet
+  sie beim Trainingsstart.
+- Das Manifest hat das Format `{"episodes": [...], "mismatches": [...]}` — `mismatches` listet
+  jede verworfene oder angepasste Episode mit Grund (Frame- bzw. fps-Abweichung).
 
 **`COTRAIN_MIX_RATIO` neu berechnen, nicht 0,25 blind übernehmen.** Die Formel aus
 [co-training.md §4.2](../training/co-training.md#42-welches-mischungsverhältnis--025-gerendert)
@@ -166,6 +180,11 @@ gilt unverändert (`mix* = F_augmentiert / (F_augmentiert + F_echt)`), aber die 
    `cosmos_transfer2/config.py`: Cosmos verarbeitet lange Videos in Chunks von
    `num_video_frames_per_chunk=93` Frames mit `num_conditional_frames` Überlappung —
    Rundungseffekte an Chunk-Grenzen könnten die Gesamt-Framezahl leicht verschieben.
+   **Stand 2026-10-13:** Dagegen gibt es jetzt den Preflight (`AUGMENT_PREFLIGHT=1`, 150 Frames =
+   zwei Chunks) vor dem Volllauf und die Toleranz `AUGMENT_FRAME_TOLERANCE`. Cosmos kürzt die
+   Ausgabe auf die Eingabelänge; Videos über **5000 Frames** würden abgeschnitten (Grenze auf der
+   Cosmos-Seite — die Episoden des Datensatzes liegen weit darunter, ~1200 Frames bei 39 s).
+   Am ersten echten Lauf bleibt das zu bestätigen.
 3. **Inferenzkosten pro Episode/Kamera bei ~65 GB VRAM unbekannt** — `AUGMENT_EPISODE_LIMIT`
    (Default `2`) ist der eingebaute Knopf für billige erste Läufe.
 4. **`AUGMENT_PROMPT_TEMPLATE`-Formulierung ist ein erster Entwurf**, nicht validiert. Die

@@ -16,7 +16,9 @@ Block-Stacking — plus eine Closed-Loop-**Simulations-Evaluation** in Isaac Lab
 Seit 2026-08-19 liegt **GR00T N1.7** als **paralleler Codebaum** vor (`GROOT_VERSION=1.7`
 statt Default `1.6`); seit 2026-09-25 in einem **eigenen Trainings-Image** (`:latest-n17`) —
 Details: [docs/weiterfuehrend/groot-n17-migration.md](docs/weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19).
-**Ungetestet:** Es gibt noch keinen abgeschlossenen N1.7-Trainings- oder Sim-Lauf.
+**Stand 2026-10-13:** voller N1.7-Trainingslauf (KISSKI, 44 000 Steps) und zwei Sim-Läufe (54/55,
+`lifted` 0/10) sind gelaufen; offen ist die Sim-Eval nach dem Abnahmeprotokoll (20 Episoden).
+Der N1.7-Status wird nur [dort](docs/weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19) gepflegt.
 
 Die Trainingsumgebung läuft **vollständig autonom in einem Container**: Container starten →
 Training läuft. Derselbe Container läuft lokal, auf Cloud-GPU-Plattformen wie
@@ -29,10 +31,12 @@ Training läuft. Derselbe Container läuft lokal, auf Cloud-GPU-Plattformen wie
 > `/mnt/vast-kisski/projects/kisski-humrob/data` als `/data` in den Container gemountet.
 > **Niemals `docker run --rm`** mit diesem Image verwenden.
 
-**Projektstand (2026-10-11):** Bester validierter Checkpoint ist der Vision-Lauf 3 (Step 30.000). Im
-Closed Loop in der Sim hebt noch kein Würfel ab (Lauf 34: `lifted` 0/10). Die Sim-Geometrie wurde
-am 2026-08-24 korrigiert (Fingergelenk-Vorzeichen, Beckenhöhe, Basisposition) — frühere Sim-Greifzahlen
-stehen unter Vorbehalt, die Neumessung steht aus. Co-Training (echt + gerendert bzw. externer
+**Projektstand (2026-10-13):** Bester validierter N1.6-Checkpoint ist der Vision-Lauf 3, **Step 44.000**
+(Nachmessung 20 × 750 vom 2026-10-12 — die frühere U-Kurve mit Optimum 30.000 ist widerlegt,
+[lauf4-n17-vergleich.md §5](docs/ergebnisse/lauf4-n17-vergleich.md#5-nachgeschärfter-vergleich-20-episoden--750-steps-volle-länge)).
+Im Closed Loop in der Sim hebt noch kein Würfel ab (N1.6 Lauf 34, N1.7 Läufe 54/55: je `lifted` 0/10).
+Die Sim-Geometrie wurde am 2026-08-24 korrigiert (Fingergelenk-Vorzeichen, Beckenhöhe, Basisposition) —
+frühere Sim-Greifzahlen stehen unter Vorbehalt; mit korrigierter Szene gemessen ist bisher nur N1.7. Co-Training (echt + gerendert bzw. externer
 Synth-Datensatz) und RL haben noch kein Ergebnis; der als erster Co-Training-Lauf geführte `cotrain_synth_v1`
 (2026-09-07) war laut W&B-Konfiguration keiner (nur der echte Datensatz).
 Priorisierte nächste Schritte: [next-steps.md](next-steps.md). Die schriftliche Projektarbeit liegt unter
@@ -90,12 +94,12 @@ export HF_TOKEN=hf_...  WANDB_API_KEY=...
 ./Training/setup_and_train_dockerhub_pull.sh
 ```
 
-**GR00T N1.7 statt N1.6** (paralleler Codebaum, ungetestet — Zugang zum gated Backbone
+**GR00T N1.7 statt N1.6** (paralleler Codebaum — Zugang zum gated Backbone
 `nvidia/Cosmos-Reason2-2B` nötig): eigenes Image (`:latest-n17`, gebaut mit
 `Training/update_image.sh --groot=1.7`) plus `GROOT_VERSION=1.7`, z. B.
 ```bash
 docker run --name groot-train --gpus all --ipc=host --shm-size=16g \
-  -e HF_TOKEN=hf_... -e WANDB_API_KEY=... -e GROOT_VERSION=1.7 \
+  -e HF_TOKEN -e WANDB_API_KEY -e GROOT_VERSION=1.7 \
   -it lucam03/projekt-humanoider-roboter:latest-n17
 ```
 

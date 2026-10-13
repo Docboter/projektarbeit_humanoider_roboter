@@ -10,7 +10,7 @@
 **Erstellt:** 2026-10-12, Ergebnisse 2026-10-13 · **Job:** 16634862 (KISSKI; ersetzt den nicht
 gestarteten 30k-Job 16633316) · **W&B (offline):** `offline-run-20261012_192301-2v02ye81` ·
 **Modell:** GR00T N1.7 (3,14 Mrd. Parameter, Backbone Cosmos-Reason2-2B / Qwen3-VL),
-`tune_visual = true`, Color-Jitter, **80/20-Split**, Task „stack the blocks".
+`tune_visual = true`, Color-Jitter, **80/20-Split**, Task „stack three block" (einziger Task des Datensatzes).
 
 > Bezug: [Migrationsplan Phase 4](../weiterfuehrend/groot-n17-migration.md#phase-4--kisski),
 > [KISSKI-Smoke-Test](../weiterfuehrend/groot-n17-migration.md#kisski-smoke-test-2026-10-12),

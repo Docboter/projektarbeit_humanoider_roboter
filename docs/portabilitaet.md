@@ -27,6 +27,12 @@ Pfade auf genau *einen* Rechner bzw. *ein* HPC-Konto. Wer das Repo klonte, lief 
 > gesourct. Aufgefallen beim Umsetzen der
 > [CLI-Menüführung](weiterfuehrend/cli-menuefuehrung.md).
 
+> **Vertrauensgrenze: `.env.local` ist Code.** Die Datei wird mit `source` geladen, also als
+> Bash **ausgeführt** — jede Zeile darin läuft mit den Rechten dessen, der einen Launcher startet.
+> Das ist bewusst so (die `: "${VAR:=…}"`-Form braucht es), heißt aber: nur eigene, selbst
+> geschriebene `.env.local` verwenden, keine fremde übernehmen, und die Datei nicht für andere
+> beschreibbar machen (`chmod 600 .env.local`, sie enthält ohnehin Tokens).
+
 > **Nachtrag 2026-09-25 — Docker-Hub-Konto nicht mehr fest `lucam03`.** Ziehen durfte jeder
 > (die Images sind öffentlich), **pushen** aber nur, wer Schreibrechte auf `lucam03` hat — alle
 > anderen scheiterten erst nach einem 30-Minuten-Build. Jetzt gilt eine Variable
@@ -305,7 +311,7 @@ Das RoboCasa-Skript nutzt dieselbe Mechanik mit `RC_`-Präfix (`RC_HOST_DATA_DIR
 
 | Variable | Default | Zweck |
 |---|---|---|
-| `TRAIN_HOST_DATA_DIR` | — (kein Mount) | Host-Verzeichnis, das im Container `/data` wird. Leer = altes vast.ai-Verhalten, alles lebt im Container und stirbt mit `--destroy`. Auf einem Rechner, der **auch die Sim fährt**, gehört hier `$HOME/groot-rl-data` hin — derselbe Pfad, den `server_rl_run.sh` einhängt; sonst sieht die Sim-Eval die Checkpoints nur nach einem `docker cp` über hunderte GB |
+| `TRAIN_HOST_DATA_DIR` | — (kein Mount) | Host-Verzeichnis, das im Container `/data` wird. Leer = altes vast.ai-Verhalten, alles lebt im Container und stirbt mit `--destroy`. Auf einem Rechner, der **auch die Sim fährt**, gehört hier `$HOME/groot-rl-data` hin — derselbe Pfad, den `server_rl_run.sh` einhängt; sonst sieht die Sim-Eval die Checkpoints nur nach einem `docker cp` über hunderte GB. **Seit 2026-10-13 reicht der Launcher `DATA_DIR` und `WANDB_DIR` des Hosts nicht mehr in den Container** — das sind Container-Pfade, und ein Host-`DATA_DIR` (etwa aus `.env.local` oder der KISSKI-Doku) überschrieb `/data`, während `run_finetuning*.sh` `/data` erwarten. Ein Host-Verzeichnis als `/data` geht nur über diese Variable |
 | `MOUNT_SCRIPTS` | `auto` | `auto` bindet `Training/scripts` über `/scripts`, sobald das Repo daneben liegt — genau wie [`kisski_submit.sh:336`](../Training/kisski_submit.sh#L336) es seit jeher tut. `0` = der Stand im Image gilt |
 | `CONTAINER_NAME` | `groot-train` | mehrere Läufe pro Server |
 | `DOCKER_NAMESPACE` | `lucam03` | Docker-Hub-Konto, von dem gezogen wird; `DOCKER_HUB_IMAGE` (ganzer Name) schlägt es |

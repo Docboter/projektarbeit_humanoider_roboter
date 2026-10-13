@@ -357,6 +357,16 @@ Zusätzlich lehnt `extract` es ab, Einträge zu mischen, die mit anderem `--bias
 Würfelebene oder anderen Kameras entstanden sind: in der Datei wären sie nicht mehr
 unterscheidbar.
 
+> **Nachtrag 2026-10-13 — Split-Grenze in der `layout.json`.** `extract_block_layout.py` schreibt
+> jetzt `n_train`, `total_episodes` und `train_split_ratio` in den Kopf der Datei; die Eval liest
+> daraus, welche Episoden Trainings- und welche Held-out-Episoden sind (vorher fest
+> `HELD_OUT_FIRST_EPISODE = 240`, das nur bei 300 Episoden und Ratio 0,8 stimmte). Ältere Dateien
+> ohne diese Felder werden aus `meta/info.json` und `TRAIN_SPLIT_RATIO` nachgerechnet — mit
+> Warnung im Log. Die Split-Formel hat sim-seitig **eine** Quelle,
+> [`split_math.py`](../../Simulation/g1_dex3_sim/split_math.py) (Spiegel von
+> [`lib_split.sh`](../../Training/scripts/lib_split.sh)), die Layout, Render, Replay und Eval
+> gemeinsam nutzen.
+
 ## 8. Artefakte und Befehle
 
 | Artefakt | Inhalt |

@@ -13,6 +13,14 @@
 > außerdem falsch wiedergegeben und ist korrigiert. Auch die Aussage zu `TUNE_VISUAL` in §2 ist
 > durch Lauf 34 relativiert (Fingerspanne 27,6 % statt 20,5 % mit Augmentierung, `lifted` weiter 0/10).
 
+> **Nachtrag 2026-10-13 — Messgrößen.** Seit 2026-10-13 meldet die Eval zusätzlich **`lifted_clear`**: Würfel-Unterseite > 2 cm über dem
+> Tisch **und** im selben Schritt ein Fingerkuppen-Abstand ≤ 4 cm zur Würfelmitte (Proxy, keine
+> Kontaktsensoren), je Episode `max_clear_lift_cm`. Das alte `lifted` (Schwerpunkt-Δz > 2 cm) bleibt
+> zur Vergleichbarkeit, zählt aber Kippen mit (Kante ≈ 1,0 cm, Ecke ≈ 1,8 cm Schwerpunkthub).
+> Zusammenfassung und JSON tragen 95-%-Clopper-Pearson-Intervalle (`milestone_ci95`; 0/10 ⇒ 0–31 %).
+> Läufe vor dem 2026-10-13 zählten Server-Fehler als misslungene Episoden.
+> Details: [sim-eval-anleitung.md, Schritt 7](../simulation/sim-eval-anleitung.md#schritt-7--ergebnisse-sichern).
+
 Tiefenreview der Closed-Loop-Sim-Eval: Ist der aktuelle Aufbau methodisch sinnvoll und
 technisch korrekt? Grundlage sind (a) eine Code-Verifikation gegen die echte GR00T-Trainings-
 konfiguration und (b) eine belegte Literaturrecherche (Quellen jeweils verlinkt).

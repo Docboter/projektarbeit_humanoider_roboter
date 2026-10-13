@@ -295,6 +295,7 @@ nach Installation `import zmq` → OK (pyzmq 27.1.0).
 `isaaclab.sh` **schluckt den Exit-Code** des Python-Sim-Clients — der zmq-Crash führte trotzdem
 zu „Sim-Eval abgeschlossen" + Exit 0. Im Entrypoint deshalb nach dem `isaaclab.sh`-Aufruf
 geprüft, ob `results.json` tatsächlich (nicht leer) existiert; sonst Fehler + Exit 1.
+*Stand 2026-10-13:* Das reicht nicht — eine alte `results.json` konnte einen Absturz verdecken (Review 10-13 S5). Jetzt löschen alle Entrypoints die Datei vor dem Start und verlangen den Marker `[eval] fertig.`; Server-Fehler machen eine Episode ungültig (`"error": true`), nach zwei in Folge Abbruch mit Exit ≠ 0. Details: [sim-eval-anleitung.md, Schritt 7](sim-eval-anleitung.md#schritt-7--ergebnisse-sichern).
 
 ---
 
@@ -434,7 +435,7 @@ deckte einen echten Geometrie-Bug auf, den kein Training ausgleichen könnte:
 - Würfel-Startpos + Sampling in den erreichbaren Bereich: `block_x_range (0.30,0.40)`,
   `block_y_range (-0.20,0.20)`, `block_z_surface 0.895`.
 - High-Cam-Ziel `(0.5,0,0.73)→(0.40,0,0.86)` + Szenen-Cam-Ziel angehoben (Tisch ist höher).
-- Roboter NICHT abgesenkt (die weltfesten Kameras sind auf Becken z=0.85 kalibriert). *Stand 2026-10-11: die Beckenhöhe ist seit 2026-08-24 gemessen 0,764 m (Basis x −0,057 m), siehe `g1_dex3_cfg.py` und [diagnose-chronik.md](../ergebnisse/diagnose-chronik.md).*
+- Roboter NICHT abgesenkt (die weltfesten Kameras sind auf Becken z=0.85 kalibriert — der Wert steht seit 2026-10-13 als `scene_geometry.CAMERA_CALIB_BASE_Z`, nicht mehr als nackte Konstante in `camera_geometry.py`). *Stand 2026-10-11: die Beckenhöhe ist seit 2026-08-24 gemessen 0,764 m (Basis x −0,057 m), siehe `g1_dex3_cfg.py` und [diagnose-chronik.md](../ergebnisse/diagnose-chronik.md).*
 
 **Nach dem Fix (Greif-Test `--grasp-test`, Würfel exakt an die Greifpunkte gesetzt):**
 min Hand→Würfel-Distanz **5,9 cm** (war 21,6), Würfel-**Anhebung 1,0 cm**, Würfel sichtbar

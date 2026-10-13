@@ -77,8 +77,16 @@
 >   `USE_RL`-Hinweis-Schalter im BC-Entrypoint, RL-Env-Vars in [env-vars.md](../training/env-vars.md).
 >
 > **Noch offen:** Lernkurve über viele Iterationen (Hyperparameter ungetunt) und Render-Durchsatz
-> bei produktivem `num_envs`. Die **BC-Baseline ist inzwischen gemessen** (0/20, Lauf 30) und
+> bei produktivem `num_envs`. Die **BC-Baseline ist inzwischen gemessen** (0/20 in Lauf 24, bestätigt
+> durch Lauf 30 mit 2 Episoden) und
 > taugt als Vergleichsmaßstab erst wieder, wenn sie über null liegt.
+>
+> **Nachtrag 2026-10-13:** Die Lernsignale aller bisherigen RL-Läufe sind nicht belastbar — `success`
+> war per Messfehler ≈ 0, die FPO-Ratio nutzte verschiedene Rausch-/`t`-Ziehungen, und ein globales
+> `env.reset()` brach laufende Trajektorien ab. Alle drei sind behoben (Seeds gespeichert und
+> wiederverwendet, Ratio-Selbsttest in Epoche 0, Erfolg vor dem Auto-Reset gezählt,
+> Truncation-Bootstrap, neu `RL_EXEC_HORIZON`), **auf Hardware aber noch nicht geprüft**. Schritte:
+> [rl-anleitung.md, Status](rl-anleitung.md).
 >
 > **GPU-/Render-Pfad (Gruppe 0) — geklärt (2026-08-05 bis -08):** der Server vom
 > [RoboCasa-Referenz-Eval](../simulation/robocasa-referenz-eval.md) (2× RTX PRO 6000 Blackwell) hat

@@ -9,8 +9,9 @@
 > 0/10 `lifted` wie N1.6 (Läufe 54/55, noch mit dem alten Messaufbau). Was sich ändert (gated Cosmos-Reason2-2B-Backbone, Python 3.12/torch 2.9,
 > N1.6-Checkpoints nicht ladbar), was N1.6-only bleibt, und die 8 Phasen mit Abnahmekriterien.
 
-Recherche- und Planungsdokument. **Umsetzung als paralleler Pfad begonnen** (Stand 2026-08-19 —
-siehe [„Stand der Umsetzung"](#stand-der-umsetzung-2026-08-19) unten): Was ist GR00T N1.7, was
+Recherche- und Planungsdokument. **Als paralleler Pfad umgesetzt; voller Trainingslauf und zwei
+Sim-Läufe sind gelaufen** (Stand 2026-10-13 — siehe [„Stand der Umsetzung"](#stand-der-umsetzung-2026-08-19)
+unten, dort steht der N1.7-Status auf einen Blick): Was ist GR00T N1.7, was
 ändert sich gegenüber unserem N1.6-Stand, wie aufwendig ist der Umstieg, und in welchen Phasen
 läuft er ab. Operative Referenzen: [Training](../training/README.md) ·
 [Simulation](../simulation/README.md) · [Portabilität](../portabilitaet.md) ·
@@ -18,7 +19,7 @@ läuft er ab. Operative Referenzen: [Training](../training/README.md) ·
 verglichen wird).
 
 
-> Stand 2026-08-19. Quellen: Upstream-Repo `NVIDIA/Isaac-GR00T` (lokaler Tag-Diff `n1.6-release..n1.7-release` im Submodul, Rohdateien von `main`), HF-Model-Cards, NVIDIA-Forum. Unser Stand: Fork-Commit `26ad1f7` = `n1.6-release` + 3 Commits; Dockerfile-Pin `9508b49` (2 Commits älter — Drift, siehe §3).
+> Recherchestand 2026-08-19 (§1–§8). Quellen: Upstream-Repo `NVIDIA/Isaac-GR00T` (lokaler Tag-Diff `n1.6-release..n1.7-release` im Submodul, Rohdateien von `main`), HF-Model-Cards, NVIDIA-Forum. Unser Stand: Fork-Commit `26ad1f7` = `n1.6-release` + 3 Commits; Dockerfile-Pin `9508b49` (2 Commits älter — Drift, siehe §3).
 
 ## 0. Kurzfazit
 
@@ -30,6 +31,18 @@ verglichen wird).
 - **Empfehlung — so umgesetzt (Details: [„Stand der Umsetzung"](#stand-der-umsetzung-2026-08-19)):** paralleler Pfad, aber anders als hier ursprünglich vorgeschlagen: statt separater Image-Tags `:n17` wählt **ein** Image beide Codebäume/venvs zur Laufzeit über `GROOT_VERSION` (Build-Arg `GROOT_VERSIONS` steuert, welche Bäume überhaupt gebaut werden). N1.6-Pipeline bleibt unangetastet (weiterhin Default). Der erste N1.7-Lauf soll ein **Baseline-Vergleich** gegen den besten N1.6-Checkpoint (Lauf 3, ckpt 30000) mit identischen Hyperparametern sein — **inzwischen gelaufen** (Lauf 4, Stand unten). Abweichend vom Plan wurde später doch ein Image je Generation der Standard (`:latest` / `:latest-n17`).
 
 ## Stand der Umsetzung (2026-08-19)
+
+> **N1.7-Status auf einen Blick (Stand 2026-10-13).** Diese Box ist die **eine gepflegte Quelle**
+> für den N1.7-Stand; CLAUDE.md, README und die Anleitungen verlinken nur hierher.
+>
+> | | Stand |
+> |---|---|
+> | Code | paralleler Pfad, `GROOT_VERSION=1.6\|1.7\|auto`, seit 2026-10-13 im Branch `training-luca-IKR-IS6.0` gemergt |
+> | Images | Training: Docker Hub `:latest-n17` (seit 2026-09-29). **Sim: nur lokal gebaut** — das Sim-Image auf Docker Hub ist weiterhin N1.6-only; lokal bauen und `RL_SKIP_PULL=1` setzen |
+> | Smoke-Tests | IKR-Blackwell 2026-09-25 (1 GPU, 2 GPUs, `TUNE_VISUAL`+Split, Laden + Open-Loop), KISSKI 2026-10-12 |
+> | Voller Trainingslauf | **fertig**: KISSKI 2026-10-13, 44 000 Steps, 7 h 53 min (Lauf 4); Open-Loop am Ende gleichauf mit N1.6, lernt früher, 1,6× schneller ([lauf4-n17-vergleich.md](../ergebnisse/lauf4-n17-vergleich.md)) |
+> | Sim (Closed Loop) | **Läufe 54/55 fertig** (ckpt15000 / ckpt44000, je 10 × 40 s): `lifted` 0/10, Fingerspanne 26 % der Demo bei ckpt44000 — dasselbe Muster wie N1.6 Lauf 34 ([Chronik](../ergebnisse/diagnose-chronik.md#läufe-5455-die-ersten-n17-checkpoints-in-der-sim)) |
+> | **Offen** | Sim-Eval nach dem Abnahmeprotokoll (**20 Episoden**); N1.7-Sim auf KISSKI (blockiert, keine RT-Cores); RL, optimiertes Inferenz-Backend, Stock-G1-Baseline und RoboCasa-Referenz bleiben N1.6-only |
 
 Umgesetzt wurde N1.7 als **paralleler Pfad neben N1.6** — nicht als Ersatz. Codebäume, Images
 und Scripts sind angepasst, Images gebaut (Docker Hub `:latest-n17` seit 2026-09-29), Smoke-Tests,
@@ -53,7 +66,21 @@ je Phase fest.
 `luca/g1-dex3-n17`, gepinnter Commit ursprünglich `efa0169` (= Upstream `main` `376ba89` + unser
 G1_DEX3-Beispiel/Konverter + Train/Test-Split-Patch + eine README-Notiz, erneut angewendet), seit
 2026-10-12 `cf2032d` (zusätzlich der Offline-Fix für den Backbone-Processor, nötig auf KISSKI;
-Submodul und `GROOT17_COMMIT` in beiden Dockerfiles seit 2026-10-13 gleich).
+Submodul und `GROOT17_COMMIT` in beiden Dockerfiles seit 2026-10-13 gleich). **`cf2032d` liegt auf
+`origin/luca/g1-dex3-n17`** (geprüft 2026-10-13) — die Sorge aus Review 10-13 §5, der Pin könnte
+wie früher bei N1.6 ungepusht sein, ist damit erledigt.
+
+> **Vorbereitet, nicht committet (2026-10-13):** Im Offline-Fix galt jeder gesetzte Wert von
+> `HF_HUB_OFFLINE` als „offline“, also auch `HF_HUB_OFFLINE=0`. Der Fix (nur `1`/`ON`/`YES`/`TRUE`,
+> Rückfall auf `TRANSFORMERS_OFFLINE`, wie `huggingface_hub` selbst) liegt im Arbeitsbaum des
+> Submoduls (`gr00t/model/gr00t_n1d7/processing_gr00t_n1d7.py`). Offen: Fork-Commit, Push, Pin in
+> Submodul **und** `GROOT17_COMMIT` beider Dockerfiles nachziehen.
+>
+> **`action_horizon`:** Das N1.7-Modell hat als Default `action_horizon = 40`, unser Embodiment 16.
+> Das wird über `action_mask`, die Loss-Maske und das Abschneiden der Vorhersage auf 16 abgefangen
+> (Training und Inferenz liefen damit). Noch nicht nachgesehen: ob die `config.json` eines unserer
+> N1.7-Checkpoints `"action_horizon": 40` trägt.
+
 `app/Groot-1.6` bleibt unverändert (Branch `luca/g1-dex3`). `.gitmodules` führt beide Submodule.
 
 **Phase 2 — Training-Image: fertig, Images gebaut** (`:latest-n17` seit 2026-09-29).
@@ -230,11 +257,9 @@ Weiterhin gilt: **kein Image gebaut, kein N1.7-Lauf.** Alles Folgende ist statis
   Cache-Prüfung, die `kisski_submit.sh` sonst erst im Job (nach der Queue-Wartezeit) macht.
 - **Offen / ungetestet:** AV1-Dekodierung über torchcodec 0.8 mit dem FFmpeg 4.4 aus Ubuntu
   22.04 (der Build-Smoke-Test importiert torchcodec nur); VRAM auf der 32-GB-5090; ob
-  `nvidia/GR00T-N1.7-3B` gegen `efa0169` sauber lädt. Der Submodul-Pointer `app/Groot-1.6`
-  (`26ad1f7`) ist im Fork nicht mehr abrufbar (`git submodule update` scheitert; der Build nutzt
-  `GROOT16_COMMIT=9508b49` und ist nicht betroffen). `setup_and_train_container_build.sh`
-  „baut“ per `docker compose build`, aber `docker-compose.yml` hat seit `cb388a1` keinen
-  `build:`-Abschnitt mehr — der Schritt ist wirkungslos (bestand schon vorher).
+  `nvidia/GR00T-N1.7-3B` gegen `efa0169` sauber lädt. (Behoben 2026-10-13: Submodul-Pointer `app/Groot-1.6` auf `9508b49` umgepinnt;
+  `setup_and_train_container_build.sh` baut per `docker build` — siehe
+  [historie.md](../historie.md).)
 
 ## Smoke-Test auf dem IKR-Blackwell (2026-09-25) und Übergabe an KISSKI
 

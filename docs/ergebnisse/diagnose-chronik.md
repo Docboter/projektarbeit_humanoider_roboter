@@ -6,7 +6,7 @@
 > den passenden Abschnitt ansteuern statt komplett lesen.
 
 Chronologisches Protokoll der Diagnose-, Kalibrier- und Eval-Läufe der Isaac-Lab-Sim
-(2026-08-08 bis 2026-08-26; letzter protokollierter Lauf: 53). Entstanden am 2026-08-18 durch Aufteilung von
+(2026-08-08 bis 2026-10-13; letzter protokollierter Lauf: 55). Entstanden am 2026-08-18 durch Aufteilung von
 [rl-anleitung.md](../weiterfuehrend/rl-anleitung.md), die auf 2197 Zeilen angewachsen war und
 operative Anleitung mit Protokoll vermischte. Die Lauf-Nummern (`Lauf 8` … `Lauf 55`) sind der
 projektweit referenzierte Zähler — andere Dokumente verlinken gezielt auf einzelne Abschnitte hier.
@@ -14,8 +14,9 @@ projektweit referenzierte Zähler — andere Dokumente verlinken gezielt auf ein
 > **Stand 2026-10-11 — Vorbehalt für alle Sim-Greifzahlen vor Lauf 47:** Die Läufe 38–51 haben gezeigt,
 > dass die Sim-Geometrie bis 2026-08-24 falsch war (Vorzeichen-Flip der vier proximalen Fingergelenke —
 > die Hand konnte in keinem früheren Lauf ganz schließen —, Beckenhöhe 0,764 m, Basis x −0,057 m). Alle
-> älteren Closed-Loop-/Greif-Zahlen (u. a. Läufe 29–34) stehen unter diesem Vorbehalt; die Neumessung mit der
-> korrigierten Szene steht aus. Die Spanne-Gate-Messung auf echten Bildern (Lauf 32) nutzte die
+> älteren Closed-Loop-/Greif-Zahlen (u. a. Läufe 29–34) stehen unter diesem Vorbehalt. Mit der korrigierten
+> Szene gemessen sind bisher nur die N1.7-Läufe [54/55](#läufe-5455-die-ersten-n17-checkpoints-in-der-sim)
+> (2026-10-12/13); für N1.6 steht die Neumessung aus (Nachtrag 2026-10-13). Die Spanne-Gate-Messung auf echten Bildern (Lauf 32) nutzte die
 > Trainingsepisoden 0–4 (Verhältnis 1,00 = Obergrenze der De-Normalisierung): Auswendiglernen ist nicht
 > ausgeschlossen, „Domain-Gap bestätigt“ ist ein starker Hinweis, kein Beweis. Die Lauf-Einträge selbst
 > bleiben unverändert (Protokoll).
@@ -2145,6 +2146,19 @@ Folgerungen:
   sonst dieselbe Konfiguration, die großen Läufe hängen per `afterok` daran) ist der erste
   echte Co-Training-Start überhaupt. Im Log auf `[cotrain] Zwei Datensätze:` achten.
 
+### Nachtrag 2026-10-13: neue Messgröße `lifted_clear`, Konfidenzintervalle, ungültige Episoden
+
+Gilt für alle Läufe **ab** diesem Datum; die Einträge oben bleiben unverändert (Protokoll).
+Seit 2026-10-13 meldet die Eval zusätzlich **`lifted_clear`**: Würfel-Unterseite > 2 cm über dem
+Tisch **und** im selben Schritt ein Fingerkuppen-Abstand ≤ 4 cm zur Würfelmitte (Proxy, keine
+Kontaktsensoren), je Episode `max_clear_lift_cm`. Das alte `lifted` (Schwerpunkt-Δz > 2 cm) bleibt
+zur Vergleichbarkeit, zählt aber Kippen mit (Kante ≈ 1,0 cm, Ecke ≈ 1,8 cm Schwerpunkthub).
+Zusammenfassung und JSON tragen 95-%-Clopper-Pearson-Intervalle (`milestone_ci95`; 0/10 ⇒ 0–31 %).
+Läufe vor dem 2026-10-13 zählten Server-Fehler als misslungene Episoden.
+`lifted` in den Läufen bis 55 ist also nicht kipp-robust — die Anhebungen von 1–1,8 cm in Lauf 34
+und 55 sind mit Kippen vereinbar. Details:
+[sim-eval-anleitung.md, Schritt 7](../simulation/sim-eval-anleitung.md#schritt-7--ergebnisse-sichern).
+
 ### Läufe 54/55: die ersten N1.7-Checkpoints in der Sim
 
 Beide Läufe messen denselben KISSKI-Lauf `g1_dex3_blockstacking_vision_v1` (GR00T **N1.7**,
@@ -2206,6 +2220,12 @@ Episodenende dort. Das Öffnen und Schließen in der Luft aus Lauf 54 tritt nich
 | `span` MSE-Median Train / Test | — | 0,0087 / 0,0064 | **0,0035 / 0,0043** |
 
 „—“ heißt: für diesen Lauf nicht festgehalten, nicht null.
+
+> **Vorbehalt zum Vergleich (Nachtrag 2026-10-13):** Lauf 34 lief mit der **alten** Sim-Geometrie
+> (vor der Korrektur vom 2026-08-24: Fingervorzeichen, Becken, Basis), die Läufe 54/55 mit der
+> korrigierten. Die Spalten unterscheiden sich also nicht nur im Modell; ein N1.6-Lauf mit
+> korrigierter Szene fehlt. Bei n = 10 ist 0/10 zudem mit einer wahren Erfolgsrate von 0–31 %
+> vereinbar ([Review 10-13 §2.1 M4](../projekt-review-2026-10-13.md#21-befunde)).
 
 `span` für Lauf 55 im Einzelnen (Vorhersage/GT der Fingerspanne, MSE über alle 28 Dimensionen):
 Train 0,77 / 0,76 / 0,87 / 0,89 / 0,75, MSE 0,0056 / 0,0030 / 0,0035 / 0,0065 / 0,0015;

@@ -73,9 +73,19 @@ angemeldete Konto) und merkt es sich auf Wunsch in `.env.local`; `server_rl_run.
 dann automatisch von dort. Ohne Angabe ziehen die Launcher vom Team-Konto `lucam03`.
 
 Ergebnis: `<konto>/projekt-humanoider-roboter-sim-standalone:<repo-branch>` (z. B.
-`:training-luca-IKR-IS6.0-GN1.7`) und `:<timestamp>` auf Docker Hub; `:latest` nur mit
+`:main`) und `:<timestamp>` auf Docker Hub; `:latest` nur mit
 `--push-latest`. Herkunft (Repo-Branch/-Commit, `GROOT_VERSIONS`) steht in OCI-Labels:
-`docker inspect --format '{{json .Config.Labels}}' <image>`. Wer das Branch-Tag nutzt, setzt
+`docker inspect --format '{{json .Config.Labels}}' <image>`.
+
+> **N1.7 im Sim-Image (Stand 2026-10-13):** Das Sim-Image auf Docker Hub ist **weiterhin
+> N1.6-only**. Die N1.7-Sim-Läufe 54/55 liefen mit einem **lokal** gebauten Image
+> (`./Simulation/update_sim_image.sh --standalone --skip-push`, Label
+> `de.humrob.groot-versions: "1.6 1.7"`). Für N1.7 also selbst bauen und `RL_SKIP_PULL=1` setzen,
+> sonst zieht `preflight` den gleichnamigen Tag von Docker Hub über den lokalen Build. Prüfen,
+> was ein Image enthält: das Label oben. Status:
+> [groot-n17-migration.md](../weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19).
+
+Wer das Branch-Tag nutzt, setzt
 auf dem Server `RL_IMAGE=lucam03/projekt-humanoider-roboter-sim-standalone:<tag>` bzw. trägt es
 auf vast.ai als Image ein.
 
@@ -235,11 +245,13 @@ gitignorierten `.env.local` (Template: [`.env.local.example`](../../.env.local.e
 siehe [../portabilitaet.md](../portabilitaet.md)). Die weiteren Aktionen — Replay-Diagnose
 (`grasp`), Domain-Gap (`gap`), Live-Ansicht, RL — und die Fehlersuche stehen in
 [../weiterfuehrend/rl-anleitung.md](../weiterfuehrend/rl-anleitung.md); die
-Env-Var-Referenz in [CLAUDE.md](../../CLAUDE.md) gilt für beide Wege.
+Env-Var-Referenz in [env-vars.md § Sim-Eval-Container](../training/env-vars.md#sim-eval-container-entrypoint_simsh--kurzreferenz) gilt für beide Wege.
 
-Der letzte Closed-Loop-Lauf mit trainierter Policy war Lauf 34 (2026-08-14, 10 Episoden × 40 s,
-Checkpoint `groot-g1dex3-vision-v2-30000`): 0/10 Erfolge, kein Würfel angehoben. Er stammt noch
-aus der Szene vor den Geometrie-Korrekturen vom 2026-08-24; Neumessung offen. Einzelheiten:
+Die letzten Closed-Loop-Läufe mit trainierter Policy sind die N1.7-Läufe 54/55 (2026-10-12/13,
+je 10 Episoden × 40 s, korrigierte Szene): 0/10 `lifted`. Der letzte N1.6-Lauf ist Lauf 34
+(2026-08-14, Checkpoint `groot-g1dex3-vision-v2-30000`, 0/10); er stammt noch aus der Szene vor den
+Geometrie-Korrekturen vom 2026-08-24, eine N1.6-Neumessung (dann mit dem validierten
+Checkpoint 44000) ist offen. Einzelheiten:
 [../ergebnisse/diagnose-chronik.md](../ergebnisse/diagnose-chronik.md).
 
 Die Schritte 4-7 unten betreffen nur **Weg B (vast.ai)**.
@@ -303,12 +315,13 @@ lucam03/projekt-humanoider-roboter-sim-standalone:latest
 | `SHELL_ON_ERROR` | `1` | Empfohlen (für Debugging) |
 | `BLACK_HANDS` | `1` | Nein (default 1) — färbt die Hände schwarz (Domain-Gap-Fix) |
 | `LIVE_VIEW` | `1` | Nein (default 0) — MJPEG-Live-Ansicht im Browser, Port `LIVE_VIEW_PORT` (8900) |
-| `GROOT_VERSION` | `auto` | Nein (default `auto`) — erkennt N1.6 vs. N1.7 aus dem `model_type` in der Checkpoint-`config.json`; explizit `1.6` oder `1.7` erzwingt eine Generation. `1.7` braucht zusätzlich Zugang zum **gated** Backbone `nvidia/Cosmos-Reason2-2B`. Ungetestet mit echtem N1.7-Checkpoint — siehe [groot-n17-migration.md](../weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19) |
+| `GROOT_VERSION` | `auto` | Nein (default `auto`) — erkennt N1.6 vs. N1.7 aus dem `model_type` in der Checkpoint-`config.json`; explizit `1.6` oder `1.7` erzwingt eine Generation. `1.7` braucht zusätzlich Zugang zum **gated** Backbone `nvidia/Cosmos-Reason2-2B`. Mit echten N1.7-Checkpoints gelaufen (Läufe 54/55, lokal gebautes Image) — siehe [groot-n17-migration.md](../weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19) |
 | `HF_HOME` | — | Nein (default `$DATA_DIR/hf_cache`) — nur für N1.7 relevant: hier landet das Cosmos-Reason2-2B-Backbone, das bei jedem Checkpoint-Laden erneut vom Hub gezogen wird, wenn es nicht schon im Cache liegt |
 
 > Die vollständige Env-Var-Referenz des Sim-Containers steht in
-> [CLAUDE.md](../../CLAUDE.md) („Sim eval"); dort sind auch `LIVE_VIEW_EVERY_N`,
-> `LIVE_VIEW_CAMS` und die `LIVESTREAM*`-Variablen beschrieben.
+> [env-vars.md § Sim-Eval-Container](../training/env-vars.md#sim-eval-container-entrypoint_simsh--kurzreferenz);
+> dort sind auch `LIVE_VIEW_EVERY_N`, `LIVE_VIEW_CAMS` und die `LIVESTREAM*`-Variablen beschrieben
+> (Abschnitte „Live-Ansicht“ und „LIVE-Variante“).
 
 > **Flash-Attention:** Das Modell (Eagle-Block2A-2B-v2) erfordert `flash_attention_2`
 > zwingend; es ist im Image installiert. Es gibt **keine** Möglichkeit, es abzuschalten —
@@ -436,18 +449,41 @@ scp -P <port> -r root@<ip>:/data/sim_videos/ ./sim_videos/
 scp -P <port> root@<ip>:/data/logs/groot_server.log ./groot_server.log
 ```
 
-`results.json` enthält:
+**Ergebnisdateien (seit 2026-10-13):** `/data/sim_results/results.json` ist immer die Kopie des
+**neuesten** Laufs; daneben bleibt je Lauf ein Archiv `results_<Zeitstempel>_<Checkpoint>.json`
+liegen. Das Log jedes Laufs steht unter `$DATA_DIR/logs/sim_eval_<ts>.log` (Baseline:
+`baseline_eval_<ts>.log`). Alle Entrypoints (Sim, Baseline, KISSKI) löschen vor dem Start die alte
+Ergebnisdatei und werten einen Lauf nur mit dem Marker `[eval] fertig.` im Log als erfolgreich —
+eine liegen gebliebene `results.json` kann einen Absturz also nicht mehr verdecken.
+
+**Abbruch-Semantik:** Ein Server-Fehler (z. B. `get_action`-Timeout) macht die Episode
+**ungültig**, nicht misslungen: Sie bekommt `"error": true` und `"error_reason"`, der
+ZMQ-Socket wird neu aufgebaut. Nach **zwei Fehlern in Folge** bricht die Eval mit Exit ≠ 0 ab.
+Die Zusammenfassung lautet „N gültig / M abgebrochen“; alle Raten beziehen sich nur auf gültige
+Episoden. *Läufe vor dem 2026-10-13 zählten Server-Fehler als normale Fehlschläge.*
+
+`results.json` enthält u. a. (gekürzt):
 ```json
 {
-  "num_episodes": 20,
-  "num_success": 12,
-  "success_rate": 0.6,
+  "num_episodes": 20, "num_valid": 20, "num_aborted": 0, "aborted": false, "aborted_reason": null,
+  "num_success": 0, "success_rate": 0.0, "checkpoint": "…", "task_description": "stack three block",
+  "milestone_ci95": {"lifted_clear": {"k": 0, "n": 20, "rate": 0.0, "ci95": [0.0, 0.1684]}, "…": {}},
   "episodes": [
-    {"episode": 1, "success": true, "num_steps": 142, "duration_s": 4.7},
+    {"episode": 1, "error": false, "error_reason": null, "max_clear_lift_cm": 0.4,
+     "milestones": {"reached": true, "touched": true, "lifted": false, "lifted_clear": false}},
     ...
   ]
 }
 ```
+
+`lifted_clear` (neu): Würfel-**Unterseite** > 2 cm über dem Tisch **und** im selben Schritt eine
+Hand am Würfel (Fingerkuppen-Abstand zur Würfelmitte ≤ 4 cm — ein Proxy, Kontaktsensoren gibt
+es in der Env nicht). Je Episode steht `max_clear_lift_cm` (Unterseite über dem Tisch, nur Würfel
+mit Handkontakt-Proxy). Das alte `lifted` (Schwerpunkt-Δz > 2 cm) bleibt zur Vergleichbarkeit, ist aber nicht
+kipp-robust. `milestone_ci95` sind exakte 95-%-Clopper-Pearson-Intervalle.
+
+> Änderungen an `Simulation/g1_gripper_sim/` (Baseline) und `Simulation/scripts/` wirken erst
+> nach einem **Neubau des Sim-Images** — beide werden ins Image kopiert.
 
 ---
 

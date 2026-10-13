@@ -132,7 +132,7 @@ df -h   "$RL_HOST_DATA_DIR"                        # die übliche Ursache
 `optimizer.pt` (13 GB) braucht nur ein Training-Resume, Sim und RL lesen sie nie —
 
 ```bash
-docker exec -e HF_TOKEN="$HF_TOKEN" -e HUGGING_FACE_HUB_TOKEN="$HF_TOKEN" groot-rl \
+HUGGING_FACE_HUB_TOKEN="$HF_TOKEN" docker exec -e HF_TOKEN -e HUGGING_FACE_HUB_TOKEN groot-rl \
   huggingface-cli download luca-mue/groot-g1dex3-checkpoint \
     --local-dir /data/checkpoints/groot-g1dex3-checkpoint --exclude 'optimizer.pt'
 ```

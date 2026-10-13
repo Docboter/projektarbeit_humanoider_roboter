@@ -768,7 +768,7 @@ Umsetzungsstand: [groot-n17-migration.md § Stand der Umsetzung](weiterfuehrend/
 `Training/scripts/entrypoint*.sh`/`run_finetuning*.sh` und `Simulation/scripts/entrypoint_*.sh`.
 Doku-Gegenstück: [groot-n17-migration.md](weiterfuehrend/groot-n17-migration.md),
 [env-vars.md](training/env-vars.md), [kisski-hpc.md](training/kisski-hpc.md),
-[co-training.md](training/co-training.md), [vastai-anleitung.md](simulation/vastai-anleitung.md),
+[co-training.md](training/co-training.md), [vastai-anleitung.md](simulation/sim-eval-anleitung.md) (heute Weg B in `sim-eval-anleitung.md`),
 [fehlerbehebung.md](fehlerbehebung.md), [portabilitaet.md](portabilitaet.md).
 
 ## 2026-09-25 — Upstream-Merge, ein Trainings-Image je Generation
@@ -790,3 +790,65 @@ N1.7-Trainings-/Sim-Lauf** — vollständiger Stand:
 scheiterte erst nach dem Build. Jetzt: `DOCKER_NAMESPACE` (Umgebung, `.env.local` oder
 Rückfrage am Terminal), die Launcher ziehen von dort, ohne Angabe weiter von `lucam03`.
 Details: [portabilitaet.md § 3.4](portabilitaet.md#34-eigene-images-bauen-eigenes-docker-hub-konto).
+
+## 2026-10-13 — Zwei offene Wartungspunkte aus CLAUDE.md erledigt
+
+*Herkunft:* `CLAUDE.md` § „Open maintenance issues“ (Punkte 1 und 2), dazu
+[groot-n17-migration.md](weiterfuehrend/groot-n17-migration.md) „Offen / ungetestet“.
+
+1. **`Training/setup_and_train_container_build.sh` baute nichts** (`docker compose build` ohne
+   `build:`-Abschnitt in `docker-compose.yml`, seit `cb388a1`). War im Code bereits mit
+   `a8c8c66` (Review 2026-10-11 §4) behoben: das Skript ruft `docker build` direkt mit
+   `GROOT_VERSIONS`/`GROOT_VERSION_DEFAULT` auf und übergibt an den Pull-Launcher. Nur der
+   Eintrag in CLAUDE.md war stehen geblieben.
+2. **Submodul-Pointer `app/Groot-1.6` → `26ad1f7` war im Fork nicht abrufbar.** `26ad1f7` war
+   ein nie gepushter lokaler Commit auf `9508b49`, der nur `examples/G1_DEX3/FINETUNING_GUIDE.md`
+   änderte (max_steps 20000, save_steps 2000) — kein Code. Pointer auf `9508b49` umgepinnt
+   (= `GROOT16_COMMIT` in den Dockerfiles), `git submodule update` funktioniert wieder. Der alte
+   Stand liegt lokal als Tag `archive/unpushed-26ad1f7-guide-params` im Submodul (nicht gepusht).
+
+## 2026-10-13 — CLAUDE.md verschlankt, Status an eine Stelle (Review 10-13 D1/D5)
+
+*Herkunft:* `CLAUDE.md` (bis dahin ~57 KB, wird in jede Claude-Code-Sitzung geladen). Grund: Der
+N1.7-Stand stand dort sechsmal, teils veraltet („no full run yet“, „nothing on KISSKI“) — die
+Hauptquelle der Widersprüche aus [Review 10-13 §6](projekt-review-2026-10-13.md#6-doku-konsistenz).
+CLAUDE.md hat jetzt ~12 KB; nichts ist verloren, es steht nur an einer Stelle:
+
+| Inhalt (alt in CLAUDE.md) | jetzt in |
+|---|---|
+| Status-Narrativ (Projekt, Läufe, Vorbehalte) | [next-steps.md §0](../next-steps.md) |
+| N1.7-Status (sechsfach) | [groot-n17-migration.md, Status-Box](weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19) |
+| Env-Var-Tabelle Training | [env-vars.md](training/env-vars.md) (war schon dort) |
+| Env-Var-Tabelle Sim-Eval | [env-vars.md § Sim-Eval-Container](training/env-vars.md#sim-eval-container-entrypoint_simsh--kurzreferenz) (neu, mit den echten Defaults statt Beispielwerten) |
+| Env-Var-Tabelle Augmentation | [augmentation/anleitung.md](augmentation/anleitung.md) (war schon dort) |
+| VRAM-Tabelle inkl. N1.7-Hinweis | [env-vars.md § VRAM-Richtwerte](training/env-vars.md#vram-richtwerte) (CLAUDE.md behält eine Kurzfassung) |
+| Architekturbaum, `/data`-Layouts (Training, Augmentation) | [docs/README.md § Projektstruktur](README.md#projektstruktur) (zusammengeführt) |
+| Menü-Details (`MENU_*`, Gruppen, Rückweg) | [cli-menuefuehrung.md §13](weiterfuehrend/cli-menuefuehrung.md#13-nachtrag-2026-08-21--ein-einstiegspunkt-und-pfeiltasten) (war schon dort) |
+| Lange weiterfuehrend-Aufzählung | [docs/README.md](README.md) (Hub-Tabellen) |
+
+In CLAUDE.md geblieben: Überblick, Kurzstatus mit Link, Wartungspunkte-Regel, kritische Regeln
+(kein `--rm`, Speichermodell inkl. KISSKI, Skripte im Image), wichtigste Befehle, Code-Stil,
+Commit- und TL;DR-Konvention, graphify-Abschnitt, Linkliste.
+
+## 2026-10-13 — Review-10-13-Befunde umgesetzt (Doku-Nachzug)
+
+*Herkunft:* [projekt-review-2026-10-13.md](projekt-review-2026-10-13.md); Stand je Befund in dessen
+[§9](projekt-review-2026-10-13.md#9-stand-der-umsetzung-2026-10-13). Überholt sind damit u. a.
+folgende früher dokumentierte Aussagen:
+
+- **Training:** `SAVE_STEPS` war in Vision/Co-Training `1000`, `SAVE_TOTAL_LIMIT` `10` (bzw. `5`) —
+  jetzt überall 2000/15 (KISSKI 5000/40). Der Co-Training-Split war über Entrypoint/KISSKI still
+  aus (Dockerfile-`ENV TRAIN_TEST_SPLIT=0`). Ein nicht leerer Download-Ordner galt als vollständig —
+  jetzt Marker unter `$DATA_DIR/.download_state/`. Tokens standen in der Kommandozeile
+  (`-e HF_TOKEN=…`, `--env`, `wandb login <key>`), `GITHUB_TOKEN` in `.git/config`. Der
+  KISSKI-Branch war fest `training-luca-IKR-IS6.0`; `kisski_menu.sh` änderte nur die Partition,
+  nicht die GPU-Anforderung.
+- **Sim:** Server-Fehler zählten als misslungene Episoden, eine alte `results.json` konnte einen
+  Absturz verdecken, `lifted` zählte Kippen mit, Held-out-Grenze fest 240.
+- **RL:** `success` ≈ 0 per Messfehler, FPO-Ratio aus verschiedenen Ziehungen, globales
+  `env.reset()` — frühere RL-Lernsignale sind nicht belastbar.
+- **Augmentation:** keine Vorabprüfung der Framezahl, `stats.json` als Kopie der Quelle (inkl.
+  Test-Episoden), Ausgabeordner nicht geleert.
+- **Repo:** kein CI, Ruff-Konfiguration nur im Fork, `graphify-out/` getrackt.
+- **Fork:** „`cf2032d` vielleicht ungepusht“ (Review §5) — falsch, der Commit liegt auf
+  `origin/luca/g1-dex3-n17`.

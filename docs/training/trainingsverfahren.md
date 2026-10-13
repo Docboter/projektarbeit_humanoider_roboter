@@ -142,7 +142,7 @@ Gesetzt in [Training/kisski_submit.sh](../../Training/kisski_submit.sh) bzw.
 | Optimierer | AdamW | (HF-Trainer-Default) |
 | Aktions-Horizont | 16 Schritte | |
 | Objektiv | Flow-Matching-Loss | |
-| `SAVE_STEPS` / `SAVE_TOTAL_LIMIT` | 5.000 / 40 | 35 Checkpoints über den 175k-Lauf verteilt. `kisski_submit.sh` nutzt weiter 5000/40; die lokalen Skript-Defaults sind `SAVE_STEPS=2000` (Vision-/Co-Training-Variante: 1000) |
+| `SAVE_STEPS` / `SAVE_TOTAL_LIMIT` | 5.000 / 40 | 35 Checkpoints über den 175k-Lauf verteilt. `kisski_submit.sh` nutzt weiter 5000/40; die lokalen Skript-Defaults sind seit 2026-10-13 in allen Varianten `SAVE_STEPS=2000` / `SAVE_TOTAL_LIMIT=15` |
 
 ## 8. Abgrenzung — was es *nicht* ist
 

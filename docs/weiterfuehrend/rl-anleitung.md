@@ -21,6 +21,21 @@ statt nur Aktions-Nachahmung (Hintergrund: [reinforcement-learning-plan.md](rein
 > dokumentierter RL-Lauf; die Sim-Geometrie wurde am 2026-08-24 korrigiert (Fingerspiegelung, Beckenhöhe,
 > Basis x), die Greif-Zahlen der Chronik sind neu zu messen.
 >
+> **Nachtrag 2026-10-13 — frühere RL-Lernsignale sind nicht belastbar.** Drei Fehler im Trainer
+> sind behoben (Review 10-13 S2–S4): (1) `success` war durch einen Messfehler praktisch immer ≈ 0
+> (gelesen, nachdem `_reset_idx` das Flag schon gelöscht hatte) — jetzt vor dem Auto-Reset aus
+> `terminated` gezählt; (2) die FPO-Ratio verglich `old_logp`/`new_logp` aus **verschiedenen**
+> Rausch- und `t`-Ziehungen — jetzt werden die Seeds beim Rollout gespeichert und im Update
+> wiederverwendet, und Epoche 0 schreibt eine Zeile `[rl] Ratio-Selbsttest …` (max|r−1| sollte
+> ≲ 1e-3 sein); (3) das globale `env.reset()` nach jedem `done` ist entfernt, Timeouts werden mit
+> Truncation-Bootstrap behandelt. Neu: `RL_EXEC_HORIZON` (Default 1; mit 8 wie in der Eval).
+> **Noch nicht auf Hardware geprüft.** Verifikation auf dem IKR-Server:
+> 1. `RL_ITERATIONS=2 RL_NUM_ENVS=2 ./Simulation/server_rl_run.sh rl` — läuft durch, Ratio-Selbsttest
+>    in Epoche 0 ≈ 1.
+> 2. Dasselbe mit `RL_EXEC_HORIZON=8`.
+>
+> Die Eval meldet außerdem die kipp-robuste Stufe `lifted_clear`; RL erst, wenn sie > 0 ist.
+>
 > **Status & Details:** [reinforcement-learning-plan.md](reinforcement-learning-plan.md) (die eine
 > gepflegte Statusquelle) · **Lauf-Historie:** [diagnose-chronik.md](../ergebnisse/diagnose-chronik.md).
 >
@@ -172,7 +187,7 @@ HuggingFace hoch — identisch zur Sim-Eval, [sim-eval-anleitung.md Schritt 2](.
 # Modell-Repo (einmalig, privat reicht)
 huggingface-cli repo create groot-g1dex3-checkpoint --type model --private
 # besten BC-Checkpoint hochladen
-huggingface-cli upload luca-mue/groot-g1dex3-checkpoint ./checkpoint-30000/ --repo-type model   # z. B. der beste Sweep-Checkpoint
+huggingface-cli upload luca-mue/groot-g1dex3-checkpoint ./checkpoint-44000/ --repo-type model   # z. B. der beste Sweep-Checkpoint (vision-v2: 44000)
 ```
 
 Im Container `HF_CHECKPOINT_REPO=<hf-user>/groot-g1dex3-checkpoint` setzen → der Entrypoint lädt
@@ -189,7 +204,7 @@ Ein Checkpoint ist **ein Verzeichnis**. Mehrere liegen einfach nebeneinander unt
 `CHECKPOINT_PATH`:
 
 ```bash
-CHECKPOINT_PATH=/data/checkpoints/vision-v2-30000 \
+CHECKPOINT_PATH=/data/checkpoints/vision-v2-44000 \
 NUM_EPISODES=10 EPISODE_LENGTH_S=40 ./Simulation/server_rl_run.sh eval
 ```
 
@@ -200,8 +215,8 @@ Vergleichslauf ist damit Abschreiben statt Suchen.
 Einen zweiten Checkpoint danebenlegen — der einfachste Weg ist der Bind-Mount, kein `docker cp`:
 
 ```bash
-mkdir -p "$RL_HOST_DATA_DIR/checkpoints/vision-v2-30000"
-rsync -a .../checkpoint-30000/ "$RL_HOST_DATA_DIR/checkpoints/vision-v2-30000/"
+mkdir -p "$RL_HOST_DATA_DIR/checkpoints/vision-v2-44000"
+rsync -a .../checkpoint-44000/ "$RL_HOST_DATA_DIR/checkpoints/vision-v2-44000/"
 ```
 
 Alternativ aus einem anderen HF-Repo, dann **beide** Variablen zusammen:

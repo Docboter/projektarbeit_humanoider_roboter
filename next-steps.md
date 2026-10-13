@@ -4,11 +4,37 @@
 > nächste Schritte und offene Widersprüche zwischen den Ergebnisdokumenten. Bezugspunkt für
 > die Prioritätensetzung, kein Ergebnisbericht selbst.
 
-**Stand:** 2026-10-11 (letzte Fassung davor: 2026-08-14), Nachtrag 2026-10-12 (Lauf-3-Nachmessung widerlegt den Overfitting-Befund) · Grundlage: Ergebnis-Dokumente unter [`docs/ergebnisse/`](docs/ergebnisse/README.md),
+**Stand:** 2026-10-13 (Kurzstatus §0; Fassung davor 2026-10-11, davor 2026-08-14) · Grundlage: Ergebnis-Dokumente unter [`docs/ergebnisse/`](docs/ergebnisse/README.md),
 [RL-Plan](docs/weiterfuehrend/reinforcement-learning-plan.md), Trainings-Launcher unter
 [`Training/scripts/`](Training/scripts/).
 
 ---
+
+## 0. Projektstatus in Kürze (Stand 2026-10-13)
+
+Diese Zusammenfassung ist die **eine gepflegte Statusquelle** des Projekts; CLAUDE.md und README
+verweisen hierher. Den N1.7-Detailstand pflegt
+[groot-n17-migration.md, „Stand der Umsetzung“](docs/weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19).
+
+- **Bester validierter N1.6-Checkpoint:** vision-v2 (Lauf 3), **Step 44.000**. Die Nachmessung
+  auf 20 vollen Test-Episoden (2026-10-12) widerlegt die frühere U-Kurve (Optimum 30.000):
+  Validierungs-MSE fällt monoton bis 44.000
+  ([lauf4-n17-vergleich.md §5](docs/ergebnisse/lauf4-n17-vergleich.md#5-nachgeschärfter-vergleich-20-episoden--750-steps-volle-länge)).
+- **GR00T N1.7** als paralleler Pfad (`GROOT_VERSION`): voller KISSKI-Lauf (44k Steps, 7 h 53 min)
+  fertig, Open Loop am Ende gleichauf mit N1.6, lernt früher, trainiert 1,6× schneller
+  ([Lauf 4](docs/ergebnisse/lauf4-n17-vergleich.md)). In der Sim (Läufe 54/55, korrigierte
+  Szene): `lifted` 0/10, Fingerspanne 26 % der Demo bei ckpt44000. **Offen:** Sim-Eval nach dem
+  Abnahmeprotokoll mit 20 Episoden.
+- **Closed Loop insgesamt:** 0 Erfolge (N1.6 Lauf 34: `lifted` 0/10, noch alte Geometrie; N1.7
+  Läufe 54/55: 0/10). Die Sim-Geometrie ist seit 2026-08-24 korrigiert; die N1.6-Neumessung mit
+  korrigierter Szene steht aus.
+- **Ursache des Closed-Loop-Versagens nicht identifiziert.** „Domain-Gap bestätigt“ ist ein
+  starker Hinweis, kein Befund — Closed und Open Loop unterscheiden sich in mehreren Faktoren
+  ([Review 10-13 §2.1](docs/projekt-review-2026-10-13.md#21-befunde)); billige trennende
+  Experimente: [Review 10-13 §2.3](docs/projekt-review-2026-10-13.md#23-empfohlene-experimente-nach-kostennutzen).
+- **Co-Training, Cosmos-Augmentierung, RL:** Werkzeuge gebaut, **kein Ergebnis**.
+  `cotrain_synth_v1` (2026-09-07) war kein Co-Training-Lauf. Cosmos ist nicht end-to-end geprüft
+  (kein ~65-GB-Docker-Server verfügbar). RL ist N1.6-only und erst sinnvoll ab `lifted` > 0.
 
 ## 1. Wo das Projekt steht
 
@@ -35,19 +61,23 @@ Projekts bleibt **0 Erfolge im Closed-Loop** (0/20 früher, Lauf 34: 0/10).
 | 08-24 | **Geometriefehler in der Sim gefunden und behoben:** der Vorzeichen-Flip der vier proximalen Fingergelenke war *falsch* (entfernt) — die Hand konnte in **keinem früheren Lauf** ganz schließen; Beckenhöhe 0,764 m; Basis x −0,057 m | Läufe 38–51 in [diagnose-chronik.md](docs/ergebnisse/diagnose-chronik.md) |
 | 09-07 / 09-23 | Externer Sim-Datensatz `Cube_Stacking_synth` auf das echte Schema harmonisiert; v21 hatte vertauschte Fingerbefehle → v22 und `Cube_Stacking_synth_jointspace`; Presets in `Training/kisski_chain.sh` | [synth-datensatz.md](docs/training/synth-datensatz.md) |
 | 09-07 | Lauf `cotrain_synth_v1` **abgebrochen** nach 138 s (W&B `7z81177r`) — laut W&B kein Co-Training (ein Datensatz, `tune_visual: false`, IKR-Server; Nachtrag 2026-10-13 in der Diagnose-Chronik) | [co-training.md](docs/training/co-training.md) |
-| 10-11 | LaTeX-Projektarbeit überarbeitet (`latex/`, 28 Seiten Hauptteil); GR00T-N1.7-Migration läuft auf separatem Branch `training-luca-IKR-IS6.0-GN1.7` | — |
+| 10-11 | LaTeX-Projektarbeit überarbeitet (`latex/`, 28 Seiten Hauptteil); GR00T-N1.7-Migration lief auf separatem Branch `training-luca-IKR-IS6.0-GN1.7` (seit 10-13 gemergt) | — |
+| 10-12 / 10-13 | N1.7: voller KISSKI-Lauf (Lauf 4, 44k) und Sim-Läufe 54/55 (`lifted` 0/10); Lauf-3-Nachmessung 20 × 750 widerlegt die U-Kurve, bester Checkpoint 44.000 | [lauf4-n17-vergleich.md](docs/ergebnisse/lauf4-n17-vergleich.md), [Chronik 54/55](docs/ergebnisse/diagnose-chronik.md#läufe-5455-die-ersten-n17-checkpoints-in-der-sim) |
 
 **Konsequenzen und Vorbehalte, die jede Zahl dieses Dokuments betreffen:**
 
 1. **Alle Sim-Greifzahlen vor dem 2026-08-24 stehen unter Vorbehalt** (Läufe 29–34, inkl. 27,6 %
    Fingerspanne und `lifted` 0/10): die Hand konnte nicht voll schließen, der Roboter stand ~12 cm
-   versetzt. Eine Neumessung mit der korrigierten Szene gibt es noch nicht.
+   versetzt. Mit der korrigierten Szene gemessen sind bisher nur die N1.7-Läufe 54/55
+   (2026-10-12/13); für N1.6 steht die Neumessung aus.
 2. **Der Renderdatensatz für das Co-Training muss neu erzeugt werden** (er entstand mit der
    fehlerhaften Geometrie).
 3. **Das `span`-Gate (Median 1,00) nutzte die Trainingsepisoden 0–4**, und 2,0944 rad ist zugleich das
    De-Normalisierungs-Maximum. Auswendiglernen ist damit nicht ausgeschlossen; „Domain-Gap bestätigt /
-   (a2) ausgeschlossen" ist ein starker Hinweis, kein Beweis. Die Messung auf zurückgehaltenen
-   Episoden steht aus.
+   (a2) ausgeschlossen" ist ein starker Hinweis, kein Beweis. Für N1.7 gibt es die Messung auf
+   zurückgehaltenen Episoden inzwischen (Test 240/255/270/285/300: 90 % bzw. 94 %,
+   [Läufe 54/55](docs/ergebnisse/diagnose-chronik.md#läufe-5455-die-ersten-n17-checkpoints-in-der-sim));
+   für N1.6 steht sie aus.
 4. **Trainingsparameter der Läufe 2/3 (W&B):** Peak-LR 1e-4, Warmup 0,10, 4 GPUs × Batch 8.
 
 > **Ergänzung 2026-08-14 (abends):** Die letzte Zeile ist das Ergebnis des `span`-Gates aus
@@ -76,8 +106,8 @@ Projekts bleibt **0 Erfolge im Closed-Loop** (0/20 früher, Lauf 34: 0/10).
 | # | Schritt | Warum / Ausgang |
 |---|---|---|
 | 1 | **Open-Loop-MSE auf allen 61 Testepisoden**, volle Länge, getrennt nach Armen und Händen, mit trivialer Baseline (z. B. konstante Pose / letzter Zustand) | Der Sweep aus Lauf 3 nutzte nur 6 Episoden × 300 Steps; ohne Baseline ist die MSE nicht einzuordnen. Billig (`checkpoint_sweep.py`, `EVAL_NUM_TRAJ`/`EVAL_STEPS`) |
-| 2 | **`span`-Gate auf zurückgehaltenen Testepisoden** (`SPAN_TRAJ_IDS` mit Test-Indices) | Schließt die Auswendiglern-Lücke des Lauf-32-Gates; trägt „Domain-Gap bestätigt“ vom Hinweis zum Befund |
-| 3 | **Closed-Loop-Neumessung mit der korrigierten Szene** (identisches Protokoll wie Lauf 34: 10 Episoden × 40 s, Checkpoint vision-v2-30000), optional **Tauschtest** (echtes Bild + Sim-Zustand vs. Sim-Bild + echter Zustand) | Erst damit sind die Sim-Zahlen wieder belastbar; entscheidet, wie groß der Domain-Gap nach der Geometriekorrektur noch ist |
+| 2 | **`span`-Gate auf zurückgehaltenen Testepisoden** (`SPAN_TRAJ_IDS` mit Test-Indices) — für N1.7 erledigt (Läufe 54/55: Test 90 % / 94 %), für N1.6 offen | Schließt die Auswendiglern-Lücke des Lauf-32-Gates; trägt „Domain-Gap bestätigt“ vom Hinweis zum Befund |
+| 3 | **Closed-Loop-Neumessung mit der korrigierten Szene** (identisches Protokoll wie Lauf 34: 10 Episoden × 40 s, Checkpoint vision-v2-**44000** — der seit der Nachmessung 2026-10-12 validierte; bei Lauf 34 war es noch 30000), optional **Tauschtest** (echtes Bild + Sim-Zustand vs. Sim-Bild + echter Zustand) | Erst damit sind die Sim-Zahlen wieder belastbar; entscheidet, wie groß der Domain-Gap nach der Geometriekorrektur noch ist |
 | 4 | **Renderdatensatz neu erzeugen → Co-Training-Lauf** (eigener Render und/oder Synth v22 / `Cube_Stacking_synth_jointspace`); Log des Abbruchs von `cotrain_synth_v1` aus dem Trainingscontainer des IKR-Servers holen; auf KISSKI zuerst `kisski_chain.sh smoke …` | Vorregistrierte Regeln in [co-training.md](docs/training/co-training.md) / [synth-datensatz.md](docs/training/synth-datensatz.md) |
 | 5 | **RL (FPO)** erst, wenn die Politik gelegentlich einen Würfel hebt | Ohne Startsignal fehlt dem Reward der Gradient ([RL-Plan](docs/weiterfuehrend/reinforcement-learning-plan.md)) |
 | 6 | **Echter Roboter** | setzt belastbare Sim- bzw. Open-Loop-Zahlen voraus |
@@ -144,7 +174,7 @@ Das Wesentliche:
 
 | Befund | Zahl |
 |---|---|
-| Bester Checkpoint (Validierungs-MSE auf zurückgehaltenen Episoden) | **Step 30.000** — 0,00716 |
+| Bester Checkpoint (Validierungs-MSE auf zurückgehaltenen Episoden) | **Step 30.000** — 0,00716 *(6×300-Protokoll; überholt, siehe Nachtrag: 44.000)* |
 | Letzter Checkpoint (Step 44.000) | 0,00898 → **25 % schlechter** |
 | Trainingsloss im selben Fenster 30k → 44k | 0,0131 → 0,0073 (**−44 %**) |
 
@@ -170,8 +200,9 @@ Zwei Vorbehalte, die vor Schritt 3 stehen:
    ([§6 der Auswertung](docs/ergebnisse/lauf3-vision-split-auswertung.md#6-noch-zu-verifizieren-war-der-split-beim-training-aktiv)).
    Trifft es nicht zu, wären die Testepisoden mittrainiert und der Sweep wertlos.
 
-Nebenbefund für den nächsten Lauf: **`MAX_STEPS=30000` genügt** — die letzten 14.000 Steps
-(≈ 4 h auf 4 GPUs) haben die Validierung verschlechtert.
+~~Nebenbefund für den nächsten Lauf: **`MAX_STEPS=30000` genügt** — die letzten 14.000 Steps
+(≈ 4 h auf 4 GPUs) haben die Validierung verschlechtert.~~ *Überholt (2026-10-12), siehe Nachtrag
+oben: bis 44.000 fällt die Validierungs-MSE weiter.*
 
 <details>
 <summary>Ursprüngliche Startanweisung (zur Reproduktion)</summary>
@@ -223,7 +254,10 @@ Vollständige Auswertung inklusive Episodentabelle, Zuordnung und Vorbehalten:
 **Damit ist die Regel angewandt.** Sie sagte: bewegt sich die Spanne nicht deutlich über 19 %, ist
 der Vision-Pfad ausgereizt. Sie hat sich bewegt — der Pfad ist also **nicht** ausgereizt, aber
 27,6 % gegen 100 % auf echten Bildern heißt auch: er schließt den Gap nicht. Rund 48 GPU-Stunden
-haben ein Drittel des Weges gebracht. Der Rest kommt nicht durch mehr vom Gleichen, sondern muss
+haben ein Drittel des Weges gebracht. *(Nachtrag 2026-10-13: die beiden Zahlen haben verschiedene
+Nenner — 27,6 % ist die Sim-Spanne relativ zur Konstante 2,094 rad, 100 % das Verhältnis
+Vorhersage/Ground Truth auf echten Bildern, das an genau dieser De-Normalisierungsgrenze sättigt.
+„Ein Drittel des Weges“ ist deshalb kein belastbares Maß, [Review 10-13 §2.2](docs/projekt-review-2026-10-13.md#22-zahlen--und-aussage-inkonsistenzen).)* Der Rest kommt nicht durch mehr vom Gleichen, sondern muss
 auf der **Sim-Seite** angegangen werden → Schritt 4. *(Nachtrag 2026-10-11: die 27,6 % und `lifted` 0/10 stammen aus der Zeit vor der Geometriekorrektur vom 2026-08-24 und sind neu zu messen — siehe §1 und §2.)*
 
 <details>
