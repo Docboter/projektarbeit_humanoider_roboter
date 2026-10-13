@@ -33,6 +33,10 @@ param RL_CLIP float 0.2 expert "Clipping" --default-from "Simulation/scripts/ent
 param RL_MINIBATCH_SIZE int 0 expert "Minibatch-Groesse (Speicher)" --default-from "Simulation/scripts/entrypoint_rl.sh"
 param RL_EPOCHS_PER_ITER int 0 expert "Epochen je Iteration (Speicher)" --default-from "Simulation/scripts/entrypoint_rl.sh"
 param RL_FPO_MC_SAMPLES int 0 expert "Monte-Carlo-Samples fuer FPO (Speicher)" --default-from "Simulation/scripts/entrypoint_rl.sh"
+param RL_EXEC_HORIZON int 1 expert \
+  "Ausgefuehrte Chunk-Schritte je Policy-Abfrage" \
+  "1 = bisheriges Verhalten (nur Chunk-Schritt 0, jeden Schritt neu planen). Die Eval fuehrt 8 aus — fuer ein RL, das dasselbe Verhalten optimiert, das gemessen wird, 8 setzen. Eine RL-Transition umfasst dann 8 Env-Schritte (gamma je Transition = gamma^8)." \
+  --range 1:16 --default-from "Simulation/g1_dex3_sim/rl_finetune.py"
 
 group "Hardware"
 param RL_GPUS str '"device=1,0"' advanced \

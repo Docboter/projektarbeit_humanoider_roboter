@@ -68,6 +68,7 @@
 #   HF_TOKEN, HF_CHECKPOINT_REPO (luca-mue/groot-g1dex3-checkpoint),
 #   RL_NUM_ENVS, RL_ITERATIONS, RL_ROLLOUT_STEPS, RL_LR, RL_KL_COEF, RL_CLIP,
 #   RL_MINIBATCH_SIZE, RL_FPO_MC_SAMPLES, RL_EPOCHS_PER_ITER (Speicher-Stellschrauben),
+#   RL_EXEC_HORIZON (ausgefuehrte Chunk-Schritte je Policy-Abfrage, Default 1; Eval: 8),
 #   RL_SAVE_EVERY, WANDB_API_KEY, WANDB_MODE, RL_WANDB_VIDEO_EVERY, SHELL_ON_ERROR,
 #   LIVE_VIEW, LIVE_VIEW_PORT, LIVE_VIEW_EVERY_N, LIVE_VIEW_CAMS — durchgereicht,
 #   LIVESTREAM, LIVESTREAM_PORT, LIVESTREAM_MEDIA_PORT, LIVE_KEEP_VIDEO (LIVE-Variante).
@@ -585,6 +586,8 @@ build_rl_env() {
   [[ -n "${RL_MINIBATCH_SIZE:-}" ]]  && RL_ENV+=( -e "RL_MINIBATCH_SIZE=$RL_MINIBATCH_SIZE" )
   [[ -n "${RL_FPO_MC_SAMPLES:-}" ]]  && RL_ENV+=( -e "RL_FPO_MC_SAMPLES=$RL_FPO_MC_SAMPLES" )
   [[ -n "${RL_EPOCHS_PER_ITER:-}" ]] && RL_ENV+=( -e "RL_EPOCHS_PER_ITER=$RL_EPOCHS_PER_ITER" )
+  # Chunk-Schritte je Policy-Abfrage (Review 2026-10-13, S4; Eval: 8, Default 1).
+  [[ -n "${RL_EXEC_HORIZON:-}" ]]    && RL_ENV+=( -e "RL_EXEC_HORIZON=$RL_EXEC_HORIZON" )
   [[ -n "${RL_REF_DEVICE:-}" ]]      && RL_ENV+=( -e "RL_REF_DEVICE=$RL_REF_DEVICE" )
   # Render-/Belichtungshebel, damit ein per `cams` gefundener Wert auch im RL-Lauf gilt.
   [[ -n "${RL_AA_MODE:-}" ]]         && RL_ENV+=( -e "RL_AA_MODE=$RL_AA_MODE" )
@@ -1084,7 +1087,7 @@ do_eval() {
     "${LS_ENV[@]}" \
     "$CONTAINER" bash -lc "bash /scripts/entrypoint_sim.sh" 2>&1 \
     `# grep -c statt -q: -q steigt beim ersten Treffer aus, das vorgeschaltete tee bekommt` \
-    `# SIGPIPE, und unter 'set -o pipefail' (Z. 53) galt der Lauf dann als gescheitert —` \
+    `# SIGPIPE, und unter 'set -o pipefail' (Skriptkopf) galt der Lauf dann als gescheitert —` \
     `# in Lauf 24 als falscher Alarm "ohne Erfolgsmarker", obwohl der Marker da war.` \
     `# Isaac Sim schreibt nach '[eval] fertig.' noch Shutdown-Zeilen, daher trat es genau` \
     `# hier auf und bei dump/gap nicht. -c liest bis EOF und kann nicht früher schließen.` \
@@ -1098,7 +1101,7 @@ do_eval() {
   fi
   docker exec "$CONTAINER" bash -lc \
     "python3 -c \"import json;d=json.load(open('/data/sim_results/results.json'));\
-print('Erfolgsrate: %d/%d = %.1f%%' % (d['num_success'], d['num_episodes'], 100*d['success_rate']))\"" \
+print('Erfolgsrate: %d/%d = %.1f%% (%d abgebrochen)' % (d['num_success'], d.get('num_valid', d['num_episodes']), 100*d['success_rate'], d.get('num_aborted', 0)))\"" \
     2>/dev/null || true
 }
 

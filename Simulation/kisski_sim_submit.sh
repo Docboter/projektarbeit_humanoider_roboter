@@ -315,6 +315,13 @@ SIM_APPTAINER_ARGS=(
     # Falls Fehler: DISPLAY="" und VK_ICD_FILENAMES setzen (vgl. check_sim_eval_ready.py).
 )
 
+# Veraltete Ergebnis-Datei entfernen und auf den Erfolgsmarker prüfen statt auf ihre
+# bloße Existenz (Review 2026-10-13, S5): isaaclab.sh reicht den Exit-Code nicht durch.
+rm -f "$DATA_DIR/sim_results.json"
+EVAL_LOG="$DATA_DIR/sim_eval_${SLURM_JOB_ID:-$(date +%Y%m%d-%H%M%S)}.log"
+# set +e: unter `set -e` + pipefail bräche ein Exit != 0 das Skript ab, bevor der
+# Policy-Server unten aufgeräumt wird.
+set +e
 apptainer exec "${SIM_APPTAINER_ARGS[@]}" "$SIM_SIF" \
     bash -lc '${ISAACLAB_PATH}/isaaclab.sh -p \
         /workspace/g1_dex3_sim/run_g1_dex3_sim_eval.py \
@@ -326,9 +333,14 @@ apptainer exec "${SIM_APPTAINER_ARGS[@]}" "$SIM_SIF" \
         --task-description "'"$TASK_DESCRIPTION"'" \
         --video-dir /data/sim_videos \
         --results-file /data/sim_results.json \
-        --asset-path '"$ASSET_PATH"
+        --asset-path '"$ASSET_PATH" 2>&1 | tee "$EVAL_LOG"
 
-SIM_EXIT=$?
+SIM_EXIT=${PIPESTATUS[0]}
+set -e
+if ! grep -q "\[eval\] fertig\." "$EVAL_LOG"; then
+    echo "!! Sim-Eval ohne Erfolgsmarker '[eval] fertig.' beendet (Log: $EVAL_LOG)." >&2
+    SIM_EXIT=1
+fi
 echo ""
 echo "==> Sim-Client beendet (Exit-Code: $SIM_EXIT)"
 

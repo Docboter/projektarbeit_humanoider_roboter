@@ -94,16 +94,45 @@ class PolicyClient:
 
     def __init__(self, server_url: str = "tcp://localhost:5555", timeout_ms: int = 15_000):
         self._ctx = zmq.Context()
-        self._sock = self._ctx.socket(zmq.REQ)
-        self._sock.setsockopt(zmq.RCVTIMEO, timeout_ms)
-        self._sock.setsockopt(zmq.SNDTIMEO, timeout_ms)
-        self._sock.setsockopt(zmq.LINGER, 0)
-        self._sock.connect(server_url)
+        self._url = server_url
+        self._timeout_ms = timeout_ms
+        self._sock = self._make_socket()
         print(f"[PolicyClient] Verbunden mit {server_url}")
 
+    def _make_socket(self):
+        sock = self._ctx.socket(zmq.REQ)
+        sock.setsockopt(zmq.RCVTIMEO, self._timeout_ms)
+        sock.setsockopt(zmq.SNDTIMEO, self._timeout_ms)
+        sock.setsockopt(zmq.LINGER, 0)
+        sock.connect(self._url)
+        return sock
+
+    def _rebuild_socket(self) -> None:
+        """REQ-Socket nach einem Fehler verwerfen und neu verbinden.
+
+        Ein REQ-Socket, dessen recv() in den RCVTIMEO lief, steht im Zustand "wartet auf
+        Antwort": jedes weitere send() wirft EFSM ("Operation cannot be accomplished in
+        current state"). Bis 2026-10-13 wurde er nie neu aufgebaut — nach EINEM Timeout
+        (z. B. kalter compile/TRT-Erstaufruf über 20 s) scheiterte jeder weitere Aufruf
+        der Eval, und das sah aus wie ein plausibles 0/N (Review 2026-10-13, S1).
+        LINGER 0: die unbeantwortete Anfrage wird beim close() verworfen, nicht gepuffert.
+        """
+        try:
+            self._sock.setsockopt(zmq.LINGER, 0)
+            self._sock.close()
+        except zmq.ZMQError:
+            pass
+        self._sock = self._make_socket()
+
     def _send_recv(self, request: dict):
-        self._sock.send(MsgSerializer.to_bytes(request))
-        raw = self._sock.recv()
+        try:
+            self._sock.send(MsgSerializer.to_bytes(request))
+            raw = self._sock.recv()
+        except zmq.ZMQError:
+            # Again (Timeout) wie EFSM: Socket ist danach unbrauchbar -> neu aufbauen und
+            # den Fehler weiterreichen, damit der Aufrufer ihn zählt.
+            self._rebuild_socket()
+            raise
         resp = MsgSerializer.from_bytes(raw)
         if isinstance(resp, dict) and "error" in resp:
             raise RuntimeError(f"Server-Fehler: {resp['error']}")
@@ -116,8 +145,10 @@ class PolicyClient:
                 resp = self._send_recv({"endpoint": "ping"})
                 print(f"[PolicyClient] ping ok (Versuch {attempt}): {resp}")
                 return True
-            except zmq.error.Again:
-                print(f"[PolicyClient] Server nicht bereit (Versuch {attempt}/{retries}), warte {delay}s …")
+            except zmq.ZMQError as e:
+                # Again (Timeout) UND EFSM — _send_recv hat den Socket schon neu gebaut.
+                print(f"[PolicyClient] Server nicht bereit (Versuch {attempt}/{retries}: "
+                      f"{type(e).__name__}), warte {delay}s …")
                 time.sleep(delay)
         return False
 

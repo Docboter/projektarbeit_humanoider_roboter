@@ -415,9 +415,14 @@ def main() -> None:
     # dagegen in Weltkoordinaten — wer nur eine Spalte sieht, vergleicht Äpfel mit Birnen.
     print("\nSzenenobjekte zur Laufzeit (env 0):")
     print(f"  {'Objekt':<24}{'welt':<26}{'rel. zum Ursprung':<26}erwartet (env-lokal, Config)")
-    expect = {"table": "(0.5, 0.0, 0.435)", "block_0": "(0.34, -0.15, 0.895)",
-              "block_1": "(0.36, 0.0, 0.895)", "block_2": "(0.34, 0.15, 0.895)",
-              "robot_root": "(0, 0, ~0.85)"}
+    # Erwartung aus scene_geometry.py (der einen Quelle), nicht als Literal — bis
+    # 2026-10-13 stand hier noch die Basis-z 0,85 von vor dem Fix vom 2026-08-24.
+    from scene_geometry import CUBE_Z_CENTER, ROBOT_BASE_POS, TABLE_POS
+    expect = {"table": str(tuple(TABLE_POS)),
+              "block_0": f"(0.34, -0.15, {CUBE_Z_CENTER})",
+              "block_1": f"(0.36, 0.0, {CUBE_Z_CENTER})",
+              "block_2": f"(0.34, 0.15, {CUBE_Z_CENTER})",
+              "robot_root": str(tuple(ROBOT_BASE_POS))}
     for name, p in pts.items():
         rel = p - origins[0]
         print(f"  {name:<24}{str(np.round(p, 3)):<26}"

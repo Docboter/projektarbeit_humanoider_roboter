@@ -180,17 +180,17 @@ class G1Dex3CameraCfg:
         high_target_x, high_target_z = 0.34, 0.915
         # Gegenhypothese zu OFFEN (Review §3.4): HEAD_CAM_FOLLOWS_PELVIS=1 verschiebt Auge
         # UND Blickziel starr um denselben Versatz wie die Basis (ROBOT_BASE_X − 0,
-        # ROBOT_BASE_Z − 0,85) — Nickwinkel bleibt, die Transformation Kamera→Torso
-        # entspricht dann wieder dem URDF-d435_link. Default 0, damit sich laufende
+        # ROBOT_BASE_Z − CAMERA_CALIB_BASE_Z, letzteres = 0,85, s. scene_geometry) —
+        # Nickwinkel bleibt, die Transformation Kamera→Torso entspricht dann wieder dem URDF-d435_link. Default 0, damit sich laufende
         # Vergleiche nicht still ändern. Entscheiden per tipcheck + layoutcheck in beiden
         # Varianten, und zwar VOR dem Neu-Rendern des Co-Training-Datensatzes; layout, render,
         # eval und tipcheck müssen dabei dieselbe Einstellung sehen (server_rl_run.sh
         # reicht sie über GEOM_ENV an jeden Aufruf durch).
         hx = hz = 0.0
         if os.environ.get("HEAD_CAM_FOLLOWS_PELVIS", "0") == "1":
-            from scene_geometry import ROBOT_BASE_X, ROBOT_BASE_Z
+            from scene_geometry import CAMERA_CALIB_BASE_Z, ROBOT_BASE_X, ROBOT_BASE_Z
             hx = ROBOT_BASE_X - 0.0
-            hz = ROBOT_BASE_Z - 0.85
+            hz = ROBOT_BASE_Z - CAMERA_CALIB_BASE_Z
         self.head_cam_shift = (hx, 0.0, hz)
         high_target_x, high_target_z = high_target_x + hx, high_target_z + hz
         left_high_eye  = (0.0537 + hx,  0.025, 1.3239 + hz)   # halbe Stereobasis links

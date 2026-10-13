@@ -489,6 +489,17 @@ if [[ "$BLACK_HANDS" == "1" ]]; then
     fi
 fi
 
+# Veraltete Ergebnis-Datei VOR dem Start entfernen: bis 2026-10-13 prüfte die Abfrage
+# unten nur "Datei nicht leer" — nach einem Absturz meldete der Lauf mit der results.json
+# des VORIGEN Laufs Erfolg (Review 2026-10-13, S5). Die Eval schreibt zusätzlich je Lauf
+# ein Archiv results_<Zeitstempel>_<Checkpoint>.json daneben; results.json ist der neueste.
+RESULTS_FILE="$DATA_DIR/sim_results/results.json"
+rm -f "$RESULTS_FILE"
+EVAL_LOG="$DATA_DIR/logs/sim_eval_$(date +%Y%m%d-%H%M%S).log"
+
+# `|| true`: isaaclab.sh reicht den Exit-Code ohnehin nicht zuverlässig durch; maßgeblich
+# ist allein der Erfolgsmarker im Log (s. unten). Ohne `|| true` löste ein Exit != 0 den
+# ERR-Trap aus, bevor die genauere Meldung unten käme.
 ${ISAACLAB_PATH}/isaaclab.sh -p /workspace/g1_dex3_sim/run_g1_dex3_sim_eval.py \
     "${APP_FLAGS[@]}" \
     --server "tcp://localhost:$ZMQ_PORT" \
@@ -496,21 +507,30 @@ ${ISAACLAB_PATH}/isaaclab.sh -p /workspace/g1_dex3_sim/run_g1_dex3_sim_eval.py \
     --execution-horizon "$EXECUTION_HORIZON" \
     --task-description  "$TASK_DESCRIPTION" \
     --video-dir      "$VIDEO_DIR" \
-    --results-file   "$DATA_DIR/sim_results/results.json" \
+    --results-file   "$RESULTS_FILE" \
     --asset-path     "$ASSET_PATH" \
     --episode-length-s "$EPISODE_LENGTH_S" \
     `# Nur zur Protokollierung in results.json — geladen hat den Checkpoint der` \
-    `# Policy-Server oben (Z. 235) aus derselben Variablen.` \
+    `# Policy-Server oben (SERVER_CMD, --model-path) aus derselben Variablen.` \
     --checkpoint-path "$CHECKPOINT_PATH" \
-    --ping-retries   20
+    --ping-retries   20 2>&1 | tee "$EVAL_LOG" || true
 
 # isaaclab.sh schluckt den Exit-Code des Python-Prozesses (ein Crash im Sim-Client liefert
-# trotzdem Exit 0). Daher explizit prüfen, ob die Ergebnis-Datei erzeugt wurde, statt blind
-# "abgeschlossen" zu melden.
-RESULTS_FILE="$DATA_DIR/sim_results/results.json"
+# trotzdem Exit 0). Daher explizit auf den Erfolgsmarker '[eval] fertig.' prüfen — dieselbe
+# Regel wie server_rl_run.sh (do_eval). Eine nach Fehlern abgebrochene Eval schreibt zwar
+# eine results.json (aborted=true), aber keinen Marker.
+if ! grep -q "\[eval\] fertig\." "$EVAL_LOG"; then
+    err "Sim-Eval ohne Erfolgsmarker '[eval] fertig.' beendet (Log: $EVAL_LOG)."
+    if grep -q "\[eval\] ABGEBROCHEN" "$EVAL_LOG"; then
+        err "  $(grep "\[eval\] ABGEBROCHEN" "$EVAL_LOG" | tail -1)"
+        err "  Teilergebnis (nur zur Diagnose): $RESULTS_FILE"
+    else
+        err "Der Sim-Client ist vermutlich abgestürzt — Traceback oben bzw. im Log prüfen."
+    fi
+    exit 1
+fi
 if [[ ! -s "$RESULTS_FILE" ]]; then
-    err "Sim-Eval hat keine Ergebnis-Datei erzeugt ($RESULTS_FILE)."
-    err "Der Sim-Client ist vermutlich abgestürzt — letzte Container-Ausgaben oben prüfen."
+    err "Erfolgsmarker vorhanden, aber keine Ergebnis-Datei ($RESULTS_FILE)."
     exit 1
 fi
 

@@ -30,3 +30,10 @@ CUBE_Z_CENTER = round(TABLE_HEIGHT + CUBE_EDGE / 2, 4)   # 0.895
 ROBOT_BASE_X = float(os.environ.get("ROBOT_BASE_X", "-0.057"))
 ROBOT_BASE_Z = float(os.environ.get("ROBOT_BASE_Z", "0.764"))
 ROBOT_BASE_POS = (ROBOT_BASE_X, 0.0, ROBOT_BASE_Z)
+
+# Alte Basishöhe (Becken env-lokal z = 0,85, vor dem Fix vom 2026-08-24). Kein Szenenwert
+# mehr, sondern der Bezug, gegen den die Kopfkamera in camera_geometry.py kalibriert ist:
+# deren Augpunkt/Blickziel stammen aus der URDF-Kette bei Becken-z 0,85. Nur
+# HEAD_CAM_FOLLOWS_PELVIS=1 verschiebt die Kamera um ROBOT_BASE_Z − diesen Wert.
+# NICHT ändern, solange die Kamerapose nicht neu kalibriert ist.
+CAMERA_CALIB_BASE_Z = 0.85

@@ -109,6 +109,14 @@ def parse_args() -> argparse.Namespace:
     # Zeitschritt-Gruppen einzeln zurueckrechnen. Erste Stellschraube bei OOM.
     p.add_argument("--fpo-mc-samples", type=int, default=_env_int("RL_FPO_MC_SAMPLES", 4),
                    help="K (noise,t)-Ziehungen fuer den Proxy. Env: RL_FPO_MC_SAMPLES.")
+    # Wie viele Schritte eines Aktions-Chunks je Policy-Abfrage ausgefuehrt werden. Bis
+    # 2026-10-13 fest 1 (nur Chunk-Schritt 0, jeden Schritt neu geplant), waehrend die Eval
+    # 8 ausfuehrt — RL optimierte damit ein anderes Verhalten, als gemessen wird (Review
+    # 2026-10-13, S4). Eine RL-Transition umfasst H Env-Schritte; Reward = diskontierte
+    # Summe darin, GAE rechnet mit gamma**H. Default 1 = bisheriges Verhalten.
+    p.add_argument("--exec-horizon", type=int, default=_env_int("RL_EXEC_HORIZON", 1),
+                   help="Ausgefuehrte Chunk-Schritte je Policy-Abfrage (1..Chunk-Laenge; "
+                        "Eval: 8). Env: RL_EXEC_HORIZON.")
     p.add_argument("--save-every", type=int, default=50)
     p.add_argument("--wandb", action="store_true")
     p.add_argument("--wandb-project", default="gr00t-g1-dex3-rl")
@@ -235,18 +243,51 @@ def _to_device(obj, dev):
     return obj
 
 
-def fpo_logprob_proxy(model, inputs_with_action, k_samples, torch):
+def _rng_devices(*devices) -> list[int]:
+    """CUDA-Geraete-Indizes, deren Generator fork_rng sichern/wiederherstellen muss."""
+    import torch
+
+    out = set()
+    for d in devices:
+        dev = torch.device(d)
+        if dev.type == "cuda":
+            out.add(dev.index if dev.index is not None else torch.cuda.current_device())
+    return sorted(out)
+
+
+def fpo_logprob_proxy(model, inputs_with_action, k_samples, torch, seeds=None, rng_devices=()):
     """Likelihood-freier Stand-in fuer log pi(a|s) (FPO, arXiv 2507.21053, "Flow Matching Policy Gradients").
 
     action_head.forward(...) zieht intern Rauschen + Zeit t und liefert den
     Flow-Matching-MSE als "action_loss". Wir mitteln -loss ueber K Ziehungen:
     hoeherer Proxy == niedrigerer FM-Loss == hoehere (implizite) Likelihood.
+
+    FPO verlangt fuer old/new DIESELBEN (eps, t)-Ziehungen, sonst ist die Ratio schon vor
+    dem ersten Update != 1 und misst Monte-Carlo-Rauschen statt einer Policy-Aenderung
+    (Review 2026-10-13, S2). Gr00tN1d6ActionHead.forward (gr00t_n1d6.py, forward) zieht:
+      - noise = torch.randn(actions.shape, device=actions.device)   -> CUDA-Generator
+      - t = self.beta_dist.sample([B])  (Beta mit CPU-Parametern)    -> CPU-Generator
+      - ggf. torch.rand fuer state dropout (state_dropout_prob > 0)  -> CUDA-Generator
+    (state-noise nur im train()-Modus; Gr00tPolicy setzt model.eval()). ``seeds`` (je
+    K-Ziehung ein int) setzt deshalb in einem fork_rng-Block CPU- UND CUDA-Generatoren
+    neu: gleicher Seed + gleiche Batch-Form = gleiche Ziehungen, ohne den uebrigen
+    Zufallsstrom (Aktions-Sampling) zu stoeren. Die Batch-Form ist im Update dieselbe
+    wie im Rollout (Forward ueber alle N Envs eines Zeitschritts, s. by_t).
     """
+    import contextlib
+
     proxies = []
-    for _ in range(k_samples):
-        # inputs_with_action ist der innere collate-Batch inkl. 'action'/'action_mask';
-        # model.forward(inputs: dict) erwartet genau diese Ebene (gr00t_n1d6.py:496).
-        out = model.forward(inputs_with_action)
+    for k in range(k_samples):
+        if seeds is None:
+            ctx = contextlib.nullcontext()
+        else:
+            ctx = torch.random.fork_rng(devices=list(rng_devices))
+        with ctx:
+            if seeds is not None:
+                torch.manual_seed(int(seeds[k]))
+            # inputs_with_action ist der innere collate-Batch inkl. 'action'/'action_mask';
+            # model.forward(inputs: dict) erwartet genau diese Ebene (Gr00tN1d6.forward).
+            out = model.forward(inputs_with_action)
         al = out["action_loss"]          # (B, horizon, dim), bereits * action_mask
         mask = out["action_mask"]
         per_sample = al.flatten(1).sum(dim=1) / (mask.flatten(1).sum(dim=1) + 1e-6)
@@ -356,6 +397,15 @@ def main() -> None:
             trainable.append(prm)
     print(f"[rl] trainierbare Tensoren: {len(trainable)}", flush=True)
 
+    _keys, chunk_len, _adim = _action_spec(policy)
+    exec_h = int(args.exec_horizon)
+    if not 1 <= exec_h <= chunk_len:
+        raise ValueError(f"--exec-horizon/RL_EXEC_HORIZON={exec_h} ausserhalb 1..{chunk_len}")
+    gamma_eff = args.gamma ** exec_h
+    print(f"[rl] Exec-Horizon {exec_h}/{chunk_len} Chunk-Schritte je Abfrage "
+          f"(gamma je Transition {gamma_eff:.4f})", flush=True)
+    rng_devices = _rng_devices(device, ref_device)
+
     value_head = build_value_head(cfg.observation_space, device, torch)
     optim = torch.optim.AdamW(trainable + list(value_head.parameters()), lr=args.lr)
 
@@ -392,6 +442,13 @@ def main() -> None:
     for it in range(args.iterations):
         # Speicher fuer den Rollout
         buf_logp, buf_val, buf_rew, buf_done, buf_inputs, buf_state = [], [], [], [], [], []
+        buf_seeds = []
+        # Erfolg je abgeschlossener Episode, VOR dem Auto-Reset gezaehlt (Review S4): bis
+        # 2026-10-13 stand hier env._episode_success.mean() NACH dem Rollout — _reset_idx
+        # hatte das Flag bei jeder fertigen Episode da schon geloescht, die Zahl war ~0.
+        # terminated == _check_success() (terminate_on_success=True), wie in der Eval.
+        n_success_ep = 0
+        n_finished_ep = 0
         # Option C (Livestream-Plan §5): nur in jeder N-ten Iteration mitschneiden —
         # rollout_steps Frames à ~1 MB, das lohnt nicht bei jeder Iteration.
         rec = [] if (
@@ -412,7 +469,7 @@ def main() -> None:
 
             # Sampling (no grad) + collated inputs fuers spaetere FPO-Loss-Recompute.
             with torch.no_grad():
-                norm_action, collated, act_mask, phys_action = _sample_action(policy, raw, torch)
+                norm_action, collated, act_mask, phys_chunk = _sample_action(policy, raw, torch)
 
             value = value_head(state).squeeze(-1)
 
@@ -423,25 +480,54 @@ def main() -> None:
             inputs_with_action = dict(collated)
             inputs_with_action["action"] = norm_action
             inputs_with_action["action_mask"] = act_mask
+            # Je K-Ziehung ein Seed; dieselben Seeds rechnen im Update new_logp und
+            # ref_logp nach (S2). Aus dem globalen CPU-Strom, also mit ihm reproduzierbar.
+            seeds = torch.randint(0, 2**31 - 1, (args.fpo_mc_samples,)).tolist()
             # old_logp wird ohnehin detached gepuffert -> kein Graph noetig (spart im
             # Rollout den kompletten VLM-Aktivierungsgraph ueber alle Envs).
             with torch.no_grad():
-                logp = fpo_logprob_proxy(model, inputs_with_action, args.fpo_mc_samples, torch)
+                logp = fpo_logprob_proxy(model, inputs_with_action, args.fpo_mc_samples, torch,
+                                         seeds=seeds, rng_devices=rng_devices)
 
-            # Env-Step mit physischer Aktion (28-dim absolut)
-            act_t = torch.as_tensor(phys_action, device=device, dtype=torch.float32)
-            obs_dict, reward, terminated, time_out, _ = env.step(act_t)
-            done = (terminated | time_out).float()
+            # exec_h Chunk-Schritte ausfuehren (physische Aktion, 28-dim absolut). Eine Env,
+            # die mittendrin fertig wird, setzt DirectRLEnv sofort selbst zurueck; ihre
+            # restlichen Chunk-Schritte laufen (gebatcht) in der NEUEN Episode weiter, werden
+            # aber nicht mehr gutgeschrieben (alive-Maske) — kurzes Rauschen am
+            # Episodenanfang, bei exec_h=1 gar keins.
+            rew_acc = torch.zeros(args.num_envs, device=device)
+            alive = torch.ones(args.num_envs, dtype=torch.bool, device=device)
+            done_any = torch.zeros(args.num_envs, dtype=torch.bool, device=device)
+            disc = 1.0
+            for h in range(exec_h):
+                act_t = torch.as_tensor(phys_chunk[:, h, :], device=device, dtype=torch.float32)
+                obs_dict, reward, terminated, time_out, _ = env.step(act_t)
+                term = terminated.bool() & alive
+                trunc = time_out.bool() & ~terminated.bool() & alive
+                rew_acc += disc * reward.float() * alive.float()
+                # Truncation-Bootstrap (Review S4): ein Timeout ist kein echtes Episodenende.
+                # Der Wert des Folgezustands fehlt (die Env hat schon zurueckgesetzt) —
+                # Naeherung wie rsl_rl: V(s_t) des Chunk-Startzustands, diskontiert auf den
+                # Schritt NACH dem Timeout (gamma**(h+1)).
+                rew_acc += (disc * args.gamma) * value.detach() * trunc.float()
+                disc *= args.gamma
+                n_success_ep += int(term.sum().item())
+                n_finished_ep += int((term | trunc).sum().item())
+                done_any |= term | trunc
+                alive &= ~(term | trunc)
+            done = done_any.float()
 
             buf_logp.append(logp.detach())
             buf_val.append(value.detach())
-            buf_rew.append(reward.detach())
+            buf_rew.append(rew_acc.detach())
             buf_done.append(done)
             buf_inputs.append((inputs_with_action, norm_action.detach()))
             buf_state.append(state)
-
-            if done.any():
-                env.reset()
+            buf_seeds.append(seeds)
+            # Kein env.reset() hier (Review S3): DirectRLEnv setzt fertige Envs in step()
+            # selbst zurueck (_reset_idx nur fuer diese env_ids), und der naechste
+            # get_obs_batched() liest deren neuen Zustand. Ein globales reset() brach bei
+            # num_envs > 1 die laufenden Trajektorien ohne done ab, und GAE bootstrapte
+            # ueber den Sprung.
 
         # Bootstrap-Value + GAE
         last_obs = env.get_obs_batched()
@@ -452,7 +538,7 @@ def main() -> None:
         dones = torch.stack(buf_done)
         old_logp = torch.stack(buf_logp)
         adv, returns = compute_gae(
-            rewards, values, dones, last_val, args.gamma, args.gae_lambda, torch
+            rewards, values, dones, last_val, gamma_eff, args.gae_lambda, torch
         )
         adv = (adv - adv.mean()) / (adv.std() + 1e-8)
 
@@ -460,8 +546,11 @@ def main() -> None:
         T, N = rewards.shape
         flat_idx = [(t, n) for t in range(T) for n in range(N)]
         last_losses = (0.0, 0.0, 0.0)   # (policy, kl, value) des letzten Minibatch
+        ratio_check = None              # (mean, std, max|r-1|) des allerersten Minibatch
         for _epoch in range(args.epochs_per_iter):
             for start in range(0, len(flat_idx), args.minibatch_size):
+                first_mb = _epoch == 0 and start == 0
+                first_ratios = []
                 mb = flat_idx[start:start + args.minibatch_size]
                 # Nach Zeitschritt gruppieren: EIN Forward je t ueber alle benoetigten
                 # Envs, danach die gebrauchten Env-Indizes herausgreifen.
@@ -492,17 +581,24 @@ def main() -> None:
                 for t, ns in by_t.items():
                     inp, _na = buf_inputs[t]
                     idx = torch.as_tensor(ns, device=device, dtype=torch.long)
-                    new_logp = fpo_logprob_proxy(model, inp, args.fpo_mc_samples, torch)[idx]
+                    new_logp = fpo_logprob_proxy(
+                        model, inp, args.fpo_mc_samples, torch,
+                        seeds=buf_seeds[t], rng_devices=rng_devices)[idx]
                     with torch.no_grad():
                         # Liegt das Referenzmodell auf der zweiten Karte, werden die Inputs
                         # EINMAL je Gruppe hinuebergeschoben — nicht je K-Ziehung, denn
                         # fpo_logprob_proxy laeuft K-mal ueber genau dieselben Inputs.
                         # Zurueck kommt nur ein (B,)-Vektor, der Rueckweg ist also gratis.
                         ref_inp = inp if ref_device == device else _to_device(inp, ref_device)
+                        # Dieselben Seeds auch fuers Referenzmodell: gleiche (eps, t) machen
+                        # die KL-Schaetzung ref - new deutlich rauschaermer.
                         ref_logp = fpo_logprob_proxy(
-                            ref_model, ref_inp, args.fpo_mc_samples, torch
+                            ref_model, ref_inp, args.fpo_mc_samples, torch,
+                            seeds=buf_seeds[t], rng_devices=rng_devices,
                         ).to(device)[idx]
                     ratio = torch.exp(new_logp - old_logp[t, idx])
+                    if first_mb:
+                        first_ratios.append(ratio.detach().float())
                     a = adv[t, idx]
                     unclipped = ratio * a
                     clipped = torch.clamp(ratio, 1 - args.clip, 1 + args.clip) * a
@@ -515,15 +611,32 @@ def main() -> None:
                     pol_sum += float(pol.detach()) / m
                     kl_sum += float(kl.detach()) / m
                     val_sum += float(vl.detach()) / m
+                if first_mb and first_ratios:
+                    # Selbsttest (S2): vor dem ersten optim.step sind die Gewichte die des
+                    # Rollouts, mit denselben Seeds muss die Ratio ~1,000 sein. Rest-
+                    # abweichung nur aus nichtdeterministischen CUDA-Kernen (bf16).
+                    r = torch.cat(first_ratios)
+                    dev_max = float((r - 1.0).abs().max())
+                    ratio_check = (float(r.mean()), float(r.std(unbiased=False)), dev_max)
+                    print(f"[rl] Ratio-Selbsttest iter {it:04d}: mean={ratio_check[0]:.6f} "
+                          f"std={ratio_check[1]:.2e} max|r-1|={dev_max:.2e}", flush=True)
+                    if dev_max > 1e-3:
+                        print("[rl] WARNUNG: FPO-Ratio im ersten Minibatch weicht um > 1e-3 "
+                              "von 1 ab, obwohl noch kein Update lief — (eps, t) werden nicht "
+                              "identisch reproduziert (Seeds/Batch-Form/Nichtdeterminismus "
+                              "pruefen). Die Policy-Gradienten messen dann Rauschen.",
+                              flush=True)
                 torch.nn.utils.clip_grad_norm_(trainable + list(value_head.parameters()), 1.0)
                 optim.step()
                 last_losses = (pol_sum, kl_sum, val_sum)
 
-        succ = float(env._episode_success.float().mean().item())
+        # Quote ueber die in diesem Rollout ABGESCHLOSSENEN Episoden (0, wenn keine endete).
+        succ = n_success_ep / n_finished_ep if n_finished_ep else 0.0
         mean_rew = float(rewards.mean().item())
         pol_l, kl_l, val_l = last_losses
         print(
-            f"[rl] iter {it:04d}  reward={mean_rew:+.3f}  success={succ:.3f}  "
+            f"[rl] iter {it:04d}  reward={mean_rew:+.3f}  success={succ:.3f} "
+            f"({n_success_ep}/{n_finished_ep} Episoden)  "
             f"pol={pol_l:+.4f}  kl={kl_l:+.4f}  val={val_l:.4f}",
             flush=True,
         )
@@ -534,7 +647,11 @@ def main() -> None:
         if args.wandb:
             import wandb
             payload = {"iter": it, "reward_mean": mean_rew, "success_rate": succ,
+                       "episodes_finished": n_finished_ep, "episodes_success": n_success_ep,
                        "policy_loss": pol_l, "kl": kl_l, "value_loss": val_l}
+            if ratio_check is not None:
+                payload.update({"ratio0_mean": ratio_check[0], "ratio0_std": ratio_check[1],
+                                "ratio0_maxdev": ratio_check[2]})
             if rec:
                 # In DENSELBEN log()-Aufruf, nicht in einen zweiten: wandb zaehlt sonst
                 # einen eigenen Step hoch und Video und Metriken landen versetzt.
@@ -589,7 +706,7 @@ def _rollout_video_payload(frames) -> dict:
 def _obs_batched_to_policy_dict(obs, task_description, num_envs):
     """Batched Env-Obs (GPU-Tensoren) -> GR00T-Roh-Obs-Dict im Eval-Format (numpy).
 
-    Spiegelt client.py build_obs (Z. 180-201), aber batched N statt 1 und mit
+    Spiegelt client.py build_obs, aber batched N statt 1 und mit
     Zeitdimension T=1, die _unbatch_observation/_to_vla_step_data erwarten:
       video.<cam>:  (N, 1, H, W, 3) uint8
       state.<grp>:  (N, 1, D)       float32
@@ -719,13 +836,16 @@ def _sample_action(policy, raw, torch):
     phys_dict = policy.processor.decode_action(
         norm_action.detach().cpu().numpy(), policy.embodiment_tag, batched_states
     )
-    phys = _assemble_phys_action(policy, phys_dict)  # (N, action_dim) — erster Chunk-Step
+    phys = _assemble_phys_action(policy, phys_dict)  # (N, horizon, action_dim) — ganzer Chunk
     action_mask = _build_action_mask(policy, norm_action, torch)
     return norm_action, collated["inputs"], action_mask, phys
 
 
 def _assemble_phys_action(policy, action_dict):
-    """Setzt die physischen Aktionsgruppen zu (N, action_dim) zusammen (erster Chunk-Step).
+    """Setzt die physischen Aktionsgruppen zu (N, horizon, action_dim) zusammen (ganzer Chunk).
+
+    Bis 2026-10-13 gab die Funktion nur Chunk-Schritt 0 zurueck; jetzt waehlt der Rollout
+    die ersten --exec-horizon Schritte selbst (S4).
 
     ACHTUNG Schluessel-Namen: decode_action() gibt die BLANKEN Gruppennamen zurueck
     ('left_arm', …). Das Praefix 'action.' haengt erst der ZMQ-Sim-Wrapper an
@@ -747,8 +867,8 @@ def _assemble_phys_action(policy, action_dict):
         )
 
     full = np.concatenate([np.asarray(action_dict[k], dtype=np.float32) for k in keys], axis=-1)
-    if full.ndim == 3:        # (N, horizon, D) -> ersten Chunk-Step ausfuehren
-        full = full[:, 0, :]
+    if full.ndim == 2:        # (N, D) -> (N, 1, D): Embodiment ohne Zeitachse
+        full = full[:, None, :]
     if full.shape[-1] != action_dim:
         raise ValueError(
             f"Physische Aktion hat {full.shape[-1]} Dims, erwartet {action_dim}. "
