@@ -38,6 +38,10 @@ verweisen hierher. Den N1.7-Detailstand pflegt
      Policies tragen den Griff über die Bilder (Ablation). Sichtbare Ursachen: Tisch zu klein
      mit Boden-Gitter, weiße Arme, Handgelenkkamera-Pose (Lauf 67).
   Closed Loop auch mit korrigiertem Layout weiter 0/2 je Modell (Lauf 64, abgebrochen).
+  Orakel auf dem korrigierten Layout: `lifted_clear` 6/20 = 30 % (KI 12–54 %, Lauf 69).
+  Szene ans Echtbild angeglichen (breiter Tisch, graue Arme, Handgelenkkamera vor/tiefer, 85°):
+  Open-Loop-Hand-Fehler auf Sim-Bildern −40 % (N1.6) bzw. −18 % (N1.7), bleibt aber ×8 bzw. ×29
+  über Echtbild; N1.7 leidet vor allem unter den Handgelenkkameras (Läufe 70/71).
   Details: [Läufe 57–68](docs/ergebnisse/diagnose-chronik.md#läufe-6368-ursache-des-versatzes-bild-ablation-sim-bilder-im-open-loop).
 - **Stand 2026-10-14 (mittags, überholt durch den Punkt darüber) — die Sim ist (noch) der Blocker, nicht das Modell:** Das Orakel-Replay
   (aufgezeichnete Demo-Aktionen statt Policy, Held-out-Layout, 30 Hz) hebt selbst kaum einen
@@ -126,7 +130,16 @@ Projekts bleibt **0 Erfolge im Closed-Loop** (0/20 früher, Lauf 34: 0/10).
 ## 2. Nächste Schritte — in dieser Reihenfolge (Stand 2026-10-14)
 
 > **Vorgezogen (2026-10-14), vor allen Punkten der Tabelle unten:**
-> 0. **Neu (Läufe 63–68): den visuellen Gap gezielt schließen, mit billiger Messgröße.**
+> 0a. **Neu (Läufe 69–71):** Parameter-Feinschliff der Szene ist ausgereizt (−18…−40 %, Abstand
+>    zum Echtbild bleibt ×8/×29). Nächster Hebel ist die **Trainingsseite**: Co-Training mit
+>    Sim-Renderbildern derselben Episoden (Render mit korrigierter Geometrie, korrigiertem Layout
+>    und der besten Szene aus Lauf 70: `SIM_TABLE_SIZE="0.8 2.0"`, graue Arme,
+>    `SIM_WRIST_EYE="0.02 0.0 0.08"`, `SIM_WRIST_TARGET="0.30 0.0 -0.08"`, `SIM_WRIST_HFOV=85`).
+>    Abnahme vor jedem Closed Loop: die Open-Loop-Metrik aus Lauf 66 auf zurückgehaltenen
+>    Sim-Renderbildern. Parallel offen: Ursache des 3-cm-Versatzes und die Parallaxe der
+>    Kopfkamera (Hände im Echtbild ~2× größer bei gleicher Würfellage).
+> 0. **(Läufe 63–68) den visuellen Gap gezielt schließen, mit billiger Messgröße** — Szenenteil
+>    erledigt (Lauf 70), Ergebnis s. 0a.
 >    Fitnessfunktion = MSE Hände im teacher-forced Open Loop auf Sim-Renderbildern (Lauf 66;
 >    Ziel: Richtung Echtbild 0,002 statt 0,027/0,061), erst dann Closed Loop. Kandidaten der
 >    Reihe nach: Tischgröße/-textur und Hintergrund (Wand statt Boden-Gitter), Armfarbe,

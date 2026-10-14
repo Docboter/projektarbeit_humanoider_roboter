@@ -1,12 +1,12 @@
-# Diagnose-Chronik — Sim- und RL-Läufe 08–68
+# Diagnose-Chronik — Sim- und RL-Läufe 08–71
 
-> **TL;DR:** Chronologisches Protokoll aller Sim-/RL-Diagnoseläufe (Läufe 08–68): Kamera-Fixes,
+> **TL;DR:** Chronologisches Protokoll aller Sim-/RL-Diagnoseläufe (Läufe 08–71): Kamera-Fixes,
 > Domain-Gap-Messungen, Greif-Physik, `span`-Gate, `TUNE_VISUAL` im Closed Loop, die ersten
 > N1.7-Checkpoints in der Sim. Nachschlagewerk für die projektweiten „Lauf N“-Verweise — gezielt
 > den passenden Abschnitt ansteuern statt komplett lesen.
 
 Chronologisches Protokoll der Diagnose-, Kalibrier- und Eval-Läufe der Isaac-Lab-Sim
-(2026-08-08 bis 2026-10-14; letzter protokollierter Lauf: 68). Entstanden am 2026-08-18 durch Aufteilung von
+(2026-08-08 bis 2026-10-14; letzter protokollierter Lauf: 71). Entstanden am 2026-08-18 durch Aufteilung von
 [rl-anleitung.md](../weiterfuehrend/rl-anleitung.md), die auf 2197 Zeilen angewachsen war und
 operative Anleitung mit Protokoll vermischte. Die Lauf-Nummern (`Lauf 8` … `Lauf 55`) sind der
 projektweit referenzierte Zähler — andere Dokumente verlinken gezielt auf einzelne Abschnitte hier.
@@ -77,6 +77,9 @@ Für den **aktuellen Projektstatus** siehe
 | 66 | **Teacher-forced Open Loop auf Sim-Renderbildern:** MSE Hände ×13 (N1.6) bzw. ×36 (N1.7) gegenüber echten Bildern — so schlecht wie schwarze Bilder. Visueller Domain-Gap nachgewiesen ([Läufe 63–68](#läufe-6368-ursache-des-versatzes-bild-ablation-sim-bilder-im-open-loop)) |
 | 67 | Bildvergleich echt/Sim gleicher Frame: Würfel an denselben Pixeln (Kopfkamera-Geometrie stimmt), aber Tisch zu klein, Boden-Gitter, weiße Arme; Handgelenkkamera-Pose weicht ab; Sim-Bild bei Step 0 veraltet ([Läufe 63–68](#läufe-6368-ursache-des-versatzes-bild-ablation-sim-bilder-im-open-loop)) |
 | 68 | Würfelgröße auf korrigiertem Layout: 4,0 cm 3/8, 4,5 cm 2/8, 5,0 cm 5/8 — 5 cm bleibt ([Läufe 63–68](#läufe-6368-ursache-des-versatzes-bild-ablation-sim-bilder-im-open-loop)) |
+| 69 | Orakel auf dem korrigierten Layout (Würfel 3 cm nach außen), alle 20 Test-Ep. 240–259 × 120 s: `lifted_clear` **6/20 = 30 %** (KI 12–54 %), `stacked` 0/20 (KI 0–17 %) — die obere Schranke ist jetzt deutlich über null ([Lauf 69](#lauf-69-orakel-auf-dem-korrigierten-layout)) |
+| 70 | Szene schrittweise ans Echtbild angeglichen (Tisch 2 m breit, graue Arme, Handgelenkkamera vor/tiefer, 85°): MSE Hände im teacher-forced Open Loop N1.6 0,036 → 0,022, N1.7 0,086 → 0,070 — Echtbild 0,0025; die groben Szenenmerkmale erklären nur einen kleinen Teil ([Läufe 70/71](#läufe-7071-szene-ans-echtbild-angleichen-kamera-mischung)) |
+| 71 | Kamera-Mischung (echt/Sim je Kameragruppe): N1.6 Kopf und Handgelenk gleich schädlich (je ×4, zusammen ×13); N1.7 vor allem Handgelenk (×20) ([Läufe 70/71](#läufe-7071-szene-ans-echtbild-angleichen-kamera-mischung)) |
 
 ---
 
@@ -2520,4 +2523,73 @@ Episode.
 
 Wie Lauf 58, jetzt auf `sweep_dx0_dy3.json`: `lifted_clear` 4,0 cm **3/8**, 4,5 cm **2/8**,
 5,0 cm (Lauf 62) **5/8**. Kleinere Würfel verbessern das Orakel nicht; 5 cm bleibt.
+
+### Läufe 70/71: Szene ans Echtbild angleichen, Kamera-Mischung
+
+**2026-10-14, 21:20–22:25.** Messgröße aus Lauf 66: teacher-forced Open Loop auf frisch gerenderten
+Sim-Bildern (`render`, aktuelle Geometrie, korrigiertes Trainings-Layout `layout_dy3.json`, ohne DR,
+`RENDER_STOP_AT_GRASP=0`, 600 Frames), **Trainings-Episoden 0/4/8/12**, Median MSE der Hand-Dimensionen.
+Checkpoints wie Läufe 63–68 (N1.6 vision-v2 @30 000, N1.7 @44 000). Neue Diagnose-Schalter (Default
+unverändert): `SIM_TABLE_SIZE`, `SIM_WRIST_EYE`, `SIM_WRIST_TARGET`, `SIM_WRIST_HFOV`; Asset-Variante
+`g1_dex3_blackhands_grayarms.usd` (`recolor_hands_black.py --material ArmGray`, 14 Arm-Links grau 0,5).
+
+#### Lauf 70 — Iterationen (kumulativ)
+
+| Schritt | Änderung | N1.6 MSE Hände | N1.7 MSE Hände |
+|---|---|---|---|
+| Echtbilder (Referenz) | — | 0,0026 | 0,0024 |
+| Basis (Lauf 66) | — | 0,0359 | 0,0860 |
+| 1 | Tisch 0,8 × **2,0 m** (`SIM_TABLE_SIZE="0.8 2.0"`): kein Boden-Gitter mehr seitlich | 0,0262 | 0,0792 |
+| 2 | + graue Arme | 0,0252 | 0,0796 |
+| 3A | + Handgelenkkamera Auge (0, 0, 0,10), Ziel (0,30, 0, −0,06) | 0,0234 | 0,0826 |
+| 3B | + Handgelenkkamera Auge (0,02, 0, 0,08), Ziel (0,30, 0, −0,08) | 0,0215 | 0,0744 |
+| **4a** | **+ Bildwinkel Handgelenk 85°** (statt 60,4°) | **0,0216** | **0,0704** |
+| 4b | + Bildwinkel Handgelenk 100° | 0,0220 | 0,0747 |
+
+Gesamt −40 % (N1.6) bzw. −18 % (N1.7); Abstand zum Echtbild bleibt ×8 bzw. ×29. Sichtprüfung:
+das echte Kopfbild zeigt Hände/Arme rund doppelt so groß bei gleicher Würfellage (Parallaxe —
+Lage der echten Kamera relativ zu den Händen offen), Wand statt Boden hinter der Tischkante;
+die echte Handgelenkkamera zeigt viel mehr Szene (Tisch, Würfel, andere Hand) und die Finger
+schräg (~20–30° Roll-Versatz). **Lesart:** die groben Szenenmerkmale erklären nur einen kleinen
+Teil der Lücke; der Rest liegt im Gesamteindruck des Renderings (Licht, Material, Schatten,
+Textur, Rauschen) bzw. in Feinheiten der Kamerapose, die sich nicht mit wenigen Parametern
+schließen lassen.
+
+#### Lauf 71 — Kamera-Mischung
+
+Neue Option `--alt-dataset/--alt-cams` in `finger_span_openloop.py`: ausgewählte Kameras aus dem
+Sim-Render (Lauf 66, Basisszene, 8 Trainings-Episoden), Rest aus den echten Bildern. MSE Hände (Median):
+
+| Bilder | N1.6 | N1.7 |
+|---|---|---|
+| alle echt | 0,0020 | 0,0017 |
+| Kopf Sim, Handgelenk echt | 0,0086 (×4) | 0,0073 (×4) |
+| Kopf echt, Handgelenk Sim | 0,0090 (×4) | **0,0340 (×20)** |
+| alle Sim | 0,0269 (×13) | 0,0606 (×36) |
+
+N1.6 leidet unter beiden Gruppen gleich (überadditiv); **N1.7 vor allem unter den
+Handgelenkkameras.** Für N1.7 ist das Angleichen der Handgelenkbilder also der größte Hebel.
+
+### Lauf 69: Orakel auf dem korrigierten Layout
+
+**2026-10-14, 20:34–22:35**, Container `groot-rl-hub` (Image vom 2026-08-26, Sim-Code gemountet),
+`layout_heldout_dy3.json` (Test-Layout, alle Würfel 3 cm nach außen, Lauf 62), `NUM_EPISODES=20`
+(Episoden 240–259), `EPISODE_LENGTH_S=120`, DR aus, Seed 0, Exec-Horizon 8, 5-cm-Würfel. Lief
+parallel zu anderen Isaac-Jobs (Wanduhr nicht vergleichbar). Datensatz-Ep. 256, an der Lauf 57
+hing, lief diesmal durch.
+
+| Stufe | k/20 | KI95 |
+|---|---|---|
+| `reached` / `grasp_attempted` / `touched` | 20/20 | 83–100 % |
+| `lifted` | 7/20 | 15–59 % |
+| **`lifted_clear`** | **6/20 = 30 %** | **12–54 %** |
+| `stacked` | 0/20 | 0–17 % |
+
+Muster 240…259: `X.XX.XX........X....` (Unterseite 4,3–9,6 cm bei den Treffern). Tracking
+(Median, rad): Arme 0,021, Hände 0,059. Gegen Lauf 57 (Bild-Layout, 1/16): die Korrektur hebt die
+obere Schranke deutlich. Auffällig: die Treffer häufen sich in 240–246 (5/7), danach 1/13 — die
+3-cm-Korrektur ist ein Mittelwert und passt nicht für jede Episode gleich (Lauf 59: Versatz 1–7 cm).
+`stacked` bleibt 0, weil die blinde Demo nach dem ersten Griff auf veränderte Würfellagen trifft.
+JSON: `sim_results/oracle_dy3_20.json`. (Der Launcher meldete danach `unexpected EOF` — Folge
+einer Änderung an `server_rl_run.sh` während des Laufs; die Messung selbst endete regulär.)
 
