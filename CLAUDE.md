@@ -87,7 +87,7 @@ squeue -u $USER; tail -f logs/slurm-<jobid>.out
 
 # Build images (tags :<repo-branch> + :<timestamp>; :latest only with --push-latest)
 ./Training/update_image.sh --groot=1.6          # or 1.7 | both (both = dual venv, never default)
-./Simulation/update_sim_image.sh --standalone   # sim image; Docker Hub sim image is still N1.6-only
+./Simulation/update_sim_image.sh --standalone   # sim image; Hub :latest has N1.6+N1.7 since 2026-10-14
 python Simulation/scripts/upload_checkpoint.py --checkpoint /path/to/checkpoint-44000 \
   --repo luca-mue/groot-g1dex3-checkpoint       # skips optimizer.pt
 ```

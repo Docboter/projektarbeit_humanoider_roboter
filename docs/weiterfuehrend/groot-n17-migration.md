@@ -38,7 +38,7 @@ verglichen wird).
 > | | Stand |
 > |---|---|
 > | Code | paralleler Pfad, `GROOT_VERSION=1.6\|1.7\|auto`, seit 2026-10-13 im Branch `training-luca-IKR-IS6.0` gemergt |
-> | Images | Training: Docker Hub `:latest-n17` (seit 2026-09-29). **Sim: nur lokal gebaut** — das Sim-Image auf Docker Hub ist weiterhin N1.6-only; lokal bauen und `RL_SKIP_PULL=1` setzen |
+> | Images | Training: Docker Hub `:latest-n17` (seit 2026-09-29). Sim: Docker Hub `lucam03/projekt-humanoider-roboter-sim-standalone:latest` = `:20261014-141304` mit N1.6 **und** N1.7 (seit 2026-10-14; vorher nur lokal gebaut, Hub-Image N1.6-only) |
 > | Smoke-Tests | IKR-Blackwell 2026-09-25 (1 GPU, 2 GPUs, `TUNE_VISUAL`+Split, Laden + Open-Loop), KISSKI 2026-10-12 |
 > | Voller Trainingslauf | **fertig**: KISSKI 2026-10-13, 44 000 Steps, 7 h 53 min (Lauf 4); Open-Loop am Ende gleichauf mit N1.6, lernt früher, 1,6× schneller ([lauf4-n17-vergleich.md](../ergebnisse/lauf4-n17-vergleich.md)) |
 > | Sim (Closed Loop) | **Läufe 54/55 fertig** (ckpt15000 / ckpt44000, je 10 × 40 s): `lifted` 0/10, Fingerspanne 26 % der Demo bei ckpt44000 — dasselbe Muster wie N1.6 Lauf 34 ([Chronik](../ergebnisse/diagnose-chronik.md#läufe-5455-die-ersten-n17-checkpoints-in-der-sim)) |

@@ -77,11 +77,13 @@ Ergebnis: `<konto>/projekt-humanoider-roboter-sim-standalone:<repo-branch>` (z. 
 `--push-latest`. Herkunft (Repo-Branch/-Commit, `GROOT_VERSIONS`) steht in OCI-Labels:
 `docker inspect --format '{{json .Config.Labels}}' <image>`.
 
-> **N1.7 im Sim-Image (Stand 2026-10-13):** Das Sim-Image auf Docker Hub ist **weiterhin
-> N1.6-only**. Die N1.7-Sim-Läufe 54/55 liefen mit einem **lokal** gebauten Image
-> (`./Simulation/update_sim_image.sh --standalone --skip-push`, Label
-> `de.humrob.groot-versions: "1.6 1.7"`). Für N1.7 also selbst bauen und `RL_SKIP_PULL=1` setzen,
-> sonst zieht `preflight` den gleichnamigen Tag von Docker Hub über den lokalen Build. Prüfen,
+> **N1.7 im Sim-Image (Stand 2026-10-14):** Seit 2026-10-14 enthält
+> `lucam03/projekt-humanoider-roboter-sim-standalone:latest` (= `:20261014-141304`, Revision
+> `df09981`, Label `de.humrob.groot-versions: "1.6 1.7"`) beide Generationen; ein `docker pull`
+> genügt, kein Rebuild. ~~Das Sim-Image auf Docker Hub ist weiterhin N1.6-only~~ (überholt durch
+> diesen Push; die N1.7-Läufe 54/55 liefen noch mit einem lokal gebauten Image). Nach einem
+> eigenen lokalen Build weiterhin `RL_SKIP_PULL=1` setzen, sonst zieht `preflight` den
+> gleichnamigen Tag von Docker Hub über den lokalen Build. Prüfen,
 > was ein Image enthält: das Label oben. Status:
 > [groot-n17-migration.md](../weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19).
 
