@@ -95,6 +95,13 @@ parser.add_argument(
          "Leer = Zufallsbänder aus der Env-Cfg (Startlagen, die so nie im Training "
          "vorkamen — Review §3.2). Default aus EVAL_LAYOUT."
 )
+parser.add_argument(
+    "--oracle-dataset", type=str, default=os.environ.get("ORACLE_DATASET", ""),
+    help="Orakel-Replay statt Policy (Review 10-13 §2.3 Nr. 1): spielt je Episode die "
+         "aufgezeichneten Aktionen der Layout-Episode aus diesem Datensatz (v2.1) ab, "
+         "Roboter startet im aufgezeichneten Frame 0. Kein Server nötig; verlangt --layout. "
+         "Misst zusätzlich den Tracking-Fehler Sim↔Aufzeichnung (oracle_replay.py)."
+)
 
 # Isaac-Lab-eigene Argumente hinzufügen und parsen
 AppLauncher.add_app_launcher_args(parser)
@@ -119,6 +126,7 @@ from eval_metrics import (
 from g1_dex3_blockstack_env import G1Dex3BlockstackEnv, G1Dex3BlockstackEnvCfg
 from g1_dex3_cfg import CAMERA_CFG
 import numpy as np
+from oracle_replay import OracleReplayClient, load_episode_arrays
 from scene_geometry import CUBE_EDGE, TABLE_HEIGHT
 from split_math import layout_train_count
 from task_text import DEFAULT_DATASET_PATH, resolve_task_description
@@ -232,6 +240,23 @@ def load_eval_layout(path: str) -> tuple[list[dict], dict]:
         "from_training_episodes": train_eps,
     }
     return entries, info
+
+
+def set_robot_state(env: G1Dex3BlockstackEnv, state: np.ndarray) -> None:
+    """Roboter auf einen aufgezeichneten 28-dim-Zustand (Policy-Reihenfolge) setzen.
+
+    Für das Orakel-Replay: derselbe Weg wie run_dataset_replay_videos.set_robot_state.
+    """
+    if env._joint_ids is None:
+        env._joint_ids = env._build_joint_id_mapping()
+    q = np.asarray(state, dtype=np.float32).copy()
+    if env._SIGN_FLIP_IDX:
+        q[env._SIGN_FLIP_IDX] *= -1
+    full = env.robot.data.joint_pos.clone()
+    for policy_idx, isaac_idx in enumerate(env._joint_ids):
+        full[:, isaac_idx] = float(q[policy_idx])
+    env.robot.write_joint_state_to_sim(full, torch.zeros_like(full))
+    env.robot.set_joint_position_target(full)
 
 
 # ---------------------------------------------------------------------------
@@ -647,17 +672,26 @@ def main():
     layout_info: dict = {"path": "", "note": "Zufallsbänder (kein --layout / EVAL_LAYOUT)"}
     if args.layout:
         cfg.block_layout, layout_info = load_eval_layout(args.layout)
+    oracle = bool(args.oracle_dataset)
+    if oracle and not args.layout:
+        raise SystemExit("--oracle-dataset verlangt --layout: die Episode, deren Aktionen "
+                         "abgespielt werden, ist die Layout-Episode.")
 
     print("=" * 60)
     # Version aus dem Entrypoint (lib_groot_version.sh exportiert GROOT_VERSION nach der
     # Auflösung aus dem Checkpoint); bis 2026-10-13 stand hier fest "N1.6", auch bei N1.7.
     _gv = os.getenv("GROOT_VERSION", "").strip()
     _gv = f"N{_gv}" if _gv in ("1.6", "1.7") else "(Version nicht übergeben)"
-    print(f"GR00T {_gv} — G1+Dex3 Closed-Loop Sim Eval")
+    if oracle:
+        print("ORAKEL-REPLAY — aufgezeichnete Aktionen statt Policy (obere Schranke)")
+        print(f"  Datensatz:        {args.oracle_dataset}")
+    else:
+        print(f"GR00T {_gv} — G1+Dex3 Closed-Loop Sim Eval")
     print("=" * 60)
     # Zuerst, nicht zuletzt: bei einem Abbruch mitten im Lauf steht die Herkunft dann
     # trotzdem im Log, auch wenn es nie zur Ergebnis-Datei kommt.
-    ckpt = checkpoint_fingerprint(args.checkpoint_path)
+    ckpt = ({"path": "", "note": "Orakel-Replay, kein Modell"} if oracle
+            else checkpoint_fingerprint(args.checkpoint_path))
     print(f"  Checkpoint:       {ckpt.get('path') or '(unbekannt)'}")
     print(
         f"                    run_id={ckpt.get('run_id', '?')}  "
@@ -701,44 +735,50 @@ def main():
 
     print("[Phase A] Sim läuft.")
 
-    # Phase D: ZMQ-Verbindung aufbauen
-    print(f"[Phase D] Verbinde mit GR00T-Server: {args.server}")
-    client = PolicyClient(server_url=args.server, timeout_ms=20_000)
+    if oracle:
+        client = OracleReplayClient(args.execution_horizon,
+                                    on_reset=lambda state: set_robot_state(env, state))
+    else:
+        # Phase D: ZMQ-Verbindung aufbauen
+        print(f"[Phase D] Verbinde mit GR00T-Server: {args.server}")
+        client = PolicyClient(server_url=args.server, timeout_ms=20_000)
 
-    if not client.ping(retries=args.ping_retries, delay=5.0):
-        print("[FEHLER] Server nicht erreichbar. Abbruch.")
-        env.close()
-        sys.exit(1)
+    # Orakel: kein Server, kein Dummy-Aufruf (der Client hat vor load() keine Episode).
+    if not oracle:
+        if not client.ping(retries=args.ping_retries, delay=5.0):
+            print("[FEHLER] Server nicht erreichbar. Abbruch.")
+            env.close()
+            sys.exit(1)
 
-    print("[Phase D] Server erreichbar — starte Eval-Schleife.")
-    print()
+        print("[Phase D] Server erreichbar — starte Eval-Schleife.")
+        print()
 
-    # Dummy-Test (Phase D Abnahme): get_action mit synthetischer Obs
-    dummy_rgb = np.zeros((CAMERA_CFG.height, CAMERA_CFG.width, 3), dtype=np.uint8)
-    dummy_joint = np.zeros(28, dtype=np.float32)
-    dummy_obs = build_obs(
-        dummy_rgb, dummy_rgb, dummy_rgb, dummy_rgb, dummy_joint,
-        task_description=args.task_description,
-    )
-    # Der erste Aufruf ist der teuerste (torch.compile/TensorRT-Warmup, CUDA-Graphen) und
-    # kann den 20-s-Timeout reißen. Der Client baut seinen Socket danach neu auf, ein
-    # zweiter Versuch trifft den dann warmen Server (Review 2026-10-13, S1).
-    dummy_chunk = None
-    for _attempt in range(1, 4):
-        try:
-            dummy_chunk = client.get_action(dummy_obs)
-            break
-        except Exception as e:
-            print(f"[Phase D] Dummy-get_action Versuch {_attempt}/3 fehlgeschlagen: "
-                  f"{type(e).__name__}: {e}", flush=True)
-    if dummy_chunk is None:
-        print("[FEHLER] Policy-Server liefert keine Aktion. Abbruch.", flush=True)
-        client.close()
-        env.close()
-        sys.exit(1)
-    assert dummy_chunk.shape == (16, 28), f"Unerwartete Chunk-Shape: {dummy_chunk.shape}"
-    print(f"[Phase D] Dummy-get_action OK: shape={dummy_chunk.shape}")
-    print()
+        # Dummy-Test (Phase D Abnahme): get_action mit synthetischer Obs
+        dummy_rgb = np.zeros((CAMERA_CFG.height, CAMERA_CFG.width, 3), dtype=np.uint8)
+        dummy_joint = np.zeros(28, dtype=np.float32)
+        dummy_obs = build_obs(
+            dummy_rgb, dummy_rgb, dummy_rgb, dummy_rgb, dummy_joint,
+            task_description=args.task_description,
+        )
+        # Der erste Aufruf ist der teuerste (torch.compile/TensorRT-Warmup, CUDA-Graphen) und
+        # kann den 20-s-Timeout reißen. Der Client baut seinen Socket danach neu auf, ein
+        # zweiter Versuch trifft den dann warmen Server (Review 2026-10-13, S1).
+        dummy_chunk = None
+        for _attempt in range(1, 4):
+            try:
+                dummy_chunk = client.get_action(dummy_obs)
+                break
+            except Exception as e:
+                print(f"[Phase D] Dummy-get_action Versuch {_attempt}/3 fehlgeschlagen: "
+                      f"{type(e).__name__}: {e}", flush=True)
+        if dummy_chunk is None:
+            print("[FEHLER] Policy-Server liefert keine Aktion. Abbruch.", flush=True)
+            client.close()
+            env.close()
+            sys.exit(1)
+        assert dummy_chunk.shape == (16, 28), f"Unerwartete Chunk-Shape: {dummy_chunk.shape}"
+        print(f"[Phase D] Dummy-get_action OK: shape={dummy_chunk.shape}")
+        print()
 
     # Eval-Schleife
     results = []
@@ -753,6 +793,14 @@ def main():
         print(f"--- Episode {ep + 1}/{args.num_episodes} ---")
         if cfg.block_layout:
             env.layout_index = ep   # Lage ep (reihum), s. _place_blocks_from_layout
+        if oracle:
+            # Dieselbe Episode wie die Würfellage (gleiche Indexregel wie
+            # _place_blocks_from_layout), sonst passte die Demo nicht zu den Würfeln.
+            oracle_ep = int(cfg.block_layout[ep % len(cfg.block_layout)]["key"])
+            client.load(oracle_ep, *load_episode_arrays(args.oracle_dataset, oracle_ep))
+            print(f"  Orakel: Datensatz-Episode {oracle_ep}, {client.demo_steps} Steps "
+                  f"({client.demo_steps / cfg.policy_hz:.1f} s), danach letzte Aktion halten",
+                  flush=True)
         ep_result = run_episode(
             env=env,
             client=client,
@@ -763,6 +811,14 @@ def main():
             video_dir=args.video_dir,
         )
         ep_result["episode"] = ep + 1
+        if oracle:
+            ep_result["oracle_episode"] = oracle_ep
+            ep_result["oracle_tracking"] = trk = client.tracking_summary()
+            if trk.get("samples"):
+                print(f"  Tracking Sim↔Aufzeichnung (RMSE / max, rad): Arme "
+                      f"{trk['rmse_arm']:.3f} / {trk['max_abs_arm']:.3f} · Hände "
+                      f"{trk['rmse_hand']:.3f} / {trk['max_abs_hand']:.3f} · Hände am Ende "
+                      f"{trk['final_hand_rmse']:.3f}", flush=True)
         results.append(ep_result)
 
         if ep_result["error"]:
@@ -867,6 +923,12 @@ def main():
             n = sum(1 for r in valid if r["milestones"][stage])
             print(f"    {stage:<16} {format_rate_ci(n, len(valid))}")
             milestone_ci[stage] = {"k": n, "n": len(valid)}
+        if oracle:
+            trks = [r["oracle_tracking"] for r in valid if r["oracle_tracking"].get("samples")]
+            if trks:
+                print("  Orakel-Tracking (Median über Episoden, rad):")
+                for key in ("rmse_arm", "rmse_hand", "max_abs_hand", "final_hand_rmse"):
+                    print(f"    {key:<16} {float(np.median([t[key] for t in trks])):.3f}")
     print("=" * 60)
 
     # KI-Grenzen fürs JSON (gleiche Funktion wie die Ausgabe oben).
@@ -892,7 +954,10 @@ def main():
             "hand_contact": "Proxy: Fingerkuppen-Abstand zur Würfelmitte <= "
                             f"{HAND_CONTACT_PROXY_M} m (keine Kontaktsensoren in der Env)",
         },
-        "groot_version": os.getenv("GROOT_VERSION", ""),
+        # "oracle_replay" = aufgezeichnete Aktionen statt Policy (--oracle-dataset).
+        "policy": "oracle_replay" if oracle else "groot",
+        "oracle_dataset": args.oracle_dataset or None,
+        "groot_version": "" if oracle else os.getenv("GROOT_VERSION", ""),
         # Ohne dieses Feld ist ein Ergebnis nicht zuordenbar (s. auch die Archivkopie
         # mit Zeitstempel + Checkpoint-Name unten).
         "checkpoint": ckpt,
@@ -919,7 +984,8 @@ def main():
     # Ergebnis nicht überschreibt; --results-file bleibt als "neuester Lauf" (Kopie)
     # bestehen, alle Leser (server_rl_run.sh, optimize, KISSKI) lesen weiter dort.
     stamp = time.strftime("%Y%m%d-%H%M%S")
-    ckpt_name = Path(args.checkpoint_path).name if args.checkpoint_path else "unbekannt"
+    ckpt_name = ("oracle" if oracle else
+                 Path(args.checkpoint_path).name if args.checkpoint_path else "unbekannt")
     ckpt_name = "".join(c if c.isalnum() or c in "-_." else "_" for c in ckpt_name) or "ckpt"
     archive = results_path.with_name(
         f"{results_path.stem}_{stamp}_{ckpt_name}{results_path.suffix or '.json'}")

@@ -211,8 +211,8 @@ Fassung in `CLAUDE.md`; deren Zusatzangaben sind hier eingearbeitet).
 │   ├── Dockerfile.standalone  # Standalone: Isaac Sim + GR00T in einem Container — IKR-Server & vast.ai
 │   ├── Dockerfile.webviewer   # Browser-Client für den WebRTC-Viewport (Port 8210); enthält KEINEN
 │   │                          #   Simulator — prüft zusätzlich, dass NVIDIAs sed-Patch gegriffen hat
-│   ├── server_rl_run.sh       # ★ Eigener-Server-Workflow (Docker), 27 Aktionen in 7 Gruppen:
-│   │                          #   preflight/setup/view/check/cams/gap/eval/grasp/span/render/rl/
+│   ├── server_rl_run.sh       # ★ Eigener-Server-Workflow (Docker), 28 Aktionen in 7 Gruppen:
+│   │                          #   preflight/setup/view/check/cams/gap/eval/oracle/grasp/span/render/rl/
 │   │                          #   livecheck/webview/layout/layoutcheck/yawcheck/tipcheck/topface/
 │   │                          #   latency/optimize/replay-*/shell/clean (Liste: `--help`).
 │   │                          #   view = Szene ohne Gewichte/HF_TOKEN; RL_NETWORK_MODE=host =

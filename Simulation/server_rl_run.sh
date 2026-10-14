@@ -1782,6 +1782,39 @@ do_tipcheck() {
   echo "  nur die Handmarken weg                   -> FK bzw. fehlende Hueftgelenke."
 }
 
+# Orakel-Replay (Review 10-13 §2.3 Nr. 1): die Eval selbst, nur spielt statt der Policy
+# der Datensatz seine aufgezeichneten Aktionen ab — gleiches Layout, gleiche 30 Hz, gleiche
+# Meilensteine. Ergebnis = obere Schranke: greift schon die Demo nicht, blockiert die Sim.
+# Kein Checkpoint, kein Server, kein HF_TOKEN (solange Datensatz und Asset liegen).
+do_oracle() {
+  ensure_asset_local || return 1
+  local ds="${ORACLE_DATASET:-/data/unitreerobotics/G1_Dex3_BlockStacking_Dataset}"
+  ensure_dataset "$ds" || return 1
+  local layout="${EVAL_LAYOUT:-/data/eval/layout_heldout.json}"
+  local eps="${NUM_EPISODES:-20}"
+  local horizon="${EXECUTION_HORIZON:-8}"
+  local ep_len="${EPISODE_LENGTH_S:-120}"
+  local out="${ORACLE_OUT:-/data/sim_results/oracle.json}"
+  local video_dir="${ORACLE_VIDEO_DIR:-/data/sim_videos/oracle}"
+  docker exec "$CONTAINER" test -f "$layout" \
+    || { err "Layout fehlt: $layout. Erst: LAYOUT_HELD_OUT=1 $0 layout"; return 1; }
+  log "Orakel-Replay: $eps Episoden aus $layout, ${ep_len}s, Exec-Horizon $horizon," \
+      "DR=${DR_ENABLED:-0}, DR_SEED=${DR_SEED:-0}"
+  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" "${GEOM_ENV[@]}" \
+    -e "DR_ENABLED=${DR_ENABLED:-0}" -e "DR_SEED=${DR_SEED:-0}" \
+    -e "SCENE_CAM=${SCENE_CAM:-1}" \
+    "$CONTAINER" env -u VIRTUAL_ENV \
+    "$ISAAC_PY" "$SIM_DIR/run_g1_dex3_sim_eval.py" --headless --enable_cameras \
+      --oracle-dataset "$ds" --layout "$layout" \
+      --num-episodes "$eps" --execution-horizon "$horizon" \
+      --episode-length-s "$ep_len" --asset-path "$ASSET_PATH" \
+      --video-dir "$video_dir" --results-file "$out" \
+    2>&1 | tee /dev/stderr | grep -c "\[eval\] fertig" >/dev/null \
+    || { err "Orakel-Replay ohne Erfolgsmarker beendet (Ausgabe oben)."; return 1; }
+  ok "Ergebnis: $HOST_DATA_DIR/${out#/data/}"
+  echo "  Videos:   $HOST_DATA_DIR/${video_dir#/data/}"
+}
+
 do_render() {
   ensure_checkpoint
   ensure_black_hands
@@ -2180,6 +2213,12 @@ Aktionen:
               FK (im 28-dim-State fehlen die Hueftgelenke). Braucht layout.json.
               TIPCHECK_EPISODES (4), TIPCHECK_EPISODE_IDS, TIPCHECK_FRAME (Default:
               Bewegungsbeginn aus layout.json), TIPCHECK_OUT (/data/cotrain/tipcheck).
+  oracle      ORAKEL-REPLAY: die Eval ohne Modell — spielt je Episode die aufgezeichneten
+              Aktionen der Layout-Episode bei 30 Hz ab, Roboter startet im aufgezeichneten
+              Frame 0. Obere Schranke fuer 'eval' (Review 10-13 §2.3 Nr. 1) plus Tracking-
+              Fehler Sim<->Aufzeichnung. Kein Checkpoint/Server. EVAL_LAYOUT
+              (/data/eval/layout_heldout.json), NUM_EPISODES (20), EPISODE_LENGTH_S (120),
+              ORACLE_DATASET, ORACLE_OUT (/data/sim_results/oracle.json).
   replay-prepare  Vollständigen Real-Datensatz holen/konvertieren und Schema, vier Kameras,
               30 Hz sowie 28-DoF-State/Actions prüfen. Stellt das lokale G1+DEX3-Asset
               bereit und lädt keine Modellgewichte.
@@ -2388,7 +2427,7 @@ fi
 # 'shell' bleibt ungespiegelt (interaktives -it verträgt die Pipe nicht), 'help'/'clean'
 # haben nichts zu protokollieren.
 case "$ACTION" in
-  preflight|setup|check|cams|gap|eval|grasp|span|rl|livecheck|latency|optimize|render|view|webview|layout|layoutcheck|layoutreport|topface|yawcheck|tipcheck|replay-prepare|replay-calibrate|replay-poses|replay-render) start_logging "$ACTION" ;;
+  preflight|setup|check|cams|gap|eval|grasp|span|rl|livecheck|latency|optimize|render|view|webview|layout|layoutcheck|layoutreport|topface|yawcheck|tipcheck|oracle|replay-prepare|replay-calibrate|replay-poses|replay-render) start_logging "$ACTION" ;;
 esac
 case "$ACTION" in
   rl|shell|help|clean|webview) ;;
@@ -2420,6 +2459,7 @@ case "$ACTION" in
   replay-poses) do_replay_poses ;;
   replay-render) do_replay_render ;;
   tipcheck)   do_tipcheck ;;
+  oracle)     do_oracle ;;
   render)     do_render ;;
   latency)    do_latency ;;
   optimize)   do_optimize "${2:-all}" ;;
