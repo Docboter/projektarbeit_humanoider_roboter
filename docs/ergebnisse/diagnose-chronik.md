@@ -64,6 +64,7 @@ Für den **aktuellen Projektstatus** siehe
 | 53 | A/B mit und ohne Gierwinkel (`runs/20260826/01`): der Bildwinkel deckt sich **nicht** mit der Greifachse (Δ im Mittel 27° bei einer 45°-Obergrenze, n=5). Die Sichtprüfung war durch ungeseedete Domain Randomization entwertet — Seed nachgerüstet ([Lauf 53](#lauf-53-der-gierwinkel-und-die-greifachse-widersprechen-sich)) |
 | 54 | Erster N1.7-Sim-Lauf, `vision-v1` **checkpoint-15000** (2026-10-12): `lifted` 0/10, Anhebung ≤ 0,83 cm; Fingerspanne 1,93 rad, aber die Hände öffnen und schließen in der Luft ([Läufe 54/55](#läufe-5455-die-ersten-n17-checkpoints-in-der-sim)) |
 | 55 | Derselbe Lauf, **checkpoint-44000** (2026-10-13): `lifted` 0/10, Fingerspanne nur noch 25,6 % der Demo — Closed Loop auf dem Niveau von Lauf 34 (N1.6); offene Schleife dagegen MSE −60 % / −33 % gegenüber ckpt15000 ([Läufe 54/55](#läufe-5455-die-ersten-n17-checkpoints-in-der-sim)) |
+| 56 | Daumen-Check (2026-10-14, IKR-Server): `thumb_0`/`thumb_2` werden **nicht** geklemmt — USD-Grenzen umfassen alle 281 196 Frames; dabei gemischten Datensatz (v3.0-Metadaten über v2.1-Daten seit 2026-09-08) gefunden und frisch erzeugt ([Lauf 56](#lauf-56-daumen-grenzen-und-gemischter-datensatz)) |
 
 ---
 
@@ -2251,3 +2252,30 @@ Rendering.
 **Nicht gemessen:** 20 Episoden (die Abnahme laut Migrationsplan), Wrist-Kamera-Videos,
 `latency` in-process, `global_step` im Ergebnis-JSON (`trainer_state.json` ist nicht im HF-Repo).
 Videos nur stichprobenhaft als Standbilder gesichtet.
+
+### Lauf 56: Daumen-Grenzen und gemischter Datensatz
+
+**2026-10-14, `ikr-ki-server-01`**, Sim-Image `lucam03/projekt-humanoider-roboter-sim-standalone:latest`
+(Docker Hub, 2026-08-26), Container `groot-rl-hub`, Sim-Code aus dem Repo gemountet (Stand `8c7b59b`),
+schwarzhändiges Asset. Kein Modell.
+
+**Frage (Review 10-13 S7):** Klemmt die Sim `thumb_0`/`thumb_2`, weil `_widen_finger_joint_limits`
+sie nicht weitet? **Antwort: nein.** USD-Grenzen laut Sim: `thumb_0` beidseitig [−1,047, 1,047],
+`thumb_2` links [0, 1,745], rechts [−1,745, 0]. Der ganze Datensatz (301 Episoden, 281 196 Frames)
+liegt darin: Zustand `thumb_0` [−1,010, +0,152] / [−1,006, +0,026], `thumb_2` [+0,017, +1,355] /
+[−1,041, −0,018]; Aktionen reichen bei `thumb_0` bis genau −1,047, nicht darüber. `tipcheck` mit
+4 Episoden (0–3, Frame = Bewegungsbeginn): „keine Handdimension wird geklemmt“ in allen vier.
+Details und Tabelle: [historie.md, 2026-10-14](../historie.md).
+
+**Nebenbefund: der Datensatz auf dem Server war gemischt.** Der erste `tipcheck` brach mit
+`KeyError: 'chunk_index'` ab. Unter `/data/unitreerobotics/G1_Dex3_BlockStacking_Dataset` lagen
+seit **2026-09-08 00:20** (während des Laufs `cotrain_synth_v1`, Log `finetune-cotrain-20260907-222452.log`)
+v3.0-Metadaten (`info.json`, `stats.json`, `meta/episodes/`, `tasks.parquet`), eine v3-Datei
+`data/chunk-000/file-000.parquet` und v3-Videos über den v2.1-Episodendateien vom 2026-08-22.
+Die 301 `episode_*.parquet` waren unberührt (Stichprobe 0/150/240/300 byte-gleich mit dem
+Neudownload). Der alte Stand liegt unverändert unter
+`$HOST_DATA_DIR/archiv/dataset_gemischt_20260908/`; der Datensatz wurde frisch geladen und
+konvertiert (v2.1, 301 Episoden). Welche Läufe zwischen 2026-09-08 und heute die gemischten
+Metadaten oder Videos gelesen haben, ist nicht geklärt — auf diesem Server lief seither kein
+protokollierter Sim-Lauf (54/55 liefen auf Trooper.ai).
+

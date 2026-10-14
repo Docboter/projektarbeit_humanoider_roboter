@@ -8,10 +8,7 @@ Known, deliberately postponed defects. **At the start of every session, before o
 these to the user and ask whether to fix one now.** If they decline, carry on and do not fix them
 unasked. When one is fixed, delete its entry here (and note the fix in `docs/historie.md`).
 
-1. **`_widen_finger_joint_limits` does not cover `thumb_0`/`thumb_2`** (`Simulation/g1_dex3_sim/`),
-   although the dataset init reaches down to −0,71 rad there, so the sim may clamp the thumb.
-   Needs hardware: run `tipcheck` once on the IKR server (`./Simulation/server_rl_run.sh tipcheck`)
-   and widen the limits if the thumb is clamped (Review 10-13 S7).
+_None at the moment._
 
 ## Project overview
 

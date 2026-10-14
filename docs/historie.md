@@ -852,3 +852,26 @@ folgende früher dokumentierte Aussagen:
 - **Repo:** kein CI, Ruff-Konfiguration nur im Fork, `graphify-out/` getrackt.
 - **Fork:** „`cf2032d` vielleicht ungepusht“ (Review §5) — falsch, der Commit liegt auf
   `origin/luca/g1-dex3-n17`.
+
+## 2026-10-14 — Wartungspunkt „Daumen-Grenzen“ aus CLAUDE.md geschlossen (kein Defekt)
+
+*Herkunft:* `CLAUDE.md` § „Open maintenance issues“, Punkt 1 (Review 10-13 S7): Verdacht, dass
+`_widen_finger_joint_limits` (`Simulation/g1_dex3_sim/g1_dex3_blockstack_env.py`) `thumb_0`/`thumb_2`
+nicht abdeckt und die Sim den Daumen klemmt (Datensatz-Init bis −0,71 rad).
+
+**Ergebnis: kein Klemmen, keine Code-Änderung.** Die USD-Grenzen (Ausgabe der Sim beim
+`tipcheck` auf `ikr-ki-server-01`) umfassen den gesamten Datensatz (alle 301 Episoden,
+281 196 Frames, `observation.state` und `action`):
+
+| Gelenk | USD-Grenze | Zustand min/max | Aktion min/max |
+|---|---|---|---|
+| `left_hand_thumb_0` | [−1,047, 1,047] | [−1,010, +0,152] | [−1,047, +0,211] |
+| `right_hand_thumb_0` | [−1,047, 1,047] | [−1,006, +0,026] | [−1,047, +0,091] |
+| `left_hand_thumb_2` | [0, 1,745] | [+0,017, +1,355] | [+0,014, +1,398] |
+| `right_hand_thumb_2` | [−1,745, 0] | [−1,041, −0,018] | [−1,094, −0,014] |
+
+Die −0,71 rad sind `right_hand_thumb_0` im Init-Zustand und liegen weit innerhalb von ±1,047.
+Nur die Aktion von `thumb_0` erreicht mit −1,047 genau die Grenze, überschreitet sie aber nicht.
+Erweitert werden müssen nur `thumb_1` (geschieht bereits) und die vier `_0`-Gelenke von Zeige- und
+Mittelfinger (seit 2026-08-24). Laufnummer: 56 in der
+[Diagnose-Chronik](ergebnisse/diagnose-chronik.md).
