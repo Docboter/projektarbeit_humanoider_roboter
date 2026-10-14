@@ -31,7 +31,7 @@ from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.math import quat_apply, sample_uniform
 import numpy as np
-from scene_geometry import CUBE_Z_CENTER, TABLE_POS, TABLE_SIZE
+from scene_geometry import CUBE_EDGE, CUBE_Z_CENTER, TABLE_POS, TABLE_SIZE
 from task_text import DEFAULT_TASK_DESCRIPTION
 import torch
 
@@ -144,7 +144,7 @@ class G1Dex3BlockstackSceneCfg(InteractiveSceneCfg):
     block_0: RigidObjectCfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/block_0",
         spawn=sim_utils.CuboidCfg(
-            size=(0.05, 0.05, 0.05),
+            size=(CUBE_EDGE, CUBE_EDGE, CUBE_EDGE),   # scene_geometry.py
             rigid_props=sim_utils.RigidBodyPropertiesCfg(),
             mass_props=sim_utils.MassPropertiesCfg(mass=0.05),
             collision_props=sim_utils.CollisionPropertiesCfg(),
@@ -159,7 +159,7 @@ class G1Dex3BlockstackSceneCfg(InteractiveSceneCfg):
     block_1: RigidObjectCfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/block_1",
         spawn=sim_utils.CuboidCfg(
-            size=(0.05, 0.05, 0.05),
+            size=(CUBE_EDGE, CUBE_EDGE, CUBE_EDGE),   # scene_geometry.py
             rigid_props=sim_utils.RigidBodyPropertiesCfg(),
             mass_props=sim_utils.MassPropertiesCfg(mass=0.05),
             collision_props=sim_utils.CollisionPropertiesCfg(),
@@ -174,7 +174,7 @@ class G1Dex3BlockstackSceneCfg(InteractiveSceneCfg):
     block_2: RigidObjectCfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/block_2",
         spawn=sim_utils.CuboidCfg(
-            size=(0.05, 0.05, 0.05),
+            size=(CUBE_EDGE, CUBE_EDGE, CUBE_EDGE),   # scene_geometry.py
             rigid_props=sim_utils.RigidBodyPropertiesCfg(),
             mass_props=sim_utils.MassPropertiesCfg(mass=0.05),
             collision_props=sim_utils.CollisionPropertiesCfg(),

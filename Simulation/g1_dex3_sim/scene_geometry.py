@@ -21,7 +21,9 @@ TABLE_SIZE = (0.8, 0.6, TABLE_HEIGHT)
 TABLE_POS = (0.5, 0.0, TABLE_HEIGHT / 2)
 
 # 5-cm-Würfel, Mittelpunkt dort, wo er auf dem Tisch ruht (nachgemessen 2026-08-22).
-CUBE_EDGE = 0.05
+# SIM_CUBE_EDGE nur für Diagnose-Sweeps (Würfelgröße im Orakel, Chronik Lauf 57); die
+# Bild-Rückprojektion (extract_block_layout.py) rechnet weiter mit 5 cm.
+CUBE_EDGE = float(os.environ.get("SIM_CUBE_EDGE", "0.05"))
 CUBE_Z_CENTER = round(TABLE_HEIGHT + CUBE_EDGE / 2, 4)   # 0.895
 
 # Roboterbasis (Becken), env-lokal. Beide Werte gemessen (Fingerkuppen-Projektion ins
