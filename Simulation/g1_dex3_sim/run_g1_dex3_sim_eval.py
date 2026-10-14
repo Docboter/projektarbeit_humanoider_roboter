@@ -252,6 +252,7 @@ def set_robot_state(env: G1Dex3BlockstackEnv, state: np.ndarray) -> None:
     q = np.asarray(state, dtype=np.float32).copy()
     if env._SIGN_FLIP_IDX:
         q[env._SIGN_FLIP_IDX] *= -1
+    q = env.dataset_to_sim(q)
     full = env.robot.data.joint_pos.clone()
     for policy_idx, isaac_idx in enumerate(env._joint_ids):
         full[:, isaac_idx] = float(q[policy_idx])

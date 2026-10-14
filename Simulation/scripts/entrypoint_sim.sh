@@ -189,9 +189,10 @@ fi
 
 # Video-Verzeichnis: bei aktiver LIVE-Variante leer -> run_g1_dex3_sim_eval.py schaltet
 # Frame-Sammeln, MP4-Ausgabe und rgb_array-Render-Mode ab (`record = bool(args.video_dir)`).
-VIDEO_DIR="$(livestream_video_dir "$DATA_DIR/sim_videos")"
+# SIM_VIDEO_DIR: eigener Ordner je Lauf, damit parallele Evals ihre MP4s nicht ueberschreiben.
+VIDEO_DIR="$(livestream_video_dir "${SIM_VIDEO_DIR:-$DATA_DIR/sim_videos}")"
 
-mkdir -p "$DATA_DIR/sim_videos" "$DATA_DIR/sim_results" "$DATA_DIR/logs"
+mkdir -p "${SIM_VIDEO_DIR:-$DATA_DIR/sim_videos}" "$DATA_DIR/sim_results" "$DATA_DIR/logs"
 
 # ── SSH-Server ─────────────────────────────────────────────────────────────────
 # vast.ai injiziert den User-SSH-Key als $PUBLIC_KEY — muss in authorized_keys stehen.

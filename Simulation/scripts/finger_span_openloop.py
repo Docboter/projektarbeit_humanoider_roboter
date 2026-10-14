@@ -129,16 +129,42 @@ def span_per_group(actions: np.ndarray, group_slices: dict[str, slice]) -> dict[
     return out
 
 
-def run_trajectory(policy, loader, traj_id, embodiment_tag, steps, action_horizon):
+# Bild-Ablation (Review 10-13 §2.3 Nr. 3): wie stark hängt die Vorhersage an den Bildern?
+# "none" = echte Bilder; die übrigen verfälschen sie gezielt, Zustand und Sprache bleiben echt.
+ABLATIONS = ("none", "black", "freeze", "swap_episode", "black_head", "black_wrist")
+
+
+def ablate_images(obs: dict, mode: str, first: dict | None, donor: dict | None) -> dict:
+    """Bilder in ``obs`` (Schlüssel ``video.*``) nach ``mode`` ersetzen; Rest unverändert."""
+    if mode == "none":
+        return obs
+    out = dict(obs)
+    for key, arr in obs.items():
+        if not key.startswith("video."):
+            continue
+        cam = key[len("video."):]
+        if mode == "black" or (mode == "black_head" and "high" in cam) or (
+                mode == "black_wrist" and "wrist" in cam):
+            out[key] = np.zeros_like(arr)
+        elif mode == "freeze" and first is not None:
+            out[key] = first[key]
+        elif mode == "swap_episode" and donor is not None:
+            out[key] = donor[key]
+    return out
+
+
+def run_trajectory(policy, loader, traj_id, embodiment_tag, steps, action_horizon,
+                   ablation="none", donor_id=None):
     """Gibt (pred, gt, group_slices) für eine Trajektorie zurück."""
     traj = loader[traj_id]
+    donor = loader[donor_id] if ablation == "swap_episode" and donor_id is not None else None
     actual_steps = min(steps, len(traj))
     action_keys = loader.modality_configs["action"].modality_keys
 
     modality_configs = deepcopy(loader.modality_configs)
     modality_configs.pop("action")
 
-    pred_rows, group_widths = [], None
+    pred_rows, group_widths, first = [], None, None
     for step_count in range(0, actual_steps, action_horizon):
         data_point = extract_step_data(traj, step_count, modality_configs, embodiment_tag)
         obs = {}
@@ -148,6 +174,14 @@ def run_trajectory(policy, loader, traj_id, embodiment_tag, steps, action_horizo
             obs[f"video.{k}"] = np.array(v)
         for language_key in loader.modality_configs["language"].modality_keys:
             obs[language_key] = data_point.text
+        if first is None:
+            first = {k: v for k, v in obs.items() if k.startswith("video.")}
+        donor_imgs = None
+        if donor is not None:
+            dp = extract_step_data(donor, min(step_count, len(donor) - 1), modality_configs,
+                                   embodiment_tag)
+            donor_imgs = {f"video.{k}": np.array(v) for k, v in dp.images.items()}
+        obs = ablate_images(obs, ablation, first, donor_imgs)
 
         _chunk, _ = policy.get_action(parse_observation_gr00t(obs, loader.modality_configs))
         chunk = parse_action_gr00t(_chunk)
@@ -185,6 +219,59 @@ def run_trajectory(policy, loader, traj_id, embodiment_tag, steps, action_horizo
     return pred, gt, group_slices
 
 
+def run_ablation(args, policy, loader, tag, ablation):
+    """Alle Trajektorien mit einer Ablation; druckt je Trajektorie eine Zeile."""
+    rows = []
+    for n, traj_id in enumerate(args.traj_ids):
+        if traj_id >= len(loader):
+            print(f"[openloop] Trajektorie {traj_id} existiert nicht — übersprungen.")
+            continue
+        # Spender für swap_episode: die nächste angeforderte Trajektorie (zyklisch), also
+        # eine andere Szene aus demselben Split.
+        donor = args.traj_ids[(n + 1) % len(args.traj_ids)]
+        pred, gt, slices = run_trajectory(
+            policy, loader, traj_id, tag, args.steps, args.action_horizon, ablation, donor
+        )
+        s_pred, s_gt = span_per_group(pred, slices), span_per_group(gt, slices)
+        finger_pred = max(s_pred[g] for g in FINGER_GROUPS if g in s_pred)
+        finger_gt = max(s_gt[g] for g in FINGER_GROUPS if g in s_gt)
+        hand = np.concatenate([np.arange(slices[g].start, slices[g].stop)
+                               for g in FINGER_GROUPS if g in slices])
+        arm = np.setdiff1d(np.arange(gt.shape[1]), hand)
+        rows.append(
+            {
+                "traj_id": traj_id,
+                "steps": int(pred.shape[0]),
+                "finger_span_pred_rad": round(finger_pred, 4),
+                "finger_span_gt_rad": round(finger_gt, 4),
+                "ratio": round(finger_pred / finger_gt, 4) if finger_gt > 1e-6 else None,
+                "mse": round(float(np.mean((gt - pred) ** 2)), 6),
+                "mse_arm": round(float(np.mean((gt[:, arm] - pred[:, arm]) ** 2)), 6),
+                "mse_hand": round(float(np.mean((gt[:, hand] - pred[:, hand]) ** 2)), 6),
+                "span_pred_per_group": {k: round(v, 4) for k, v in s_pred.items()},
+                "span_gt_per_group": {k: round(v, 4) for k, v in s_gt.items()},
+            }
+        )
+        if rows[-1]["ratio"] is None:
+            print(f"  Traj {traj_id:>3}: Ground Truth ohne Fingerbewegung — übersprungen")
+        else:
+            print(
+                f"  Traj {traj_id:>3}: Fingerspanne Vorhersage {finger_pred:.2f} rad | "
+                f"Ground Truth {finger_gt:.2f} rad | "
+                f"{rows[-1]['ratio']:.0%} | MSE {rows[-1]['mse']:.4f} "
+                f"(Arme {rows[-1]['mse_arm']:.4f}, Hände {rows[-1]['mse_hand']:.4f})"
+            )
+    return rows
+
+
+def summarize(rows):
+    def med(key):
+        vals = sorted(r[key] for r in rows if r[key] is not None)
+        return vals[len(vals) // 2] if vals else 0.0
+    return {"median_ratio": med("ratio"), "median_mse": med("mse"),
+            "median_mse_arm": med("mse_arm"), "median_mse_hand": med("mse_hand")}
+
+
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--model-path", required=True, help="Checkpoint-Verzeichnis")
@@ -194,6 +281,8 @@ def main() -> int:
     p.add_argument("--action-horizon", type=int, default=16)
     p.add_argument("--embodiment-tag", default="new_embodiment")
     p.add_argument("--json-out", default="", help="Ergebnis zusätzlich als JSON ablegen")
+    p.add_argument("--ablations", nargs="+", default=["none"], choices=ABLATIONS,
+                   help="Bild-Ablation(en); mehrere = nacheinander mit demselben Modell")
     args = p.parse_args()
 
     logging.basicConfig(level=logging.WARNING)
@@ -209,46 +298,25 @@ def main() -> int:
     loader = make_episode_loader(args.dataset_path, policy.get_modality_config())
     print(f"[openloop] Datensatz: {len(loader)} Episoden | Checkpoint: {args.model_path}\n")
 
-    rows = []
-    for traj_id in args.traj_ids:
-        if traj_id >= len(loader):
-            print(f"[openloop] Trajektorie {traj_id} existiert nicht — übersprungen.")
-            continue
-        pred, gt, slices = run_trajectory(
-            policy, loader, traj_id, tag, args.steps, args.action_horizon
-        )
-        s_pred, s_gt = span_per_group(pred, slices), span_per_group(gt, slices)
-        finger_pred = max(s_pred[g] for g in FINGER_GROUPS if g in s_pred)
-        finger_gt = max(s_gt[g] for g in FINGER_GROUPS if g in s_gt)
-        rows.append(
-            {
-                "traj_id": traj_id,
-                "steps": int(pred.shape[0]),
-                "finger_span_pred_rad": round(finger_pred, 4),
-                "finger_span_gt_rad": round(finger_gt, 4),
-                "ratio": round(finger_pred / finger_gt, 4) if finger_gt > 1e-6 else None,
-                "mse": round(float(np.mean((gt - pred) ** 2)), 6),
-                "span_pred_per_group": {k: round(v, 4) for k, v in s_pred.items()},
-                "span_gt_per_group": {k: round(v, 4) for k, v in s_gt.items()},
-            }
-        )
-        if rows[-1]["ratio"] is None:
-            # Ohne Fingerbewegung in der Demonstration gibt es nichts zu vergleichen —
-            # die Episode zeigt an dieser Stelle keinen Griff.
-            print(f"  Traj {traj_id:>3}: Ground Truth ohne Fingerbewegung — übersprungen")
-        else:
-            print(
-                f"  Traj {traj_id:>3}: Fingerspanne Vorhersage {finger_pred:.2f} rad | "
-                f"Ground Truth {finger_gt:.2f} rad | "
-                f"{rows[-1]['ratio']:.0%} | MSE {rows[-1]['mse']:.4f}"
-            )
+    all_results = {}
+    for ablation in args.ablations:
+        print(f"\n[openloop] Bild-Ablation: {ablation}")
+        rows = run_ablation(args, policy, loader, tag, ablation)
+        if not rows:
+            print("[openloop] Keine Trajektorie ausgewertet.")
+            return 1
+        all_results[ablation] = summarize(rows)
+        all_results[ablation]["episodes"] = rows
+    if len(args.ablations) > 1:
+        print("\n" + "=" * 60)
+        print(f"{'Ablation':<14}{'Spanne-Median':>15}{'MSE':>10}{'MSE Arme':>10}{'MSE Hände':>11}")
+        for ab, r in all_results.items():
+            print(f"{ab:<14}{r['median_ratio']:>14.0%}{r['median_mse']:>10.4f}"
+                  f"{r['median_mse_arm']:>10.4f}{r['median_mse_hand']:>11.4f}")
+        print("=" * 60)
+    rows = all_results[args.ablations[0]]["episodes"]
+    median = all_results[args.ablations[0]]["median_ratio"]
 
-    if not rows:
-        print("[openloop] Keine Trajektorie ausgewertet.")
-        return 1
-
-    ratios = sorted(r["ratio"] for r in rows if r["ratio"] is not None)
-    median = ratios[len(ratios) // 2] if ratios else 0.0
     print("\n" + "=" * 60)
     print(f"Median Vorhersage/Ground-Truth der Fingerspanne: {median:.0%}")
     print("Zum Vergleich Closed Loop in der Sim (Lauf 30):  19 %")
@@ -283,7 +351,8 @@ def main() -> int:
                 ckpt[f"{key}_error"] = str(e)
         with open(args.json_out, "w") as fh:
             json.dump(
-                {"checkpoint": ckpt, "episodes": rows, "median_ratio": median}, fh, indent=2
+                {"checkpoint": ckpt, "episodes": rows, "median_ratio": median,
+                 "ablations": all_results}, fh, indent=2
             )
         print(f"\nGespeichert: {args.json_out}")
     return 0

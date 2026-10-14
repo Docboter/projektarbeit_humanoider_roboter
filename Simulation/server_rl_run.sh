@@ -163,7 +163,7 @@ GPU_ENV=()
 # heisst cfg-Default (g1_dex3_cfg.py / camera_geometry.py). HEAD_CAM_FOLLOWS_PELVIS=1 ist
 # die Gegenhypothese aus Review 3.4: Kopfkamera wandert mit der Beckenkorrektur mit.
 GEOM_ENV=()
-for _v in ROBOT_BASE_X ROBOT_BASE_Z HEAD_CAM_FOLLOWS_PELVIS SIM_CUBE_EDGE; do
+for _v in ROBOT_BASE_X ROBOT_BASE_Z HEAD_CAM_FOLLOWS_PELVIS SIM_CUBE_EDGE JOINT_ZERO_OFFSETS; do
   [[ -n "${!_v:-}" ]] && GEOM_ENV+=(-e "$_v=${!_v}")
 done
 unset _v
@@ -1065,6 +1065,7 @@ do_eval() {
     -e "GROOT_TRT_ENGINE_PATH=${GROOT_TRT_ENGINE_PATH:-}" \
     -e "CAMERA_RENDER_EVERY_N=${CAMERA_RENDER_EVERY_N:-1}" \
     -e "EPISODE_LENGTH_S=$ep_len" \
+    -e "SIM_VIDEO_DIR=${SIM_VIDEO_DIR:-}" \
     `# Leer = run_g1_dex3_sim_eval.py liest den Text aus meta/tasks.* des Datensatzes` \
     `# (Fallback "stack three block"). Bis 2026-10-13 stand hier "stack the blocks" -` \
     `# ein Text, den das Training nie sah (Review 3.1). Leer ueberschreibt auch das` \
