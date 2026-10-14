@@ -1,12 +1,12 @@
-# Diagnose-Chronik — Sim- und RL-Läufe 08–62
+# Diagnose-Chronik — Sim- und RL-Läufe 08–68
 
-> **TL;DR:** Chronologisches Protokoll aller Sim-/RL-Diagnoseläufe (Läufe 08–62): Kamera-Fixes,
+> **TL;DR:** Chronologisches Protokoll aller Sim-/RL-Diagnoseläufe (Läufe 08–68): Kamera-Fixes,
 > Domain-Gap-Messungen, Greif-Physik, `span`-Gate, `TUNE_VISUAL` im Closed Loop, die ersten
 > N1.7-Checkpoints in der Sim. Nachschlagewerk für die projektweiten „Lauf N“-Verweise — gezielt
 > den passenden Abschnitt ansteuern statt komplett lesen.
 
 Chronologisches Protokoll der Diagnose-, Kalibrier- und Eval-Läufe der Isaac-Lab-Sim
-(2026-08-08 bis 2026-10-14; letzter protokollierter Lauf: 62). Entstanden am 2026-08-18 durch Aufteilung von
+(2026-08-08 bis 2026-10-14; letzter protokollierter Lauf: 68). Entstanden am 2026-08-18 durch Aufteilung von
 [rl-anleitung.md](../weiterfuehrend/rl-anleitung.md), die auf 2197 Zeilen angewachsen war und
 operative Anleitung mit Protokoll vermischte. Die Lauf-Nummern (`Lauf 8` … `Lauf 55`) sind der
 projektweit referenzierte Zähler — andere Dokumente verlinken gezielt auf einzelne Abschnitte hier.
@@ -71,6 +71,12 @@ Für den **aktuellen Projektstatus** siehe
 | 60 | Orakel mit griffverankerten Würfeln: `lifted_clear` 3/18 (KI 4–41 %) — echte Lifts bis 8,3 cm, aber kaum besser als Bild-Layout ([Läufe 57–61](#läufe-5761-orakel-replay-würfelgröße-griffversatz-span-n16)) |
 | 61 | `span` N1.6 vision-v2 **@30000** auf Test 240/255/270/285/300: Median **90 %**, MSE-Median 0,0051 ([Läufe 57–61](#läufe-5761-orakel-replay-würfelgröße-griffversatz-span-n16)) |
 | 62 | Versatz-Sweep im Orakel (14 Raster × 8 Ep.): Würfel **3 cm seitlich nach außen** verschoben → `lifted_clear` 5/8 statt 0/8; Plateau dy 3–6 cm, dx ≤ 0: 23/48 = 48 % gegen 0/24 ohne Seitenkorrektur. Die Sim greift, wenn die Würfel richtig zur Hand liegen ([Lauf 62](#lauf-62-versatz-sweep-die-würfel-liegen-3-cm-zu-weit-innen)) |
+| 63 | Ursache des Versatzes: kein einzelner Gelenk-Nullpunkt (Ellbogen 2/8, Handgelenk-Nicken 1/8, Schulter-Gier 0/8 statt 5/8) und keine mitwandernde Kopfkamera (Griffstelle 13,6 statt 3,4 cm daneben) ([Läufe 63–68](#läufe-6368-ursache-des-versatzes-bild-ablation-sim-bilder-im-open-loop)) |
+| 64 | Closed Loop N1.6 @30000 / N1.7 @44000 auf korrigiertem Layout nach 2 Ep. abgebrochen: 0/2 bzw. 0/2, Hand fährt hin, schließt halb, zieht zurück ([Läufe 63–68](#läufe-6368-ursache-des-versatzes-bild-ablation-sim-bilder-im-open-loop)) |
+| 65 | Bild-Ablation im Open Loop (9 Test-Ep.): ohne Bilder bricht der Griff ein (Spanne 58–62 %, MSE Hände ×4–9); eine Kameragruppe genügt ([Läufe 63–68](#läufe-6368-ursache-des-versatzes-bild-ablation-sim-bilder-im-open-loop)) |
+| 66 | **Teacher-forced Open Loop auf Sim-Renderbildern:** MSE Hände ×13 (N1.6) bzw. ×36 (N1.7) gegenüber echten Bildern — so schlecht wie schwarze Bilder. Visueller Domain-Gap nachgewiesen ([Läufe 63–68](#läufe-6368-ursache-des-versatzes-bild-ablation-sim-bilder-im-open-loop)) |
+| 67 | Bildvergleich echt/Sim gleicher Frame: Würfel an denselben Pixeln (Kopfkamera-Geometrie stimmt), aber Tisch zu klein, Boden-Gitter, weiße Arme; Handgelenkkamera-Pose weicht ab; Sim-Bild bei Step 0 veraltet ([Läufe 63–68](#läufe-6368-ursache-des-versatzes-bild-ablation-sim-bilder-im-open-loop)) |
+| 68 | Würfelgröße auf korrigiertem Layout: 4,0 cm 3/8, 4,5 cm 2/8, 5,0 cm 5/8 — 5 cm bleibt ([Läufe 63–68](#läufe-6368-ursache-des-versatzes-bild-ablation-sim-bilder-im-open-loop)) |
 
 ---
 
@@ -2418,4 +2424,100 @@ gespiegelten Gierfehler der beiden Kopfkameras als für einen reinen Maßstabsfe
 Rückprojektion — ein Hinweis, kein Befund. Trennender nächster Schritt: `tipcheck` am Griffframe
 (FK-Kuppen ins Realbild): liegen die projizierten Kuppen auf den echten Fingern, stimmt die
 Kinematik und die Würfellage aus dem Bild ist falsch; liegen sie innen, ist es die Kinematik.
+
+### Läufe 63–68: Ursache des Versatzes, Bild-Ablation, Sim-Bilder im Open Loop
+
+**2026-10-14, 19:45–21:15**, `ikr-ki-server-01`. Orakel-Läufe wie Lauf 62 (Container `groot-rl-hub`,
+Episoden 240–247, 40 s, DR aus, Seed 0). Modell-Läufe im Image `…-sim-standalone:20261014-141304`
+(Container `groot-rl-eval` für N1.6, `groot-rl-eval17` für N1.7). Checkpoints: N1.6 vision-v2
+**@30 000** (der validierte @44 000 liegt nur auf KISSKI), N1.7 vision-v1 @44 000 (SHA256 von
+`model-00002` = `3050114cb6d1…`, wie Lauf 55). Skripte der Kinematik-Diagnosen
+(`fk_offset_scan.py`, `obs_probe.py`) liegen nur im Sitzungs-Scratchpad.
+
+#### Lauf 63 — Woher kommt der Versatz?
+
+- **FK-Scan:** Für 46 gemessene Griffe (Lauf 59, Test- und Trainings-Episoden) je ein Nullpunktversatz
+  auf einem Armgelenk (beide Arme, gespiegelt oder gleichsinnig). Abstand Kuppenmitte↔Würfel
+  ohne Versatz 3,89 cm; beste Kandidaten Schulter-Gier gespiegelt −0,15 rad (2,37 cm),
+  Handgelenk-Nicken gleichsinnig −0,20 rad (2,35), Ellbogen gleichsinnig −0,15 (2,45) — rein
+  geometrisch nicht trennbar.
+- **Physik (neuer Schalter `JOINT_ZERO_OFFSETS`):** Orakel ohne Würfelverschiebung,
+  `lifted_clear` Ellbogen 2/8, Handgelenk-Nicken 1/8, Schulter-Gier 0/8 — keiner erreicht die
+  5/8 der Würfelverschiebung. Ein einzelner Gelenk-Nullpunkt erklärt den Versatz nicht.
+- **Kopfkamera folgt dem Becken** (`HEAD_CAM_FOLLOWS_PELVIS=1`, Gegenhypothese Review §3.4):
+  Held-out-Layout neu extrahiert, Kamera-Uneinigkeit 1,90 statt 1,27 cm, Griffstelle 13,6 statt
+  3,4 cm neben dem Würfel → **widerlegt**.
+- `tipcheck` am Griffframe (Trainings-Ep. 20/24/28/36): die projizierten Kuppen liegen 2–5 cm
+  außen neben den echten Fingern, die Handgelenk-Marken grob richtig. Das Spiegelmuster
+  findet sich auch in Trainings-Episoden. Die Ursache bleibt offen; die empirische Korrektur
+  (Würfel 3 cm nach außen) bleibt in Kraft.
+
+#### Lauf 64 — Closed Loop auf dem korrigierten Layout (abgebrochen)
+
+`layout_heldout_dy3.json` (alle 60 Test-Episoden, Würfel 3 cm nach außen), 20 × 120 s, DR aus,
+Seed 0, Prompt aus dem Datensatz („stack three block“), Exec-Horizon 8. **Nach je 2 Episoden
+abgebrochen** (Entscheidung nach Sichtung der Videos): N1.6 `lifted_clear` 0/2 (Fingerspanne
+0,74 / 1,14 rad), N1.7 0/2 (0,63 / 0,59 rad). Videos: Hand fährt in 5–10 s gezielt an einen
+Würfel, bleibt halb offen, zieht ab ~20–40 s zurück und schwebt bis zum Ende — dasselbe Bild
+wie Läufe 34/55. Logs: `sim_results/eval_n1{6,7}_dy3_abgebrochen_20261014.log`. Wanduhr
+~8,5 min je 120-s-Episode bei drei parallelen Isaac-Prozessen.
+
+#### Lauf 65 — Bild-Ablation im Open Loop
+
+Neue Option `--ablations` in `finger_span_openloop.py`. Echte Test-Episoden 240/245/250/255/260/
+270/280/290/300, volle Länge, gleiche Policy; nur die Bilder werden verfälscht. Median über 9 Ep.
+(Fingerspanne relativ zur Demo / MSE Hände):
+
+| Ablation | N1.6 @30000 | N1.7 @44000 |
+|---|---|---|
+| echte Bilder | 92 % / 0,0083 | 91 % / 0,0074 |
+| alle vier Kameras schwarz | 58 % / 0,0338 | 62 % / 0,0656 |
+| Bilder von Frame 0 eingefroren | 52 % / 0,0570 | 35 % / 0,1005 |
+| Bilder einer anderen Episode | 84 % / 0,0965 | 91 % / 0,1490 |
+| nur Kopfkameras schwarz | 81 % / 0,0101 | 89 % / 0,0128 |
+| nur Handgelenkkameras schwarz | 80 % / 0,0112 | 78 % / 0,0280 |
+
+**Lesart:** Beide Policies tragen den Griff über die Bilder, nicht über den Zustand allein; das
+Bild bestimmt vor allem den **Zeitpunkt** (fremde Episode: Spanne hoch, Fehler am größten). Eine
+Kameragruppe genügt (redundant). Die Closed-Loop-Spanne (30–55 %) liegt im Bereich „schwarz /
+eingefroren“. Der Kandidat „Zustandsverteilung“ verliert damit an Gewicht.
+JSON: `sim_results/ablation_n16_vision-v2-30000.json`, `ablation_n17_ckpt44000.json`.
+
+#### Lauf 66 — Teacher-forced Open Loop auf Sim-Renderbildern (Review §2.3 Nr. 2)
+
+Neu gerendert mit aktueller Geometrie (`render`, `RENDER_STOP_AT_GRASP=0`, `RENDER_MAX_FRAMES=600`,
+`RENDER_NO_DR=1`, Trainings-Layout um 3 cm nach außen korrigiert, Trainings-Episoden
+0/4/8/12/16/20/24/28) nach `/data/cotrain/render_teacher_dy3` (meta/stats.json aus dem echten
+Datensatz kopiert, die Policy normalisiert mit den Checkpoint-Statistiken). Dieselben Episoden
+und Frames einmal mit echten, einmal mit Sim-Bildern; Zustand und Aktion identisch. Median über 8 Ep.:
+
+| | Fingerspanne | MSE | MSE Arme | MSE Hände |
+|---|---|---|---|---|
+| N1.6 echt | 97 % | 0,0014 | 0,0008 | 0,0020 |
+| N1.6 **Sim** | **77 %** | 0,0167 | 0,0061 | **0,0269** |
+| N1.7 echt | 95 % | 0,0012 | 0,0005 | 0,0017 |
+| N1.7 **Sim** | **85 %** | 0,0357 | 0,0072 | **0,0606** |
+
+**Lesart:** Gleicher Zustand, gleiche Aktion, nur das Bild anders: der Hand-Fehler steigt um
+×13 (N1.6) bzw. ×36 (N1.7) — in derselben Größenordnung wie mit schwarzen Bildern (Lauf 65).
+Für die Policy tragen die Sim-Bilder ungefähr so viel verwertbare Information wie kein Bild.
+Das ist der direkte Nachweis des **visuellen Domain-Gaps** (Trainings-Episoden; das gilt für
+echte und Sim-Bilder gleichermaßen, Auswendiglernen verzerrt den Vergleich also nicht).
+
+#### Lauf 67 — Wie unterscheiden sich die Bilder?
+
+Episode 240, korrigiertes Layout, Orakel-Replay, Policy-Kameras bei Step 0/30/150/300 neben dem
+echten Frame gleicher Nummer (`sim_results/obs_probe/`). **Kopfkamera:** Würfel und schwarzer
+Streifen liegen in beiden Bildern an fast denselben Pixeln (±10–20 px) — die Geometrie stimmt grob.
+Abweichend ist der Inhalt: der echte Tisch füllt das Bild, der Sim-Tisch (0,8 × 0,6 m) ist schmal
+mit dunklem Boden-Gitter daneben; Arme weiß statt silbern/schwarz; kein Wand-Hintergrund; Hände
+wirken kleiner. **Handgelenkkamera:** echt entlang der Handfläche nach vorn, Sim zeigt groß den
+weißen Unterarm — die Pose weicht ab. **Step 0** zeigt in der Sim noch die Reset-Lage der Würfel
+(veralteter Puffer); erst ab Step 30 stimmt die Szene — das betrifft den ersten Chunk jeder
+Episode.
+
+#### Lauf 68 — Würfelgröße auf dem korrigierten Layout
+
+Wie Lauf 58, jetzt auf `sweep_dx0_dy3.json`: `lifted_clear` 4,0 cm **3/8**, 4,5 cm **2/8**,
+5,0 cm (Lauf 62) **5/8**. Kleinere Würfel verbessern das Orakel nicht; 5 cm bleibt.
 

@@ -28,7 +28,18 @@ verweisen hierher. Den N1.7-Detailstand pflegt
 - **Closed Loop insgesamt:** 0 Erfolge (N1.6 Lauf 34: `lifted` 0/10, noch alte Geometrie; N1.7
   Läufe 54/55: 0/10). Die Sim-Geometrie ist seit 2026-08-24 korrigiert; die N1.6-Neumessung mit
   korrigierter Szene steht aus.
-- **Neu 2026-10-14 — die Sim ist (noch) der Blocker, nicht das Modell:** Das Orakel-Replay
+- **Neu 2026-10-14 (abends) — zwei Blocker nachgewiesen, in dieser Reihenfolge:**
+  1. *Registrierung Würfel↔Hand:* die Würfel liegen in der Sim je Seite ~3 cm zu weit innen;
+     mit Korrektur hebt das Orakel in ~50 % statt ~0 % (Lauf 62). Ursache offen (kein einzelner
+     Gelenk-Nullpunkt, keine mitwandernde Kopfkamera, Lauf 63); empirische Korrektur
+     `layout_heldout_dy3.json`.
+  2. *Visueller Domain-Gap:* gleicher Zustand, gleiche Aktion, nur Sim- statt Echtbild → Hand-
+     Fehler ×13 (N1.6) bzw. ×36 (N1.7), so schlecht wie schwarze Bilder (Läufe 65/66). Die
+     Policies tragen den Griff über die Bilder (Ablation). Sichtbare Ursachen: Tisch zu klein
+     mit Boden-Gitter, weiße Arme, Handgelenkkamera-Pose (Lauf 67).
+  Closed Loop auch mit korrigiertem Layout weiter 0/2 je Modell (Lauf 64, abgebrochen).
+  Details: [Läufe 57–68](docs/ergebnisse/diagnose-chronik.md#läufe-6368-ursache-des-versatzes-bild-ablation-sim-bilder-im-open-loop).
+- **Stand 2026-10-14 (mittags, überholt durch den Punkt darüber) — die Sim ist (noch) der Blocker, nicht das Modell:** Das Orakel-Replay
   (aufgezeichnete Demo-Aktionen statt Policy, Held-out-Layout, 30 Hz) hebt selbst kaum einen
   Würfel: `lifted_clear` 1/16 (KI 0,2–30 %), `stacked` 0/16. Die Hand erreicht und schiebt den
   Würfel jedes Mal, greift aber wenige Zentimeter daneben; Würfelgröße ausgeschlossen, Griff-
@@ -115,10 +126,16 @@ Projekts bleibt **0 Erfolge im Closed-Loop** (0/20 früher, Lauf 34: 0/10).
 ## 2. Nächste Schritte — in dieser Reihenfolge (Stand 2026-10-14)
 
 > **Vorgezogen (2026-10-14), vor allen Punkten der Tabelle unten:**
-> 1. **Registrierung Würfel↔Hand klären** — Versatz-Sweep **erledigt (Lauf 62)**: Würfel je Seite
->    ~3 cm nach außen → Orakel `lifted_clear` 23/48 = 48 % statt 0/24. Offen ist die Ursache
->    (Kinematik vs. Kamera-Gierwinkel; nächster Test `tipcheck` am Griffframe) und dann die
->    Korrektur an der Wurzel statt eines Layout-Versatzes.
+> 0. **Neu (Läufe 63–68): den visuellen Gap gezielt schließen, mit billiger Messgröße.**
+>    Fitnessfunktion = MSE Hände im teacher-forced Open Loop auf Sim-Renderbildern (Lauf 66;
+>    Ziel: Richtung Echtbild 0,002 statt 0,027/0,061), erst dann Closed Loop. Kandidaten der
+>    Reihe nach: Tischgröße/-textur und Hintergrund (Wand statt Boden-Gitter), Armfarbe,
+>    Handgelenkkamera-Pose, veraltetes Bild bei Step 0. Co-Training/`TUNE_VISUAL` erst, wenn
+>    die Szene selbst nicht mehr offensichtlich abweicht.
+> 1. **Registrierung Würfel↔Hand** — Versatz-Sweep **erledigt (Lauf 62)**: Würfel je Seite
+>    ~3 cm nach außen → Orakel `lifted_clear` 23/48 = 48 % statt 0/24. Ursache weiter offen
+>    (Lauf 63: kein einzelner Gelenk-Nullpunkt, Kopfkamera-Höhe widerlegt); bis dahin mit
+>    `layout_heldout_dy3.json` messen.
 > 2. Orakel-Hänger (Datensatz-Ep. 256, Halte-Phase) nachstellen — eine Eval darf nicht hängen.
 > 3. Erst danach die Closed-Loop-Baselines N1.6 @44000 / N1.7 @44000 (20 Ep., 120 s, Held-out-Layout).
 >    N1.6 @44000 liegt nur auf KISSKI → nach HF hochladen oder herkopieren.
@@ -386,6 +403,7 @@ Erfolg hat**. Einem Nullpunkt-Reward fehlt das Startsignal. Nicht vorziehen.
 | Hardware-Test der Live-Ansicht (Stand 2026-10-11 weiterhin offen; nicht belegt, ob inzwischen gelaufen): `./Simulation/server_rl_run.sh livecheck`, dann `… view` (Szene ohne Gewichte, braucht kein `HF_TOKEN`). Als Client wahlweise die native App oder `… webview` im Browser — letzteres ohne Installation | ~15 min | Gebaut 2026-08-13, `view`/`webview` 2026-08-17. Der Web-Viewer ist lokal end-to-end geprüft; der **WebRTC-Handshake lief nie auf Hardware**. Bleibt das Bild trotz offenem UDP schwarz: `RL_NETWORK_MODE=host` |
 | `SCENE_CAM=0` / `RL_AA_MODE=Off` Wirkung auf Steps/s | ~15 min | Ungemessen (~15 % erwartet) |
 | Doku-Abschnitt zur Latenz-Zerlegung | — | Erledigt: steht in [inferenz-optimierung.md](docs/simulation/inferenz-optimierung.md) |
+| `tools/test_menu.sh` hinterlässt einen laufenden Container `groot-rl` mit `/data` im gelöschten Temp-Verzeichnis (2026-10-14 zweimal beobachtet und entfernt); außerdem scheitern 11 Tests, sobald eine `.env.local` mit `HF_TOKEN` existiert | ~30 min | Offen — der Test, der den Launcher wirklich startet, muss den Container selbst wieder entfernen bzw. `RL_CONTAINER` auf einen Wegwerfnamen setzen |
 
 Nicht dringend, weil keiner davon die 0/20 bewegt.
 
