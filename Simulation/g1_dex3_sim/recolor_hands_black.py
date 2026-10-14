@@ -48,6 +48,9 @@ def main() -> None:
                     help="Auch /collisions-Prims binden (Default: nur /visuals)")
     ap.add_argument("--color", nargs=3, type=float, default=[0.02, 0.02, 0.02],
                     help="RGB der Hand-Farbe (Default: nahezu schwarz)")
+    ap.add_argument("--material", default="HandBlack",
+                    help="Materialname unter /Looks. Für einen zweiten Lauf (z. B. Arme) einen "
+                         "eigenen Namen wählen, sonst färbt er das Hand-Material mit um.")
     args = ap.parse_args()
 
     out_path = args.in_path if args.in_place else (
@@ -63,7 +66,7 @@ def main() -> None:
     default_prim = stage.GetDefaultPrim()
     looks_root = (default_prim.GetPath().pathString if default_prim and default_prim.IsValid()
                   else "")
-    mat_path = f"{looks_root}/Looks/HandBlack"
+    mat_path = f"{looks_root}/Looks/{args.material}"
     material = UsdShade.Material.Define(stage, mat_path)
     shader = UsdShade.Shader.Define(stage, mat_path + "/Shader")
     shader.CreateIdAttr("UsdPreviewSurface")

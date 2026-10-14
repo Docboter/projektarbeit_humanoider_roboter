@@ -154,8 +154,12 @@ def ablate_images(obs: dict, mode: str, first: dict | None, donor: dict | None) 
 
 
 def run_trajectory(policy, loader, traj_id, embodiment_tag, steps, action_horizon,
-                   ablation="none", donor_id=None):
-    """Gibt (pred, gt, group_slices) für eine Trajektorie zurück."""
+                   ablation="none", donor_id=None, alt=None):
+    """Gibt (pred, gt, group_slices) für eine Trajektorie zurück.
+
+    ``alt`` = (Episoden-DataFrame, Kameraliste): diese Kameras kommen aus einem anderen
+    Datensatz (z. B. Sim-Render derselben Episode), der Rest aus ``loader``.
+    """
     traj = loader[traj_id]
     donor = loader[donor_id] if ablation == "swap_episode" and donor_id is not None else None
     actual_steps = min(steps, len(traj))
@@ -182,6 +186,13 @@ def run_trajectory(policy, loader, traj_id, embodiment_tag, steps, action_horizo
                                    embodiment_tag)
             donor_imgs = {f"video.{k}": np.array(v) for k, v in dp.images.items()}
         obs = ablate_images(obs, ablation, first, donor_imgs)
+        if alt is not None:
+            alt_traj, alt_cams = alt
+            dp = extract_step_data(alt_traj, min(step_count, len(alt_traj) - 1),
+                                   modality_configs, embodiment_tag)
+            for k, v in dp.images.items():
+                if k in alt_cams:
+                    obs[f"video.{k}"] = np.array(v)
 
         _chunk, _ = policy.get_action(parse_observation_gr00t(obs, loader.modality_configs))
         chunk = parse_action_gr00t(_chunk)
@@ -229,8 +240,11 @@ def run_ablation(args, policy, loader, tag, ablation):
         # Spender für swap_episode: die nächste angeforderte Trajektorie (zyklisch), also
         # eine andere Szene aus demselben Split.
         donor = args.traj_ids[(n + 1) % len(args.traj_ids)]
+        alt = None
+        if args.alt_dataset:
+            alt = (args.alt_loader[args.alt_traj_ids[n]], set(args.alt_cams))
         pred, gt, slices = run_trajectory(
-            policy, loader, traj_id, tag, args.steps, args.action_horizon, ablation, donor
+            policy, loader, traj_id, tag, args.steps, args.action_horizon, ablation, donor, alt
         )
         s_pred, s_gt = span_per_group(pred, slices), span_per_group(gt, slices)
         finger_pred = max(s_pred[g] for g in FINGER_GROUPS if g in s_pred)
@@ -281,6 +295,12 @@ def main() -> int:
     p.add_argument("--action-horizon", type=int, default=16)
     p.add_argument("--embodiment-tag", default="new_embodiment")
     p.add_argument("--json-out", default="", help="Ergebnis zusätzlich als JSON ablegen")
+    p.add_argument("--alt-dataset", default="",
+                   help="Zweiter Datensatz, aus dem --alt-cams stammen (z. B. Sim-Render)")
+    p.add_argument("--alt-cams", nargs="*", default=[],
+                   help="Kameras aus --alt-dataset, z. B. cam_left_wrist cam_right_wrist")
+    p.add_argument("--alt-traj-ids", type=int, nargs="*", default=[],
+                   help="Episoden-Positionen im --alt-dataset, parallel zu --traj-ids")
     p.add_argument("--ablations", nargs="+", default=["none"], choices=ABLATIONS,
                    help="Bild-Ablation(en); mehrere = nacheinander mit demselben Modell")
     args = p.parse_args()
@@ -296,6 +316,10 @@ def main() -> int:
         device="cuda" if torch.cuda.is_available() else "cpu",
     )
     loader = make_episode_loader(args.dataset_path, policy.get_modality_config())
+    args.alt_loader = (make_episode_loader(args.alt_dataset, policy.get_modality_config())
+                       if args.alt_dataset else None)
+    if args.alt_dataset and len(args.alt_traj_ids) != len(args.traj_ids):
+        raise SystemExit("--alt-traj-ids braucht genau so viele Einträge wie --traj-ids")
     print(f"[openloop] Datensatz: {len(loader)} Episoden | Checkpoint: {args.model_path}\n")
 
     all_results = {}

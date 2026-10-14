@@ -95,7 +95,9 @@ class G1Dex3CameraCfg:
     hfov_deg: float = 75.0
     # Handgelenks- und Szenenkamera behalten vorerst ihr bisheriges Sichtfeld (focal 18.0 =
     # 60,4°) — für die ist keine Overlay-Iteration dokumentiert, ein Wechsel wäre geraten.
-    hfov_wrist_deg: float = 60.4
+    # SIM_WRIST_HFOV: Diagnose-Override (Chronik Lauf 70+), die echte Handgelenkkamera zeigt
+    # deutlich mehr Szene als 60,4°.
+    hfov_wrist_deg: float = float(os.environ.get("SIM_WRIST_HFOV", "60.4"))
     hfov_scene_deg: float = 60.4
 
     # Sensorbreite in mm. Isaac Lab leitet die vertikale Apertur aus dem Seitenverhältnis ab.
@@ -225,6 +227,14 @@ class G1Dex3CameraCfg:
         wrist_eye = (-0.04, 0.0, 0.10)
         left_wrist_target  = (0.26, 0.0, -0.06)
         right_wrist_target = (0.26, 0.0, -0.06)
+        # Diagnose-Overrides (Chronik Lauf 70+): Pose gegen die Open-Loop-Metrik statt gegen
+        # ein Standbild justieren. "x y z" im Wrist-Yaw-Link-Frame, für beide Hände gleich.
+        _eye = os.environ.get("SIM_WRIST_EYE", "").split()
+        _tgt = os.environ.get("SIM_WRIST_TARGET", "").split()
+        if len(_eye) == 3:
+            wrist_eye = tuple(float(v) for v in _eye)
+        if len(_tgt) == 3:
+            left_wrist_target = right_wrist_target = tuple(float(v) for v in _tgt)
         # Iter 8 — ROLL-Korrektur: Pitch/Blickrichtung stimmten, aber die Hand stand im Sim
         # VERTIKAL, im Real liegt sie HORIZONTAL (Finger nach rechts statt nach unten) → ~90°
         # Roll-Versatz. Ursache: look_at nutzte default world_up=(0,0,1), was im rotierten

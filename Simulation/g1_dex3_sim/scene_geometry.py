@@ -17,7 +17,12 @@ import os
 
 # Tischplatte: Oberfläche bei z = TABLE_HEIGHT, Box mit Mittelpunkt auf halber Höhe.
 TABLE_HEIGHT = 0.87
-TABLE_SIZE = (0.8, 0.6, TABLE_HEIGHT)
+# SIM_TABLE_SIZE="x y" (m) nur für Optik-Diagnosen (Domain-Gap, Chronik Lauf 70): der echte
+# Tisch reicht seitlich über das Kamerabild hinaus, der Sim-Tisch zeigt Boden daneben.
+# Höhe und Mittelpunkt bleiben, die Würfellagen ändern sich dadurch nicht.
+_table_xy = os.environ.get("SIM_TABLE_SIZE", "").split()
+TABLE_SIZE = ((float(_table_xy[0]), float(_table_xy[1])) if len(_table_xy) == 2
+              else (0.8, 0.6)) + (TABLE_HEIGHT,)
 TABLE_POS = (0.5, 0.0, TABLE_HEIGHT / 2)
 
 # 5-cm-Würfel, Mittelpunkt dort, wo er auf dem Tisch ruht (nachgemessen 2026-08-22).
