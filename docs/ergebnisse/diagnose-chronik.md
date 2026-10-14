@@ -1,12 +1,12 @@
-# Diagnose-Chronik — Sim- und RL-Läufe 08–61
+# Diagnose-Chronik — Sim- und RL-Läufe 08–62
 
-> **TL;DR:** Chronologisches Protokoll aller Sim-/RL-Diagnoseläufe (Läufe 08–61): Kamera-Fixes,
+> **TL;DR:** Chronologisches Protokoll aller Sim-/RL-Diagnoseläufe (Läufe 08–62): Kamera-Fixes,
 > Domain-Gap-Messungen, Greif-Physik, `span`-Gate, `TUNE_VISUAL` im Closed Loop, die ersten
 > N1.7-Checkpoints in der Sim. Nachschlagewerk für die projektweiten „Lauf N“-Verweise — gezielt
 > den passenden Abschnitt ansteuern statt komplett lesen.
 
 Chronologisches Protokoll der Diagnose-, Kalibrier- und Eval-Läufe der Isaac-Lab-Sim
-(2026-08-08 bis 2026-10-14; letzter protokollierter Lauf: 61). Entstanden am 2026-08-18 durch Aufteilung von
+(2026-08-08 bis 2026-10-14; letzter protokollierter Lauf: 62). Entstanden am 2026-08-18 durch Aufteilung von
 [rl-anleitung.md](../weiterfuehrend/rl-anleitung.md), die auf 2197 Zeilen angewachsen war und
 operative Anleitung mit Protokoll vermischte. Die Lauf-Nummern (`Lauf 8` … `Lauf 55`) sind der
 projektweit referenzierte Zähler — andere Dokumente verlinken gezielt auf einzelne Abschnitte hier.
@@ -70,6 +70,7 @@ Für den **aktuellen Projektstatus** siehe
 | 59 | Griffversatz aus der FK der echten Hand: Griffstelle liegt 1–7 cm (Median ~3,4) neben der Bild-Würfellage, seitlich **spiegelbildlich je Hand** nach außen ([Läufe 57–61](#läufe-5761-orakel-replay-würfelgröße-griffversatz-span-n16)) |
 | 60 | Orakel mit griffverankerten Würfeln: `lifted_clear` 3/18 (KI 4–41 %) — echte Lifts bis 8,3 cm, aber kaum besser als Bild-Layout ([Läufe 57–61](#läufe-5761-orakel-replay-würfelgröße-griffversatz-span-n16)) |
 | 61 | `span` N1.6 vision-v2 **@30000** auf Test 240/255/270/285/300: Median **90 %**, MSE-Median 0,0051 ([Läufe 57–61](#läufe-5761-orakel-replay-würfelgröße-griffversatz-span-n16)) |
+| 62 | Versatz-Sweep im Orakel (14 Raster × 8 Ep.): Würfel **3 cm seitlich nach außen** verschoben → `lifted_clear` 5/8 statt 0/8; Plateau dy 3–6 cm, dx ≤ 0: 23/48 = 48 % gegen 0/24 ohne Seitenkorrektur. Die Sim greift, wenn die Würfel richtig zur Hand liegen ([Lauf 62](#lauf-62-versatz-sweep-die-würfel-liegen-3-cm-zu-weit-innen)) |
 
 ---
 
@@ -2379,4 +2380,42 @@ Ursachen nicht. JSON: `sim_results/span_n16_vision-v2-30000_test_20261014.json`.
 **Nebenbefunde:** `tools/test_menu.sh` hinterlässt einen laufenden Container `groot-rl` mit
 einem `/data` im inzwischen gelöschten Temp-Verzeichnis (nicht entfernt, Entscheidung offen). Auf
 GPU 0 lief ab ~16:40 ein fremdes N1.7-Finetuning (47 GB) — Wanduhren danach nicht vergleichbar.
+
+### Lauf 62: Versatz-Sweep — die Würfel liegen ~3 cm zu weit innen
+
+**2026-10-14, 17:30–19:40**, Bedingungen wie Läufe 57–61 (Orakel, Image vom 2026-08-26, Container
+`groot-rl-hub`, beide GPUs; ab ~16:40 lief auf GPU 0 ein fremdes Finetuning). Episoden 240–247
+aus `layout_heldout.json`, `EPISODE_LENGTH_S=40`, DR aus, Seed 0. Alle drei Würfel jeder Episode
+werden verschoben: `dx` (vom Roboter weg) und `dy` **nach außen** (`+dy·sign(y)` — Würfel links
+der Mitte nach +y, rechts nach −y; das Spiegelmuster aus Lauf 59). Layouts
+`/data/eval/sweep_dx*_dy*.json`, Ergebnisse `sim_results/sweep_dx*_dy*.json`.
+
+`lifted_clear` (k/8; Muster je Episode 240…247, X = Lift):
+
+| dx \ dy | 0 | 1,5 | 3 | 4,5 | 6 |
+|---|---|---|---|---|---|
+| −1,5 | – | – | **5/8** `XXX.XX..` | 3/8 `.X.X.X..` | 4/8 `XXX..X..` |
+| 0 | 0/8 `........` | 2/8 `X..X....` | **5/8** `X.XX.XX.` | 3/8 `X....XX.` | 3/8 `..XX..X.` |
+| +1,5 | 0/8 | 2/8 `X.X.....` | 1/8 `X.......` | – | – |
+| +3 | 0/8 | 0/8 | 0/8 | – | – |
+
+`stacked` überall 0/8. Zusammengefasst: Plateau (dx ∈ {−1,5; 0}, dy ∈ {3; 4,5; 6}) **23/48 = 48 %**,
+ohne Seitenkorrektur (dy = 0, alle dx) **0/24**; dy 3 gegen dy 0 bei dx 0: 5/8 gegen 0/8 (exakter
+Fisher-Test p ≈ 0,03). Ep. 247 hebt in keiner Zelle.
+
+**Lesart.** Die Sim-Physik greift und hebt, sobald die Würfel relativ zur Hand stimmen. Der
+Engpass aller bisherigen Closed-Loop-Zahlen war (mindestens auch) die Registrierung: die Würfel
+liegen in der Sim, relativ zur Hand, je Seite **~3 cm zu weit innen**; x stimmt auf ±1,5 cm (der
++1,7-cm-x-Versatz aus Lauf 59 war ein Effekt der Kuppenmitte). Innerhalb des Plateaus (3–6 cm)
+trennt n = 8 nicht. `stacked` bleibt 0, weil das blinde Orakel nach dem ersten Griff auf Würfel
+trifft, die nicht mehr wie in der Aufnahme liegen — das ist keine Aussage über eine Policy.
+
+**Ursache noch offen.** Aus Lauf 59: der Außen-Versatz wächst mit dem Abstand vom Roboter
+(≈ +1,2 bis +1,7 cm bei x = 25 cm, +3,0 bis +4,6 cm bei x = 35 cm, Nulldurchgang beidseitig bei
+x ≈ 19 cm; R² ≈ 0,35) und nicht mit |y| (Stufenmodell R² 0,63 ≥ Skalierung 0,59). Das spricht
+eher für einen gespiegelten Winkelfehler (Schulter-/Taillen-Gierwinkel bzw. Kinematik) oder einen
+gespiegelten Gierfehler der beiden Kopfkameras als für einen reinen Maßstabsfehler der
+Rückprojektion — ein Hinweis, kein Befund. Trennender nächster Schritt: `tipcheck` am Griffframe
+(FK-Kuppen ins Realbild): liegen die projizierten Kuppen auf den echten Fingern, stimmt die
+Kinematik und die Würfellage aus dem Bild ist falsch; liegen sie innen, ist es die Kinematik.
 

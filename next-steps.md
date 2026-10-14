@@ -115,9 +115,10 @@ Projekts bleibt **0 Erfolge im Closed-Loop** (0/20 früher, Lauf 34: 0/10).
 ## 2. Nächste Schritte — in dieser Reihenfolge (Stand 2026-10-14)
 
 > **Vorgezogen (2026-10-14), vor allen Punkten der Tabelle unten:**
-> 1. **Registrierung Würfel↔Hand klären** — Versatz-Sweep im Orakel (Layout global je Hand um
->    dx/dy verschieben, Lift-Quote je Raster) und Kinematik-Ursache suchen (Taillen-/Hüftgelenke,
->    Schulterbreite, Basis-Gierwinkel). Ziel: Orakel `lifted_clear` deutlich > 0.
+> 1. **Registrierung Würfel↔Hand klären** — Versatz-Sweep **erledigt (Lauf 62)**: Würfel je Seite
+>    ~3 cm nach außen → Orakel `lifted_clear` 23/48 = 48 % statt 0/24. Offen ist die Ursache
+>    (Kinematik vs. Kamera-Gierwinkel; nächster Test `tipcheck` am Griffframe) und dann die
+>    Korrektur an der Wurzel statt eines Layout-Versatzes.
 > 2. Orakel-Hänger (Datensatz-Ep. 256, Halte-Phase) nachstellen — eine Eval darf nicht hängen.
 > 3. Erst danach die Closed-Loop-Baselines N1.6 @44000 / N1.7 @44000 (20 Ep., 120 s, Held-out-Layout).
 >    N1.6 @44000 liegt nur auf KISSKI → nach HF hochladen oder herkopieren.
