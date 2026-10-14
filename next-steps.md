@@ -4,13 +4,13 @@
 > nächste Schritte und offene Widersprüche zwischen den Ergebnisdokumenten. Bezugspunkt für
 > die Prioritätensetzung, kein Ergebnisbericht selbst.
 
-**Stand:** 2026-10-13 (Kurzstatus §0; Fassung davor 2026-10-11, davor 2026-08-14) · Grundlage: Ergebnis-Dokumente unter [`docs/ergebnisse/`](docs/ergebnisse/README.md),
+**Stand:** 2026-10-14 (Kurzstatus §0; Fassung davor 2026-10-13, 2026-10-11, 2026-08-14) · Grundlage: Ergebnis-Dokumente unter [`docs/ergebnisse/`](docs/ergebnisse/README.md),
 [RL-Plan](docs/weiterfuehrend/reinforcement-learning-plan.md), Trainings-Launcher unter
 [`Training/scripts/`](Training/scripts/).
 
 ---
 
-## 0. Projektstatus in Kürze (Stand 2026-10-13)
+## 0. Projektstatus in Kürze (Stand 2026-10-14)
 
 Diese Zusammenfassung ist die **eine gepflegte Statusquelle** des Projekts; CLAUDE.md und README
 verweisen hierher. Den N1.7-Detailstand pflegt
@@ -28,7 +28,18 @@ verweisen hierher. Den N1.7-Detailstand pflegt
 - **Closed Loop insgesamt:** 0 Erfolge (N1.6 Lauf 34: `lifted` 0/10, noch alte Geometrie; N1.7
   Läufe 54/55: 0/10). Die Sim-Geometrie ist seit 2026-08-24 korrigiert; die N1.6-Neumessung mit
   korrigierter Szene steht aus.
-- **Ursache des Closed-Loop-Versagens nicht identifiziert.** „Domain-Gap bestätigt“ ist ein
+- **Neu 2026-10-14 — die Sim ist (noch) der Blocker, nicht das Modell:** Das Orakel-Replay
+  (aufgezeichnete Demo-Aktionen statt Policy, Held-out-Layout, 30 Hz) hebt selbst kaum einen
+  Würfel: `lifted_clear` 1/16 (KI 0,2–30 %), `stacked` 0/16. Die Hand erreicht und schiebt den
+  Würfel jedes Mal, greift aber wenige Zentimeter daneben; Würfelgröße ausgeschlossen, Griff-
+  stelle der echten Hand liegt 1–7 cm neben der Bild-Würfellage, seitlich spiegelbildlich je Hand
+  ([Läufe 57–61](docs/ergebnisse/diagnose-chronik.md#läufe-5761-orakel-replay-würfelgröße-griffversatz-span-n16)).
+  Bevor die Registrierung Würfel↔Hand stimmt, sind Closed-Loop-Modellzahlen gegen eine Schranke
+  von ~0 gemessen. `span` N1.6 vision-v2 @30000 auf Test-Episoden: 90 % (N1.7 @44000: 94 %).
+  Daumen-Gelenkgrenzen geprüft: kein Klemmen (Lauf 56).
+- **Ursache des Closed-Loop-Versagens nicht identifiziert** (Stand 2026-10-13; teilweise
+  überholt durch die Orakel-Befunde oben — mindestens die Würfellage relativ zur Hand ist ein
+  Blocker). „Domain-Gap bestätigt“ ist ein
   starker Hinweis, kein Befund — Closed und Open Loop unterscheiden sich in mehreren Faktoren
   ([Review 10-13 §2.1](docs/projekt-review-2026-10-13.md#21-befunde)); billige trennende
   Experimente: [Review 10-13 §2.3](docs/projekt-review-2026-10-13.md#23-empfohlene-experimente-nach-kostennutzen).
@@ -101,7 +112,21 @@ Projekts bleibt **0 Erfolge im Closed-Loop** (0/20 früher, Lauf 34: 0/10).
 
 ---
 
-## 2. Nächste Schritte — in dieser Reihenfolge (Stand 2026-10-11)
+## 2. Nächste Schritte — in dieser Reihenfolge (Stand 2026-10-14)
+
+> **Vorgezogen (2026-10-14), vor allen Punkten der Tabelle unten:**
+> 1. **Registrierung Würfel↔Hand klären** — Versatz-Sweep im Orakel (Layout global je Hand um
+>    dx/dy verschieben, Lift-Quote je Raster) und Kinematik-Ursache suchen (Taillen-/Hüftgelenke,
+>    Schulterbreite, Basis-Gierwinkel). Ziel: Orakel `lifted_clear` deutlich > 0.
+> 2. Orakel-Hänger (Datensatz-Ep. 256, Halte-Phase) nachstellen — eine Eval darf nicht hängen.
+> 3. Erst danach die Closed-Loop-Baselines N1.6 @44000 / N1.7 @44000 (20 Ep., 120 s, Held-out-Layout).
+>    N1.6 @44000 liegt nur auf KISSKI → nach HF hochladen oder herkopieren.
+>
+> Der `span`-Schritt (Punkt 2 unten) ist für N1.6 auf zurückgehaltenen Episoden erledigt
+> (Lauf 61, @30000: 90 %); @44000 steht aus.
+
+**Tabelle Stand 2026-10-11** (Punkt 3 überholt durch den Orakel-Befund: die Closed-Loop-Neumessung
+ist erst nach der Registrierung aussagekräftig):
 
 | # | Schritt | Warum / Ausgang |
 |---|---|---|

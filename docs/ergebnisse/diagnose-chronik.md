@@ -1,12 +1,12 @@
-# Diagnose-Chronik — Sim- und RL-Läufe 08–55
+# Diagnose-Chronik — Sim- und RL-Läufe 08–61
 
-> **TL;DR:** Chronologisches Protokoll aller Sim-/RL-Diagnoseläufe (Läufe 08–55): Kamera-Fixes,
+> **TL;DR:** Chronologisches Protokoll aller Sim-/RL-Diagnoseläufe (Läufe 08–61): Kamera-Fixes,
 > Domain-Gap-Messungen, Greif-Physik, `span`-Gate, `TUNE_VISUAL` im Closed Loop, die ersten
 > N1.7-Checkpoints in der Sim. Nachschlagewerk für die projektweiten „Lauf N“-Verweise — gezielt
 > den passenden Abschnitt ansteuern statt komplett lesen.
 
 Chronologisches Protokoll der Diagnose-, Kalibrier- und Eval-Läufe der Isaac-Lab-Sim
-(2026-08-08 bis 2026-10-13; letzter protokollierter Lauf: 55). Entstanden am 2026-08-18 durch Aufteilung von
+(2026-08-08 bis 2026-10-14; letzter protokollierter Lauf: 61). Entstanden am 2026-08-18 durch Aufteilung von
 [rl-anleitung.md](../weiterfuehrend/rl-anleitung.md), die auf 2197 Zeilen angewachsen war und
 operative Anleitung mit Protokoll vermischte. Die Lauf-Nummern (`Lauf 8` … `Lauf 55`) sind der
 projektweit referenzierte Zähler — andere Dokumente verlinken gezielt auf einzelne Abschnitte hier.
@@ -65,6 +65,11 @@ Für den **aktuellen Projektstatus** siehe
 | 54 | Erster N1.7-Sim-Lauf, `vision-v1` **checkpoint-15000** (2026-10-12): `lifted` 0/10, Anhebung ≤ 0,83 cm; Fingerspanne 1,93 rad, aber die Hände öffnen und schließen in der Luft ([Läufe 54/55](#läufe-5455-die-ersten-n17-checkpoints-in-der-sim)) |
 | 55 | Derselbe Lauf, **checkpoint-44000** (2026-10-13): `lifted` 0/10, Fingerspanne nur noch 25,6 % der Demo — Closed Loop auf dem Niveau von Lauf 34 (N1.6); offene Schleife dagegen MSE −60 % / −33 % gegenüber ckpt15000 ([Läufe 54/55](#läufe-5455-die-ersten-n17-checkpoints-in-der-sim)) |
 | 56 | Daumen-Check (2026-10-14, IKR-Server): `thumb_0`/`thumb_2` werden **nicht** geklemmt — USD-Grenzen umfassen alle 281 196 Frames; dabei gemischten Datensatz (v3.0-Metadaten über v2.1-Daten seit 2026-09-08) gefunden und frisch erzeugt ([Lauf 56](#lauf-56-daumen-grenzen-und-gemischter-datensatz)) |
+| 57 | Orakel-Replay, Bild-Layout `layout_heldout.json` (2026-10-14): die menschliche Demo selbst hebt in der Sim fast nie — `lifted_clear` **1/16** (KI 0,2–30 %), `stacked` 0/16; Arme folgen (RMSE 0,02 rad), Hand erreicht und schiebt den Würfel jedes Mal ([Läufe 57–61](#läufe-5761-orakel-replay-würfelgröße-griffversatz-span-n16)) |
+| 58 | Würfelgrößen-Sweep im Orakel (4,5 / 4,0 cm, je 5 Ep.): kein Lift — Würfelgröße ist nicht die Ursache ([Läufe 57–61](#läufe-5761-orakel-replay-würfelgröße-griffversatz-span-n16)) |
+| 59 | Griffversatz aus der FK der echten Hand: Griffstelle liegt 1–7 cm (Median ~3,4) neben der Bild-Würfellage, seitlich **spiegelbildlich je Hand** nach außen ([Läufe 57–61](#läufe-5761-orakel-replay-würfelgröße-griffversatz-span-n16)) |
+| 60 | Orakel mit griffverankerten Würfeln: `lifted_clear` 3/18 (KI 4–41 %) — echte Lifts bis 8,3 cm, aber kaum besser als Bild-Layout ([Läufe 57–61](#läufe-5761-orakel-replay-würfelgröße-griffversatz-span-n16)) |
+| 61 | `span` N1.6 vision-v2 **@30000** auf Test 240/255/270/285/300: Median **90 %**, MSE-Median 0,0051 ([Läufe 57–61](#läufe-5761-orakel-replay-würfelgröße-griffversatz-span-n16)) |
 
 ---
 
@@ -2278,4 +2283,100 @@ Neudownload). Der alte Stand liegt unverändert unter
 konvertiert (v2.1, 301 Episoden). Welche Läufe zwischen 2026-09-08 und heute die gemischten
 Metadaten oder Videos gelesen haben, ist nicht geklärt — auf diesem Server lief seither kein
 protokollierter Sim-Lauf (54/55 liefen auf Trooper.ai).
+
+### Läufe 57–61: Orakel-Replay, Würfelgröße, Griffversatz, `span` N1.6
+
+**Gemeinsame Bedingungen (2026-10-14, `ikr-ki-server-01`, 2× RTX PRO 6000 Blackwell):** Sim-Code
+gemountet ab `8c7b59b` (Läufe 57–60 ohne Modell, Image `…-sim-standalone` vom 2026-08-26, Container
+`groot-rl-hub`); korrigierte Geometrie (Becken 0,764 m, Basis x −0,057 m, keine Fingerspiegelung),
+schwarzhändiges Asset, 30 Hz, Exec-Horizon 8, `DR_ENABLED=0`, `DR_SEED=0`. Datensatz frisch erzeugt
+(Lauf 56). Würfel-Startlagen aus `LAYOUT_HELD_OUT=1 layout` → `/data/eval/layout_heldout.json`:
+60 der 61 Test-Episoden 240–300 (270 fällt durch die gleichmäßige Auswahl weg), alle mit drei
+Würfeln, 104/180 mit Gierwinkel, Kamera-Uneinigkeit Median 1,27 cm. Bei `NUM_EPISODES=20` sind das
+die Episoden **240–259**.
+
+**Werkzeug:** neue Aktion `oracle` (`8c7b59b`): die Eval selbst, nur liefert statt GR00T der
+Datensatz die Aktionen der Layout-Episode; Roboter startet im aufgezeichneten Frame 0, nach dem
+Demo-Ende wird die letzte Aktion gehalten. Zusätzlich Tracking-Fehler Sim↔Aufzeichnung.
+Die vorhandenen `replay-*`-Aktionen taugten dafür nicht (verweigern Test-Episoden, eigene
+Homographie-Posen, kein `stacked`/Tracking).
+
+#### Lauf 57 — Orakel auf dem Bild-Layout (obere Schranke)
+
+`NUM_EPISODES=20 EPISODE_LENGTH_S=120`. **Abgebrochen in Episode 17** (Datensatz-Ep. 256): ab
+Step 1475 (Halte-Phase) kein Fortschritt mehr über 24 min bei laufendem Prozess (PhysX-Hänger
+vermutlich); Prozess gezielt beendet, Container unverändert. Ausgewertet aus dem Log, **n = 16**
+(240–255), Datei `sim_results/oracle_heldout_n16_from_log.json`.
+
+| Stufe | k/n | KI95 |
+|---|---|---|
+| `reached` / `grasp_attempted` / `touched` | 16/16 | 79–100 % |
+| `lifted` (Schwerpunkt) | 4/16 | 7–52 % |
+| `lifted_clear` | **1/16** (Ep. 250, Unterseite 4,7 cm) | 0,2–30 % |
+| `stacked` | **0/16** | 0–21 % |
+
+Median über Episoden: kleinster Kuppe→Würfel-Abstand 2,75 cm, Würfel-Verschiebung 6,7 cm
+(max. 30,1 cm), Anhebung 1,6 cm, Unterseite mit Hand 0,8 cm. Tracking (rad): Arme RMSE 0,021,
+Hände RMSE 0,059 (max. Einzelfehler Median 0,47), Hände am Demo-Ende 0,015. **Lesart:** Die
+Demo erreicht den Würfel jedes Mal und schließt die Hand, schiebt oder kippt ihn aber, statt ihn
+einzuschließen. Nach der vorab vereinbarten Regel ist damit die Sim (genauer: die Lage der Würfel
+relativ zur Hand, s. Lauf 59) der Blocker; Closed-Loop-Modellzahlen wären gegen eine Schranke
+von ~0 gemessen.
+
+#### Lauf 58 — Würfelgröße
+
+Neuer Schalter `SIM_CUBE_EDGE` (`cab3368`; die Env hatte 0,05 m fest eingetragen). Orakel,
+Episoden 240–244, `EPISODE_LENGTH_S=40`, GPU 1: Kante 4,5 cm und 4,0 cm → jeweils
+`lifted_clear` 0/5; Unterseite mit Hand max. 0,8 cm. Kleinere Würfel lassen die Kuppen näher
+kommen (2,1–2,7 statt 2,6–3,0 cm), werden aber eher seltener bewegt. Die Bild-Vermessung der
+Deckfläche (`topface`, 20 Trainings-Episoden 0–228, Schritt 12) ist nicht trennscharf: 3,7–5,5 cm
+je nach Schwellenregel (Otsu 5,49, q50 4,83; August, 5 Ep.: Otsu 4,94). **Die Würfelgröße ist
+nicht die Ursache.** Videos (vergrößert): die Greifbewegung stimmt in Höhe und Timing, sitzt
+aber wenige Zentimeter neben dem Würfel.
+
+#### Lauf 59 — Griffversatz aus der FK der echten Hand
+
+Kinematik ohne Physik (Skript `grip_aperture.py`, Sitzungs-Scratchpad, nicht im Repo): Gelenke
+der Test-Episoden 240–259 gesetzt, Kuppen per `get_contact_points_w`. Erster Griff je Hand =
+letzter Frame auf Würfelhöhe vor dem Anheben mit Daumen↔Finger < 8,5 cm. Ergebnis
+(`sim_results/grasp_offset.json`, 30 Griffe aus 242–259):
+
+- Kuppenöffnung der echten Hand beim Tragen 7,0–7,5 cm, nie unter ~6 cm.
+- Griffstelle (Kuppenmitte) minus Bild-Würfellage: **dx Median ≈ +1,7 cm** (vom Roboter weg),
+  **dy spiegelbildlich**: rechte Hand fast immer negativ (Median ≈ −2,6 cm), linke fast immer
+  positiv (≈ +1,9 cm); Betrag 1–7 cm, Median ~3,4 cm (vgl. „Restabstand 4,5 cm“, Läufe 49–51).
+
+Ein Fehler der Bild-Würfellage (Kamera) verschöbe beide Hände gleich; das Spiegelmuster spricht
+für Hand-/Armgeometrie — entweder echter Kinematikfehler der Sim (z. B. fehlende Taillen-/Hüft-
+gelenke im 28-dim-State, Schulterbreite) oder schlicht dafür, dass die Kuppenmitte beim Griff
+seitlich der Würfelmitte liegt. Lauf 60 sollte das trennen.
+
+#### Lauf 60 — Orakel mit griffverankerten Würfeln
+
+Layout `layout_heldout_graspanchored.json`: je erstem Griff einer Hand Würfel-xy um den Versatz
+aus Lauf 59 verschoben, 18 Episoden (242–259), `EPISODE_LENGTH_S=40`, GPU 1. Ergebnis:
+`lifted` 5/18, **`lifted_clear` 3/18** (Ep. 245: 8,3 cm, 250: 6,1 cm, 258: 5,1 cm; KI 3,6–41 %),
+`stacked` 0/18 (KI 0–18,5 %). Ep. 243: Würfel 60 cm weggeschossen (Startüberlappung), zählt nicht
+als Griff. Auf den gemeinsamen Episoden 242–255 2 gegen 1 Lift — **kein belastbarer Gewinn**.
+In Ep. 245 betrug die Verschiebung nur 0,55 cm, der Ausgang wechselte trotzdem von 0,7 auf
+8,3 cm: das blind abgespielte Orakel reagiert auf Sub-Zentimeter-Lagen. **Lesart:** Die
+Sim-Physik kann greifen und heben (drei echte Lifts); der Engpass ist die Lage Würfel↔Hand. Die
+Kuppenmitte ist aber nicht der richtige Korrekturpunkt — ein globaler Versatz-Sweep steht aus.
+
+#### Lauf 61 — `span`-Gate N1.6 auf zurückgehaltenen Episoden
+
+Checkpoint **vision-v2 @ 30 000** (`/data/checkpoints/groot-g1dex3-checkpoint`, `run_id`
+`g1_dex3_blockstacking_vision_v2`, `global_step` 30000; der validierte 44 000 liegt nur auf
+KISSKI — Messung mit 30 000 auf Wunsch, 44 000 folgt). Image `…-sim-standalone:20261014-141304`,
+Container `groot-rl-eval`, `GROOT_VERSION=1.6`, `SPAN_TRAJ_IDS="240 255 270 285 300"` (Protokoll
+wie Läufe 54/55). Vorhersage/GT der Fingerspanne: 0,90 / 0,93 / 0,87 / 0,97 / 0,85, **Median 90 %**;
+MSE 0,0057 / 0,0051 / 0,0033 / 0,0050 / 0,0080 (Median 0,0051). Vergleich N1.7 @44000 (Lauf 55):
+94 %, MSE-Median 0,0043. Auf echten Bildern zurückgehaltener Episoden kommandiert N1.6 also
+den Griff. Das vom Skript ausgegebene Fazit „Domain-Gap bestätigt“ trägt hier nicht: solange
+die Demo selbst in der Sim nicht greift (Lauf 57), trennt Closed Loop gegen Open Loop die
+Ursachen nicht. JSON: `sim_results/span_n16_vision-v2-30000_test_20261014.json`.
+
+**Nebenbefunde:** `tools/test_menu.sh` hinterlässt einen laufenden Container `groot-rl` mit
+einem `/data` im inzwischen gelöschten Temp-Verzeichnis (nicht entfernt, Entscheidung offen). Auf
+GPU 0 lief ab ~16:40 ein fremdes N1.7-Finetuning (47 GB) — Wanduhren danach nicht vergleichbar.
 
