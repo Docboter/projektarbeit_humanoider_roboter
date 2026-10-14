@@ -2261,7 +2261,7 @@ Videos nur stichprobenhaft als Standbilder gesichtet.
 ### Lauf 56: Daumen-Grenzen und gemischter Datensatz
 
 **2026-10-14, `ikr-ki-server-01`**, Sim-Image `lucam03/projekt-humanoider-roboter-sim-standalone:latest`
-(Docker Hub, 2026-08-26), Container `groot-rl-hub`, Sim-Code aus dem Repo gemountet (Stand `8c7b59b`),
+(Docker Hub, 2026-08-26), Container `groot-rl-hub`, Sim-Code aus dem Repo gemountet (Stand `f645522`),
 schwarzhändiges Asset. Kein Modell.
 
 **Frage (Review 10-13 S7):** Klemmt die Sim `thumb_0`/`thumb_2`, weil `_widen_finger_joint_limits`
@@ -2287,7 +2287,7 @@ protokollierter Sim-Lauf (54/55 liefen auf Trooper.ai).
 ### Läufe 57–61: Orakel-Replay, Würfelgröße, Griffversatz, `span` N1.6
 
 **Gemeinsame Bedingungen (2026-10-14, `ikr-ki-server-01`, 2× RTX PRO 6000 Blackwell):** Sim-Code
-gemountet ab `8c7b59b` (Läufe 57–60 ohne Modell, Image `…-sim-standalone` vom 2026-08-26, Container
+gemountet ab `f645522` (Läufe 57–60 ohne Modell, Image `…-sim-standalone` vom 2026-08-26, Container
 `groot-rl-hub`); korrigierte Geometrie (Becken 0,764 m, Basis x −0,057 m, keine Fingerspiegelung),
 schwarzhändiges Asset, 30 Hz, Exec-Horizon 8, `DR_ENABLED=0`, `DR_SEED=0`. Datensatz frisch erzeugt
 (Lauf 56). Würfel-Startlagen aus `LAYOUT_HELD_OUT=1 layout` → `/data/eval/layout_heldout.json`:
@@ -2295,7 +2295,7 @@ schwarzhändiges Asset, 30 Hz, Exec-Horizon 8, `DR_ENABLED=0`, `DR_SEED=0`. Date
 Würfeln, 104/180 mit Gierwinkel, Kamera-Uneinigkeit Median 1,27 cm. Bei `NUM_EPISODES=20` sind das
 die Episoden **240–259**.
 
-**Werkzeug:** neue Aktion `oracle` (`8c7b59b`): die Eval selbst, nur liefert statt GR00T der
+**Werkzeug:** neue Aktion `oracle` (`f645522`): die Eval selbst, nur liefert statt GR00T der
 Datensatz die Aktionen der Layout-Episode; Roboter startet im aufgezeichneten Frame 0, nach dem
 Demo-Ende wird die letzte Aktion gehalten. Zusätzlich Tracking-Fehler Sim↔Aufzeichnung.
 Die vorhandenen `replay-*`-Aktionen taugten dafür nicht (verweigern Test-Episoden, eigene
@@ -2325,7 +2325,7 @@ von ~0 gemessen.
 
 #### Lauf 58 — Würfelgröße
 
-Neuer Schalter `SIM_CUBE_EDGE` (`cab3368`; die Env hatte 0,05 m fest eingetragen). Orakel,
+Neuer Schalter `SIM_CUBE_EDGE` (`af564a9`; die Env hatte 0,05 m fest eingetragen). Orakel,
 Episoden 240–244, `EPISODE_LENGTH_S=40`, GPU 1: Kante 4,5 cm und 4,0 cm → jeweils
 `lifted_clear` 0/5; Unterseite mit Hand max. 0,8 cm. Kleinere Würfel lassen die Kuppen näher
 kommen (2,1–2,7 statt 2,6–3,0 cm), werden aber eher seltener bewegt. Die Bild-Vermessung der
