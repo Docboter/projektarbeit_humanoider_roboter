@@ -9,7 +9,7 @@
 #
 # Die Trainings laufen also streng nacheinander (afterany: ein abgebrochener Lauf hält die
 # Kette nicht an), jeder Sweep direkt nach seinem Training — und nur, wenn es sauber
-# durchlief. Ausnahme: hinter dem Kurztest `smoke` hängt der nächste Lauf mit afterok. Die Läufe sind unten als Voreinstellungen hinterlegt, damit Namespace,
+# durchlief. Ausnahme: hinter einem Kurztest (`smoke*`) hängt der nächste Lauf mit afterok. Die Läufe sind unten als Voreinstellungen hinterlegt, damit Namespace,
 # Datensatz und Hyperparameter nicht bei jedem Einreichen neu getippt werden müssen.
 #
 # NUTZUNG (auf dem Login-Node, im Repo-Verzeichnis):
@@ -228,9 +228,10 @@ for r in "${RUNS[@]}"; do
     echo "    Training: $train_id   Sweep: $sweep_id (afterok)"
     SUMMARY+=("$r  train=$train_id  sweep=$sweep_id  → $(host_path "$OUTPUT_DIR")/checkpoint_sweep.json")
     prev="$train_id"
-    # Hinter dem Kurztest afterok statt afterany: scheitert er, sollen die großen Läufe
-    # gar nicht erst starten — genau dafür ist er da. Hängt dann als DependencyNeverSatisfied.
-    if [[ "$r" == smoke ]]; then prev_dep="afterok"; else prev_dep="afterany"; fi
+    # Hinter jedem Kurztest (smoke, smoke_render_v3, …) afterok statt afterany: scheitert er,
+    # sollen die großen Läufe gar nicht erst starten — genau dafür ist er da. Hängt dann als
+    # DependencyNeverSatisfied. Bis 2026-10-15 griff das nur für den Namen `smoke` exakt.
+    if [[ "$r" == smoke* ]]; then prev_dep="afterok"; else prev_dep="afterany"; fi
 done
 
 echo
