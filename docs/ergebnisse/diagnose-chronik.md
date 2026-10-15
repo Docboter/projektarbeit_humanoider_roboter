@@ -84,6 +84,7 @@ Für den **aktuellen Projektstatus** siehe
 | 73–79 | *frei für die Co-Training-Läufe auf KISSKI (Auftrag v3)* |
 | 80 | Visuelles Gate geseedet (`visgate`, Seeds 0/1/2): ungeseedet streut die MSE Hände je Episode bis ×2, der Median über 4 Ep. nur ±5 %. Ausgangswerte MSE Hände 5 / 4 cm: N1.6 @44000 **0,0239 / 0,0221** (Echtbild 0,0014), @30000 0,0214 / 0,0193, N1.7 @44000 0,0758 / 0,0666 ([Läufe 80/81](#läufe-8081-visuelles-gate-geseedet-closed-loop-n17-in-der-szene-aus-lauf-70)) |
 | 81 | Closed Loop N1.7 @44000 in der Szene aus Lauf 70 auf `layout_heldout_dy3.json`, 20 × 120 s: `lifted` **0/20** (KI 0–17 %), Fingerspanne Median 0,52 rad (~25 % der Demo) — die Szenen-Angleichung ändert den Closed Loop nicht ([Läufe 80/81](#läufe-8081-visuelles-gate-geseedet-closed-loop-n17-in-der-szene-aus-lauf-70)) |
+| 82 | Dasselbe mit N1.6 @44000: `lifted_clear` **0/20** (KI 0–17 %); aktiver als N1.7 (`reached` 16, `touched` 17, Würfel bis 17 cm geschoben, Spanne Median 0,64 rad, max. 1,43), schließt aber nicht. Das einzige `lifted` ist ein weggeschleuderter Würfel ([Lauf 82](#lauf-82-closed-loop-n16-44000-szene-aus-lauf-70)) |
 
 ---
 
@@ -2652,7 +2653,7 @@ vLLM-Server (~68 GB je Karte); Laufzeiten sind deshalb nicht vergleichbar.
 
 #### Lauf 80 — Visuelles Gate mit festem Seed
 
-Neue Aktion `server_rl_run.sh visgate` (Commit `c526a1b`): teacher-forced Open Loop wie Lauf 66/72
+Neue Aktion `server_rl_run.sh visgate` (Commit `6c05413`): teacher-forced Open Loop wie Lauf 66/72
 auf `/data/cotrain/vis_gate_v3_cube{5,4}` (Positionen 0–3 = Trainings-Ep. 0/4/8/12, 600 Steps)
 und auf den echten Bildern derselben Episoden; Kennzahl Median MSE Hände über die 4 Episoden.
 
@@ -2695,3 +2696,32 @@ aus der Szene gefallen; nicht untersucht). Bild wie Läufe 55/64: Hand fährt an
 Open-Loop-Fehler, der noch ×29 über dem Echtbild liegt. JSON:
 `sim_results/results_20261015-104047_groot-g1dex3-n17-vision-v1-ckpt44000.json`, Log
 `logs/cl_n17_scene70_dy3_20261015.log`, Videos `sim_videos/cl_n17_scene70_dy3/`.
+
+### Lauf 82: Closed Loop N1.6 @44000, Szene aus Lauf 70
+
+**2026-10-15, 12:50–15:19**, Container `groot-rl-eval`, Checkpoint `luca-mue/groot-g1dex3-vision-v2-44000`
+(SHA256 wie Lauf 80). Protokoll identisch mit Lauf 81 (Test-Ep. 240–259 aus
+`layout_heldout_dy3.json`, 20 × 120 s, DR aus, Seed 0, Exec-Horizon 8, Szene aus Lauf 70). Erste
+Closed-Loop-Messung des validierten N1.6-Checkpoints mit korrigierter Geometrie und korrigiertem
+Layout.
+
+| Stufe | N1.6 @44000 (Lauf 82) | N1.7 @44000 (Lauf 81) |
+|---|---|---|
+| `reached` / `touched` | **16 / 17** | 7 / 7 |
+| `lifted` | 1/20 (Artefakt, s. u.) | 0/20 |
+| `lifted_clear` / `stacked` | **0/20 / 0/20** (KI95 0–16,8 %) | 0/20 / 0/20 |
+| Fingerspanne Median (Bereich) | 0,64 rad (0,43–1,43) | 0,52 rad (0,42–0,55) |
+| kleinster Abstand Kuppe↔Würfel, Median | 3,4 cm | 4,9 cm |
+
+- **Das eine `lifted` ist kein Griff:** In Episode 17 meldet die Sim 58,9 cm Anhebung bei 5 461,5 cm
+  Versatz, Unterseite mit Hand nur 0,3 cm. Der Würfel wurde weggeschleudert (wie der Ausreißer in
+  Lauf 81). Ohne diese Episode liegt die größte Anhebung bei 1,6 cm.
+- In 6 von 20 Episoden schiebt die Hand den Würfel 4–17 cm weit. Die Spanne erreicht bis zu 1,43 rad
+  (~68 % der Demo), der Griff schließt aber nie um den Würfel.
+
+**Lesart:** N1.6 @44000 ist im Closed Loop deutlich zielstrebiger als N1.7 (erreicht und berührt
+den Würfel in 16–17 von 20 Episoden), scheitert aber am Schließen, wie Lauf 64. Das passt zum
+Gate (Lauf 80): auf Sim-Bildern liegt der Hand-Fehler ×17 über dem Echtbild. Dies ist der
+Vergleichswert für den Closed Loop der co-trainierten N1.6-Modelle. JSON:
+`sim_results/results_20261015-131931_groot-g1dex3-vision-v2-44000.json`, Log
+`logs/cl_n16_44k_scene70_dy3_20261015.log`, Videos `sim_videos/cl_n16_44k_scene70_dy3/`.

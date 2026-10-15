@@ -34,7 +34,8 @@ verweisen hierher. Den N1.7-Detailstand pflegt
   Die Gate-Messung war ungeseedet (MSE je Episode bis ×2); geseedete Ausgangswerte MSE Hände
   5 / 4 cm: **N1.6 @44000 0,0239 / 0,0221** (Maßstab, Schwelle ~0,019 / 0,018), @30000
   0,0214 / 0,0193, N1.7 @44000 0,0758 / 0,0666 (Lauf 80). Closed Loop N1.7 @44000 in der
-  Szene aus Lauf 70: `lifted` 0/20 (Lauf 81); N1.6 @44000 läuft (Lauf 82).
+  Szene aus Lauf 70: `lifted` 0/20 (Lauf 81); N1.6 @44000 `lifted_clear` 0/20, erreicht/berührt
+  den Würfel aber in 16/17 von 20 Ep. (Lauf 82).
   Details: [Läufe 80/81](docs/ergebnisse/diagnose-chronik.md#läufe-8081-visuelles-gate-geseedet-closed-loop-n17-in-der-szene-aus-lauf-70).
 - **Neu 2026-10-14 (abends) — zwei Blocker nachgewiesen, in dieser Reihenfolge:**
   1. *Registrierung Würfel↔Hand:* die Würfel liegen in der Sim je Seite ~3 cm zu weit innen;
