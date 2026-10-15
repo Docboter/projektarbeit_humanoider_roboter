@@ -4,13 +4,13 @@
 > nächste Schritte und offene Widersprüche zwischen den Ergebnisdokumenten. Bezugspunkt für
 > die Prioritätensetzung, kein Ergebnisbericht selbst.
 
-**Stand:** 2026-10-14 (Kurzstatus §0; Fassung davor 2026-10-13, 2026-10-11, 2026-08-14) · Grundlage: Ergebnis-Dokumente unter [`docs/ergebnisse/`](docs/ergebnisse/README.md),
+**Stand:** 2026-10-15 (Kurzstatus §0; Fassung davor 2026-10-14, 2026-10-13, 2026-10-11, 2026-08-14) · Grundlage: Ergebnis-Dokumente unter [`docs/ergebnisse/`](docs/ergebnisse/README.md),
 [RL-Plan](docs/weiterfuehrend/reinforcement-learning-plan.md), Trainings-Launcher unter
 [`Training/scripts/`](Training/scripts/).
 
 ---
 
-## 0. Projektstatus in Kürze (Stand 2026-10-14)
+## 0. Projektstatus in Kürze (Stand 2026-10-15)
 
 Diese Zusammenfassung ist die **eine gepflegte Statusquelle** des Projekts; CLAUDE.md und README
 verweisen hierher. Den N1.7-Detailstand pflegt
@@ -28,6 +28,14 @@ verweisen hierher. Den N1.7-Detailstand pflegt
 - **Closed Loop insgesamt:** 0 Erfolge (N1.6 Lauf 34: `lifted` 0/10, noch alte Geometrie; N1.7
   Läufe 54/55: 0/10). Die Sim-Geometrie ist seit 2026-08-24 korrigiert; die N1.6-Neumessung mit
   korrigierter Szene steht aus.
+- **Neu 2026-10-15 — Co-Training v3 läuft auf KISSKI, Abnahme auf dem IKR vorbereitet:**
+  Läufe `render_v3_cube5`/`render_v3_cube4` (N1.6, Mischung 0,15) eingereicht, Smoke wartet auf
+  GPUs (Laufnummern 73–79 reserviert). Abnahme ist ein Befehl: `server_rl_run.sh visgate`.
+  Die Gate-Messung war ungeseedet (MSE je Episode bis ×2); geseedete Ausgangswerte MSE Hände
+  5 / 4 cm: **N1.6 @44000 0,0239 / 0,0221** (Maßstab, Schwelle ~0,019 / 0,018), @30000
+  0,0214 / 0,0193, N1.7 @44000 0,0758 / 0,0666 (Lauf 80). Closed Loop N1.7 @44000 in der
+  Szene aus Lauf 70: `lifted` 0/20 (Lauf 81); N1.6 @44000 läuft (Lauf 82).
+  Details: [Läufe 80/81](docs/ergebnisse/diagnose-chronik.md#läufe-8081-visuelles-gate-geseedet-closed-loop-n17-in-der-szene-aus-lauf-70).
 - **Neu 2026-10-14 (abends) — zwei Blocker nachgewiesen, in dieser Reihenfolge:**
   1. *Registrierung Würfel↔Hand:* die Würfel liegen in der Sim je Seite ~3 cm zu weit innen;
      mit Korrektur hebt das Orakel in ~50 % statt ~0 % (Lauf 62). Ursache offen (kein einzelner
@@ -130,7 +138,12 @@ Projekts bleibt **0 Erfolge im Closed-Loop** (0/20 früher, Lauf 34: 0/10).
 ## 2. Nächste Schritte — in dieser Reihenfolge (Stand 2026-10-14)
 
 > **Vorgezogen (2026-10-14), vor allen Punkten der Tabelle unten:**
-> 00. **Stand 2026-10-15 — bereit für KISSKI:** Co-Training-Datensätze v3 (5 cm und 4 cm, je 187
+> 00. **Stand 2026-10-15 mittags:** auf KISSKI eingereicht (Smoke wartet). Abnahme auf dem IKR
+>    mit `server_rl_run.sh visgate` gegen die geseedeten Ausgangswerte aus Lauf 80 (Maßstab N1.6
+>    @44000: 0,0239 / 0,0221, Schwelle ~0,019 / 0,018); erst darunter Closed Loop mit Szene
+>    aus Lauf 70 gegen Lauf 81/82. Die Ausgangswerte aus Lauf 72 sind überholt durch Lauf 80.
+>
+>    **Stand 2026-10-15 früh — bereit für KISSKI:** Co-Training-Datensätze v3 (5 cm und 4 cm, je 187
 >    Trainings-Ep., 29 890 Frames, Lauf 72) liegen privat auf HF (`luca-mue/g1-dex3-rendered-v3-cube5`,
 >    `…-cube4`). Presets in `Training/kisski_chain.sh`: `smoke_render_v3`, `render_v3_cube5`,
 >    `render_v3_cube4`, `render_v3_cube5_n17` (Mischung 0,15). Abnahme danach auf dem IKR-Server mit

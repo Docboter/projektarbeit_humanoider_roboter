@@ -81,6 +81,9 @@ Für den **aktuellen Projektstatus** siehe
 | 70 | Szene schrittweise ans Echtbild angeglichen (Tisch 2 m breit, graue Arme, Handgelenkkamera vor/tiefer, 85°): MSE Hände im teacher-forced Open Loop N1.6 0,036 → 0,022, N1.7 0,086 → 0,070 — Echtbild 0,0025; die groben Szenenmerkmale erklären nur einen kleinen Teil ([Läufe 70/71](#läufe-7071-szene-ans-echtbild-angleichen-kamera-mischung)) |
 | 71 | Kamera-Mischung (echt/Sim je Kameragruppe): N1.6 Kopf und Handgelenk gleich schädlich (je ×4, zusammen ×13); N1.7 vor allem Handgelenk (×20) ([Läufe 70/71](#läufe-7071-szene-ans-echtbild-angleichen-kamera-mischung)) |
 | 72 | Co-Training-Datensätze **v3** gerendert (5 cm und 4 cm, je 187 Trainings-Ep., 29 890 Frames, Szene aus Lauf 70, Layout aller Trainings-Ep. korrigiert); Hand↔Würfel am Griff xy-Median 3,3 / 3,2 cm; privat auf HF ([Lauf 72](#lauf-72-co-training-datensätze-v3)) |
+| 73–79 | *frei für die Co-Training-Läufe auf KISSKI (Auftrag v3)* |
+| 80 | Visuelles Gate geseedet (`visgate`, Seeds 0/1/2): ungeseedet streut die MSE Hände je Episode bis ×2, der Median über 4 Ep. nur ±5 %. Ausgangswerte MSE Hände 5 / 4 cm: N1.6 @44000 **0,0239 / 0,0221** (Echtbild 0,0014), @30000 0,0214 / 0,0193, N1.7 @44000 0,0758 / 0,0666 ([Läufe 80/81](#läufe-8081-visuelles-gate-geseedet-closed-loop-n17-in-der-szene-aus-lauf-70)) |
+| 81 | Closed Loop N1.7 @44000 in der Szene aus Lauf 70 auf `layout_heldout_dy3.json`, 20 × 120 s: `lifted` **0/20** (KI 0–17 %), Fingerspanne Median 0,52 rad (~25 % der Demo) — die Szenen-Angleichung ändert den Closed Loop nicht ([Läufe 80/81](#läufe-8081-visuelles-gate-geseedet-closed-loop-n17-in-der-szene-aus-lauf-70)) |
 
 ---
 
@@ -2636,3 +2639,59 @@ Episode nach 20 min ohne Log-Fortschritt; diese Nacht kein Hänger).
 
   Ein co-trainiertes Modell muss diese Werte deutlich unterbieten, bevor ein Closed Loop lohnt.
 
+  > **Überholt durch [Lauf 80](#läufe-8081-visuelles-gate-geseedet-closed-loop-n17-in-der-szene-aus-lauf-70)**
+  > (2026-10-15): diese Werte sind ungeseedete Einzelmessungen. Maßstab ist jetzt N1.6 @44000 mit
+  > Seeds 0/1/2: 0,0239 / 0,0221, Schwelle ~0,019 / 0,018.
+
+### Läufe 80/81: Visuelles Gate geseedet, Closed Loop N1.7 in der Szene aus Lauf 70
+
+**2026-10-15, 10:30–12:50**, `ikr-ki-server-01`, Image `…-sim-standalone:20261014-141304`, Container
+`groot-rl-eval` (N1.6) und `groot-rl-eval17` (N1.7). Laufnummern 73–79 sind für die
+Co-Training-Läufe auf KISSKI reserviert. Ab etwa 10:36 lief auf beiden GPUs ein fremder
+vLLM-Server (~68 GB je Karte); Laufzeiten sind deshalb nicht vergleichbar.
+
+#### Lauf 80 — Visuelles Gate mit festem Seed
+
+Neue Aktion `server_rl_run.sh visgate` (Commit `c526a1b`): teacher-forced Open Loop wie Lauf 66/72
+auf `/data/cotrain/vis_gate_v3_cube{5,4}` (Positionen 0–3 = Trainings-Ep. 0/4/8/12, 600 Steps)
+und auf den echten Bildern derselben Episoden; Kennzahl Median MSE Hände über die 4 Episoden.
+
+- **Die Messung war ungeseedet.** Die Diffusion der Policy startet aus `torch.randn`; derselbe
+  Checkpoint auf derselben Episode lieferte Echtbild Traj 4 MSE Hände 0,0062 statt 0,0032 (Lauf 66).
+  `finger_span_openloop.py --seed` seedet jetzt je Trajektorie (`seed + traj_id`).
+- **Streuung über die Seeds 0/1/2** (Median je Seed): klein, etwa ±5 %. Ein Modell, das unter
+  ~80 % der Ausgangswerte liegt, unterbietet sie also nicht zufällig.
+- N1.6 @44000 von HF (`luca-mue/groot-g1dex3-vision-v2-44000`, SHA256 der Shards
+  `0a36e78c…` / `6123d7d3…`, identisch mit KISSKI).
+
+| MSE Hände (Mittel der Seed-Mediane) | Echtbild | Prüfset 5 cm | Prüfset 4 cm |
+|---|---|---|---|
+| N1.6 vision-v2 @30000 | 0,0039 | 0,0214 (0,0206–0,0227) | 0,0193 (0,0187–0,0198) |
+| **N1.6 vision-v2 @44000** | **0,0014** | **0,0239** (0,0232–0,0243) | **0,0221** (0,0221) |
+| N1.7 vision-v1 @44000 | 0,0026 | 0,0758 (0,0735–0,0788) | 0,0666 (0,0642–0,0682) |
+
+**Lesart:** @44000 ist auf Echtbildern fast dreimal so gut wie @30000, auf den Sim-Prüfsets aber
+11–15 % schlechter — mit mehr Training spezialisiert sich das Modell weiter auf die echte
+Domäne. Maßstab für die v3-Läufe (wie Lauf 3 bis 44 000 Steps) ist deshalb **N1.6 @44000**:
+Schwelle 80 % = **0,019 (5 cm) / 0,018 (4 cm)**. Die ungeseedeten Ausgangswerte aus Lauf 72
+bleiben als Einzelmessung stehen. JSON: `sim_results/visgate_base_n1{6,7}_*_s{0,1,2}_*.json`.
+
+#### Lauf 81 — Closed Loop N1.7 @44000, Szene aus Lauf 70
+
+`layout_heldout_dy3.json` (Test-Ep. 240–259), 20 × 120 s, DR aus, Seed 0, Exec-Horizon 8,
+Prompt aus dem Datensatz, Szene wie die v3-Renders (`SIM_TABLE_SIZE="0.8 2.0"`,
+`SIM_WRIST_EYE="0.02 0.0 0.08"`, `SIM_WRIST_TARGET="0.30 0.0 -0.08"`, `SIM_WRIST_HFOV=85`; am
+laufenden Prozess geprüft). Vergleichswert für den späteren Closed Loop des co-trainierten Modells.
+
+| Stufe | k/20 |
+|---|---|
+| `reached` / `touched` | 7 / 7 |
+| `lifted` / `lifted_clear` / `stacked` | **0 / 0 / 0** (KI95 0–16,8 %) |
+
+Fingerspanne Median 0,52 rad (0,42–0,55), kleinster Abstand Kuppe↔Würfel Median 4,9 cm (bestes
+2,6 cm), größte Anhebung 1,1 cm. Eine Episode meldet 2 233,7 cm Würfelversatz (Würfel offenbar
+aus der Szene gefallen; nicht untersucht). Bild wie Läufe 55/64: Hand fährt an, bleibt halb offen.
+**Lesart:** die Szenen-Angleichung aus Lauf 70 bewegt den Closed Loop nicht — erwartbar bei einem
+Open-Loop-Fehler, der noch ×29 über dem Echtbild liegt. JSON:
+`sim_results/results_20261015-104047_groot-g1dex3-n17-vision-v1-ckpt44000.json`, Log
+`logs/cl_n17_scene70_dy3_20261015.log`, Videos `sim_videos/cl_n17_scene70_dy3/`.
