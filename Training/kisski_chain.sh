@@ -38,7 +38,7 @@ err()  { printf '\033[1;31m!! \033[0m %s\n' "$*" >&2; }
 # Alle synth-Läufe übernehmen die Parameter von cotrain_synth_v1
 # (docs/training/synth-datensatz.md § 6.2/§ 7), damit sie gegen ihn vergleichbar bleiben.
 # Ein Lauf = eine Zeile im case + eine Zeile in PRESETS.
-PRESETS=(smoke synth_jointspace synth_v22)
+PRESETS=(smoke synth_jointspace synth_v22 smoke_render_v3 render_v3_cube5 render_v3_cube4 render_v3_cube5_n17)
 SMOKE_STAMP="$(date +%Y%m%d-%H%M%S)"   # einmal je Aufruf: preset() läuft mehrfach
 
 preset() {
@@ -73,6 +73,44 @@ preset() {
             COTRAIN_DATASET_PATH=/data/cotrain/cube_stacking_synth_v22
             OUTPUT_DIR=/data/g1_dex3_finetune/blockstacking_cotrain_synth_v22
             EXPERIMENT_NAME=g1_dex3_blockstacking_cotrain_synth_v22 ;;
+        smoke_render_v3)
+            # Kurztest für die render_v3-Läufe (gleiche Konfiguration, 50 Schritte): erster Lauf
+            # mit dem EIGENEN Render überhaupt — Startausgabe auf "[cotrain] Zwei Datensätze:" prüfen.
+            DESCRIPTION="Kurztest: render_v3_cube5-Konfiguration, 50 Schritte, 1 h Walltime"
+            COTRAIN_DATASET_PATH=/data/cotrain/g1_dex3_rendered_v3_cube5
+            COTRAIN_MIX_RATIO="${COTRAIN_MIX_RATIO_OVERRIDE:-0.15}"
+            OUTPUT_DIR=/data/g1_dex3_finetune/smoke_cotrain_render_v3_$SMOKE_STAMP
+            EXPERIMENT_NAME=g1_dex3_smoke_cotrain_render_v3_$SMOKE_STAMP
+            RUN_ENV=(MAX_STEPS=50 SAVE_STEPS=50 SAVE_TOTAL_LIMIT=1)
+            RUN_SBATCH=(--time=01:00:00 --job-name=groot-smoke) ;;
+        render_v3_cube5)
+            # Eigener Render v3 (IKR-Server 2026-10-15, Chronik Läufe 62/70/72): korrigierte
+            # Geometrie, Würfel 3 cm nach außen, Tisch 2 m breit, Handgelenkkamera vor/tiefer/85°,
+            # 187 Trainings-Episoden bis zum Griff (29 890 Frames; Prüfset 0/4/8/12 zurückgehalten).
+            # Mischung: Ausgleichspunkt 0,115 (co-training.md §4.2), bewusst knapp darüber.
+            # HF: luca-mue/g1-dex3-rendered-v3-cube5 (privat).
+            DESCRIPTION="Co-Training echt + eigener Render v3, 5-cm-Würfel (N1.6)"
+            COTRAIN_DATASET_PATH=/data/cotrain/g1_dex3_rendered_v3_cube5
+            COTRAIN_MIX_RATIO="${COTRAIN_MIX_RATIO_OVERRIDE:-0.15}"
+            OUTPUT_DIR=/data/g1_dex3_finetune/blockstacking_cotrain_render_v3_cube5
+            EXPERIMENT_NAME=g1_dex3_blockstacking_cotrain_render_v3_cube5 ;;
+        render_v3_cube4)
+            # Wie render_v3_cube5, aber 4-cm-Würfel im Render (SIM_CUBE_EDGE=0.04).
+            # HF: luca-mue/g1-dex3-rendered-v3-cube4 (privat).
+            DESCRIPTION="Co-Training echt + eigener Render v3, 4-cm-Würfel (N1.6)"
+            COTRAIN_DATASET_PATH=/data/cotrain/g1_dex3_rendered_v3_cube4
+            COTRAIN_MIX_RATIO="${COTRAIN_MIX_RATIO_OVERRIDE:-0.15}"
+            OUTPUT_DIR=/data/g1_dex3_finetune/blockstacking_cotrain_render_v3_cube4
+            EXPERIMENT_NAME=g1_dex3_blockstacking_cotrain_render_v3_cube4 ;;
+        render_v3_cube5_n17)
+            # Wie render_v3_cube5, aber GR00T N1.7 (launch_cotrain_n17.py, eigene SIF). N1.7
+            # reagiert im Open Loop vor allem auf die Handgelenkkameras (Chronik Lauf 71).
+            DESCRIPTION="Co-Training echt + eigener Render v3, 5-cm-Würfel, GR00T N1.7"
+            COTRAIN_DATASET_PATH=/data/cotrain/g1_dex3_rendered_v3_cube5
+            COTRAIN_MIX_RATIO="${COTRAIN_MIX_RATIO_OVERRIDE:-0.15}"
+            OUTPUT_DIR=/data/g1_dex3_finetune/blockstacking_cotrain_render_v3_cube5_n17
+            EXPERIMENT_NAME=g1_dex3_blockstacking_cotrain_render_v3_cube5_n17
+            RUN_ENV=(GROOT_VERSION=1.7) ;;
         *) return 1 ;;
     esac
 }
@@ -182,6 +220,9 @@ for r in "${RUNS[@]}"; do
     )"
     sweep_id="$(
         export RUN_DIR="$OUTPUT_DIR" DATASET_PATH="$REAL_DATASET" KISSKI_PROJECT_DIR DATA_DIR
+        # GROOT_VERSION & Co. auch hier: sonst lädt der Sweep eines N1.7-Laufs die N1.6-SIF.
+        # Nur Versions-Variablen — MAX_STEPS usw. des Smoke-Tests gelten nicht für den Sweep.
+        for kv in "${RUN_ENV[@]}"; do [[ "$kv" == GROOT_VERSION=* ]] && export "$kv"; done
         submit "afterok:$train_id" Training/kisski_open_loop_eval.sh
     )"
     echo "    Training: $train_id   Sweep: $sweep_id (afterok)"
