@@ -211,8 +211,8 @@ Fassung in `CLAUDE.md`; deren Zusatzangaben sind hier eingearbeitet).
 │   ├── Dockerfile.standalone  # Standalone: Isaac Sim + GR00T in einem Container — IKR-Server & vast.ai
 │   ├── Dockerfile.webviewer   # Browser-Client für den WebRTC-Viewport (Port 8210); enthält KEINEN
 │   │                          #   Simulator — prüft zusätzlich, dass NVIDIAs sed-Patch gegriffen hat
-│   ├── server_rl_run.sh       # ★ Eigener-Server-Workflow (Docker), 28 Aktionen in 7 Gruppen:
-│   │                          #   preflight/setup/view/check/cams/gap/eval/oracle/grasp/span/render/rl/
+│   ├── server_rl_run.sh       # ★ Eigener-Server-Workflow (Docker), 29 Aktionen in 7 Gruppen:
+│   │                          #   preflight/setup/view/check/cams/gap/eval/oracle/grasp/span/visgate/render/rl/
 │   │                          #   livecheck/webview/layout/layoutcheck/yawcheck/tipcheck/topface/
 │   │                          #   latency/optimize/replay-*/shell/clean (Liste: `--help`).
 │   │                          #   view = Szene ohne Gewichte/HF_TOKEN; RL_NETWORK_MODE=host =
@@ -256,6 +256,7 @@ Fassung in `CLAUDE.md`; deren Zusatzangaben sind hier eingearbeitet).
 │       ├── lib_groot_version.sh  # identische Kopie von Training/scripts/lib_groot_version.sh
 │       ├── measure_domain_gap.py / overlay_camera_check.py   # Domain-Gap (SigLIP) / Kamera-Overlay
 │       ├── finger_span_openloop.py   # Fingerspanne auf ECHTEN Bildern (`span`)
+│       ├── visgate_summary.py        # Tabelle der Aktion `visgate` (Sim-Prüfsets gegen Lauf 72)
 │       ├── policy_latency.py  # reine Policy-Latenz in-process (`latency`)
 │       ├── check_action_norm.py / dump_unitree_g1_dims.py
 │       ├── groot_inference_backend.py / run_groot_optimized_server.py /

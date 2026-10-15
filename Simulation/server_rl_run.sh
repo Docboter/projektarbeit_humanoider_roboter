@@ -1334,6 +1334,61 @@ do_span() {
     || { err "Fingerspannen-Test ohne Ergebniszeile beendet (Traceback oben)."; return 1; }
 }
 
+# Visuelles Gate (Lauf 66/72): teacher-forced Open Loop auf den zurueckgehaltenen
+# Sim-Pruefsets UND auf den echten Bildern derselben Episoden. Zustand und Aktion sind
+# identisch, nur das Bild wechselt — die Differenz ist der visuelle Domain-Gap, wie die
+# Policy ihn sieht. Abnahme eines co-trainierten Checkpoints, bevor ein Closed Loop lohnt.
+# Gleiches Protokoll wie die Ausgangswerte in Lauf 72: Pruefset-Positionen 0-3 (= Trainings-
+# Ep. 0/4/8/12), 600 Steps, Median MSE Haende. Wie 'span' im GR00T-venv, ohne Isaac Sim.
+do_visgate() {
+  ensure_checkpoint
+  local sets="${VISGATE_SETS:-vis_gate_v3_cube5 vis_gate_v3_cube4}"
+  local real_ds="${SPAN_DATASET:-/data/unitreerobotics/G1_Dex3_BlockStacking_Dataset}"
+  local real_ids="${VISGATE_REAL_TRAJ_IDS:-0 4 8 12}"
+  local steps="${VISGATE_STEPS:-600}"
+  # Kennung fuer die Dateinamen: Default = Checkpoint-Ordnername, damit zwei Messungen
+  # verschiedener Modelle sich nicht ueberschreiben.
+  local tag="${VISGATE_TAG:-$(basename "$CHECKPOINT_PATH")}_s${VISGATE_SEED:-0}"
+  local out="/data/sim_results"
+
+  ensure_dataset "$real_ds" || return 1
+  local s
+  for s in $sets; do
+    docker exec "$CONTAINER" test -f "/data/cotrain/$s/meta/modality.json" \
+      || { err "Pruefset fehlt im Container: /data/cotrain/$s (Lauf 72)."; return 1; }
+  done
+
+  docker cp "$REPO_DIR/Simulation/scripts/finger_span_openloop.py" \
+            "$CONTAINER:/workspace/finger_span_openloop.py"
+
+  # $1 = Datensatz, $2 = Trajektorien (Positionen), $3 = JSON-Name
+  _visgate_one() {
+    log "visgate: $1  (Trajektorien $2, $steps Steps) -> $out/$3"
+    docker exec "${GPU_ENV[@]}" "$CONTAINER" bash -lc "
+      unset VIRTUAL_ENV
+      '$GROOT_ROOT/.venv/bin/python' /workspace/finger_span_openloop.py \
+          --model-path '$CHECKPOINT_PATH' \
+          --dataset-path '$1' \
+          --steps $steps \
+          --seed ${VISGATE_SEED:-0} \
+          --json-out '$out/$3' \
+          --traj-ids $2" 2>&1 | tee /dev/stderr \
+      | grep -c "Median Vorhersage" >/dev/null \
+      || { err "visgate auf $1 ohne Ergebniszeile beendet (Traceback oben)."; return 1; }
+  }
+
+  _visgate_one "$real_ds" "$real_ids" "visgate_${tag}_real.json" || return 1
+  for s in $sets; do
+    # Position im Pruefset, nicht episode_index: der Loader zaehlt ab 0.
+    _visgate_one "/data/cotrain/$s" "${VISGATE_GATE_TRAJ_IDS:-0 1 2 3}" \
+      "visgate_${tag}_${s}.json" || return 1
+  done
+
+  # shellcheck disable=SC2086
+  python3 "$REPO_DIR/Simulation/scripts/visgate_summary.py" \
+    --results-dir "$HOST_DATA_DIR/sim_results" --tag "$tag" --sets $sets
+}
+
 # Reine Policy-Latenz — die einzige hier messbare Zahl, die auch fuer echte Hardware gilt.
 #
 # Die Sim-Eval laeuft 3,5x langsamer als Echtzeit, aber 94 % davon sind Kamera-Rendering,
@@ -2162,6 +2217,16 @@ Aktionen:
               (Download + v3->v2-Konvertierung + modality.json, ~18 GB, einmalig).
               SPAN_DATASET (Default /data/unitreerobotics/G1_Dex3_BlockStacking_Dataset),
               SPAN_TRAJ_IDS (Default "0 1 2 3 4"), SPAN_AUTO_FETCH=0 schaltet das Holen ab.
+  visgate     Visuelles Gate (Lauf 66/72): teacher-forced Open Loop auf den Sim-Pruefsets
+              /data/cotrain/vis_gate_v3_cube{5,4} und auf den echten Bildern derselben
+              Episoden; Tabelle MSE Haende gegen die Ausgangswerte aus Lauf 72. Abnahme
+              eines co-trainierten Checkpoints vor jedem Closed Loop. Kein Isaac Sim.
+              CHECKPOINT_PATH + HF_CHECKPOINT_REPO (Download bei Bedarf), GROOT_VERSION,
+              VISGATE_SETS ("vis_gate_v3_cube5 vis_gate_v3_cube4"), VISGATE_TAG (Default
+              Checkpoint-Ordnername), VISGATE_STEPS (600), VISGATE_REAL_TRAJ_IDS ("0 4 8 12"),
+              VISGATE_GATE_TRAJ_IDS ("0 1 2 3"), VISGATE_SEED (0; die Diffusion ist sonst
+              ungeseedet und die MSE streut je Episode bis ~x2). JSON:
+              sim_results/visgate_<tag>_s<seed>_*.json.
   layout      Wuerfellage aus den REALBILDERN lesen -> layout.json. Farbblob (rot/gruen/gelb)
               im ersten Frame, Strahl durch den Schwerpunkt auf die Wuerfelebene. Braucht
               keine GPU. Liefert 'render' BEIDES: die Wuerfellage und den Bewegungsbeginn je
@@ -2303,6 +2368,9 @@ Beispiele:
   HF_TOKEN=hf_... GRASP_MODE=hold ./Simulation/server_rl_run.sh grasp
   # Gate vor TUNE_VISUAL — greift die Policy auf ECHTEN Bildern?
   HF_TOKEN=hf_... ./Simulation/server_rl_run.sh span
+  # Abnahme eines co-trainierten Checkpoints auf den Sim-Pruefsets (vor jedem Closed Loop):
+  HF_TOKEN=hf_... HF_CHECKPOINT_REPO=luca-mue/groot-g1dex3-cotrain-v3-cube5-ckpt44000 \\
+      CHECKPOINT_PATH=/data/checkpoints/cotrain-v3-cube5-ckpt44000 ./Simulation/server_rl_run.sh visgate
   # Schritt 4 — erst der Rauchtest (2 Episoden a 60 Frames), dann der lange Lauf:
   HF_TOKEN=hf_... RENDER_EPISODES=2 RENDER_MAX_FRAMES=60 ./Simulation/server_rl_run.sh render
   HF_TOKEN=hf_... RENDER_EPISODES=60 ./Simulation/server_rl_run.sh render
@@ -2428,7 +2496,7 @@ fi
 # 'shell' bleibt ungespiegelt (interaktives -it verträgt die Pipe nicht), 'help'/'clean'
 # haben nichts zu protokollieren.
 case "$ACTION" in
-  preflight|setup|check|cams|gap|eval|grasp|span|rl|livecheck|latency|optimize|render|view|webview|layout|layoutcheck|layoutreport|topface|yawcheck|tipcheck|oracle|replay-prepare|replay-calibrate|replay-poses|replay-render) start_logging "$ACTION" ;;
+  preflight|setup|check|cams|gap|eval|grasp|span|visgate|rl|livecheck|latency|optimize|render|view|webview|layout|layoutcheck|layoutreport|topface|yawcheck|tipcheck|oracle|replay-prepare|replay-calibrate|replay-poses|replay-render) start_logging "$ACTION" ;;
 esac
 case "$ACTION" in
   rl|shell|help|clean|webview) ;;
@@ -2450,6 +2518,7 @@ case "$ACTION" in
   eval)       do_eval ;;
   grasp)      do_grasp ;;
   span)       do_span ;;
+  visgate)    do_visgate ;;
   layout)     do_layout ;;
   yawcheck)   do_yawcheck ;;
   layoutreport) do_layoutreport ;;

@@ -350,6 +350,13 @@ sbatch --export=ALL Training/kisski_submit.sh
 export RUN_DIR=/data/g1_dex3_finetune/blockstacking_cotrain
 sbatch --export=ALL Training/kisski_open_loop_eval.sh
 
+# a2) Visuelles Gate (Lauf 66/72, seit 2026-10-15): versteht die Politik die Sim-Bilder jetzt?
+#     Teacher-forced Open Loop auf den Prüfsets vis_gate_v3_cube{5,4} und auf den echten
+#     Bildern derselben Episoden, Tabelle gegen die Ausgangswerte. Kein Isaac Sim, ~2 min.
+HF_TOKEN=hf_... HF_CHECKPOINT_REPO=luca-mue/groot-g1dex3-cotrain-v3-cube5-ckpt<step> \
+    CHECKPOINT_PATH=/data/checkpoints/cotrain-v3-cube5-ckpt<step> \
+    VISGATE_SEED=0 ./Simulation/server_rl_run.sh visgate     # dann VISGATE_SEED=1, 2
+
 # b) Simdomäne: greift die Politik jetzt mehr? (identisches Protokoll wie Lauf 34!)
 NUM_EPISODES=10 EPISODE_LENGTH_S=40 CHECKPOINT_PATH=<bester ckpt> \
     HF_TOKEN=hf_... ./Simulation/server_rl_run.sh eval
@@ -358,6 +365,24 @@ NUM_EPISODES=10 EPISODE_LENGTH_S=40 CHECKPOINT_PATH=<bester ckpt> \
 `EPISODE_LENGTH_S=40` ist Pflicht und nicht verhandelbar: die Fingerspanne ist ein Maximum
 über die Episode, ein längeres Fenster hebt sie allein dadurch. Genau daran ist Lauf 33 als
 Vergleich gescheitert.
+
+**Zum visuellen Gate (a2):** Die Diffusion der Politik startet aus ungeseedetem Rauschen; ohne
+festen Seed streut die MSE Hände derselben Episode bis etwa um den Faktor 2 (Selbsttest
+2026-10-15: Echtbild Traj 4 0,0062 statt 0,0032 in Lauf 66). `visgate` seedet deshalb
+(`VISGATE_SEED`, Default 0); verglichen wird gegen die mit denselben Seeds gemessenen
+Ausgangswerte (`sim_results/visgate_base_n1{6,7}_*_s<seed>_*.json`), nicht gegen eine
+Einzelmessung. Der Closed Loop (b) lohnt erst, wenn das Modell die Ausgangswerte über alle
+Seeds deutlich unterbietet.
+
+Ausgangswerte (MSE Hände, Mittel der Mediane über die Seeds 0/1/2, Lauf 80): Maßstab für die
+v3-Läufe ist **N1.6 @44000**, weil sie wie Lauf 3 bis 44 000 Steps laufen. Die Mediane
+streuen über die Seeds nur um etwa ±5 %, „deutlich“ heißt deshalb unter ~80 %.
+
+| Checkpoint | Echtbild | Prüfset 5 cm | Prüfset 4 cm | Schwelle 80 % (5 / 4 cm) |
+|---|---|---|---|---|
+| N1.6 vision-v2 @44000 | 0,0014 | 0,0239 | 0,0221 | 0,019 / 0,018 |
+| N1.6 vision-v2 @30000 | 0,0039 | 0,0214 | 0,0193 | — |
+| N1.7 vision-v1 @44000 | 0,0026 | 0,0758 | 0,0666 | 0,061 / 0,053 (für `render_v3_cube5_n17`) |
 
 ---
 

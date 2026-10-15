@@ -240,6 +240,11 @@ def run_ablation(args, policy, loader, tag, ablation):
         # Spender für swap_episode: die nächste angeforderte Trajektorie (zyklisch), also
         # eine andere Szene aus demselben Split.
         donor = args.traj_ids[(n + 1) % len(args.traj_ids)]
+        if args.seed is not None:
+            # Je Trajektorie neu: die Diffusion startet aus torch.randn, ohne Seed streut
+            # die MSE Hände derselben Episode um bis zu ×2 (visgate-Selbsttest 2026-10-15).
+            # seed + traj_id, damit eine Episode nicht von ihrer Position in der Liste abhängt.
+            seed_everything(args.seed + traj_id)
         alt = None
         if args.alt_dataset:
             alt = (args.alt_loader[args.alt_traj_ids[n]], set(args.alt_cams))
@@ -278,6 +283,17 @@ def run_ablation(args, policy, loader, tag, ablation):
     return rows
 
 
+def seed_everything(seed: int) -> None:
+    import random
+
+    import torch
+
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+
+
 def summarize(rows):
     def med(key):
         vals = sorted(r[key] for r in rows if r[key] is not None)
@@ -303,6 +319,9 @@ def main() -> int:
                    help="Episoden-Positionen im --alt-dataset, parallel zu --traj-ids")
     p.add_argument("--ablations", nargs="+", default=["none"], choices=ABLATIONS,
                    help="Bild-Ablation(en); mehrere = nacheinander mit demselben Modell")
+    p.add_argument("--seed", type=int, default=None,
+                   help="Seed des Diffusions-Rauschens (je Trajektorie seed+traj_id); "
+                        "ohne = ungeseedet wie bis 2026-10-15")
     args = p.parse_args()
 
     logging.basicConfig(level=logging.WARNING)
@@ -366,7 +385,7 @@ def main() -> int:
         # /data/checkpoints und wurde CHECKPOINT_PATH beim Aufruf vergessen, ist einer
         # gespeicherten Messung sonst nicht mehr anzusehen, welches Modell sie beschreibt.
         # run_id/global_step aus dem Checkpoint selbst, weil ein Pfad umbenannt sein kann.
-        ckpt = {"path": args.model_path}
+        ckpt = {"path": args.model_path, "seed": args.seed}
         for key, fname in (("run_id", "wandb_config.json"), ("global_step", "trainer_state.json")):
             try:
                 with open(os.path.join(args.model_path, fname)) as fh:
