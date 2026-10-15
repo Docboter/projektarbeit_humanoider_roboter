@@ -1,12 +1,12 @@
-# Diagnose-Chronik — Sim- und RL-Läufe 08–71
+# Diagnose-Chronik — Sim- und RL-Läufe 08–72
 
-> **TL;DR:** Chronologisches Protokoll aller Sim-/RL-Diagnoseläufe (Läufe 08–71): Kamera-Fixes,
+> **TL;DR:** Chronologisches Protokoll aller Sim-/RL-Diagnoseläufe (Läufe 08–72): Kamera-Fixes,
 > Domain-Gap-Messungen, Greif-Physik, `span`-Gate, `TUNE_VISUAL` im Closed Loop, die ersten
 > N1.7-Checkpoints in der Sim. Nachschlagewerk für die projektweiten „Lauf N“-Verweise — gezielt
 > den passenden Abschnitt ansteuern statt komplett lesen.
 
 Chronologisches Protokoll der Diagnose-, Kalibrier- und Eval-Läufe der Isaac-Lab-Sim
-(2026-08-08 bis 2026-10-14; letzter protokollierter Lauf: 71). Entstanden am 2026-08-18 durch Aufteilung von
+(2026-08-08 bis 2026-10-14; letzter protokollierter Lauf: 72). Entstanden am 2026-08-18 durch Aufteilung von
 [rl-anleitung.md](../weiterfuehrend/rl-anleitung.md), die auf 2197 Zeilen angewachsen war und
 operative Anleitung mit Protokoll vermischte. Die Lauf-Nummern (`Lauf 8` … `Lauf 55`) sind der
 projektweit referenzierte Zähler — andere Dokumente verlinken gezielt auf einzelne Abschnitte hier.
@@ -80,6 +80,7 @@ Für den **aktuellen Projektstatus** siehe
 | 69 | Orakel auf dem korrigierten Layout (Würfel 3 cm nach außen), alle 20 Test-Ep. 240–259 × 120 s: `lifted_clear` **6/20 = 30 %** (KI 12–54 %), `stacked` 0/20 (KI 0–17 %) — die obere Schranke ist jetzt deutlich über null ([Lauf 69](#lauf-69-orakel-auf-dem-korrigierten-layout)) |
 | 70 | Szene schrittweise ans Echtbild angeglichen (Tisch 2 m breit, graue Arme, Handgelenkkamera vor/tiefer, 85°): MSE Hände im teacher-forced Open Loop N1.6 0,036 → 0,022, N1.7 0,086 → 0,070 — Echtbild 0,0025; die groben Szenenmerkmale erklären nur einen kleinen Teil ([Läufe 70/71](#läufe-7071-szene-ans-echtbild-angleichen-kamera-mischung)) |
 | 71 | Kamera-Mischung (echt/Sim je Kameragruppe): N1.6 Kopf und Handgelenk gleich schädlich (je ×4, zusammen ×13); N1.7 vor allem Handgelenk (×20) ([Läufe 70/71](#läufe-7071-szene-ans-echtbild-angleichen-kamera-mischung)) |
+| 72 | Co-Training-Datensätze **v3** gerendert (5 cm und 4 cm, je 187 Trainings-Ep., 29 890 Frames, Szene aus Lauf 70, Layout aller Trainings-Ep. korrigiert); Hand↔Würfel am Griff xy-Median 3,3 / 3,2 cm; privat auf HF ([Lauf 72](#lauf-72-co-training-datensätze-v3)) |
 
 ---
 
@@ -2540,11 +2541,16 @@ unverändert): `SIM_TABLE_SIZE`, `SIM_WRIST_EYE`, `SIM_WRIST_TARGET`, `SIM_WRIST
 | Echtbilder (Referenz) | — | 0,0026 | 0,0024 |
 | Basis (Lauf 66) | — | 0,0359 | 0,0860 |
 | 1 | Tisch 0,8 × **2,0 m** (`SIM_TABLE_SIZE="0.8 2.0"`): kein Boden-Gitter mehr seitlich | 0,0262 | 0,0792 |
-| 2 | + graue Arme | 0,0252 | 0,0796 |
+| 2 | + graue Arme (**wirkungslos**, s. Nachtrag) | 0,0252 | 0,0796 |
 | 3A | + Handgelenkkamera Auge (0, 0, 0,10), Ziel (0,30, 0, −0,06) | 0,0234 | 0,0826 |
 | 3B | + Handgelenkkamera Auge (0,02, 0, 0,08), Ziel (0,30, 0, −0,08) | 0,0215 | 0,0744 |
 | **4a** | **+ Bildwinkel Handgelenk 85°** (statt 60,4°) | **0,0216** | **0,0704** |
 | 4b | + Bildwinkel Handgelenk 100° | 0,0220 | 0,0747 |
+
+> **Nachtrag 2026-10-15:** Die Umfärbung der Arme (`g1_dex3_blackhands_grayarms.usd`) greift beim
+> Rendern nicht — die Arme sind in allen Bildern weiterhin weiß (Sichtprüfung der v3-Renders).
+> Schritt 2 hat also nichts verändert; die Differenz 0,0262 → 0,0252 ist Rauschen. Warum die
+> Bindung an den Arm-Links nicht wirkt (im Gegensatz zu den Händen), ist offen.
 
 Gesamt −40 % (N1.6) bzw. −18 % (N1.7); Abstand zum Echtbild bleibt ×8 bzw. ×29. Sichtprüfung:
 das echte Kopfbild zeigt Hände/Arme rund doppelt so groß bei gleicher Würfellage (Parallaxe —
@@ -2592,4 +2598,31 @@ obere Schranke deutlich. Auffällig: die Treffer häufen sich in 240–246 (5/7)
 `stacked` bleibt 0, weil die blinde Demo nach dem ersten Griff auf veränderte Würfellagen trifft.
 JSON: `sim_results/oracle_dy3_20.json`. (Der Launcher meldete danach `unexpected EOF` — Folge
 einer Änderung an `server_rl_run.sh` während des Laufs; die Messung selbst endete regulär.)
+
+### Lauf 72: Co-Training-Datensätze v3
+
+**2026-10-15, 01:53–08:34**, `ikr-ki-server-01`, Image `…-sim-standalone:20261014-141304`, Container
+`groot-rl-eval`, GPU 0 (5 cm) und GPU 1 (4 cm) parallel, `render` mit Hänger-Wächter (beendet eine
+Episode nach 20 min ohne Log-Fortschritt; diese Nacht kein Hänger).
+
+- **Layout:** `layout_all240.json` — Würfellage aller 240 Trainings-Episoden aus den Kopfkameras
+  (Kamera-Uneinigkeit Median 1,20 cm; Ep. 27/86/155 mit 49–80 cm verworfen), dann alle Würfel
+  3 cm nach außen (`layout_all240_dy3.json`, Lauf 62).
+- **Episoden:** 232 angefordert = alle Trainings-Episoden ohne Prüfset 0/4/8/12, ohne 239 (hing im
+  ersten Render, 2026-10-15 00:20) und ohne 27/86/155; 45 wegen zu kurzem Griff-Fenster
+  übersprungen → **187 Episoden, 29 890 Frames** je Datensatz.
+- **Szene (Lauf 70):** `SIM_TABLE_SIZE="0.8 2.0"`, `SIM_WRIST_EYE="0.02 0.0 0.08"`,
+  `SIM_WRIST_TARGET="0.30 0.0 -0.08"`, `SIM_WRIST_HFOV=85`, schwarze Hände (graue Arme wirkungslos,
+  s. Nachtrag Lauf 70), DR an (Seed 0), `RENDER_STOP_AT_GRASP=1`. 4-cm-Satz zusätzlich
+  `SIM_CUBE_EDGE=0.04`.
+- **Konsistenz** (greifende Hand ↔ Würfel am Fensterende, Median): 5 cm 4,4 cm (xy 3,3), 4 cm
+  3,6 cm (xy 3,2); xy ≤ 4 cm in 119 bzw. 120 von 187 Episoden. Zum Vergleich: der erste,
+  kleine Render v2 (44 Ep., August-Layout) hatte xy 3,5 cm, der Render aus Lauf 66 xy 5,1 cm.
+- **Mischung:** Ausgleichspunkt F_render/(F_render+F_echt) = 29 890/(29 890+229 828) = **0,115**;
+  Presets in `Training/kisski_chain.sh` nutzen 0,15 (bewusst knapp darüber, wie co-training.md §4.2).
+- **Ablage:** `/data/cotrain/g1_dex3_rendered_v3_cube{5,4}` (131 / 129 MB), HF privat
+  `luca-mue/g1-dex3-rendered-v3-cube5` und `…-cube4` (je 942 Dateien). `modality.json` byte-gleich
+  zum echten Datensatz.
+- Der kleine v2-Satz (`/data/cotrain/g1_dex3_rendered_v2`, 44 Ep., 7 929 Frames) bleibt lokal und
+  wird nicht verwendet.
 

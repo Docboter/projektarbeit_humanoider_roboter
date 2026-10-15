@@ -130,7 +130,12 @@ Projekts bleibt **0 Erfolge im Closed-Loop** (0/20 früher, Lauf 34: 0/10).
 ## 2. Nächste Schritte — in dieser Reihenfolge (Stand 2026-10-14)
 
 > **Vorgezogen (2026-10-14), vor allen Punkten der Tabelle unten:**
-> 0a. **Neu (Läufe 69–71):** Parameter-Feinschliff der Szene ist ausgereizt (−18…−40 %, Abstand
+> 00. **Stand 2026-10-15 — bereit für KISSKI:** Co-Training-Datensätze v3 (5 cm und 4 cm, je 187
+>    Trainings-Ep., 29 890 Frames, Lauf 72) liegen privat auf HF (`luca-mue/g1-dex3-rendered-v3-cube5`,
+>    `…-cube4`). Presets in `Training/kisski_chain.sh`: `smoke_render_v3`, `render_v3_cube5`,
+>    `render_v3_cube4`, `render_v3_cube5_n17` (Mischung 0,15). Abnahme danach auf dem IKR-Server mit
+>    dem Prüfset `/data/cotrain/vis_gate_v3_cube{5,4}` (Trainings-Ep. 0/4/8/12, gleiche Szene).
+> 0a. **(Läufe 69–71):** Parameter-Feinschliff der Szene ist ausgereizt (−18…−40 %, Abstand
 >    zum Echtbild bleibt ×8/×29). Nächster Hebel ist die **Trainingsseite**: Co-Training mit
 >    Sim-Renderbildern derselben Episoden (Render mit korrigierter Geometrie, korrigiertem Layout
 >    und der besten Szene aus Lauf 70: `SIM_TABLE_SIZE="0.8 2.0"`, graue Arme,
