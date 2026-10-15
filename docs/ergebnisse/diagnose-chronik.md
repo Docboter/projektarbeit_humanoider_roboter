@@ -2625,4 +2625,14 @@ Episode nach 20 min ohne Log-Fortschritt; diese Nacht kein Hänger).
   zum echten Datensatz.
 - Der kleine v2-Satz (`/data/cotrain/g1_dex3_rendered_v2`, 44 Ep., 7 929 Frames) bleibt lokal und
   wird nicht verwendet.
+- **Prüfset für die Abnahme** (gleiche Szene und gleiches Layout, Trainings-Ep. 0/4/8/12, nicht im
+  Co-Training-Satz; `RENDER_STOP_AT_GRASP=0`, 600 Frames, ohne DR): `/data/cotrain/vis_gate_v3_cube5`
+  und `…_cube4`. Ausgangswert der heutigen Modelle, MSE Hände (Median über 4 Ep.; Echtbild ≈ 0,0025):
+
+  | | Prüfset 5 cm | Prüfset 4 cm |
+  |---|---|---|
+  | N1.6 vision-v2 @30 000 | 0,0208 | 0,0169 |
+  | N1.7 vision-v1 @44 000 | 0,0734 | 0,0654 |
+
+  Ein co-trainiertes Modell muss diese Werte deutlich unterbieten, bevor ein Closed Loop lohnt.
 
