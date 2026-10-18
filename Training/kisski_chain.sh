@@ -38,7 +38,7 @@ err()  { printf '\033[1;31m!! \033[0m %s\n' "$*" >&2; }
 # Alle synth-Läufe übernehmen die Parameter von cotrain_synth_v1
 # (docs/training/synth-datensatz.md § 6.2/§ 7), damit sie gegen ihn vergleichbar bleiben.
 # Ein Lauf = eine Zeile im case + eine Zeile in PRESETS.
-PRESETS=(smoke synth_jointspace synth_v22 smoke_render_v3 render_v3_cube5 render_v3_cube4 render_v3_cube5_n17)
+PRESETS=(smoke synth_jointspace synth_v22 smoke_render_v3 render_v3_cube5 render_v3_cube4 render_v3_cube5_n17 render_v3_cube4_n17)
 SMOKE_STAMP="$(date +%Y%m%d-%H%M%S)"   # einmal je Aufruf: preset() läuft mehrfach
 
 preset() {
@@ -110,6 +110,14 @@ preset() {
             COTRAIN_MIX_RATIO="${COTRAIN_MIX_RATIO_OVERRIDE:-0.15}"
             OUTPUT_DIR=/data/g1_dex3_finetune/blockstacking_cotrain_render_v3_cube5_n17
             EXPERIMENT_NAME=g1_dex3_blockstacking_cotrain_render_v3_cube5_n17
+            RUN_ENV=(GROOT_VERSION=1.7) ;;
+        render_v3_cube4_n17)
+            # Wie render_v3_cube4, aber GR00T N1.7 — Gegenstück zu render_v3_cube5_n17.
+            DESCRIPTION="Co-Training echt + eigener Render v3, 4-cm-Würfel, GR00T N1.7"
+            COTRAIN_DATASET_PATH=/data/cotrain/g1_dex3_rendered_v3_cube4
+            COTRAIN_MIX_RATIO="${COTRAIN_MIX_RATIO_OVERRIDE:-0.15}"
+            OUTPUT_DIR=/data/g1_dex3_finetune/blockstacking_cotrain_render_v3_cube4_n17
+            EXPERIMENT_NAME=g1_dex3_blockstacking_cotrain_render_v3_cube4_n17
             RUN_ENV=(GROOT_VERSION=1.7) ;;
         *) return 1 ;;
     esac
