@@ -53,6 +53,7 @@
 
 #SBATCH --job-name=groot-finetune
 #SBATCH -p kisski
+#SBATCH -N 1
 #SBATCH -G A100:4
 #SBATCH -c 96
 #SBATCH --mem=384G
