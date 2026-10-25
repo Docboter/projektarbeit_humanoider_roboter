@@ -412,7 +412,15 @@ bricht ab, wenn `--episode-ids` eine zurückgehaltene Episode enthält. Andernfa
 Modell die Testepisoden in gerenderter Form, und die Validierungs-MSE des
 Checkpoint-Sweeps — die einzige Zahl, die Overfitting sichtbar macht — wäre wertlos.
 
-### 4.2 Welches Mischungsverhältnis? → **0,25 gerendert**
+### 4.2 Welches Mischungsverhältnis? → **0,25 gerendert** (erster Plan) / **0,15** (Render v3)
+
+> **Aktueller Wert für die Render-v3-Läufe: 0,15** (`render_v3_cube{5,4}[_n17]` in
+> [`kisski_chain.sh`](../../Training/kisski_chain.sh); N1.6-Läufe 16676490/16676493,
+> N1.7-Läufe 16779689/16779693). Gleiche Formel wie unten, andere Zahlen: 187 gerenderte
+> Episoden (29 890 Frames) gegen 240 echte Trainingsepisoden (229 828 Frames) ergeben
+> `mix* = 29 890 / 259 718 ≈ 0,115`; 0,15 liegt bewusst knapp darüber
+> ([Lauf 72](../ergebnisse/diagnose-chronik.md#lauf-72-co-training-datensätze-v3)).
+> Die 0,25 unten gehören zum ursprünglichen Plan mit 60 gerenderten Episoden.
 
 Zwei unabhängige Überlegungen laufen auf denselben Bereich zu:
 
