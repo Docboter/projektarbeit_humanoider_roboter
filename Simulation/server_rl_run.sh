@@ -1052,7 +1052,8 @@ do_eval() {
   # es findet das von ensure_black_hands erzeugte *_blackhands.usd dann einfach vor.
   # GROOT_VERSION (und ggf. HF_HOME) hier NOCHMAL mitgeben: -e beim `docker run` wirkt nur
   # beim ANLEGEN, ein Container aus einem frueheren Lauf kennt einen neuen Wert also nicht.
-  docker exec \
+  # GPU_ENV: ohne CUDA_VISIBLE_DEVICES landen zwei parallele Evals auf derselben Karte.
+  docker exec "${GPU_ENV[@]}" \
     -e "SKIP_DOWNLOAD=1" \
     -e "GROOT_VERSION=$GROOT_VERSION_CONTAINER" \
     ${HF_HOME:+-e "HF_HOME=$HF_HOME"} \
