@@ -383,6 +383,44 @@ streuen über die Seeds nur um etwa ±5 %, „deutlich“ heißt deshalb unter ~
 | N1.6 vision-v2 @44000 | 0,0014 | 0,0239 | 0,0221 | 0,019 / 0,018 |
 | N1.6 vision-v2 @30000 | 0,0039 | 0,0214 | 0,0193 | — |
 | N1.7 vision-v1 @44000 | 0,0026 | 0,0758 | 0,0666 | 0,061 / 0,053 (für `render_v3_cube5_n17`) |
+| **co-train v3 cube5, N1.6 @44000** (Chronik Lauf 73/83) | 0,0022 | **0,0118** | **0,0104** | bestanden (Echtbild Grenzfall) |
+| **co-train v3 cube4, N1.6 @44000** (Lauf 74/83) | 0,0021 | **0,0115** | **0,0104** | bestanden (Echtbild Grenzfall) |
+| **co-train v3 cube5, N1.7 @44000** (Lauf 75/86) | 0,0024 | **0,0230** | **0,0164** | bestanden |
+
+**Lesart der v3-Läufe (2026-10-25): Das Co-Training hat die Sim-Lücke verkleinert. Der
+Realdomäne schadet es bei N1.7 nicht, bei N1.6 etwas.**
+
+- **Sim-Lücke:** N1.6 halbiert den Hand-Fehler auf den Prüfsets (−51 % / −53 %), N1.7 drückt ihn
+  auf ein Drittel bzw. ein Viertel (−70 % / −75 %). Der Abstand Sim zu Echtbild sinkt bei N1.6
+  von ×17 auf ×5, bei N1.7 von ×29 auf ×10.
+- **Realdomäne:** N1.7 bleibt auf dem Echtbild unverändert (0,0024 gegen 0,0026, innerhalb der
+  Seed-Streuung). N1.6 wird um 50–57 % schlechter (0,0014 → 0,0021/0,0022), bleibt aber deutlich
+  besser als @30000 (0,0039), und der Arm-Fehler ändert sich nicht. Das ist der Preis für die
+  Sim-Lücke. Ob er in der echten Welt spürbar ist, zeigt nur ein Robotertest. Die Val-MSE aus
+  dem KISSKI-Sweep liegt bei 0,00499 / 0,00510, nur 3–6 % über Lauf 3 (Protokollgleichheit nicht
+  geprüft).
+- **Kreuzvergleich 5 cm ↔ 4 cm:** keine Spezialisierung. Der 5-cm-Render erreicht auf dem 4-cm-Prüfset
+  genau denselben Wert wie der 4-cm-Render (0,0104), und umgekehrt auf 5 cm 0,0115 gegen 0,0118.
+  Die Würfelgröße im Render spielt für das Gate keine Rolle. Es hilft die Szene, nicht die
+  Würfelgröße.
+- **N1.7 gegen N1.6:** Co-trainiertes N1.7 erreicht auf den Sim-Prüfsets erst das Niveau des
+  *nicht* co-trainierten N1.6 (5 cm 0,0230 gegen 0,0239; 4 cm 0,0164 gegen 0,0221). Das
+  co-trainierte N1.6 ist auf beiden Prüfsets etwa doppelt so gut, auf dem Echtbild bleibt N1.6
+  ohnehin vorn.
+
+- **Vorsicht mit der Schwelle:** Die alten, nicht co-trainierten N1.6-Modelle (Lauf 1 @110000,
+  vision-v1 @35000) unterbieten die 80-%-Schwelle ebenfalls (~0,017, Chronik Lauf 87). Sie ist an
+  dem stark auf die Realdomäne spezialisierten vision-v2 @44000 festgemacht. Der Co-Training-Effekt
+  zeigt sich im Abstand zu diesen Modellen (0,0104–0,0118 gegen ~0,016–0,017), nicht im Überschreiten
+  der Schwelle.
+
+**Closed Loop** (Protokoll Lauf 82, 20 × 120 s, Chronik Läufe 84/85/88): Bei N1.6 ändert das
+Co-Training das Verhalten sichtbar. `touched` steigt auf 20/20 (Lauf 82: 17/20), die
+Fingerspanne auf ~1,6 rad (0,64), und zum ersten Mal hebt die Politik selbst Würfel mit der Hand
+an. `lifted_clear` liegt bei 1/20 (cube5) bzw. 2/20 (cube4 mit 4-cm-Würfeln), jeweils im Video
+als Griff bestätigt. `stacked` bleibt 0/20. Die Spanne, nach §5 das primäre Gate, ist deutlich
+höher (Bereiche überlappen nicht). Die Griffzahl selbst ist bei n = 20 noch nicht von null zu
+trennen. N1.7: Chronik Lauf 89.
 
 ---
 
