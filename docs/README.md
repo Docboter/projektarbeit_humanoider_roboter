@@ -106,6 +106,7 @@ Diese Sammlung speist das gleichnamige Kapitel der Projektarbeit.
 
 | Dokument | Inhalt |
 |---|---|
+| [abgabe-plan.md](abgabe-plan.md) | **Plan bis zur Abgabe (2026-10-29)** — Umbau der Markdown-Doku (Einstieg, neue Schnittstellen-Seite, Inventur) und der LaTeX-Ausarbeitung (kürzer, Schnittstellen und Anleitung im Mittelpunkt), Prüfschritte, offene Entscheidungen |
 | [../next-steps.md](../next-steps.md) | **Nächste Schritte** — laufender Prioritäten-Tracker: Stand der Messkette, priorisierte nächste Schritte, offene Widersprüche zwischen den Ergebnisdokumenten |
 | [fehlerbehebung.md](fehlerbehebung.md) | **Fehlerbehebung** — gebündelte Fehlerlösungen: Domain-Gap, OOM/VRAM, KISSKI-Queue & W&B-Pflicht, Sim-GPU-Anforderung |
 | [historie.md](historie.md) | **Historie / Changelog-Rohmaterial** — chronologisch gesammelte, aus der Haupt-Doku ausgelagerte veraltete Inhalte (u. a. das frühere Audit `umgebungsanalyse.md`, die Fixes aus dem 1. Lauf, die Domain-Gap-Erstmessung) |

@@ -1,0 +1,22 @@
+# Abbildungsdaten für die Ausarbeitung
+
+> **TL;DR:** Aus den Mess-JSONs auf dem IKR-Server (`~/groot-rl-data/sim_results/`) exportierte
+> Zahlen, damit die Abbildungen der Ausarbeitung ohne Serverzugang gebaut werden können. Stand
+> 2026-10-29; Quelle und Lesart jeder Zahl steht in der
+> [Diagnose-Chronik](../../../docs/ergebnisse/diagnose-chronik.md).
+
+| Datei | Inhalt | Chronik |
+|---|---|---|
+| `gate_mse_haende.csv` | Visuelles Gate: MSE Hände (Mittel der Seed-Mediane, Min/Max über Seeds 0/1/2) auf Echtbild und den Sim-Prüfsets 5 cm / 4 cm, für Ausgangswerte, alle acht Co-Training-Checkpoints und die zwei Altmodelle | Läufe 80, 83, 86, 87, 92 |
+| `closed_loop.csv` | Closed Loop je Lauf: Episoden, Episodenlänge, Stufen `reached` … `stacked` (`lifted`/`lifted_clear` ohne Artefakte), Artefakte, Fingerspanne Median/Min/Max, Medianabstand Kuppe↔Würfel, Quell-JSONs | Läufe 81–97 |
+
+Bilder unter `../sim/`:
+
+| Datei | Inhalt |
+|---|---|
+| `sim_scene70_cam_left_high.png` | Kopfkamera links in der Szene aus Lauf 70 (erstes Beobachtungsbild aus Lauf 88, Testlage 240) |
+| `griff_lauf88_ep05_80s.png`, `…_ausschnitt.png` | Erster echter Griff der Politik: Lauf 88, Ep. 5 (Testlage 244), t = 80 s, linke Hand hält den roten Würfel in der Luft |
+
+Echtbilder derselben Kameras: `Simulation/camera_reference/dataset_cam_*.png`.
+Neu erzeugen: `python3 tools/sim_visgate_seeds_summary.py` bzw. `tools/sim_cl_summary.py`
+auf dem Server (Pfade in der Spalte `quellen_json`).

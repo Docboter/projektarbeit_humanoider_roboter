@@ -167,6 +167,8 @@ Projekts bleibt **0 Erfolge im Closed-Loop** (0/20 früher, Lauf 34: 0/10).
 
 ## 2. Nächste Schritte — in dieser Reihenfolge (Stand 2026-10-29)
 
+> **Abgabe:** Plan für Doku und Ausarbeitung in [`docs/abgabe-plan.md`](docs/abgabe-plan.md).
+>
 > **Stand 2026-10-29 — nach dem Co-Training v3, vor allen älteren Punkten unten:**
 > 1. ~~Griffrate belastbar machen~~ **erledigt 29.10. (Lauf 97):** C auf allen 60 Testlagen,
 >    `lifted_clear` 2/60 = 3 % (KI 0,4–11,5 %). Griffe sind selten; der nächste Hebel muss die
