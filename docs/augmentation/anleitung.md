@@ -165,7 +165,7 @@ USE_COTRAIN=1 COTRAIN_DATASET_PATH=/pfad/zum/augmentierten/datensatz COTRAIN_MIX
   jede verworfene oder angepasste Episode mit Grund (Frame- bzw. fps-Abweichung).
 
 **`COTRAIN_MIX_RATIO` neu berechnen, nicht 0,25 blind übernehmen.** Die Formel aus
-[co-training.md §4.2](../training/co-training.md#42-welches-mischungsverhältnis--025-gerendert)
+[co-training.md §4.2](../training/co-training.md#42-welches-mischungsverhältnis--025-gerendert-erster-plan--015-render-v3)
 gilt unverändert (`mix* = F_augmentiert / (F_augmentiert + F_echt)`), aber die konkrete Zahl
 0,25 wurde für 60 gerenderte gegen 240 echte Episoden hergeleitet — bei anderer
 `AUGMENT_EPISODE_LIMIT`/`AUGMENT_VARIANTS`-Kombination ergibt sich ein anderer Ausgleichspunkt.
