@@ -9,6 +9,7 @@
 |---|---|---|
 | `gate_mse_haende.csv` | Visuelles Gate: MSE Hände (Mittel der Seed-Mediane, Min/Max über Seeds 0/1/2) auf Echtbild und den Sim-Prüfsets 5 cm / 4 cm, für Ausgangswerte, alle acht Co-Training-Checkpoints und die zwei Altmodelle | Läufe 80, 83, 86, 87, 92 |
 | `closed_loop.csv` | Closed Loop je Lauf: Episoden, Episodenlänge, Stufen `reached` … `stacked` (`lifted`/`lifted_clear` ohne Artefakte), Artefakte, Fingerspanne Median/Min/Max, Medianabstand Kuppe↔Würfel, Quell-JSONs | Läufe 81–97 |
+| `orakel_versatz_lauf62.csv` | Versatz-Sweep im Orakel: Würfel um `dx` (vom Roboter weg) und `dy` (seitlich nach außen) verschoben, `lifted_clear` k von 8 Episoden (240–247, 40 s); übertragen aus der Tabelle der Chronik | Lauf 62 |
 
 Bilder unter `../sim/`:
 
@@ -19,4 +20,5 @@ Bilder unter `../sim/`:
 
 Echtbilder derselben Kameras: `Simulation/camera_reference/dataset_cam_*.png`.
 Neu erzeugen: `python3 tools/sim_visgate_seeds_summary.py` bzw. `tools/sim_cl_summary.py`
-auf dem Server (Pfade in der Spalte `quellen_json`).
+auf dem Server (Pfade in der Spalte `quellen_json`). Diagramme daraus:
+`uv run --with matplotlib python latex/figures/make_figures.py` → `../plots/*.pdf`.
