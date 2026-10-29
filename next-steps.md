@@ -33,17 +33,18 @@ verweisen hierher. Den N1.7-Detailstand pflegt
   - **Realdomäne:** Das Echtbild bleibt bei N1.7 gleich (0,0024–0,0027) und wird bei N1.6 um
     50–60 % schlechter (0,0014 → 0,0021–0,0023). Die Sweep-Val-MSE liegt 3–9 % über Lauf 3.
   - **Closed Loop** (Szene Lauf 70, 20 × 120 s): Die co-trainierten Modelle berühren den Würfel
-    in ~20/20 Episoden. **Erste echte Griffe der Politik** gab es nur bei N1.6: cube4 @44000
-    `lifted_clear` **2/20** (KI 1–32 %, Lauf 88), cube5 1/20 (Lauf 84). Beide N1.7-Modelle
-    0/20 (Läufe 89, 93), `stacked` überall 0/20. Bei n = 20 ist kein Modell statistisch von
-    null zu trennen.
+    in ~20/20 Episoden. **Erste echte Griffe der Politik** gab es nur bei N1.6: cube4 @44000 auf
+    allen 60 Testlagen `lifted_clear` **2/60 = 3 %** (KI 0,4–11,5 %, Läufe 88/97), cube5 1/20
+    (Lauf 84). Beide N1.7-Modelle 0/20 (Läufe 89, 93), `stacked` überall 0. Gegen 0/20 ohne
+    Co-Training ist die Griffrate statistisch nicht zu trennen.
   - **Gegenproben:** Alte N1.6-Modelle ohne Co-Training bestehen die 80-%-Gate-Schwelle
     ebenfalls und öffnen die Hand ebenso weit, greifen aber nicht (Läufe 87, 90/91). Die
     Gate-besten Zwischenstände (@35000 / @40000) greifen nicht besser als @44000 (Läufe 94/95).
-  - **Nicht gefahren:** das vorregistrierte primäre Gate (Fingerspanne im Protokoll von Lauf 34,
-    10 × 40 s, [co-training.md §5](docs/training/co-training.md#5-vorregistrierte-regel--was-den-lauf-zum-erfolg-oder-zum-ende-macht))
-    und die Domain-Gap-Kontrolle `gap`. Die Spannen aus den 120-s-Läufen sind mit den 0,577 rad
-    von Lauf 34 nicht vergleichbar.
+  - **Vorregistriertes primäres Gate bestanden** (nachgeholt 29.10., Lauf 96, 10 × 40 s,
+    [co-training.md §5](docs/training/co-training.md#5-vorregistrierte-regel--was-den-lauf-zum-erfolg-oder-zum-ende-macht)):
+    Spanne 1,53 rad = 73 % gegen 0,577 rad (Lauf 34) und 0,52 rad beim gleichen Rezept ohne
+    Renderdaten (p = 5 · 10⁻⁶). Gegen das alte Lauf-1-Modell (1,21 rad) nur Tendenz (p = 0,07).
+    Die Kontrolle `gap` ist dafür ungeeignet (generisches SigLIP, nicht der Encoder der Policy).
   - **Bester Sim-Kandidat:** `luca-mue/groot-g1dex3-cotrain-v3-cube4-ckpt44000` (N1.6, Lauf 74).
   Details: [co-training.md §3.5](docs/training/co-training.md#35-auswerten--zwei-messungen-nicht-eine),
   [Läufe 73–76](docs/ergebnisse/diagnose-chronik.md#läufe-7376-co-training-läufe-v3-auf-kisski),
@@ -167,14 +168,11 @@ Projekts bleibt **0 Erfolge im Closed-Loop** (0/20 früher, Lauf 34: 0/10).
 ## 2. Nächste Schritte — in dieser Reihenfolge (Stand 2026-10-29)
 
 > **Stand 2026-10-29 — nach dem Co-Training v3, vor allen älteren Punkten unten:**
-> 1. **Griffrate belastbar machen:** `cotrain-v3-cube4-ckpt44000` (N1.6) mit mehr Episoden fahren,
->    z. B. alle 60 Testlagen aus `layout_heldout_dy3.json` × 120 s, mit 4-cm-Würfeln (~7 h auf
->    einer Karte; auf zwei GPUs nur mit zwei Layout-Dateien zu je 30 Lagen, eine Teil-Option hat
->    `eval` nicht). Bei 2/20 reicht das KI bis 32 %; erst
->    mit mehr Episoden ist der Unterschied zu 0 (Lauf 82) und zu N1.7 (Läufe 89/93) zu klären.
-> 2. **Vorregistriertes primäres Gate nachholen:** Fingerspanne im Protokoll von Lauf 34
->    (10 × 40 s) für cube4 @44000 gegen 0,577 rad, dazu `server_rl_run.sh gap`. Billig, und erst
->    damit ist die Regel aus [co-training.md §5](docs/training/co-training.md#5-vorregistrierte-regel--was-den-lauf-zum-erfolg-oder-zum-ende-macht) erfüllt.
+> 1. ~~Griffrate belastbar machen~~ **erledigt 29.10. (Lauf 97):** C auf allen 60 Testlagen,
+>    `lifted_clear` 2/60 = 3 % (KI 0,4–11,5 %). Griffe sind selten; der nächste Hebel muss die
+>    Griffrate heben, nicht nur messen (Punkt 7).
+> 2. ~~Vorregistriertes primäres Gate nachholen~~ **erledigt 29.10. (Lauf 96):** bestanden,
+>    1,53 rad gegen 0,577 / 0,52 rad. `gap` gemessen, als Kontrolle ungeeignet.
 > 3. **Robotertest:** cube4 @44000 gegen vision-v2 @44000 auf dem echten G1. Er entscheidet, ob
 >    der Echtbild-Verlust von N1.6 (+50–60 % MSE Hände) tragbar ist. Falls nicht, ist N1.7 cube4
 >    @44000 (`…-cube4-n17-ckpt44000`) die Alternative ohne Echtbild-Verlust, greift in der Sim
@@ -185,11 +183,13 @@ Projekts bleibt **0 Erfolge im Closed-Loop** (0/20 früher, Lauf 34: 0/10).
 > 5. **`lifted_clear` braucht den Videobefund:** Die Metrik zählt auch einen Würfel, der in der
 >    Hand auf einem anderen liegt (Lauf 94). Ein Kontaktkriterium ohne Stütz-Würfel wäre die
 >    saubere Lösung.
-> 6. **Hänger im Closed Loop:** Am 25.10. hingen zwei Läufe mitten in der Episode, ohne
->    Fehlermeldung. Bisher wird das nur umgangen (`~/groot-rl-data/cl_watchdog.sh` startet neu);
->    die Ursache ist offen. Der Wächter liegt nur auf dem Server, nicht im Repo.
-> 7. Danach: Co-Training aufstocken (mehr Render-Episoden statt höherer Mischung, §4.2) oder RL
->    auf dem besten N1.6-Modell, je nach Ergebnis von 1.
+> 6. **Hänger im Closed Loop:** Am 25.10. und 29.10. hingen drei Läufe mitten in der Episode,
+>    ohne Fehlermeldung und nicht an eine Lage gebunden (Lauf 97). Umgangen mit
+>    [`tools/sim_cl_watchdog.sh`](tools/sim_cl_watchdog.sh); die Ursache ist offen.
+> 7. **Griffrate heben:** Nach der vorregistrierten Regel heißt das primäre Gate „aufstocken“:
+>    mehr Render-Episoden statt höherer Mischung (co-training.md §4.2). Alternativ RL auf C, das
+>    mit 3 % Griffen erstmals ein, wenn auch schwaches, Startsignal hat
+>    ([RL-Plan](docs/weiterfuehrend/reinforcement-learning-plan.md)).
 >
 > Die Punkte 00–3 unten sind für das Co-Training erledigt (00: Läufe 73–95; 3: Baselines
 > Läufe 81/82).

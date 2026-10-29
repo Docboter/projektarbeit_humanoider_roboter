@@ -432,7 +432,7 @@ Im Gate am besten ist N1.6 (Würfelgröße egal); bei N1.7 ist der 4-cm-Render v
   sich im Abstand zu diesen Modellen (0,0097–0,0118 gegen ~0,016–0,017), nicht im Überschreiten
   der Schwelle; das Echtbild-Kriterium ist nötig, um untertrainierte Stände auszusortieren.
 
-**Closed Loop** (Protokoll Lauf 82, 20 × 120 s, Chronik Läufe 84/85/88/89/93, Zwischenstände 94/95, Gegenprobe 90/91):
+**Closed Loop** (Protokoll Lauf 82, 20 × 120 s je Lage, Chronik Läufe 84/85/88/89/93, Zwischenstände 94/95, Gegenprobe 90/91, alle 60 Testlagen 97):
 
 | Modell | `touched` | `lifted_clear` (Griffe im Video) | Spanne Median |
 |---|---|---|---|
@@ -441,22 +441,30 @@ Im Gate am besten ist N1.6 (Würfelgröße egal); bei N1.7 ist der 4-cm-Render v
 | **B** N1.6 co-train cube5 (84) | 20/20 | 1/20 (1) | 1,54 rad |
 | B′ N1.6 co-train cube5 @40000 (95) | 20/20 | 0/20 (0) | 1,56 rad |
 | **C** N1.6 co-train cube4, 4-cm-Würfel (88) | 20/20 | **2/20** (2) | 1,61 rad |
+| **C, alle 60 Testlagen** (88 + 97) | **60/60** | **2/60 = 3 %** (2), KI 0,4–11,5 % | 1,61 rad |
 | C′ N1.6 co-train cube4 @35000, 4-cm-Würfel (94) | 19/20 | 1/20 (0, Würfel auf anderem abgestützt) | 1,62 rad |
 | N1.7 @44000, ohne Co-Training (81) | 7/20 | 0/20 | 0,52 rad |
 | **A** N1.7 co-train cube5 (89) | 20/20 | 0/20 (0) | 1,64 rad |
 | **D** N1.7 co-train cube4, 4-cm-Würfel (93) | 20/20 | 0/20 (0) | 1,71 rad |
 
 Bei beiden Generationen ändert das Co-Training das Verhalten sichtbar: Die Hand erreicht und
-berührt den Würfel in jeder Episode. Echte Griffe zeigen bisher nur die co-trainierten
-N1.6-Modelle (1–2 von 20); `stacked` bleibt überall 0/20. Die weite Fingerspanne ist dagegen
-kein Co-Training-Effekt: Die alten N1.6-Modelle öffnen ohne Co-Training ebenso weit (Chronik
-Läufe 90/91), die kleine Spanne von Lauf 82 gehört zu vision-v2 @44000. Bei n = 20 und 0–2
-Griffen ist kein Modell statistisch von null zu trennen. Die Gate-besten Zwischenstände
+berührt den Würfel in jeder Episode. Echte Griffe zeigen nur die co-trainierten N1.6-Modelle,
+und selten: Auf allen 60 Testlagen greift C zweimal (3 %, obere Schranke 11,5 %), auf den 40
+Lagen außerhalb von Lauf 88 nie. `stacked` bleibt überall 0. Gegen 0/20 ohne Co-Training ist
+die Griffrate statistisch nicht zu trennen (p ≈ 0,56). Die Gate-besten Zwischenstände
 (C′, B′, 3–7 % besser im Gate) greifen im Closed Loop nicht besser als @44000.
+
+**Vorregistriertes primäres Gate** (§5, Fingerspanne 10 × 40 s, nachgeholt in Chronik Lauf 96):
+C öffnet auf **1,53 rad = 73 %** der Demo gegen 0,577 rad in Lauf 34 und 0,52 rad beim gleichen
+Rezept ohne Renderdaten (vision-v2 @44000, gleiche Szene, p = 5 · 10⁻⁶): **bestanden, „der Weg
+trägt, aufstocken“.** Einschränkung: Das alte Lauf-1-Modell (ohne Vision-Tuning) öffnet auch
+ohne Co-Training auf 1,21 rad, gegen C nur als Tendenz getrennt (p = 0,07). Die kleine Spanne
+gehört vor allem zu vision-v2 @44000. Die vorregistrierte Kontrolle `gap` misst mit einem
+generischen SigLIP und kann den Effekt nicht zeigen; diese Rolle übernimmt das visuelle Gate.
 
 **Welche Generation, welche Würfelgröße?** Für die Sim ist **N1.6 co-train cube4 @44000** (C)
 der beste Kandidat: das beste Gate der @44000-Stände gemeinsam mit B und die einzigen zwei
-echten Griffe. Bei N1.6 ist die Render-Würfelgröße im Gate egal, im Closed Loop ist cube4 mit
+echten Griffe (2/60). Bei N1.6 ist die Render-Würfelgröße im Gate egal, im Closed Loop ist cube4 mit
 4-cm-Würfeln knapp vorn, aber nicht signifikant. Bei N1.7 hilft der 4-cm-Render im Gate
 deutlich (D), im Closed Loop greift aber keines der beiden N1.7-Modelle. Für die Realdomäne
 spricht N1.7: Das Co-Training kostet dort auf dem Echtbild nichts, bei N1.6 rund +50–60 %.
