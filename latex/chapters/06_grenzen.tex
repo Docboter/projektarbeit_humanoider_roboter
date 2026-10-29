@@ -1,0 +1,45 @@
+% chapters/06_grenzen.tex
+
+\chapter{Grenzen}
+\label{chap:grenzen}
+\label{chap:diskussion}
+\label{sec:limitierungen}
+\label{sec:validitaet}
+
+\paragraph{Stichprobe.} Closed-Loop-Messungen umfassen 10, 20 oder 60 Episoden. Für 0/20 reicht
+das 95-\%-Intervall bis 17\,\%, für 2/60 von 0,4 bis 11,5\,\%. Griffraten zwischen 0 und 2 von
+20 sind deshalb nicht voneinander zu trennen; belastbar sind nur große Unterschiede wie bei
+\texttt{touched} und der Fingerspanne.
+
+\paragraph{Simulation ist nicht der Roboter.} Alle Aussagen zur Aufgabenerfüllung stammen aus
+der Simulation. Die Ursache des 3-cm-Versatzes ist unbekannt und nur empirisch korrigiert; die
+Korrektur ist ein Mittelwert: Das Orakel hebt in 5 der 7 Lagen 240--246, danach nur in 1 von
+13 (Lauf~69). Ob der Verlust von N1.6 auf Echtbildern nach dem Co-Training
+(\cref{sec:erg-cotrain}) am Roboter spürbar ist, kann nur ein Robotertest zeigen.
+
+\paragraph{Grenzen der Metriken.}
+\label{sec:grenzen-metriken}
+\label{sec:messartefakte}
+\begin{itemize}
+  \item \texttt{lifted} zählt auch einen gekippten Würfel (Schwerpunkt an der Kante +1,04~cm,
+    an der Ecke +1,83~cm). Deshalb gibt es seit dem 13.10.\ \texttt{lifted\_clear}.
+  \item \texttt{lifted\_clear} zählt auch einen Würfel, der auf einem anderen liegt, während
+    eine Hand nah ist (Lauf~94). Jeder Treffer braucht den Videobefund.
+  \item Der SigLIP-Abstand~\cite{zhai2023siglip} (\texttt{gap}) misst nur die Szene, nicht den Encoder der Politik;
+    als Kontrolle für das Co-Training ist er ungeeignet (Lauf~96).
+  \item Die 80-\%-Schwelle des visuellen Gates lassen auch alte Modelle ohne Co-Training hinter
+    sich (Lauf~87); eine Schwelle relativ zum besten nicht co-trainierten Modell derselben
+    Generation wäre strenger.
+  \item Kennzahlen, die ein Maximum über die Episode bilden (Fingerspanne), hängen von der
+    Episodenlänge ab. Verglichen wird nur bei gleicher Länge.
+\end{itemize}
+
+\paragraph{Ablauf der Messungen.} Closed Loops hingen dreimal ohne Fehlermeldung mitten in einer
+Episode (Läufe 89, 90, 97); unvollständige Versuche wurden nicht gewertet. Lauf~85 lief
+versehentlich ohne \texttt{SIM\_CUBE\_EDGE}. Auf dem Sim-Server lag der Datensatz zeitweise
+gemischt aus v2.1- und v3.0-Dateien vor (Lauf~56); welche früheren Läufe davon betroffen
+waren, ist nicht geklärt.
+
+\paragraph{Vergleich N1.6/N1.7.} N1.7 lief mit dem NVIDIA-Rezept (State-Dropout 0,2, andere
+Normierung). Unterschiede zwischen den Generationen sind deshalb nicht allein dem Modell
+zuzuschreiben.

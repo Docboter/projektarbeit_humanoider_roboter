@@ -3,37 +3,24 @@
 \chapter*{Zusammenfassung}
 \addcontentsline{toc}{chapter}{Zusammenfassung}
 
-Diese Projektarbeit untersucht das Fine-Tuning des \ac{vla}-Modells NVIDIA
-GR00T~N1.6 für eine Block-Stacking-Aufgabe auf dem humanoiden Roboter
-Unitree~G1 mit DEX3-Hand. Das vortrainierte Modell wird per \acl{il} auf rund
-300 Demonstrationen angepasst. Die Arbeit umfasst eine Container-Umgebung, die
-lokal und auf dem \ac{hpc}-Cluster KISSKI der GWDG läuft, drei Trainingsläufe,
-eine Simulationsumgebung in NVIDIA Isaac~Lab, die Validierung der Checkpoints
-und eine Reihe von Diagnosewerkzeugen.
+Das \ac{vla}-Modell NVIDIA GR00T (N1.6 und N1.7) wurde auf 301 teleoperierten Demonstrationen
+für das Würfelstapeln mit dem humanoiden Roboter Unitree~G1 und DEX3-Händen nachtrainiert.
+Training, Checkpoint-Wahl und Bewertung laufen in Containern lokal, auf dem
+\ac{hpc}-Cluster KISSKI und auf einem Simulationsserver mit Isaac~Lab; die Schnittstellen
+zwischen Datensatz, Checkpoint, Policy-Server und Simulation sind dokumentiert.
 
-Alle drei Trainingsläufe konvergierten stabil. In der Simulation löste jedoch
-keine Politik die Aufgabe. Der zuletzt getestete Checkpoint (Stand
-14.08.2026) nähert sich den Würfeln und berührt sie, schließt die Hand aber
-nicht weit genug, um einen Würfel anzuheben. Die Diagnosetests deuten darauf
-hin, dass vor allem der visuelle Unterschied zwischen realen und simulierten
-Bildern dafür verantwortlich ist: Auf realen Bildern kommandiert dieselbe
-Politik die volle Greifbewegung, in der Simulation nur ein Fünftel bis ein
-Viertel davon. Wie groß dieser Anteil ist, bleibt offen, weil später ein
-Fehler in der Ansteuerung der simulierten Hand gefunden wurde. Ein Lauf mit
-zurückgehaltener Testmenge zeigte zudem, dass der letzte Checkpoint nicht der
-beste ist. Die Arbeit beschreibt die größten Hindernisse im Projekt, leitet
-Empfehlungen für Folgeprojekte ab und skizziert Co-Training mit simulierten
-Bildern sowie Reinforcement Learning als nächste Schritte.
+Bester Checkpoint ist N1.6 nach 44\,000 Schritten; N1.7 ist im Open Loop gleichauf. In der
+Simulation stapelt kein Modell. Zwei Ursachen wurden gemessen: Die Würfel liegen relativ zur
+Hand je Seite rund 3~cm zu weit innen (mit Korrektur heben abgespielte Demonstrationen in 6
+von 20 Episoden), und auf simulierten Bildern ist der Hand-Fehler der Politik 13-mal (N1.6)
+bzw.\ 36-mal (N1.7) so groß wie auf echten. Co-Training mit gerenderten Bildern verkleinert
+diesen Fehler deutlich, die Politik erreicht und berührt die Würfel in fast jeder Episode und
+greift erstmals (2 von 60 Episoden); gegen 0 von 20 ohne Co-Training ist das statistisch nicht
+zu trennen. Ein Test auf dem Roboter steht aus.
 
 \bigskip
 \noindent\textbf{Schlüsselwörter:}
-Humanoider Roboter,
-\ac{vla},
-Fine-Tuning,
-\ac{il},
-Domain-Gap,
-Sim-to-Real,
-Unitree G1,
+Humanoider Roboter, \ac{vla}, Fine-Tuning, Co-Training, Domain-Gap, Sim-to-Real, Unitree G1,
 NVIDIA GR00T
 
 \vspace{2.0cm}
@@ -41,36 +28,24 @@ NVIDIA GR00T
 \chapter*{Abstract}
 \addcontentsline{toc}{chapter}{Abstract}
 
-This project report examines the fine-tuning of the NVIDIA GR00T~N1.6
-\ac{vla} model for a block-stacking task on the Unitree~G1 humanoid robot
-with DEX3 hand. The pre-trained model is adapted via \acl{il} on roughly 300
-demonstrations. The work covers a container environment that runs locally and
-on the KISSKI \ac{hpc} cluster of GWDG, three training runs, a simulation
-environment in NVIDIA Isaac~Lab, checkpoint validation and a set of diagnostic
-tools.
+The NVIDIA GR00T \ac{vla} model (N1.6 and N1.7) was fine-tuned on 301 teleoperated
+demonstrations for block stacking with the Unitree~G1 humanoid robot and DEX3 hands. Training,
+checkpoint selection and evaluation run in containers locally, on the KISSKI \ac{hpc} cluster
+and on a simulation server with Isaac~Lab; the interfaces between dataset, checkpoint, policy
+server and simulation are documented.
 
-All three training runs converged stably, yet no policy solved the task in
-simulation. The most recently tested checkpoint (as of 14~August~2026)
-approaches and touches the cubes but does not close the hand far enough to
-lift one. The diagnostic tests indicate that the visual difference between
-real and simulated images is the main cause: on real images the same policy
-commands the full grasping motion, in simulation only one fifth to one quarter
-of it. How large this share is remains open, because an error in the control
-of the simulated hand was found later. A run with a held-out test set also
-showed that the last checkpoint is not the best one. The report describes the
-main obstacles of the project, derives recommendations for follow-up projects
-and outlines co-training with simulated images and reinforcement learning as
-next steps.
+The best checkpoint is N1.6 after 44\,000 steps; N1.7 performs on par in open loop. No model
+stacks in simulation. Two causes were measured: relative to the hand, the cubes lie about
+3~cm too far inward on each side (with a correction, replayed demonstrations lift a cube in 6
+of 20 episodes), and on simulated images the policy's hand error is 13 times (N1.6) or 36 times
+(N1.7) as large as on real images. Co-training with rendered images reduces this error
+markedly; the policy reaches and touches the cubes in almost every episode and grasps for the
+first time (2 of 60 episodes), which is statistically indistinguishable from 0 of 20 without
+co-training. A test on the real robot is still outstanding.
 
 \bigskip
 \noindent\textbf{Keywords:}
-Humanoid Robot,
-\ac{vla},
-Fine-Tuning,
-\ac{il},
-Domain Gap,
-Sim-to-Real,
-Unitree G1,
+Humanoid Robot, \ac{vla}, Fine-Tuning, Co-Training, Domain Gap, Sim-to-Real, Unitree G1,
 NVIDIA GR00T
 
 \cleardoublepage

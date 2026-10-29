@@ -1,0 +1,265 @@
+% chapters/05_ergebnisse.tex
+
+\chapter{Ergebnisse}
+\label{chap:ergebnisse}
+
+Die Ergebnisse folgen der Kette, in der sie entstanden sind. Jede Zahl trägt die Laufnummer
+aus \doc{docs/ergebnisse/diagnose-chronik.md}; die Abbildungen werden mit
+\doc{latex/figures/make_figures.py} aus den CSV-Dateien unter \doc{latex/figures/daten/}
+erzeugt.
+
+\section{Training und Checkpoint-Wahl}
+\label{sec:erg-training}
+\label{sec:trainingsverlauf}
+\label{sec:lernkurven}
+\label{sec:lauf3}
+
+\begin{table}[htb]
+  \centering
+  \begin{tabularx}{\linewidth}{lXrr}
+    \toprule
+    Lauf & Konfiguration & Schritte & Dauer \\
+    \midrule
+    1 & N1.6, 1$\times$A100, Bild-Encoder eingefroren, alle Episoden, kein Split & 175\,000 & 21,4~h \\
+    2 & N1.6, 4$\times$A100, Bild-Encoder mittrainiert, kein Split & 44\,000 & 8,4~h \\
+    3 & wie 2, dazu Split 240/61 und Farb-Augmentierung (\enquote{vision-v2}) & 44\,000 & 12,5~h \\
+    4 & N1.7, sonst wie 3, State-Dropout 0,2 & 44\,000 & 7~h~53~min \\
+    \bottomrule
+  \end{tabularx}
+  \caption{Trainingsläufe (Batch 8 bzw.\ 32, Lernrate \num{1e-4}; Details:
+    \cref{tab:hparams}). Ob Lauf~2 schon mit Augmentierung lief, ist nicht sicher belegt.}
+  \label{tab:laeufe}
+\end{table}
+
+Alle Läufe konvergieren ohne Spitzen auf einen Trainings-Loss von etwa 0,007 (N1.6,
+\cref{fig:loss-curve}). Der Loss trennt die Konfigurationen nicht. Die Checkpoint-Wahl beruht
+deshalb auf der Open-Loop-\ac{mse} auf 20 Testepisoden à 750 Schritte
+(\cref{tab:val-mse}).
+
+\begin{table}[htb]
+  \centering
+  \begin{tabular}{lrrrrrrr}
+    \toprule
+    Schritt & 5\,000 & 10\,000 & 20\,000 & 30\,000 & 35\,000 & 44\,000 \\
+    \midrule
+    N1.6 (Lauf 3) & 0,01016 & 0,00830 & 0,00628 & 0,00519 & -- & \textbf{0,00482} \\
+    N1.7 (Lauf 4) & 0,01128 & 0,00763 & 0,00575 & 0,00515 & \textbf{0,00512} & 0,00513 \\
+    \bottomrule
+  \end{tabular}
+  \caption{Validierungs-\ac{mse} auf 20 Testepisoden à 750 Schritte
+    (\doc{docs/ergebnisse/lauf4-n17-vergleich.md}, §5).}
+  \label{tab:val-mse}
+\end{table}
+
+\begin{itemize}
+  \item Bei N1.6 fällt die \ac{mse} bis 44\,000 monoton; 44\,000 ist signifikant besser als
+    30\,000 ($t = 2{,}15$, $n = 20$). Eine frühere Auswertung auf 6 Episoden à 300 Schritte
+    hatte ein Optimum bei 30\,000 gezeigt; das war ein Effekt der kurzen Auswertung.
+  \item N1.7 ist am besten bei 35\,000; gegen N1.6 @44000 ist der Unterschied nicht
+    signifikant ($+6\,\%$, $t = 1{,}20$). N1.7 lernt früher (signifikant besser bei 10\,000 und
+    20\,000) und trainiert 1,6-mal so schnell. State-Dropout und Normierung weichen ab; der
+    Vergleich ist einer von Modell und Rezept.
+\end{itemize}
+
+Gute Open-Loop-Werte auf echten Bildern sagen nichts über den Closed Loop in der Simulation
+(\cref{sec:erg-closed-loop}).
+
+\section{Closed Loop ohne Co-Training}
+\label{sec:erg-closed-loop}
+\label{sec:closed-loop-ergebnis}
+\label{sec:realperformance}
+
+Kein Modell hebt in der Simulation einen Würfel frei an
+(\cref{tab:cl-ohne}). Die Politik fährt die Würfel an und berührt sie, schließt die Hand
+aber nicht um einen Würfel.
+
+\begin{table}[htb]
+  \centering
+  \begin{tabular}{llrrrr}
+    \toprule
+    Lauf & Modell & Episoden & \texttt{reached} & \texttt{touched} & \texttt{lifted\_clear} \\
+    \midrule
+    34 & N1.6 vision-v2 @30000, alte Szene\textsuperscript{a} & 10 & 9 & 10 & --\textsuperscript{b} \\
+    55 & N1.7 @44000 & 10 & 9 & 6 & --\textsuperscript{b} \\
+    81 & N1.7 @44000, Szene Lauf 70 & 20 & 7 & 7 & 0 \\
+    82 & N1.6 vision-v2 @44000, Szene Lauf 70 & 20 & 16 & 17 & 0 \\
+    \bottomrule
+  \end{tabular}
+  \caption{Closed Loop ohne Co-Training. \textsuperscript{a}Vor der Korrektur vom 24.08.2026:
+    Fingergelenke falsch gespiegelt, Becken 0,85~m statt 0,764~m (\cref{sec:projektverlauf-fehler}).
+    \textsuperscript{b}Metrik eingeführt am 13.10.; \texttt{lifted} 0/10.
+    95-\%-Intervall für 0/20: 0--17\,\%.}
+  \label{tab:cl-ohne}
+\end{table}
+
+\section{Blocker 1: Lage der Würfel relativ zur Hand}
+\label{sec:erg-registrierung}
+\label{sec:geometrie}
+\label{sec:wuerfellage}
+
+Um Modell und Simulation zu trennen, spielt ein \enquote{Orakel} die aufgezeichneten
+Demonstrationsaktionen der jeweiligen Testepisode ab. Das ist die obere Schranke jeder
+Politik. Auf den aus Bildern bestimmten Würfellagen hebt es \texttt{lifted\_clear} 1/16
+(95-\%-Intervall 0,2--30\,\%, Lauf~57): Die Hand erreicht und schließt, schiebt oder kippt den
+Würfel aber. Die Griffstellen der echten Hand liegen 1--7~cm neben der Würfellage aus dem
+Bild, seitlich spiegelbildlich je Hand (Lauf~59). Die Würfelgröße ist nicht die Ursache
+(Lauf~58).
+
+\begin{figure}[htb]
+  \centering
+  \includegraphics[width=0.62\linewidth]{figures/plots/orakel_versatz_lauf62.pdf}
+  \caption{Orakel mit verschobenen Würfeln: \texttt{lifted\_clear} von 8 Episoden je
+    Verschiebung (Lauf~62). Leere Felder wurden nicht gemessen.}
+  \label{fig:orakel-sweep}
+\end{figure}
+
+Ein Raster über die Verschiebung (\cref{fig:orakel-sweep}) zeigt: Ohne seitliche Korrektur
+hebt das Orakel in 0 von 24 Episoden, mit 3--6~cm nach außen in 23 von 48. Bei $dx = 0$ trennt
+sich $dy = 3$~cm (5/8) von $dy = 0$ (0/8) mit $p \approx 0{,}03$ (exakter Fisher-Test). Die
+Würfel liegen in der Simulation relativ zur Hand also je Seite rund 3~cm zu weit innen. Mit
+dieser Korrektur hebt das Orakel auf 20 Testlagen in 6 Fällen frei an (30\,\%,
+95-\%-Intervall 12--54\,\%, Lauf~69).
+
+Die Ursache ist offen. Kein einzelner Gelenk-Nullpunkt erklärt den Versatz, eine
+mitwandernde Kopfkamera ist widerlegt (Lauf~63). Alle Closed-Loop-Messungen ab Lauf~81
+verwenden die empirische Korrektur (\texttt{layout\_heldout\_dy3.json}).
+
+\section{Blocker 2: Visueller Domain-Gap}
+\label{sec:erg-domain-gap}
+\label{sec:domain-gap-ergebnis}
+
+\begin{figure}[htb]
+  \centering
+  \begin{subfigure}[t]{0.48\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{figures/sim/real_cam_left_high.png}
+    \caption{Datensatz}
+  \end{subfigure}\hfill
+  \begin{subfigure}[t]{0.48\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{figures/sim/sim_scene70_cam_left_high.png}
+    \caption{Simulation, Szene aus Lauf 70}
+  \end{subfigure}
+  \caption{Linke Kopfkamera. Die Geometrie stimmt auf 10--20 Pixel; Tisch, Licht, Material
+    und Hintergrund unterscheiden sich (Lauf~67).}
+  \label{fig:domain-gap}
+\end{figure}
+
+Die Wirkung der Bilder lässt sich ohne Regelkreis messen: Die Politik sagt teacher-forced
+Aktionen für denselben Zustand einmal auf echten und einmal auf gerenderten Bildern derselben
+Episode vorher (\cref{tab:domain-gap}).
+
+\begin{table}[htb]
+  \centering
+  \begin{tabular}{lrrrr}
+    \toprule
+    Bilder & \multicolumn{2}{c}{N1.6} & \multicolumn{2}{c}{N1.7} \\
+    \midrule
+    alle echt & 0,0020 & & 0,0017 & \\
+    nur Kopfkameras simuliert & 0,0086 & ($\times$4) & 0,0073 & ($\times$4) \\
+    nur Handgelenkkameras simuliert & 0,0090 & ($\times$4) & 0,0340 & ($\times$20) \\
+    alle simuliert & 0,0269 & ($\times$13) & 0,0606 & ($\times$36) \\
+    \bottomrule
+  \end{tabular}
+  \caption{\ac{mse} der Hand-Aktionen (Median über 8 Trainingsepisoden; Läufe 66 und 71).}
+  \label{tab:domain-gap}
+\end{table}
+
+Der Fehler steigt in dieselbe Größenordnung wie mit schwarzen Bildern (Lauf~65): Für die
+Politik tragen die Sim-Bilder ungefähr so viel verwertbare Information wie kein Bild. N1.6
+leidet unter beiden Kameragruppen, N1.7 vor allem unter den Handgelenkkameras. Die Szene wurde
+daraufhin ans Echtbild angeglichen (breiterer Tisch, Handgelenkkamera näher an der echten
+Pose, 85° Öffnungswinkel; Lauf~70). Das senkt den Fehler um 40\,\% (N1.6) bzw.\ 18\,\%
+(N1.7); er bleibt aber das 8- bzw.\ 29-Fache des Echtbilds. Grobe Szenenmerkmale erklären also
+nur einen kleinen Teil.
+
+\section{Co-Training mit gerenderten Bildern}
+\label{sec:erg-cotrain}
+\label{sec:cotrain}
+
+\paragraph{Daten und Läufe.} Co-Training auf echten und simulierten Daten ist eine übliche Gegenmaßnahme zum Domain-Gap~\cite{cotrain2025}, neben \ac{dr}~\cite{tobin2017domain} und der Angleichung der Simulationsoptik~\cite{simpler2024}. Die echten Aktionen von 187 Trainingsepisoden wurden in der
+Szene aus Lauf~70 abgespielt und mit allen vier Kameras gerendert (29\,890 Frames), einmal mit
+5-cm- und einmal mit 4-cm-Würfeln (Lauf~72). Gemischt wird mit Anteil 0,15 gerendert, knapp über
+dem Frame-Verhältnis 0,115. Vier Läufe auf KISSKI (Läufe 73--76, je 44\,000 Schritte): N1.6 und
+N1.7, jeweils mit beiden Würfelgrößen (\cref{tab:cotrain-namen}). Die Validierungs-\ac{mse} auf
+echten Testepisoden liegt 3--9\,\% über Lauf~3; ob dasselbe Protokoll verwendet wurde, ist nicht
+geprüft.
+
+\begin{table}[htb]
+  \centering
+  \begin{tabular}{llll}
+    \toprule
+    & Würfel 5~cm & Würfel 4~cm \\
+    \midrule
+    N1.6 & B (Lauf 73) & C (Lauf 74) \\
+    N1.7 & A (Lauf 75) & D (Lauf 76) \\
+    \bottomrule
+  \end{tabular}
+  \caption{Bezeichnung der Co-Training-Läufe.}
+  \label{tab:cotrain-namen}
+\end{table}
+
+\paragraph{Visuelles Gate.} Alle co-trainierten Modelle senken den Hand-Fehler auf den
+Sim-Prüfbildern deutlich (\cref{fig:gate}): N1.6 auf 47--49\,\% des Ausgangswerts, N1.7 auf
+18--30\,\%. Auf Echtbildern bleibt N1.7 gleich (0,0024--0,0027 gegen 0,0026), N1.6 wird um
+50--60\,\% schlechter (0,0014 $\to$ 0,0021--0,0022). Das Gate trennt aber nicht zuverlässig
+\enquote{co-trainiert} von \enquote{nicht co-trainiert}: Auch die alten N1.6-Modelle (Lauf~1,
+vision-v1) unterbieten die 80-\%-Schwelle (Lauf~87).
+
+\begin{figure}[htb]
+  \centering
+  \includegraphics[width=\linewidth]{figures/plots/gate_mse_haende.pdf}
+  \caption{Visuelles Gate: \ac{mse} der Hand-Aktionen auf Echtbildern und gerenderten
+    Prüfbildern; schraffiert die Ausgangswerte ohne Co-Training (Läufe 80, 83, 86, 87, 92).}
+  \label{fig:gate}
+\end{figure}
+
+\paragraph{Closed Loop.} Mit Co-Training erreichen und berühren die Politiken die Würfel in
+fast jeder Episode (\cref{fig:closed-loop}). Echte Griffe, im Video bestätigt, gibt es nur bei
+N1.6: C auf allen 60 Testlagen \texttt{lifted\_clear} 2/60 = 3\,\% (95-\%-Intervall
+0,4--11,5\,\%, Läufe 88 und 97), B 1/20 (Lauf~84). Beide N1.7-Modelle heben nicht frei an
+(0/20, Läufe 89 und 93); die 6 \texttt{lifted} von A sind Schieben und Kippen. Gestapelt wird
+in keiner Episode. Gegen 0/20 ohne Co-Training (Lauf~82) ist 2/60 statistisch nicht zu
+trennen (exakter Fisher-Test, einseitig, $p \approx 0{,}56$).
+
+\begin{figure}[htb]
+  \centering
+  \includegraphics[width=\linewidth]{figures/plots/closed_loop_stufen.pdf}
+  \caption{Closed Loop, 120~s je Episode, Testlagen mit 3-cm-Korrektur. \texttt{lifted} ohne
+    Artefakte (weggeschleuderte Würfel).}
+  \label{fig:closed-loop}
+\end{figure}
+
+\begin{figure}[htb]
+  \centering
+  \includegraphics[width=0.7\linewidth]{figures/sim/griff_lauf88_ep05_80s_ausschnitt.png}
+  \caption{Erster Griff einer Politik: Modell C, Lauf~88, Episode~5, $t = 80$~s. Die linke
+    Hand hält den roten Würfel in der Luft.}
+  \label{fig:griff}
+\end{figure}
+
+\paragraph{Vorregistriertes Gate.} Vor dem Co-Training war festgelegt: Liegt die Fingerspanne
+im Closed Loop (10 Episoden à 40~s) deutlich über 0,577~rad = 27,6\,\% (Lauf~34), trägt der
+Weg. Modell C erreicht 1,53~rad = 73\,\% der Demonstration (Lauf~96, \cref{fig:spanne}).
+Gegen die Referenz ist das $p = 0{,}001$, gegen dasselbe Rezept ohne Renderdaten in der
+heutigen Szene (vision-v2, 0,52~rad) $p = 5\cdot10^{-6}$ (exakter Rangtest, einseitig). Gegen das alte Lauf-1-Modell (1,21~rad) ist
+es nur eine Tendenz ($p = 0{,}07$): Weit öffnen können auch Modelle ohne Co-Training. Belastbar
+sind damit das veränderte Verhalten (\texttt{touched} 60/60 gegen 17/20, gleichmäßig weite
+Spanne), nicht die Griffrate.
+
+\begin{figure}[htb]
+  \centering
+  \includegraphics[width=\linewidth]{figures/plots/fingerspanne_lauf96.pdf}
+  \caption{Fingerspanne im Closed Loop, 10 Episoden à 40~s (Lauf~96).}
+  \label{fig:spanne}
+\end{figure}
+
+\section{N1.7 gegen N1.6}
+\label{sec:erg-n17}
+\label{sec:n17}
+
+N1.7 ist im Open Loop auf echten Bildern gleichauf mit N1.6 und schneller trainiert. Auf
+Sim-Bildern ist es ohne Co-Training deutlich schlechter ($\times$36 gegen $\times$13), mit
+Co-Training erreicht es auf den Prüfbildern etwa das Niveau des nicht co-trainierten N1.6.
+Im Closed Loop greift kein N1.7-Modell. Für die Simulation ist N1.6 mit Co-Training der beste
+Kandidat (\texttt{luca-mue/groot-g1dex3-cotrain-v3-cube4-ckpt44000}).

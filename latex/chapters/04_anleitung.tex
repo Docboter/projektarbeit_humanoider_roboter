@@ -1,0 +1,100 @@
+% chapters/04_anleitung.tex
+
+\chapter{Anleitung zum Weiterarbeiten}
+\label{chap:anleitung}
+
+Die Befehle entsprechen \doc{docs/quickstart.md}; dort steht zu jedem Schritt, was danach zu
+sehen sein muss. Alle Wege lassen sich auch über \texttt{./run.sh} starten.
+
+\section{Zugänge}
+\label{sec:zugaenge}
+
+\begin{itemize}
+  \item Hugging-Face-Token (Pflicht): Lizenz von \texttt{nvidia/GR00T-N1.6-3B} akzeptieren; für
+    N1.7 zusätzlich Zugang zu \texttt{nvidia/Cosmos-Reason2-2B}.
+  \item \ac{wandb}-Schlüssel: lokal optional, auf KISSKI Pflicht (sonst
+    \texttt{USE\_WANDB=0}).
+  \item KISSKI-Konto für das Training, ein Rechner mit RT-Core-GPU für die Simulation
+    (\cref{tab:rechenumgebungen}).
+  \item Namensräume: Docker Hub \texttt{lucam03} (Images), GitHub \texttt{lucam06}
+    (GR00T-Fork), Hugging Face \texttt{luca-mue} (Checkpoints).
+\end{itemize}
+
+\section{Training}
+\label{sec:anl-training}
+
+\begin{minted}{bash}
+# lokal: zieht das Image, startet Container groot-train (Standard 30 000 Schritte)
+export HF_TOKEN=hf_... WANDB_API_KEY=...
+./Training/setup_and_train_dockerhub_pull.sh        # N1.7: GROOT_VERSION=1.7 davor
+docker start -ai groot-train                         # nach Stopp fortsetzen
+
+# KISSKI (Login-Knoten), einmalig das Image holen:
+module load apptainer
+apptainer pull $HOME/images/projekt-humanoider-roboter.sif \
+    docker://lucam03/projekt-humanoider-roboter:latest
+export HF_TOKEN=hf_... WANDB_API_KEY=... GLOBAL_BATCH_SIZE=32
+sbatch --export=ALL Training/kisski_submit.sh        # 4x A100, 44 000 Schritte
+\end{minted}
+
+Varianten werden über Umgebungsvariablen gewählt: \texttt{TUNE\_VISUAL=1} trainiert den
+Bild-Encoder mit, \texttt{USE\_COTRAIN=1} mischt gerenderte Daten bei,
+\texttt{TRAIN\_TEST\_SPLIT=1} hält die Episoden 240--300 zurück. \texttt{Training/kisski\_chain.sh}
+reiht mehrere Läufe mit anschließender Checkpoint-Auswertung hintereinander ein. Deren
+Standard sind 6 Testepisoden à 300 Schritte; für die Checkpoint-Wahl ist
+\texttt{EVAL\_NUM\_TRAJ=20 EVAL\_STEPS=750} nötig, weil das kurze Protokoll Scheinoptima
+liefert (\cref{sec:erg-training}). Der fertige Checkpoint wird ohne Optimizer hochgeladen:
+
+\begin{minted}{bash}
+python Simulation/scripts/upload_checkpoint.py \
+    --checkpoint <...>/checkpoint-44000 --repo luca-mue/groot-g1dex3-<lauf>-ckpt44000
+\end{minted}
+
+\section{Checkpoint messen}
+\label{sec:anl-messen}
+
+Auf dem Sim-Server erst prüfen, ob Image und GPU passen, dann Gate und Closed Loop:
+
+\begin{minted}{bash}
+./Simulation/server_rl_run.sh preflight
+# visuelles Gate, Seeds 0/1/2 (Container, GROOT_VERSION, GPU, HF-Repo ohne Konto)
+tools/sim_visgate_seeds.sh groot-rl 1.6 0 groot-g1dex3-cotrain-v3-cube4-ckpt44000
+python3 tools/sim_visgate_seeds_summary.py ~/groot-rl-data/sim_results \
+    cotrain-v3-cube4-ckpt44000
+# Closed Loop nach Protokoll (20 Testlagen x 120 s, Szene aus Lauf 70)
+SIM_CUBE_EDGE=0.04 tools/sim_cl_watchdog.sh cl_meinlauf groot-rl 0 1.6 \
+    luca-mue/groot-g1dex3-cotrain-v3-cube4-ckpt44000 \
+    /data/checkpoints/cotrain-v3-cube4-ckpt44000
+python3 tools/sim_cl_summary.py ~/groot-rl-data/sim_results/results_<...>.json
+\end{minted}
+
+\texttt{SIM\_CUBE\_EDGE=0.04} gilt nur für Modelle, die mit 4-cm-Würfeln co-trainiert wurden.
+Ein Treffer bei \texttt{lifted\_clear} zählt erst, wenn das Video unter
+\texttt{\textasciitilde/groot-rl-data/sim\_videos/<tag>/} einen Griff zeigt
+(\cref{sec:grenzen-metriken}). Die Prüfbilder des Gates liegen nur auf dem IKR-Server; auf
+einem neuen Server müssen sie mit \texttt{server\_rl\_run.sh render} neu erzeugt werden.
+
+\section{Häufige Fehler}
+\label{sec:anl-fehler}
+
+\begin{table}[htb]
+  \centering
+  \begin{tabularx}{\linewidth}{XX}
+    \toprule
+    Symptom & Ursache und Abhilfe \\
+    \midrule
+    KISSKI-Job läuft ohne Token & \texttt{--export=ALL} fehlt; der Login-Knoten setzt
+      \texttt{SBATCH\_EXPORT=none} \\
+    KISSKI-Job bricht mit \enquote{invalid device ordinal} ab & vier GPUs auf zwei Knoten
+      verteilt; \texttt{\#SBATCH -N 1} setzen (Lauf~75) \\
+    Checkpoint lädt nicht, Warnung zu \texttt{model\_type} & falsche \texttt{GROOT\_VERSION};
+      N1.6 und N1.7 sind nicht gegenseitig ladbar \\
+    Training bricht mit Speicherfehler ab & \texttt{GLOBAL\_BATCH\_SIZE} halbieren; bei
+      Arbeitsspeicher-Abbruch weniger Datenlade-Prozesse je GPU \\
+    Closed Loop hängt ohne Fehlermeldung & bekannter Hänger (Läufe 89, 90, 97);
+      \texttt{sim\_cl\_watchdog.sh} startet nach 15~min neu \\
+    \bottomrule
+  \end{tabularx}
+  \caption{Die fünf häufigsten Fehler. Weitere: \doc{docs/fehlerbehebung.md}.}
+  \label{tab:anl-fehler}
+\end{table}

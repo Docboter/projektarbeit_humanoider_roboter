@@ -1,0 +1,59 @@
+% chapters/08_uebergabe.tex
+
+\chapter{Übergabe}
+\label{chap:uebergabe}
+\label{chap:fazit}
+\label{chap:weiterfuehrend}
+\label{sec:ausblick}
+\label{sec:konsequenz}
+
+\section{Offene Punkte, in dieser Reihenfolge}
+\label{sec:offene-punkte}
+
+Die laufend gepflegte Liste steht in \doc{next-steps.md}, Abschnitt~2.
+
+\begin{enumerate}
+  \item \textbf{Robotertest.} Modell C (\texttt{…-cotrain-v3-cube4-ckpt44000}) gegen vision-v2
+    @44000 auf dem echten G1. Er entscheidet, ob der Echtbild-Verlust von N1.6 nach dem
+    Co-Training tragbar ist; sonst ist N1.7 D die Alternative ohne diesen Verlust, das in der
+    Simulation aber noch nicht greift. Voraussetzung ist eine Roboter-Seite nach
+    \cref{sec:if-roboter}.
+  \item \textbf{Griffrate heben.} Nach der vorregistrierten Regel: mehr gerenderte Episoden
+    statt höherer Mischung. Alternativ Reinforcement Learning mit \ac{fpo}~\cite{fpo2025}, das bei flow-basierten \acp{vla} in Simulation bereits Verbesserungen gezeigt hat~\cite{pirl2025}, auf
+    Modell C; der Trainer ist gebaut (nur N1.6), mit 3\,\% Griffen gibt es erstmals ein
+    schwaches Startsignal (\doc{docs/weiterfuehrend/rl-anleitung.md}).
+  \item \textbf{Gate-Schwelle nachschärfen:} relativ zum besten nicht co-trainierten Modell
+    derselben Generation, Echtbild-Kriterium als feste Zahl.
+  \item \textbf{\texttt{lifted\_clear} ohne Videobefund:} ein Kontaktkriterium, das einen
+    gestützten Würfel ausschließt.
+  \item \textbf{Ursachen offen:} 3-cm-Versatz der Würfellage (Lauf~63) und die Hänger im
+    Closed Loop (umgangen mit \texttt{tools/sim\_cl\_watchdog.sh}).
+\end{enumerate}
+
+\section{Bekannte Defekte und Stolperstellen}
+\label{sec:defekte}
+
+\begin{itemize}
+  \item Die Checkpoint-Auswertung nach dem Training nutzt standardmäßig 6 Episoden à 300
+    Schritte (\texttt{Training/kisski\_open\_loop\_eval.sh}); für die Wahl
+    \texttt{EVAL\_NUM\_TRAJ=20 EVAL\_STEPS=750} setzen.
+  \item Die Prüfbilder des visuellen Gates und die Layout-Datei
+    \texttt{layout\_heldout\_dy3.json} liegen nur auf dem IKR-Server; für die dy3-Datei gibt es
+    kein Erzeugungsskript im Repository.
+  \item Die gerenderten Co-Training-Datensätze \texttt{luca-mue/g1-dex3-rendered-v3-cube\{5,4\}}
+    sind privat.
+  \item Das Sim-Image auf Docker Hub muss nach Änderungen an \texttt{Simulation/} neu gebaut
+    werden (\texttt{Simulation/update\_sim\_image.sh --standalone}).
+\end{itemize}
+
+\section{Nicht weiterverfolgt}
+\label{sec:nicht-weiter}
+\label{sec:locomotion}
+\label{sec:rl-weiterfuehrend}
+
+Cosmos-Transfer-Augmentierung~\cite{cosmostransfer2025} ist gebaut, aber nicht end-to-end
+geprüft (\doc{docs/augmentation/anleitung.md}). Der externe Simulationsdatensatz für das
+Co-Training passt schematisch nicht; ein Lauf mit der umgewandelten Fassung liegt nicht vor
+(\doc{docs/training/synth-datensatz.md}). Für Fortbewegung empfiehlt die Recherche, eine
+vorhandene Laufpolitik mit der Manipulationspolitik zu kombinieren
+(\doc{docs/weiterfuehrend/lokomotion-recherche.md}).

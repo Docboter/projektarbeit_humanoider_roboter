@@ -31,17 +31,19 @@ gemäß \cref{tab:anh-modalitaeten}. Zustands- und Aktionsvektor sind jeweils
 
 \begin{table}[htb]
   \centering
-  \begin{tabular}{lll}
+  \begin{tabularx}{\linewidth}{llX}
     \toprule
-    Index & Gruppe & Repräsentation \\
+    Index & Gruppe, Aktion & Gelenke \\
     \midrule
-    0--6   & linker Arm    & relative Gelenkänderungen \\
-    7--13  & rechter Arm   & relative Gelenkänderungen \\
-    14--20 & linke Hand    & absolute Gelenkwinkel \\
-    21--27 & rechte Hand   & absolute Gelenkwinkel \\
+    0--6   & linker Arm, relativ  & ShoulderPitch, ShoulderRoll, ShoulderYaw, Elbow, WristRoll, WristPitch, WristYaw \\
+    7--13  & rechter Arm, relativ & wie links \\
+    14--20 & linke Hand, absolut  & Thumb0, Thumb1, Thumb2, Middle0, Middle1, Index0, Index1 \\
+    21--27 & rechte Hand, absolut & Thumb0, Thumb1, Thumb2, Index0, Index1, Middle0, Middle1 \\
     \bottomrule
-  \end{tabular}
-  \caption{Gliederung des 28-dimensionalen Aktions- und Zustandsvektors.}
+  \end{tabularx}
+  \caption{Gliederung des 28-dimensionalen Aktions- und Zustandsvektors
+    (\doc{examples/G1_DEX3/g1_dex3_config.py}). Middle und Index sind links und rechts
+    vertauscht.}
   \label{tab:anh-aktionsraum}
 \end{table}
 
@@ -59,11 +61,12 @@ Projektverzeichnisses nach \texttt{/data} und die Konfiguration ausschließlich
 \begin{minted}{bash}
 #!/usr/bin/env bash
 #SBATCH --job-name=groot-finetune
-#SBATCH --partition=kisski            # A100 80 GB (alt.: kisski-h100)
-#SBATCH -G A100:1                     # 4x A100 fuer den Multi-GPU-Lauf
-#SBATCH -c 16
-#SBATCH --mem=64G
-#SBATCH --time=48:00:00
+#SBATCH -p kisski                     # A100 80 GB (alt.: kisski-h100)
+#SBATCH -N 1                          # alle GPUs auf einem Knoten (Lauf 75)
+#SBATCH -G A100:4
+#SBATCH -c 96
+#SBATCH --mem=384G
+#SBATCH -t 48:00:00
 #SBATCH --output=logs/slurm-%j.out
 
 module load apptainer
@@ -74,7 +77,7 @@ apptainer exec --nv \
   --env WANDB_API_KEY="${WANDB_API_KEY:-}" \
   --env GLOBAL_BATCH_SIZE="${GLOBAL_BATCH_SIZE:-8}" \
   --env MAX_STEPS="${MAX_STEPS:-44000}" \
-  --env NUM_GPUS="${NUM_GPUS:-1}" \
+  --env NUM_GPUS="${NUM_GPUS:-4}" \
   "${SIF_IMAGE}" \
   bash /scripts/entrypoint.sh
 \end{minted}
@@ -94,11 +97,12 @@ apptainer exec --nv \
     Python (Training)         & 3.10 \\
     CUDA                      & 12.8 \\
     Paketmanager              & \texttt{uv} \\
-    DeepSpeed                 & 0.17.6 \\
+    DeepSpeed~\cite{zero2020} (ZeRO-2) & 0.17.6 \\
     Weights \& Biases         & 0.23.0 \\
     Simulation bis Juli 2026  & Isaac~Lab~2.3.2 mit Isaac~Sim~5.1 (Python~3.11) \\
     Simulation ab Aug.\ 2026  & Isaac~Lab~3.0.0-beta2 mit Isaac~Sim~6.0 (Python~3.12) \\
-    GR00T                     & Fork \texttt{lucam06/Isaac-GR00T}, Commit \texttt{26ad1f7} \\
+    GR00T N1.6 / N1.7         & Fork \texttt{lucam06/Isaac-GR00T}, Commits \texttt{9508b49} / \texttt{288d1de} \\
+    Python (N1.7)             & 3.12 \\
     \bottomrule
   \end{tabular}
   \caption{Software-Versionen der Trainings- und Simulationsumgebung. Die
@@ -109,19 +113,113 @@ apptainer exec --nv \
 
 Code, Dokumentation und Diagnoseprotokoll liegen im Repository
 \url{https://github.com/Docboter/projektarbeit_humanoider_roboter}
-(Branch \texttt{training-luca-IKR-IS6.0}, Stand dieser Arbeit: Commit
-\texttt{853fd71}). Die Trainingsläufe sind im \ac{wandb}-Projekt
+(Branch \texttt{training-luca-IKR-IS6.0}, Stand dieser Arbeit: Tag \texttt{abgabe-*}). Die Trainingsläufe sind im \ac{wandb}-Projekt
 \texttt{gr00t-g1-dex3} protokolliert, die für die Simulation verwendeten
-Checkpoints liegen auf Hugging Face (\texttt{luca-mue/groot-g1dex3-checkpoint}
-und Varianten). Der Einstieg für eine Reproduktion ist \doc{docs/quickstart.md}.
+Checkpoints liegen auf Hugging Face (\texttt{luca-mue/groot-g1dex3-*}). Der Einstieg für eine Reproduktion ist \doc{docs/quickstart.md}.
 
-\chapter{Trainingsdynamik: Lernrate und Gradientennorm}
+\chapter{Training: Hyperparameter und Verlauf}
 \label{anh:trainingsdynamik}
+\label{anh:training}
 
-Ergänzend zum Loss-Verlauf (\cref{fig:loss-curve}) zeigen die beiden folgenden
-Abbildungen Lernrate und Gradientennorm der drei Läufe aus \ac{wandb}. Die
-Lernrate ist durch die Konfiguration vorgegeben, die Gradientennorm ist ein
-gemessenes Diagnosesignal.
+\begin{table}[htb]
+  \centering
+  \begin{tabular}{lrr}
+    \toprule
+    Parameter & 1$\times$A100 (Lauf~1) & 4$\times$A100 (Läufe~2--4, 73--76) \\
+    \midrule
+    Batch-Größe (gesamt)  & 8               & 32 ($4\times8$) \\
+    Trainingsschritte     & 175\,000        & 44\,000 \\
+    Spitzen-Lernrate      & \num{1e-4}      & \num{1e-4} \\
+    Warmup-Anteil         & 0,05            & 0,10 \\
+    Weight Decay          & \num{1e-5}      & \num{1e-5} \\
+    Bild-Encoder          & eingefroren     & mittrainiert \\
+    Optimierer / Precision & \multicolumn{2}{c}{AdamW, bf16 + tf32} \\
+    LR-Scheduler          & \multicolumn{2}{c}{Cosine mit linearem Warmup} \\
+    Aktions-Horizont      & \multicolumn{2}{c}{16 Schritte} \\
+    \bottomrule
+  \end{tabular}
+  \caption{Trainingskonfigurationen laut \ac{wandb}-Laufkonfiguration.}
+  \label{tab:hparams}
+\end{table}
+
+
+\begin{figure}[htb]
+  \centering
+  \begin{tikzpicture}
+    \begin{semilogyaxis}[
+      width  = 0.9\textwidth,
+      height = 6.0cm,
+      xlabel = {Verarbeitete Samples (Mio.)},
+      ylabel = {Trainings-Loss (geglättet)},
+      grid   = both,
+      grid style = {line width=0.2pt, draw=gray!30},
+      major grid style = {line width=0.4pt, draw=gray!60},
+      xmin = 0, xmax = 1.42, ymin = 0.004, ymax = 2,
+      legend pos = north east,
+      legend style = {font=\small\sffamily},
+      tick label style = {font=\small\sffamily},
+      label style = {font=\small\sffamily},
+      x tick label style = {/pgf/number format/.cd, fixed, precision=1, use comma},
+    ]
+      \addplot[NavyBlue, thick] coordinates { 
+        (0.001,1.343) (0.003,1.036) (0.012,0.3994) (0.012,0.3725) (0.018,0.2201) (0.019,0.173)
+        (0.020,0.1128) (0.022,0.109) (0.022,0.1002) (0.027,0.0966) (0.030,0.091) (0.032,0.086)
+        (0.038,0.0859) (0.039,0.0859) (0.040,0.0859) (0.042,0.0808) (0.044,0.0808) (0.045,0.0746)
+        (0.048,0.0745) (0.051,0.0704) (0.055,0.0684) (0.083,0.0607) (0.110,0.0459) (0.129,0.0425)
+        (0.158,0.0425) (0.177,0.0432) (0.186,0.0415) (0.204,0.0304) (0.244,0.03) (0.268,0.03)
+        (0.295,0.0327) (0.317,0.0308) (0.345,0.024) (0.375,0.0201) (0.394,0.0217) (0.410,0.026)
+        (0.426,0.0238) (0.445,0.0203) (0.478,0.0197) (0.505,0.0214) (0.535,0.0178) (0.544,0.0178)
+        (0.573,0.0201) (0.605,0.0168) (0.649,0.0203) (0.695,0.021) (0.715,0.0205) (0.745,0.0172)
+        (0.775,0.0154) (0.806,0.0141) (0.839,0.013) (0.865,0.0151) (0.899,0.0143) (0.917,0.0112)
+        (0.954,0.0116) (0.991,0.0116) (1.010,0.0129) (1.049,0.0099) (1.073,0.0106) (1.093,0.0106)
+        (1.106,0.0104) (1.125,0.0112) (1.140,0.01) (1.152,0.008) (1.180,0.0089) (1.200,0.0091)
+        (1.214,0.0079) (1.248,0.0071) (1.265,0.0079) (1.303,0.0094) (1.325,0.0087) (1.350,0.0074)
+        (1.364,0.0074) (1.395,0.00775) (1.400,0.00775)
+       };
+      \addlegendentry{Lauf~1}
+      \addplot[BrickRed, thick, densely dashed] coordinates { 
+        (0.000,1.374) (0.003,1.271) (0.003,1.208) (0.009,1.03) (0.011,1.03) (0.013,1.008)
+        (0.015,0.9641) (0.021,0.7159) (0.024,0.5822) (0.025,0.5649) (0.028,0.4652) (0.028,0.4459)
+        (0.033,0.3298) (0.034,0.3293) (0.043,0.1974) (0.044,0.1834) (0.047,0.1483) (0.048,0.1466)
+        (0.048,0.1375) (0.050,0.134) (0.051,0.1265) (0.080,0.0897) (0.104,0.0742) (0.136,0.067)
+        (0.170,0.0651) (0.196,0.0586) (0.224,0.0538) (0.252,0.0504) (0.293,0.0451) (0.314,0.0401)
+        (0.330,0.0397) (0.353,0.0351) (0.378,0.03) (0.402,0.0316) (0.442,0.0303) (0.459,0.0264)
+        (0.488,0.0263) (0.495,0.027) (0.515,0.0279) (0.561,0.0232) (0.594,0.0221) (0.614,0.0225)
+        (0.641,0.0214) (0.657,0.02) (0.687,0.02) (0.704,0.0181) (0.713,0.0219) (0.730,0.0218)
+        (0.746,0.0207) (0.771,0.0176) (0.798,0.0178) (0.815,0.0148) (0.844,0.0135) (0.859,0.0146)
+        (0.887,0.0147) (0.919,0.0147) (0.959,0.0123) (0.996,0.0128) (1.020,0.0126) (1.047,0.0106)
+        (1.073,0.01) (1.094,0.0101) (1.114,0.0098) (1.145,0.0098) (1.166,0.0092) (1.188,0.0088)
+        (1.218,0.0113) (1.248,0.0095) (1.266,0.0084) (1.287,0.0097) (1.328,0.0068) (1.359,0.0072)
+        (1.372,0.0072) (1.401,0.0066) (1.407,0.0066)
+       };
+      \addlegendentry{Lauf~2}
+      \addplot[OliveGreen, thick, densely dotted] coordinates { 
+        (0.000,1.368) (0.003,1.267) (0.003,1.204) (0.009,1.034) (0.011,1.029) (0.013,1.002)
+        (0.015,0.9464) (0.021,0.7111) (0.024,0.5914) (0.025,0.5838) (0.028,0.4691) (0.028,0.4506)
+        (0.033,0.3325) (0.034,0.3323) (0.043,0.219) (0.044,0.185) (0.047,0.1761) (0.048,0.1663)
+        (0.048,0.1661) (0.050,0.1583) (0.051,0.1396) (0.080,0.0952) (0.104,0.0798) (0.136,0.0727)
+        (0.170,0.0662) (0.196,0.0567) (0.224,0.0584) (0.252,0.0539) (0.293,0.0441) (0.314,0.0389)
+        (0.330,0.0363) (0.353,0.0344) (0.378,0.0342) (0.402,0.0348) (0.442,0.03) (0.459,0.0286)
+        (0.488,0.0298) (0.495,0.0244) (0.515,0.0273) (0.561,0.0257) (0.594,0.023) (0.614,0.0253)
+        (0.641,0.0194) (0.657,0.0189) (0.687,0.0188) (0.704,0.0165) (0.713,0.019) (0.730,0.0205)
+        (0.746,0.0181) (0.771,0.0173) (0.798,0.0179) (0.815,0.0151) (0.844,0.0127) (0.859,0.013)
+        (0.887,0.0165) (0.919,0.0141) (0.959,0.0127) (0.996,0.0127) (1.020,0.0125) (1.047,0.0119)
+        (1.073,0.0106) (1.094,0.0092) (1.114,0.0086) (1.145,0.008) (1.166,0.0076) (1.188,0.0084)
+        (1.218,0.0121) (1.248,0.0109) (1.266,0.0099) (1.287,0.0084) (1.328,0.0066) (1.359,0.0059)
+        (1.372,0.0059) (1.401,0.00645) (1.407,0.00645)
+       };
+      \addlegendentry{Lauf~3}
+    \end{semilogyaxis}
+  \end{tikzpicture}
+  \caption{Trainings-Loss der drei Läufe über der Zahl der verarbeiteten
+    Samples (\ac{wandb}, je 500 Stützstellen, gleitender Median über
+    15~Werte, logarithmische Ordinate).}
+  \label{fig:loss-curve}
+\end{figure}
+
+Lernrate und Gradientennorm der Läufe 1--3 aus \ac{wandb}
+(\cref{fig:anh-lr,fig:anh-gradnorm}): Die Gradientennorm steigt im Warmup auf etwa 1,6 bis
+1,7 und fällt danach auf 0,1 bis 0,15, ohne Spitzen.
 
 \begin{figure}[htb]
   \centering
@@ -247,14 +345,53 @@ gemessenes Diagnosesignal.
   \label{fig:anh-gradnorm}
 \end{figure}
 
+\chapter{Laufliste}
+\label{anh:laufliste}
+
+Die in dieser Arbeit zitierten Läufe. Alle Läufe 1--97 mit Datum, Konfiguration und Rohdaten:
+\doc{docs/ergebnisse/diagnose-chronik.md}.
+
+\begin{longtable}{lp{0.42\linewidth}p{0.40\linewidth}}
+  \toprule
+  Lauf & Gegenstand & Ergebnis \\
+  \midrule
+  \endhead
+  1 & Training N1.6, Encoder eingefroren, 175\,000 Schritte & Loss 0,008; im Closed Loop 0/20 \\
+  2 & Training N1.6, Encoder mittrainiert, 44\,000 & Loss 0,007; Arme ziehen sich zurück \\
+  3 & Training N1.6 vision-v2, Split, Augmentierung & bester Checkpoint @44000, Val-\ac{mse} 0,00482 \\
+  4 & Training N1.7, sonst wie 3 & bester @35000, 0,00512; n.\,s.\ gegen Lauf 3 \\
+  34 & Closed Loop Lauf 3 @30000, alte Szene, 10$\times$40~s & Spanne 27,6\,\%, \texttt{lifted} 0/10 \\
+  54, 55 & Closed Loop N1.7 @15000/@44000 & \texttt{lifted} 0/10 \\
+  56 & Daumen-Gelenkgrenzen, Datensatz & kein Klemmen; Datensatz auf dem Server gemischt \\
+  57 & Orakel auf Bild-Layout & \texttt{lifted\_clear} 1/16 \\
+  58, 59 & Würfelgröße, Griffversatz & Größe nicht ursächlich; Versatz 1--7~cm \\
+  61 & \texttt{span} N1.6 auf Testepisoden & 90\,\% der Demo \\
+  62 & Orakel, Versatz-Raster & 3~cm nach außen: 5/8 statt 0/8 \\
+  63 & Ursache des Versatzes & offen \\
+  65--67 & Bild-Ablation, Teacher-Forcing auf Sim-Bildern & Hand-Fehler $\times$13 / $\times$36 \\
+  69 & Orakel, korrigiertes Layout & \texttt{lifted\_clear} 6/20 \\
+  70, 71 & Szene angleichen, Kamera-Mischung & $-$40\,\% / $-$18\,\%; bleibt $\times$8 / $\times$29 \\
+  72 & Render-Datensätze v3 & 187 Episoden, 29\,890 Frames je Würfelgröße \\
+  73--76 & Co-Training-Läufe B, C, A, D & Val-\ac{mse} 3--9\,\% über Lauf 3 \\
+  80 & Gate-Ausgangswerte, Seeds 0/1/2 & Maßstab N1.6 0,0239 / 0,0221 \\
+  81, 82 & Closed Loop ohne Co-Training, Szene Lauf 70 & 0/20 \\
+  83, 86, 92 & Gate der Co-Training-Modelle & N1.6 47--49\,\%, N1.7 18--30\,\% des Maßstabs \\
+  84, 85, 88 & Closed Loop N1.6 Co-Training & erste Griffe (1/20, 1/20, 2/20) \\
+  87, 90, 91 & Gegenproben alte N1.6-Modelle & Gate bestanden, keine Griffe \\
+  89, 93 & Closed Loop N1.7 Co-Training & 0/20 \\
+  94, 95 & Gate-beste Zwischenstände & nicht besser als @44000 \\
+  96 & vorregistriertes Gate & Spanne 73\,\% gegen 27,6\,\% \\
+  97 & C auf allen 60 Testlagen & \texttt{lifted\_clear} 2/60 \\
+  \bottomrule
+\end{longtable}
+
 \chapter{Simulations-Diagnostik}
 \label{anh:sim-diagnostik}
 
 \section{Open-Loop-Aktionsvergleich}
 \label{anh:openloop}
 
-\Cref{fig:anh-openloop} zeigt den Open-Loop-Test aus \cref{sec:diagnose} im
-Detail. Für jede der 28~Aktionsdimensionen wird die vom Modell auf realen
+\Cref{fig:anh-openloop} zeigt den ersten Open-Loop-Test (Lauf~1, Juni~2026). Für jede der 28~Aktionsdimensionen wird die vom Modell auf realen
 Bildern vorhergesagte Aktion der aufgezeichneten gegenübergestellt. Die
 Armdimensionen (0--13) folgen dem Referenzverlauf gut, die Fingerdimensionen
 (14--27) sind deutlich verrauscht. Die gezeigte Episode~0 war im ersten Lauf
@@ -275,7 +412,7 @@ Teil der Trainingsdaten.
 \label{anh:szenenparameter}
 
 \Cref{tab:anh-szene} fasst die Parameter der Simulationsszene vor und nach den
-Korrekturen aus \cref{sec:geometrie} zusammen.
+Korrekturen vom 24.08.2026 zusammen (\cref{sec:projektverlauf-fehler}).
 
 \begin{table}[htb]
   \centering
@@ -286,11 +423,11 @@ Korrekturen aus \cref{sec:geometrie} zusammen.
     Beckenhöhe          & 0,85~m   & 0,764~m  & Höhe der Roboterbasis über dem Boden \\
     Basis $x$           & 0        & $-$0,057~m & Längsversatz der Roboterbasis \\
     Würfel-Ruhehöhe     & 0,915~m  & 0,895~m  & Tisch 0,87~m plus halbe Kantenlänge \\
-    Vorzeichenumkehr    & 4 Gelenke & keine   & Fingergrundgelenke (\cref{sec:geometrie}) \\
+    Vorzeichenumkehr    & 4 Gelenke & keine   & Fingergrundgelenke \\
     Sichtfeld Kopfkameras & 47,2°  & 75,0°    & zuvor durch einen Fehler nie angewendet \\
     Abstand Kopfkameras & --       & $\pm$0,025~m & aus der Pixel-Disparität des realen
       Kamerapaars bestimmt, parallel ausgerichtet \\
-    Würfeldrehung       & stets 0° & offen    & real nahezu gleichverteilt über 0--45° \\
+    Würfeldrehung       & stets 0° & aus dem Bild & sonst 0°; real nahezu gleichverteilt über 0--45° \\
     \bottomrule
   \end{tabularx}
   \caption{Parameter der Simulationsszene vor und nach den Korrekturen
@@ -301,7 +438,7 @@ Korrekturen aus \cref{sec:geometrie} zusammen.
 \section{Kamerakalibrierung über Überlagerungen}
 \label{anh:overlay}
 
-Die Kamerakalibrierung aus \cref{sec:kalibrierung} erfolgte mangels
+Die Kamerakalibrierung erfolgte mangels
 Kalibrierdaten iterativ: Das erste reale Bild einer Episode und das erste
 simulierte Bild wurden halbtransparent überlagert und die Kamerapose in der
 Simulation so lange angepasst, bis Tischkanten, Würfel und Hände zur Deckung
@@ -324,6 +461,6 @@ kamen (\cref{fig:anh-overlay}).
   \caption{Kamerakalibrierung über Überlagerungen (Stand Juni~2026), je Panel
     von links nach rechts: reales Bild, Überlagerung, simuliertes Bild. Die
     linke Handgelenkkamera (b) wies im Juni mit einer Cosinus-Distanz von
-    0,427 den größten Domain-Gap auf (\cref{tab:domain-gap}).}
+    0,427 (SigLIP) den größten Abstand auf (\doc{docs/ergebnisse/domain-gap-analyse.md}).}
   \label{fig:anh-overlay}
 \end{figure}

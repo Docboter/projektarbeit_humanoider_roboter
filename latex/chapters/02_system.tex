@@ -1,0 +1,88 @@
+% chapters/02_system.tex
+
+\chapter{System im Überblick}
+\label{chap:system}
+\label{chap:grundlagen}
+
+\begin{figure}[htb]
+  \centering
+  \resizebox{\linewidth}{!}{%
+  \begin{tikzpicture}[
+    node distance = 0.7cm and 2.0cm,
+    box/.style   = {draw, rounded corners, fill=NavyBlue!8, align=center,
+                    minimum width=3.0cm, minimum height=1.25cm, font=\small\sffamily},
+    ext/.style   = {box, fill=OliveGreen!10},
+    miss/.style  = {box, fill=white, dashed, draw=gray},
+    arrow/.style = {-{Stealth[scale=1.1]}, thick, NavyBlue!70},
+    lab/.style   = {font=\scriptsize\sffamily, align=center},
+  ]
+    \node[ext] (ds)   {Datensatz (HF)\\\scriptsize LeRobot v3.0, 301 Ep.};
+    \node[box] (tr)   [right=of ds] {Training\\\scriptsize Docker lokal /\\\scriptsize Apptainer KISSKI};
+    \node[ext] (ck)   [right=of tr] {Checkpoint (HF)\\\scriptsize \texttt{luca-mue/}\\\scriptsize \texttt{groot-g1dex3-*}};
+    \node[box] (srv)  [below=1.3cm of ck] {Policy-Server\\\scriptsize GR00T, ZMQ :5555};
+    \node[box] (sim)  [left=of srv] {Sim-Eval\\\scriptsize Isaac Lab, 30\,Hz};
+    \node[miss] (rob) [left=of sim] {Roboter G1\\\scriptsize nicht angebunden};
+
+    \draw[arrow] (ds) -- node[above, lab] {Download,\\v3.0$\to$v2.1} (tr);
+    \draw[arrow] (tr) -- node[above, lab] {Upload} (ck);
+    \draw[arrow] (ck) -- node[right, lab] {laden} (srv);
+    \draw[arrow, <->] (sim) -- node[below, lab] {Bilder, Zustand /\\16$\times$28 Ziele} (srv);
+    \draw[arrow, <->, dashed, gray] (rob.south) -- ++(0,-0.5) -| node[pos=0.25, below, lab, gray] {gleiches Protokoll} (srv.south);
+  \end{tikzpicture}}
+  \caption{Datenfluss des Systems. Grün: externe Ablagen auf Hugging Face; gestrichelt: nicht
+    umgesetzt. Formate und Ports: \cref{chap:schnittstellen}.}
+  \label{fig:architektur}
+\end{figure}
+
+\section{Plattform}
+\label{sec:plattform}
+\label{sec:humanoide-robotik}
+
+Der Unitree~G1~\cite{unitree_g1} wird mit der dreifingrigen DEX3-Hand verwendet. Gesteuert
+werden nur Arme und Hände: je sieben Gelenke pro Arm und pro Hand, zusammen 28~\acp{dof}.
+Beine und Taille bleiben in der Simulation fest. Die vier Kameras des Datensatzes (zwei am
+Kopf, eine an jedem Handgelenk) liefern Bilder mit 640$\times$480 Pixeln bei 30~Hz.
+
+\section{GR00T N1.6 und N1.7}
+\label{sec:vla}
+\label{sec:imitation-learning}
+\label{sec:flow-matching}
+
+GR00T gehört wie OpenVLA~\cite{openvla2024} und $\pi_0$~\cite{pi0_2024} zu den \acp{vla} und verbindet ein Vision-Language-Modell mit einem Aktionskopf, der per Flow
+Matching~\cite{lipman2023flow} einen Block von 16 Gelenkbefehlen erzeugt~\cite{groot2025}.
+Nachtrainiert wird per \acf{bc}~\cite{hussein2017imitation}: Das Modell lernt, zu jedem
+beobachteten Zustand die demonstrierte Aktion vorherzusagen. Der Trainings-Loss misst daher
+nur die Nachahmung, nicht den Aufgabenerfolg; weicht die Politik im Regelkreis von den
+Demonstrationen ab, summieren sich Fehler~\cite{ross2011dagger}.
+
+\textbf{N1.6} (3,29~Mrd.\ Parameter, Backbone Eagle, Python~3.10) ist der Standardpfad; verwendet wird ein Fork des NVIDIA-Repositorys~\cite{groot_repo}.
+\textbf{N1.7} nutzt das Backbone Cosmos-Reason2-2B (Qwen3-VL, zugangsbeschränkt) und läuft in
+einem eigenen Image (Python~3.12). Checkpoints beider Generationen sind nicht gegenseitig
+ladbar; die Wahl erfolgt über \texttt{GROOT\_VERSION}. N1.7 wurde mit den NVIDIA-Standardwerten
+trainiert, die vom N1.6-Rezept abweichen (u.\,a.\ State-Dropout 0,2 statt 0); der Vergleich
+beider ist deshalb einer von Modell \emph{und} Rezept
+(\doc{docs/weiterfuehrend/groot-n17-migration.md}).
+
+\section{Rechenumgebungen}
+\label{sec:rechenumgebungen}
+\label{sec:infrastruktur}
+\label{sec:kisski}
+
+\begin{table}[htb]
+  \centering
+  \begin{tabularx}{\linewidth}{lXl}
+    \toprule
+    Umgebung & Zweck & GPU \\
+    \midrule
+    KISSKI (GWDG)~\cite{kisski} & Training, Open-Loop-Auswertung (\ac{slurm}, Apptainer, max.\ 48~h) & 4$\times$A100 80~GB, H100 94~GB \\
+    IKR-Server (Institut) & Simulation, visuelles Gate, Rendering & 2$\times$RTX PRO 6000 \\
+    lokal / vast.ai & kleine Trainings, Sim-Eval auf Mietkarten & je nach Mietkarte \\
+    \bottomrule
+  \end{tabularx}
+  \caption{Rechenumgebungen. Isaac~Sim braucht RT-Cores; A100 und H100 haben keine, die
+    Simulation läuft daher nie auf KISSKI.}
+  \label{tab:rechenumgebungen}
+\end{table}
+
+Training und Simulation laufen in Containern (CUDA~12.8, \texttt{uv}), konfiguriert nur über
+Umgebungsvariablen. Checkpoints wandern über Hugging Face vom Cluster zum Sim-Server.

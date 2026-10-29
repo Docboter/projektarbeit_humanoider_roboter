@@ -1,0 +1,176 @@
+% chapters/03_schnittstellen.tex
+
+\chapter{Schnittstellen}
+\label{chap:schnittstellen}
+\label{chap:umsetzung}
+\label{chap:methoden}
+
+Die Tabellen fassen \doc{docs/schnittstellen.md} zusammen; dort steht zu jeder Angabe die
+Quelldatei im Code.
+
+\section{Datensatz}
+\label{sec:if-datensatz}
+\label{sec:datensatz}
+\label{sec:training}
+
+\begin{table}[htb]
+  \centering
+  \begin{tabularx}{\linewidth}{lX}
+    \toprule
+    Quelle & \texttt{unitreerobotics/G1\_Dex3\_BlockStacking\_Dataset} (Hugging Face), LeRobot
+             v3.0~\cite{lerobot2024}, 301 Episoden, 281\,196 Frames, 30~Hz \\
+    Konvertierung & beim Containerstart nach LeRobot v2.1, Ablage
+             \texttt{/data/unitreerobotics/\dots}; \texttt{meta/modality.json} aus
+             \texttt{examples/G1\_DEX3/modality\_4cam.json} \\
+    Bilder & \texttt{cam\_left\_high}, \texttt{cam\_right\_high}, \texttt{cam\_left\_wrist},
+             \texttt{cam\_right\_wrist}; RGB, 640$\times$480 \\
+    Zustand, Aktion & je 28 Werte (rad): \texttt{left\_arm} 0--6, \texttt{right\_arm} 7--13,
+             \texttt{left\_dex3} 14--20, \texttt{right\_dex3} 21--27 \\
+    Aktionsform & Arme relativ zum Zustand, Hände absolut; Block von 16 Schritten \\
+    Sprache & \texttt{annotation.human.task\_description}, Standardtext
+             \enquote{stack three block} \\
+    Split & \texttt{TRAIN\_TEST\_SPLIT=1}: Episoden 0--239 Training, 240--300 Test
+             (Anteil 0,8 nach Episodenindex, ohne Zufall) \\
+    \bottomrule
+  \end{tabularx}
+  \caption{Datensatz-Schnittstelle. Gelenkreihenfolge: \cref{anh:datensatz}.}
+  \label{tab:if-datensatz}
+\end{table}
+
+\section{Checkpoint}
+\label{sec:if-checkpoint}
+
+\begin{table}[htb]
+  \centering
+  \begin{tabularx}{\linewidth}{lX}
+    \toprule
+    Pfad & \texttt{/data/g1\_dex3\_finetune/<lauf>/<experiment>/checkpoint-<N>}, z.\,B.\
+           \texttt{blockstacking\_vision/g1\_dex3\_blockstacking\_vision\_v1}; N1.7 mit Suffix
+           \texttt{\_n17} \\
+    Takt & lokal alle 2000 Schritte (höchstens 15 behalten), KISSKI alle 5000 (40) \\
+    Inhalt & \texttt{config.json}, Gewichte (safetensors), \texttt{experiment\_cfg/},
+             \texttt{processor/}, \texttt{wandb\_config.json}, Optimizer-Zustand \\
+    Version & \texttt{model\_type} in \texttt{config.json}: \texttt{Gr00tN1d6} oder
+              \texttt{Gr00tN1d7}; \texttt{GROOT\_VERSION=auto} liest ihn aus \\
+    Ablage & Hugging Face, privat, ohne Optimizer:
+             \texttt{upload\_checkpoint.py --checkpoint <dir> --repo
+             luca-mue/groot-g1dex3-<lauf>-ckpt<N>} \\
+    \bottomrule
+  \end{tabularx}
+  \caption{Checkpoint-Schnittstelle.}
+  \label{tab:if-checkpoint}
+\end{table}
+
+\section{Policy-Server}
+\label{sec:if-server}
+\label{sec:simulation}
+
+Der Server lädt einen Checkpoint und beantwortet Anfragen über \ac{zmq} (REQ/REP,
+\doc{tcp://<host>:5555}). Nachrichten sind mit msgpack kodiert, numpy-Arrays als
+\doc{{"__ndarray_class__": true, "as_npy": <Bytes von np.save>}}. Eine Anfrage hat die Form
+\doc{{"endpoint": <name>, "data": {...}}}; Endpunkte sind \texttt{ping},
+\texttt{reset}, \texttt{get\_action}, \texttt{get\_modality\_config} und \texttt{kill}. Fehler
+kommen als \doc{{"error": <text>}} zurück.
+
+\begin{table}[htb]
+  \centering
+  \begin{tabularx}{\linewidth}{lX}
+    \toprule
+    Anfrage \texttt{get\_action} & \texttt{video.<kamera>}: \texttt{(1,1,480,640,3)} uint8 für
+      alle vier Kameras; \texttt{state.<gruppe>}: \texttt{(1,1,7)} float32 für die vier
+      Gruppen; \texttt{annotation.human.task\_description}: Tupel mit einem String \\
+    Antwort & \texttt{[action, info]}, \texttt{action.<gruppe>}: \texttt{(1,16,7)} float32,
+      zusammen 16 absolute Gelenkziele $\times$ 28 \\
+    Ausführung & 30~Hz; von 16 Schritten werden \texttt{EXECUTION\_HORIZON} = 8 ausgeführt,
+      dann neu angefragt; Budget $8/30$~s = 267~ms \\
+    Zeitlimits & Sim-Client 20~s je Anfrage; nach Timeout REQ-Socket neu aufbauen \\
+    \bottomrule
+  \end{tabularx}
+  \caption{Protokoll des Policy-Servers. Ein lauffähiger Beispiel-Client steht in
+    \doc{docs/schnittstellen.md}, Abschnitt~3.}
+  \label{tab:if-server}
+\end{table}
+
+Der Server rechnet die relativen Arm-Aktionen mit dem mitgeschickten Zustand in absolute
+Ziele um. Ein Client muss deshalb immer den aktuellen Zustand senden.
+
+\section{Sim-Eval}
+\label{sec:if-sim}
+\label{sec:validierung}
+\label{sec:eval-methodik}
+
+\paragraph{Eingaben.} Eine Layout-Datei legt je Testepisode die drei Würfel fest
+(\texttt{episodes.<nr>.cubes}: $x,y$ in m, rot/grün/gelb; \texttt{cubes\_yaw\_deg}; dazu
+\texttt{n\_train}). Die Lagen werden aus dem ersten Bild der echten Episode bestimmt (Farbe,
+Strahl auf die Tischebene; Fehler 0,3--0,4~cm gegen bekannte Lagen). Standard der Messungen ist
+\texttt{layout\_heldout\_dy3.json}: Testlagen, Würfel je Seite 3~cm nach außen
+(\cref{sec:erg-registrierung}). Die Szene aus Lauf~70 setzt zusätzlich Tischgröße und
+Handgelenkkamera (\texttt{SIM\_TABLE\_SIZE}, \texttt{SIM\_WRIST\_*}).
+
+\paragraph{Ausgaben.} Je Lauf eine JSON-Datei \texttt{results\_<zeit>\_<checkpoint>.json}
+mit Kopf (Checkpoint, Layout, Parameter, 95-\%-Intervalle) und einem Eintrag je Episode.
+Abgebrochene Episoden zählen in keiner Rate.
+
+\begin{table}[htb]
+  \centering
+  \begin{tabularx}{\linewidth}{lX}
+    \toprule
+    Stufe & Bedingung \\
+    \midrule
+    \texttt{reached} & Fingerkuppe $\le$ 4~cm von der Würfelmitte \\
+    \texttt{grasp\_attempted} & Fingerspanne des Kommandos $\ge$ 30\,\% der Demonstration
+      (2,094~rad) \\
+    \texttt{touched} & Würfel um $>$ 1~cm verschoben \\
+    \texttt{lifted} & Würfelschwerpunkt $>$ 2~cm angehoben (zählt auch Kippen) \\
+    \texttt{lifted\_clear} & Würfelunterseite $>$ 2~cm über dem Tisch \emph{und} im selben
+      Schritt eine Fingerkuppe $\le$ 4~cm entfernt \\
+    \texttt{stacked} & drei Würfel horizontal $<$ 3~cm versetzt, Turm $>$ 8~cm, alle
+      $<$ 0,05~m/s \\
+    \bottomrule
+  \end{tabularx}
+  \caption{Stufen der Closed-Loop-Bewertung. Die Schwellen wurden vor den Messungen
+    festgelegt; jede Stufe wird für sich geprüft.}
+  \label{tab:if-stufen}
+\end{table}
+
+\paragraph{Visuelles Gate.} Ohne Isaac~Sim: Die Politik sagt teacher-forced Aktionen auf
+gerenderten Prüfbildern (4 Episoden, je 600 Schritte, Würfel 5~cm und 4~cm) und auf den
+echten Bildern derselben Episoden vorher. Kennzahl ist der Median der \ac{mse} über die
+Hand-Dimensionen, gemittelt über die Seeds 0, 1 und 2. Ergebnis: \texttt{visgate\_*.json}.
+
+\section{Container und Einstiegspunkte}
+\label{sec:if-container}
+\label{sec:docker}
+
+\begin{table}[htb]
+  \centering
+  \begin{tabularx}{\linewidth}{lX}
+    \toprule
+    Training & Image \texttt{lucam03/projekt-humanoider-roboter:latest} (N1.6) bzw.\
+      \texttt{:latest-n17}; Start lokal \texttt{Training/setup\_and\_train\_dockerhub\_pull.sh},
+      KISSKI \texttt{sbatch --export=ALL Training/kisski\_submit.sh} \\
+    Simulation & Image \texttt{lucam03/projekt-humanoider-roboter-sim-standalone:latest}
+      (Isaac~Sim~6.0); alle Aktionen über \texttt{Simulation/server\_rl\_run.sh <aktion>} \\
+    Menü & \texttt{./run.sh} führt zu allen Aktionen und zeigt den direkten Befehl \\
+    Daten & Training \texttt{/data} im Container (KISSKI: Projektspeicher); Sim
+      \texttt{\textasciitilde/groot-rl-data} = \texttt{/data} im Container \texttt{groot-rl} \\
+    Variablen & \texttt{HF\_TOKEN} (Pflicht), \texttt{GROOT\_VERSION}, \texttt{MAX\_STEPS},
+      \texttt{GLOBAL\_BATCH\_SIZE}, \texttt{NUM\_GPUS}, \texttt{TUNE\_VISUAL},
+      \texttt{USE\_COTRAIN}, \texttt{TRAIN\_TEST\_SPLIT}; vollständig in
+      \doc{docs/training/env-vars.md} \\
+    \bottomrule
+  \end{tabularx}
+  \caption{Container, Einstiegspunkte und Konfiguration.}
+  \label{tab:if-container}
+\end{table}
+
+Der Trainings-Container hält alle Daten; er darf gestoppt, aber nicht gelöscht werden
+(kein \texttt{docker run --rm}).
+
+\section{Echter Roboter}
+\label{sec:if-roboter}
+
+Eine Anbindung an den G1 fehlt. Eine Roboter-Seite müsste die vier Kamerabilder und die 28
+Gelenkwinkel lesen, sie nach \cref{tab:if-server} an den Server schicken und die
+zurückkommenden Gelenkziele mit 30~Hz an Arme und Hände geben. Gleichgewicht und Beine
+regelt die Politik nicht.
