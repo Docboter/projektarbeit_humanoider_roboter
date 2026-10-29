@@ -159,6 +159,10 @@ Fassung in `CLAUDE.md`; deren Zusatzangaben sind hier eingearbeitet).
 │   ├── gen_docs.sh            #   Drift-Check: Spec-Default vs. ${VAR:-…} vs. Doku-Tabellen
 │   ├── test_menu.sh           #   Abnahmeplan der Menüführung, ausführbar
 │   ├── check_tldr.sh          #   TL;DR-Konvention prüfen; --list = Überblick auf einen Schirm
+│   ├── sim_cl_watchdog.sh     #   Closed Loop (Protokoll Lauf 82) mit Hänger-Wächter (Chronik Läufe 89–95)
+│   ├── sim_visgate_seeds.sh   #   visuelles Gate, Seeds 0/1/2, für eine Liste von HF-Checkpoints (Lauf 92)
+│   ├── sim_cl_summary.py      #   Closed-Loop-JSONs → Tabelle mit exaktem KI, Artefakt-Verdacht, Pooling
+│   ├── sim_visgate_seeds_summary.py # Gate-Kennzahl: Mittel der Seed-Mediane MSE Hände je Checkpoint
 │   └── menu/                  #   _domains.spec (Domänenliste für run.sh) + eine *.spec je Aktion
 ├── Training/                  # Alles rund ums Training (Build, Run, Skripte)
 │   ├── Dockerfile             # Image, ENTRYPOINT = /scripts/entrypoint.sh; Build-Kontext = Training/
