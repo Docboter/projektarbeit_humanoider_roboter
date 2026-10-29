@@ -19,6 +19,8 @@ Finger-Vorzeichen und Würfel-z nachgetragen bis 2026-10-11).
 > **Achtung (Stand 2026-10-11):** Alle Sim-Greifzahlen vor dem 2026-08-24 (u. a. die 2,8 cm aus §13) wurden
 > mit falsch gespiegelten Fingergelenken und Beckenhöhe 0,85 m gemessen (§13.2, g1_dex3_cfg.py) und sind
 > nur historisch belegt; eine Neumessung mit der korrigierten Szene steht aus.
+>
+> **Nachtrag 2026-10-29:** Neumessung mit korrigierter Szene erfolgt: N1.6 @44000 `reached` 16/20, `lifted_clear` 0/20 (Lauf 82); N1.7 0/10 bzw. 0/20 (Läufe 54/55, 81); Chronik Läufe 57–97.
 
 > **Neuere Erkenntnisse (August 2026)** — Isaac-Sim-6.0-Migration, Kamera-Pose-Bug und
 > Neukalibrierung (Sichtfeld, Montagepunkt, Stereobasis), Domain-Gap-Neumessung sowie die

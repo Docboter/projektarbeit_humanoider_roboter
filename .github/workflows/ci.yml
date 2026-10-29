@@ -40,6 +40,9 @@ jobs:
       - name: TL;DR-Konvention (tools/check_tldr.sh)
         run: bash tools/check_tldr.sh </dev/null
 
+      - name: Markdown-Links und Anker (tools/check_links.py)
+        run: python3 tools/check_links.py
+
       # lib_menu.sh schaltet sich unter CI/GITHUB_ACTIONS bewusst ab (Pruefung 3c testet genau
       # das, indem sie CI=1 selbst setzt). Fuer die Abnahme muessen beide Variablen weg, sonst
       # schlagen alle PTY-Pruefungen fehl (lokal gemessen: 25/81 statt 81/81).

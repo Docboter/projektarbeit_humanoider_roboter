@@ -33,7 +33,7 @@ Finetune mit aufgetautem Vision-Encoder (`tune_visual = true`), Color-Jitter akt
 > ([Chronik, Läufe 38–51](diagnose-chronik.md#läufe-3846-runs2026082302-runs202608240512-die-fingergrundgelenke-standen-still)).
 > Der Vergleich 27,6 % vs. 20,5 % bleibt innerhalb derselben Geometrie gültig, die Absolutwerte
 > und `lifted 0/10` sind neu zu messen. (2) Das `span`-Verhältnis 1,00 auf echten Bildern bezieht
-> sich auf Trainingsepisoden; es fehlt die Messung auf zurückgehaltenen Episoden. (3) Ob Lauf 2
+> sich auf Trainingsepisoden; es fehlt die Messung auf zurückgehaltenen Episoden (Nachtrag 2026-10-29: Messung auf Testepisoden erfolgt: `span` N1.6 vision-v2 @30000 90 %, N1.7 @44000 94 % (Läufe 57–61); Neumessung mit korrigierter Szene erfolgt: N1.6 @44000 `reached` 16/20, `lifted_clear` 0/20 (Lauf 82); N1.7 0/10 bzw. 0/20 (Läufe 54/55, 81)). (3) Ob Lauf 2
 > wirklich ohne Jitter lief, ist ungeklärt (siehe Vorbehalt in
 > [lauf2-vision-auswertung.md](lauf2-vision-auswertung.md) §6.1). (4) Der nächste Schritt ist
 > Co-Training; `cotrain_synth_v1` brach am 2026-09-07 nach 138 s ab, ein neuer Lauf gab es nicht

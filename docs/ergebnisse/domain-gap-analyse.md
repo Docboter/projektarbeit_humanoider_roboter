@@ -88,6 +88,8 @@ Sim), der die Zielgröße direkt misst statt über den Proxy.
 > Kamera-Anteil verschoben haben — besonders bei `cam_left_wrist`. Eine Neumessung mit der
 > korrigierten Geometrie (und mit dem `TUNE_VISUAL`-Encoder aus Lauf 3) steht aus; es gibt keine
 > neuere Gap-Messung als 2026-08-08.
+>
+> **Nachtrag 2026-10-29:** Den Domain-Gap misst seit Lauf 66 die Policy selbst (Hand-Fehler auf Sim- gegen Echtbild ×13 N1.6, ×36 N1.7). Der SigLIP-Abstand dieser Seite ist als Kontrolle ungeeignet, weil SigLIP nicht der Encoder der Policy ist (Lauf 96).
 
 > **Nachtrag: Schritt 3 ist gelaufen.** Lauf 24 (2026-08-08) misst die BC-Erfolgsrate in der Sim
 > mit **0/20**; Lauf 30 (2026-08-12, nur 2 Episoden) schließt damit die vorregistrierte Regel, nach

@@ -10,6 +10,8 @@
 > alle Greif-Zahlen unten stammen aus der alten Geometrie, eine Neumessung steht aus. Nächster Schritt
 > ist Co-Training ([co-training.md](../training/co-training.md)); der einzige Co-Training-Lauf
 > (`cotrain_synth_v1`) brach am 2026-09-07 nach 138 s ab.
+>
+> **Nachtrag 2026-10-29:** Neumessung mit korrigierter Szene erfolgt: N1.6 @44000 `reached` 16/20, `lifted_clear` 0/20 (Lauf 82); N1.7 0/10 bzw. 0/20 (Läufe 54/55, 81). Co-Training v3 liegt vor (Läufe 73–97, erste Griffe `lifted_clear` 2/60); RL-Läufe gibt es weiterhin keine.
 
 > **Status: Pipeline läuft end-to-end, Lernwirkung noch offen.** Dieses Dokument beschreibt
 > Motivation, Bausteine und Phasen-Plan.

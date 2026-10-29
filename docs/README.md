@@ -33,7 +33,7 @@ Operative Anleitungen zum Trainieren. Die Auswertung der Läufe steht unter [Erg
 | [training/multi-gpu.md](training/multi-gpu.md) | **Multi-GPU-Training** — DeepSpeed/DDP, Batch-Size-Skalierung, KISSKI-Defaults (4× A100) |
 | [training/env-vars.md](training/env-vars.md) | **Konfigurationsreferenz** — alle Env-Vars + VRAM-Richtwerte (Single Source of Truth) |
 | [training/train-test-split.md](training/train-test-split.md) | 80/20-Datensatz-Split **und Checkpoint-Auswahl** — Implementierung, Nutzung, und warum die Validierung erst nach dem Lauf läuft (`checkpoint_sweep.py`) |
-| [training/co-training.md](training/co-training.md) | **Schritt 4 — Co-Training echt + gerendert** (`USE_COTRAIN=1`). Renderer für Sim-Bilder zu echten Aktionen, Zwei-Datensatz-Training mit `mix_ratio`, begründete Episodenzahl/Mischung, vorregistrierte Erfolgsregel. Werkzeuge gebaut, Lauf steht aus |
+| [training/co-training.md](training/co-training.md) | **Schritt 4 — Co-Training echt + gerendert** (`USE_COTRAIN=1`). Renderer für Sim-Bilder zu echten Aktionen, Zwei-Datensatz-Training mit `mix_ratio`, begründete Episodenzahl/Mischung, vorregistrierte Erfolgsregel. Ergebnis v3 (Läufe 73–97) in §3.5 |
 | [training/synth-datensatz.md](training/synth-datensatz.md) | **Fremder Sim-Datensatz im Co-Training** (`Fichtl00/Cube_Stacking_synth`) — warum er schematisch nicht passt (57-Dim-State, 50 fps), wie `harmonize_synth_dataset.py` die Gelenk-Zuordnung *misst* statt sie zu raten, begründetes Mischungsverhältnis, vorregistrierte Bewertungsregel |
 | [training/wandb-offline-sync.md](training/wandb-offline-sync.md) | W&B-Offline-Sync auf KISSKI |
 
@@ -319,13 +319,13 @@ Seit 2026-10-13 gibt es ein minimales CI ohne GPU:
 
 | Job | Prüft |
 |---|---|
-| Specs, TL;DR, Menü, Pins | `tools/gen_docs.sh` (Spec ↔ Skript ↔ Doku), `tools/check_tldr.sh`, `tools/test_menu.sh` (mit ungesetztem `CI`/`GITHUB_ACTIONS`, sonst schaltet sich das Menü ab), `diff` der beiden `lib_groot_version.sh`, [`tools/ci_check_pins.sh`](../tools/ci_check_pins.sh) (GR00T-Pins in den Dockerfiles == Submodul-Gitlinks; Submodule werden nicht geklont) |
+| Specs, TL;DR, Links, Menü, Pins | `tools/gen_docs.sh` (Spec ↔ Skript ↔ Doku), `tools/check_tldr.sh`, `tools/check_links.py` (relative Markdown-Links und Anker), `tools/test_menu.sh` (mit ungesetztem `CI`/`GITHUB_ACTIONS`, sonst schaltet sich das Menü ab), `diff` der beiden `lib_groot_version.sh`, [`tools/ci_check_pins.sh`](../tools/ci_check_pins.sh) (GR00T-Pins in den Dockerfiles == Submodul-Gitlinks; Submodule werden nicht geklont) |
 | ruff + shellcheck | `ruff check` auf `Training/`, `Simulation/`, `Augmentation/`, `tools/`; `ruff format --check` vorerst **nicht blockierend** (bis zu einem einmaligen Format-Commit); `shellcheck --severity=error` |
 | Isaac-freie Tests | `pytest` über `Simulation/g1_dex3_sim/test_*.py` mit `numpy`, `pytest`, `pyzmq`, `msgpack` (gepinnt; `test_rl_fpo.py` braucht torch und wird übersprungen) und `unittest` über `Augmentation/tests/` (mit `ffmpeg`) |
 
 Die Ruff-Konfiguration für den eigenen Code steht in der Root-[`pyproject.toml`](../pyproject.toml)
 (gespiegelt aus `app/Groot-1.6/pyproject.toml`; die Forks unter `app/` behalten ihre eigene).
-Lokal dieselben Checks: die drei `tools/`-Skripte oben, `ruff check .` und `ruff format --check .`.
+Lokal dieselben Checks: die vier `tools/`-Skripte oben, `ruff check .` und `ruff format --check .`.
 
 **`graphify-out/` gehört nicht ins Repo.** `.gitignore` schließt es (auch unter `latex/`) aus; der
 Graph ist rein lokal und wird mit `graphify update .` neu erzeugt. Seit 2026-10-13 (`76f2775`)

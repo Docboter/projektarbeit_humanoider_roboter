@@ -399,9 +399,10 @@ tail -f /data/logs/groot_server.log
 
 Erfolgreicher Start sieht so aus:
 ```text
-Loading model from /data/checkpoints/groot-g1dex3-checkpoint ...
-Server listening on tcp://0.0.0.0:5555
+Server is ready and listening on tcp://0.0.0.0:5555
 ```
+
+(Meldung aus `app/Groot-1.6/gr00t/policy/server_client.py:119`.)
 
 ### Isaac-Lab-Output direkt beobachten
 
@@ -416,16 +417,26 @@ tail -f /data/logs/entrypoint.log
 ```
 
 ### Fortschritt ablesen
+Format der Ausgabe (`run_g1_dex3_sim_eval.py:794-925`; Werte in spitzen Klammern):
+
 ```text
 --- Episode 1/20 ---
-  Episode 1: ERFOLG | 142 Steps | 4.7s
---- Episode 2/20 ---
-  Episode 2: misslungen | 300 Steps | 10.0s
+  Episode 1: misslungen | <steps> Steps | <s>s | <kuppe>-Würfel-Abstand <a> → <b> cm (Step <n>) | Würfel verschoben max. <c> cm | Fingerspanne <r> rad | Anhebung max. <d> cm (Unterseite mit Hand <e> cm)
+      Meilensteine: reached → grasp_attempted → touched
 ...
 ============================================================
-Ergebnis: 12/20 Erfolge — Success-Rate: 60.0%
+Episoden: 20 gültig / 0 abgebrochen
+  Meilenstein-Leiter (gültige Episoden, die die Stufe erreichen):
+    reached           <k>/20  ####
+    ...
+  95-%-Konfidenzintervalle (Clopper-Pearson, exakt):
+    lifted_clear     <k>/20 …
 ============================================================
+Ergebnisse gespeichert: /data/sim_results/results.json (Archiv: results_<zeit>_<ckpt>.json)
+[eval] fertig.
 ```
+
+`ERFOLG` statt `misslungen` heißt `stacked`; das kam bisher in keinem Lauf vor.
 
 ### VRAM-Auslastung prüfen
 ```bash
@@ -468,7 +479,7 @@ Episoden. *Läufe vor dem 2026-10-13 zählten Server-Fehler als normale Fehlschl
 ```json
 {
   "num_episodes": 20, "num_valid": 20, "num_aborted": 0, "aborted": false, "aborted_reason": null,
-  "num_success": 0, "success_rate": 0.0, "checkpoint": "…", "task_description": "stack three block",
+  "num_success": 0, "success_rate": 0.0, "checkpoint": {"path": "…", "run_id": "…", "global_step": 44000}, "task_description": "stack three block",
   "milestone_ci95": {"lifted_clear": {"k": 0, "n": 20, "rate": 0.0, "ci95": [0.0, 0.1684]}, "…": {}},
   "episodes": [
     {"episode": 1, "error": false, "error_reason": null, "max_clear_lift_cm": 0.4,
@@ -674,6 +685,8 @@ scp -P <port> root@<ip>:/data/sim_videos_replay/_debug_obs_cam_*.png ./
 > Beckenhöhe stand bei 0,85 m statt 0,764 m ([`umsetzungsnotizen.md`](umsetzungsnotizen.md) §13.2).
 > „Greifen funktioniert physikalisch" gilt daher nur eingeschränkt; eine Neumessung mit der
 > korrigierten Szene steht aus.
+>
+> **Nachtrag 2026-10-29:** Neumessung mit korrigierter Szene erfolgt: N1.6 @44000 `reached` 16/20, `lifted_clear` 0/20 (Lauf 82); N1.7 0/10 bzw. 0/20 (Läufe 54/55, 81). Greifen ist in der korrigierten Szene möglich: Mit 3-cm-Korrektur der Würfellage hebt das Orakel in 6/20 Episoden (Lauf 69).
 
 ---
 

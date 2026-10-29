@@ -21,6 +21,7 @@ import math
 import statistics as st
 import sys
 
+
 STAGES = ["reached", "touched", "lifted", "lifted_clear", "stacked"]
 
 

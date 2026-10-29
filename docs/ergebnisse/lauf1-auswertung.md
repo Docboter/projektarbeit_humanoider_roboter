@@ -184,6 +184,8 @@ zweites Mal weitgehend ausgeschlossen, und die Trainingspipeline ist entlastet.
 > zudem ist 2,0944 rad zugleich das De-Normalisierungs-Maximum. Auswendiglernen der Greifbewegung
 > ist damit nicht ausgeschlossen; die Messung auf zurückgehaltenen Episoden steht aus. „Domain-Gap
 > bestätigt" ist deshalb die plausibelste, nicht die einzig mögliche Lesart.
+>
+> **Nachtrag 2026-10-29:** Messung auf Testepisoden erfolgt: `span` N1.6 vision-v2 @30000 90 %, N1.7 @44000 94 % (Läufe 57–61). Als Blocker nachgewiesen sind seither Registrierung und Domain-Gap (Läufe 62, 66).
 
 ---
 
@@ -293,6 +295,8 @@ Die wesentlichen Fixes:
 > 0,85 → 0,764 m und Basis x −0,057 m. Alle Greifzahlen dieses Dokuments (Replay 2,8 cm,
 > Closed Loop) stammen aus der alten Geometrie; Neumessung steht aus. Siehe
 > [diagnose-chronik.md](diagnose-chronik.md#läufe-3846-runs2026082302-runs202608240512-die-fingergrundgelenke-standen-still).
+>
+> **Nachtrag 2026-10-29:** Neumessung mit korrigierter Szene erfolgt: N1.6 @44000 `reached` 16/20, `lifted_clear` 0/20 (Lauf 82); N1.7 0/10 bzw. 0/20 (Läufe 54/55, 81).
 ### 8.3 Closed-Loop-Diagnose bestätigt
 
 Das Closed-Loop-Verhalten mit `checkpoint-175000` auf vast.ai (L40):

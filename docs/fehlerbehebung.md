@@ -177,6 +177,8 @@ Messstand nach Kamera-Neukalibrierung (2026-08-08): mittlere Cosine-Distanz **0,
 > Meilensteine von Lauf 34) stehen unter diesem Vorbehalt; eine Neumessung mit der korrigierten
 > Szene steht aus.** Auch das `span`-Gate (Lauf 32/33) lief auf Trainingsepisoden; die Messung auf
 > den ausgehaltenen Testepisoden (240–300) ist offen.
+>
+> **Nachtrag 2026-10-29:** Neumessung mit korrigierter Szene erfolgt: N1.6 @44000 `reached` 16/20, `lifted_clear` 0/20 (Lauf 82); N1.7 0/10 bzw. 0/20 (Läufe 54/55, 81). Messung auf Testepisoden erfolgt: `span` N1.6 vision-v2 @30000 90 %, N1.7 @44000 94 % (Läufe 57–61).
 
 **Lösung:** Der wirksame Hebel ist der Vision-Encoder — mit Realdaten allein aber ausgereizt.
 Nächster Schritt ist **Co-Training auf echten + gerenderten Bildern**

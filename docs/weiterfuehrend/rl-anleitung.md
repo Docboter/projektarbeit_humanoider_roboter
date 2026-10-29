@@ -21,6 +21,8 @@ statt nur Aktions-Nachahmung (Hintergrund: [reinforcement-learning-plan.md](rein
 > dokumentierter RL-Lauf; die Sim-Geometrie wurde am 2026-08-24 korrigiert (Fingerspiegelung, Beckenhöhe,
 > Basis x), die Greif-Zahlen der Chronik sind neu zu messen.
 >
+> **Nachtrag 2026-10-29:** Neumessung mit korrigierter Szene erfolgt: N1.6 @44000 `reached` 16/20, `lifted_clear` 0/20 (Lauf 82); N1.7 0/10 bzw. 0/20 (Läufe 54/55, 81). Messung auf Testepisoden erfolgt: `span` N1.6 vision-v2 @30000 90 %, N1.7 @44000 94 % (Läufe 57–61). Co-Training v3 liegt vor (Läufe 73–97, `lifted_clear` 2/60); ein RL-Lauf seit 2026-08-08 fehlt weiterhin.
+>
 > **Nachtrag 2026-10-13 — frühere RL-Lernsignale sind nicht belastbar.** Drei Fehler im Trainer
 > sind behoben (Review 10-13 S2–S4): (1) `success` war durch einen Messfehler praktisch immer ≈ 0
 > (gelesen, nachdem `_reset_idx` das Flag schon gelöscht hatte) — jetzt vor dem Auto-Reset aus

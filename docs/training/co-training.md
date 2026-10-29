@@ -7,6 +7,8 @@
 > Ein **fremder** Sim-Datensatz statt des eigenen Renderers läuft über denselben
 > `USE_COTRAIN`-Pfad, braucht aber vorher eine Schema-Harmonisierung: [synth-datensatz.md](synth-datensatz.md).
 
+> **Überholt durch §3.5 (2026-10-29):** Es gibt ein Co-Training-Ergebnis (Läufe 73–97, Render v3); der Absatz unten beschreibt den Stand vom 2026-10-11.
+
 **Stand:** 2026-10-11 · Es gibt **noch kein Co-Training-Ergebnis**: kein Lauf mit dem eigenen
 Render-Datensatz, und der als Co-Training gedachte Lauf `cotrain_synth_v1` (W&B `7z81177r`) brach
 am 2026-09-07 nach 138 s ab — laut seiner W&B-Konfiguration lief er gar nicht als Co-Training

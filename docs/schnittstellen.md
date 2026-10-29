@@ -257,7 +257,7 @@ gelesen von `run_g1_dex3_sim_eval.py:207-241`):
   `success_rate`, `milestone_ci95` (je Stufe `k`, `n`, `rate`, `ci95`), `policy`
   (`groot` / `oracle_replay`), `groot_version`, `checkpoint` (`path`, `run_id`, `global_step`),
   `cube_layout`, `domain_randomization`, `execution_horizon`, `episode_length_s`, `episodes[]`.
-- Je Episode (`:582-635`): `error`, `error_reason`, `success`, `num_steps`, `inference_ms`,
+- Je Episode (`:582-635`, `:814`): `episode`, `error`, `error_reason`, `success`, `num_steps`, `inference_ms`,
   `min_reach_m`, `block_shift_max_m`, `finger_span_max_rad`, `max_cube_lift_cm`,
   `max_clear_lift_cm`, `layout_episode`, `milestones`.
 - Episoden mit `error = true` zählen in keiner Rate (`:580-581`). 95-%-Intervalle nach
