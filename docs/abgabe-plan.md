@@ -130,12 +130,12 @@ Kandidaten zum Zusammenführen: die Lauf-Auswertungen 1–4 unter einer Ergebnis
 | 4 Anleitung zum Weiterarbeiten | Zugänge und Tokens; Training lokal und auf KISSKI; Checkpoint hochladen; Gate und Closed Loop messen; die fünf häufigsten Fehler | 3–4 S. | Quickstart, `training/anleitung.md`, `kisski-hpc.md`, `sim-eval-anleitung.md`, `fehlerbehebung.md` |
 | 5 Ergebnisse | als Kette, je Schritt eine Tabelle oder Abbildung: Training und Checkpoint-Wahl → Open Loop auf echten Bildern → Blocker 1 Registrierung → Blocker 2 Domain-Gap → Co-Training (Gate, Spanne, Griffe) → N1.7 | 6 S. | Kap. 4, Chronik Läufe 3/4, 32–34, 54–97, CSVs |
 | 6 Grenzen | Stichprobe (n = 20/60, KI), Sim ≠ Roboter, Grenzen der Metriken (`lifted_clear`, `gap`), Hänger | 1 S. | Kap. 5, gekürzt |
-| 7 Übergabe | priorisierte offene Punkte aus [`next-steps.md` §2](../next-steps.md), bekannte Defekte | 1 S. | Kap. 6 + 8 |
+| 7 Projektverlauf und Lessons Learned | Lehren mit Beleg (Lauf-Nr.), Arbeitsmittel, KI-gestützte Entwicklung in einem Absatz | 1–2 S. | Kap. 7, nach Prüfregel gekürzt (E2) |
+| 8 Übergabe | priorisierte offene Punkte aus [`next-steps.md` §2](../next-steps.md), bekannte Defekte | 1 S. | Kap. 6 + 8 |
 | Anhang | Versionen, Hyperparameter, Laufliste (Nr., Datum, Modell, Ergebnis) als Tabelle, SLURM-Auszug | — | heutiger Anhang, Chronik-Index |
 
-Wegfallen oder auf einen halben Absatz schrumpfen (Entscheidung E2): Grundlagen-Kapitel,
-„Projektverlauf, Hindernisse und Lessons Learned“, „KI-gestützte Entwicklung“, „Weiterführende
-Arbeiten“ als eigenes Kapitel.
+Wegfallen oder auf einen halben Absatz schrumpfen: Grundlagen-Kapitel und „Weiterführende
+Arbeiten“ als eigenes Kapitel. „Projektverlauf und Lessons Learned“ bleibt (E2), gekürzt.
 
 ### B2. Abbildungen statt Text (6–8 Stück)
 
@@ -178,11 +178,11 @@ Arbeiten“ als eigenes Kapitel.
 | 4 | Prüfen, Fremdtest, Korrektur | ~½ Tag | Gruppe, IKR-Server |
 | 5 | B3 Formales, Tag, Abgabe | ~2 h | Laptop |
 
-## Offene Entscheidungen
+## Entscheidungen (getroffen 2026-10-29)
 
-| | Frage | Vorschlag |
+| | Frage | Entscheidung |
 |---|---|---|
-| E1 | Abgabedatum und Vorgaben der Hochschule (Seitenumfang, Pflichtkapitel wie „Stand der Technik“)? | — (bestimmt den Umfang von B1) |
-| E2 | Kapitel „Projektverlauf / Lessons Learned / KI-gestützte Entwicklung“: streichen, auf einen Absatz kürzen oder behalten? | auf einen Absatz kürzen |
-| E3 | Wer übernimmt welchen Teil, wer macht den Fremdtest? | Fremdtest durch jemanden, der Kap. 4 nicht schreibt |
-| E4 | Schnittstellen und Anleitung ausführlich in LaTeX oder dort knapp mit Verweis auf `docs/`? | in LaTeX knapp und vollständig, Details in `docs/` |
+| E1 | Abgabedatum und Vorgaben der Hochschule? | Keine Vorgaben der Hochschule, kein festes Datum: abgegeben wird, wenn die Arbeit fertig ist. Ziel bleibt 20–25 Seiten Hauptteil. |
+| E2 | Kapitel „Projektverlauf / Lessons Learned / KI-gestützte Entwicklung“? | **Behalten** als eigenes, nach der Prüfregel gekürztes Kapitel: Der Betreuer hat Lessons Learned ausdrücklich als wichtig genannt. |
+| E3 | Wer übernimmt welchen Teil? | Teil A und B werden in einem Zug umgesetzt; der Fremdtest (Prüfen, Punkt 3) bleibt Aufgabe der Gruppe auf dem IKR-Server. |
+| E4 | Schnittstellen und Anleitung in LaTeX? | Knapp und vollständig in LaTeX, Details per Verweis auf `docs/`. |
