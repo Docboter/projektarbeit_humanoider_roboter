@@ -23,13 +23,13 @@ v3→v2 conversion → training, configured by env vars only. The same image run
 and on the **KISSKI HPC cluster** (GWDG) via Apptainer. One training image per generation
 (`Training/update_image.sh --groot=1.6|1.7|both`, tags `:latest` / `:latest-n17`).
 
-**Status (2026-10-13), short:** best validated N1.6 checkpoint is vision-v2 (run 3) **step 44000**
-(20×750 re-measurement refutes the old 30000 U-curve). N1.7: full KISSKI run (44k) done, open loop
-on par with N1.6; sim runs 54/55 → `lifted` 0/10. Closed loop overall: 0 successes; cause not
-identified (domain gap is one candidate among several). Co-training, Cosmos augmentation and RL:
-tools built, no result. **The status is maintained in exactly one place:
-[`next-steps.md` §0](next-steps.md)** (N1.7 detail:
-[`groot-n17-migration.md` → Stand der Umsetzung](docs/weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19)).
+**Status (2026-10-29), short:** best N1.6 checkpoint vision-v2 (run 3) @44000; N1.7 on par in
+open loop. Two sim blockers measured: cube registration (~3 cm too far inward, runs 62/69) and the
+visual domain gap (hand error ×13 / ×36 on sim images, run 66). Co-training v3 with sim renders
+(runs 73–97) shrinks that gap and gives first grasps (`lifted_clear` 2/60), `stacked` still 0; no
+robot test. **The status is maintained in exactly one place:
+[`next-steps.md` §0](next-steps.md)**; interfaces: [`docs/schnittstellen.md`](docs/schnittstellen.md);
+submission plan: [`docs/abgabe-plan.md`](docs/abgabe-plan.md).
 Do not repeat status narrative here — link instead.
 
 ## Critical rules
@@ -102,7 +102,8 @@ cd /app/Groot-1.6 && python -m pytest tests/ -m 'not gpu' -v --timeout=300   # C
 cd /app/Groot-1.6 && pre-commit run --all-files                           # lint + format
 ```
 
-Host checks (run after doc/spec/script changes): `tools/gen_docs.sh` (spec defaults vs.
+Host checks (run after doc/spec/script changes): `tools/check_links.py` (Markdown links and
+anchors), `tools/gen_docs.sh` (spec defaults vs.
 `${VAR:-…}` vs. doc tables), `tools/check_tldr.sh` (TL;DR convention), `tools/test_menu.sh`
 (menu acceptance suite).
 

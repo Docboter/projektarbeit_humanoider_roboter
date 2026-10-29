@@ -1,155 +1,45 @@
 # Projektarbeit Humanoider Roboter
 
-> **TL;DR:** Schlanke Projekt-Landingpage: Überblick über das GR00T-N1.6-Fine-tuning-Projekt,
-> Schnellstart-Befehle für KISSKI/vast.ai/lokal und Links in die ausführliche Doku unter
-> [docs/](docs/README.md).
+> **TL;DR:** Fine-Tuning des Vision-Language-Action-Modells NVIDIA GR00T (N1.6 und N1.7) auf
+> den Unitree G1 mit DEX3-Händen für Würfelstapeln, mit Closed-Loop-Bewertung in Isaac Lab.
+> Einstieg: [Quickstart](docs/quickstart.md) (Befehle) und
+> [Schnittstellen](docs/schnittstellen.md) (Formate); alles Weitere unter [docs/](docs/README.md).
 
-**Neu im Projekt?** → [docs/quickstart.md](docs/quickstart.md) — Systemvoraussetzungen,
-Host-Software, Accounts/Tokens, kürzeste Befehlsketten.
+## Ergebnis (Stand 2026-10-29)
 
-## GR00T N1.6 Fine-tuning — Unitree G1 mit DEX3-Hand
+- **Training:** Bester N1.6-Checkpoint ist vision-v2 (Lauf 3) @44000; N1.7 liegt im Open Loop
+  gleichauf und trainiert 1,6× schneller ([Lauf 4](docs/ergebnisse/lauf4-n17-vergleich.md)).
+- **Zwei Blocker der Sim gemessen:** Die Würfel liegen in der Sim je Seite ~3 cm zu weit innen;
+  mit Korrektur hebt die abgespielte menschliche Demo in 30 % statt ~0 % der Episoden (Läufe 62,
+  69). Auf Sim-Bildern ist der Hand-Fehler der Policy ×13 (N1.6) bzw. ×36 (N1.7) gegenüber
+  Echtbildern (Lauf 66).
+- **Co-Training mit Sim-Renderbildern** halbiert diesen Fehler bei N1.6 und senkt ihn bei N1.7
+  auf 18–30 %. Die Policy erreicht und berührt die Würfel; echte Griffe bleiben selten
+  (`lifted_clear` 2/60 = 3 %, gegen 0/20 ohne Co-Training nicht signifikant), gestapelt wird nie
+  (Läufe 73–97). Ein Test auf dem Roboter fehlt.
 
-Dieses Repository dokumentiert das Fine-tuning von NVIDIAs **GR00T N1.6**
-Vision-Language-Action-Modell auf den Unitree G1 Roboter mit DEX3-Hand für die Aufgabe
-Block-Stacking — plus eine Closed-Loop-**Simulations-Evaluation** in Isaac Lab.
+Laufende Statusquelle: [next-steps.md §0](next-steps.md); jede Zahl mit Herkunft:
+[Diagnose-Chronik](docs/ergebnisse/diagnose-chronik.md).
 
-Seit 2026-08-19 liegt **GR00T N1.7** als **paralleler Codebaum** vor (`GROOT_VERSION=1.7`
-statt Default `1.6`); seit 2026-09-25 in einem **eigenen Trainings-Image** (`:latest-n17`) —
-Details: [docs/weiterfuehrend/groot-n17-migration.md](docs/weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19).
-**Stand 2026-10-13:** voller N1.7-Trainingslauf (KISSKI, 44 000 Steps) und zwei Sim-Läufe (54/55,
-`lifted` 0/10) sind gelaufen; offen ist die Sim-Eval nach dem Abnahmeprotokoll (20 Episoden).
-Der N1.7-Status wird nur [dort](docs/weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19) gepflegt.
+## Repo-Karte
 
-Die Trainingsumgebung läuft **vollständig autonom in einem Container**: Container starten →
-Training läuft. Derselbe Container läuft lokal, auf Cloud-GPU-Plattformen wie
-[vast.ai](https://vast.ai) und auf dem **KISSKI HPC-Cluster** (GWDG Göttingen). Alle Schritte
-(Daten-Download, Konvertierung, Training) passieren im Container.
-
-> **Speicher-Modell:** Es gibt **keinen persistenten Storage auf dem Host**. Daten, Checkpoints
-> und Logs leben ausschließlich im Container-Filesystem. Auf vast.ai entspricht ein Container
-> genau einer Instanz — wird sie zerstört, ist alles weg. Auf KISSKI wird
-> `/mnt/vast-kisski/projects/kisski-humrob/data` als `/data` in den Container gemountet.
-> **Niemals `docker run --rm`** mit diesem Image verwenden.
-
-**Projektstand (2026-10-13):** Bester validierter N1.6-Checkpoint ist der Vision-Lauf 3, **Step 44.000**
-(Nachmessung 20 × 750 vom 2026-10-12 — die frühere U-Kurve mit Optimum 30.000 ist widerlegt,
-[lauf4-n17-vergleich.md §5](docs/ergebnisse/lauf4-n17-vergleich.md#5-nachgeschärfter-vergleich-20-episoden--750-steps-volle-länge)).
-Im Closed Loop in der Sim hebt noch kein Würfel ab (N1.6 Lauf 34, N1.7 Läufe 54/55: je `lifted` 0/10).
-Die Sim-Geometrie wurde am 2026-08-24 korrigiert (Fingergelenk-Vorzeichen, Beckenhöhe, Basisposition) —
-frühere Sim-Greifzahlen stehen unter Vorbehalt; mit korrigierter Szene gemessen ist bisher nur N1.7. Co-Training (echt + gerendert bzw. externer
-Synth-Datensatz) und RL haben noch kein Ergebnis; der als erster Co-Training-Lauf geführte `cotrain_synth_v1`
-(2026-09-07) war laut W&B-Konfiguration keiner (nur der echte Datensatz).
-Priorisierte nächste Schritte: [next-steps.md](next-steps.md). Die schriftliche Projektarbeit liegt unter
-[latex/](latex/). GR00T N1.7 ist als paralleler Pfad wählbar (`GROOT_VERSION=1.7`); der Vergleich mit N1.6
-steht in [lauf4-n17-vergleich.md](docs/ergebnisse/lauf4-n17-vergleich.md).
-
----
-
-## Schnellstart
-
-> **Wenn du nur einen Befehl behalten willst: `./run.sh`.**
->
-> ```bash
-> ./run.sh              # fragt: Simulation / Training / KISSKI — dann weiter durch alles
-> ```
->
-> Das ist der einzige Einstiegspunkt. Er wählt nur die Domäne und übergibt an den
-> passenden Host-Launcher; ab dort führt dessen eigenes Menü durch die Aktion und ihre
-> Parameter. Die Liste ist nach *Tätigkeit* gruppiert: **Simulation** läuft nur auf dem
-> IKR-Server, **Training** wahlweise hier oder auf KISSKI. Was auf diesem Rechner nicht
-> läuft (kein Docker, kein `sbatch`), bleibt sichtbar und wird mit Grund gesperrt.
-> Mit Pfeiltasten bedienbar, Zahlen gehen weiter.
->
-> Lange Aktionslisten (Simulation: 23) sind nach Gruppen geschachtelt, wobei jede Gruppe
-> die enthaltenen Aktionen als Vorschau zeigt — `[*]` blendet trotzdem alles auf einen
-> Schirm, `?<nr>` erklärt eine Gruppe. **`[←]` (bzw. `[z]`) führt immer eine Ebene
-> zurück:** aus einer Gruppe in die Übersicht, von dort ins Hauptmenü.
->
-> **Ohne Parameter starten führt durch** — das gilt auch für jedes Skript einzeln
-> (`./Simulation/server_rl_run.sh`, `./Training/setup_and_train_dockerhub_pull.sh`).
-> `?` bei einer Frage zeigt den Langtext; am Ende steht der äquivalente Ein-Zeiler, beim
-> dritten Mal kommt man also ohne aus. `MENU=0` bzw. `--no-menu` schaltet ab; im
-> Container, unter SLURM und ohne Terminal erscheint nie ein Menü. Alle Beispiele unten
-> funktionieren unverändert weiter.
-> Details: [cli-menuefuehrung.md](docs/weiterfuehrend/cli-menuefuehrung.md)
-
-**KISSKI (HPC-Cluster, empfohlen für langes Training):**
-```bash
-# Einmalig auf dem Login-Knoten glogin-gpu.hpc.gwdg.de:
-module load apptainer
-apptainer pull $HOME/images/projekt-humanoider-roboter.sif \
-    docker://lucam03/projekt-humanoider-roboter:latest
-
-# Job einreichen:
-export HF_TOKEN=hf_...  WANDB_API_KEY=...
-sbatch --export=ALL Training/kisski_submit.sh   # --export=ALL nötig (Login-Knoten setzt SBATCH_EXPORT=none), alternativ ~/.hf_token + ~/.wandb_key
-```
-
-**vast.ai:** Instanz mit Image `lucam03/projekt-humanoider-roboter:latest` starten, in den
-Docker-Options `-e HF_TOKEN=hf_… -e WANDB_API_KEY=…` setzen → Training läuft autonom.
-
-**Lokal (Linux / WSL2):**
-```bash
-export HF_TOKEN=hf_...  WANDB_API_KEY=...
-./Training/setup_and_train_dockerhub_pull.sh
-```
-
-**GR00T N1.7 statt N1.6** (paralleler Codebaum — Zugang zum gated Backbone
-`nvidia/Cosmos-Reason2-2B` nötig): eigenes Image (`:latest-n17`, gebaut mit
-`Training/update_image.sh --groot=1.7`) plus `GROOT_VERSION=1.7`, z. B.
-```bash
-docker run --name groot-train --gpus all --ipc=host --shm-size=16g \
-  -e HF_TOKEN -e WANDB_API_KEY -e GROOT_VERSION=1.7 \
-  -it lucam03/projekt-humanoider-roboter:latest-n17
-```
-
-→ Ausführliche Schritt-für-Schritt-Anleitung: **[docs/training/anleitung.md](docs/training/anleitung.md)**
-
----
-
-## Dokumentation
-
-Die vollständige Dokumentation liegt unter **[docs/](docs/README.md)**:
-
-| Bereich | Einstieg |
+| Ordner | Inhalt |
 |---|---|
-| **Training** | [docs/training/](docs/training/README.md) — Einstieg & die vier Wege zum Trainieren |
-| ↳ KISSKI HPC | [docs/training/kisski-hpc.md](docs/training/kisski-hpc.md) |
-| ↳ Env-Vars | [docs/training/env-vars.md](docs/training/env-vars.md) — alle Parameter + VRAM-Richtwerte |
-| ↳ Train-Test-Split | [docs/training/train-test-split.md](docs/training/train-test-split.md) |
-| ↳ W&B-Offline-Sync | [docs/training/wandb-offline-sync.md](docs/training/wandb-offline-sync.md) |
-| **Simulation** | [docs/simulation/](docs/simulation/README.md) — Closed-Loop-Eval in Isaac Lab |
-| ↳ Primärer Workflow | [docs/simulation/sim-eval-anleitung.md](docs/simulation/sim-eval-anleitung.md) |
-| ↳ Lessons & Fixes | [docs/simulation/umsetzungsnotizen.md](docs/simulation/umsetzungsnotizen.md) |
-| **Ergebnisse** | [docs/ergebnisse/](docs/ergebnisse/README.md) — Auswertungen, Diagnose-Chronik, Domain-Gap, Methodik-Review, Baseline |
-| **Nächste Schritte** | [next-steps.md](next-steps.md) — Stand und Prioritäten |
-| **Weiterführend** | [docs/weiterfuehrend/](docs/weiterfuehrend/README.md) — RL-Plan, Lokomotion, Livestream, CLI-Menüführung |
-| **Portabilität** | [docs/portabilitaet.md](docs/portabilitaet.md) — eigener Rechner / eigenes KISSKI-Projekt: welche Knöpfe zu setzen sind |
-| **Projektstruktur** | [docs/README.md#projektstruktur](docs/README.md#projektstruktur) |
-| **Quickstart** | [docs/quickstart.md](docs/quickstart.md) — Systemvoraussetzungen, Host-Software, Accounts/Tokens, kürzeste Befehlsketten pro Weg |
+| `run.sh` | Menü-Einstieg für alle Aktionen (`MENU=0` schaltet ab) |
+| `Training/` | Trainings-Image (Dockerfile, `update_image.sh`), Launcher lokal, KISSKI-Skripte (`kisski_submit.sh`, `kisski_chain.sh`), `scripts/` = Entrypoint im Image |
+| `Simulation/` | Isaac-Lab-Umgebung und Eval (`g1_dex3_sim/`), Sim-Image, `server_rl_run.sh` (alle Sim-Aktionen), Hilfsskripte im Container (`scripts/`) |
+| `Augmentation/` | Cosmos-Transfer-Augmentierung (gebaut, nicht end-to-end geprüft) |
+| `app/Groot-1.6`, `app/Groot-1.7` | GR00T-Fork als Submodule (`lucam06/Isaac-GR00T`), G1-Konfiguration unter `examples/G1_DEX3/` |
+| `tools/` | Host-Werkzeuge: Menü, Doku-Prüfungen, Auswertung der Sim-Läufe |
+| `data/` | Roboter-Assets (USD, `unitree_ros`-Submodul) |
+| `docs/` | Doku (Deutsch), Einstieg [docs/README.md](docs/README.md) |
+| `latex/` | schriftliche Ausarbeitung |
 
----
+## Wichtig vor dem ersten Start
 
-## Voraussetzungen (Kurzfassung)
-
-**Hardware:** NVIDIA-GPU mit ≥ 24 GB VRAM (Minimum, sehr langsam); empfohlen A100/H100 ≥ 40 GB.
-Full Fine-tuning verbraucht ~25–31 GB VRAM (bs=8); NVIDIA empfiehlt **≥ 40 GB**.
-
-**Accounts:** HuggingFace (Zugriff auf
-[`nvidia/GR00T-N1.6-3B`](https://huggingface.co/nvidia/GR00T-N1.6-3B) — Lizenz akzeptieren! —
-und [`unitreerobotics/G1_Dex3_BlockStacking_Dataset`](https://huggingface.co/datasets/unitreerobotics/G1_Dex3_BlockStacking_Dataset)),
-optional [WandB](https://wandb.ai), für HPC ein [KISSKI-Account](https://docs.hpc.gwdg.de).
-
-**Software (nur lokal):** Docker ≥ 4.x, NVIDIA Container Toolkit, NVIDIA-Treiber ≥ 570
-(CUDA 12.8). Auf vast.ai und KISSKI vorinstalliert.
-
-Vollständige, verbindliche Voraussetzungen: **[docs/quickstart.md](docs/quickstart.md)**;
-Accounts/Tokens im Detail: [docs/training/anleitung.md](docs/training/anleitung.md#vorab-accounts--tokens).
-
----
-
-## Weiterführende Ressourcen
-
-- [GWDG HPC Dokumentation](https://docs.hpc.gwdg.de) — KISSKI/Grete-Cluster
-- [NVIDIA Isaac GR00T](https://developer.nvidia.com/isaac/groot)
-- [LeRobot](https://github.com/huggingface/lerobot)
+- Trainings-Container **nie mit `docker run --rm`** starten: Daten und Checkpoints liegen im
+  Container. Stoppen und Starten erhält sie, erst `docker rm` löscht sie.
+- Skripte unter `Training/scripts/` und `Simulation/` werden ins Image kopiert. Änderungen
+  brauchen einen Neubau. Ausnahme: KISSKI bindet `Training/scripts` aus dem Repo ein.
+- Die Sim braucht eine GPU mit RT-Cores. Sie läuft also nicht auf KISSKI (A100/H100), sondern auf
+  dem IKR-Server oder einer gemieteten Karte.

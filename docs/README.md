@@ -15,8 +15,10 @@ Veraltete Inhalte werden nicht in den Dokumenten mitgeschleppt, sondern nach
 > `Training/`, `Simulation/`, `tools/` mit einer Zeile `# TL;DR: …` nach dem Shebang.
 > `tools/check_tldr.sh` prüft das, `tools/check_tldr.sh --list` druckt alle TL;DRs als Übersicht.
 
-**Neu hier?** Zuerst [quickstart.md](quickstart.md) — Systemvoraussetzungen, Host-Software,
-Accounts/Tokens und die kürzesten Befehlsketten pro Weg.
+**Einstieg in drei Seiten:** [Projekt-README](../README.md) (Ergebnis, Repo-Karte) →
+[quickstart.md](quickstart.md) (Training starten, Checkpoint messen) →
+[schnittstellen.md](schnittstellen.md) (Datensatz, Checkpoint, Policy-Server, Sim-Eval, Werkzeuge).
+Alles Weitere auf dieser Seite ist Referenz.
 
 ## Training (Fine-tuning von GR00T N1.6)
 
