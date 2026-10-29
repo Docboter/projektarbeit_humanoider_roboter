@@ -6,6 +6,8 @@
 > auf rund 1 cm Genauigkeit und empfiehlt, `pick_anchored_homography` aufzugeben. Setzt
 > wuerfellage-rekonstruktion-bewertung.md voraus, keine eigene Verfahrensbeschreibung.
 
+> **Archiviert am 2026-10-29**, ersetzt durch [wuerfellage-rekonstruktion.md](../simulation/wuerfellage-rekonstruktion.md) (Verfahren) und [Chronik Läufe 35–37](../ergebnisse/diagnose-chronik.md).
+
 **Lauf:** 2026-08-22, `Simulation/runs/20260822/01`, Commit `d73c6aa`, Episoden 0–39.
 **Ergebnis:** Kalibrierung abgelehnt, `geometry_calibration.json` **nicht** geschrieben.
 Das Fail-safe hat funktioniert — der Lauf hat keine schlechte Kalibrierung durchgelassen.
@@ -144,7 +146,7 @@ Bewegung, keine Ebene.
 
 Homographie-Qualität, Wrist-Gate, Dataset-Modus und Renderpfad sind ungeprüft — die
 Pipeline ist nie über Schritt 1 hinausgekommen. Die Bewertung in
-[wuerfellage-rekonstruktion-bewertung.md](wuerfellage-rekonstruktion-bewertung.md)
+[wuerfellage-rekonstruktion-bewertung.md](../simulation/wuerfellage-rekonstruktion-bewertung.md)
 bleibt ansonsten unverändert gültig; §5.2 (Anker ≠ Würfelmittelpunkt, 23-cm-z-Fenster)
 ist durch diesen Lauf von einer Vermutung zu einem gemessenen Befund geworden.
 

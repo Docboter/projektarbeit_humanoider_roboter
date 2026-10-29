@@ -547,7 +547,7 @@ sbatch --export=ALL -t 01:00:00 Training/kisski_submit.sh
 - **Upstream-TRT-Full-Pipeline** statt eigener DiT-only-Optimierung.
 - **RTC (Real-Time Chunking)** im Sim-Loop nutzen (`options`-Dict in `get_action`) — Latenz-Glättung.
 - **Robocasa/GR1-Referenz-Eval** (`server_robocasa_ref_run.sh`): Tags in N1.7 entfernt → entweder auf N1.6-Image belassen oder durch LIBERO/SimplerEnv-Referenz ersetzen.
-- **Stock-G1-Baseline** (`entrypoint_baseline.sh`, `g1_gripper_sim/`, `docs/simulation/baseline-eval.md`): mit N1.7 nur noch über `REAL_G1` (Keys/Dims aus dem Checkpoint lesen: `dump_unitree_g1_dims.py --embodiment real_g1_relative_eef_relative_joints`) oder auf dem `:n16`-Image belassen.
+- **Stock-G1-Baseline** (`entrypoint_baseline.sh`, `g1_gripper_sim/`, `docs/archiv/baseline-eval.md`): mit N1.7 nur noch über `REAL_G1` (Keys/Dims aus dem Checkpoint lesen: `dump_unitree_g1_dims.py --embodiment real_g1_relative_eef_relative_joints`) oder auf dem `:n16`-Image belassen.
 
 ## 7. Rückfallebene
 

@@ -5,6 +5,8 @@
 > ein zweites, separates Git-Repo mit eigener Verlinkungslogik. Reine Recherche, **nichts
 > umgesetzt**.
 
+> **Archiviert am 2026-10-29**, nicht umgesetzt; die Doku bleibt unter `docs/`.
+
 ## Ausgangsfrage
 
 Lässt sich die vorhandene Dokumentation unter [`docs/`](..) leicht in den GitHub-Wiki-Tab des
@@ -43,7 +45,7 @@ pushen — kein Spezialtool nötig.
   wären dort unerreichbar — diese Links müssten auf volle GitHub-Blob-URLs
   (`https://github.com/<user>/<repo>/blob/main/app/...`) umgeschrieben werden.
 - **Interne Docs-Links müssen umgeschrieben werden.** Wiki-Verlinkung läuft über Seitennamen
-  (`[[Seiten Name]]` bzw. `[Text](Seiten-Name)`, ohne `.md`, Leerzeichen → Bindestriche), nicht
+  (`[[Seiten Name]]` bzw. `[Text](../weiterfuehrend/Seiten-Name)`, ohne `.md`, Leerzeichen → Bindestriche), nicht
   über Dateipfade wie aktuell (`docs/training/anleitung.md`).
 - **Kein automatischer Sync.** Das Wiki-Repo ist vom Hauptrepo getrennt. Änderungen an `docs/`
   landen nicht automatisch im Wiki — dafür bräuchte es eine GitHub Action, die bei Push nach
@@ -85,4 +87,4 @@ Reine Recherche, keine Entscheidung getroffen. Optionen zur Wahl:
 ## Verwandte Dokumentation
 
 - [Doku-Übersicht](../README.md) — globaler Navigations-Hub
-- [Weiterführende Arbeiten](README.md) — Index dieser Sammlung
+- [Weiterführende Arbeiten](../weiterfuehrend/README.md) — Index dieser Sammlung

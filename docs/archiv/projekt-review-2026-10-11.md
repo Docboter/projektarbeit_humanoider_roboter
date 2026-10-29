@@ -6,11 +6,13 @@
 > ein reiner Befundbericht; die Befunde aus §3 (Simulation), §4 (Training/KISSKI) und §5
 > (GN1.7, seit dem Merge vom 2026-10-13) sind im Code korrigiert, Stand siehe die Tabelle am
 > Anfang des jeweiligen Abschnitts. Den laufenden Projektstand und die
-> Prioritäten pflegt [`next-steps.md`](../next-steps.md).
+> Prioritäten pflegt [`next-steps.md`](../../next-steps.md).
+
+> **Archiviert am 2026-10-29**, Befunde umgesetzt bzw. in [next-steps.md](../../next-steps.md) übernommen; Umsetzungsstand je Befund in den Tabellen dieser Seite.
 
 > **Überholt in einem Punkt:** Die hier als konsistent geführte Aussage „bester Checkpoint
 > vision-v2 step 30000“ ist durch die Nachmessung vom 2026-10-12 widerlegt (bester ist 44000,
-> [lauf4-n17-vergleich.md §5](ergebnisse/lauf4-n17-vergleich.md#5-nachgeschärfter-vergleich-20-episoden--750-steps-volle-länge)). Nachfolger dieses Reviews:
+> [lauf4-n17-vergleich.md §5](../ergebnisse/lauf4-n17-vergleich.md#5-nachgeschärfter-vergleich-20-episoden--750-steps-volle-länge)). Nachfolger dieses Reviews:
 > [projekt-review-2026-10-13.md](projekt-review-2026-10-13.md).
 
 ## Inhalt
@@ -91,7 +93,7 @@ Damit klar ist, was **nicht** das Problem ist:
 - **Zahlen, die überall gleich sind:**
   - bester Checkpoint vision-v2 step 30000, MSE 0,00716 gegenüber 0,00898 bei step 44000 (+25 %)
     *(überholt 2026-10-12: die Nachmessung 20 × 750 ergibt 44000 als besten Checkpoint, keine
-    U-Kurve — [lauf4-n17-vergleich.md §5](ergebnisse/lauf4-n17-vergleich.md#5-nachgeschärfter-vergleich-20-episoden--750-steps-volle-länge))*
+    U-Kurve — [lauf4-n17-vergleich.md §5](../ergebnisse/lauf4-n17-vergleich.md#5-nachgeschärfter-vergleich-20-episoden--750-steps-volle-länge))*
   - Fingerspanne 27,6 % gegenüber 20,5 % (0,577 gegenüber 0,43 rad), p = 3,3·10⁻⁴
   - `lifted` 0/10, beste Hebung 1,68 cm
   - 240/61 Episoden

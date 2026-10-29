@@ -90,8 +90,8 @@ verweisen hierher. Den N1.7-Detailstand pflegt
   überholt durch die Orakel-Befunde oben — mindestens die Würfellage relativ zur Hand ist ein
   Blocker). „Domain-Gap bestätigt“ ist ein
   starker Hinweis, kein Befund — Closed und Open Loop unterscheiden sich in mehreren Faktoren
-  ([Review 10-13 §2.1](docs/projekt-review-2026-10-13.md#21-befunde)); billige trennende
-  Experimente: [Review 10-13 §2.3](docs/projekt-review-2026-10-13.md#23-empfohlene-experimente-nach-kostennutzen).
+  ([Review 10-13 §2.1](docs/archiv/projekt-review-2026-10-13.md#21-befunde)); billige trennende
+  Experimente: [Review 10-13 §2.3](docs/archiv/projekt-review-2026-10-13.md#23-empfohlene-experimente-nach-kostennutzen).
 - **Co-Training:** seit 2026-10-29 mit Ergebnis (siehe oben). `cotrain_synth_v1` (2026-09-07)
   war kein Co-Training-Lauf.
 - **Cosmos-Augmentierung, RL:** Werkzeuge gebaut, **kein Ergebnis**. Cosmos ist nicht
@@ -390,7 +390,7 @@ der Vision-Pfad ausgereizt. Sie hat sich bewegt — der Pfad ist also **nicht** 
 haben ein Drittel des Weges gebracht. *(Nachtrag 2026-10-13: die beiden Zahlen haben verschiedene
 Nenner — 27,6 % ist die Sim-Spanne relativ zur Konstante 2,094 rad, 100 % das Verhältnis
 Vorhersage/Ground Truth auf echten Bildern, das an genau dieser De-Normalisierungsgrenze sättigt.
-„Ein Drittel des Weges“ ist deshalb kein belastbares Maß, [Review 10-13 §2.2](docs/projekt-review-2026-10-13.md#22-zahlen--und-aussage-inkonsistenzen).)* Der Rest kommt nicht durch mehr vom Gleichen, sondern muss
+„Ein Drittel des Weges“ ist deshalb kein belastbares Maß, [Review 10-13 §2.2](docs/archiv/projekt-review-2026-10-13.md#22-zahlen--und-aussage-inkonsistenzen).)* Der Rest kommt nicht durch mehr vom Gleichen, sondern muss
 auf der **Sim-Seite** angegangen werden → Schritt 4. *(Nachtrag 2026-10-11: die 27,6 % und `lifted` 0/10 stammen aus der Zeit vor der Geometriekorrektur vom 2026-08-24 und sind neu zu messen — siehe §1 und §2.)*
 
 <details>

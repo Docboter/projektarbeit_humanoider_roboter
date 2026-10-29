@@ -2,8 +2,10 @@
 
 > **TL;DR:** Momentaufnahme-Auswertung (Health-Check) des damals noch laufenden ersten Trainings —
 > LR-Schedule, Batch-Size- und Eval-Empfehlungen. Inzwischen überholt durch die Abschluss-Auswertung
-> in [lauf1-auswertung.md](lauf1-auswertung.md); bleibt als Trainings-Snapshot mit interaktiven
+> in [lauf1-auswertung.md](../ergebnisse/lauf1-auswertung.md); bleibt als Trainings-Snapshot mit interaktiven
 > Kurven erhalten.
+
+> **Archiviert am 2026-10-29**, ersetzt durch [lauf1-auswertung.md](../ergebnisse/lauf1-auswertung.md).
 
 **Erstellt:** 2026-06-02 · **Aktualisiert:** 2026-06-03 · **Datenquelle:** W&B-Projekt
 `gr00t-g1-dex3` (Entity `projektarbeit_humanoider_roboter`) · **Run-ID:** `i6n1t613`
@@ -15,10 +17,10 @@
 > ✅ **Der Lauf ist inzwischen abgeschlossen (175.000 Steps).** Die vollständige
 > Abschluss-Auswertung inkl. Verhaltens-Evaluation (Closed-Loop, Replay, Open-Loop) und
 > Diagnose steht in
-> [`lauf1-auswertung.md`](lauf1-auswertung.md).
+> [`lauf1-auswertung.md`](../ergebnisse/lauf1-auswertung.md).
 > Dieses Dokument bleibt als Trainings-Health-Snapshot bestehen.
 
-> 📈 **Interaktive Kurven:** [`wandb-run-charts.html`](wandb-run-charts.html) — Loss /
+> 📈 **Interaktive Kurven:** [`wandb-run-charts.html`](../ergebnisse/wandb-run-charts.html) — Loss /
 > LR / grad_norm als eigenständige HTML (im Browser öffnen). Snapshot Stand
 > 2026-06-03, ~08:39 UTC (Step ~115.680).
 
@@ -85,7 +87,7 @@ das Flow-Matching-Ziel an. Das ist **kein** Generalisierungssignal (s. Abschnitt
   (~0,057 bei 11k → ~0,010 bei 115k). Die Optimierung läuft problemlos und ist nicht
   stehengeblieben.
 - **Overfitting: nicht sichtbar, strukturelles Risiko eher moderat-niedrig:**
-  1. wenige Epochen (`num_train_epochs=3` ist nur der Konfig-Wert; effektiv ≈ 5 Datendurchläufe, siehe [lauf1-auswertung.md](lauf1-auswertung.md) §2),
+  1. wenige Epochen (`num_train_epochs=3` ist nur der Konfig-Wert; effektiv ≈ 5 Datendurchläufe, siehe [lauf1-auswertung.md](../ergebnisse/lauf1-auswertung.md) §2),
   2. **Partial-Finetune** (nur Projector + Diffusion + 4 LLM-Layer + VLLN; Backbone &
      Visual eingefroren) → wenige trainierbare Parameter,
   3. Color-Jitter (`--color_jitter_params` war im Launcher dieser Zeit fest verdrahtet; ob er wirksam war, ist aus der W&B-Config nicht ablesbar — dort steht für alle drei Läufe `0.1/0.1/0.1/0.1`).

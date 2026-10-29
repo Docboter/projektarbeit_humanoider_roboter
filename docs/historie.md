@@ -38,9 +38,9 @@ Umbau der `docs/`-Struktur; zugleich der erste Eintrag des Changelog-Rohmaterial
 - `docs/ergebnisse/wandb-run-charts.html.md` (Auto-Konvertierungs-Stub ohne Eigeninhalt, gelöscht)
 
 **Umbenannt / verschoben:**
-- `ergebnisse/wandb-run-auswertung.md` → [ergebnisse/lauf1-zwischenstand.md](ergebnisse/lauf1-zwischenstand.md)
+- `ergebnisse/wandb-run-auswertung.md` → [ergebnisse/lauf1-zwischenstand.md](archiv/lauf1-zwischenstand.md)
   (fügt sich ins `lauf-N`-Namensschema; war der Mid-Run-Health-Check von Lauf 1)
-- `ergebnisse/baseline-unitree-g1.md` → [simulation/baseline-eval.md](simulation/baseline-eval.md)
+- `ergebnisse/baseline-unitree-g1.md` → [simulation/baseline-eval.md](archiv/baseline-eval.md)
   (Plan-/Setup-Dokument ohne Ergebnisse; löst zugleich die Namensverwechslung mit
   `ergebnisse/basismodell-referenz-eval.md`)
 - Latenz-Messung + Denoising-Sweep aus `simulation/live-ansicht.md` →
@@ -258,7 +258,7 @@ Der eigentliche Denkfehler: Es wurde erheblicher Aufwand in die Sim-Pipeline inv
 > [ergebnisse/domain-gap-analyse.md](ergebnisse/domain-gap-analyse.md). Die folgenden Werte
 > bleiben nur als Vergleichspunkt stehen.
 
-Durchgeführt mit `google/siglip-so400m-patch14-224` (damals als identisch zum GR00T-ViT angenommen; die Annahme ist falsch, s. [Review §3.6](projekt-review-2026-10-11.md#36-falsche-annahme-im-domain-gap-skript--inkonsistenz-teilprüfung)).
+Durchgeführt mit `google/siglip-so400m-patch14-224` (damals als identisch zum GR00T-ViT angenommen; die Annahme ist falsch, s. [Review §3.6](archiv/projekt-review-2026-10-11.md#36-falsche-annahme-im-domain-gap-skript--inkonsistenz-teilprüfung)).
 Frames: `Simulation/camera_reference/` (Real) vs. `Simulation/runs/202606002/02/` (Isaac Sim).
 Script: [`Simulation/scripts/measure_domain_gap.py`](../Simulation/scripts/measure_domain_gap.py)
 
@@ -811,7 +811,7 @@ Details: [portabilitaet.md § 3.4](portabilitaet.md#34-eigene-images-bauen-eigen
 
 *Herkunft:* `CLAUDE.md` (bis dahin ~57 KB, wird in jede Claude-Code-Sitzung geladen). Grund: Der
 N1.7-Stand stand dort sechsmal, teils veraltet („no full run yet“, „nothing on KISSKI“) — die
-Hauptquelle der Widersprüche aus [Review 10-13 §6](projekt-review-2026-10-13.md#6-doku-konsistenz).
+Hauptquelle der Widersprüche aus [Review 10-13 §6](archiv/projekt-review-2026-10-13.md#6-doku-konsistenz).
 CLAUDE.md hat jetzt ~12 KB; nichts ist verloren, es steht nur an einer Stelle:
 
 | Inhalt (alt in CLAUDE.md) | jetzt in |
@@ -832,8 +832,8 @@ Commit- und TL;DR-Konvention, graphify-Abschnitt, Linkliste.
 
 ## 2026-10-13 — Review-10-13-Befunde umgesetzt (Doku-Nachzug)
 
-*Herkunft:* [projekt-review-2026-10-13.md](projekt-review-2026-10-13.md); Stand je Befund in dessen
-[§9](projekt-review-2026-10-13.md#9-stand-der-umsetzung-2026-10-13). Überholt sind damit u. a.
+*Herkunft:* [projekt-review-2026-10-13.md](archiv/projekt-review-2026-10-13.md); Stand je Befund in dessen
+[§9](archiv/projekt-review-2026-10-13.md#9-stand-der-umsetzung-2026-10-13). Überholt sind damit u. a.
 folgende früher dokumentierte Aussagen:
 
 - **Training:** `SAVE_STEPS` war in Vision/Co-Training `1000`, `SAVE_TOTAL_LIMIT` `10` (bzw. `5`) —

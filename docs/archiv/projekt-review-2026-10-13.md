@@ -6,7 +6,9 @@
 > zwei Wartungspunkten in §0 ist nichts korrigiert. Den Vorgänger mit inzwischen behobenen
 > Befunden enthält [projekt-review-2026-10-11.md](projekt-review-2026-10-11.md); den Stand der
 > Umsetzung je Befund hält [§9](#9-stand-der-umsetzung-2026-10-13) fest; laufende
-> Prioritäten pflegt [`next-steps.md`](../next-steps.md).
+> Prioritäten pflegt [`next-steps.md`](../../next-steps.md).
+
+> **Archiviert am 2026-10-29**, Befunde umgesetzt bzw. in [next-steps.md](../../next-steps.md) übernommen; Umsetzungsstand in §9.
 
 ## Inhalt
 
@@ -36,7 +38,7 @@ und Python-AST auf allen Projektdateien sauber. **shellcheck und ruff sind auf d
 installiert**, also lief kein Lint.
 
 **In dieser Sitzung erledigt** (die beiden Wartungspunkte aus CLAUDE.md, siehe
-[historie.md](historie.md)):
+[historie.md](../historie.md)):
 
 1. `setup_and_train_container_build.sh` war im Code schon seit `a8c8c66` korrigiert, es baut
    direkt per `docker build`. Nur der CLAUDE.md-Eintrag war veraltet.
@@ -564,7 +566,7 @@ davon ist committet; die Abschnitte §1–§8 bleiben als Befundstand stehen.
 | A3 | erledigt | Guard `0 < n_train < total` |
 | A4 | erledigt | eigener Ausgabeordner wird geleert, fremder abgelehnt; `find_produced_video` nimmt nicht mehr blind die erste Datei |
 | A5 | erledigt (Teil) | Hinweistexte nennen `setup_and_train_dockerhub_pull.sh`; Verweise auf den umbenannten Augmentation-Launcher `…_dockerhub_pull.sh` angepasst (R7, `git mv` beim Commit) |
-| A6 | erledigt | Download-Marker; `lib_docker_ns.sh` ignoriert Kommentarzeilen; `gen_docs.sh` mit `mktemp` + `trap`; Vertrauensgrenze `.env.local` in [portabilitaet.md](portabilitaet.md) |
+| A6 | erledigt | Download-Marker; `lib_docker_ns.sh` ignoriert Kommentarzeilen; `gen_docs.sh` mit `mktemp` + `trap`; Vertrauensgrenze `.env.local` in [portabilitaet.md](../portabilitaet.md) |
 | Forks: `cf2032d` gepusht | erledigt | liegt auf `origin/luca/g1-dex3-n17` (§5 korrigiert) |
 | Forks: `HF_HUB_OFFLINE`-Wahrheitswert | erledigt | Fork-Commit `288d1de` gepusht, Pin in Submodul und beiden Dockerfiles nachgezogen; wirksam mit dem nächsten N1.7-Image |
 | Forks: `action_horizon` 40 vs. 16 | offen | über Masken abgefangen; `config.json` eines Checkpoints noch nicht nachgesehen |
@@ -572,7 +574,7 @@ davon ist committet; die Abschnitte §1–§8 bleiben als Befundstand stehen.
 | D1, D2, D3, D4, D6 | erledigt | ein N1.7-Status, 44000, Links (Linkcheck 0 kaputt), Env-Vars, Docker-Hub-Hinweis + Lernrate |
 | D5 | erledigt (Teil) | CLAUDE.md 57,7 → ~13 KB; das Teilen von `diagnose-chronik.md`/`cli-menuefuehrung.md` ist zurückgestellt (eingehende §-/Anker-Verweise aus Code und `latex/`) |
 | R1 | erledigt | `.gitignore` schließt `graphify-out/` aus, 1259 Dateien aus dem Index entfernt (`76f2775`); Historie unverändert (`git filter-repo` optional) |
-| R2 | erledigt | CI ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)), Root-`pyproject.toml`; `ruff format --check` noch nicht blockierend, `Augmentation/tests/` noch nicht im CI |
+| R2 | erledigt | CI ([`.github/workflows/ci.yml`](../../.github/workflows/ci.yml)), Root-`pyproject.toml`; `ruff format --check` noch nicht blockierend, `Augmentation/tests/` noch nicht im CI |
 | R3 | offen | LFS bzw. HF-Artefakt für die USDs |
 | R4 | erledigt (Sim-Teil), IKR ausstehend | `split_math.py` als sim-seitige Quelle; Pins und KISSKI-Logik weiter mehrfach |
 | R5 | erledigt | Branch aus dem Checkout, sonst `main` |

@@ -5,6 +5,8 @@
 > Block-Stacking-Task, in einer zur DEX3-Eval parallelen Pipeline? Vorbereitung — erster Lauf
 > steht aus.
 
+> **Archiviert am 2026-10-29**, nicht durchgeführt; das Werkzeug (`SIM_MODE=baseline`, `Simulation/scripts/entrypoint_baseline.sh`) ist vorhanden, aber nie gelaufen. Die Pipeline-Validierung des Basismodells lief stattdessen über RoboCasa: [basismodell-referenz-eval.md](../ergebnisse/basismodell-referenz-eval.md).
+
 Status: Vorbereitung — erster Lauf steht aus (Stand 2026-10-11; in Repo und Chronik ist kein Baseline-Lauf dokumentiert)
 
 > **N1.6-only.** Der Baseline-Test hängt am Embodiment-Tag `UNITREE_G1`, der in GR00T N1.7 eine
@@ -92,7 +94,7 @@ Diese Schritte sind **noch nicht** automatisiert/erledigt und müssen vor dem er
   stock-Greifer-Asset — nur DEX3-USDs. Der Konverter braucht `isaaclab.sh`, das **nur im
   Sim-Container** existiert → **nicht** auf dem nackten Host ausführen, sondern in einem
   **lokal gestarteten Docker-Container** (genau wie das DEX3-Asset, siehe
-  [sim-eval-anleitung.md](sim-eval-anleitung.md) Schritt 3b). Im Repo-Root:
+  [sim-eval-anleitung.md](../simulation/sim-eval-anleitung.md) Schritt 3b). Im Repo-Root:
   ```bash
   docker run -it --rm --gpus all --ipc=host --shm-size=8g \
     --entrypoint bash \
@@ -146,7 +148,7 @@ Diese Schritte sind **noch nicht** automatisiert/erledigt und müssen vor dem er
 ## 4. Run ausführen (vast.ai)
 
 GPU-Anforderung wie bei der DEX3-Eval: **Ampere+ mit RT-Cores** (L40, RTX 4090, A6000 …) —
-siehe [README.md](README.md) §GPU.
+siehe [README.md](../simulation/README.md) §GPU.
 
 Container-Env-Vars:
 

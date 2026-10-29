@@ -1732,7 +1732,7 @@ weiterhin keinen Startpunkt.
 ### Läufe 35–37 (`runs/20260822/01`–`03`): Die Würfellage kommt aus dem Bild, nicht aus der Hand
 
 Vollständige Auswertung mit allen Zahlen:
-[wuerfellage-rekonstruktion-lauf35-befund.md](../simulation/wuerfellage-rekonstruktion-lauf35-befund.md).
+[wuerfellage-rekonstruktion-lauf35-befund.md](../archiv/wuerfellage-rekonstruktion-lauf35-befund.md).
 Hier nur, was für spätere Läufe zählt.
 
 **Lauf 35** — erster Abnahmelauf von `replay-calibrate` (v4, 40 Episoden): 10 Anker, alle Gates
@@ -2259,7 +2259,7 @@ Episodenende dort. Das Öffnen und Schließen in der Luft aus Lauf 54 tritt nich
 > (vor der Korrektur vom 2026-08-24: Fingervorzeichen, Becken, Basis), die Läufe 54/55 mit der
 > korrigierten. Die Spalten unterscheiden sich also nicht nur im Modell; ein N1.6-Lauf mit
 > korrigierter Szene fehlt. Bei n = 10 ist 0/10 zudem mit einer wahren Erfolgsrate von 0–31 %
-> vereinbar ([Review 10-13 §2.1 M4](../projekt-review-2026-10-13.md#21-befunde)).
+> vereinbar ([Review 10-13 §2.1 M4](../archiv/projekt-review-2026-10-13.md#21-befunde)).
 
 `span` für Lauf 55 im Einzelnen (Vorhersage/GT der Fingerspanne, MSE über alle 28 Dimensionen):
 Train 0,77 / 0,76 / 0,87 / 0,89 / 0,75, MSE 0,0056 / 0,0030 / 0,0035 / 0,0065 / 0,0015;

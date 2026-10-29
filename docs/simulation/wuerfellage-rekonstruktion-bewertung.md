@@ -10,7 +10,7 @@
 > `wuerfellage-rekonstruktion.md` meinen deren damalige Fassung `d73c6aa` (Pfad B, v4; abrufbar mit
 > `git show d73c6aa:docs/simulation/wuerfellage-rekonstruktion.md`). Die heutige Datei beschreibt Pfad A
 > (`layout.json`), nachdem Pfad B nach dem Abnahmelauf aufgegeben wurde
-> ([lauf35-befund](wuerfellage-rekonstruktion-lauf35-befund.md) §8). Überholt sind u. a.: Würfelebene
+> ([lauf35-befund](../archiv/wuerfellage-rekonstruktion-lauf35-befund.md) §8). Überholt sind u. a.: Würfelebene
 > 0,915 (seit 2026-08-22 0,895), Tischkante 0,87 vs. 0,89 (geklärt: 0,87), der `scan.json`-Fallback in
 > `place_cubes` (Quelle jetzt über `RENDER_CUBE_SOURCE` gewählt), Orientierung "offen" (Gierwinkel seit
 > 2026-08-25 geschätzt).

@@ -104,6 +104,22 @@ Kandidaten fürs Archiv (prüfen, nicht blind verschieben):
 Kandidaten zum Zusammenführen: die Lauf-Auswertungen 1–4 unter einer Ergebnis-Übersicht;
 `simulation/baseline-eval.md` / `basismodell-referenz*.md` / `robocasa-referenz-eval.md`.
 
+**Inventur (umgesetzt 2026-10-29).** 54 Dateien vorher (mit diesem Plan), 56 nachher (neu: `schnittstellen.md`,
+`archiv/README.md`).
+
+| Bereich | Behalten (Referenz) | Archiviert nach `docs/archiv/` | Bemerkung |
+|---|---|---|---|
+| Einstieg | `README.md` (Hub), `quickstart.md`, `schnittstellen.md` (neu) | — | A2 |
+| Querschnitt | `fehlerbehebung.md`, `portabilitaet.md`, `historie.md`, `abgabe-plan.md` | `projekt-review-2026-10-11.md`, `projekt-review-2026-10-13.md` | Review-Befunde umgesetzt oder in `next-steps.md` |
+| `training/` | alle 10 | — | `env-vars.md` bleibt die Variablen-Referenz |
+| `augmentation/` | beide | — | Status „gebaut, nicht geprüft“ bleibt |
+| `simulation/` | `README`, `sim-eval-anleitung`, `umsetzungsnotizen`, `live-ansicht`, `inferenz-optimierung`, `replay-videos-aus-realdaten`, `wuerfellage-rekonstruktion`, `wuerfellage-rekonstruktion-bewertung`, `basismodell-referenzaufgabe`, `robocasa-referenz-eval`, `archiv/` (4) | `wuerfellage-rekonstruktion-lauf35-befund.md`, `baseline-eval.md` | `simulation/archiv/` bleibt, weil Code darauf verweist; `basismodell-referenzaufgabe` wird von den RoboCasa-Skripten zitiert |
+| `ergebnisse/` | `README` (mit „auf einen Blick“), `diagnose-chronik`, `lauf1-auswertung` … `lauf4-n17-vergleich`, `sim-bewertung`, `domain-gap-analyse`, `basismodell-referenz-eval` | `lauf1-zwischenstand.md` | Lauf-Auswertungen 1–4 bleiben als Detail, die Übersicht fasst sie zusammen |
+| `weiterfuehrend/` | `README`, `cli-menuefuehrung`, `groot-n17-migration`, `livestream-plan`, `lokomotion-recherche`, `reinforcement-learning-plan`, `rl-anleitung` | `wiki-migration-plan.md` | `livestream-plan` bleibt: Code verweist auf ihn als Entwurf |
+
+Zusammenführen statt archivieren wurde verworfen, wo die Dateien Konzept, Bedienung und Ergebnis
+sauber trennen und sich gegenseitig verlinken (RoboCasa-Referenz).
+
 `diagnose-chronik.md` bleibt **unverändert** als Laborbuch. Neu dazu kommt in
 [`ergebnisse/README.md`](ergebnisse/README.md) eine Seite „Ergebnisse auf einen Blick“
 (höchstens eine Bildschirmseite, Tabellen, Verweise auf Lauf-Nummern).

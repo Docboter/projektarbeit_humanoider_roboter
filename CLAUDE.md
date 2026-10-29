@@ -169,7 +169,7 @@ On OOM, halve `GLOBAL_BATCH_SIZE` first. KISSKI partitions: `kisski` (A100 80 GB
   [CLI menus](docs/weiterfuehrend/cli-menuefuehrung.md), livestream, locomotion
 - **Portability (`.env.local`, `KISSKI_PROJECT_DIR`/`KISSKI_SIF_DIR`):** [`docs/portabilitaet.md`](docs/portabilitaet.md)
 - **Troubleshooting:** [`docs/fehlerbehebung.md`](docs/fehlerbehebung.md) · **Reviews:**
-  [`projekt-review-2026-10-13.md`](docs/projekt-review-2026-10-13.md)
+  [`projekt-review-2026-10-13.md`](docs/archiv/projekt-review-2026-10-13.md)
 - **Fork guides:** `app/Groot-1.6/examples/G1_DEX3/` (`SETUP_DOCUMENTATION.md`, `FINETUNING_GUIDE.md`, `README.md`)
 
 ## graphify

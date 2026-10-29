@@ -12,7 +12,7 @@
 
 ## Fragestellung
 
-Kann der frozen Vision Encoder von GR00T N1.6 reale Teleop-Bilder und synthetische Isaac-Sim-Bilder gleich behandeln? Gemessen wird mit dem vortrainierten SigLIP-Checkpoint als **Näherung**. Die ursprüngliche Annahme, er sei wegen `tune_visual = false` identisch mit dem Encoder der Policy, trifft nicht zu: der beste Checkpoint (vision-v2) lief mit `tune_visual = true`, und N1.6 nutzt das Eagle-Backbone. Die Zahlen sind ein allgemeiner Bildabstand, geeignet zum Vergleich von Sim-Varianten, aber keine Messung der Lücke, die die Policy sieht ([Review §3.6](../projekt-review-2026-10-11.md#36-falsche-annahme-im-domain-gap-skript--inkonsistenz-teilprüfung), korrigiert 2026-10-13).
+Kann der frozen Vision Encoder von GR00T N1.6 reale Teleop-Bilder und synthetische Isaac-Sim-Bilder gleich behandeln? Gemessen wird mit dem vortrainierten SigLIP-Checkpoint als **Näherung**. Die ursprüngliche Annahme, er sei wegen `tune_visual = false` identisch mit dem Encoder der Policy, trifft nicht zu: der beste Checkpoint (vision-v2) lief mit `tune_visual = true`, und N1.6 nutzt das Eagle-Backbone. Die Zahlen sind ein allgemeiner Bildabstand, geeignet zum Vergleich von Sim-Varianten, aber keine Messung der Lücke, die die Policy sieht ([Review §3.6](../archiv/projekt-review-2026-10-11.md#36-falsche-annahme-im-domain-gap-skript--inkonsistenz-teilprüfung), korrigiert 2026-10-13).
 
 ---
 
@@ -92,7 +92,7 @@ Sim), der die Zielgröße direkt misst statt über den Proxy.
 > **Nachtrag: Schritt 3 ist gelaufen.** Lauf 24 (2026-08-08) misst die BC-Erfolgsrate in der Sim
 > mit **0/20**; Lauf 30 (2026-08-12, nur 2 Episoden) schließt damit die vorregistrierte Regel, nach
 > der `TUNE_VISUAL=1` als bestätigt gilt (zur Belastbarkeit siehe
-> [Review 10-13 §2.1 M2](../projekt-review-2026-10-13.md#21-befunde)). Lauf 30 zeigt
+> [Review 10-13 §2.1 M2](../archiv/projekt-review-2026-10-13.md#21-befunde)). Lauf 30 zeigt
 > zusätzlich, dass die Politik nur ~19 % der demonstrierten Fingerspannweite kommandiert — der
 > Befund zeigt also auf Wahrnehmung/Politik, nicht nur auf das Rendering. (Vorbehalt: Lauf 30
 > entstand mit dem später als fehlerhaft erkannten Fingerzustand der Sim, Läufe 38–46; und das
