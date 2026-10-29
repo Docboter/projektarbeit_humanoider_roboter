@@ -4,13 +4,13 @@
 > nächste Schritte und offene Widersprüche zwischen den Ergebnisdokumenten. Bezugspunkt für
 > die Prioritätensetzung, kein Ergebnisbericht selbst.
 
-**Stand:** 2026-10-15 (Kurzstatus §0; Fassung davor 2026-10-14, 2026-10-13, 2026-10-11, 2026-08-14) · Grundlage: Ergebnis-Dokumente unter [`docs/ergebnisse/`](docs/ergebnisse/README.md),
+**Stand:** 2026-10-29 (Kurzstatus §0, nächste Schritte §2; Fassung davor 2026-10-15, 2026-10-14, 2026-10-13, 2026-10-11, 2026-08-14) · Grundlage: Ergebnis-Dokumente unter [`docs/ergebnisse/`](docs/ergebnisse/README.md),
 [RL-Plan](docs/weiterfuehrend/reinforcement-learning-plan.md), Trainings-Launcher unter
 [`Training/scripts/`](Training/scripts/).
 
 ---
 
-## 0. Projektstatus in Kürze (Stand 2026-10-15)
+## 0. Projektstatus in Kürze (Stand 2026-10-29)
 
 Diese Zusammenfassung ist die **eine gepflegte Statusquelle** des Projekts; CLAUDE.md und README
 verweisen hierher. Den N1.7-Detailstand pflegt
@@ -25,10 +25,34 @@ verweisen hierher. Den N1.7-Detailstand pflegt
   ([Lauf 4](docs/ergebnisse/lauf4-n17-vergleich.md)). In der Sim (Läufe 54/55, korrigierte
   Szene): `lifted` 0/10, Fingerspanne 26 % der Demo bei ckpt44000. **Offen:** Sim-Eval nach dem
   Abnahmeprotokoll mit 20 Episoden.
-- **Closed Loop insgesamt:** 0 Erfolge (N1.6 Lauf 34: `lifted` 0/10, noch alte Geometrie; N1.7
+- **Neu 2026-10-29 — Co-Training v3 ausgewertet (erstes Ergebnis des Co-Training-Pfads):**
+  Vier KISSKI-Trainings, 44 000 Steps, Mischung 0,15 gerendert: N1.6 und N1.7, je Render 5 cm
+  und 4 cm (Läufe 73–76). Alle acht Checkpoints auf HF sind im Gate gemessen (Läufe 83, 86, 92):
+  - **Sim-Lücke deutlich kleiner:** MSE Hände auf Sim-Bildern bei N1.6 halbiert (5 / 4 cm
+    0,0115–0,0118 / 0,0104 gegen 0,0239 / 0,0221), bei N1.7 auf 18–30 % des Ausgangswerts.
+  - **Realdomäne:** Das Echtbild bleibt bei N1.7 gleich (0,0024–0,0027) und wird bei N1.6 um
+    50–60 % schlechter (0,0014 → 0,0021–0,0023). Die Sweep-Val-MSE liegt 3–9 % über Lauf 3.
+  - **Closed Loop** (Szene Lauf 70, 20 × 120 s): Die co-trainierten Modelle berühren den Würfel
+    in ~20/20 Episoden. **Erste echte Griffe der Politik** gab es nur bei N1.6: cube4 @44000
+    `lifted_clear` **2/20** (KI 1–32 %, Lauf 88), cube5 1/20 (Lauf 84). Beide N1.7-Modelle
+    0/20 (Läufe 89, 93), `stacked` überall 0/20. Bei n = 20 ist kein Modell statistisch von
+    null zu trennen.
+  - **Gegenproben:** Alte N1.6-Modelle ohne Co-Training bestehen die 80-%-Gate-Schwelle
+    ebenfalls und öffnen die Hand ebenso weit, greifen aber nicht (Läufe 87, 90/91). Die
+    Gate-besten Zwischenstände (@35000 / @40000) greifen nicht besser als @44000 (Läufe 94/95).
+  - **Nicht gefahren:** das vorregistrierte primäre Gate (Fingerspanne im Protokoll von Lauf 34,
+    10 × 40 s, [co-training.md §5](docs/training/co-training.md#5-vorregistrierte-regel--was-den-lauf-zum-erfolg-oder-zum-ende-macht))
+    und die Domain-Gap-Kontrolle `gap`. Die Spannen aus den 120-s-Läufen sind mit den 0,577 rad
+    von Lauf 34 nicht vergleichbar.
+  - **Bester Sim-Kandidat:** `luca-mue/groot-g1dex3-cotrain-v3-cube4-ckpt44000` (N1.6, Lauf 74).
+  Details: [co-training.md §3.5](docs/training/co-training.md#35-auswerten--zwei-messungen-nicht-eine),
+  [Läufe 73–76](docs/ergebnisse/diagnose-chronik.md#läufe-7376-co-training-läufe-v3-auf-kisski),
+  [Lauf 92](docs/ergebnisse/diagnose-chronik.md#lauf-92-visuelles-gate-der-restlichen-v3-checkpoints).
+- **Closed Loop insgesamt:** Stand 2026-10-29 weiter **0 Erfolge** (`stacked`), aber erste
+  Griffe (siehe Punkt darüber). Ältere Einordnung: 0 Erfolge (N1.6 Lauf 34: `lifted` 0/10, noch alte Geometrie; N1.7
   Läufe 54/55: 0/10). Die Sim-Geometrie ist seit 2026-08-24 korrigiert; die N1.6-Neumessung mit
-  korrigierter Szene steht aus.
-- **Neu 2026-10-15 — Co-Training v3 läuft auf KISSKI, Abnahme auf dem IKR vorbereitet:**
+  korrigierter Szene steht aus (inzwischen gemessen: Lauf 82, 0/20).
+- **Stand 2026-10-15 (überholt durch den Punkt 2026-10-29) — Co-Training v3 läuft auf KISSKI, Abnahme auf dem IKR vorbereitet:**
   Läufe `render_v3_cube5`/`render_v3_cube4` (N1.6, Mischung 0,15) eingereicht, Smoke wartet auf
   GPUs (Laufnummern 73–79 reserviert). Abnahme ist ein Befehl: `server_rl_run.sh visgate`.
   Die Gate-Messung war ungeseedet (MSE je Episode bis ×2); geseedete Ausgangswerte MSE Hände
@@ -67,9 +91,12 @@ verweisen hierher. Den N1.7-Detailstand pflegt
   starker Hinweis, kein Befund — Closed und Open Loop unterscheiden sich in mehreren Faktoren
   ([Review 10-13 §2.1](docs/projekt-review-2026-10-13.md#21-befunde)); billige trennende
   Experimente: [Review 10-13 §2.3](docs/projekt-review-2026-10-13.md#23-empfohlene-experimente-nach-kostennutzen).
-- **Co-Training, Cosmos-Augmentierung, RL:** Werkzeuge gebaut, **kein Ergebnis**.
-  `cotrain_synth_v1` (2026-09-07) war kein Co-Training-Lauf. Cosmos ist nicht end-to-end geprüft
-  (kein ~65-GB-Docker-Server verfügbar). RL ist N1.6-only und erst sinnvoll ab `lifted` > 0.
+- **Co-Training:** seit 2026-10-29 mit Ergebnis (siehe oben). `cotrain_synth_v1` (2026-09-07)
+  war kein Co-Training-Lauf.
+- **Cosmos-Augmentierung, RL:** Werkzeuge gebaut, **kein Ergebnis**. Cosmos ist nicht
+  end-to-end geprüft (kein ~65-GB-Docker-Server verfügbar). RL ist N1.6-only und erst sinnvoll
+  ab `lifted` > 0. Mit 1–2 Griffen in 20 Episoden (N1.6 co-train) ist diese Voraussetzung
+  erstmals knapp in Sicht, aber noch nicht belastbar.
 
 ## 1. Wo das Projekt steht
 
@@ -98,6 +125,7 @@ Projekts bleibt **0 Erfolge im Closed-Loop** (0/20 früher, Lauf 34: 0/10).
 | 09-07 | Lauf `cotrain_synth_v1` **abgebrochen** nach 138 s (W&B `7z81177r`) — laut W&B kein Co-Training (ein Datensatz, `tune_visual: false`, IKR-Server; Nachtrag 2026-10-13 in der Diagnose-Chronik) | [co-training.md](docs/training/co-training.md) |
 | 10-11 | LaTeX-Projektarbeit überarbeitet (`latex/`, 28 Seiten Hauptteil); GR00T-N1.7-Migration lief auf separatem Branch `training-luca-IKR-IS6.0-GN1.7` (seit 10-13 gemergt) | — |
 | 10-12 / 10-13 | N1.7: voller KISSKI-Lauf (Lauf 4, 44k) und Sim-Läufe 54/55 (`lifted` 0/10); Lauf-3-Nachmessung 20 × 750 widerlegt die U-Kurve, bester Checkpoint 44.000 | [lauf4-n17-vergleich.md](docs/ergebnisse/lauf4-n17-vergleich.md), [Chronik 54/55](docs/ergebnisse/diagnose-chronik.md#läufe-5455-die-ersten-n17-checkpoints-in-der-sim) |
+| 10-15 bis 10-29 | Szene ans Echtbild angeglichen, Gate geseedet (Läufe 70–72, 80); **Co-Training v3** auf KISSKI (Läufe 73–76), Gate und Closed Loop auf dem IKR (Läufe 83–95): Sim-Lücke halbiert, erste Griffe (N1.6 cube4 2/20), `stacked` 0 | [co-training.md §3.5](docs/training/co-training.md#35-auswerten--zwei-messungen-nicht-eine), [Chronik](docs/ergebnisse/diagnose-chronik.md) |
 
 **Konsequenzen und Vorbehalte, die jede Zahl dieses Dokuments betreffen:**
 
@@ -136,7 +164,35 @@ Projekts bleibt **0 Erfolge im Closed-Loop** (0/20 früher, Lauf 34: 0/10).
 
 ---
 
-## 2. Nächste Schritte — in dieser Reihenfolge (Stand 2026-10-14)
+## 2. Nächste Schritte — in dieser Reihenfolge (Stand 2026-10-29)
+
+> **Stand 2026-10-29 — nach dem Co-Training v3, vor allen älteren Punkten unten:**
+> 1. **Griffrate belastbar machen:** `cotrain-v3-cube4-ckpt44000` (N1.6) mit mehr Episoden fahren,
+>    z. B. alle 60 Testlagen aus `layout_heldout_dy3.json` × 120 s, mit 4-cm-Würfeln (~7 h auf
+>    einer Karte; auf zwei GPUs nur mit zwei Layout-Dateien zu je 30 Lagen, eine Teil-Option hat
+>    `eval` nicht). Bei 2/20 reicht das KI bis 32 %; erst
+>    mit mehr Episoden ist der Unterschied zu 0 (Lauf 82) und zu N1.7 (Läufe 89/93) zu klären.
+> 2. **Vorregistriertes primäres Gate nachholen:** Fingerspanne im Protokoll von Lauf 34
+>    (10 × 40 s) für cube4 @44000 gegen 0,577 rad, dazu `server_rl_run.sh gap`. Billig, und erst
+>    damit ist die Regel aus [co-training.md §5](docs/training/co-training.md#5-vorregistrierte-regel--was-den-lauf-zum-erfolg-oder-zum-ende-macht) erfüllt.
+> 3. **Robotertest:** cube4 @44000 gegen vision-v2 @44000 auf dem echten G1. Er entscheidet, ob
+>    der Echtbild-Verlust von N1.6 (+50–60 % MSE Hände) tragbar ist. Falls nicht, ist N1.7 cube4
+>    @44000 (`…-cube4-n17-ckpt44000`) die Alternative ohne Echtbild-Verlust, greift in der Sim
+>    aber noch nicht.
+> 4. **Gate-Schwelle nachschärfen:** Die 80 % von vision-v2 @44000 lassen auch nicht co-trainierte
+>    Modelle durch (Läufe 87/90/91). Vorschlag: Schwelle relativ zum besten nicht co-trainierten
+>    Modell derselben Generation (N1.6 ~0,017 / 0,016), Echtbild-Kriterium als feste Zahl.
+> 5. **`lifted_clear` braucht den Videobefund:** Die Metrik zählt auch einen Würfel, der in der
+>    Hand auf einem anderen liegt (Lauf 94). Ein Kontaktkriterium ohne Stütz-Würfel wäre die
+>    saubere Lösung.
+> 6. **Hänger im Closed Loop:** Am 25.10. hingen zwei Läufe mitten in der Episode, ohne
+>    Fehlermeldung. Bisher wird das nur umgangen (`~/groot-rl-data/cl_watchdog.sh` startet neu);
+>    die Ursache ist offen. Der Wächter liegt nur auf dem Server, nicht im Repo.
+> 7. Danach: Co-Training aufstocken (mehr Render-Episoden statt höherer Mischung, §4.2) oder RL
+>    auf dem besten N1.6-Modell, je nach Ergebnis von 1.
+>
+> Die Punkte 00–3 unten sind für das Co-Training erledigt (00: Läufe 73–95; 3: Baselines
+> Läufe 81/82).
 
 > **Vorgezogen (2026-10-14), vor allen Punkten der Tabelle unten:**
 > 00. **Stand 2026-10-15 mittags:** auf KISSKI eingereicht (Smoke wartet). Abnahme auf dem IKR
@@ -355,6 +411,11 @@ Vergleich, weshalb Lauf 34 mit 40 s wiederholt wurde.
 </details>
 
 ### Schritt 4 — Co-Training auf gerenderten Bildern (Werkzeuge gebaut, Lauf steht aus)
+
+> **Stand 2026-10-29:** ✅ gelaufen und ausgewertet. Render v3 (Lauf 72), vier KISSKI-Trainings
+> (Läufe 73–76), Gate und Closed Loop auf dem IKR (Läufe 83–95). Ergebnis in §0 und
+> [co-training.md §3.5](docs/training/co-training.md#35-auswerten--zwei-messungen-nicht-eine).
+> Die Mischung war 0,15 statt der unten genannten 0,25 (187 statt 60 Episoden, co-training.md §4.2).
 
 > **Stand 2026-10-11:** der Renderdatensatz ist wegen der Geometriekorrektur vom 2026-08-24 neu zu erzeugen,
 > die Würfellage kommt inzwischen aus den Realbildern (`layout`), und mit `Cube_Stacking_synth` gibt es eine
