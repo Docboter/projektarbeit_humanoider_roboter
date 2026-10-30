@@ -10,6 +10,8 @@
 | `gate_mse_haende.csv` | Visuelles Gate: MSE Hände (Mittel der Seed-Mediane, Min/Max über Seeds 0/1/2) auf Echtbild und den Sim-Prüfsets 5 cm / 4 cm, für Ausgangswerte, alle acht Co-Training-Checkpoints und die zwei Altmodelle | Läufe 80, 83, 86, 87, 92 |
 | `closed_loop.csv` | Closed Loop je Lauf: Episoden, Episodenlänge, Stufen `reached` … `stacked` (`lifted`/`lifted_clear` ohne Artefakte), Artefakte, Fingerspanne Median/Min/Max, Medianabstand Kuppe↔Würfel, Quell-JSONs | Läufe 81–97 |
 | `orakel_versatz_lauf62.csv` | Versatz-Sweep im Orakel: Würfel um `dx` (vom Roboter weg) und `dy` (seitlich nach außen) verschoben, `lifted_clear` k von 8 Episoden (240–247, 40 s); übertragen aus der Tabelle der Chronik | Lauf 62 |
+| `lernkurven_lauf3_lauf4.csv` | `train/loss` je 10 Schritte von Lauf 3 (N1.6, W&B `tp1nc699`) und Lauf 4 (N1.7, `2v02ye81`), ausgelesen aus den Offline-Logs auf KISSKI (`/mnt/vast-kisski/projects/kisski-humrob/data/g1_dex3_finetune/wandb/offline-run-*`); Lauf 3 an 500 Punkten gegen W&B geprüft, identisch. Lauf 4 ist nicht nach W&B synchronisiert. Absolute Höhe zwischen N1.6 und N1.7 nicht vergleichbar | Läufe 3, 4 |
+| `val_mse_lauf3_lauf4.csv` | Validierungs-MSE je Checkpoint, 20 Testepisoden × 750 Schritte | [lauf4-n17-vergleich.md §5](../../../docs/ergebnisse/lauf4-n17-vergleich.md#5-nachgeschärfter-vergleich-20-episoden--750-steps-volle-länge) |
 
 Bilder unter `../sim/`:
 

@@ -13,7 +13,7 @@
 | 0 Entscheidungen | erledigt (Tabelle unten) |
 | 1 A1, A2 | erledigt: [`schnittstellen.md`](schnittstellen.md) aus dem Code (Beispiel-Client gegen den `PolicyServer` des Forks getestet), README/Quickstart neu, Status in CLAUDE.md/AGENTS.md |
 | 2 A3, A4 | erledigt: Inventur (Tabelle in A3), 6 Dateien nach [`archiv/`](archiv/README.md), „Ergebnisse auf einen Blick“, 11 veraltete Stellen mit Nachtrag, Link-Check `tools/check_links.py` in der CI |
-| 3 B1, B2 | erledigt: 8 Kapitel nach B1, 20 S. Hauptteil / 41 S. gesamt; Abbildungen aus `latex/figures/make_figures.py` (Gate, Closed-Loop-Stufen, Fingerspanne, Orakel-Raster) plus Architektur, Echt-/Sim-Bild, erster Griff. Lernkurve Lauf 4 fehlt (nur in W&B) |
+| 3 B1, B2 | erledigt: 8 Kapitel nach B1, 20 S. Hauptteil / 41 S. gesamt; Abbildungen aus `latex/figures/make_figures.py` (Gate, Closed-Loop-Stufen, Fingerspanne, Orakel-Raster) plus Architektur, Echt-/Sim-Bild, erster Griff. Lernkurven Lauf 3/4 aus den Offline-Logs auf KISSKI (2026-10-30) |
 | 4 Prüfen | offen: Zahlen-Stichprobe durch die Gruppe, Fremdtest auf dem IKR-Server, Absatz-Test |
 | 5 B3 | teilweise: Zusammenfassung DE/EN neu, Literatur bereinigt (jeder Eintrag zitiert), `latex/README.md` aktualisiert. Offen: Matrikelnummern A/B, Abgabedatum, Tag, Sichtbarkeit der HF-Repos |
 
@@ -23,6 +23,8 @@
 2. Liegen `/data/cotrain/vis_gate_v3_cube{5,4}` und `/data/eval/layout_heldout_dy3.json` dort, und wie wurde die dy3-Datei erzeugt (kein Skript im Repo)?
 3. Die Beispielausgabe in `sim-eval-anleitung.md` (Format aus dem Code) gegen ein echtes Log halten.
 4. Welche Läufe den zeitweise gemischten v2.1/v3.0-Datensatz gelesen haben (Lauf 56, offen).
+
+**Nicht in W&B:** Lauf 4 (`2v02ye81`) und die Co-Training-Läufe 73–76 liegen nur als Offline-Runs auf KISSKI (`g1_dex3_finetune/wandb/`). Hochladen mit `wandb sync` nach [wandb-offline-sync.md](training/wandb-offline-sync.md), falls gewünscht.
 
 **Neu gefunden:** `Training/kisski_open_loop_eval.sh` nutzt standardmäßig 6 Episoden × 300 Schritte,
 das Protokoll, das in Lauf 3 ein Scheinoptimum lieferte. Nicht geändert; in LaTeX Kap. 4/8 und

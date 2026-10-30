@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# TL;DR: Erzeugt die Diagramme der Ausarbeitung (Gate, Closed-Loop-Stufen, Fingerspanne, Orakel-Versatz) als PDF aus den CSVs unter latex/figures/daten/.
+# TL;DR: Erzeugt die Diagramme der Ausarbeitung (Lernkurven, Gate, Closed-Loop-Stufen, Fingerspanne, Orakel-Versatz) als PDF aus den CSVs unter latex/figures/daten/.
 """Abbildungen der Ausarbeitung aus den exportierten Messdaten.
 
 Eingabe: ``latex/figures/daten/*.csv`` (Quelle und Lesart:
@@ -101,7 +101,7 @@ def gate():
         "MSE Hände (Mittel der Seed-Mediane, Balken: Min–Max über 3 Seeds)", fontsize=8, color=INK2
     )
     fig.tight_layout()
-    fig.savefig(OUT / "gate_mse_haende.pdf")
+    fig.savefig(OUT / "gate_mse_haende.pdf", metadata={"CreationDate": None})
     plt.close(fig)
 
 
@@ -148,7 +148,7 @@ def closed_loop():
     ax.grid(axis="x", visible=False)
     ax.legend(fontsize=7, ncol=2, loc="upper center", bbox_to_anchor=(0.5, -0.12))
     fig.tight_layout()
-    fig.savefig(OUT / "closed_loop_stufen.pdf")
+    fig.savefig(OUT / "closed_loop_stufen.pdf", metadata={"CreationDate": None})
     plt.close(fig)
 
 
@@ -175,7 +175,7 @@ def span():
     ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: de(v, 1)))
     ax.grid(axis="y", visible=False)
     fig.tight_layout()
-    fig.savefig(OUT / "fingerspanne_lauf96.pdf")
+    fig.savefig(OUT / "fingerspanne_lauf96.pdf", metadata={"CreationDate": None})
     plt.close(fig)
 
 
@@ -215,7 +215,49 @@ def sweep():
         sp.set_visible(False)
     ax.tick_params(length=0)
     fig.tight_layout()
-    fig.savefig(OUT / "orakel_versatz_lauf62.pdf")
+    fig.savefig(OUT / "orakel_versatz_lauf62.pdf", metadata={"CreationDate": None})
+    plt.close(fig)
+
+
+def lernkurven():
+    rows = read("lernkurven_lauf3_lauf4.csv")
+    val = read("val_mse_lauf3_lauf4.csv")
+
+    def median15(xs):
+        out = []
+        for i in range(len(xs)):
+            w = sorted(xs[max(0, i - 7) : i + 8])
+            out.append(w[len(w) // 2])
+        return out
+
+    fig, (a1, a2) = plt.subplots(1, 2, figsize=(6.3, 2.6))
+    for col, label, color in [
+        ("loss_lauf3_n16", "Lauf 3 (N1.6)", BLUE),
+        ("loss_lauf4_n17", "Lauf 4 (N1.7)", ORANGE),
+    ]:
+        pts = [(int(r["schritt"]), float(r[col])) for r in rows if r[col]]
+        a1.plot(
+            [p[0] for p in pts], median15([p[1] for p in pts]), color=color, lw=1.2, label=label
+        )
+        vp = [
+            (int(r["schritt"]), float(r[col.replace("loss", "mse")]))
+            for r in val
+            if r[col.replace("loss", "mse")]
+        ]
+        a2.plot(
+            [p[0] for p in vp], [p[1] for p in vp], "o-", color=color, lw=1.2, ms=4, label=label
+        )
+    a1.set_yscale("log")
+    a1.set_title("Trainings-Loss (gleitender Median, 15 Werte)", fontsize=8, color=INK)
+    a2.set_title("Validierungs-MSE, 20 Testepisoden × 750", fontsize=8, color=INK)
+    for ax in (a1, a2):
+        ax.set_xlabel("Trainingsschritt")
+        ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f"{v / 1000:.0f}k"))
+    a2.yaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: de(v, 3)))
+    a1.yaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f"{v:g}".replace(".", ",")))
+    a2.legend(fontsize=7)
+    fig.tight_layout()
+    fig.savefig(OUT / "lernkurven_lauf3_lauf4.pdf", metadata={"CreationDate": None})
     plt.close(fig)
 
 
@@ -225,4 +267,5 @@ if __name__ == "__main__":
     closed_loop()
     span()
     sweep()
+    lernkurven()
     print("geschrieben:", ", ".join(sorted(p.name for p in OUT.glob("*.pdf"))))
