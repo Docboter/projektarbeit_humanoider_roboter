@@ -31,8 +31,8 @@ Die Beweiskette ist geschlossen und sie zeigt in genau eine Richtung:
 
 | Befund | Zahl | Beleg |
 |---|---|---|
-| Auf **echten** Datensatz-Bildern kommandiert die Politik den vollen Griff | 100 % der Demo | Lauf 33, `span` |
-| In der **Sim** kommandiert dieselbe Politik einen Bruchteil davon | 20,5 % → **27,6 %** mit `TUNE_VISUAL` | Läufe 31 / 34 |
+| Auf **echten** Datensatz-Bildern kommandiert die Policy den vollen Griff | 100 % der Demo | Lauf 33, `span` |
+| In der **Sim** kommandiert dieselbe Policy einen Bruchteil davon | 20,5 % → **27,6 %** mit `TUNE_VISUAL` | Läufe 31 / 34 |
 | Der Sprung ist echt, nicht Rauschen | vollständige Trennung, p = 3,3 · 10⁻⁴ | Lauf 34, n = 10 gegen 5 |
 | Er reicht trotzdem nicht | `lifted` 0/10, beste Anhebung 1,68 cm von 2 cm | Lauf 34 |
 
@@ -352,14 +352,14 @@ sbatch --export=ALL Training/kisski_submit.sh
 export RUN_DIR=/data/g1_dex3_finetune/blockstacking_cotrain
 sbatch --export=ALL Training/kisski_open_loop_eval.sh
 
-# a2) Visuelles Gate (Lauf 66/72, seit 2026-10-15): versteht die Politik die Sim-Bilder jetzt?
+# a2) Visuelles Gate (Lauf 66/72, seit 2026-10-15): versteht die Policy die Sim-Bilder jetzt?
 #     Teacher-forced Open Loop auf den Prüfsets vis_gate_v3_cube{5,4} und auf den echten
 #     Bildern derselben Episoden, Tabelle gegen die Ausgangswerte. Kein Isaac Sim, ~2 min.
 HF_TOKEN=hf_... HF_CHECKPOINT_REPO=luca-mue/groot-g1dex3-cotrain-v3-cube5-ckpt<step> \
     CHECKPOINT_PATH=/data/checkpoints/cotrain-v3-cube5-ckpt<step> \
     VISGATE_SEED=0 ./Simulation/server_rl_run.sh visgate     # dann VISGATE_SEED=1, 2
 
-# b) Simdomäne: greift die Politik jetzt mehr? (identisches Protokoll wie Lauf 34!)
+# b) Simdomäne: greift die Policy jetzt mehr? (identisches Protokoll wie Lauf 34!)
 NUM_EPISODES=10 EPISODE_LENGTH_S=40 CHECKPOINT_PATH=<bester ckpt> \
     HF_TOKEN=hf_... ./Simulation/server_rl_run.sh eval
 ```
@@ -368,7 +368,7 @@ NUM_EPISODES=10 EPISODE_LENGTH_S=40 CHECKPOINT_PATH=<bester ckpt> \
 über die Episode, ein längeres Fenster hebt sie allein dadurch. Genau daran ist Lauf 33 als
 Vergleich gescheitert.
 
-**Zum visuellen Gate (a2):** Die Diffusion der Politik startet aus ungeseedetem Rauschen; ohne
+**Zum visuellen Gate (a2):** Die Diffusion der Policy startet aus ungeseedetem Rauschen; ohne
 festen Seed streut die MSE Hände derselben Episode bis etwa um den Faktor 2 (Selbsttest
 2026-10-15: Echtbild Traj 4 0,0062 statt 0,0032 in Lauf 66). `visgate` seedet deshalb
 (`VISGATE_SEED`, Default 0); verglichen wird gegen die mit denselben Seeds gemessenen

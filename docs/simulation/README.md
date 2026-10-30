@@ -34,8 +34,9 @@ ZMQ-Requests eines Isaac-Lab-Sim-Clients.
 > aus dem Checkpoint). N1.6-only bleiben das optimierte Inferenz-Backend
 > ([inferenz-optimierung.md](inferenz-optimierung.md)), der Stock-G1-Baseline-Test
 > ([baseline-eval.md](../archiv/baseline-eval.md)) und RL ([`../weiterfuehrend/rl-anleitung.md`](../weiterfuehrend/rl-anleitung.md)).
-> N1.7-Sim-Läufe 54/55 sind gelaufen (lokal gebautes Image — das Sim-Image auf Docker Hub ist
-> weiterhin N1.6-only, also selbst bauen und `RL_SKIP_PULL=1` setzen). Status:
+> Das Sim-Image auf Docker Hub (`:latest`) enthält seit 2026-10-14 N1.6 und N1.7
+> ([sim-eval-anleitung.md](sim-eval-anleitung.md)); nur nach einem eigenen Build `RL_SKIP_PULL=1`
+> setzen. Status:
 > [groot-n17-migration.md](../weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19).
 
 ## Archiv

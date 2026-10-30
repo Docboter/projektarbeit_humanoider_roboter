@@ -31,7 +31,7 @@ Task „stack three block" (einziger Task des Datensatzes).
   **reinen Realdaten** aufzutauen schließt den Sim-Domain-Gap **nicht** — der Encoder
   bekommt im Training nie ein Sim-Bild zu sehen — und bringt bei nur ~301 Demonstrationen
   das Risiko von **Catastrophic Forgetting / Über-Spezialisierung** mit, das sich hier als
-  Politik-Kollaps materialisiert hat. Differenzierende Einordnung nach Lauf 3: siehe
+  Policy-Kollaps materialisiert hat. Differenzierende Einordnung nach Lauf 3: siehe
   §7-Nachtrag bzw. [`lauf3-vision-split-auswertung.md`](lauf3-vision-split-auswertung.md).
 - **Strukturelle Lücke wie in Lauf 1:** weiterhin **keine Validierungs-/Eval-Metrik**
   (`eval_strategy = "no"`) → Checkpoint-Auswahl blind, Overfitting prinzipiell unsichtbar.
@@ -99,7 +99,7 @@ Attraktor.
 |---|---|---|
 | Closed-Loop-Verhalten | Anfahren (~15 s), dann **Einfrieren** | nur **Arme zurückziehen** (Kollaps) |
 | Erfolgsrate | 0 / 20 | 0 (kein Aufgabenfortschritt) |
-| Interpretation | unbrauchbare Sim-Features → „nichts tun" | Politik auf degenerierte Bewegung kollabiert |
+| Interpretation | unbrauchbare Sim-Features → „nichts tun" | Policy auf degenerierte Bewegung kollabiert |
 
 > **Nachtrag 2026-10-11 — Messbedingungen.** Der Closed-Loop-Eval dieses Laufs entstand mit der alten
 > Sim-Geometrie (Beckenhöhe 0,85 m, Basis x 0, Vorzeichenspiegelung der vier proximalen
@@ -138,7 +138,7 @@ Verhaltenswirkung ist `tune_visual` (von `false` auf `true`); der größere Glob
    machen. Genau das erklärt, warum das Closed-Loop-Verhalten **schlechter** wird als mit
    frozen Encoder.
 
-3. **Ergebnis: Politik-Kollaps.** Auf den (weiterhin out-of-distribution) Sim-Bildern
+3. **Ergebnis: Policy-Kollaps.** Auf den (weiterhin out-of-distribution) Sim-Bildern
    liefert der nun über-spezialisierte Encoder unbrauchbare Features, und die Action-Head
    fällt in einen degenerierten Attraktor — hier die Arm-Rückzugsbewegung.
 
@@ -228,7 +228,7 @@ erschlossen.
 > 2026-10-12** durch die 20×750-Nachmessung: dort ist der letzte der beste, siehe Nachtrag in
 > der Lauf-3-Auswertung; der folgende Rückschluss steht damit unter Vorbehalt). Das erklärt
 > rückwirkend auch einen Teil des Lauf-2-Befunds: der hier evaluierte finale Checkpoint war
-> mit hoher Wahrscheinlichkeit **nicht der beste des Laufs** — der Politik-Kollaps ist damit
+> mit hoher Wahrscheinlichkeit **nicht der beste des Laufs** — der Policy-Kollaps ist damit
 > nicht widerlegt, aber die Zuschreibung „liegt allein an `tune_visual`" wird schwächer.
 > Ein Sweep über die Lauf-2-Checkpoints fehlt (Lauf 2 lief ohne Split, ergäbe also nur
 > Trainings-MSE).

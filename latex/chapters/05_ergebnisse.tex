@@ -64,7 +64,7 @@ Gute Open-Loop-Werte auf echten Bildern sagen nichts über den Closed Loop in de
 \label{sec:realperformance}
 
 Kein Modell hebt in der Simulation einen Würfel frei an
-(\cref{tab:cl-ohne}). Die Politik fährt die Würfel an und berührt sie, schließt die Hand
+(\cref{tab:cl-ohne}). Die Policy fährt die Würfel an und berührt sie, schließt die Hand
 aber nicht um einen Würfel.
 
 \begin{table}[htb]
@@ -93,7 +93,7 @@ aber nicht um einen Würfel.
 
 Um Modell und Simulation zu trennen, spielt ein \enquote{Orakel} die aufgezeichneten
 Demonstrationsaktionen der jeweiligen Testepisode ab. Das ist die obere Schranke jeder
-Politik. Auf den aus Bildern bestimmten Würfellagen hebt es \texttt{lifted\_clear} 1/16
+Policy. Auf den aus Bildern bestimmten Würfellagen hebt es \texttt{lifted\_clear} 1/16
 (95-\%-Intervall 0,2--30\,\%, Lauf~57): Die Hand erreicht und schließt, schiebt oder kippt den
 Würfel aber. Die Griffstellen der echten Hand liegen 1--7~cm neben der Würfellage aus dem
 Bild, seitlich spiegelbildlich je Hand (Lauf~59). Die Würfelgröße ist nicht die Ursache
@@ -108,7 +108,7 @@ Bild, seitlich spiegelbildlich je Hand (Lauf~59). Die Würfelgröße ist nicht d
 \end{figure}
 
 Ein Raster über die Verschiebung (\cref{fig:orakel-sweep}) zeigt: Ohne seitliche Korrektur
-hebt das Orakel in 0 von 24 Episoden, mit 3--6~cm nach außen in 23 von 48. Bei $dx = 0$ trennt
+hebt das Orakel in 0 von 24 Episoden, mit 3--6~cm nach außen (bei $dx \le 0$) in 23 von 48. Bei $dx = 0$ trennt
 sich $dy = 3$~cm (5/8) von $dy = 0$ (0/8) mit $p \approx 0{,}03$ (exakter Fisher-Test). Die
 Würfel liegen in der Simulation relativ zur Hand also je Seite rund 3~cm zu weit innen. Mit
 dieser Korrektur hebt das Orakel auf 20 Testlagen in 6 Fällen frei an (30\,\%,
@@ -139,7 +139,7 @@ verwenden die empirische Korrektur (\texttt{layout\_heldout\_dy3.json}).
   \label{fig:domain-gap}
 \end{figure}
 
-Die Wirkung der Bilder lässt sich ohne Regelkreis messen: Die Politik sagt teacher-forced
+Die Wirkung der Bilder lässt sich ohne Regelkreis messen: Die Policy sagt teacher-forced
 Aktionen für denselben Zustand einmal auf echten und einmal auf gerenderten Bildern derselben
 Episode vorher (\cref{tab:domain-gap}).
 
@@ -160,7 +160,7 @@ Episode vorher (\cref{tab:domain-gap}).
 \end{table}
 
 Der Fehler steigt in dieselbe Größenordnung wie mit schwarzen Bildern (Lauf~65): Für die
-Politik tragen die Sim-Bilder ungefähr so viel verwertbare Information wie kein Bild. N1.6
+Policy tragen die Sim-Bilder ungefähr so viel verwertbare Information wie kein Bild. N1.6
 leidet unter beiden Kameragruppen, N1.7 vor allem unter den Handgelenkkameras. Die Szene wurde
 daraufhin ans Echtbild angeglichen (breiterer Tisch, Handgelenkkamera näher an der echten
 Pose, 85° Öffnungswinkel; Lauf~70). Das senkt den Fehler um 40\,\% (N1.6) bzw.\ 18\,\%
@@ -204,11 +204,11 @@ vision-v1) unterbieten die 80-\%-Schwelle (Lauf~87).
   \centering
   \includegraphics[width=\linewidth]{figures/plots/gate_mse_haende.pdf}
   \caption{Visuelles Gate: \ac{mse} der Hand-Aktionen auf Echtbildern und gerenderten
-    Prüfbildern; schraffiert die Ausgangswerte ohne Co-Training (Läufe 80, 83, 86, 87, 92).}
+    Prüfbildern; schraffiert die Ausgangswerte ohne Co-Training. Daten aus den Läufen 80, 83, 86, 87 und 92.}
   \label{fig:gate}
 \end{figure}
 
-\paragraph{Closed Loop.} Mit Co-Training erreichen und berühren die Politiken die Würfel in
+\paragraph{Closed Loop.} Mit Co-Training erreichen und berühren die Policies die Würfel in
 fast jeder Episode (\cref{fig:closed-loop}). Echte Griffe, im Video bestätigt, gibt es nur bei
 N1.6: C auf allen 60 Testlagen \texttt{lifted\_clear} 2/60 = 3\,\% (95-\%-Intervall
 0,4--11,5\,\%, Läufe 88 und 97), B 1/20 (Lauf~84). Beide N1.7-Modelle heben nicht frei an
@@ -227,7 +227,7 @@ trennen (exakter Fisher-Test, einseitig, $p \approx 0{,}56$).
 \begin{figure}[htb]
   \centering
   \includegraphics[width=0.7\linewidth]{figures/sim/griff_lauf88_ep05_80s_ausschnitt.png}
-  \caption{Erster Griff einer Politik: Modell C, Lauf~88, Episode~5, $t = 80$~s. Die linke
+  \caption{Erster Griff einer Policy: Modell C, Lauf~88, Episode~5, $t = 80$~s. Die linke
     Hand hält den roten Würfel in der Luft.}
   \label{fig:griff}
 \end{figure}

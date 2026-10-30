@@ -241,6 +241,15 @@ Container-Erstellung, Checkpoint-Auswahl, Eval-Schleife:
 ./Simulation/server_rl_run.sh eval
 ```
 
+> **Protokoll-Szene der berichteten Zahlen (Läufe 81–97):** Ein schlichtes `eval` nutzt die
+> cfg-Defaults (Tisch, Handgelenkkamera, Layout, Episodenlänge) und ist damit **nicht** mit den
+> berichteten Zahlen vergleichbar. Die Protokoll-Szene setzt nur
+> [`tools/sim_cl_watchdog.sh`](../../tools/sim_cl_watchdog.sh) (Z. 41–45):
+> `NUM_EPISODES=20 EPISODE_LENGTH_S=120 DR_ENABLED=0 DR_SEED=0`,
+> `EVAL_LAYOUT=/data/eval/layout_heldout_dy3.json`, `SIM_TABLE_SIZE="0.8 2.0"`,
+> `SIM_WRIST_EYE="0.02 0.0 0.08"`, `SIM_WRIST_TARGET="0.30 0.0 -0.08"`, `SIM_WRIST_HFOV=85`.
+> Aufruf und Voraussetzungen (dy3-Layout): [Quickstart §2b](../quickstart.md#2b-closed-loop-protokoll-lauf-82).
+
 Der Launcher fragt, welcher Checkpoint gemessen wird, und schlägt die unter
 `HOST_DATA_DIR/checkpoints/` vorhandenen vor. Host-spezifische Pfade kommen aus der
 gitignorierten `.env.local` (Template: [`.env.local.example`](../../.env.local.example),
@@ -249,12 +258,7 @@ siehe [../portabilitaet.md](../portabilitaet.md)). Die weiteren Aktionen — Rep
 [../weiterfuehrend/rl-anleitung.md](../weiterfuehrend/rl-anleitung.md); die
 Env-Var-Referenz in [env-vars.md § Sim-Eval-Container](../training/env-vars.md#sim-eval-container-entrypoint_simsh--kurzreferenz) gilt für beide Wege.
 
-Die letzten Closed-Loop-Läufe mit trainierter Policy sind die N1.7-Läufe 54/55 (2026-10-12/13,
-je 10 Episoden × 40 s, korrigierte Szene): 0/10 `lifted`. Der letzte N1.6-Lauf ist Lauf 34
-(2026-08-14, Checkpoint `groot-g1dex3-vision-v2-30000`, 0/10); er stammt noch aus der Szene vor den
-Geometrie-Korrekturen vom 2026-08-24, eine N1.6-Neumessung (dann mit dem validierten
-Checkpoint 44000) ist offen. Einzelheiten:
-[../ergebnisse/diagnose-chronik.md](../ergebnisse/diagnose-chronik.md).
+Aktueller Closed-Loop-Stand (Läufe bis 97): [next-steps.md §0](../../next-steps.md).
 
 Die Schritte 4-7 unten betreffen nur **Weg B (vast.ai)**.
 
@@ -309,15 +313,17 @@ lucam03/projekt-humanoider-roboter-sim-standalone:latest
 | `HF_CHECKPOINT_REPO` | `luca-mue/groot-g1dex3-checkpoint` | Ja (für HF-Download) |
 | `ASSET_PATH` | `/data/checkpoints/groot-g1dex3-checkpoint/g1_dex3.usd` | Ja |
 | `NUM_EPISODES` | `20` | Nein (default 20) |
-| `EPISODE_LENGTH_S` | `40` | Nein — **empfohlen**: ohne Angabe läuft jede Episode bis zu 9000 Steps; 20 Episoden können dann Stunden dauern |
+| `EPISODE_LENGTH_S` | `120` | Nein — **immer setzen**: ohne Angabe läuft jede Episode bis zu 9000 Steps. Protokoll der berichteten Zahlen: 120 (40 nur für das Spannen-Gate, Lauf 96) |
 | `EXECUTION_HORIZON` | `8` | Nein (default 8) |
 | `TASK_DESCRIPTION` | `stack three block` | Nein — leer = Text aus `meta/tasks.*` des Datensatzes (`TASK_DATASET_PATH`), sonst `stack three block`. Bis 2026-10-13 war der Default `stack the blocks`, ein Text, der im Training nie vorkam; alle früheren Closed-Loop-Zahlen liefen damit ([Review §3.1](../archiv/projekt-review-2026-10-11.md#31-falscher-sprachbefehl-in-allen-closed-loop-läufen--kritisch-nachgeprüft)) |
-| `EVAL_LAYOUT` | `/data/eval/layout_heldout.json` | Nein — **empfohlen**: echte Würfel-Startlagen der zurückgehaltenen Episoden 240–300 (erzeugen mit `LAYOUT_HELD_OUT=1 ./Simulation/server_rl_run.sh layout`). Leer = Zufallsbänder der Env, die die Startlagen der Realdaten nicht abbilden ([Review §3.2](../archiv/projekt-review-2026-10-11.md#32-würfelpositionen-in-der-eval-liegen-außerhalb-der-trainingsdaten--kritisch-teilprüfung)) |
+| `EVAL_LAYOUT` | `/data/eval/layout_heldout_dy3.json` | Nein — **empfohlen**: Protokoll-Layout (Würfel 3 cm nach außen, Herkunft: [Quickstart §2b](../quickstart.md#2b-closed-loop-protokoll-lauf-82)); Grundlage `layout_heldout.json` = echte Würfel-Startlagen der zurückgehaltenen Episoden 240–300 (erzeugen mit `LAYOUT_HELD_OUT=1 ./Simulation/server_rl_run.sh layout`). Leer = Zufallsbänder der Env, die die Startlagen der Realdaten nicht abbilden ([Review §3.2](../archiv/projekt-review-2026-10-11.md#32-würfelpositionen-in-der-eval-liegen-außerhalb-der-trainingsdaten--kritisch-teilprüfung)) |
+| `DR_ENABLED` | `0` | Nein — Protokoll: 0 (DR aus) |
+| `SIM_TABLE_SIZE`, `SIM_WRIST_EYE`, `SIM_WRIST_TARGET`, `SIM_WRIST_HFOV` | `0.8 2.0` / `0.02 0.0 0.08` / `0.30 0.0 -0.08` / `85` | Nein — Protokoll-Szene (Lauf 70); leer = cfg-Default, dann nicht mit den berichteten Zahlen vergleichbar |
 | `DR_SEED` | `0` | Nein (default 0) — fixiert Domain Randomization und Würfel-Zufall, damit A/B-Läufe vergleichbar sind; negativ = pro Prozess neu auswürfeln |
 | `SHELL_ON_ERROR` | `1` | Empfohlen (für Debugging) |
 | `BLACK_HANDS` | `1` | Nein (default 1) — färbt die Hände schwarz (Domain-Gap-Fix) |
 | `LIVE_VIEW` | `1` | Nein (default 0) — MJPEG-Live-Ansicht im Browser, Port `LIVE_VIEW_PORT` (8900) |
-| `GROOT_VERSION` | `auto` | Nein (default `auto`) — erkennt N1.6 vs. N1.7 aus dem `model_type` in der Checkpoint-`config.json`; explizit `1.6` oder `1.7` erzwingt eine Generation. `1.7` braucht zusätzlich Zugang zum **gated** Backbone `nvidia/Cosmos-Reason2-2B`. Mit echten N1.7-Checkpoints gelaufen (Läufe 54/55, lokal gebautes Image) — siehe [groot-n17-migration.md](../weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19) |
+| `GROOT_VERSION` | `auto` | Nein (default `auto`) — erkennt N1.6 vs. N1.7 aus dem `model_type` in der Checkpoint-`config.json`; explizit `1.6` oder `1.7` erzwingt eine Generation. `1.7` braucht zusätzlich Zugang zum **gated** Backbone `nvidia/Cosmos-Reason2-2B`. Mit echten N1.7-Checkpoints gelaufen (u. a. Läufe 81, 89, 93) — siehe [groot-n17-migration.md](../weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19) |
 | `HF_HOME` | — | Nein (default `$DATA_DIR/hf_cache`) — nur für N1.7 relevant: hier landet das Cosmos-Reason2-2B-Backbone, das bei jedem Checkpoint-Laden erneut vom Hub gezogen wird, wenn es nicht schon im Cache liegt |
 
 > Die vollständige Env-Var-Referenz des Sim-Containers steht in

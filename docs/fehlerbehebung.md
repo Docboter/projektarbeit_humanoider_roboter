@@ -161,10 +161,10 @@ Vision-Encoder produziert für synthetische Isaac-Sim-Bilder schlechtere Feature
 Messstand nach Kamera-Neukalibrierung (2026-08-08): mittlere Cosine-Distanz **0,2229**,
 `cam_left_wrist` **0,3556** — die Juni-Erstmessung (0.260 / 0.427) ist überholt.
 
-> **Stand 2026-08-14 (Läufe 29–34):** Die Greif-Diagnose der Läufe 29–31 zeigte: die Politik
+> **Stand 2026-08-14 (Läufe 29–34):** Die Greif-Diagnose der Läufe 29–31 zeigte: die Policy
 > kommandiert nur ~19 % der demonstrierten Fingerspannweite; eine fehlerhafte De-Normalisierung
 > wurde ausgeschlossen. **Lauf 32** (`span`-Gate) entschied die Ursache: auf **echten** Bildern
-> erreicht dieselbe Politik 100 % der Demo-Spanne → der visuelle Domain Gap ist bestätigt.
+> erreicht dieselbe Policy 100 % der Demo-Spanne → der visuelle Domain Gap ist bestätigt.
 > **Lauf 34** maß den daraufhin trainierten Vision-Checkpoint (`TUNE_VISUAL=1` + Jitter + Split)
 > im Closed Loop: Fingerspanne **27,6 % statt 20,5 %** (p = 3,3 · 10⁻⁴) — die Maßnahme wirkt,
 > `lifted` bleibt aber 0/10. Details: [ergebnisse/diagnose-chronik.md](ergebnisse/diagnose-chronik.md).

@@ -52,7 +52,7 @@ Quelldatei im Code.
              \texttt{processor/}, \texttt{wandb\_config.json}, Optimizer-Zustand \\
     Version & \texttt{model\_type} in \texttt{config.json}: \texttt{Gr00tN1d6} oder
               \texttt{Gr00tN1d7}; \texttt{GROOT\_VERSION=auto} liest ihn aus \\
-    Ablage & Hugging Face, privat, ohne Optimizer:
+    Ablage & Hugging Face (Projekt-Repos öffentlich), ohne Optimizer:
              \texttt{upload\_checkpoint.py --checkpoint <dir> --repo
              luca-mue/groot-g1dex3-<lauf>-ckpt<N>} \\
     \bottomrule
@@ -118,25 +118,30 @@ Abgebrochene Episoden zählen in keiner Rate.
     Stufe & Bedingung \\
     \midrule
     \texttt{reached} & Fingerkuppe $\le$ 4~cm von der Würfelmitte \\
-    \texttt{grasp\_attempted} & Fingerspanne des Kommandos $\ge$ 30\,\% der Demonstration
-      (2,094~rad) \\
+    \texttt{grasp\_attempted} & Fingerspanne des Kommandos $\ge$ 30\,\% der Demonstrationsspanne
+      von 2,094~rad \\
     \texttt{touched} & Würfel um $>$ 1~cm verschoben \\
     \texttt{lifted} & Würfelschwerpunkt $>$ 2~cm angehoben (zählt auch Kippen) \\
     \texttt{lifted\_clear} & Würfelunterseite $>$ 2~cm über dem Tisch \emph{und} im selben
       Schritt eine Fingerkuppe $\le$ 4~cm entfernt \\
-    \texttt{stacked} & drei Würfel horizontal $<$ 3~cm versetzt, Turm $>$ 8~cm, alle
-      $<$ 0,05~m/s \\
+    \texttt{stacked} & drei Würfel horizontal $<$ 3~cm versetzt, Höhendifferenz der
+      Würfelmitten $>$ 8~cm, alle $<$ 0,05~m/s \\
     \bottomrule
   \end{tabularx}
-  \caption{Stufen der Closed-Loop-Bewertung. Die Schwellen wurden vor den Messungen
-    festgelegt; jede Stufe wird für sich geprüft.}
+  \caption{Stufen der Closed-Loop-Bewertung. Jede Stufe wird für sich geprüft.
+    \texttt{lifted\_clear} kam am 13.10.\ hinzu, weil \texttt{lifted} Kippen mitzählt;
+    die übrigen Schwellen standen vor den Messungen fest.}
   \label{tab:if-stufen}
 \end{table}
 
-\paragraph{Visuelles Gate.} Ohne Isaac~Sim: Die Politik sagt teacher-forced Aktionen auf
+\paragraph{Visuelles Gate.} Ohne Isaac~Sim: Die Policy sagt teacher-forced Aktionen auf
 gerenderten Prüfbildern (4 Episoden, je 600 Schritte, Würfel 5~cm und 4~cm) und auf den
 echten Bildern derselben Episoden vorher. Kennzahl ist der Median der \ac{mse} über die
-Hand-Dimensionen, gemittelt über die Seeds 0, 1 und 2. Ergebnis: \texttt{visgate\_*.json}.
+Hand-Dimensionen, gemittelt über die Seeds 0, 1 und 2 (Streuung etwa $\pm$5\,\%).
+Bestanden ist das Gate, wenn die Kennzahl auf beiden Prüfsets unter 80\,\% des Werts des
+Ausgangsmodells derselben Generation ohne Co-Training liegt (N1.6 vision-v2 bzw.\ N1.7
+vision-v1, je @44000, Lauf~80) und auf Echtbildern nicht deutlich steigt. Ergebnis:
+\texttt{visgate\_*.json}.
 
 \section{Container und Einstiegspunkte}
 \label{sec:if-container}
@@ -173,4 +178,4 @@ Der Trainings-Container hält alle Daten; er darf gestoppt, aber nicht gelöscht
 Eine Anbindung an den G1 fehlt. Eine Roboter-Seite müsste die vier Kamerabilder und die 28
 Gelenkwinkel lesen, sie nach \cref{tab:if-server} an den Server schicken und die
 zurückkommenden Gelenkziele mit 30~Hz an Arme und Hände geben. Gleichgewicht und Beine
-regelt die Politik nicht.
+regelt die Policy nicht.

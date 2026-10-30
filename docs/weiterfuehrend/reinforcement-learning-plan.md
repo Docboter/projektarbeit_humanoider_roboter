@@ -40,11 +40,11 @@
 >
 > **⛔ RL ist trotzdem nicht der nächste Schritt (Lauf 30, 2026-08-12).** Die BC-Baseline steht bei
 > **0/20**, und die vorregistrierte Regel sagt dafür: einem Nullpunkt-Reward fehlt das Startsignal.
-> Lauf 30 liefert die Begründung — die Politik kommandiert **0,39 rad Fingerspanne gegen 2,09 rad
+> Lauf 30 liefert die Begründung — die Policy kommandiert **0,39 rad Fingerspanne gegen 2,09 rad
 > in der Demonstration (19 %)**, versucht also gar keinen Griff. Die Regel zeigt damit auf
-> **Wahrnehmung/Politik** (`TUNE_VISUAL=1`), nicht auf RL. Der FPO-Pfad bleibt gebaut und auf
+> **Wahrnehmung/Policy** (`TUNE_VISUAL=1`), nicht auf RL. Der FPO-Pfad bleibt gebaut und auf
 > Hardware validiert — er wartet auf eine BC-Policy, die überhaupt gelegentlich Erfolg hat.
-> Details: [diagnose-chronik.md](../ergebnisse/diagnose-chronik.md#lauf-30-die-vorregistrierte-regel-ist-geschlossen--die-politik-greift-nicht).
+> Details: [diagnose-chronik.md](../ergebnisse/diagnose-chronik.md#lauf-30-die-vorregistrierte-regel-ist-geschlossen--die-policy-greift-nicht).
 >
 > **✅ Bestätigt durch das `span`-Gate (Lauf 32, 2026-08-13).** Dieselbe Policy auf **echten
 > Datensatz-Bildern** erreicht ein Median-Verhältnis von **1,00** (fünf Trajektorien, 0,84–1,01) —

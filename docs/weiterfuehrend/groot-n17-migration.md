@@ -32,7 +32,7 @@ verglichen wird).
 
 ## Stand der Umsetzung (2026-08-19)
 
-> **N1.7-Status auf einen Blick (Stand 2026-10-13).** Diese Box ist die **eine gepflegte Quelle**
+> **N1.7-Status auf einen Blick (Stand 2026-10-30).** Diese Box ist die **eine gepflegte Quelle**
 > für den N1.7-Stand; CLAUDE.md, README und die Anleitungen verlinken nur hierher.
 >
 > | | Stand |
@@ -41,8 +41,8 @@ verglichen wird).
 > | Images | Training: Docker Hub `:latest-n17` (seit 2026-09-29). Sim: Docker Hub `lucam03/projekt-humanoider-roboter-sim-standalone:latest` = `:20261014-141304` mit N1.6 **und** N1.7 (seit 2026-10-14; vorher nur lokal gebaut, Hub-Image N1.6-only) |
 > | Smoke-Tests | IKR-Blackwell 2026-09-25 (1 GPU, 2 GPUs, `TUNE_VISUAL`+Split, Laden + Open-Loop), KISSKI 2026-10-12 |
 > | Voller Trainingslauf | **fertig**: KISSKI 2026-10-13, 44 000 Steps, 7 h 53 min (Lauf 4); Open-Loop am Ende gleichauf mit N1.6, lernt früher, 1,6× schneller ([lauf4-n17-vergleich.md](../ergebnisse/lauf4-n17-vergleich.md)) |
-> | Sim (Closed Loop) | **Läufe 54/55 fertig** (ckpt15000 / ckpt44000, je 10 × 40 s): `lifted` 0/10, Fingerspanne 26 % der Demo bei ckpt44000 — dasselbe Muster wie N1.6 Lauf 34 ([Chronik](../ergebnisse/diagnose-chronik.md#läufe-5455-die-ersten-n17-checkpoints-in-der-sim)) |
-> | **Offen** | Sim-Eval nach dem Abnahmeprotokoll (**20 Episoden**); N1.7-Sim auf KISSKI (blockiert, keine RT-Cores); RL, optimiertes Inferenz-Backend, Stock-G1-Baseline und RoboCasa-Referenz bleiben N1.6-only |
+> | Sim (Closed Loop) | Läufe 54/55 (je 10 × 40 s): `lifted` 0/10 ([Chronik](../ergebnisse/diagnose-chronik.md#läufe-5455-die-ersten-n17-checkpoints-in-der-sim)). Abnahmeprotokoll (20 × 120 s, Szene Lauf 70) **gelaufen**: vision-v1 @44000 (Lauf 81), co-train v3 cube5 (Lauf 89) und cube4 (Lauf 93) je `lifted_clear` **0/20**; co-trainiert `touched` 20/20, aber kein Griff ([Lauf 81](../ergebnisse/diagnose-chronik.md#läufe-8081-visuelles-gate-geseedet-closed-loop-n17-in-der-szene-aus-lauf-70), [89](../ergebnisse/diagnose-chronik.md#lauf-89-closed-loop-co-training-n17-cube5), [93](../ergebnisse/diagnose-chronik.md#lauf-93-closed-loop-co-training-n17-cube4-mit-4-cm-würfeln)) |
+> | **Offen** | N1.7-Sim auf KISSKI (blockiert, keine RT-Cores); RL, optimiertes Inferenz-Backend, Stock-G1-Baseline und RoboCasa-Referenz bleiben N1.6-only |
 
 Umgesetzt wurde N1.7 als **paralleler Pfad neben N1.6** — nicht als Ersatz. Codebäume, Images
 und Scripts sind angepasst, Images gebaut (Docker Hub `:latest-n17` seit 2026-09-29), Smoke-Tests,

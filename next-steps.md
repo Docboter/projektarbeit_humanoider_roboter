@@ -22,9 +22,8 @@ verweisen hierher. Den N1.7-Detailstand pflegt
   ([lauf4-n17-vergleich.md §5](docs/ergebnisse/lauf4-n17-vergleich.md#5-nachgeschärfter-vergleich-20-episoden--750-steps-volle-länge)).
 - **GR00T N1.7** als paralleler Pfad (`GROOT_VERSION`): voller KISSKI-Lauf (44k Steps, 7 h 53 min)
   fertig, Open Loop am Ende gleichauf mit N1.6, lernt früher, trainiert 1,6× schneller
-  ([Lauf 4](docs/ergebnisse/lauf4-n17-vergleich.md)). In der Sim (Läufe 54/55, korrigierte
-  Szene): `lifted` 0/10, Fingerspanne 26 % der Demo bei ckpt44000. **Offen:** Sim-Eval nach dem
-  Abnahmeprotokoll mit 20 Episoden.
+  ([Lauf 4](docs/ergebnisse/lauf4-n17-vergleich.md)). Closed Loop nach Abnahmeprotokoll
+  (20 × 120 s) gelaufen: Läufe 81, 89, 93 je `lifted_clear` 0/20.
 - **Neu 2026-10-29 — Co-Training v3 ausgewertet (erstes Ergebnis des Co-Training-Pfads):**
   Vier KISSKI-Trainings, 44 000 Steps, Mischung 0,15 gerendert: N1.6 und N1.7, je Render 5 cm
   und 4 cm (Läufe 73–76). Alle acht Checkpoints auf HF sind im Gate gemessen (Läufe 83, 86, 92):
@@ -33,7 +32,7 @@ verweisen hierher. Den N1.7-Detailstand pflegt
   - **Realdomäne:** Das Echtbild bleibt bei N1.7 gleich (0,0024–0,0027) und wird bei N1.6 um
     50–60 % schlechter (0,0014 → 0,0021–0,0023). Die Sweep-Val-MSE liegt 3–9 % über Lauf 3.
   - **Closed Loop** (Szene Lauf 70, 20 × 120 s): Die co-trainierten Modelle berühren den Würfel
-    in ~20/20 Episoden. **Erste echte Griffe der Politik** gab es nur bei N1.6: cube4 @44000 auf
+    in ~20/20 Episoden. **Erste echte Griffe der Policy** gab es nur bei N1.6: cube4 @44000 auf
     allen 60 Testlagen `lifted_clear` **2/60 = 3 %** (KI 0,4–11,5 %, Läufe 88/97), cube5 1/20
     (Lauf 84). Beide N1.7-Modelle 0/20 (Läufe 89, 93), `stacked` überall 0. Gegen 0/20 ohne
     Co-Training ist die Griffrate statistisch nicht zu trennen.
@@ -107,8 +106,8 @@ Die **Messkette ist geschlossen**. Der Reihe nach:
 |---|---|
 | Die Sim-Harness ist nicht kaputt | [sim-bewertung.md](docs/ergebnisse/sim-bewertung.md) |
 | Die GR00T-Inferenz-Pipeline ist extern bestätigt (47,7 % vs. 47,8 % erwartet) | [basismodell-referenz-eval.md](docs/ergebnisse/basismodell-referenz-eval.md) |
-| Die Politik versucht in der Sim gar keinen Griff (0,39 rad gegen 2,09 rad = **19 %**) | Lauf 30, [diagnose-chronik.md](docs/ergebnisse/diagnose-chronik.md) |
-| Auf **echten** Datensatz-Bildern kommandiert dieselbe Politik die volle Greifbewegung (Verhältnis **1,00**) | Lauf 32, `span`-Gate |
+| Die Policy versucht in der Sim gar keinen Griff (0,39 rad gegen 2,09 rad = **19 %**) | Lauf 30, [diagnose-chronik.md](docs/ergebnisse/diagnose-chronik.md) |
+| Auf **echten** Datensatz-Bildern kommandiert dieselbe Policy die volle Greifbewegung (Verhältnis **1,00**) | Lauf 32, `span`-Gate |
 | ~~Die Checkpoint-Auswahl war bisher nicht nur unbelegt, sondern **falsch**: der letzte Checkpoint ist 25 % schlechter als der beste~~ **Widerlegt 2026-10-12:** mit 20 Episoden à 750 Steps ist der letzte Checkpoint (44.000) der beste, kein Overfitting. Die Checkpoint-Auswahl per Sweep bleibt trotzdem Pflicht | [lauf3-vision-split-auswertung.md](docs/ergebnisse/lauf3-vision-split-auswertung.md), [lauf4-n17-vergleich.md](docs/ergebnisse/lauf4-n17-vergleich.md) §5 |
 | `TUNE_VISUAL` hebt die Sim-Fingerspanne von 20,5 % auf **27,6 %** (vollständige Trennung, p = 3,3 · 10⁻⁴) — und reicht trotzdem nicht: `lifted` 0/10 | Lauf 34, [diagnose-chronik.md](docs/ergebnisse/diagnose-chronik.md) |
 
@@ -203,8 +202,8 @@ Projekts bleibt **0 Erfolge im Closed-Loop** (0/20 früher, Lauf 34: 0/10).
 >    aus Lauf 70 gegen Lauf 81/82. Die Ausgangswerte aus Lauf 72 sind überholt durch Lauf 80.
 >
 >    **Stand 2026-10-15 früh — bereit für KISSKI:** Co-Training-Datensätze v3 (5 cm und 4 cm, je 187
->    Trainings-Ep., 29 890 Frames, Lauf 72) liegen privat auf HF (`luca-mue/g1-dex3-rendered-v3-cube5`,
->    `…-cube4`). Presets in `Training/kisski_chain.sh`: `smoke_render_v3`, `render_v3_cube5`,
+>    Trainings-Ep., 29 890 Frames, Lauf 72) liegen auf HF (`luca-mue/g1-dex3-rendered-v3-cube5`,
+>    `…-cube4`; damals privat, seit 2026-10-30 öffentlich). Presets in `Training/kisski_chain.sh`: `smoke_render_v3`, `render_v3_cube5`,
 >    `render_v3_cube4`, `render_v3_cube5_n17` (Mischung 0,15). Abnahme danach auf dem IKR-Server mit
 >    dem Prüfset `/data/cotrain/vis_gate_v3_cube{5,4}` (Trainings-Ep. 0/4/8/12, gleiche Szene).
 > 0a. **(Läufe 69–71):** Parameter-Feinschliff der Szene ist ausgereizt (−18…−40 %, Abstand
@@ -242,7 +241,7 @@ ist erst nach der Registrierung aussagekräftig):
 | 2 | **`span`-Gate auf zurückgehaltenen Testepisoden** (`SPAN_TRAJ_IDS` mit Test-Indices) — für N1.7 erledigt (Läufe 54/55: Test 90 % / 94 %), für N1.6 offen | Schließt die Auswendiglern-Lücke des Lauf-32-Gates; trägt „Domain-Gap bestätigt“ vom Hinweis zum Befund |
 | 3 | **Closed-Loop-Neumessung mit der korrigierten Szene** (identisches Protokoll wie Lauf 34: 10 Episoden × 40 s, Checkpoint vision-v2-**44000** — der seit der Nachmessung 2026-10-12 validierte; bei Lauf 34 war es noch 30000), optional **Tauschtest** (echtes Bild + Sim-Zustand vs. Sim-Bild + echter Zustand) | Erst damit sind die Sim-Zahlen wieder belastbar; entscheidet, wie groß der Domain-Gap nach der Geometriekorrektur noch ist |
 | 4 | **Renderdatensatz neu erzeugen → Co-Training-Lauf** (eigener Render und/oder Synth v22 / `Cube_Stacking_synth_jointspace`); Log des Abbruchs von `cotrain_synth_v1` aus dem Trainingscontainer des IKR-Servers holen; auf KISSKI zuerst `kisski_chain.sh smoke …` | Vorregistrierte Regeln in [co-training.md](docs/training/co-training.md) / [synth-datensatz.md](docs/training/synth-datensatz.md) |
-| 5 | **RL (FPO)** erst, wenn die Politik gelegentlich einen Würfel hebt | Ohne Startsignal fehlt dem Reward der Gradient ([RL-Plan](docs/weiterfuehrend/reinforcement-learning-plan.md)) |
+| 5 | **RL (FPO)** erst, wenn die Policy gelegentlich einen Würfel hebt | Ohne Startsignal fehlt dem Reward der Gradient ([RL-Plan](docs/weiterfuehrend/reinforcement-learning-plan.md)) |
 | 6 | **Echter Roboter** | setzt belastbare Sim- bzw. Open-Loop-Zahlen voraus |
 
 Offene Entscheidung nebenbei: Umstellung der Sim auf zufälligen Würfel-Gierwinkel (gemessen: gleichverteilt
@@ -370,7 +369,7 @@ in Schritt 3.
 
 Die vorregistrierte Frage an Lauf 3 lautete **nicht** „stapelt er jetzt", sondern:
 
-> Kommandiert die Politik in der **Sim** mehr als die heutigen 19 % Fingerspanne?
+> Kommandiert die Policy in der **Sim** mehr als die heutigen 19 % Fingerspanne?
 
 **Antwort: ja — 27,6 % statt 20,5 %, aber `lifted` bleibt 0/10.** Gemessen am 2026-08-14 mit
 `checkpoint-30000` (dem validierten, nicht dem letzten), zehn Episoden à 40 s, also im identischen
@@ -511,7 +510,7 @@ Nicht dringend, weil keiner davon die 0/20 bewegt.
   (28 % Auslastung) ist heute nichts zu tun. Das ist ein Planungswerkzeug für die Portierung auf
   Zielhardware, keine offene Baustelle.
 - **`TUNE_VISUAL=1` ohne Augmentierung.** Das wäre die Wiederholung von Lauf 2 mit dem bereits
-  gemessenen Ergebnis (Politik-Kollaps).
+  gemessenen Ergebnis (Policy-Kollaps).
 - **Qualitätsmessung der Denoising-Schritte über `open_loop_eval.py --denoising-steps`.** Die
   Option ist im Fork **tot** (deklariert, nirgends angewandt) — sie vergleicht zwei identische
   Läufe. Details und der korrekte Weg stehen in

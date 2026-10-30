@@ -15,12 +15,12 @@
 | 2 A3, A4 | erledigt: Inventur (Tabelle in A3), 6 Dateien nach [`archiv/`](archiv/README.md), „Ergebnisse auf einen Blick“, 11 veraltete Stellen mit Nachtrag, Link-Check `tools/check_links.py` in der CI |
 | 3 B1, B2 | erledigt: 8 Kapitel nach B1, 20 S. Hauptteil / 41 S. gesamt; Abbildungen aus `latex/figures/make_figures.py` (Gate, Closed-Loop-Stufen, Fingerspanne, Orakel-Raster) plus Architektur, Echt-/Sim-Bild, erster Griff. Lernkurven Lauf 3/4 aus den Offline-Logs auf KISSKI (2026-10-30) |
 | 4 Prüfen | offen: Zahlen-Stichprobe durch die Gruppe, Fremdtest auf dem IKR-Server, Absatz-Test |
-| 5 B3 | teilweise: Zusammenfassung DE/EN neu, Literatur bereinigt (jeder Eintrag zitiert), `latex/README.md` aktualisiert. Offen: Matrikelnummern A/B, Abgabedatum, Tag, Sichtbarkeit der HF-Repos |
+| 5 B3 | teilweise: Zusammenfassung DE/EN neu, Literatur bereinigt (jeder Eintrag zitiert), `latex/README.md` aktualisiert. Offen: Matrikelnummern A/B, Abgabedatum, Tag. Sichtbarkeit der HF-Repos erledigt (alle `luca-mue/*` öffentlich, 2026-10-30) |
 
 **Nur auf dem IKR-Server prüfbar:**
 
-1. Quickstart §2 einmal komplett: `preflight`, `tools/sim_visgate_seeds.sh groot-rl 1.6 0 …`, `tools/sim_cl_watchdog.sh …` mit dem Standard-Container `groot-rl` (legt `eval` ihn an, wenn er fehlt?).
-2. Liegen `/data/cotrain/vis_gate_v3_cube{5,4}` und `/data/eval/layout_heldout_dy3.json` dort, und wie wurde die dy3-Datei erzeugt (kein Skript im Repo)?
+1. Quickstart §2 einmal komplett: `preflight`, `tools/sim_visgate_seeds.sh groot-rl 1.6 0 …`, `tools/sim_cl_watchdog.sh …` mit dem Standard-Container `groot-rl` (legt `eval` ihn an, wenn er fehlt?). Aus dem Code: jede Aktion legt ihn an (`ensure_container`), den `HF_TOKEN` übernimmt er nur beim Anlegen; Quickstart §2a nennt dafür jetzt `setup`.
+2. Liegen `/data/cotrain/vis_gate_v3_cube{5,4}` und `/data/eval/layout_heldout_dy3.json` dort, und wie wurde die dy3-Datei erzeugt (kein Skript im Repo)? Erzeugung jetzt mit `tools/layout_shift.py --dy 0.03` (Quickstart §2a/§2b); ob die Dateien dort liegen, bleibt zu prüfen.
 3. Die Beispielausgabe in `sim-eval-anleitung.md` (Format aus dem Code) gegen ein echtes Log halten.
 4. Welche Läufe den zeitweise gemischten v2.1/v3.0-Datensatz gelesen haben (Lauf 56, offen).
 
@@ -72,7 +72,7 @@ Das Co-Training mit Sim-Renderbildern (Läufe 73–97) zeigt Folgendes:
 
 - Es halbiert diesen Fehler (N1.6) bzw. senkt ihn auf 18–30 % (N1.7).
 - Das vorregistrierte primäre Gate ist bestanden: Fingerspanne 73 % statt 25 % der Demo.
-- Die Politik erreicht und berührt die Würfel in jeder Episode.
+- Die Policy erreicht und berührt die Würfel in jeder Episode.
 - Echte Griffe bleiben selten (2/60 = 3 %), gestapelt wird nie.
 - N1.6 zahlt auf echten Bildern einen Preis (+50–60 % MSE Hände), N1.7 nicht.
 - Ein Test auf dem Roboter fehlt.
@@ -187,7 +187,7 @@ Arbeiten“ als eigenes Kapitel. „Projektverlauf und Lessons Learned“ bleibt
 | Visuelles Gate als Balken (Echtbild, 5 cm, 4 cm; Maßstab gegen Co-Training) | `latex/figures/daten/gate_mse_haende.csv` |
 | Closed-Loop-Leiter `reached` → `stacked` für 82, 88+97, 89, 93 | `latex/figures/daten/closed_loop.csv` |
 | Fingerspanne 10 × 40 s (Lauf 96) | `latex/figures/daten/closed_loop.csv` (Zeilen 96) |
-| Erster Griff der Politik | `latex/figures/sim/griff_lauf88_ep05_80s_ausschnitt.png` |
+| Erster Griff der Policy | `latex/figures/sim/griff_lauf88_ep05_80s_ausschnitt.png` |
 | optional: Orakel-Versatz-Sweep (Lauf 62) | Zahlen in der Chronik |
 
 ### B3. Formales
@@ -205,7 +205,7 @@ Arbeiten“ als eigenes Kapitel. „Projektverlauf und Lessons Learned“ bleibt
    Gate und Closed Loop für einen HF-Checkpoint (auf dem IKR-Server). Was hakt, wird korrigiert.
 4. **Absatz-Test:** jeden Absatz gegen die Prüfregel oben lesen; was nichts trägt, fällt.
 5. Repo: alles gepusht, Tag `abgabe-<JJJJ-MM-TT>` auf `training-luca-IKR-IS6.0`. Sichtbarkeit
-   der HF-Repos klären: Die Render-Datensätze `luca-mue/g1-dex3-rendered-v3-cube{5,4}` sind privat.
+   der HF-Repos: erledigt, alle `luca-mue/*`-Modelle und -Datensätze sind seit 2026-10-30 öffentlich.
 
 ## Reihenfolge
 

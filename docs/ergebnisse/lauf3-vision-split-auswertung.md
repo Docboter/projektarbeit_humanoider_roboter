@@ -318,7 +318,7 @@ mechanisch, statt nur Nebenprodukt von mehr Kontakt zu sein.
 
 **Einordnung für diesen Lauf:** damit ist `TUNE_VISUAL=1` **mit** Augmentierung als Maßnahme
 belegt — die Gegenprobe zu [`lauf2-vision-auswertung.md`](lauf2-vision-auswertung.md) §6.2 ist
-bestanden, wo derselbe Schalter *ohne* Jitter zum Politik-Kollaps führte (Vorbehalt zur
+bestanden, wo derselbe Schalter *ohne* Jitter zum Policy-Kollaps führte (Vorbehalt zur
 Jitter-Zuschreibung: siehe Nachtrag oben). Der Gap ist damit
 allerdings nicht geschlossen: 27,6 % in der Sim gegen 100 % auf echten Bildern (Letzteres auf
 Trainingsepisoden gemessen, s. Nachtrag oben). Die vollständige

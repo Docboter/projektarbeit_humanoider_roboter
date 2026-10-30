@@ -7,6 +7,21 @@
 \label{sec:ausblick}
 \label{sec:konsequenz}
 
+\section{Fazit}
+\label{sec:fazit}
+
+Die drei Ziele aus \cref{sec:aufgabe} sind unterschiedlich weit erreicht.
+(1) Das Fine-Tuning läuft reproduzierbar lokal und auf KISSKI; auf echten Bildern folgt das
+Modell den Demonstrationen, N1.6 und N1.7 gleichauf (\cref{sec:erg-training}).
+(2) Die Bewertung ohne Roboter steht, und sie erklärt das Scheitern in der Simulation mit
+zwei gemessenen Ursachen: Würfellage und visueller Domain-Gap. Das Co-Training mit
+gerenderten Bildern verkleinert den Gap und bringt erste Griffe (2 von 60), aber kein
+Stapeln.
+(3) Schnittstellen und Anleitung sind in \cref{chap:schnittstellen,chap:anleitung} und im
+Repository dokumentiert. Die Aufgabe selbst, drei Würfel zu stapeln, ist nicht gelöst. Ob das
+Modell auf dem echten Roboter greift, ist offen; dieser Test steht an erster Stelle der
+folgenden Liste.
+
 \section{Offene Punkte, in dieser Reihenfolge}
 \label{sec:offene-punkte}
 
@@ -38,10 +53,12 @@ Die laufend gepflegte Liste steht in \doc{next-steps.md}, Abschnitt~2.
     Schritte (\texttt{Training/kisski\_open\_loop\_eval.sh}); für die Wahl
     \texttt{EVAL\_NUM\_TRAJ=20 EVAL\_STEPS=750} setzen.
   \item Die Prüfbilder des visuellen Gates und die Layout-Datei
-    \texttt{layout\_heldout\_dy3.json} liegen nur auf dem IKR-Server; für die dy3-Datei gibt es
-    kein Erzeugungsskript im Repository.
-  \item Die gerenderten Co-Training-Datensätze \texttt{luca-mue/g1-dex3-rendered-v3-cube\{5,4\}}
-    sind privat.
+    \texttt{layout\_heldout\_dy3.json} liegen nur auf dem IKR-Server. Auf einem neuen Server
+    werden sie mit \texttt{server\_rl\_run.sh layout}, \doc{tools/layout_shift.py} und
+    \texttt{server\_rl\_run.sh render} neu erzeugt (\doc{docs/quickstart.md}, §2).
+  \item \texttt{stacked} verlangt eine feste Turmhöhe von 8~cm
+    (\doc{stack_height_min} in \doc{Simulation/g1_dex3_sim/g1_dex3_blockstack_env.py}); für 4-cm-Würfel
+    muss sie aus der Würfelgröße abgeleitet werden (\cref{sec:grenzen-metriken}).
   \item Das Sim-Image auf Docker Hub muss nach Änderungen an \texttt{Simulation/} neu gebaut
     werden (\texttt{Simulation/update\_sim\_image.sh --standalone}).
 \end{itemize}
@@ -55,5 +72,5 @@ Cosmos-Transfer-Augmentierung~\cite{cosmostransfer2025} ist gebaut, aber nicht e
 geprüft (\doc{docs/augmentation/anleitung.md}). Der externe Simulationsdatensatz für das
 Co-Training passt schematisch nicht; ein Lauf mit der umgewandelten Fassung liegt nicht vor
 (\doc{docs/training/synth-datensatz.md}). Für Fortbewegung empfiehlt die Recherche, eine
-vorhandene Laufpolitik mit der Manipulationspolitik zu kombinieren
+vorhandene Lauf-Policy mit der Manipulations-Policy zu kombinieren
 (\doc{docs/weiterfuehrend/lokomotion-recherche.md}).

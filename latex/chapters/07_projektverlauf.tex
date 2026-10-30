@@ -61,7 +61,7 @@ und Anbindungen an \ac{wandb}, Hugging Face und GitHub über \ac{mcp}~\cite{mcp2
 erst im Projektkontext brauchbar. Er beschleunigt die Umsetzung, erzeugt aber genau die Art
 Fehler aus der Liste oben: Ein früherer Entwurf dieser Arbeit enthielt falsch übernommene
 Zahlen. Deshalb stammt hier jede Zahl aus dem Laborbuch, und Prüfskripte vergleichen Code und
-Dokumentation automatisch. Die Verantwortung liegt bei den Verfassern.
+Dokumentation automatisch.
 
 \section{Lessons Learned}
 \label{sec:lessons}
@@ -72,7 +72,7 @@ Dokumentation automatisch. Die Verantwortung liegt bei den Verfassern.
     Demonstration die Aufgabe in der Simulation lösen. Ohne diese Prüfung waren alle
     Closed-Loop-Zahlen bis Lauf~56 gegen eine Schranke von etwa null gemessen (Läufe 57, 62).
   \item[Wirkung messen, nicht Ähnlichkeit.] Der SigLIP-Abstand der Bilder sah gut aus (0,22),
-    die Politik verlor auf Sim-Bildern aber so viel Information wie mit schwarzen Bildern
+    die Policy verlor auf Sim-Bildern aber so viel Information wie mit schwarzen Bildern
     (Läufe 65, 66). Teacher-Forcing auf Sim-Bildern ist der schnellere und richtige Test.
   \item[Szene unabhängig gegen echte Daten prüfen.] Kameras und Gelenke wurden erst durch
     Projektion ins Echtbild als falsch erkannt, nicht durch Prüfungen mit demselben Code.

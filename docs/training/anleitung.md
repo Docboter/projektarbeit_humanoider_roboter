@@ -138,15 +138,13 @@ Instanz starten. Über **Logs / Console** im UI siehst du:
 
 ### A6. Checkpoints sichern — VOR dem Destroy!
 
-Per vast.ai SSH auf die Instanz und dann z. B. nach HuggingFace pushen:
+Per vast.ai SSH auf die Instanz, den Checkpoint aus dem Container holen und mit dem Host-Skript
+nach HuggingFace pushen (ohne `optimizer.pt`; `--include-optimizer` nimmt ihn mit):
 
 ```bash
-# In den Container hineingehen
-docker exec -it <container-name> bash
-
-# Innerhalb des Containers:
-cd /data/g1_dex3_finetune/blockstacking
-huggingface-cli upload <dein-namespace>/g1-dex3-blockstacking . --repo-type=model
+docker cp <container-name>:/data/g1_dex3_finetune/blockstacking/checkpoint-44000 ./checkpoint-44000
+python Simulation/scripts/upload_checkpoint.py --checkpoint ./checkpoint-44000 \
+    --repo <dein-namespace>/groot-g1dex3-<lauf>-ckpt44000     # HF_TOKEN aus der Umgebung
 ```
 
 Oder per `docker cp` auf den vast.ai-Host und von dort per `scp` lokal runterziehen.
@@ -422,14 +420,17 @@ docker cp groot-train:/data/logs ./logs
 
 Geht bei laufendem oder gestopptem Container.
 
-### 2. Aus dem Container heraus hochladen (HuggingFace)
+### 2. Nach HuggingFace hochladen
+
+`upload_checkpoint.py` ist ein Host-Skript (nicht im Image); erst den Checkpoint wie in §1
+herauskopieren, dann:
 
 ```bash
-docker exec -it groot-train bash
-# Im Container:
-cd /data/g1_dex3_finetune/blockstacking
-huggingface-cli upload <dein-namespace>/g1-dex3-blockstacking . --repo-type=model
+python Simulation/scripts/upload_checkpoint.py --checkpoint ./checkpoints/blockstacking/checkpoint-44000 \
+    --repo <dein-namespace>/groot-g1dex3-<lauf>-ckpt44000     # HF_TOKEN aus der Umgebung
 ```
+
+Das Repo wird privat angelegt, ohne `optimizer.pt` (`--include-optimizer` nimmt ihn mit).
 
 ### 3. Auf vast.ai per SSH
 

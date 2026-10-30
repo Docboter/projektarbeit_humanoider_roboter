@@ -18,7 +18,7 @@ Bilder unter `../sim/`:
 | Datei | Inhalt |
 |---|---|
 | `sim_scene70_cam_left_high.png` | Kopfkamera links in der Szene aus Lauf 70 (erstes Beobachtungsbild aus Lauf 88, Testlage 240) |
-| `griff_lauf88_ep05_80s.png`, `…_ausschnitt.png` | Erster echter Griff der Politik: Lauf 88, Ep. 5 (Testlage 244), t = 80 s, linke Hand hält den roten Würfel in der Luft |
+| `griff_lauf88_ep05_80s.png`, `…_ausschnitt.png` | Erster echter Griff der Policy: Lauf 88, Ep. 5 (Testlage 244), t = 80 s, linke Hand hält den roten Würfel in der Luft |
 
 Echtbilder derselben Kameras: `Simulation/camera_reference/dataset_cam_*.png`.
 Neu erzeugen: `python3 tools/sim_visgate_seeds_summary.py` bzw. `tools/sim_cl_summary.py`

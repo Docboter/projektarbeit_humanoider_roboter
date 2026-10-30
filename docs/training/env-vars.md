@@ -270,7 +270,7 @@ USD von dort nach `/data/checkpoints/<repo-name>/` (`SHELL_ON_ERROR=1` ist dort 
 | `TASK_DESCRIPTION` | *(leer)* | Leer = aus `meta/tasks.*` des Datensatzes, Fallback `stack three block` (der einzige Trainings-Task). Vor 2026-10-13 schickte jeder Closed-Loop-Lauf `stack the blocks` |
 | `BLACK_HANDS` | `1` | Hände schwarz färben (Domain-Gap-Maßnahme) |
 | `TRAIN_SPLIT_RATIO` (Sim) | `0.8` | Auch sim-seitig gelesen: Rückfall für ältere `layout.json` ohne `n_train`, um Trainings- und Held-out-Episoden zu trennen (Formel in `split_math.py`, Spiegel von `lib_split.sh`; mit Warnung im Log) |
-| `GROOT_VERSION` (Sim) | `auto` | Im Sim-Image Default `auto`: aus `model_type` der Checkpoint-`config.json` aufgelöst. N1.6-only: optimiertes Inferenz-Backend (`compile`/`tensorrt` fällt auf N1.7 auf `eager` zurück), Stock-G1-Baseline (`SIM_MODE=baseline`) und RL — die Entrypoints brechen bei N1.7 ab. Das Sim-Image auf Docker Hub ist **N1.6-only**; für N1.7 lokal bauen und `RL_SKIP_PULL=1` setzen |
+| `GROOT_VERSION` (Sim) | `auto` | Im Sim-Image Default `auto`: aus `model_type` der Checkpoint-`config.json` aufgelöst. N1.6-only: optimiertes Inferenz-Backend (`compile`/`tensorrt` fällt auf N1.7 auf `eager` zurück), Stock-G1-Baseline (`SIM_MODE=baseline`) und RL — die Entrypoints brechen bei N1.7 ab. Das Sim-Image auf Docker Hub (`:latest`) enthält seit 2026-10-14 N1.6 und N1.7; `RL_SKIP_PULL=1` nur nach einem eigenen lokalen Build |
 
 GPU: Ampere oder neuer **mit RT-Cores** (L40, RTX 4090, A6000, RTX PRO 6000). A100/H100 haben keine
 RT-Cores, die RTX 5000 der KISSKI-`jupyter`-Partition ist Turing und zu alt für Isaac Sim 5.1/6.0.

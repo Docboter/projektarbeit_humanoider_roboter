@@ -223,7 +223,7 @@ gelesen von `run_g1_dex3_sim_eval.py:207-241`):
 - Dateien: `/data/eval/layout_heldout.json` (Testlagen, `LAYOUT_HELD_OUT=1
   server_rl_run.sh layout`, `server_rl_run.sh:1503`); `/data/eval/layout_heldout_dy3.json`
   (Testlagen je Seite 3 cm nach außen, Korrektur aus Lauf 62; Default von
-  `tools/sim_cl_watchdog.sh:41`). Für die dy3-Datei liegt kein Erzeugungsskript im Repo.
+  `tools/sim_cl_watchdog.sh:43`), erzeugt mit `tools/layout_shift.py --dy 0.03`.
 
 **Variablen der Eval** (`run_g1_dex3_sim_eval.py`, `Simulation/scripts/entrypoint_sim.sh:155-161`,
 `tools/menu/sim-eval.spec:10-83`):
@@ -321,6 +321,7 @@ Ausgabe: `sim_results/visgate_<tag>_real.json` und `visgate_<tag>_<set>.json`,
 | `sim_visgate_seeds.sh` | `CONTAINER GROOT_VERSION GPU REPO...` | `visgate` mit Seeds 0/1/2 für jeden HF-Checkpoint; lädt fehlende ohne Optimizer nach `/data/checkpoints/<repo ohne groot-g1dex3->` |
 | `sim_cl_summary.py` | `results_*.json …` | Tabelle der Stufen als k/n mit 95-%-Intervall, Fingerspanne, Hub, Artefakt-Verdacht |
 | `sim_visgate_seeds_summary.py` | `RESULTS_DIR TAG...` | Mittel der Seed-Mediane `mse_hand` je Set (Echtbild, cube5, cube4) mit Spanne |
+| `layout_shift.py` | `SRC DST [--dy 0.03] [--dx 0]` | Layout-JSON mit Würfeln gespiegelt nach außen (`y += dy·sign(y)`), z. B. `layout_heldout_dy3.json` (Lauf 62) |
 | `check_links.py` | — | prüft Markdown-Links und Anker |
 
 ## 7. Echter Roboter

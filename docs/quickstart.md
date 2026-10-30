@@ -81,10 +81,12 @@ Details und Varianten (`TUNE_VISUAL`, Co-Training, Ketten): [kisski-hpc.md](trai
 
 ```bash
 python Simulation/scripts/upload_checkpoint.py \
-    --checkpoint <…>/checkpoint-44000 --repo luca-mue/groot-g1dex3-<lauf>-ckpt44000
+    --checkpoint <…>/checkpoint-44000 --repo <dein-konto>/groot-g1dex3-<lauf>-ckpt44000
 ```
 
-Erwartung: privates HF-Repo ohne Optimizer-Zustand (`--include-optimizer` nimmt ihn mit).
+Erwartung: privates HF-Repo ohne Optimizer-Zustand (`--include-optimizer` nimmt ihn mit). Das
+Skript legt Repos immer privat an; öffentlich machen auf der HF-Webseite unter *Settings* →
+*Change repository visibility*. Die `luca-mue/*`-Repos sind seit 2026-10-30 öffentlich.
 
 ## 2. Checkpoint messen (Sim-Server, z. B. IKR)
 
@@ -102,8 +104,18 @@ mit Exit-Code 0. Sonst Image bauen:
 
 ### 2a. Visuelles Gate (Open Loop, ohne Isaac Sim)
 
+Einmalig den Container `groot-rl` anlegen. `setup` erzeugt ihn mit dem `HF_TOKEN` des Hosts und
+lädt den Default-Checkpoint (~10 GB):
+
 ```bash
-export HF_TOKEN=hf_...
+HF_TOKEN=hf_... ./Simulation/server_rl_run.sh setup
+```
+
+Die Werkzeuge unten laden fehlende Checkpoints per `docker exec` mit dem `HF_TOKEN` **des
+Containers**; ein späteres `export` auf dem Host wirkt nicht. Neuer Token → `server_rl_run.sh
+clean`, dann `setup` erneut.
+
+```bash
 tools/sim_visgate_seeds.sh groot-rl 1.6 0 groot-g1dex3-cotrain-v3-cube4-ckpt44000
 python3 tools/sim_visgate_seeds_summary.py ~/groot-rl-data/sim_results cotrain-v3-cube4-ckpt44000
 ```
@@ -114,9 +126,25 @@ Vergleichswerte in [co-training.md §3.5](training/co-training.md#35-auswerten--
 (Echtbild 0,0021, 5 cm 0,0115, 4 cm 0,0104).
 
 Voraussetzung: Die Prüfsets `/data/cotrain/vis_gate_v3_cube5` und `…_cube4` liegen auf dem
-Server. Sie stehen nicht auf Hugging Face; auf einem neuen Server müssen sie mit
-`server_rl_run.sh render` neu erzeugt werden (Parameter:
-[Chronik Lauf 72](ergebnisse/diagnose-chronik.md#lauf-72-co-training-datensätze-v3)).
+Server (IKR: `~/groot-rl-data/cotrain/`). Sie stehen nicht auf Hugging Face. Neu erzeugen
+(Parameter aus [Chronik Lauf 72](ergebnisse/diagnose-chronik.md#lauf-72-co-training-datensätze-v3)):
+
+```bash
+SIM_TABLE_SIZE="0.8 2.0" SIM_WRIST_EYE="0.02 0.0 0.08" SIM_WRIST_TARGET="0.30 0.0 -0.08" \
+SIM_WRIST_HFOV=85 RENDER_LAYOUT=/data/cotrain/layout_all240_dy3.json \
+RENDER_EPISODE_IDS="0 4 8 12" RENDER_STOP_AT_GRASP=0 RENDER_MAX_FRAMES=600 RENDER_NO_DR=1 \
+RENDER_OUT=/data/cotrain/vis_gate_v3_cube5 ./Simulation/server_rl_run.sh render
+# 4-cm-Satz: SIM_CUBE_EDGE=0.04 und RENDER_OUT=/data/cotrain/vis_gate_v3_cube4
+```
+
+Das Layout `layout_all240_dy3.json` (alle 240 Trainings-Episoden, Würfel 3 cm nach außen)
+vorher erzeugen ([Chronik Lauf 72](ergebnisse/diagnose-chronik.md#lauf-72-co-training-datensätze-v3)):
+
+```bash
+LAYOUT_OUT=/data/cotrain/layout_all240.json RENDER_EPISODES=240 ./Simulation/server_rl_run.sh layout
+python3 tools/layout_shift.py ~/groot-rl-data/cotrain/layout_all240.json \
+    ~/groot-rl-data/cotrain/layout_all240_dy3.json --dy 0.03
+```
 
 ### 2b. Closed Loop (Protokoll Lauf 82)
 
@@ -134,6 +162,21 @@ Erwartung:
 - Die Zusammenfassung zeigt `reached` … `stacked` als k/20 mit 95-%-Intervall.
 - Ein `lifted_clear`-Treffer zählt erst nach Sichtung des Videos unter
   `~/groot-rl-data/sim_videos/cl_meinlauf/`.
+
+Voraussetzung: `/data/eval/layout_heldout_dy3.json` (Default von `EVAL_LAYOUT` im Wächter).
+Inhalt: `layout_heldout.json` (Würfellagen der Test-Episoden 240–300, erzeugt mit
+`LAYOUT_HELD_OUT=1 ./Simulation/server_rl_run.sh layout`), darin jeder Würfel 3 cm **seitlich
+nach außen** verschoben: y ← y + 0,03·sign(y), x unverändert
+([Lauf 62](ergebnisse/diagnose-chronik.md#lauf-62-versatz-sweep--die-würfel-liegen-3-cm-zu-weit-innen),
+[Lauf 64](ergebnisse/diagnose-chronik.md#lauf-64--closed-loop-auf-dem-korrigierten-layout-abgebrochen)).
+Erzeugen (die Datei der Läufe 64–97 wurde am 2026-10-14 von Hand mit derselben Verschiebung
+angelegt; `LAYOUT_BIAS` kann das nicht, es verschiebt gleichsinnig statt gespiegelt):
+
+```bash
+LAYOUT_HELD_OUT=1 ./Simulation/server_rl_run.sh layout
+python3 tools/layout_shift.py ~/groot-rl-data/eval/layout_heldout.json \
+    ~/groot-rl-data/eval/layout_heldout_dy3.json --dy 0.03
+```
 
 Bedeutung der Stufen und JSON-Felder: [schnittstellen.md §5](schnittstellen.md#5-sim-eval).
 

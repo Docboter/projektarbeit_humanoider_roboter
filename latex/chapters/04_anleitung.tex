@@ -72,7 +72,8 @@ python3 tools/sim_cl_summary.py ~/groot-rl-data/sim_results/results_<...>.json
 Ein Treffer bei \texttt{lifted\_clear} zählt erst, wenn das Video unter
 \texttt{\textasciitilde/groot-rl-data/sim\_videos/<tag>/} einen Griff zeigt
 (\cref{sec:grenzen-metriken}). Die Prüfbilder des Gates liegen nur auf dem IKR-Server; auf
-einem neuen Server müssen sie mit \texttt{server\_rl\_run.sh render} neu erzeugt werden.
+einem neuen Server müssen sie mit \texttt{server\_rl\_run.sh render} neu erzeugt werden,
+das dy3-Layout mit \doc{tools/layout_shift.py --dy 0.03} (Befehle in \doc{docs/quickstart.md}).
 
 \section{Häufige Fehler}
 \label{sec:anl-fehler}

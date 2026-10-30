@@ -17,6 +17,11 @@ wird deshalb offline auf aufgezeichneten Episoden (Open Loop) und in einer Simul
 Isaac~Lab~\cite{isaaclab2023} (Closed Loop). Verwendet werden die Modellgenerationen N1.6 und
 N1.7. Nicht Teil der Arbeit sind Fortbewegung und der Einsatz auf dem echten Roboter.
 
+Ziel sind drei Dinge: (1) ein reproduzierbares Fine-Tuning auf diesen Daten, (2) eine
+Bewertung ohne Roboter, die zeigt, ob und warum das Modell die Aufgabe löst, und (3) eine
+Übergabe mit dokumentierten Schnittstellen und einer Anleitung, mit der andere weiterarbeiten
+können.
+
 \section{Ergebnis in fünf Sätzen}
 \label{sec:ergebnis-kurz}
 
@@ -29,10 +34,10 @@ N1.7. Nicht Teil der Arbeit sind Fortbewegung und der Einsatz auf dem echten Rob
   \item Die Würfel liegen in der Simulation je Seite rund 3~cm zu weit innen: Abgespielte
     menschliche Demonstrationen heben mit Korrektur in 6 von 20 Episoden einen Würfel, ohne
     Korrektur kaum.
-  \item Auf simulierten Bildern ist der Hand-Fehler der Politik 13-mal (N1.6) bzw. 36-mal
+  \item Auf simulierten Bildern ist der Hand-Fehler der Policy 13-mal (N1.6) bzw. 36-mal
     (N1.7) so groß wie auf echten.
   \item Co-Training mit gerenderten Bildern verkleinert diesen Fehler deutlich und bringt
-    die ersten Griffe der Politik (2 von 60 Episoden), die gegen 0 von 20 ohne Co-Training
+    die ersten Griffe der Policy (2 von 60 Episoden), die gegen 0 von 20 ohne Co-Training
     aber statistisch nicht zu trennen sind (\cref{sec:erg-cotrain}).
 \end{enumerate}
 
@@ -47,7 +52,7 @@ Schnittstellen und \cref{chap:anleitung}, wie man damit weiterarbeitet.
 Grenzen. \Cref{chap:projektverlauf} fasst Projektverlauf und Lessons Learned zusammen,
 \cref{chap:uebergabe} die offenen Punkte.
 
-Die Ausarbeitung ist bewusst knapp. Befehle, Parameter und Einzelwerte stehen im Repository:
+Befehle, Parameter und Einzelwerte stehen im Repository:
 Einstieg \doc{README.md}, dann \doc{docs/quickstart.md} und \doc{docs/schnittstellen.md}.
 Jede Messung trägt eine Laufnummer; sie verweist auf das Laborbuch
 \doc{docs/ergebnisse/diagnose-chronik.md}, aus dem alle Zahlen dieser Arbeit stammen.

@@ -25,11 +25,15 @@ Korrektur ist ein Mittelwert: Das Orakel hebt in 5 der 7 Lagen 240--246, danach 
     an der Ecke +1,83~cm). Deshalb gibt es seit dem 13.10.\ \texttt{lifted\_clear}.
   \item \texttt{lifted\_clear} zählt auch einen Würfel, der auf einem anderen liegt, während
     eine Hand nah ist (Lauf~94). Jeder Treffer braucht den Videobefund.
-  \item Der SigLIP-Abstand~\cite{zhai2023siglip} (\texttt{gap}) misst nur die Szene, nicht den Encoder der Politik;
+  \item Der SigLIP-Abstand~\cite{zhai2023siglip} (\texttt{gap}) misst nur die Szene, nicht den Encoder der Policy;
     als Kontrolle für das Co-Training ist er ungeeignet (Lauf~96).
   \item Die 80-\%-Schwelle des visuellen Gates lassen auch alte Modelle ohne Co-Training hinter
     sich (Lauf~87); eine Schwelle relativ zum besten nicht co-trainierten Modell derselben
     Generation wäre strenger.
+  \item Die Turmhöhe für \texttt{stacked} ist fest auf 8~cm gesetzt und folgt der
+    Würfelgröße nicht. Mit 4-cm-Würfeln (Läufe 88, 93, 97) misst ein perfekter Dreierturm genau
+    8~cm und zählt damit kaum. Das ändert die Aussage \enquote{nie gestapelt} nicht: In keiner
+    Episode wurde ein Würfel auf einen anderen gesetzt.
   \item Kennzahlen, die ein Maximum über die Episode bilden (Fingerspanne), hängen von der
     Episodenlänge ab. Verglichen wird nur bei gleicher Länge.
 \end{itemize}

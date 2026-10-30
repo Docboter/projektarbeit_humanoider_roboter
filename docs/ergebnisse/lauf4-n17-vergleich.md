@@ -161,4 +161,4 @@ N1.7 in 8/20 Episoden besser — kein belastbarer Unterschied.
   Logs `~/logs/slurm-ckpt-sweep-16643458.out`, `…-16643464.out`
 - Sweeps Lauf 3: `/data/g1_dex3_finetune/blockstacking_vision/g1_dex3_blockstacking_vision_v2/checkpoint_sweep_6x300_20260814.json`,
   `…/checkpoint_sweep_20x750.json`
-- HF (privat, nur Inferenzdateien): `luca-mue/groot-g1dex3-n17-vision-v1-ckpt{5000,10000,15000,44000}`
+- HF (seit 2026-10-30 öffentlich, nur Inferenzdateien): `luca-mue/groot-g1dex3-n17-vision-v1-ckpt{5000,10000,15000,44000}`

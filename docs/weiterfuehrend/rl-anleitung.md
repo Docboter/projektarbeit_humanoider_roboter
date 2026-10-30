@@ -501,7 +501,7 @@ Ergebnis: `$HOST_DATA_DIR/sim_results/results.json`, Videos je Episode in `$HOST
 Befunde: [diagnose-chronik.md](../ergebnisse/diagnose-chronik.md#schritt-3--bc-erfolgsrate-in-der-sim-server_rl_runsh-eval).
 
 **`grasp` — Greif-Physik isoliert testen.** Setzt die Würfel direkt an die aufgezeichneten Greifpunkte
-und spielt echte Dataset-Aktionen ab, ganz ohne Modell — trennt Politik/Wahrnehmung von Sim-Physik.
+und spielt echte Dataset-Aktionen ab, ganz ohne Modell — trennt Policy/Wahrnehmung von Sim-Physik.
 `GRASP_MODE=hold` verzichtet zusätzlich auf die Platzierungs-Annahme und misst reines Halten.
 Aufruf: `HF_TOKEN=... ./Simulation/server_rl_run.sh grasp` (bzw. mit `GRASP_MODE=hold`).
 Ergebnis: stdout-Tabelle (Haltequote, `max_cube_lift_cm` je Hand) + `replay_episode0.mp4`.

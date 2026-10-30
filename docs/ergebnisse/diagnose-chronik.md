@@ -53,7 +53,7 @@ Für den **aktuellen Projektstatus** siehe
 | 27 | Nachmessung: Finger schließen sichtbar — die Gelenkgrenze ist nicht die Ursache ([Nachmessung](#nachmessung-runs2026080827-die-finger-schließen--die-gelenkgrenze-ist-es-nicht)) |
 | 28 | Messpunkt war zum dritten Mal falsch (distales Gelenk statt Fingerkuppe) ([Lauf 28](#lauf-28-der-messpunkt-war-zum-dritten-mal-falsch)) |
 | 29 | Würfel hebt 7,9 cm ab (`GRASP_MODE=hold`, korrigierter Messpunkt) — Greif-Physik-Blocker gefallen, mit Vorbehalt ([Lauf 29](#lauf-29-der-würfel-hebt-ab-mit-einem-vorbehalt)) |
-| 30 | Vorregistrierte Regel geschlossen: Politik kommandiert nur 19 % der Demo-Fingerspanne — greift nicht ([Lauf 30](#lauf-30-die-vorregistrierte-regel-ist-geschlossen--die-politik-greift-nicht)) |
+| 30 | Vorregistrierte Regel geschlossen: Policy kommandiert nur 19 % der Demo-Fingerspanne — greift nicht ([Lauf 30](#lauf-30-die-vorregistrierte-regel-ist-geschlossen--die-policy-greift-nicht)) |
 | 31 | Meilenstein-Leiter im Einsatz: erste messbare Würfel-Anhebung im Closed Loop (0,22–1,03 cm) ([Lauf 31](#lauf-31-runs2026081203-die-leiter-im-einsatz--und-zwei-neue-zahlen)) |
 | 32 | `span`-Gate entschieden: Median-Verhältnis 1,00 auf echten Bildern — Domain-Gap (a1) bestätigt, (a2) ausgeschlossen ([Lauf 32](#lauf-32-runs2026081301-das-span-gate-ist-entschieden--a1)) |
 | 33/34 | `TUNE_VISUAL`-Checkpoint im Closed Loop: Fingerspanne 27,6 % (statt 20,5 %), `lifted` bleibt 0/10 ([Läufe 33/34](#läufe-3334-runs2026081403-runs2026081404-der-tune_visual-checkpoint-im-closed-loop)) |
@@ -80,14 +80,14 @@ Für den **aktuellen Projektstatus** siehe
 | 69 | Orakel auf dem korrigierten Layout (Würfel 3 cm nach außen), alle 20 Test-Ep. 240–259 × 120 s: `lifted_clear` **6/20 = 30 %** (KI 12–54 %), `stacked` 0/20 (KI 0–17 %) — die obere Schranke ist jetzt deutlich über null ([Lauf 69](#lauf-69-orakel-auf-dem-korrigierten-layout)) |
 | 70 | Szene schrittweise ans Echtbild angeglichen (Tisch 2 m breit, graue Arme, Handgelenkkamera vor/tiefer, 85°): MSE Hände im teacher-forced Open Loop N1.6 0,036 → 0,022, N1.7 0,086 → 0,070 — Echtbild 0,0025; die groben Szenenmerkmale erklären nur einen kleinen Teil ([Läufe 70/71](#läufe-7071-szene-ans-echtbild-angleichen-kamera-mischung)) |
 | 71 | Kamera-Mischung (echt/Sim je Kameragruppe): N1.6 Kopf und Handgelenk gleich schädlich (je ×4, zusammen ×13); N1.7 vor allem Handgelenk (×20) ([Läufe 70/71](#läufe-7071-szene-ans-echtbild-angleichen-kamera-mischung)) |
-| 72 | Co-Training-Datensätze **v3** gerendert (5 cm und 4 cm, je 187 Trainings-Ep., 29 890 Frames, Szene aus Lauf 70, Layout aller Trainings-Ep. korrigiert); Hand↔Würfel am Griff xy-Median 3,3 / 3,2 cm; privat auf HF ([Lauf 72](#lauf-72-co-training-datensätze-v3)) |
+| 72 | Co-Training-Datensätze **v3** gerendert (5 cm und 4 cm, je 187 Trainings-Ep., 29 890 Frames, Szene aus Lauf 70, Layout aller Trainings-Ep. korrigiert); Hand↔Würfel am Griff xy-Median 3,3 / 3,2 cm; privat auf HF (seit 2026-10-30 öffentlich) ([Lauf 72](#lauf-72-co-training-datensätze-v3)) |
 | 73–76 | KISSKI-Co-Training v3, 44 000 Steps, Mischung 0,15: **73** N1.6 Render 5 cm (Job 16676490), **74** N1.6 4 cm (16676493), **75** N1.7 5 cm (16779689), **76** N1.7 4 cm (16779693); Val-MSE @44000 0,004985 / 0,005097 / 0,005248 / 0,005071, überall ≤ 0,8 % hinter dem besten Step. Erste N1.7-Versuche (19.10.) an über zwei Knoten verteilten GPUs gescheitert, behoben mit `#SBATCH -N 1` ([Läufe 73–76](#läufe-7376-co-training-läufe-v3-auf-kisski)) |
 | 77–79 | *frei* |
 | 80 | Visuelles Gate geseedet (`visgate`, Seeds 0/1/2): ungeseedet streut die MSE Hände je Episode bis ×2, der Median über 4 Ep. nur ±5 %. Ausgangswerte MSE Hände 5 / 4 cm: N1.6 @44000 **0,0239 / 0,0221** (Echtbild 0,0014), @30000 0,0214 / 0,0193, N1.7 @44000 0,0758 / 0,0666 ([Läufe 80/81](#läufe-8081-visuelles-gate-geseedet-closed-loop-n17-in-der-szene-aus-lauf-70)) |
 | 81 | Closed Loop N1.7 @44000 in der Szene aus Lauf 70 auf `layout_heldout_dy3.json`, 20 × 120 s: `lifted` **0/20** (KI 0–17 %), Fingerspanne Median 0,52 rad (~25 % der Demo) — die Szenen-Angleichung ändert den Closed Loop nicht ([Läufe 80/81](#läufe-8081-visuelles-gate-geseedet-closed-loop-n17-in-der-szene-aus-lauf-70)) |
 | 82 | Dasselbe mit N1.6 @44000: `lifted_clear` **0/20** (KI 0–17 %); aktiver als N1.7 (`reached` 16, `touched` 17, Würfel bis 17 cm geschoben, Spanne Median 0,64 rad, max. 1,43), schließt aber nicht. Das einzige `lifted` ist ein weggeschleuderter Würfel ([Lauf 82](#lauf-82-closed-loop-n16-44000-szene-aus-lauf-70)) |
 | 83 | Visuelles Gate N1.6 co-train v3 (73/74): Sim-Prüfsets halbiert (5 cm 0,0118 / 0,0115, 4 cm je 0,0104 gegen 0,0239 / 0,0221), Echtbild +50–57 % (0,0022 / 0,0021) — bestanden, Echtbild Grenzfall; keine Spezialisierung auf die Render-Würfelgröße ([Lauf 83](#lauf-83-visuelles-gate-der-co-trainierten-n16-modelle-render-v3-44000)) |
-| 84/85 | Closed Loop N1.6 co-train cube5 / cube4 (85 versehentlich mit 5-cm-Würfeln): `touched` **20/20**, Fingerspanne **1,54 / 1,59 rad** (Lauf 82: 0,64), `lifted_clear` je **1/20** — erste echte Griffe der Politik im Video; 2 Wurf-Artefakte bei cube5 ([Läufe 84/85](#läufe-8485-closed-loop-der-co-trainierten-n16-modelle-1810)) |
+| 84/85 | Closed Loop N1.6 co-train cube5 / cube4 (85 versehentlich mit 5-cm-Würfeln): `touched` **20/20**, Fingerspanne **1,54 / 1,59 rad** (Lauf 82: 0,64), `lifted_clear` je **1/20** — erste echte Griffe der Policy im Video; 2 Wurf-Artefakte bei cube5 ([Läufe 84/85](#läufe-8485-closed-loop-der-co-trainierten-n16-modelle-1810)) |
 | 86 | Visuelles Gate N1.7 co-train cube5 (75): 5 cm **0,0230**, 4 cm **0,0164** (Maßstab 0,0758 / 0,0666), Echtbild 0,0024 unverändert — klar bestanden; erreicht damit erst das Niveau von N1.6 ohne Co-Training ([Lauf 86](#lauf-86-visuelles-gate-co-training-n17-render-v3-cube5-44000)) |
 | 87 | Gate-Nachholprüfung der übrigen HF-Checkpoints: N1.7 vision-v1 @5000/10000/15000 durchgefallen (Echtbild ×3–6); die alten N1.6 Lauf 1 @110000 und vision-v1 @35000 unterbieten die Schwelle **ohne** Co-Training (~0,017) — die 80-%-Schwelle ist zu lax ([Lauf 87](#lauf-87-visuelles-gate-der-übrigen-hf-checkpoints-nachholprüfung)) |
 | 88 | Closed Loop N1.6 co-train cube4 mit 4-cm-Würfeln: `touched` 20/20, `lifted_clear` **2/20** (zwei echte Griffe), Spanne 1,61 rad, Abstand Median 2,3 cm — bisher bester Closed Loop ([Lauf 88](#lauf-88-closed-loop-co-training-n16-cube4-mit-4-cm-würfeln)) |
@@ -1017,7 +1017,7 @@ am Video zu sehen. Deshalb protokolliert der Runner seit diesem Lauf zwei Zahlen
 | `block_shift_max_m` | größte Verschiebung eines Würfels gegenüber dem Reset-Layout |
 
 Damit trennt der nächste Lauf die beiden Lesarten quantitativ: kommt die Hand auf wenige
-Zentimeter heran und greift trotzdem nicht, ist es Wahrnehmung/Politik und `TUNE_VISUAL=1` steht;
+Zentimeter heran und greift trotzdem nicht, ist es Wahrnehmung/Policy und `TUNE_VISUAL=1` steht;
 bleibt der Abstand groß, ist es Geometrie und ein ViT-Lauf wäre verschwendet.
 
 #### Erste Messung (runs/20260808/24) — und warum sie so noch nichts entscheidet
@@ -1086,8 +1086,8 @@ Damit ist die Vorprüfung „Geometrie" endgültig erledigt: die Hand kommt hin,
 und schiebt ihn. Was fehlt, ist der Griff. Dafür bleiben zwei Erklärungen, und die vorregistrierte
 Regel („in Reichweite, greift nicht → `TUNE_VISUAL=1`") unterscheidet sie nicht:
 
-1. **Die Politik versucht keinen Griff** — die Finger bleiben starr, der Würfel wird nur
-   angestoßen. Das wäre Wahrnehmung/Politik und `TUNE_VISUAL=1` wäre richtig.
+1. **Die Policy versucht keinen Griff** — die Finger bleiben starr, der Würfel wird nur
+   angestoßen. Das wäre Wahrnehmung/Policy und `TUNE_VISUAL=1` wäre richtig.
 2. **Der Griff rutscht** — die Finger schließen, aber Reibung/Kontaktparameter halten den Würfel
    nicht. Das wäre Sim-Physik, und ein 48-h-ViT-Lauf wäre verschwendet.
 
@@ -1109,7 +1109,7 @@ HF_TOKEN=hf_... NUM_EPISODES=2 EPISODE_LENGTH_S=40 DR_ENABLED=0 \
 ```
 
 Hebt (a) den Würfel (`max_cube_lift_cm` > ~2) und ist die Fingerspanne in (b) klein →
-Politik/Wahrnehmung, `TUNE_VISUAL=1` steht. Hebt (a) nichts → zuerst die Kontaktparameter, ViT
+Policy/Wahrnehmung, `TUNE_VISUAL=1` steht. Hebt (a) nichts → zuerst die Kontaktparameter, ViT
 später. Zum Kontext: die Finger-Positionsgrenzen waren schon einmal die Ursache eines
 fallengelassenen Würfels; `_widen_finger_joint_limits()` weitet sie seit Juni auf die echte
 Dataset-Range, dieser Pfad ist also bereits abgedeckt.
@@ -1126,7 +1126,7 @@ Dataset-Range, dieser Pfad ist also bereits abgedeckt.
 | **max Würfel-Anhebung** | **0,0 cm** | **kein Würfel wird angehoben** |
 
 Aufbau: echte Dataset-Aktionen, kein Modell, kein Server, und die Würfel per `--grasp-test`
-exakt an den aufgezeichneten Greifpunkten. Unter diesen Bedingungen ist die Politik vollständig
+exakt an den aufgezeichneten Greifpunkten. Unter diesen Bedingungen ist die Policy vollständig
 aus der Kette entfernt — **und der Griff scheitert trotzdem.**
 
 Damit ist entschieden:
@@ -1221,7 +1221,7 @@ HF_TOKEN=hf_... GRASP_MODE=hold ./Simulation/server_rl_run.sh grasp
 | `finger_spread_min_cm` / `finger_close_step` | engste Greiföffnung je Hand und wann sie eintritt |
 
 **Entscheidungsregel:** `hold_ratio` > ~0,5 → die Greif-Physik trägt, und das Problem ist die
-Platzierung des Tests (bzw. im Closed Loop: die Politik trifft den Würfel nicht). `hold_ratio` ≈ 0
+Platzierung des Tests (bzw. im Closed Loop: die Policy trifft den Würfel nicht). `hold_ratio` ≈ 0
 bei Endhöhe ≈ Tischauflage → der Würfel rutscht aus der geschlossenen Hand, dann sind Kontakt und
 Reibung dran. Gegen letzteres spricht weiterhin die Konfiguration: 50 g bei `static_friction=3.0` /
 `dynamic_friction=2.5`.
@@ -1260,7 +1260,7 @@ Gelenk (Lauf 25/28). **Regel: ein Körper-Frame ist keine Kontaktfläche.** Wer 
 
 **Was dadurch neu zu lesen ist:** die „Fingerspitzen"-Abstände aus Lauf 25 (4,0 / 4,2 cm zur
 Würfelmitte) sind Abstände ab dem distalen Gelenk. Um die Kuppenlänge korrigiert liegen die echten
-Kontaktflächen im Würfel — die Politik war also in Kontaktreichweite, nicht 1,5 cm davor. Die
+Kontaktflächen im Würfel — die Policy war also in Kontaktreichweite, nicht 1,5 cm davor. Die
 Aussage „die Hand ist am Würfel" wird dadurch stärker, nicht schwächer; die 0,0 cm Anhebung bleibt
 das Rätsel.
 
@@ -1359,7 +1359,7 @@ Unabhängig davon ist der RL-Pfad **entblockiert**: ein Anheben ist in dieser Si
 Shaped Reward kann also ein Signal liefern. Die verbleibende Frage ist nicht mehr „geht es
 überhaupt", sondern „wie zuverlässig" — und das ist eine Frage, an der RL arbeiten kann.
 
-#### Lauf 30: die vorregistrierte Regel ist geschlossen — die Politik greift nicht
+#### Lauf 30: die vorregistrierte Regel ist geschlossen — die Policy greift nicht
 
 `runs/20260812/02` (2026-08-12), Closed-Loop-Eval, 2 × 40 s, `EXECUTION_HORIZON=8`, `DR_ENABLED=0`.
 Der erste Eval seit dem Einbau von `finger_span_max_rad` — damit liegt die zweite Hälfte der
@@ -1370,7 +1370,7 @@ Entscheidungsregel aus [Schritt 3](#schritt-3--bc-erfolgsrate-in-der-sim-server_
 | Dataset / menschliche Demo (Lauf 29) | **2,094 rad** ≈ 120° | — |
 | Policy, Episode 1 / 2 | **0,347 / 0,390 rad** ≈ 22° | **19 %** |
 
-Die Politik kommandiert rund ein Sechstel der Greifbewegung, die in der Demonstration steckt. Das
+Die Policy kommandiert rund ein Sechstel der Greifbewegung, die in der Demonstration steckt. Das
 ist kein misslungener Griff, sondern keiner. Die Annäherung zeigt dasselbe Muster — ab den in
 Lauf 28 korrigierten Fingerkuppen gemessen:
 
@@ -1380,7 +1380,7 @@ Lauf 28 korrigierten Fingerkuppen gemessen:
 | 2 | 14,3 → **4,6 cm** | 984 | 1,3 cm |
 
 Bei 5 cm Kantenlänge sind 4,6 cm zur Würfel*mitte* rund 2 cm zur Oberfläche: nah dran, aber die
-Finger umschließen nichts. Beide Defizite zeigen in dieselbe Richtung — die Politik produziert eine
+Finger umschließen nichts. Beide Defizite zeigen in dieselbe Richtung — die Policy produziert eine
 **zum Mittelwert gezogene, verwaschene Version** der Demonstration. Das ist die Signatur einer
 Policy, die nicht erkennt, in welcher Phase der Aufgabe sie ist, und deshalb nahe der
 Durchschnittsaktion ausgibt: das erwartete Verhalten bei Out-of-Distribution-Eingaben.
@@ -1391,7 +1391,7 @@ Durchschnittsaktion ausgibt: das erwartete Verhalten bei Out-of-Distribution-Ein
 |---|---|
 | (a) `max_cube_lift_cm` > ~2 | ✅ 7,9 cm (Lauf 29) |
 | (b) Fingerspanne klein | ✅ 19 % der Demo (Lauf 30) |
-| **Konsequenz laut Regel** | **Politik/Wahrnehmung → `TUNE_VISUAL=1`** |
+| **Konsequenz laut Regel** | **Policy/Wahrnehmung → `TUNE_VISUAL=1`** |
 
 #### Gate vor den 48 GPU-Stunden: drei Erklärungen, eine schon widerlegt
 
@@ -1604,7 +1604,7 @@ schwächste Wert und bleibt trotzdem klar über der 70-%-Schwelle.
 
 **Konsequenz für die Reihenfolge:** RL bleibt nicht der nächste Schritt. Der begründete nächste
 Lauf ist `TUNE_VISUAL=1` — die Regel dafür ist jetzt vollständig geschlossen, nicht mehr nur
-plausibel. Erst wenn die Politik in der Sim greift, hat ein Reward-Signal einen Startpunkt.
+plausibel. Erst wenn die Policy in der Sim greift, hat ein Reward-Signal einen Startpunkt.
 
 #### Läufe 33/34 (`runs/20260814/03`, `runs/20260814/04`): der TUNE_VISUAL-Checkpoint im Closed Loop
 
@@ -1671,7 +1671,7 @@ Und dieser Modus wirkt mechanisch:
 
 | Rangkorrelation (Spearman, n=10) | Wert | Lesart |
 |---|---|---|
-| Fingerspanne ~ **Anhebung** | **+0,62** | wo die Politik greift, hebt sich der Würfel am meisten |
+| Fingerspanne ~ **Anhebung** | **+0,62** | wo die Policy greift, hebt sich der Würfel am meisten |
 | Fingerspanne ~ Verschiebung | +0,05 | das Wegschieben hängt **nicht** am Griff — das ist Anstoßen |
 | Fingerspanne ~ Annäherung | −0,31 | schwach; näher dran heißt eher mehr Griff |
 
@@ -1810,7 +1810,7 @@ falsch. Gespiegelt wurden die Werte damit aus ihrer Grenze heraus, wo `set_joint
 
 #### Tragweite
 
-`_SIGN_FLIP_IDX` wirkt in `_get_observations` **und** `_pre_physics_step` — die Politik sah verdrehte
+`_SIGN_FLIP_IDX` wirkt in `_get_observations` **und** `_pre_physics_step` — die Policy sah verdrehte
 Fingerwinkel und ihre Aktionen wurden aus der Grenze gedreht. Das hebt sich nicht auf. Betroffen ist
 damit **jeder bisherige Lauf**: Eval, `grasp`, RL, Replay, Co-Training. Alle Greifzahlen dieser Chronik
 sind mit vier stillstehenden Fingergrundgelenken entstanden.
@@ -1818,7 +1818,7 @@ sind mit vier stillstehenden Fingergrundgelenken entstanden.
 Das erklärt die Kette rückwärts: Hand schließt nie → bei 101 von 116 Griffen bleibt die engste
 Kuppenöffnung über 6 cm (`scan`, 2026-08-17) → die v4-Greifanker sind unbrauchbar (Lauf 36) → der darauf
 gebaute `close_step`-Detektor misst Rauschen. Auch Lauf 26 („Griff scheitert auch ganz ohne Modell",
-`max_cube_lift_cm` 0,0) und Lauf 30 („Politik kommandiert nur 19 % der Demo-Fingerspanne") sind unter
+`max_cube_lift_cm` 0,0) und Lauf 30 („Policy kommandiert nur 19 % der Demo-Fingerspanne") sind unter
 diesem Vorbehalt neu zu lesen.
 
 #### Was geändert wurde
@@ -2637,7 +2637,7 @@ Episode nach 20 min ohne Log-Fortschritt; diese Nacht kein Hänger).
   kleine Render v2 (44 Ep., August-Layout) hatte xy 3,5 cm, der Render aus Lauf 66 xy 5,1 cm.
 - **Mischung:** Ausgleichspunkt F_render/(F_render+F_echt) = 29 890/(29 890+229 828) = **0,115**;
   Presets in `Training/kisski_chain.sh` nutzen 0,15 (bewusst knapp darüber, wie co-training.md §4.2).
-- **Ablage:** `/data/cotrain/g1_dex3_rendered_v3_cube{5,4}` (131 / 129 MB), HF privat
+- **Ablage:** `/data/cotrain/g1_dex3_rendered_v3_cube{5,4}` (131 / 129 MB), HF privat (seit 2026-10-30 öffentlich)
   `luca-mue/g1-dex3-rendered-v3-cube5` und `…-cube4` (je 942 Dateien). `modality.json` byte-gleich
   zum echten Datensatz.
 - Der kleine v2-Satz (`/data/cotrain/g1_dex3_rendered_v2`, 44 Ep., 7 929 Frames) bleibt lokal und
@@ -2884,7 +2884,7 @@ regulär (20/20 Episoden, keine Abbrüche). Die Host-Logs enden dort, maßgeblic
   „fährt hin, bleibt halb offen“ (Läufe 64/81/82), sondern „greift zu, schließt, verfehlt meist“.
 
 **Lesart:** Das Co-Training ändert den Closed Loop sichtbar. Die Fingerspanne verdoppelt sich
-fast, der Würfel wird in jeder Episode berührt, und zum ersten Mal hebt die Politik selbst einen
+fast, der Würfel wird in jeder Episode berührt, und zum ersten Mal hebt die Policy selbst einen
 Würfel mit der Hand an (`lifted_clear` je 1/20, KI 0,1–25 %). Statistisch ist ein Griff in 20
 Episoden noch nicht von null zu trennen. Die Spanne (Lauf 34: primäres Gate, co-training.md §5)
 ist es aber eindeutig: 1,54/1,59 rad gegen 0,64 rad, die Bereiche überlappen nicht. JSON:
@@ -3397,7 +3397,7 @@ sortierter Reihenfolge). Umgebung jeweils am laufenden Prozess geprüft.
 - **Die Griffrate liegt bei ~3 %, nicht bei 10 %.** Auf den 40 neuen Lagen gibt es keinen
   einzigen Griff (0/40, KI 0–9 %). Beide Griffe kamen auf den Lagen 241 und 244 zustande. Auf
   Lage 241 gab es auch die Griffe bzw. Beinahe-Griffe von Lauf 85 und Lauf 94; es gibt
-  offenbar Lagen, die der Politik leichter fallen.
+  offenbar Lagen, die der Policy leichter fallen.
 - **Gegen das gleiche Rezept ohne Renderdaten** (Lauf 82, 0/20) ist der Unterschied statistisch
   nicht zu trennen (exakter Fisher-Test, einseitig, p ≈ 0,56). Belastbar sind die Verhaltens-
   änderungen: `touched` 60/60 gegen 17/20, Spanne 1,61 gegen 0,64 rad, im 40-s-Fenster auch

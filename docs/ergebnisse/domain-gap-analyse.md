@@ -95,8 +95,8 @@ Sim), der die Zielgröße direkt misst statt über den Proxy.
 > mit **0/20**; Lauf 30 (2026-08-12, nur 2 Episoden) schließt damit die vorregistrierte Regel, nach
 > der `TUNE_VISUAL=1` als bestätigt gilt (zur Belastbarkeit siehe
 > [Review 10-13 §2.1 M2](../archiv/projekt-review-2026-10-13.md#21-befunde)). Lauf 30 zeigt
-> zusätzlich, dass die Politik nur ~19 % der demonstrierten Fingerspannweite kommandiert — der
-> Befund zeigt also auf Wahrnehmung/Politik, nicht nur auf das Rendering. (Vorbehalt: Lauf 30
+> zusätzlich, dass die Policy nur ~19 % der demonstrierten Fingerspannweite kommandiert — der
+> Befund zeigt also auf Wahrnehmung/Policy, nicht nur auf das Rendering. (Vorbehalt: Lauf 30
 > entstand mit dem später als fehlerhaft erkannten Fingerzustand der Sim, Läufe 38–46; und das
 > `span`-Gate, das den Domain-Gap „bestätigte", wurde auf Trainingsepisoden gemessen.) Details:
 > [`diagnose-chronik.md`](diagnose-chronik.md).

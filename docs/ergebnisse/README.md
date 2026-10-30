@@ -49,6 +49,7 @@ Die Tabelle oben ordnet nach Wichtigkeit; chronologisch liegen die Auswertungen 
 | 2026-08-08 → 26 | Diagnose-Läufe 08–53, fortlaufend (Kamera, Greif-Physik, `span`-Gate, `TUNE_VISUAL`, Würfellage, Geometriefehler) | [diagnose-chronik.md](diagnose-chronik.md) |
 | 2026-08-13/14 | Lauf 3 (`tp1nc699`, Vision + Jitter + Split, Checkpoint-Sweep) | [lauf3-vision-split-auswertung.md](lauf3-vision-split-auswertung.md) |
 | 2026-10-12/13 | Nachmessung Lauf 3 (20 × 750, Overfitting widerlegt); Lauf 4 (N1.7, Job 16634862) + Sweeps | [lauf4-n17-vergleich.md](lauf4-n17-vergleich.md) |
+| 2026-10-12 → 29 | Diagnose-Läufe 54–97: N1.7 in der Sim, Orakel und Würfelversatz 3 cm, Szene Lauf 70, Co-Training v3 (Gate, Closed Loop bis `lifted_clear` 2/60) | [Läufe 54/55](diagnose-chronik.md#läufe-5455-die-ersten-n17-checkpoints-in-der-sim), [62](diagnose-chronik.md#lauf-62-versatz-sweep--die-würfel-liegen-3-cm-zu-weit-innen), [73–76](diagnose-chronik.md#läufe-7376-co-training-läufe-v3-auf-kisski), [97](diagnose-chronik.md#lauf-97-closed-loop-des-besten-kandidaten-auf-allen-60-testlagen) |
 
 > Der **Baseline-Vergleich** (stock G1-Greifer, `SIM_MODE=baseline`) ist noch nicht gelaufen —
 > die Vorbereitung liegt bei den operativen Sim-Anleitungen:

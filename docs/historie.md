@@ -375,7 +375,7 @@ RL (SAC/PPO auf Sim) macht erst Sinn, nachdem entweder der Domain Gap gelöst is
 > **Nachtrag 2026-08:** RL ist gebaut — mit **FPO** statt SAC/PPO und nur auf dem Action-Head
 > ([rl_finetune.py](../Simulation/g1_dex3_sim/rl_finetune.py)). Die hier formulierte
 > Reihenfolge-Warnung hat sich bestätigt: die Pipeline läuft end-to-end, der Lernerfolg ist
-> unverifiziert, und die Diagnose der Läufe 29–31 verweist zurück auf Wahrnehmung/Politik statt
+> unverifiziert, und die Diagnose der Läufe 29–31 verweist zurück auf Wahrnehmung/Policy statt
 > auf RL → [weiterfuehrend/reinforcement-learning-plan.md](weiterfuehrend/reinforcement-learning-plan.md).
 
 ---
@@ -401,7 +401,7 @@ RL (SAC/PPO auf Sim) macht erst Sinn, nachdem entweder der Domain Gap gelöst is
 > **Nachtrag 2026-08:** Die Neumessung nach der Kamera-Kalibrierung senkt den Gap auf
 > **0,2229 im Mittel** und **0,3556** für `cam_left_wrist` — unter die real↔real-Baseline
 > (0,2726). Der Domain Gap bleibt ein Faktor, ist aber nicht mehr die alleinige Erklärung für
-> die 0-%-Erfolgsrate. Die Diagnose der Läufe 29–31 zeigt zusätzlich, dass die Politik nur
+> die 0-%-Erfolgsrate. Die Diagnose der Läufe 29–31 zeigt zusätzlich, dass die Policy nur
 > ~19 % der demonstrierten Greifbewegung kommandiert — eine Fehlerquelle im Modell selbst,
 > unabhängig vom Rendering.
 
@@ -454,7 +454,7 @@ Der mittlere Real→Sim-Gap (0.260) liegt leicht **unterhalb** des Real→Real-C
 
 `cam_left_wrist` hat mit **0.427** einen kritischen Ausreißer, der rund **1.6× über dem Real→Real-Baseline** liegt. Diese Kamera zeigt die Greifaktion aus nächster Nähe: synthetische Roboterhand, Tischoberfläche und Nahbereichs-Beleuchtung weichen so stark vom realen Trainings-Material ab, dass der frozen ViT das Signal nicht überträgt.
 
-Da GR00T alle 4 Kameras gleichzeitig als Input verarbeitet, genügt ein einziger kritisch-fremder Eingang, um die Politiksequenz zu destabilisieren — und das ist genau die handnahe Kamera, die für Greifentscheidungen entscheidend ist.
+Da GR00T alle 4 Kameras gleichzeitig als Input verarbeitet, genügt ein einziger kritisch-fremder Eingang, um die Policy-Sequenz zu destabilisieren — und das ist genau die handnahe Kamera, die für Greifentscheidungen entscheidend ist.
 
 ### Warum die Sim zu "sauber" ist
 
@@ -875,3 +875,22 @@ Nur die Aktion von `thumb_0` erreicht mit −1,047 genau die Grenze, überschrei
 Erweitert werden müssen nur `thumb_1` (geschieht bereits) und die vier `_0`-Gelenke von Zeige- und
 Mittelfinger (seit 2026-08-24). Laufnummer: 56 in der
 [Diagnose-Chronik](ergebnisse/diagnose-chronik.md).
+
+## 2026-10-30 — Doku-Nachzug nach Review (veraltete Aussagen bereinigt)
+
+*Herkunft:* Review der Markdown-Doku vor der Abgabe. Überholt und korrigiert:
+
+- **Sim-Image N1.6-only** (`simulation/README.md`, `training/env-vars.md`): Docker Hub `:latest`
+  hat seit 2026-10-14 N1.6 und N1.7.
+- **„Offen: Sim-Eval nach Abnahmeprotokoll (20 Episoden)“** (`groot-n17-migration.md`,
+  `next-steps.md`): gelaufen in den Läufen 81, 89, 93, je `lifted_clear` 0/20.
+- **„Letzte Closed-Loop-Läufe 54/55, N1.6-Neumessung offen“** (`sim-eval-anleitung.md`,
+  `docs/README.md`): Läufe bis 97 liegen vor; dazu Hinweis, dass ein schlichtes `eval` nicht die
+  Protokoll-Szene von `tools/sim_cl_watchdog.sh` nutzt; vast.ai-Tabelle auf 120 s und dy3-Layout.
+- **HF-Repos privat** (`abgabe-plan.md`, `next-steps.md`, `lauf4-n17-vergleich.md`): alle
+  `luca-mue/*`-Modelle und -Datensätze sind seit 2026-10-30 öffentlich.
+- **Quickstart §2:** fehlender `setup`-Schritt (Container mit `HF_TOKEN`); Herkunft von
+  `layout_heldout_dy3.json` und der Prüfsets `vis_gate_v3_cube{5,4}` beschrieben, kein
+  Erzeugungsskript für die dy3-Layouts (bekannte Lücke).
+- **`training/anleitung.md`:** Upload per `huggingface-cli upload … .` (mit `optimizer.pt`) ersetzt
+  durch `upload_checkpoint.py`.
