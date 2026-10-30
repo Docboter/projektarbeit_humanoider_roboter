@@ -63,8 +63,15 @@ Die laufend gepflegte Liste steht in \doc{next-steps.md}, Abschnitt~2.
 \label{sec:locomotion}
 \label{sec:rl-weiterfuehrend}
 
-Cosmos-Transfer-Augmentierung~\cite{cosmostransfer2025} ist gebaut, aber nicht end-to-end
-geprüft (\doc{docs/augmentation/anleitung.md}). Der extern aufgenommene Sim-Datensatz
+Für die generative Augmentierung gibt es einen eigenen Container: Er variiert echte
+Trainingsvideos mit Cosmos-Transfer2.5~\cite{cosmostransfer2025} (Kanten-ControlNet,
+Beleuchtung, Hintergrund, Tischfarbe) und baut daraus einen Datensatz, den das Co-Training
+direkt einliest (\texttt{USE\_COTRAIN}). Image-Build und erste Inferenzläufe gelangen Ende
+August 2026; eine Vorabprüfung fängt Abweichungen der Framezahl ab. Ein vollständiger
+augmentierter Datensatz und ein Trainingslauf damit fehlen, weil kein Docker-Server mit den
+nötigen rund 65~GB GPU-Speicher verfügbar war.
+Die Augmentierung variiert echte Bilder und zielt damit eher auf die Robustheit am Roboter als
+auf den Gap zur Simulation (\doc{docs/augmentation/anleitung.md}). Der extern aufgenommene Sim-Datensatz
 \texttt{Fichtl00/Cube\_Stacking\_synth} (16 Episoden, in der Simulation teleoperiert) passt
 schematisch nicht (57 statt 28 Zustandsdimensionen, 50 statt 30~fps); ein Co-Training-Lauf mit
 der umgewandelten Fassung liegt nicht vor

@@ -75,8 +75,13 @@ kommen als \doc{{"error": <text>}} zurück.
 
 \begin{table}[htb]
   \centering
-  \begin{tabularx}{\linewidth}{lX}
+  \begin{tabularx}{\linewidth}{l>{\raggedright\arraybackslash}X}
     \toprule
+    Start & \texttt{python gr00t/eval/run\_gr00t\_server.py --model-path <ckpt>
+      --embodiment-tag NEW\_EMBODIMENT --use-sim-policy-wrapper --port 5555} im Baum der
+      passenden Generation (\texttt{app/Groot-1.6} bzw.\ \texttt{-1.7}); der Sim-Container
+      startet ihn selbst. Erst \texttt{--use-sim-policy-wrapper} liefert das flache Format
+      dieser Tabelle \\
     Anfrage \texttt{get\_action} & \texttt{video.<kamera>}: \texttt{(1,1,480,640,3)} uint8 für
       alle vier Kameras; \texttt{state.<gruppe>}: \texttt{(1,1,7)} float32 für die vier
       Gruppen; \texttt{annotation.human.task\_description}: Tupel mit einem String \\
@@ -84,11 +89,15 @@ kommen als \doc{{"error": <text>}} zurück.
       zusammen 16 absolute Gelenkziele $\times$ 28 \\
     Ausführung & 30~Hz; von 16 Schritten werden \texttt{EXECUTION\_HORIZON} = 8 ausgeführt,
       dann neu angefragt; Budget $8/30$~s = 267~ms \\
+    Latenz & N1.6, RTX PRO 6000, 4 Denoising-Schritte: 74~ms im Mittel (72--80~ms) auf
+      freier GPU, rund 88~ms über \ac{zmq} aus der Simulation; bei mit einem zweiten Server
+      geteilter GPU bis 188~ms \\
     Zeitlimits & Sim-Client 20~s je Anfrage; nach Timeout REQ-Socket neu aufbauen \\
     \bottomrule
   \end{tabularx}
   \caption{Protokoll des Policy-Servers. Ein lauffähiger Beispiel-Client steht in
-    \doc{docs/schnittstellen.md}, Abschnitt~3.}
+    \doc{docs/schnittstellen.md}, Abschnitt~3; Latenzmessung:
+    \doc{docs/simulation/inferenz-optimierung.md}.}
   \label{tab:if-server}
 \end{table}
 
@@ -138,7 +147,7 @@ Abgebrochene Episoden zählen in keiner Rate.
 \paragraph{Visuelles Gate.} Ohne Isaac~Sim: Die Policy sagt teacher-forced Aktionen auf
 gerenderten Prüfbildern (4 Episoden, je 600 Schritte, Würfel 5~cm und 4~cm) und auf den
 echten Bildern derselben Episoden vorher. Kennzahl ist der Median der \ac{mse} über die
-Hand-Dimensionen, gemittelt über die Seeds 0, 1 und 2 (Streuung etwa $\pm$5\,\%).
+Hand-Dimensionen 14--27, gemittelt über die Seeds 0, 1 und 2 (Streuung etwa $\pm$5\,\%).
 Bestanden ist das Gate, wenn die Kennzahl auf beiden Prüfsets unter 80\,\% des Werts des
 Ausgangsmodells derselben Generation ohne Co-Training liegt (N1.6 vision-v2 bzw.\ N1.7
 vision-v1, je @44000, Lauf~80) und auf Echtbildern nicht deutlich steigt. Ergebnis:
@@ -178,5 +187,6 @@ Der Trainings-Container hält alle Daten; er darf gestoppt, aber nicht gelöscht
 
 Eine Anbindung an den G1 fehlt. Eine Roboter-Seite müsste die vier Kamerabilder und die 28
 Gelenkwinkel lesen, sie nach \cref{tab:if-server} an den Server schicken und die
-zurückkommenden Gelenkziele mit 30~Hz an Arme und Hände geben. Gleichgewicht und Beine
-regelt die Policy nicht.
+zurückkommenden Gelenkziele mit 30~Hz an Arme und Hände geben. Die gemessene Latenz lässt
+gegen das Budget die 3,6-fache Reserve, solange sich der Server die GPU mit keinem anderen
+Prozess teilt. Gleichgewicht und Beine regelt die Policy nicht.
