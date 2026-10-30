@@ -8,6 +8,34 @@ KISSKI-Compute-Nodes haben keinen Internetzugang. W&B läuft daher automatisch
 im Offline-Modus und schreibt Runs lokal. Nach dem Training müssen sie einmalig
 vom Login-Node aus hochgeladen werden.
 
+> **Stand 2026-10-30 — der Sync mit dem `wandb` im Image (0.23.0) lädt nichts mehr hoch.** Er
+> meldet `Syncing: … done.` und legt `run-*.wandb.synced` an, der Run erscheint aber nicht in
+> W&B; mit `WANDB_DEBUG=true` zeigt sich ein `AttributeError` in
+> `server_settings_introspection` (alter Client gegen den heutigen Server). Die Befehle unten mit
+> `apptainer exec … /app/Groot-1.6/.venv/bin/wandb sync` sind dadurch **überholt durch den
+> Abschnitt [Sync mit aktuellem wandb](#sync-mit-aktuellem-wandb-ab-2026-10-30)**. Ob frühere
+> Syncs betroffen waren, zeigt nur der Blick in W&B (Run-ID suchen), nicht die `.synced`-Datei.
+
+## Sync mit aktuellem wandb (ab 2026-10-30)
+
+Auf dem Login-Node, ohne Container, mit dem `uv`-Modul (das System-Python 3.6 ist zu alt):
+
+```bash
+module load uv
+mkdir -p ~/wandb-sync && cd ~/wandb-sync          # nicht in /tmp: dort gehört ./wandb evtl. fremden Nutzern
+export WANDB_API_KEY=$(tr -d '[:space:]' < ~/.wandb_key)
+W=/mnt/vast-kisski/projects/kisski-humrob/data/g1_dex3_finetune/wandb
+uv run --no-project --python 3.12 --with wandb wandb sync --yes --include-synced \
+    -e projektarbeit_humanoider_roboter -p gr00t-g1-dex3 $W/offline-run-<datum>-<id>
+```
+
+- `--include-synced` ist nötig, wenn der alte Client die Datei schon als `.synced` markiert hat.
+  `--append` gibt es in wandb 0.31 nicht mehr.
+- Erfolg prüfen: Die Ausgabe zeigt `uploading history steps …` und `Finished syncing`, und der
+  Run ist unter `wandb.ai/projektarbeit_humanoider_roboter/gr00t-g1-dex3/runs/<id>` sichtbar.
+- So am 2026-10-30 nachgeholt: Lauf 4 (`2v02ye81`) und Co-Training 73–76 (`ir0qjm0y`,
+  `6i2r07hm`, `a2g4md95`, `388unxow`).
+
 ## Job starten (mit W&B)
 
 Token **einmalig** in eine Datei hinterlegen (mode 600) — das Submit-Script liest
