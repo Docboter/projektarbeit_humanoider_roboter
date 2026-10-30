@@ -3,9 +3,7 @@
 \chapter{Ergebnisse}
 \label{chap:ergebnisse}
 
-Laufnummern verweisen auf \doc{docs/ergebnisse/diagnose-chronik.md}; die Abbildungen werden mit
-\doc{latex/figures/make_figures.py} aus den CSV-Dateien unter \doc{latex/figures/daten/}
-erzeugt.
+Laufnummern verweisen auf \doc{docs/ergebnisse/diagnose-chronik.md}.
 
 \section{Training und Checkpoint-Wahl}
 \label{sec:erg-training}
@@ -74,15 +72,15 @@ Kein Modell hebt in der Simulation einen Würfel frei an
     \toprule
     Lauf & Modell & Episoden & \texttt{reached} & \texttt{touched} & \texttt{lifted\_clear} \\
     \midrule
-    34 & N1.6 vision-v2 @30000, alte Szene\textsuperscript{a} & 10 & 9 & 10 & --\textsuperscript{b} \\
-    55 & N1.7 @44000 & 10 & 9 & 6 & --\textsuperscript{b} \\
+    34 & N1.6 vision-v2 @30000, alte Szene\textsuperscript{a} & 10 & 9 & 10 & n.\,e.\textsuperscript{b} \\
+    55 & N1.7 @44000 & 10 & 9 & 6 & n.\,e.\textsuperscript{b} \\
     81 & N1.7 @44000, Szene Lauf 70 & 20 & 7 & 7 & 0 \\
     82 & N1.6 vision-v2 @44000, Szene Lauf 70 & 20 & 16 & 17 & 0 \\
     \bottomrule
   \end{tabular}
   \caption{Closed Loop ohne Co-Training. \textsuperscript{a}Vor der Korrektur vom 24.08.2026:
     Fingergelenke falsch gespiegelt, Becken 0,85~m statt 0,764~m (\cref{sec:projektverlauf-fehler}).
-    \textsuperscript{b}Metrik eingeführt am 13.10.; \texttt{lifted} 0/10.
+    \textsuperscript{b}Nicht erfasst: \texttt{lifted\_clear} gibt es erst seit 13.10.2026; das schwächere Kriterium \texttt{lifted} lag bei 0/10.
     95-\%-Intervall für 0/20: 0--17\,\%.}
   \label{tab:cl-ohne}
 \end{table}
