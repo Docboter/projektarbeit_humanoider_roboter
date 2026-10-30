@@ -23,7 +23,7 @@ Laufnummern verweisen auf \doc{docs/ergebnisse/diagnose-chronik.md}.
     4 & N1.7, sonst wie 3, State-Dropout 0,2 & 44\,000 & 7~h~53~min \\
     \bottomrule
   \end{tabularx}
-  \caption{Trainingsläufe (Batch 8 bzw.\ 32, Lernrate \num{1e-4}; Details:
+  \caption[Trainingsläufe]{Trainingsläufe (Batch 8 bzw.\ 32, Lernrate \num{1e-4}; Details:
     \cref{tab:hparams}). Ob Lauf~2 schon mit Augmentierung lief, ist nicht sicher belegt.}
   \label{tab:laeufe}
 \end{table}
@@ -34,7 +34,8 @@ N1.7 ist seine Höhe nicht vergleichbar (anderer Aktionskopf, State-Dropout). Di
 Checkpoint-Wahl beruht deshalb auf der Open-Loop-\ac{mse} auf 20 Testepisoden à 750 Schritte:
 Alle 16 Schritte sagt das Modell aus echten Bildern und echtem Zustand einen Aktionsblock
 voraus, der vollständig mit den aufgezeichneten Aktionen verglichen wird; gemittelt wird
-unnormiert (rad²) über alle 28 Dimensionen und Schritte, dann über die Episoden.
+unnormiert (rad²) über alle 28 Dimensionen und Schritte, dann über die Episoden. Ein Beispiel eines solchen
+Aktionsvergleichs zeigt \cref{fig:anh-openloop}.
 Checkpoints werden mit dem gepaarten t-Test über die 20 Episoden verglichen (zweiseitig).
 
 \begin{figure}[htb]
@@ -88,7 +89,7 @@ Kein Modell hebt in der Simulation einen Würfel frei an
     82 & N1.6 vision-v2 @44000, Szene Lauf 70 & 20 & 16 & 17 & 0 \\
     \bottomrule
   \end{tabular}
-  \caption{Closed Loop ohne Co-Training. \textsuperscript{a}Vor der Korrektur vom 24.08.2026:
+  \caption[Closed Loop ohne Co-Training]{Closed Loop ohne Co-Training. \textsuperscript{a}Vor der Korrektur vom 24.08.2026:
     Fingergelenke falsch gespiegelt, Becken 0,85~m statt 0,764~m (\cref{sec:projektverlauf-fehler}).
     \textsuperscript{b}Nicht erfasst: \texttt{lifted\_clear} gibt es erst seit 13.10.2026; das schwächere Kriterium \texttt{lifted} lag bei 0/10.
     95-\%-Intervall für 0/20: 0--17\,\%.}
@@ -144,7 +145,8 @@ verwenden die empirische Korrektur (\texttt{layout\_heldout\_dy3.json}).
     \includegraphics[width=\linewidth]{figures/sim/sim_scene70_cam_left_high.png}
     \caption{Simulation, Szene aus Lauf 70}
   \end{subfigure}
-  \caption{Linke Kopfkamera. Die Geometrie stimmt auf 10--20 Pixel; Tisch, Licht, Material
+  \caption{Linke Kopfkamera. Die Geometrie stimmt auf 10--20 Pixel (Kalibrierung:
+    \cref{anh:overlay}); Tisch, Licht, Material
     und Hintergrund unterscheiden sich (Lauf~67).}
   \label{fig:domain-gap}
 \end{figure}
@@ -172,7 +174,7 @@ Episode vorher (\cref{tab:domain-gap}).
 Der Fehler steigt in dieselbe Größenordnung wie mit schwarzen Bildern (Lauf~65): Für die
 Policy tragen die Sim-Bilder ungefähr so viel verwertbare Information wie kein Bild. N1.6
 leidet unter beiden Kameragruppen, N1.7 vor allem unter den Handgelenkkameras. Die Szene wurde
-daraufhin ans Echtbild angeglichen (breiterer Tisch, Handgelenkkamera näher an der echten
+daraufhin ans Echtbild angeglichen (\cref{fig:domain-gap}; breiterer Tisch, Handgelenkkamera näher an der echten
 Pose, 85° Öffnungswinkel; Lauf~70). Das senkt den Fehler um 40\,\% (N1.6) bzw.\ 18\,\%
 (N1.7); er bleibt aber das 8- bzw.\ 29-Fache des Echtbilds. Grobe Szenenmerkmale erklären also
 nur einen kleinen Teil.
@@ -238,14 +240,6 @@ trennen (exakter Fisher-Test, einseitig, $p \approx 0{,}56$).
   \label{fig:closed-loop}
 \end{figure}
 
-\begin{figure}[htb]
-  \centering
-  \includegraphics[width=0.7\linewidth]{figures/sim/griff_lauf88_ep05_80s_ausschnitt.png}
-  \caption{Erster Griff einer Policy: Modell C, Lauf~88, Episode~5, $t = 80$~s. Die linke
-    Hand hält den roten Würfel in der Luft.}
-  \label{fig:griff}
-\end{figure}
-
 \paragraph{Vorregistriertes Gate.} Vor dem Co-Training war festgelegt: Liegt die Fingerspanne
 im Closed Loop (10 Episoden à 40~s) deutlich über 0,577~rad = 27,6\,\% (Lauf~34), trägt der
 Weg. Zwei Einschränkungen: \enquote{deutlich} war nicht als Zahl festgelegt, und Lauf~34 stammt
@@ -264,6 +258,7 @@ Spanne), nicht die Griffrate.
   \label{fig:spanne}
 \end{figure}
 
+\FloatBarrier
 \section{N1.7 gegen N1.6}
 \label{sec:erg-n17}
 \label{sec:n17}

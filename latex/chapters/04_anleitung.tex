@@ -42,6 +42,8 @@ apptainer pull $HOME/images/projekt-humanoider-roboter-n17.sif \
 GROOT_VERSION=1.7 sbatch --export=ALL Training/kisski_submit.sh
 \end{minted}
 
+Das SLURM-Batch-Skript steht im Auszug in \cref{anh:slurm}.
+
 Varianten werden über Umgebungsvariablen gewählt: \texttt{TUNE\_VISUAL=1} trainiert den
 Bild-Encoder mit, \texttt{USE\_COTRAIN=1} mischt gerenderte Daten bei,
 \texttt{TRAIN\_TEST\_SPLIT=1} hält die Episoden 240--300 zurück. \texttt{Training/kisski\_chain.sh}

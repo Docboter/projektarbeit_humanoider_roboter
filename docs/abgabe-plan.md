@@ -187,7 +187,7 @@ Arbeiten“ als eigenes Kapitel. „Projektverlauf und Lessons Learned“ bleibt
 | Visuelles Gate als Balken (Echtbild, 5 cm, 4 cm; Maßstab gegen Co-Training) | `latex/figures/daten/gate_mse_haende.csv` |
 | Closed-Loop-Leiter `reached` → `stacked` für 82, 88+97, 89, 93 | `latex/figures/daten/closed_loop.csv` |
 | Fingerspanne 10 × 40 s (Lauf 96) | `latex/figures/daten/closed_loop.csv` (Zeilen 96) |
-| Erster Griff der Policy | `latex/figures/sim/griff_lauf88_ep05_80s_ausschnitt.png` |
+| ~~Erster Griff der Policy~~ (2026-10-30 entfernt: Bild zeigt keinen erkennbaren Griff) | `latex/figures/sim/griff_lauf88_ep05_80s_ausschnitt.png` |
 | optional: Orakel-Versatz-Sweep (Lauf 62) | Zahlen in der Chronik |
 
 ### B3. Formales
@@ -204,7 +204,7 @@ Arbeiten“ als eigenes Kapitel. „Projektverlauf und Lessons Learned“ bleibt
 3. **Fremdtest:** Ein Gruppenmitglied, das Kap. 4 / Quickstart nicht geschrieben hat, misst damit
    Gate und Closed Loop für einen HF-Checkpoint (auf dem IKR-Server). Was hakt, wird korrigiert.
 4. **Absatz-Test:** jeden Absatz gegen die Prüfregel oben lesen; was nichts trägt, fällt.
-5. Repo: alles gepusht, Tag `abgabe-<JJJJ-MM-TT>` auf `training-luca-IKR-IS6.0`. Sichtbarkeit
+5. Repo: alles gepusht, `training-luca-IKR-IS6.0` nach `main` mergen, alle anderen Branches löschen (nur `main` bleibt), Tag `abgabe-<JJJJ-MM-TT>` auf `main`. Sichtbarkeit
    der HF-Repos: erledigt, alle `luca-mue/*`-Modelle und -Datensätze sind seit 2026-10-30 öffentlich.
 
 ## Reihenfolge

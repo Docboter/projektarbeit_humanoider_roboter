@@ -41,7 +41,7 @@ Die meiste Zeit kosteten Fehler, die plausible, aber falsche Ergebnisse lieferte
     angewendet.
   \item Eine eingeführte Vorzeichenumkehr von vier Fingergelenken war falsch. Die Simulation
     begrenzte die Sollwerte ohne Meldung; die Hand konnte bis zum 24.08.\ nie ganz schließen.
-    Zugleich standen Becken (0,85 statt 0,764~m) und Basis (5,7~cm) falsch. Alle Greifzahlen
+    Zugleich standen Becken (0,85 statt 0,764~m) und Basis (5,7~cm) falsch (\cref{tab:anh-szene}). Alle Greifzahlen
     davor, auch Lauf~34, sind nur innerhalb dieser Geometrie vergleichbar.
   \item Die Würfel liegen relativ zur Hand je Seite rund 3~cm zu weit innen (Lauf~62). Gefunden
     erst, als die abgespielte Demonstration als Referenz (Demo-Replay) gemessen wurde.
@@ -58,10 +58,7 @@ auf eine Vorabversion von Isaac~Lab~3.0 erzwangen.
 Code, Diagnoseskripte, Auswertungen und Dokumentation entstanden mit dem \acs{ki}-Assistenten Claude
 Code~\cite{claudecode2025} in VS~Code. Projektanweisungen im Repository (\texttt{CLAUDE.md})
 und Anbindungen an \ac{wandb}, Hugging Face und GitHub über \ac{mcp}~\cite{mcp2024} machten ihn
-erst im Projektkontext brauchbar. Er beschleunigt die Umsetzung, erzeugt aber genau die Art
-Fehler aus der Liste oben: Ein früherer Entwurf dieser Arbeit enthielt falsch übernommene
-Zahlen. Deshalb stammt hier jede Zahl aus dem Laborbuch bzw.\ den Laufauswertungen, und Prüfskripte vergleichen Code und
-Dokumentation automatisch.
+erst im Projektkontext brauchbar.
 
 \section{Lessons Learned}
 \label{sec:lessons}
@@ -91,6 +88,12 @@ Dokumentation automatisch.
     lief ohne Würfelgröße. Die Umgebung eines laufenden Prozesses wird seitdem direkt gelesen.
   \item[Hardware je Teilaufgabe vorab klären.] Rendering braucht RT-Cores; dass der Cluster sie
     nicht hat, fiel erst beim Aufsetzen der Simulation auf.
+  \item[Ressourcen dauerhaft und direkt verfügbar machen.] Iterative Diagnose braucht kurze
+    Wege zur Rechenhardware. Zugänge, die nur über mehrere Personen zu bekommen waren, lange
+    Wartezeiten auf freie \acsp{gpu} und ein Server, der zeitweise durch große Sprachmodelle
+    anderer Nutzer belegt war, haben den Fortschritt deutlich stärker gebremst als die
+    eigentliche Rechenzeit. Feste Zugänge und reservierte Zeitfenster gehören deshalb an den
+    Projektanfang.
   \item[Laborbuch führen.] Das fortlaufende Protokoll mit Laufnummern hat es erlaubt, nach der
     Geometriekorrektur alle betroffenen Ergebnisse zu benennen, und ist neben den
     Laufauswertungen der Läufe 1--4 die Quelle der Zahlen dieser Arbeit.

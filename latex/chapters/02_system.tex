@@ -4,6 +4,9 @@
 \label{chap:system}
 \label{chap:grundlagen}
 
+\Cref{fig:architektur} zeigt den Weg vom Datensatz über Training und Checkpoint bis zum
+Policy-Server, den die Simulation abfragt.
+
 \begin{figure}[htb]
   \centering
   \resizebox{\linewidth}{!}{%
@@ -79,7 +82,7 @@ beider ist deshalb einer von Modell \emph{und} Rezept
     lokal / vast.ai & kleine Trainings, Sim-Eval auf Mietkarten & je nach Mietkarte \\
     \bottomrule
   \end{tabularx}
-  \caption{Rechenumgebungen. Isaac~Sim braucht Raytracing-Kerne (\acs{rt}-Cores); A100 und H100 haben keine, die
+  \caption[Rechenumgebungen]{Rechenumgebungen. Isaac~Sim braucht Raytracing-Kerne (\acs{rt}-Cores); A100 und H100 haben keine, die
     Simulation läuft daher nie auf KISSKI.}
   \label{tab:rechenumgebungen}
 \end{table}

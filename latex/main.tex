@@ -51,6 +51,7 @@
   name    = {Abkürzungsverzeichnis},
 ]
 \addcontentsline{toc}{chapter}{Abkürzungsverzeichnis}
+\markboth{Abkürzungsverzeichnis}{Abkürzungsverzeichnis}% chapter* setzt keine Kopfzeile
 
 % ── Hauptteil (Arabische Seitenzahlen ab 1) ──────────────────────────
 \cleardoublepage
@@ -73,6 +74,8 @@
 
 % ── Anhang (Kleine römische Seitenzahlen ab i) ───────────────────────
 \appendix
+\crefalias{chapter}{appendix}  % Anhangkapitel als \enquote{Anh.} statt \enquote{Kap.}
+\renewcommand*{\chaptermarkformat}{Anhang~\thechapter\enskip}  % Kopfzeile \enquote{Anhang X}
 \clearpage
 \pagenumbering{roman}
 \setcounter{page}{1}

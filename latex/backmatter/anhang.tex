@@ -41,7 +41,7 @@ gemäß \cref{tab:anh-modalitaeten}. Zustands- und Aktionsvektor sind jeweils
     21--27 & rechte Hand, absolut & Thumb0, Thumb1, Thumb2, Index0, Index1, Middle0, Middle1 \\
     \bottomrule
   \end{tabularx}
-  \caption{Gliederung des 28-dimensionalen Aktions- und Zustandsvektors
+  \caption[Gliederung des 28-dimensionalen Aktions- und Zustandsvektors]{Gliederung des 28-dimensionalen Aktions- und Zustandsvektors
     (\doc{examples/G1_DEX3/g1_dex3_config.py}). Middle und Index sind links und rechts
     vertauscht.}
   \label{tab:anh-aktionsraum}
@@ -103,7 +103,7 @@ apptainer exec --nv \
     Python (N1.7)             & 3.12 \\
     \bottomrule
   \end{tabular}
-  \caption{Software-Versionen der Trainings- und Simulationsumgebung. Die
+  \caption[Software-Versionen der Trainings- und Simulationsumgebung]{Software-Versionen der Trainings- und Simulationsumgebung. Die
     Umstellung auf Isaac~Sim~6.0 war durch die Blackwell-GPUs des
     Institutsservers erzwungen (\cref{sec:hindernisse}).}
   \label{tab:anh-software}
@@ -111,7 +111,7 @@ apptainer exec --nv \
 
 Code, Dokumentation und Diagnoseprotokoll liegen im Repository
 \url{https://github.com/Docboter/projektarbeit_humanoider_roboter}
-(Branch \texttt{training-luca-IKR-IS6.0}, Stand dieser Arbeit: Tag \texttt{abgabe-*}). Die Trainingsläufe sind im \ac{wandb}-Projekt
+(Branch \texttt{main}). Die Trainingsläufe sind im \ac{wandb}-Projekt
 \texttt{gr00t-g1-dex3} protokolliert, die für die Simulation verwendeten
 Checkpoints liegen auf Hugging Face (\texttt{luca-mue/groot-g1dex3-*}). Der Einstieg für eine Reproduktion ist \doc{docs/quickstart.md}. Die
 Abbildungen in \cref{chap:ergebnisse} erzeugt \doc{latex/figures/make_figures.py} aus den
@@ -142,7 +142,7 @@ CSV-Dateien unter \doc{latex/figures/daten/}.
     Aktions-Horizont      & \multicolumn{3}{c}{16 Schritte} \\
     \bottomrule
   \end{tabular}
-  \caption{Trainingskonfigurationen laut \ac{wandb}-Laufkonfiguration und
+  \caption[Trainingskonfigurationen der Läufe]{Trainingskonfigurationen laut \ac{wandb}-Laufkonfiguration und
     \doc{Training/kisski_submit.sh}. N1.7 lief mit den NVIDIA-Standardwerten der
     Generation (State-Dropout, Normierung über Perzentile der eigenen Daten);
     Lernrate und Warmup gleichen Lauf~3
@@ -150,6 +150,13 @@ CSV-Dateien unter \doc{latex/figures/daten/}.
     Precision sind Voreinstellungen des Forks (\texttt{training\_config.py}).}
   \label{tab:hparams}
 \end{table}
+
+\Cref{fig:loss-curve,fig:anh-lr,fig:anh-gradnorm} vergleichen die N1.6-Grundläufe~1--3; alle drei
+wurden auf demselben Echtdatensatz trainiert. Lauf~4 (N1.7) fehlt, weil Loss und Gradientennorm
+wegen des anderen Aktionskopfs und des State-Dropouts nicht mit N1.6 vergleichbar sind; sein
+Trainings-Loss steht in \cref{fig:lernkurven}. Die Co-Training-Läufe 73--76 trainieren auf
+einer anderen Datenmischung und werden über das visuelle Gate und den Closed Loop bewertet
+(\cref{sec:erg-cotrain}).
 
 
 \begin{figure}[htb]
@@ -277,7 +284,8 @@ höchstens 1,6 bis 1,7 und sinkt bis Trainingsende auf 0,08 bis 0,15, ohne Spitz
   \end{tikzpicture}
   \caption{Lernrate der Läufe. Lineares Warmup auf $1{,}0\times10^{-4}$
     (Lauf~1: 5\,\% der Schritte, Läufe~2 und~3: 10\,\%), danach Cosine-Abfall
-    auf null. Die Kurven von Lauf~2 und Lauf~3 sind identisch.}
+    auf null. Die Kurven von Lauf~2 und Lauf~3 sind identisch; Lauf~4 und die Läufe 73--76
+    haben laut \cref{tab:hparams} denselben Verlauf.}
   \label{fig:anh-lr}
 \end{figure}
 
@@ -360,7 +368,8 @@ höchstens 1,6 bis 1,7 und sinkt bis Trainingsende auf 0,08 bis 0,15, ohne Spitz
 Die in dieser Arbeit zitierten Läufe. Alle Läufe 1--97 mit Datum, Konfiguration und Rohdaten:
 \doc{docs/ergebnisse/diagnose-chronik.md}.
 
-\begin{longtable}{lp{0.42\linewidth}p{0.40\linewidth}}
+{\setlength{\tabcolsep}{4pt}
+\begin{longtable}{@{}l>{\raggedright\arraybackslash}p{0.47\linewidth}>{\raggedright\arraybackslash}p{0.39\linewidth}@{}}
   \toprule
   Lauf & Gegenstand & Ergebnis \\
   \midrule
@@ -393,7 +402,7 @@ Die in dieser Arbeit zitierten Läufe. Alle Läufe 1--97 mit Datum, Konfiguratio
   96 & vorregistriertes Gate & Spanne 73\,\% gegen 27,6\,\% \\
   97 & C auf allen 60 Testlagen & \texttt{lifted\_clear} 2/60 \\
   \bottomrule
-\end{longtable}
+\end{longtable}}
 
 \chapter{Simulations-Diagnostik}
 \label{anh:sim-diagnostik}
@@ -407,7 +416,7 @@ Armdimensionen (0--13) folgen dem Referenzverlauf gut, die Fingerdimensionen
 (14--27) sind deutlich verrauscht. Die gezeigte Episode~0 war im ersten Lauf
 Teil der Trainingsdaten.
 
-\begin{figure}[p]
+\begin{figure}[H]
   \centering
   \includegraphics[width=\linewidth]{figures/sim/openloop_montage.png}
   \caption{Open-Loop-Aktionsvergleich für den letzten Checkpoint des ersten
@@ -456,17 +465,17 @@ simulierte Bild wurden halbtransparent überlagert und die Kamerapose in der
 Simulation so lange angepasst, bis Tischkanten, Würfel und Hände zur Deckung
 kamen (\cref{fig:anh-overlay}).
 
-\begin{figure}[htb]
+\begin{figure}[H]
   \centering
   \begin{subfigure}{\linewidth}
     \centering
-    \includegraphics[width=\linewidth]{figures/sim/panel_cam_left_high.png}
+    \includegraphics[width=0.72\linewidth]{figures/sim/panel_cam_left_high.png}
     \caption{Kopfkamera links}
     \label{fig:anh-overlay-high}
   \end{subfigure}\\[0.6em]
   \begin{subfigure}{\linewidth}
     \centering
-    \includegraphics[width=\linewidth]{figures/sim/panel_cam_left_wrist.png}
+    \includegraphics[width=0.72\linewidth]{figures/sim/panel_cam_left_wrist.png}
     \caption{Handgelenkkamera links}
     \label{fig:anh-overlay-wrist}
   \end{subfigure}

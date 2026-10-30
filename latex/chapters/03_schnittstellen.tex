@@ -56,7 +56,7 @@ Quelldatei im Code zu jeder Angabe: \doc{docs/schnittstellen.md}.
              <konto>/groot-g1dex3-<name>} \\
     \bottomrule
   \end{tabularx}
-  \caption{Checkpoint-Schnittstelle. Projekt-Checkpoints unter \texttt{luca-mue/groot-g1dex3-…}:
+  \caption[Checkpoint-Schnittstelle]{Checkpoint-Schnittstelle. Projekt-Checkpoints unter \texttt{luca-mue/groot-g1dex3-…}:
     \texttt{vision-v2-44000} (Lauf~3, N1.6), \texttt{n17-vision-v1-ckpt44000} (Lauf~4, N1.7),
     \texttt{cotrain-v3-cube\{5,4\}[-n17]-ckpt44000} (Läufe 73--76).}
   \label{tab:if-checkpoint}
@@ -95,7 +95,7 @@ kommen als \doc{{"error": <text>}} zurück.
     Zeitlimits & Sim-Client 20~s je Anfrage; nach Timeout REQ-Socket neu aufbauen \\
     \bottomrule
   \end{tabularx}
-  \caption{Protokoll des Policy-Servers. Ein lauffähiger Beispiel-Client steht in
+  \caption[Protokoll des Policy-Servers]{Protokoll des Policy-Servers. Ein lauffähiger Beispiel-Client steht in
     \doc{docs/schnittstellen.md}, Abschnitt~3; Latenzmessung:
     \doc{docs/simulation/inferenz-optimierung.md}.}
   \label{tab:if-server}
@@ -138,9 +138,9 @@ Abgebrochene Episoden zählen in keiner Rate.
       Würfelmitten $>$ 2 Kanten $-$ 2~cm (8~cm bei 5-cm-Würfeln), alle $<$ 0,05~m/s \\
     \bottomrule
   \end{tabularx}
-  \caption{Stufen der Closed-Loop-Bewertung. Jede Stufe wird für sich geprüft.
-    \texttt{lifted\_clear} kam am 13.10.\ hinzu, weil \texttt{lifted} Kippen mitzählt;
-    die übrigen Schwellen standen vor den Messungen fest.}
+  \caption[Stufen der Closed-Loop-Bewertung]{Stufen der Closed-Loop-Bewertung, jede für sich
+    geprüft. \texttt{lifted\_clear} kam am 13.10.\ hinzu (\texttt{lifted} zählt Kippen mit);
+    alle übrigen Schwellen standen vorher fest.}
   \label{tab:if-stufen}
 \end{table}
 
@@ -167,7 +167,8 @@ vision-v1, je @44000, Lauf~80) und auf Echtbildern nicht deutlich steigt. Ergebn
     Simulation & Image \texttt{lucam03/projekt-humanoider-roboter-sim-standalone:latest}
       (Isaac~Sim~6.0); alle Aktionen über \texttt{Simulation/server\_rl\_run.sh <aktion>} \\
     Menü & \texttt{./run.sh} führt zu allen Aktionen und zeigt den direkten Befehl \\
-    Daten & Training \texttt{/data} im Container (KISSKI: Projektspeicher); Sim
+    Daten & Training \texttt{/data} im Container (KISSKI: Projektspeicher); nur stoppen,
+      nie löschen (kein \texttt{docker run --rm}). Sim
       \texttt{\textasciitilde/groot-rl-data} = \texttt{/data} im Container \texttt{groot-rl} \\
     Variablen & \texttt{HF\_TOKEN} (Pflicht), \texttt{GROOT\_VERSION}, \texttt{MAX\_STEPS},
       \texttt{GLOBAL\_BATCH\_SIZE}, \texttt{NUM\_GPUS}, \texttt{TUNE\_VISUAL},
@@ -179,14 +180,11 @@ vision-v1, je @44000, Lauf~80) und auf Echtbildern nicht deutlich steigt. Ergebn
   \label{tab:if-container}
 \end{table}
 
-Der Trainings-Container hält alle Daten; er darf gestoppt, aber nicht gelöscht werden
-(kein \texttt{docker run --rm}).
-
 \section{Echter Roboter}
 \label{sec:if-roboter}
 
 Eine Anbindung an den G1 fehlt. Eine Roboter-Seite müsste die vier Kamerabilder und die 28
 Gelenkwinkel lesen, sie nach \cref{tab:if-server} an den Server schicken und die
 zurückkommenden Gelenkziele mit 30~Hz an Arme und Hände geben. Die gemessene Latenz lässt
-gegen das Budget die 3,6-fache Reserve, solange sich der Server die GPU mit keinem anderen
-Prozess teilt. Gleichgewicht und Beine regelt die Policy nicht.
+3,6-fache Reserve, solange der Server die GPU allein nutzt. Beine und Gleichgewicht regelt
+die Policy nicht.
