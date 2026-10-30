@@ -92,9 +92,10 @@ Kein Modell hebt in der Simulation einen Würfel frei an
 \label{sec:geometrie}
 \label{sec:wuerfellage}
 
-Um Modell und Simulation zu trennen, spielt ein \enquote{Orakel} die aufgezeichneten
-Demonstrationsaktionen der jeweiligen Testepisode ab. Das ist die obere Schranke jeder
-Policy. Auf den aus Bildern bestimmten Würfellagen hebt es \texttt{lifted\_clear} 1/16
+Um Modell und Simulation zu trennen, spielt ein Demo-Replay (engl.\ \emph{oracle replay}) die
+aufgezeichneten Aktionen des menschlichen Bedieners für die jeweilige Testepisode ohne Modell und
+ohne Rückkopplung ab. Gelingt die Aufgabe selbst so nicht, liegt der Fehler in der Szene; das
+Replay ist damit die praktische Obergrenze, an der sich jede Policy messen lässt. Auf den aus Bildern bestimmten Würfellagen hebt es \texttt{lifted\_clear} 1/16
 (95-\%-Intervall 0,2--30\,\%, Lauf~57): Die Hand erreicht und schließt, schiebt oder kippt den
 Würfel aber. Die Griffstellen der echten Hand liegen 1--7~cm neben der Würfellage aus dem
 Bild, seitlich spiegelbildlich je Hand (Lauf~59). Die Würfelgröße ist nicht die Ursache
@@ -103,16 +104,16 @@ Bild, seitlich spiegelbildlich je Hand (Lauf~59). Die Würfelgröße ist nicht d
 \begin{figure}[htb]
   \centering
   \includegraphics[width=0.62\linewidth]{figures/plots/orakel_versatz_lauf62.pdf}
-  \caption{Orakel mit verschobenen Würfeln: \texttt{lifted\_clear} von 8 Episoden je
+  \caption{Demo-Replay mit verschobenen Würfeln: \texttt{lifted\_clear} von 8 Episoden je
     Verschiebung (Lauf~62). Leere Felder wurden nicht gemessen.}
   \label{fig:orakel-sweep}
 \end{figure}
 
 Ein Raster über die Verschiebung (\cref{fig:orakel-sweep}) zeigt: Ohne seitliche Korrektur
-hebt das Orakel in 0 von 24 Episoden, mit 3--6~cm nach außen (bei $dx \le 0$) in 23 von 48. Bei $dx = 0$ trennt
+hebt das Replay in 0 von 24 Episoden, mit 3--6~cm nach außen (bei $dx \le 0$) in 23 von 48. Bei $dx = 0$ trennt
 sich $dy = 3$~cm (5/8) von $dy = 0$ (0/8) mit $p \approx 0{,}03$ (exakter Fisher-Test). Die
 Würfel liegen in der Simulation relativ zur Hand also je Seite rund 3~cm zu weit innen. Mit
-dieser Korrektur hebt das Orakel auf 20 Testlagen in 6 Fällen frei an (30\,\%,
+dieser Korrektur hebt das Replay auf 20 Testlagen in 6 Fällen frei an (30\,\%,
 95-\%-Intervall 12--54\,\%, Lauf~69).
 
 Die Ursache ist offen. Kein einzelner Gelenk-Nullpunkt erklärt den Versatz, eine

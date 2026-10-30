@@ -19,7 +19,7 @@
     August & Umstieg auf Isaac~Sim~6.0 (5.1 stürzte auf Blackwell ab); Lauf 3;
              Kameras neu kalibriert; Szenengeometrie korrigiert (24.08.) \\
     September & GR00T~N1.7 als paralleler Pfad, eigenes Image \\
-    Oktober & Lauf~4 (N1.7); Orakel und Registrierung, Domain-Gap gemessen (Läufe 57--71);
+    Oktober & Lauf~4 (N1.7); Demo-Replay und Würfellage, Domain-Gap gemessen (Läufe 57--71);
               Co-Training v3 (Läufe 72--97) \\
     \bottomrule
   \end{tabularx}
@@ -44,7 +44,7 @@ Die meiste Zeit kosteten Fehler, die plausible, aber falsche Ergebnisse lieferte
     Zugleich standen Becken (0,85 statt 0,764~m) und Basis (5,7~cm) falsch. Alle Greifzahlen
     davor, auch Lauf~34, sind nur innerhalb dieser Geometrie vergleichbar.
   \item Die Würfel liegen relativ zur Hand je Seite rund 3~cm zu weit innen (Lauf~62). Gefunden
-    erst, als die abgespielte Demonstration als obere Schranke gemessen wurde.
+    erst, als die abgespielte Demonstration als Referenz (Demo-Replay) gemessen wurde.
 \end{itemize}
 
 \paragraph{Ressourcen.} KISSKI hat das Training getragen (4~A100, Warteschlange,
@@ -68,9 +68,9 @@ Dokumentation automatisch.
 \label{sec:arbeitsmittel}
 
 \begin{description}
-  \item[Obere Schranke zuerst.] Bevor ein Modell gemessen wird, muss die abgespielte
+  \item[Referenz zuerst.] Bevor ein Modell gemessen wird, muss die abgespielte
     Demonstration die Aufgabe in der Simulation lösen. Ohne diese Prüfung waren alle
-    Closed-Loop-Zahlen bis Lauf~56 gegen eine Schranke von etwa null gemessen (Läufe 57, 62).
+    Closed-Loop-Zahlen bis Lauf~56 gegen eine Referenz von etwa null gemessen (Läufe 57, 62).
   \item[Wirkung messen, nicht Ähnlichkeit.] Der \acs{siglip}-Abstand der Bilder sah gut aus (0,22, kleiner als
     zwischen zwei echten Bildern mit 0,27; Lauf~22),
     die Policy verlor auf Sim-Bildern aber so viel Information wie mit schwarzen Bildern

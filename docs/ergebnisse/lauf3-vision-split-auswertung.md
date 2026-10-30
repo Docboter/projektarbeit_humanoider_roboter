@@ -25,7 +25,7 @@ Finetune mit aufgetautem Vision-Encoder (`tune_visual = true`), Color-Jitter akt
 > `TUNE_VISUAL=1`, aber diesmal **mit** Augmentierung — Lauf 2 hatte gar keinen Jitter.
 >
 > Datengrundlage: die W&B-Kurven von `tp1nc699` und der Checkpoint-Sweep
-> [`Simulation/runs/20260814/01/checkpoint_sweep.json`](../../Simulation/runs/20260814/01/checkpoint_sweep.json).
+> `Simulation/runs/20260814/01/checkpoint_sweep.json` (nur lokal, `Simulation/runs/` ist gitignored).
 
 > **Nachtrag 2026-10-11 — was seit diesem Dokument passiert ist.** (1) Die Closed-Loop-Messung
 > (Lauf 34, §8.3) lief vor der Korrektur vom 2026-08-24: vier proximale Fingergelenke standen durch
@@ -350,7 +350,7 @@ Befund für die Ausarbeitung.
 | Zweck | Quelle |
 |---|---|
 | W&B-Trainingsmetriken Lauf 3 | Run `tp1nc699`, Projekt `gr00t-g1-dex3` |
-| Checkpoint-Sweep (Rohdaten) | [`Simulation/runs/20260814/01/checkpoint_sweep.json`](../../Simulation/runs/20260814/01/checkpoint_sweep.json) |
+| Checkpoint-Sweep (Rohdaten) | `Simulation/runs/20260814/01/checkpoint_sweep.json` (nur lokal, `Simulation/runs/` ist gitignored) |
 | Sweep-Werkzeug | [`Training/scripts/checkpoint_sweep.py`](../../Training/scripts/checkpoint_sweep.py) |
 | Split-Mechanismus | [`Training/scripts/lib_split.sh`](../../Training/scripts/lib_split.sh) · [train-test-split.md](../training/train-test-split.md) |
 | Resume-Guard (Vorgeschichte `m5vcsjg9`) | [`Training/scripts/lib_resume_guard.sh`](../../Training/scripts/lib_resume_guard.sh) |

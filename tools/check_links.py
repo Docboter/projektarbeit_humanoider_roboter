@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# TL;DR: Prüft alle relativen Markdown-Links und -Anker im Repo (ohne app/, graphify-out/); Exit 1 bei kaputten Links.
+# TL;DR: Prüft alle relativen Markdown-Links und -Anker im Repo (ohne app/, graphify-out/); Links in nicht ausgecheckte Submodule werden übersprungen; Exit 1 bei kaputten Links.
 """Relative Links ([text](pfad#anker)) in *.md prüfen: Datei vorhanden, Anker vorhanden.
 
 Anker werden wie auf GitHub gebildet: Kleinbuchstaben, Satzzeichen außer '-' und '_' entfernt,
@@ -70,6 +70,15 @@ def anchors(path: Path) -> set[str]:
     return _anchor_cache[path]
 
 
+def missing_submodules() -> list[Path]:
+    """Submodul-Pfade aus .gitmodules, die nicht ausgecheckt (leer) sind, z. B. in CI."""
+    gm = ROOT / ".gitmodules"
+    if not gm.exists():
+        return []
+    paths = re.findall(r"^\s*path\s*=\s*(\S+)", gm.read_text(encoding="utf-8"), re.M)
+    return [ROOT / p for p in paths if not (ROOT / p).is_dir() or not any((ROOT / p).iterdir())]
+
+
 def md_files():
     for p in ROOT.rglob("*.md"):
         if not any(part in SKIP_DIRS for part in p.relative_to(ROOT).parts):
@@ -78,7 +87,8 @@ def md_files():
 
 def main() -> int:
     quiet = "--quiet" in sys.argv
-    errors = 0
+    errors = skipped = 0
+    absent = missing_submodules()
     files = sorted(md_files())
     for md in files:
         for lineno, line in enumerate(strip_code(md.read_text(encoding="utf-8").splitlines()), 1):
@@ -89,6 +99,9 @@ def main() -> int:
                 path_part = path_part.split("?")[0]
                 dest = (md.parent / unquote(path_part)).resolve() if path_part else md
                 rel = md.relative_to(ROOT)
+                if not dest.exists() and any(dest.is_relative_to(a) for a in absent):
+                    skipped += 1  # Ziel liegt in einem nicht ausgecheckten Submodul
+                    continue
                 if not dest.exists():
                     print(f"{rel}:{lineno}: Ziel fehlt: {target}")
                     errors += 1
@@ -97,7 +110,8 @@ def main() -> int:
                     print(f"{rel}:{lineno}: Anker fehlt: {target}")
                     errors += 1
     if not quiet or errors:
-        print(f"{len(files)} Markdown-Dateien geprüft, {errors} kaputte Links.")
+        note = f" ({skipped} Links in nicht ausgecheckte Submodule übersprungen)" if skipped else ""
+        print(f"{len(files)} Markdown-Dateien geprüft, {errors} kaputte Links.{note}")
     return 1 if errors else 0
 
 

@@ -45,7 +45,7 @@ gegenüber dem 12.8-Toolkit abwärtskompatibel. → Der Server ist voll Blackwel
 
 ## 2. Ergebnis
 
-Drei Läufe (2026-07-19, Rohdaten unter [`Simulation/robocasa_reference/runs/01/`](../../Simulation/robocasa_reference/runs/01/)):
+Drei Läufe (2026-07-19, Rohdaten unter `Simulation/robocasa_reference/runs/01/` (nur lokal, 1,2 GB, gitignored)):
 Smoke (Top-Task, 5 Ep.), Referenz (Top-Task, 100 Ep.) und ein `full`-Lauf über alle 24 Tasks (je 100 Ep.), der nach
 12 abgeschlossenen Tasks manuell gestoppt wurde (→ §2.3).
 
