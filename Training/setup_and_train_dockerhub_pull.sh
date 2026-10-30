@@ -228,6 +228,22 @@ if $DESTROY && $CONTAINER_EXISTS; then
     CONTAINER_RUNNING=false
 fi
 
+# Gestoppten Container fortsetzen. Seine Umgebung ist seit `docker run` fest, RESUME=1 laesst
+# sich nicht nachreichen; deshalb legt der Launcher die Anforderung als Datei nach /data, die
+# lib_resume_guard.sh einmalig wie RESUME=1 behandelt. Ohne sie brach der Neustart ab, sobald
+# Checkpoints existierten.
+resume_container() {
+    local req
+    req="$(mktemp)"
+    if invoke_cmd docker cp "$req" "$CONTAINER_NAME:/data/.resume_request"; then
+        log "Fortsetzen angefordert: Training setzt beim letzten Checkpoint fort."
+    else
+        warn "Konnte /data/.resume_request nicht anlegen — liegen Checkpoints vor, bricht der Start ab."
+    fi
+    rm -f "$req"
+    invoke_cmd docker start -ai "$CONTAINER_NAME"
+}
+
 if $CONTAINER_RUNNING; then
     warn "Container '$CONTAINER_NAME' laeuft bereits."
     log "Haenge an die laufende Konsole an (Ctrl+P, Ctrl+Q zum Loesen ohne Stop)…"
@@ -238,7 +254,7 @@ fi
 if $CONTAINER_EXISTS; then
     if $RESUME_CONTAINER; then
         log "Starte bestehenden Container '$CONTAINER_NAME' (--resume)…"
-        invoke_cmd docker start -ai "$CONTAINER_NAME"
+        resume_container
         exit 0
     else
         warn "Container '$CONTAINER_NAME' existiert bereits (gestoppt)."
@@ -253,7 +269,7 @@ if $CONTAINER_EXISTS; then
         ans=""
         read -rp "  Was tun? [r=resume / d=destroy / a=abbrechen] " ans || true
         case "${ans,,}" in
-            r) invoke_cmd docker start -ai "$CONTAINER_NAME"; exit 0 ;;
+            r) resume_container; exit 0 ;;
             d) invoke_cmd docker rm -f "$CONTAINER_NAME"; CONTAINER_EXISTS=false ;;
             *) fatal "Abgebrochen." ;;
         esac

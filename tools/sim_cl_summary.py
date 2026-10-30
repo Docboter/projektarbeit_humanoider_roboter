@@ -48,9 +48,16 @@ def is_artifact(e: dict) -> bool:
 
 
 def summarize(eps: list[dict], title: str) -> None:
+    # Abgebrochene Episoden zählen wie in der Eval in keiner Rate
+    # (run_g1_dex3_sim_eval.py: valid = nicht error).
+    eps = [e for e in eps if not e.get("error")]
     n = len(eps)
-    art = {e["episode"] for e in eps if is_artifact(e)}
-    ok = [e for e in eps if e["episode"] not in art]
+    if n == 0:
+        print(f"\n### {title}  (keine gültige Episode)")
+        return
+    # Schlüssel (Datei, Episode): beim Pooling beginnt die Nummer je Datei wieder bei 1.
+    art = {(e.get("_src"), e["episode"]) for e in eps if is_artifact(e)}
+    ok = [e for e in eps if (e.get("_src"), e["episode"]) not in art]
     print(f"\n### {title}  (n={n}, Artefakt-Verdacht: {len(art)})")
     for m in STAGES:
         raw = sum(e["milestones"][m] for e in eps)
@@ -70,8 +77,9 @@ def summarize(eps: list[dict], title: str) -> None:
         )
     print(f"  Verschiebung ≥ 4 cm in {sum(e['block_shift_max_m'] >= 0.04 for e in eps)} Ep.")
     for e in eps:
-        flag = "ARTEFAKT? " if e["episode"] in art else ""
-        if e["episode"] in art or e["milestones"]["lifted"] or e["max_clear_lift_cm"] >= 1.5:
+        is_art = (e.get("_src"), e["episode"]) in art
+        flag = "ARTEFAKT? " if is_art else ""
+        if is_art or e["milestones"]["lifted"] or e["max_clear_lift_cm"] >= 1.5:
             print(
                 f"  {flag}Ep. {e['episode']:2d} Layout {e['layout_episode']} "
                 f"Anhebung {e['max_cube_lift_cm']:.2f} cm, Unterseite mit Hand "
@@ -88,9 +96,10 @@ def main() -> int:
     for f in sys.argv[1:]:
         d = json.load(open(f))
         ck = d["checkpoint"]
-        eps = d["episodes"]
+        eps = [dict(e, _src=f) for e in d["episodes"]]
         title = (
-            f"{f.split('/')[-1]}  N{d['groot_version']} {ck['run_id']} @{ck['global_step']}, "
+            f"{f.split('/')[-1]}  N{d.get('groot_version')} {ck.get('run_id', '?')} "
+            f"@{ck.get('global_step', '?')}, "
             f"{d['num_valid']}/{d['num_episodes_requested']} gültig, "
             f"{d['num_aborted']} abgebrochen"
         )

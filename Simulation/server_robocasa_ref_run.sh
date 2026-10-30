@@ -124,7 +124,7 @@ ensure_container() {
   log "  Scaffold-Mount -> $SCAFFOLD_DIR"
   local create_env=( -e "HF_HOME=$HF_HOME_IN" -e "MUJOCO_GL=egl" \
                      -e "PYOPENGL_PLATFORM=egl" -e "PYTHONUNBUFFERED=1" )
-  [[ -n "${HF_TOKEN:-}" ]] && create_env+=( -e "HF_TOKEN=$HF_TOKEN" )
+  [[ -n "${HF_TOKEN:-}" ]] && export HF_TOKEN && create_env+=( -e HF_TOKEN )
   docker run -d --name "$CONTAINER" --gpus "$GPUS" --ipc=host --shm-size="$SHM_SIZE" \
     "${create_env[@]}" \
     -v "$HOST_DATA_DIR:/data" \
@@ -145,7 +145,7 @@ build_eval_env() {
     -e "RC_PORT=$RC_PORT"
   )
   [[ -n "$RC_TASKS" ]]        && EVAL_ENV+=( -e "RC_TASKS=$RC_TASKS" )
-  [[ -n "${HF_TOKEN:-}" ]]    && EVAL_ENV+=( -e "HF_TOKEN=$HF_TOKEN" )
+  [[ -n "${HF_TOKEN:-}" ]]    && export HF_TOKEN && EVAL_ENV+=( -e HF_TOKEN )
   # PFLICHT: Trifft die letzte `[[ … ]] && …`-Zeile nicht zu, liefert die Funktion 1 und
   # `set -e` beendet das Skript STILL. Bisher unentdeckt, weil HF_TOKEN bei HF-Modell-IDs
   # immer gesetzt ist — mit lokalem RC_MODEL_PATH (/data/models/…) wäre es aufgeschlagen.
@@ -184,7 +184,7 @@ do_setup() {
   log "Einmaliges RoboCasa-Setup (robosuite-Submodul + robocasa_uv-Venv + Assets)."
   log "  Braucht Internet + HF_TOKEN, dauert ~10–20 min."
   local senv=( -e RC_SETUP_ONLY=1 )
-  [[ -n "${HF_TOKEN:-}" ]] && senv+=( -e "HF_TOKEN=$HF_TOKEN" )
+  [[ -n "${HF_TOKEN:-}" ]] && export HF_TOKEN && senv+=( -e HF_TOKEN )
   docker exec "${senv[@]}" "$CONTAINER" bash -lc "bash $RUNNER_IN"
   ok "Setup abgeschlossen. Weiter mit:  $0 smoke   bzw.   $0 eval"
 }

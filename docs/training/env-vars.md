@@ -157,9 +157,9 @@ Episoden. Voraussetzung ist ein Trainingslauf mit `TRAIN_TEST_SPLIT=1`.
 |---|---|---|
 | `RUN_DIR` | `/data/g1_dex3_finetune/blockstacking` | Lauf-Verzeichnis; wird **rekursiv** nach `checkpoint-<step>` durchsucht. Für den Vision-Lauf: `…/blockstacking_vision`. |
 | `EVAL_SPLIT` | `test` | Datensatz-Split. `test` = die zurückgehaltenen Episoden — das ist der Sinn der Übung. |
-| `EVAL_NUM_TRAJ` | `6` | Anzahl gleichmäßig über den Split verteilter Episoden. |
+| `EVAL_NUM_TRAJ` | `20` | Anzahl gleichmäßig über den Split verteilter Episoden. Bis 2026-10-30 `6`; 6 × 300 wählte in Lauf 3 einen Schein-Besten. |
 | `EVAL_TRAJ_POSITIONS` | *(leer)* | Statt `EVAL_NUM_TRAJ`: explizite Positionen **im Split** (kommagetrennt). |
-| `EVAL_STEPS` | `300` | Max. Steps je Episode (auf die Episodenlänge gedeckelt). |
+| `EVAL_STEPS` | `750` | Max. Steps je Episode (auf die Episodenlänge gedeckelt); 750 = volle Länge. Bis 2026-10-30 `300`. |
 | `EVAL_CHECKPOINTS` | *(leer)* | Nur bestimmte Step-Nummern auswerten; leer = alle gefundenen. |
 | `ALLOW_TRAIN_SPLIT` | `0` | `1` = trotzdem messen, wenn kein `test`-Split existiert, ein anderer Split gewählt ist oder `info.json` nicht zum `split.json` des Laufs passt. Sonst bricht der Sweep seit 2026-10-13 mit Exit ≠ 0 ab, statt Trainings-MSE als Validierung auszugeben. |
 | `EVAL_OUT` | `<run-dir>/checkpoint_sweep.json` | JSON mit Tabelle, bestem Step und den ausgewerteten Episoden. |

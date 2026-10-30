@@ -56,7 +56,7 @@ Erwartung:
   Der Launcher-Default `MAX_STEPS` ist 30000.
 
 ```bash
-docker start -ai groot-train                    # nach Stopp fortsetzen
+./Training/setup_and_train_dockerhub_pull.sh --resume   # nach Stopp fortsetzen
 docker cp groot-train:/data/g1_dex3_finetune ./checkpoints
 ```
 

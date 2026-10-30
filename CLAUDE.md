@@ -76,7 +76,7 @@ export HF_TOKEN=hf_... WANDB_API_KEY=...       # secrets: pass by NAME (-e HF_TO
 docker run --name groot-train --gpus all --ipc=host --shm-size=16g \
   -e HF_TOKEN -e WANDB_API_KEY -e MAX_STEPS=30000 -e GLOBAL_BATCH_SIZE=8 \
   -it lucam03/projekt-humanoider-roboter:latest            # N1.7: :latest-n17 + -e GROOT_VERSION=1.7
-docker start -ai groot-train                               # resume after stop
+./Training/setup_and_train_dockerhub_pull.sh --resume     # resume after stop (plain docker start aborts once checkpoints exist)
 docker exec -it groot-train bash                           # shell into running container
 docker cp groot-train:/data/g1_dex3_finetune ./checkpoints # extract artifacts
 

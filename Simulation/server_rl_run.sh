@@ -484,8 +484,8 @@ ensure_container() {
   # -e wirkt allerdings NUR beim ANLEGEN des Containers — nach einem Wechsel einmal `$0 clean`.
   create_env+=( -e "GROOT_VERSION=$GROOT_VERSION_CONTAINER" )
   [[ -n "${HF_HOME:-}" ]]          && create_env+=( -e "HF_HOME=$HF_HOME" )
-  [[ -n "${HF_TOKEN:-}" ]]         && create_env+=( -e "HF_TOKEN=$HF_TOKEN" )
-  [[ -n "${WANDB_API_KEY:-}" ]]    && create_env+=( -e "WANDB_API_KEY=$WANDB_API_KEY" )
+  [[ -n "${HF_TOKEN:-}" ]]         && export HF_TOKEN && create_env+=( -e HF_TOKEN )
+  [[ -n "${WANDB_API_KEY:-}" ]]    && export WANDB_API_KEY && create_env+=( -e WANDB_API_KEY )
   # g1_dex3_sim aus dem Repo ÜBER die Image-Kopie mounten (Muster wie kisski_submit.sh /
   # server_robocasa_ref_run.sh): LIVE-CHECK-Iterationen an rl_finetune.py & Co. brauchen dann
   # nur `git pull` auf dem Server — kein Image-Rebuild, kein `clean`.
@@ -569,8 +569,8 @@ build_rl_env() {
     -e "CHECKPOINT_PATH=$CHECKPOINT_PATH"
     -e "ASSET_PATH=$ASSET_PATH"
   )
-  [[ -n "${HF_TOKEN:-}" ]]         && RL_ENV+=( -e "HF_TOKEN=$HF_TOKEN" )
-  [[ -n "${WANDB_API_KEY:-}" ]]    && RL_ENV+=( -e "WANDB_API_KEY=$WANDB_API_KEY" )
+  [[ -n "${HF_TOKEN:-}" ]]         && export HF_TOKEN && RL_ENV+=( -e HF_TOKEN )
+  [[ -n "${WANDB_API_KEY:-}" ]]    && export WANDB_API_KEY && RL_ENV+=( -e WANDB_API_KEY )
   # Ohne das hier wäre WANDB_MODE=online wirkungslos: entrypoint_rl.sh setzt sonst
   # stur 'offline', und die Rollout-Videos (RL_WANDB_VIDEO_EVERY) lägen unerreichbar
   # im Container statt im Dashboard.
@@ -663,7 +663,8 @@ ensure_checkpoint() {
   # --with-optimizer). Wer mehrere Checkpoints nebeneinander vergleicht, laeuft sonst in
   # genau die volle Platte, die den Abbruch oben verursacht.
   log "  (~23 GB vollstaendig; davon 13 GB optimizer.pt, die Sim und RL nie lesen.)"
-  docker exec -e "HF_TOKEN=$HF_TOKEN" -e "HUGGING_FACE_HUB_TOKEN=$HF_TOKEN" "$CONTAINER" \
+  HF_TOKEN="$HF_TOKEN" HUGGING_FACE_HUB_TOKEN="$HF_TOKEN" \
+    docker exec -e HF_TOKEN -e HUGGING_FACE_HUB_TOKEN "$CONTAINER" \
     bash -lc "huggingface-cli download '$HF_CHECKPOINT_REPO' --local-dir '$CHECKPOINT_PATH'"
   if ! checkpoint_complete "$CHECKPOINT_PATH"; then
     err "Checkpoint nach dem Download immer noch unvollstaendig: $CHECKPOINT_PATH"
@@ -707,7 +708,8 @@ ensure_dataset() {
     warn "  Backup-Kopie — rechne mit ~40 GB Spitzenbedarf unter $HOST_DATA_DIR und"
     warn "  einer knappen Stunde. Einmalig; ein 'clean' loescht ihn nicht."
     log "Download $repo -> $ds"
-    docker exec -e "HF_TOKEN=$HF_TOKEN" -e "HUGGING_FACE_HUB_TOKEN=$HF_TOKEN" "$CONTAINER" \
+    HF_TOKEN="$HF_TOKEN" HUGGING_FACE_HUB_TOKEN="$HF_TOKEN" \
+    docker exec -e HF_TOKEN -e HUGGING_FACE_HUB_TOKEN "$CONTAINER" \
       bash -lc "huggingface-cli download '$repo' --repo-type dataset --local-dir '$ds'" \
       || { err "Download fehlgeschlagen."; return 1; }
     ok "Download abgeschlossen."
@@ -1449,7 +1451,7 @@ do_gap() {
   # HF_TOKEN nur durchreichen, wenn gesetzt — ein leerer Wert gilt huggingface_hub als
   # gesetzter, ungueltiger Token. Fuer das oeffentliche SigLIP wird er ohnehin nicht gebraucht.
   local gap_env=( -e "HF_HOME=${HF_HOME:-/data/hf_cache}" )
-  [[ -n "${HF_TOKEN:-}" ]] && gap_env+=( -e "HF_TOKEN=$HF_TOKEN" )
+  [[ -n "${HF_TOKEN:-}" ]] && export HF_TOKEN && gap_env+=( -e HF_TOKEN )
 
   # Warnung, keine Abbruchbedingung: mit DR=1 würfelt _randomize_visuals() die Dome-Intensität
   # je Episode aus [1000, 3800]. Die Frames sind dann bei EINER zufälligen Beleuchtung

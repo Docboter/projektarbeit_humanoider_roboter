@@ -27,7 +27,7 @@ sehen sein muss. Alle Wege lassen sich auch über \texttt{./run.sh} starten.
 # lokal: zieht das Image, startet Container groot-train (Standard 30 000 Schritte)
 export HF_TOKEN=hf_... WANDB_API_KEY=...
 ./Training/setup_and_train_dockerhub_pull.sh        # N1.7: GROOT_VERSION=1.7 davor
-docker start -ai groot-train                         # nach Stopp fortsetzen
+./Training/setup_and_train_dockerhub_pull.sh --resume  # nach Stopp fortsetzen
 
 # KISSKI (Login-Knoten), einmalig das Image holen:
 module load apptainer
@@ -41,9 +41,9 @@ Varianten werden über Umgebungsvariablen gewählt: \texttt{TUNE\_VISUAL=1} trai
 Bild-Encoder mit, \texttt{USE\_COTRAIN=1} mischt gerenderte Daten bei,
 \texttt{TRAIN\_TEST\_SPLIT=1} hält die Episoden 240--300 zurück. \texttt{Training/kisski\_chain.sh}
 reiht mehrere Läufe mit anschließender Checkpoint-Auswertung hintereinander ein. Deren
-Standard sind 6 Testepisoden à 300 Schritte; für die Checkpoint-Wahl ist
-\texttt{EVAL\_NUM\_TRAJ=20 EVAL\_STEPS=750} nötig, weil das kurze Protokoll Scheinoptima
-liefert (\cref{sec:erg-training}). Der fertige Checkpoint wird ohne Optimizer hochgeladen:
+Standard sind 20 Testepisoden in voller Länge (\texttt{EVAL\_NUM\_TRAJ=20
+EVAL\_STEPS=750}); das frühere kurze Protokoll mit 6 Episoden à 300 Schritten lieferte
+Scheinoptima (\cref{sec:erg-training}). Der fertige Checkpoint wird ohne Optimizer hochgeladen:
 
 \begin{minted}{bash}
 python Simulation/scripts/upload_checkpoint.py \

@@ -31,7 +31,7 @@ Beispiel (im Container):
     python /scripts/checkpoint_sweep.py \\
         --run-dir /data/g1_dex3_finetune/blockstacking_vision \\
         --dataset-path /data/unitreerobotics/G1_Dex3_BlockStacking_Dataset \\
-        --num-trajectories 6
+        --num-trajectories 20
 
     python /scripts/checkpoint_sweep.py --run-dir ... --dry-run   # nur Plan zeigen
 """
@@ -118,7 +118,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument(
         "--num-trajectories",
         type=int,
-        default=int(os.environ.get("EVAL_NUM_TRAJ", "6")),
+        default=int(os.environ.get("EVAL_NUM_TRAJ", "20")),
         help="Anzahl gleichmäßig über den Split verteilter Episoden.",
     )
     p.add_argument(
@@ -130,7 +130,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument(
         "--steps",
         type=int,
-        default=int(os.environ.get("EVAL_STEPS", "300")),
+        default=int(os.environ.get("EVAL_STEPS", "750")),
         help="Maximale Steps je Episode (wird auf die Episodenlänge gedeckelt).",
     )
     p.add_argument(

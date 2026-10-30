@@ -111,11 +111,13 @@ DATASET_PATH="${DATASET_PATH:-/data/unitreerobotics/G1_Dex3_BlockStacking_Datase
 # Split: "test" = die vom Training zurückgehaltenen Episoden. Das ist der Punkt.
 EVAL_SPLIT="${EVAL_SPLIT:-test}"
 
-# Anzahl gleichmäßig über den Split verteilter Episoden
-EVAL_NUM_TRAJ="${EVAL_NUM_TRAJ:-6}"
+# Anzahl gleichmäßig über den Split verteilter Episoden. Default 20 × 750 (volle Länge) seit
+# 2026-10-30: 6 × 300 sah nur die Anfahrphase und wählte in Lauf 3 einen Schein-Besten
+# (30k statt 44k); 20 × 750 dauerte für Lauf 3 45 min (Job 16633477).
+EVAL_NUM_TRAJ="${EVAL_NUM_TRAJ:-20}"
 
 # Steps pro Episode (capped auf die Episodenlänge)
-EVAL_STEPS="${EVAL_STEPS:-300}"
+EVAL_STEPS="${EVAL_STEPS:-750}"
 
 # Optional: nur bestimmte Step-Nummern auswerten (leer = alle gefundenen)
 EVAL_CHECKPOINTS="${EVAL_CHECKPOINTS:-}"

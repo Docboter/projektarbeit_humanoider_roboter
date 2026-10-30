@@ -31,7 +31,7 @@ from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.math import quat_apply, sample_uniform
 import numpy as np
-from scene_geometry import CUBE_EDGE, CUBE_Z_CENTER, TABLE_POS, TABLE_SIZE
+from scene_geometry import CUBE_EDGE, CUBE_Z_CENTER, STACK_HEIGHT_MIN, TABLE_POS, TABLE_SIZE
 from task_text import DEFAULT_TASK_DESCRIPTION
 import torch
 
@@ -442,7 +442,7 @@ class G1Dex3BlockstackEnvCfg(DirectRLEnvCfg):
 
     # Erfolgsparameter
     stack_xy_tol: float = 0.03  # max. horizontaler Versatz zwischen Würfel-Mittelpunkten
-    stack_height_min: float = 0.08  # Mindesthöhe des Turms (2 × 0.05 m - Toleranz)
+    stack_height_min: float = STACK_HEIGHT_MIN  # 2 × Würfelkante − 2 cm (scene_geometry.py)
     stack_vel_max: float = 0.05  # max. Geschwindigkeit für "stabil gestapelt"
     # Dataset-Replays müssen auch nach einem erfolgreichen Zwischenzustand bis zum Ende
     # der Originalepisode weiterlaufen. Der Default bleibt für Eval/RL unverändert.

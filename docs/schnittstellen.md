@@ -272,7 +272,7 @@ gelesen von `run_g1_dex3_sim_eval.py:207-241`):
 | `touched` | Würfel um > 1 cm verschoben (nach 30 Einschwingschritten) | `:277` |
 | `lifted` | Würfelschwerpunkt > 2 cm angehoben | `:280` |
 | `lifted_clear` | Würfel-**Unterseite** > 2 cm über dem Tisch **und** im selben Schritt eine Fingerkuppe ≤ 4 cm von der Würfelmitte | `eval_metrics.py:32-97` |
-| `stacked` | drei Würfel: Mitten horizontal < 3 cm auseinander, Turm > 8 cm hoch, alle < 0,05 m/s | `g1_dex3_blockstack_env.py:444-446,1385-1413` |
+| `stacked` | drei Würfel: Mitten horizontal < 3 cm auseinander, Höhendifferenz der Mitten > 2 · Kante − 2 cm (8 cm bei 5 cm; bis 2026-10-30 fest 8 cm, auch für 4-cm-Würfel), alle < 0,05 m/s | `scene_geometry.py` (`STACK_HEIGHT_MIN`), `g1_dex3_blockstack_env.py:444-446,1385-1413` |
 
 Die Stufen sind keine Kette; jede wird für sich ausgewertet (`run_g1_dex3_sim_eval.py:909-914`).
 Grenzen:

@@ -26,9 +26,9 @@
 
 **W&B nachgeholt (2026-10-30):** Lauf 4 (`2v02ye81`) und die Co-Training-Läufe 73–76 waren nur offline auf KISSKI; jetzt synchronisiert. Der Sync mit dem `wandb` im Image schlägt still fehl, Weg mit aktuellem wandb in [wandb-offline-sync.md](training/wandb-offline-sync.md#sync-mit-aktuellem-wandb-ab-2026-10-30).
 
-**Neu gefunden:** `Training/kisski_open_loop_eval.sh` nutzt standardmäßig 6 Episoden × 300 Schritte,
-das Protokoll, das in Lauf 3 ein Scheinoptimum lieferte. Nicht geändert; in LaTeX Kap. 4/8 und
-hier vermerkt. Vorschlag: Default auf 20 × 750.
+**Neu gefunden:** `Training/kisski_open_loop_eval.sh` nutzte standardmäßig 6 Episoden × 300 Schritte,
+das Protokoll, das in Lauf 3 ein Scheinoptimum lieferte. Seit 2026-10-30 ist der Default 20 × 750
+(auch in `checkpoint_sweep.py`).
 
 ## Leitlinie
 

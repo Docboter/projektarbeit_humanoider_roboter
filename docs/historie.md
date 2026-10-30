@@ -890,7 +890,28 @@ Mittelfinger (seit 2026-08-24). Laufnummer: 56 in der
 - **HF-Repos privat** (`abgabe-plan.md`, `next-steps.md`, `lauf4-n17-vergleich.md`): alle
   `luca-mue/*`-Modelle und -Datensätze sind seit 2026-10-30 öffentlich.
 - **Quickstart §2:** fehlender `setup`-Schritt (Container mit `HF_TOKEN`); Herkunft von
-  `layout_heldout_dy3.json` und der Prüfsets `vis_gate_v3_cube{5,4}` beschrieben, kein
-  Erzeugungsskript für die dy3-Layouts (bekannte Lücke).
+  `layout_heldout_dy3.json` und der Prüfsets `vis_gate_v3_cube{5,4}` beschrieben; die
+  dy3-Layouts erzeugt jetzt `tools/layout_shift.py --dy 0.03`.
 - **`training/anleitung.md`:** Upload per `huggingface-cli upload … .` (mit `optimizer.pt`) ersetzt
   durch `upload_checkpoint.py`.
+
+## 2026-10-30 — Code-Fehler aus dem Abgabe-Review behoben
+
+- **`stacked` mit 4-cm-Würfeln:** Die Turmhöhe war fest 0,08 m; ein perfekter Turm aus
+  4-cm-Würfeln (Mittenabstand genau 0,08) zählte nie (Läufe 88, 93, 97 betroffen, Aussage „nie
+  gestapelt“ bleibt, kein Würfel wurde aufgesetzt). Jetzt `STACK_HEIGHT_MIN = 2·Kante − 2 cm` in
+  `scene_geometry.py` (5 cm unverändert 0,08), Test `test_scene_geometry.py`. Sim-Image neu bauen.
+- **`tools/sim_cl_summary.py`:** abgebrochene Episoden zählten im Nenner mit; beim Pooling galt ein
+  Artefakt für dieselbe Episodennummer in allen Dateien. Lauf 97 (2/60) war nicht betroffen
+  (keine Artefakte, keine Abbrüche im JSON).
+- **Checkpoint-Sweep:** Default von 6 × 300 auf 20 × 750 (`kisski_open_loop_eval.sh`,
+  `checkpoint_sweep.py`); 6 × 300 lieferte in Lauf 3 einen Schein-Besten.
+- **Fortsetzen nach Stopp:** `docker start -ai groot-train` brach ab, sobald Checkpoints
+  existierten (Resume-Schutz ohne `RESUME=1`, Umgebung ab `docker run` fest). Der Launcher legt
+  mit `--resume` jetzt `/data/.resume_request` an, die `lib_resume_guard.sh` einmalig wie
+  `RESUME=1` behandelt.
+- **Secrets in der Prozessliste:** `curl -H "Authorization: Bearer …"` (`lib_groot_version.sh`,
+  auch auf dem KISSKI-Login-Knoten), `docker -e HF_TOKEN=…`/`WANDB_API_KEY=…`
+  (`server_rl_run.sh`, `server_robocasa_ref_run.sh`), `apptainer --env HF_TOKEN=…`
+  (`kisski_robocasa_ref_submit.sh`) und `hf auth login --token …` (Augmentation) übergeben den
+  Wert jetzt über Umgebung bzw. stdin/Datei.

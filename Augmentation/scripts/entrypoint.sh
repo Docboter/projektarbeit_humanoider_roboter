@@ -163,7 +163,7 @@ echo ""
 log "HuggingFace-Token pruefen"
 if [[ -z "${HF_TOKEN:-}" ]]; then
     err "HF_TOKEN ist nicht gesetzt."
-    err "  -e HF_TOKEN=hf_... beim docker run setzen."
+    err "  export HF_TOKEN=hf_... und beim docker run -e HF_TOKEN (Wert nicht in die Kommandozeile)."
     exit 1
 fi
 export HUGGING_FACE_HUB_TOKEN="$HF_TOKEN"
@@ -179,7 +179,11 @@ ok "HF_TOKEN gesetzt (${#HF_TOKEN} Zeichen)"
 # er in $HF_HOME/token landet und jede spaetere `uvx hf ...`-Instanz (jedes Mal eine frische
 # Umgebung) ihn zuverlaessig findet.
 log "HF-Token bei 'hf' CLI einloggen (fuer uvx-basierte Checkpoint-Downloads)"
-uvx 'hf>=1.3.5' auth login --token "$HF_TOKEN"
+# Token direkt in die Datei schreiben, die `hf auth login` anlegt: `--token "$HF_TOKEN"`
+# stünde sonst in der Prozessliste (auch auf dem Host sichtbar).
+_hf_token_file="${HF_HOME:-$HOME/.cache/huggingface}/token"
+mkdir -p "$(dirname "$_hf_token_file")"
+( umask 077; printf '%s' "$HF_TOKEN" > "$_hf_token_file" )
 ok "Bei HuggingFace eingeloggt"
 
 # Lieber HIER scheitern als nach Stunden Inferenz mit einem kryptischen 403 mitten im Lauf:

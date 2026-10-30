@@ -31,6 +31,11 @@ TABLE_POS = (0.5, 0.0, TABLE_HEIGHT / 2)
 CUBE_EDGE = float(os.environ.get("SIM_CUBE_EDGE", "0.05"))
 CUBE_Z_CENTER = round(TABLE_HEIGHT + CUBE_EDGE / 2, 4)   # 0.895
 
+# Mindest-Höhendifferenz der Würfelmitten für `stacked`: zwei Kanten minus 2 cm Toleranz
+# (5 cm → 0.08 wie bisher). Bis 2026-10-30 fest 0.08, womit ein perfekter Turm aus 4-cm-Würfeln
+# (genau 0.08) nie zählte (Läufe 88, 93, 97).
+STACK_HEIGHT_MIN = round(2 * CUBE_EDGE - 0.02, 4)
+
 # Roboterbasis (Becken), env-lokal. Beide Werte gemessen (Fingerkuppen-Projektion ins
 # Realbild, Läufe 50/51); per Umgebungsvariable auf die alten Werte (0 / 0.85) umstellbar,
 # um ältere Läufe nachzustellen.

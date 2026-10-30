@@ -10,7 +10,7 @@ Diese Anleitung beschreibt Schritt für Schritt, wie du das Fine-tuning von **GR
 
 **Es gibt keinen persistenten Storage auf dem Host.** Daten, Checkpoints und Logs leben **ausschließlich im Container-Filesystem** unter `/data`. Das hat Konsequenzen:
 
-- `docker stop` (oder `Ctrl+C`) → Container ist gestoppt, **Daten bleiben**. Mit `docker start -ai groot-train` wieder fortsetzen.
+- `docker stop` (oder `Ctrl+C`) → Container ist gestoppt, **Daten bleiben**. Mit `./Training/setup_and_train_dockerhub_pull.sh --resume` wieder fortsetzen.
 - `docker rm` (oder `--destroy` im Skript) → **alles weg**.
 - **Niemals `docker run --rm`** mit diesem Image — das löscht den Container nach Stop und damit deine Trainingsergebnisse.
 - Auf vast.ai entspricht ein Container genau einer Instanz: Stop/Start lässt den Container weiterleben, Destroy löscht alles.
@@ -233,9 +233,15 @@ export GLOBAL_BATCH_SIZE=16
 # Mit Ctrl+C unterbrechen (oder `docker stop groot-train`)
 # Später:
 ./Training/setup_and_train_dockerhub_pull.sh --resume
-# Alternativ direkt:
+# Alternativ von Hand (dasselbe, was --resume tut):
+touch /tmp/resume_request && docker cp /tmp/resume_request groot-train:/data/.resume_request
 docker start -ai groot-train
 ```
+
+Ein bloßes `docker start -ai groot-train` bricht ab, sobald Checkpoints existieren: Der
+Resume-Schutz (`lib_resume_guard.sh`) verlangt `RESUME=1`, und die Umgebung eines Containers
+ist ab `docker run` fest. `--resume` legt deshalb `/data/.resume_request` an, die der Schutz
+einmalig wie `RESUME=1` behandelt (seit 2026-10-30).
 
 Der Container behält Daten und Checkpoints. Beim Resume sieht der Entrypoint, dass alle Daten vorhanden sind, überspringt Download + Konvertierung und springt direkt ins Training.
 
@@ -380,8 +386,9 @@ docker run --name groot-train --gpus all --ipc=host --shm-size=16g \
 
 > **Niemals `--rm` mitgeben** — warum, siehe [Speicher-Modell](#speicher-modell--wichtig-vorab).
 
-Fortsetzen:
+Fortsetzen (Anforderungsdatei für den Resume-Schutz, siehe oben):
 ```bash
+touch /tmp/resume_request && docker cp /tmp/resume_request groot-train:/data/.resume_request
 docker start -ai groot-train
 ```
 
@@ -491,7 +498,7 @@ Im Container unter `/data/g1_dex3_finetune/blockstacking/`. Zum Holen siehe
 
 ### Wie setze ich das Training nach einem Abbruch fort?
 
-Mit dem Launcher: `./Training/setup_and_train_dockerhub_pull.sh --resume`. Manuell: `docker start -ai groot-train`. Der Entrypoint sieht, dass Daten vorhanden sind, und überspringt Download + Konvertierung.
+Mit dem Launcher: `./Training/setup_and_train_dockerhub_pull.sh --resume`. Manuell: `/data/.resume_request` per `docker cp` anlegen, dann `docker start -ai groot-train` (Abschnitt oben). Der Entrypoint sieht, dass Daten vorhanden sind, und überspringt Download + Konvertierung.
 
 > **Wichtig — was beim Resume passiert:** `docker start` bzw. `--resume` startet den
 > *Container* neu (Daten und Checkpoints bleiben erhalten), und **das Training setzt dabei

@@ -49,16 +49,10 @@ Die laufend gepflegte Liste steht in \doc{next-steps.md}, Abschnitt~2.
 \label{sec:defekte}
 
 \begin{itemize}
-  \item Die Checkpoint-Auswertung nach dem Training nutzt standardmäßig 6 Episoden à 300
-    Schritte (\texttt{Training/kisski\_open\_loop\_eval.sh}); für die Wahl
-    \texttt{EVAL\_NUM\_TRAJ=20 EVAL\_STEPS=750} setzen.
   \item Die Prüfbilder des visuellen Gates und die Layout-Datei
     \texttt{layout\_heldout\_dy3.json} liegen nur auf dem IKR-Server. Auf einem neuen Server
     werden sie mit \texttt{server\_rl\_run.sh layout}, \doc{tools/layout_shift.py} und
     \texttt{server\_rl\_run.sh render} neu erzeugt (\doc{docs/quickstart.md}, §2).
-  \item \texttt{stacked} verlangt eine feste Turmhöhe von 8~cm
-    (\doc{stack_height_min} in \doc{Simulation/g1_dex3_sim/g1_dex3_blockstack_env.py}); für 4-cm-Würfel
-    muss sie aus der Würfelgröße abgeleitet werden (\cref{sec:grenzen-metriken}).
   \item Das Sim-Image auf Docker Hub muss nach Änderungen an \texttt{Simulation/} neu gebaut
     werden (\texttt{Simulation/update\_sim\_image.sh --standalone}).
 \end{itemize}
