@@ -299,7 +299,7 @@ Weiterhin gilt: **kein Image gebaut, kein N1.7-Lauf.** Alles Folgende ist statis
 | Download | GR00T-N1.7-3B (~7 GB) 2:35 min · Cosmos-Reason2-2B (4,9 GB) 2:00 min · Datensatz 4:29 min |
 | v3→v2.1-Konvertierung | ~1 min, fehlerfrei; `modality_4cam.json` → `modality.json` |
 | Modell | 3 144 016 000 Parameter, davon **1 620 515 968 trainierbar (51,5 %)** ohne `TUNE_VISUAL`; DiT 1,09 Mrd., SelfAttention 0,20 Mrd. |
-| Datensatz | 301 Episoden, 276 681 Frames, 271 Shards; `stats.json`/`relative_stats.json` beim ersten Start nachgerechnet (~27 s), danach aus dem Cache |
+| Datensatz | 301 Episoden, 276 681 Trainingsfenster (= 281 196 Frames − 15 je Episode für den 16er-Aktionsblock), 271 Shards; `stats.json`/`relative_stats.json` beim ersten Start nachgerechnet (~27 s), danach aus dem Cache |
 | Anlauf | ~100 s Shard-Caching bis zum ersten Step (1 GPU, 8 Worker); ~155–200 s bei 2 GPUs (2 × 8 Worker) |
 | **Durchsatz (eingeschwungen, bs 8)** | Standard 1 GPU: **3,1–3,4 Steps/s** · Standard 2 GPUs: **2,75 Steps/s** · `TUNE_VISUAL` 1 GPU: **1,96 Steps/s** |
 | grad_norm | 0,4–1,05, einmal 3,43 im ersten Log-Schritt von Test 1 (Warmup); keine NaN/Inf |

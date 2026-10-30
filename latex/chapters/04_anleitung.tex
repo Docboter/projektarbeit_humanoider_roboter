@@ -3,18 +3,19 @@
 \chapter{Anleitung zum Weiterarbeiten}
 \label{chap:anleitung}
 
-Die Befehle entsprechen \doc{docs/quickstart.md}; dort steht zu jedem Schritt, was danach zu
-sehen sein muss. Alle Wege lassen sich auch über \texttt{./run.sh} starten.
+Erwartete Ausgaben je Schritt: \doc{docs/quickstart.md}. Alle Wege lassen sich auch über
+\texttt{./run.sh} starten.
 
 \section{Zugänge}
 \label{sec:zugaenge}
 
 \begin{itemize}
-  \item Hugging-Face-Token (Pflicht): Lizenz von \texttt{nvidia/GR00T-N1.6-3B} akzeptieren; für
+  \item Hugging-Face-Token (für Downloads nötig; auf KISSKI liegen die Daten schon vor): Lizenz von \texttt{nvidia/GR00T-N1.6-3B} akzeptieren; für
     N1.7 zusätzlich Zugang zu \texttt{nvidia/Cosmos-Reason2-2B}.
-  \item \ac{wandb}-Schlüssel: lokal optional, auf KISSKI Pflicht (sonst
-    \texttt{USE\_WANDB=0}).
-  \item KISSKI-Konto für das Training, ein Rechner mit RT-Core-GPU für die Simulation
+  \item \ac{wandb}-Schlüssel: optional; ohne Schlüssel läuft das Training ohne Protokoll
+    (\texttt{USE\_WANDB=0}). Auf KISSKI protokolliert \ac{wandb} offline; die Läufe werden
+    danach vom Login-Knoten synchronisiert.
+  \item KISSKI-Konto für das Training, ein Rechner mit \acs{rt}-Core-\acs{gpu} für die Simulation
     (\cref{tab:rechenumgebungen}).
   \item Namensräume: Docker Hub \texttt{lucam03} (Images), GitHub \texttt{lucam06}
     (GR00T-Fork), Hugging Face \texttt{luca-mue} (Checkpoints).
@@ -35,6 +36,10 @@ apptainer pull $HOME/images/projekt-humanoider-roboter.sif \
     docker://lucam03/projekt-humanoider-roboter:latest
 export HF_TOKEN=hf_... WANDB_API_KEY=... GLOBAL_BATCH_SIZE=32
 sbatch --export=ALL Training/kisski_submit.sh        # 4x A100, 44 000 Schritte
+# N1.7: eigene SIF aus :latest-n17 (wird bei GROOT_VERSION=1.7 automatisch gewählt)
+apptainer pull $HOME/images/projekt-humanoider-roboter-n17.sif \
+    docker://lucam03/projekt-humanoider-roboter:latest-n17
+GROOT_VERSION=1.7 sbatch --export=ALL Training/kisski_submit.sh
 \end{minted}
 
 Varianten werden über Umgebungsvariablen gewählt: \texttt{TUNE\_VISUAL=1} trainiert den
@@ -71,7 +76,7 @@ python3 tools/sim_cl_summary.py ~/groot-rl-data/sim_results/results_<...>.json
 \texttt{SIM\_CUBE\_EDGE=0.04} gilt nur für Modelle, die mit 4-cm-Würfeln co-trainiert wurden.
 Ein Treffer bei \texttt{lifted\_clear} zählt erst, wenn das Video unter
 \texttt{\textasciitilde/groot-rl-data/sim\_videos/<tag>/} einen Griff zeigt
-(\cref{sec:grenzen-metriken}). Die Prüfbilder des Gates liegen nur auf dem IKR-Server; auf
+(\cref{sec:grenzen-metriken}). Die Prüfbilder des Gates liegen nur auf dem \acs{ikr}-Server; auf
 einem neuen Server müssen sie mit \texttt{server\_rl\_run.sh render} neu erzeugt werden,
 das dy3-Layout mit \doc{tools/layout_shift.py --dy 0.03} (Befehle in \doc{docs/quickstart.md}).
 
@@ -96,6 +101,6 @@ das dy3-Layout mit \doc{tools/layout_shift.py --dy 0.03} (Befehle in \doc{docs/q
       \texttt{sim\_cl\_watchdog.sh} startet nach 15~min neu \\
     \bottomrule
   \end{tabularx}
-  \caption{Die fünf häufigsten Fehler. Weitere: \doc{docs/fehlerbehebung.md}.}
+  \caption{Fünf typische Fehler. Weitere: \doc{docs/fehlerbehebung.md}.}
   \label{tab:anl-fehler}
 \end{table}

@@ -180,6 +180,10 @@
 
 % ── acro-Konfiguration ────────────────────────────────────────────────
 \acsetup{make-links = true}
+% acro schaltet in Gleitumgebungen (table, figure) die Zählung standardmäßig ab
+% (patch/floats); ein \ac nur in einer Tabelle (z. B. \ac{slurm}) fehlte dann im
+% Abkürzungsverzeichnis. Deshalb hier aus: \ac zählt auch in Gleitumgebungen.
+\acsetup{patch/floats = false}
 
 \DeclareAcronym{vla}{
   short = VLA,
@@ -312,4 +316,32 @@
 \DeclareAcronym{sft}{
   short = SFT,
   long  = Supervised Fine-Tuning,
+}
+\DeclareAcronym{ki}{
+  short = KI,
+  long  = Künstliche Intelligenz,
+}
+\DeclareAcronym{ikr}{
+  short = IKR,
+  long  = Institut für angewandte Künstliche Intelligenz und Robotik der Hochschule Kempten,
+}
+\DeclareAcronym{gwdg}{
+  short = GWDG,
+  long  = Gesellschaft für wissenschaftliche Datenverarbeitung mbH Göttingen,
+}
+\DeclareAcronym{kisski}{
+  short = KISSKI,
+  long  = KI-Servicezentrum für sensible und kritische Infrastrukturen,
+}
+\DeclareAcronym{cuda}{
+  short = CUDA,
+  long  = Compute Unified Device Architecture,
+}
+\DeclareAcronym{siglip}{
+  short = SigLIP,
+  long  = Sigmoid Loss for Language-Image Pre-Training,
+}
+\DeclareAcronym{rt}{
+  short = RT,
+  long  = Raytracing,
 }

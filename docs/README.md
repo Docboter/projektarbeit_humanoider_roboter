@@ -8,7 +8,7 @@ Navigations-Hub für die gesamte Projekt-Dokumentation. Das [Projekt-README](../
 Repo-Root gibt den Schnellstart; hier liegen die ausführlichen Anleitungen, thematisch sortiert.
 Die Gliederung folgt dem Projektverlauf: **Anleitung → Ergebnis → Ausblick**.
 Veraltete Inhalte werden nicht in den Dokumenten mitgeschleppt, sondern nach
-[historie.md](historie.md) ausgelagert (Changelog-Rohmaterial). *(Struktur-Stand: 2026-10-11)*
+[historie.md](historie.md) ausgelagert (Changelog-Rohmaterial). *(Struktur-Stand: 2026-10-30)*
 
 > **Konvention — TL;DR zuerst:** Jede Doku-Seite beginnt unter ihrer Überschrift mit einem
 > `> **TL;DR:**`-Block (was ist das, wann lesen, was steht *nicht* hier), jedes Skript unter
@@ -20,7 +20,7 @@ Veraltete Inhalte werden nicht in den Dokumenten mitgeschleppt, sondern nach
 [schnittstellen.md](schnittstellen.md) (Datensatz, Checkpoint, Policy-Server, Sim-Eval, Werkzeuge).
 Alles Weitere auf dieser Seite ist Referenz.
 
-## Training (Fine-tuning von GR00T N1.6)
+## Training (Fine-tuning von GR00T N1.6 / N1.7)
 
 Operative Anleitungen zum Trainieren. Die Auswertung der Läufe steht unter [Ergebnisse](#ergebnisse--evaluation).
 
@@ -110,7 +110,7 @@ auf sie verweist.
 
 | Dokument | Inhalt |
 |---|---|
-| [abgabe-plan.md](abgabe-plan.md) | **Plan bis zur Abgabe (2026-10-29)** — Umbau der Markdown-Doku (Einstieg, neue Schnittstellen-Seite, Inventur) und der LaTeX-Ausarbeitung (kürzer, Schnittstellen und Anleitung im Mittelpunkt), Prüfschritte, offene Entscheidungen |
+| [abgabe-plan.md](abgabe-plan.md) | **Abgabeplan (Stand 2026-10-29)** — Umbau der Markdown-Doku (Einstieg, neue Schnittstellen-Seite, Inventur) und der LaTeX-Ausarbeitung (kürzer, Schnittstellen und Anleitung im Mittelpunkt), Prüfschritte, offene Entscheidungen |
 | [../next-steps.md](../next-steps.md) | **Nächste Schritte** — laufender Prioritäten-Tracker: Stand der Messkette, priorisierte nächste Schritte, offene Widersprüche zwischen den Ergebnisdokumenten |
 | [fehlerbehebung.md](fehlerbehebung.md) | **Fehlerbehebung** — gebündelte Fehlerlösungen: Domain-Gap, OOM/VRAM, KISSKI-Queue & W&B-Pflicht, Sim-GPU-Anforderung |
 | [historie.md](historie.md) | **Historie / Changelog-Rohmaterial** — chronologisch gesammelte, aus der Haupt-Doku ausgelagerte veraltete Inhalte (u. a. das frühere Audit `umgebungsanalyse.md`, die Fixes aus dem 1. Lauf, die Domain-Gap-Erstmessung) |
@@ -169,6 +169,8 @@ Fassung in `CLAUDE.md`; deren Zusatzangaben sind hier eingearbeitet).
 │   ├── sim_cl_summary.py      #   Closed-Loop-JSONs → Tabelle mit exaktem KI, Artefakt-Verdacht, Pooling
 │   ├── sim_visgate_seeds_summary.py # Gate-Kennzahl: Mittel der Seed-Mediane MSE Hände je Checkpoint
 │   ├── layout_shift.py        #   Layout-JSON: Würfel gespiegelt nach außen (dy3-Korrektur, Lauf 62)
+│   ├── check_links.py         #   relative Markdown-Links und Anker prüfen
+│   ├── ci_check_pins.sh       #   GR00T-Pins in den Dockerfiles == Submodul-Gitlinks (CI)
 │   └── menu/                  #   _domains.spec (Domänenliste für run.sh) + eine *.spec je Aktion
 ├── Training/                  # Alles rund ums Training (Build, Run, Skripte)
 │   ├── Dockerfile             # Image, ENTRYPOINT = /scripts/entrypoint.sh; Build-Kontext = Training/
@@ -216,6 +218,7 @@ Fassung in `CLAUDE.md`; deren Zusatzangaben sind hier eingearbeitet).
 │       ├── build_controlnet_specs.py   # Episode/Kamera/Variante → Cosmos-Spec-JSON
 │       ├── run_inference.sh   # dünner Wrapper um examples/inference.py von cosmos-transfer2.5
 │       └── assemble_dataset.py   # Cosmos-Rohvideos → COTRAIN_DATASET_PATH-kompatibler LeRobot-v2.1-Satz
+│   └── tests/                 # unittest der Skripte (test_augment_scripts.py, braucht ffmpeg; läuft in der CI)
 ├── Simulation/                # Closed-Loop-Sim-Eval
 │   ├── Dockerfile             # KISSKI: schlanker Isaac-Lab-Sim-Client (ohne GR00T)
 │   ├── Dockerfile.standalone  # Standalone: Isaac Sim + GR00T in einem Container — IKR-Server & vast.ai
@@ -223,7 +226,7 @@ Fassung in `CLAUDE.md`; deren Zusatzangaben sind hier eingearbeitet).
 │   │                          #   Simulator — prüft zusätzlich, dass NVIDIAs sed-Patch gegriffen hat
 │   ├── server_rl_run.sh       # ★ Eigener-Server-Workflow (Docker), 29 Aktionen in 7 Gruppen:
 │   │                          #   preflight/setup/view/check/cams/gap/eval/oracle/grasp/span/visgate/render/rl/
-│   │                          #   livecheck/webview/layout/layoutcheck/yawcheck/tipcheck/topface/
+│   │                          #   livecheck/webview/layout/layoutcheck/layoutreport/yawcheck/tipcheck/topface/
 │   │                          #   latency/optimize/replay-*/shell/clean (Liste: `--help`).
 │   │                          #   view = Szene ohne Gewichte/HF_TOKEN; RL_NETWORK_MODE=host =
 │   │                          #   Host-Netz (erster Verdacht bei schwarzem WebRTC-Viewport)
@@ -232,8 +235,13 @@ Fassung in `CLAUDE.md`; deren Zusatzangaben sind hier eingearbeitet).
 │   ├── compare_domain_gap.sh  # Dataset- vs. Sim-Kameraframes nebeneinander
 │   ├── server_robocasa_ref_run.sh  # RoboCasa-GR-1-Referenz-Eval (Pipeline-Validierung)
 │   ├── update_sim_image.sh    # Build/Push-Tool (--standalone)
+│   ├── runs/                  # Logs der Sim-Läufe je Datum/Nummer (gitignored; „Lauf N“ → diagnose-chronik.md)
 │   ├── g1_dex3_sim/           # In das Image kopiert (→ /workspace/g1_dex3_sim/)
+│   │   ├── README.md          # Datei-für-Datei-Übersicht dieses Ordners
 │   │   ├── run_g1_dex3_sim_eval.py   # Haupt-Eval-Schleife (ZMQ-Client zum GR00T-Server)
+│   │   ├── eval_metrics.py    # Isaac-frei: kipp-robustes `lifted_clear` + Clopper-Pearson-KI
+│   │   ├── oracle_replay.py   # Isaac-frei: Orakel-Client spielt Datensatz-Aktionen statt Policy ab (`oracle`)
+│   │   ├── split_math.py      # Isaac-frei: Split-Grenze, Spiegel von lib_split.sh
 │   │   ├── g1_dex3_blockstack_env.py # Isaac-Lab-Env (Roboter, Tisch, Würfel, 4 Policy- + 1 Szenen-Kamera;
 │   │   │                      #   reward_mode binary|shaped, get_obs_batched)
 │   │   ├── client.py          # ZMQ-Policy-Client + build_obs (Zustand → Modality-Keys)
@@ -253,10 +261,13 @@ Fassung in `CLAUDE.md`; deren Zusatzangaben sind hier eingearbeitet).
 │   │   ├── run_g1_dex3_replay.py     # Open-Loop-Replay-DIAGNOSE (ohne Server/Modell); replay_episode0.npz
 │   │   ├── project_fingertips_check.py  # tipcheck: FK-Fingerkuppen ins Realbild (fand den Vorzeichenfehler)
 │   │   ├── dump_camera_poses.py      # konfigurierte vs. gerenderte Kamerapose + PNG je Kamera
+│   │   ├── dump_policy_cams.py       # Standbilder der 4 Policy-Kameras (Domain-Gap-Vergleich)
+│   │   ├── recolor_hands_black.py    # einmaliges USD-Tool: DEX3-Hände schwarz (→ g1_dex3_blackhands.usd)
 │   │   ├── convert_urdf_to_usd.py    # einmalige URDF→USD-Konvertierung
 │   │   ├── isaac_joint_order.txt     # 43 Gelenknamen in ISAAC-Reihenfolge (≠ Datensatz-Reihenfolge);
 │   │   │                      #   Eingabe für harmonize_synth_dataset.py --joint-names
-│   │   └── test_*.py          # Isaac-freie Tests
+│   │   └── test_*.py          # Isaac-freie Tests (u. a. test_scene_geometry.py, test_eval_metrics.py,
+│   │                          #   test_oracle_replay.py)
 │   ├── camera_reference/      # Dataset-Referenzframes für die Kamera-Kalibrierung
 │   ├── g1_gripper_sim/        # Stock-G1-Greifer-Baseline (SIM_MODE=baseline)
 │   ├── robocasa_reference/    # RoboCasa-GR-1-Referenz-Eval-Skripte
@@ -274,8 +285,14 @@ Fassung in `CLAUDE.md`; deren Zusatzangaben sind hier eingearbeitet).
 │       └── upload_checkpoint.py  # HF-Upload (ohne optimizer.pt)
 ├── data/                      # Lokale Assets + Submodule (überwiegend gitignored)
 │   ├── unitree_ros/           # Git-Submodul — Unitree-ROS (URDF-Quelle)
-│   ├── g1_dex3.usd            # erzeugtes Roboter-USD (convert_urdf_to_usd.py)
-│   └── configuration/         # zugehörige USD-Dateien
+│   ├── g1_dex3.usd            # erzeugtes Roboter-USD (convert_urdf_to_usd.py); .asset_hash + config.yaml
+│   │                          #   = Konvertierungs-Metadaten
+│   ├── g1_dex3_blackhands.usd # Variante mit schwarzen Händen (recolor_hands_black.py)
+│   ├── g1_gripper.usd         # Stock-G1-Greifer (Baseline)
+│   ├── configuration/         # zugehörige USD-Dateien
+│   ├── G1_Dex3_BlockStacking/ # nur meta/ versioniert (info/stats/tasks); Videos/Parquets kommen per Download
+│   ├── g1_dex3_finetune/      # nur experiment_cfg/ + processor/ früher Läufe versioniert (keine Gewichte)
+│   └── cotrain_synth*/, cube_stacking_synth*/   # lokale Synth-Datensätze (gitignored, synth-datensatz.md)
 ├── latex/                     # Projektarbeit/Thesis-Dokument (LuaLaTeX; eigenes Root-Verzeichnis, kein Submodul)
 └── app/                       # zwei Git-Submodule, in den Dockerfiles beim Build geklont
     ├── Groot-1.6/             # DEFAULT — Fork lucam06/Isaac-GR00T, Branch luca/g1-dex3, gepinnter Commit

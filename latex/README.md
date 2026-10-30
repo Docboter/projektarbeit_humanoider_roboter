@@ -1,7 +1,7 @@
 # LaTeX — Projektarbeit (Ausarbeitung)
 
 > [!NOTE]
-> **Stand: 2026-10-29** (20 Seiten Hauptteil / 41 Seiten gesamt, baut ohne Fehler und ohne
+> **Stand: 2026-10-30** (20 Seiten Hauptteil / 42 Seiten gesamt, baut ohne Fehler und ohne
 > undefinierte Referenzen). Neu gegliedert nach [`docs/abgabe-plan.md`](../docs/abgabe-plan.md)
 > Teil B: System, Schnittstellen und Anleitung zum Weiterarbeiten im Mittelpunkt, Ergebnisse
 > als Kette bis Lauf 97 (N1.7, Orakel/Registrierung, Domain-Gap, Co-Training v3), Lessons

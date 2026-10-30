@@ -1062,7 +1062,8 @@ menu_ask() {
 # ── Positionsargument fragen ──────────────────────────────────────────────────
 declare -A _MENU_ARGVAL=()
 _menu_ask_argpos() {
-  local i="$1" cur="${_MENU_ARG_DEFAULT[$i]}"
+  local i="$1"
+  local cur="${_MENU_ARG_DEFAULT[$i]}"
   _menu_out ""
   _menu_out "  ${_MENU_C_KEY}${_MENU_ARG_SHORT[$i]}${_MENU_C_OFF}  ${_MENU_C_DIM}(Argument \$$i)${_MENU_C_OFF}"
   local o k

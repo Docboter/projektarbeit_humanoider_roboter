@@ -1,10 +1,11 @@
-# Anleitung — GR00T N1.6 Fine-tuning
+# Anleitung — GR00T N1.6 / N1.7 Fine-tuning
 
-> **TL;DR:** Schritt-für-Schritt-Anleitung zum Starten des GR00T-N1.6-Fine-tunings über die
+> **TL;DR:** Schritt-für-Schritt-Anleitung zum Starten des GR00T-Fine-tunings (N1.6 Standard,
+> N1.7 über `GROOT_VERSION=1.7` und Image `:latest-n17`) über die
 > vier Wege (vast.ai, lokal per Skript, lokal per `docker run`, KISSKI) inkl. Speicher-Modell,
 > Daten-retten und FAQ. Erste Anlaufstelle vor dem ersten Trainingsstart.
 
-Diese Anleitung beschreibt Schritt für Schritt, wie du das Fine-tuning von **GR00T N1.6** für den Unitree G1 mit DEX3-Hand startest. Die Umgebung ist als autonomer Docker-Container aufgebaut: **du gibst Env-Vars an, der Container macht den Rest.**
+Diese Anleitung beschreibt Schritt für Schritt, wie du das Fine-tuning von **GR00T N1.6** (Standard) bzw. **N1.7** (`-e GROOT_VERSION=1.7`, Image `:latest-n17`, siehe [Modellgeneration wählen](#modellgeneration-wählen--n16-oder-n17)) für den Unitree G1 mit DEX3-Hand startest. Die Umgebung ist als autonomer Docker-Container aufgebaut: **du gibst Env-Vars an, der Container macht den Rest.**
 
 ## Speicher-Modell — wichtig vorab
 
@@ -262,6 +263,53 @@ docker rm -f groot-train
 
 ---
 
+## Weg C — Lokales Training mit `docker run`
+
+Wenn du das Launcher-Skript überspringen willst.
+
+```bash
+docker pull lucam03/projekt-humanoider-roboter:latest
+
+export HF_TOKEN=hf_DEIN_TOKEN WANDB_API_KEY=dein_wandb_key
+# Geheimnisse nur mit NAMEN übergeben: docker liest den Wert aus der eigenen Umgebung,
+# er steht dann nicht in `ps` / /proc/*/cmdline.
+docker run --name groot-train --gpus all --ipc=host --shm-size=16g \
+  -e HF_TOKEN -e WANDB_API_KEY \
+  -e MAX_STEPS=30000 \
+  -e GLOBAL_BATCH_SIZE=8 \
+  -it lucam03/projekt-humanoider-roboter:latest
+```
+
+> **Niemals `--rm` mitgeben** — warum, siehe [Speicher-Modell](#speicher-modell--wichtig-vorab).
+
+Fortsetzen (Anforderungsdatei für den Resume-Schutz, siehe oben):
+```bash
+touch /tmp/resume_request && docker cp /tmp/resume_request groot-train:/data/.resume_request
+docker start -ai groot-train
+```
+
+Im Hintergrund laufen lassen (statt `-it`):
+```bash
+docker run -d --name groot-train --gpus all --ipc=host --shm-size=16g \
+  -e HF_TOKEN -e WANDB_API_KEY \
+  lucam03/projekt-humanoider-roboter:latest
+
+docker logs -f groot-train       # Logs verfolgen
+```
+
+### Image selbst bauen statt zu pullen
+
+```bash
+git clone https://github.com/Docboter/projektarbeit_humanoider_roboter.git
+cd projektarbeit_humanoider_roboter
+git checkout training-luca-IKR-IS6.0
+docker build -t projektarbeit-humanoider-roboter Training/   # Build-Context = Training/
+```
+
+Build dauert ~30 Minuten (PyTorch + flash-attn). Dann ein `docker run` wie oben mit dem lokalen Image-Namen.
+
+---
+
 ## Weg D — HPC-Training auf KISSKI
 
 Empfohlen für langes Training (> 30 000 Steps) oder wenn lokal keine ausreichende GPU vorhanden ist. KISSKI stellt A100 (80 GB) und H100 (94 GB) zur Verfügung. Der Cluster läuft **kein Docker**, sondern **Apptainer** als Container-Runtime und **SLURM** als Job-Scheduler.
@@ -364,53 +412,6 @@ unabhängig dazuschalten; Details und Beispiel-Kommandos: [env-vars.md](env-vars
 
 → **Vollständige Schritt-für-Schritt-Anleitung** (SIF-Konvertierung, VAST-Storage, Monitoring,
 Checkpoint-Export, KISSKI-Troubleshooting): [HPC-Training auf KISSKI](kisski-hpc.md).
-
----
-
-## Weg C — Lokales Training mit `docker run`
-
-Wenn du das Launcher-Skript überspringen willst.
-
-```bash
-docker pull lucam03/projekt-humanoider-roboter:latest
-
-export HF_TOKEN=hf_DEIN_TOKEN WANDB_API_KEY=dein_wandb_key
-# Geheimnisse nur mit NAMEN übergeben: docker liest den Wert aus der eigenen Umgebung,
-# er steht dann nicht in `ps` / /proc/*/cmdline.
-docker run --name groot-train --gpus all --ipc=host --shm-size=16g \
-  -e HF_TOKEN -e WANDB_API_KEY \
-  -e MAX_STEPS=30000 \
-  -e GLOBAL_BATCH_SIZE=8 \
-  -it lucam03/projekt-humanoider-roboter:latest
-```
-
-> **Niemals `--rm` mitgeben** — warum, siehe [Speicher-Modell](#speicher-modell--wichtig-vorab).
-
-Fortsetzen (Anforderungsdatei für den Resume-Schutz, siehe oben):
-```bash
-touch /tmp/resume_request && docker cp /tmp/resume_request groot-train:/data/.resume_request
-docker start -ai groot-train
-```
-
-Im Hintergrund laufen lassen (statt `-it`):
-```bash
-docker run -d --name groot-train --gpus all --ipc=host --shm-size=16g \
-  -e HF_TOKEN -e WANDB_API_KEY \
-  lucam03/projekt-humanoider-roboter:latest
-
-docker logs -f groot-train       # Logs verfolgen
-```
-
-### Image selbst bauen statt zu pullen
-
-```bash
-git clone https://github.com/Docboter/projektarbeit_humanoider_roboter.git
-cd projektarbeit_humanoider_roboter
-git checkout training-luca-IKR-IS6.0
-docker build -t projektarbeit-humanoider-roboter Training/   # Build-Context = Training/
-```
-
-Build dauert ~30 Minuten (PyTorch + flash-attn). Dann ein `docker run` wie oben mit dem lokalen Image-Namen.
 
 ---
 

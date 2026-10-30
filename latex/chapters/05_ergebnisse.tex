@@ -3,8 +3,7 @@
 \chapter{Ergebnisse}
 \label{chap:ergebnisse}
 
-Die Ergebnisse folgen der Kette, in der sie entstanden sind. Jede Zahl trägt die Laufnummer
-aus \doc{docs/ergebnisse/diagnose-chronik.md}; die Abbildungen werden mit
+Laufnummern verweisen auf \doc{docs/ergebnisse/diagnose-chronik.md}; die Abbildungen werden mit
 \doc{latex/figures/make_figures.py} aus den CSV-Dateien unter \doc{latex/figures/daten/}
 erzeugt.
 
@@ -39,7 +38,7 @@ Checkpoint-Wahl beruht deshalb auf der Open-Loop-\ac{mse} auf 20 Testepisoden à
 \begin{figure}[htb]
   \centering
   \includegraphics[width=\linewidth]{figures/plots/lernkurven_lauf3_lauf4.pdf}
-  \caption{Lauf~3 (N1.6) und Lauf~4 (N1.7). Links Trainings-Loss aus \ac{wandb}, rechts Validierungs-\ac{mse} je Checkpoint
+  \caption{Lauf~3 (N1.6) und Lauf~4 (N1.7). Links Trainings-Loss (Offline-Logs auf KISSKI, in \ac{wandb} synchronisiert), rechts Validierungs-\ac{mse} je Checkpoint
     (\doc{docs/ergebnisse/lauf4-n17-vergleich.md}, §5).}
   \label{fig:lernkurven}
   \label{tab:val-mse}
@@ -52,10 +51,12 @@ Checkpoint-Wahl beruht deshalb auf der Open-Loop-\ac{mse} auf 20 Testepisoden à
   \item N1.7 ist am besten bei 35\,000; gegen N1.6 @44000 ist der Unterschied nicht
     signifikant ($+6\,\%$, $t = 1{,}20$). N1.7 lernt früher (signifikant besser bei 10\,000 und
     20\,000) und trainiert 1,6-mal so schnell. State-Dropout und Normierung weichen ab; der
-    Vergleich ist einer von Modell und Rezept.
+    Vergleich ist einer von Modell und Rezept. Gemessen wird N1.7 trotzdem @44000: Gegen
+    @35000 ist der Unterschied nicht messbar ($t = 0{,}05$), und alle Modelle haben so dieselbe
+    Schrittzahl.
 \end{itemize}
 
-Gute Open-Loop-Werte auf echten Bildern sagen nichts über den Closed Loop in der Simulation
+Gute Open-Loop-Werte auf echten Bildern sagen wenig über den Closed Loop in der Simulation
 (\cref{sec:erg-closed-loop}).
 
 \section{Closed Loop ohne Co-Training}
@@ -64,8 +65,8 @@ Gute Open-Loop-Werte auf echten Bildern sagen nichts über den Closed Loop in de
 \label{sec:realperformance}
 
 Kein Modell hebt in der Simulation einen Würfel frei an
-(\cref{tab:cl-ohne}). Die Policy fährt die Würfel an und berührt sie, schließt die Hand
-aber nicht um einen Würfel.
+(\cref{tab:cl-ohne}). N1.6 fährt die Würfel meist an und berührt sie (17/20), N1.7 seltener
+(7/20); keine Policy schließt die Hand um einen Würfel.
 
 \begin{table}[htb]
   \centering
@@ -171,17 +172,19 @@ nur einen kleinen Teil.
 \label{sec:erg-cotrain}
 \label{sec:cotrain}
 
-\paragraph{Daten und Läufe.} Co-Training auf echten und simulierten Daten ist eine übliche Gegenmaßnahme zum Domain-Gap~\cite{cotrain2025}, neben \ac{dr}~\cite{tobin2017domain} und der Angleichung der Simulationsoptik~\cite{simpler2024}. Die echten Aktionen von 187 Trainingsepisoden wurden in der
+\paragraph{Daten und Läufe.} Co-Training auf echten und simulierten Daten ist eine übliche Gegenmaßnahme zum Domain-Gap~\cite{cotrain2025}, neben \ac{dr}~\cite{tobin2017domain} und der Angleichung der Simulationsoptik~\cite{simpler2024}. Die echten Aktionen von 187 der 240 Trainingsepisoden wurden in der
 Szene aus Lauf~70 abgespielt und mit allen vier Kameras gerendert (29\,890 Frames), einmal mit
-5-cm- und einmal mit 4-cm-Würfeln (Lauf~72). Gemischt wird mit Anteil 0,15 gerendert, knapp über
+5-cm- und einmal mit 4-cm-Würfeln (Lauf~72). Nicht gerendert wurden die vier Episoden des
+Prüfsets, drei Episoden mit unsicherer Würfellage, eine im Rendern hängende Episode und 45
+Episoden mit zu kurzem Fenster vor dem Griff. Gemischt wird mit Anteil 0,15 gerendert, knapp über
 dem Frame-Verhältnis 0,115. Vier Läufe auf KISSKI (Läufe 73--76, je 44\,000 Schritte): N1.6 und
 N1.7, jeweils mit beiden Würfelgrößen (\cref{tab:cotrain-namen}). Die Validierungs-\ac{mse} auf
-echten Testepisoden liegt 3--9\,\% über Lauf~3; ob dasselbe Protokoll verwendet wurde, ist nicht
-geprüft.
+echten Testepisoden liegt im selben Protokoll (20 Episoden à 750 Schritte) 3--9\,\% über
+Lauf~3.
 
 \begin{table}[htb]
   \centering
-  \begin{tabular}{llll}
+  \begin{tabular}{lll}
     \toprule
     & Würfel 5~cm & Würfel 4~cm \\
     \midrule
@@ -198,7 +201,9 @@ Sim-Prüfbildern deutlich (\cref{fig:gate}): N1.6 auf 47--49\,\% des Ausgangswer
 18--30\,\%. Auf Echtbildern bleibt N1.7 gleich (0,0024--0,0027 gegen 0,0026), N1.6 wird um
 50--60\,\% schlechter (0,0014 $\to$ 0,0021--0,0022). Das Gate trennt aber nicht zuverlässig
 \enquote{co-trainiert} von \enquote{nicht co-trainiert}: Auch die alten N1.6-Modelle (Lauf~1,
-vision-v1) unterbieten die 80-\%-Schwelle (Lauf~87).
+vision-v1) unterbieten die 80-\%-Schwelle (Lauf~87). Die Gate-Werte sind nicht direkt mit
+\cref{tab:domain-gap} vergleichbar: Das Gate nutzt 4 Episoden à 600 Schritte mit festen Seeds,
+die Tabelle 8 Episoden ohne Seed.
 
 \begin{figure}[htb]
   \centering
@@ -210,8 +215,8 @@ vision-v1) unterbieten die 80-\%-Schwelle (Lauf~87).
 
 \paragraph{Closed Loop.} Mit Co-Training erreichen und berühren die Policies die Würfel in
 fast jeder Episode (\cref{fig:closed-loop}). Echte Griffe, im Video bestätigt, gibt es nur bei
-N1.6: C auf allen 60 Testlagen \texttt{lifted\_clear} 2/60 = 3\,\% (95-\%-Intervall
-0,4--11,5\,\%, Läufe 88 und 97), B 1/20 (Lauf~84). Beide N1.7-Modelle heben nicht frei an
+N1.6: C hebt auf allen 60 Testlagen in 2 Episoden frei an (\texttt{lifted\_clear} 2/60 =
+3\,\%, 95-\%-Intervall 0,4--11,5\,\%, Läufe 88 und 97), B in 1 von 20 (Lauf~84). Beide N1.7-Modelle heben nicht frei an
 (0/20, Läufe 89 und 93); die 6 \texttt{lifted} von A sind Schieben und Kippen. Gestapelt wird
 in keiner Episode. Gegen 0/20 ohne Co-Training (Lauf~82) ist 2/60 statistisch nicht zu
 trennen (exakter Fisher-Test, einseitig, $p \approx 0{,}56$).
@@ -234,9 +239,11 @@ trennen (exakter Fisher-Test, einseitig, $p \approx 0{,}56$).
 
 \paragraph{Vorregistriertes Gate.} Vor dem Co-Training war festgelegt: Liegt die Fingerspanne
 im Closed Loop (10 Episoden à 40~s) deutlich über 0,577~rad = 27,6\,\% (Lauf~34), trägt der
-Weg. Modell C erreicht 1,53~rad = 73\,\% der Demonstration (Lauf~96, \cref{fig:spanne}).
-Gegen die Referenz ist das $p = 0{,}001$, gegen dasselbe Rezept ohne Renderdaten in der
-heutigen Szene (vision-v2, 0,52~rad) $p = 5\cdot10^{-6}$ (exakter Rangtest, einseitig). Gegen das alte Lauf-1-Modell (1,21~rad) ist
+Weg. Zwei Einschränkungen: \enquote{deutlich} war nicht als Zahl festgelegt, und Lauf~34 stammt
+aus der Szene vor der Korrektur vom 24.08. Aussagekräftiger ist deshalb der Vergleich in der
+heutigen Szene. Modell C erreicht 1,53~rad = 73\,\% der Demonstration (Lauf~96, \cref{fig:spanne}).
+Gegen dasselbe Rezept ohne Renderdaten in der heutigen Szene (vision-v2, 0,52~rad) ist das
+$p = 5\cdot10^{-6}$, gegen die alte Referenz $p = 0{,}001$ (exakter Rangtest, einseitig). Gegen das alte Lauf-1-Modell (1,21~rad) ist
 es nur eine Tendenz ($p = 0{,}07$): Weit öffnen können auch Modelle ohne Co-Training. Belastbar
 sind damit das veränderte Verhalten (\texttt{touched} 60/60 gegen 17/20, gleichmäßig weite
 Spanne), nicht die Griffrate.

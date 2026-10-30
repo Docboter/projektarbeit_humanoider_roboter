@@ -16,9 +16,9 @@
     arrow/.style = {-{Stealth[scale=1.1]}, thick, NavyBlue!70},
     lab/.style   = {font=\scriptsize\sffamily, align=center},
   ]
-    \node[ext] (ds)   {Datensatz (HF)\\\scriptsize LeRobot v3.0, 301 Ep.};
+    \node[ext] (ds)   {Datensatz (\acs{hf})\\\scriptsize LeRobot v3.0, 301 Ep.};
     \node[box] (tr)   [right=of ds] {Training\\\scriptsize Docker lokal /\\\scriptsize Apptainer KISSKI};
-    \node[ext] (ck)   [right=of tr] {Checkpoint (HF)\\\scriptsize \texttt{luca-mue/}\\\scriptsize \texttt{groot-g1dex3-*}};
+    \node[ext] (ck)   [right=of tr] {Checkpoint (\acs{hf})\\\scriptsize \texttt{luca-mue/}\\\scriptsize \texttt{groot-g1dex3-*}};
     \node[box] (srv)  [below=1.3cm of ck] {Policy-Server\\\scriptsize GR00T, ZMQ :5555};
     \node[box] (sim)  [left=of srv] {Sim-Eval\\\scriptsize Isaac Lab, 30\,Hz};
     \node[miss] (rob) [left=of sim] {Roboter G1\\\scriptsize nicht angebunden};
@@ -55,8 +55,8 @@ beobachteten Zustand die demonstrierte Aktion vorherzusagen. Der Trainings-Loss 
 nur die Nachahmung, nicht den Aufgabenerfolg; weicht die Policy im Regelkreis von den
 Demonstrationen ab, summieren sich Fehler~\cite{ross2011dagger}.
 
-\textbf{N1.6} (3,29~Mrd.\ Parameter, Backbone Eagle, Python~3.10) ist der Standardpfad; verwendet wird ein Fork des NVIDIA-Repositorys~\cite{groot_repo}.
-\textbf{N1.7} nutzt das Backbone Cosmos-Reason2-2B (Qwen3-VL, zugangsbeschränkt) und läuft in
+\textbf{N1.6}~\cite{groot_n16} (3,29~Mrd.\ Parameter, Backbone Eagle, Python~3.10) ist der Standardpfad; verwendet wird ein Fork des NVIDIA-Repositorys~\cite{groot_repo}.
+\textbf{N1.7}~\cite{groot_n17} (3,14~Mrd.\ Parameter) nutzt das Backbone Cosmos-Reason2-2B (Qwen3-VL, zugangsbeschränkt) und läuft in
 einem eigenen Image (Python~3.12). Checkpoints beider Generationen sind nicht gegenseitig
 ladbar; die Wahl erfolgt über \texttt{GROOT\_VERSION}. N1.7 wurde mit den NVIDIA-Standardwerten
 trainiert, die vom N1.6-Rezept abweichen (u.\,a.\ State-Dropout 0,2 statt 0); der Vergleich
@@ -75,14 +75,14 @@ beider ist deshalb einer von Modell \emph{und} Rezept
     Umgebung & Zweck & GPU \\
     \midrule
     KISSKI (GWDG)~\cite{kisski} & Training, Open-Loop-Auswertung (\ac{slurm}, Apptainer, max.\ 48~h) & 4$\times$A100 80~GB, H100 94~GB \\
-    IKR-Server (Institut) & Simulation, visuelles Gate, Rendering & 2$\times$RTX PRO 6000 \\
+    \acs{ikr}-Server (Institut) & Simulation, visuelles Gate, Rendering & 2$\times$RTX PRO 6000 \\
     lokal / vast.ai & kleine Trainings, Sim-Eval auf Mietkarten & je nach Mietkarte \\
     \bottomrule
   \end{tabularx}
-  \caption{Rechenumgebungen. Isaac~Sim braucht RT-Cores; A100 und H100 haben keine, die
+  \caption{Rechenumgebungen. Isaac~Sim braucht Raytracing-Kerne (\acs{rt}-Cores); A100 und H100 haben keine, die
     Simulation läuft daher nie auf KISSKI.}
   \label{tab:rechenumgebungen}
 \end{table}
 
-Training und Simulation laufen in Containern (CUDA~12.8, \texttt{uv}), konfiguriert nur über
+Training und Simulation laufen in Containern (\acs{cuda}~12.8, \texttt{uv}), konfiguriert nur über
 Umgebungsvariablen. Checkpoints wandern über Hugging Face vom Cluster zum Sim-Server.

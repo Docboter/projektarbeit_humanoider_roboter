@@ -915,3 +915,32 @@ Mittelfinger (seit 2026-08-24). Laufnummer: 56 in der
   (`server_rl_run.sh`, `server_robocasa_ref_run.sh`), `apptainer --env HF_TOKEN=…`
   (`kisski_robocasa_ref_submit.sh`) und `hf auth login --token …` (Augmentation) übergeben den
   Wert jetzt über Umgebung bzw. stdin/Datei.
+
+## 2026-10-30 — Kleinere Doku-Korrekturen nach Review
+
+- `next-steps.md`: Kopfzahl in §1 auf `lifted_clear` 2/60 (Läufe 88/97) nachgetragen (0/20 bzw.
+  0/10 als überholt markiert); Widerspruch „Neumessung steht aus (inzwischen gemessen)“ in §0
+  aufgelöst; „1–2 Griffe in 20 Episoden“ → 2/60; Tabelle §2: Zeilen 2–4 als erledigt markiert
+  (Läufe 61, 81/82, 72–97), RL-Zeile mit Startsignal; Überschrift Schritt 4 auf „gelaufen“.
+- `docs/README.md`: Struktur-Stand 2026-10-30, Training-Abschnitt nennt N1.7, „Abgabeplan“;
+  Strukturbaum ergänzt (`tools/check_links.py`, `tools/ci_check_pins.sh`, `Augmentation/tests/`,
+  `Simulation/runs/`, `g1_dex3_sim/README.md` und Module `eval_metrics.py`, `oracle_replay.py`,
+  `split_math.py`, `dump_policy_cams.py`, `recolor_hands_black.py`, Aktion `layoutreport`,
+  versionierte `data/`-Einträge).
+- `docs/training/anleitung.md`: Wege in Reihenfolge A, B, C, D; Titel/TL;DR nennen N1.7.
+- `docs/weiterfuehrend/README.md`: „Co-Training kommt zuerst“ → gelaufen, 2/60 als schwaches
+  Startsignal für RL.
+- `docs/training/env-vars.md`: Dockerfile-`ENV`-Liste korrigiert; `HF_TOKEN` nur beim Download
+  Pflicht; KISSKI-Defaults (`GLOBAL_BATCH_SIZE=32`, `NUM_GPUS=4`, `SKIP_DOWNLOAD=1`, Warmup 0.1
+  auch bei `USE_COTRAIN=1`); Mischung 0.15 der Render-v3-Presets; `EPISODE_LENGTH_S`-Protokoll
+  120 s; `DR_ENABLED` mit beiden Defaults; neue Zeilen für `DATASET_PATH`, `MODEL_PATH`,
+  `MODALITY_CONFIG`, `EMBODIMENT_TAG`, `HF_TOKEN_FILE`/`WANDB_KEY_FILE`, `GITHUB_REPO`/
+  `GITHUB_BRANCH`, `GROOT_FORK_DIR`, `GROOT_FORK_ALLOW_DRIFT`, `GROOT_BACKBONE_REPO`, `ZMQ_PORT`.
+- `docs/schnittstellen.md`: Server-Optionen um die Replay-Optionen ergänzt; `HF_TOKEN` und
+  `DR_ENABLED` wie in env-vars.md.
+- `docs/fehlerbehebung.md`: Domain-Gap-Notiz vom 2026-08-14 als überholt markiert, Nachträge
+  zu Läufen 62/65/66 und zum Co-Training.
+- `docs/ergebnisse/diagnose-chronik.md`: Titel/TL;DR auf Läufe 08–97.
+- Code: `tools/lib_menu.sh` (SC2318, `local` getrennt), `run.sh` (SC2155, `export` getrennt),
+  `Training/docker-compose.yml` (Warnung: `docker compose down` löscht `/data`; N1.7 braucht
+  `GROOT_IMAGE_TAG=latest-n17`).

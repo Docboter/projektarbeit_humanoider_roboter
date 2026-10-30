@@ -11,9 +11,9 @@ lokal **identisch**. Der Entrypoint (`/scripts/entrypoint.sh`) liest sie ein.
 
 > **Wo die Defaults stehen:** Ein Teil ist als `ENV` im [Dockerfile](../../Training/Dockerfile)
 > gesetzt (`MAX_STEPS`, `GLOBAL_BATCH_SIZE`, `NUM_GPUS`, `WANDB_PROJECT`, `DATA_DIR`,
-> `SKIP_*`, `SHELL_ON_ERROR`, `GROOT_VERSION`, `HF_HOME`). Die übrigen — u. a. `TUNE_VISUAL`, `USE_RL`,
-> `TRAIN_TEST_SPLIT`, `USE_AUGMENTATION`, `LEARNING_RATE`, `SAVE_STEPS`, `WEIGHT_DECAY`,
-> `WARMUP_RATIO` — sind Shell-Defaults in
+> `SKIP_*`, `SHELL_ON_ERROR`, `GROOT_VERSION`, `HF_HOME`, `TUNE_VISUAL`, `USE_COTRAIN`, `USE_RL`,
+> `TRAIN_SPLIT_RATIO`, `USE_AUGMENTATION`). Die übrigen — u. a. `TRAIN_TEST_SPLIT`,
+> `LEARNING_RATE`, `SAVE_STEPS`, `WEIGHT_DECAY`, `WARMUP_RATIO` — sind Shell-Defaults in
 > [`entrypoint.sh`](../../Training/scripts/entrypoint.sh) bzw.
 > [`run_finetuning.sh`](../../Training/scripts/run_finetuning.sh). Für die Bedienung macht das
 > keinen Unterschied; beim Suchen im Code schon.
@@ -46,24 +46,25 @@ lokal **identisch**. Der Entrypoint (`/scripts/entrypoint.sh`) liest sie ein.
 
 | Variable | Default | Beschreibung |
 |---|---|---|
-| `HF_TOKEN` | — | **Pflicht.** HuggingFace-Token (Lese-Berechtigung reicht) |
+| `HF_TOKEN` | — | **Pflicht, sobald heruntergeladen wird** (`SKIP_DOWNLOAD=0`, Default im Container). HuggingFace-Token (Lese-Berechtigung reicht). Bei `SKIP_DOWNLOAD=1` (KISSKI-Default) toleriert der Entrypoint einen fehlenden Token mit Warnung (`entrypoint.sh`, HF-Token-Prüfung) — außer unter `GROOT_VERSION=1.7`, wenn das gated Backbone nicht schon im `HF_HOME`-Cache liegt. Auf KISSKI liest `kisski_submit.sh` ihn ersatzweise aus `HF_TOKEN_FILE`. |
+| `HF_TOKEN_FILE` / `WANDB_KEY_FILE` | `$HOME/.hf_token` / `$HOME/.wandb_key` | **Nur KISSKI** (`kisski_submit.sh`): Dateien, aus denen `HF_TOKEN`/`WANDB_API_KEY` gelesen werden, wenn die Variable leer ist (der Login-Knoten setzt `SBATCH_EXPORT=none`). |
 | `WANDB_API_KEY` | — | Optional. W&B-Key. Ohne diesen läuft Training ohne W&B. |
 | `GROOT_VERSION` | `1.6` | `1.6` \| `1.7` — wählt die GR00T-Generation (Codebaum `/app/Groot-1.6` bzw. `/app/Groot-1.7`, venv, Modell-Repo, Output-Namespace-Suffix). Auflösung: [`lib_groot_version.sh`](../../Training/scripts/lib_groot_version.sh). `1.7` lädt zusätzlich das **gated** Backbone `nvidia/Cosmos-Reason2-2B` (Zugang separat beantragen) und hängt allen Output-Namespaces `_n17` an (`blockstacking_n17`, `blockstacking_vision_n17`, `blockstacking_cotrain_n17`). Voller Lauf auf KISSKI (44 000 Steps, 2026-10-13) gelaufen; Status nur in [groot-n17-migration.md](../weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19). |
 | `DOCKER_NAMESPACE` | — | **Host-seitig**, kein Container-Env. Docker-Hub-Konto der Images: `update_image.sh` / `update_sim_image.sh` pushen dorthin (ohne Angabe fragen sie am Terminal, ohne Terminal Abbruch vor dem Build), die Launcher ziehen von dort (ohne Angabe Team-Konto `lucam03`). Am besten in `.env.local` — siehe [portabilitaet.md § 3.4](../portabilitaet.md#34-eigene-images-bauen-eigenes-docker-hub-konto). |
 | `HF_HOME` | `$DATA_DIR/hf_cache` | HF-Cache-Verzeichnis. Nur für `GROOT_VERSION=1.7` relevant: das Cosmos-Reason2-2B-Backbone wird bei **jedem** Checkpoint-Laden erneut vom Hub gezogen, sofern es nicht schon im Cache liegt — der Cache muss deshalb persistent sein (liegt standardmäßig im Container-FS bzw. auf dem KISSKI-VAST-Mount). |
 | `MAX_STEPS` | `20000` | Anzahl Trainings-Steps. Auf ~241–301 Block-Stacking-Episoden sättigt BC früh; 20k konvergieren sauber (Lauf 1 war bei 30k bereits konvergiert). KISSKI-Multi-GPU-Default: `44000`. |
-| `GLOBAL_BATCH_SIZE` | `8` | Globale Batch-Size (8 für < 40 GB VRAM, 32 für 4x A100 80 GB) |
-| `NUM_GPUS` | `1` | Anzahl genutzter GPUs. `>1` startet `torchrun`. Bei `1` und mehreren sichtbaren Karten setzen die Trainings-Launcher `CUDA_VISIBLE_DEVICES=0`, sonst wickelt der HF-Trainer das Modell in `nn.DataParallel` (N1.7 bricht dann mit `StopIteration` ab). Ein vorgegebenes `CUDA_VISIBLE_DEVICES` bleibt unangetastet — andere Karte also z. B. per `-e CUDA_VISIBLE_DEVICES=1` bzw. `DOCKER_GPUS='"device=1"'` |
+| `GLOBAL_BATCH_SIZE` | `8` | Globale Batch-Size (8 für < 40 GB VRAM, 32 für 4x A100 80 GB). KISSKI-Default (`kisski_submit.sh`): `32`. |
+| `NUM_GPUS` | `1` | Anzahl genutzter GPUs. `>1` startet `torchrun`. Bei `1` und mehreren sichtbaren Karten setzen die Trainings-Launcher `CUDA_VISIBLE_DEVICES=0`, sonst wickelt der HF-Trainer das Modell in `nn.DataParallel` (N1.7 bricht dann mit `StopIteration` ab). Ein vorgegebenes `CUDA_VISIBLE_DEVICES` bleibt unangetastet — andere Karte also z. B. per `-e CUDA_VISIBLE_DEVICES=1` bzw. `DOCKER_GPUS='"device=1"'`. KISSKI-Default: `4`. |
 | `WANDB_PROJECT` | `gr00t-g1-dex3` | W&B-Projektname |
 | `DATA_DIR` | `/data` | Datenverzeichnis im Container |
-| `SKIP_DOWNLOAD` | `0` | `1` = HF-Download überspringen (Daten schon vorhanden) |
+| `SKIP_DOWNLOAD` | `0` | `1` = HF-Download überspringen (Daten schon vorhanden). KISSKI-Default: `1` (Modell und Datensatz liegen vorab auf dem VAST-Storage). |
 | `SKIP_CONVERT` | `0` | `1` = v3→v2-Konvertierung überspringen (`modality.json` existiert) |
 | `SKIP_TRAIN` | `0` | `1` = nur Setup, dann Shell |
 | `SHELL_ON_ERROR` | `0` | `1` = bei Fehler in Shell fallen statt zu beenden |
 | `TUNE_VISUAL` | `0` | `1` = Vision-Encoder mittrainieren (`--tune_visual`). Entrypoint startet dann `run_finetuning_vision.sh` mit eigenem Output-/Experiment-Namespace (`blockstacking_vision`). LLM bleibt eingefroren. Höherer VRAM-Bedarf. |
 | `LEARNING_RATE` | `1e-4` | Lernrate (`--learning_rate`); KISSKI-Multi-GPU-Default im Standardlauf: `2e-4` (sqrt-skaliert); bei `TUNE_VISUAL=1`/`USE_COTRAIN=1` bleibt es auf KISSKI bei `1e-4` (so liefen Lauf 2/3) |
 | `WEIGHT_DECAY` | `1e-5` | Gewichtszerfall (`--weight_decay`) |
-| `WARMUP_RATIO` | `0.05` | Anteil Warmup-Steps (`--warmup_ratio`); bei `TUNE_VISUAL=1` auf KISSKI: `0.1` |
+| `WARMUP_RATIO` | `0.05` | Anteil Warmup-Steps (`--warmup_ratio`); bei `TUNE_VISUAL=1` oder `USE_COTRAIN=1` auf KISSKI: `0.1` |
 | `DATALOADER_WORKERS` | `8` | Dataloader-Worker (`--dataloader_num_workers`); KISSKI-Default: `4` |
 | `SAVE_STEPS` | `2000` | Checkpoint-Intervall in Steps (`--save_steps`), gleich in allen drei `run_finetuning*.sh` (Standard, Vision, Co-Training — die frühere Vision-/Co-Training-Ausnahme `1000` gibt es seit 2026-10-13 nicht mehr); KISSKI-Default: `5000`. Basis für die Open-Loop-Checkpoint-Auswahl. |
 | `SAVE_TOTAL_LIMIT` | `15` | Max. Anzahl behaltener Checkpoints (`--save_total_limit`); KISSKI-Default: `40`. `15` × 2000 Steps hält **jeden** Checkpoint bis 30 000 Steps (Default des Pull-Launchers), bei 44k die letzten 15 ab 16 000 (bis 2026-10-13: `10`, vision/cotrain `5` — bei 44k Steps zu wenig). **Plattenbedarf:** je Checkpoint ~22 GB inkl. `optimizer.pt` (~13 GB), 15 Checkpoints also bis ~330 GB. |
@@ -112,7 +113,7 @@ LeRobot-v2.1-Schema.
 |---|---|---|
 | `COTRAIN_DATASET_PATH` | `/data/cotrain/g1_dex3_rendered` | Gerenderter Datensatz im Container (LeRobot v2.1, wie der echte). |
 | `COTRAIN_HF_REPO` | *(leer)* | HF-**Dataset**-Repo; wird geladen, wenn `COTRAIN_DATASET_PATH` leer ist. |
-| `COTRAIN_MIX_RATIO` | `0.25` | Anteil gerenderter Stichproben (Sampling-Wahrscheinlichkeit, **kein** Längenverhältnis). Bis 2026-10-13 stand der Code-Default auf `0.5` und widersprach der Empfehlung; seitdem ist `0.25` überall Default (Skript, `launch_cotrain.py`, `kisski_submit.sh`, Menü). Begründung: bei 60 gerenderten gegen 240 echte Episoden sähe das Modell bei 0.5 jedes Sim-Bild 4× so oft wie jedes echte, und die Hälfte aller Updates entfiele auf ein Viertel des Bewegungsrepertoires. `kisski_chain.sh` setzt für den Synth-Datensatz bewusst `0.10`. |
+| `COTRAIN_MIX_RATIO` | `0.25` | Anteil gerenderter Stichproben (Sampling-Wahrscheinlichkeit, **kein** Längenverhältnis). Bis 2026-10-13 stand der Code-Default auf `0.5` und widersprach der Empfehlung; seitdem ist `0.25` überall Default (Skript, `launch_cotrain.py`, `kisski_submit.sh`, Menü). Begründung: bei 60 gerenderten gegen 240 echte Episoden sähe das Modell bei 0.5 jedes Sim-Bild 4× so oft wie jedes echte, und die Hälfte aller Updates entfiele auf ein Viertel des Bewegungsrepertoires. `kisski_chain.sh` setzt für die Synth-Presets bewusst `0.10`, für die Render-v3-Presets (`render_v3_*`, Läufe 73–76) `0.15`. |
 | `TRAIN_TEST_SPLIT` | `1` **hier** | Bei `USE_COTRAIN=1` standardmäßig an — seit 2026-10-13 auch über Entrypoint und KISSKI (vorher setzten Dockerfile/Entrypoint `0` vor dem `:-1` des Skripts, der Split war dort still aus). Ohne zurückgehaltene Episoden fehlt die Leitplanke, an der ein Rückschritt auf der Realdomäne sichtbar würde. |
 
 Die Renderer-seitigen Variablen (`RENDER_EPISODES`, `RENDER_STAGE`, `RENDER_MAX_FRAMES`, …)
@@ -138,6 +139,10 @@ stehen in [co-training.md §7](co-training.md#7-env-vars) und in `./Simulation/s
 | `OUTPUT_DIR` | `/data/g1_dex3_finetune/blockstacking` (Vision-Lauf: `…_vision`, Co-Training: `…_cotrain`) | Wurzel des Lauf-Namespace. |
 | `EXPERIMENT_NAME` | `g1_dex3_blockstacking_v1` (Vision: `…_vision_v1`, Co-Training: `…_cotrain_v1`) | Unterverzeichnis **und** W&B-Run-Name. Für jeden neuen Lauf hochzählen. |
 | `RESUME` | `0` | `1` = Fortsetzen ist gewollt (z. B. nach Walltime-Abbruch). `0` = Abbruch, wenn schon Checkpoints da sind. |
+| `DATASET_PATH` | `$DATA_DIR/unitreerobotics/G1_Dex3_BlockStacking_Dataset` | Echter Datensatz (LeRobot v2.1 nach Konvertierung), [`run_finetuning.sh`](../../Training/scripts/run_finetuning.sh). |
+| `MODEL_PATH` | `$DATA_DIR/models/GR00T-N1.6-3B` (N1.7: `…/GR00T-N1.7-3B`) | Basismodell; Name aus `lib_groot_version.sh`. |
+| `MODALITY_CONFIG` | `$GROOT_ROOT/examples/G1_DEX3/g1_dex3_config.py` | Embodiment-/Modality-Config im jeweiligen Codebaum. |
+| `EMBODIMENT_TAG` | `NEW_EMBODIMENT` | Embodiment-Tag für Training und Inferenz. |
 
 Auf KISSKI werden alle drei seit 2026-08-13 von `kisski_submit.sh` durchgereicht.
 
@@ -263,9 +268,11 @@ USD von dort nach `/data/checkpoints/<repo-name>/` (`SHELL_ON_ERROR=1` ist dort 
 |---|---|---|
 | `ASSET_PATH` | `/workspace/assets/g1_dex3_blackhands.usd` | USD-Roboter-Asset. Beim HF-Download z. B. `/data/checkpoints/groot-g1dex3-checkpoint/g1_dex3.usd` (USD und `configuration/` liegen im selben Repo) |
 | `NUM_EPISODES` | `20` | Eval-Episoden. 20 ist das Abnahmeprotokoll; 10 das bisherige Vergleichsprotokoll (Lauf 34, 54/55) |
-| `EPISODE_LENGTH_S` | `0` | Zeitbudget je Episode in Sekunden. `0` = bis zu 9000 Steps je Episode — 20 Episoden dauern dann Stunden. **Immer setzen** und beim Vergleich konstant halten (Vergleichsprotokoll: `40`) |
+| `EPISODE_LENGTH_S` | `0` | Zeitbudget je Episode in Sekunden. `0` = bis zu 9000 Steps je Episode — 20 Episoden dauern dann Stunden. **Immer setzen** und beim Vergleich konstant halten (Abnahmeprotokoll seit Lauf 82: `120`, so in [`tools/sim_cl_watchdog.sh`](../../tools/sim_cl_watchdog.sh); das ältere Vergleichsprotokoll von Lauf 34/54/55 und das Spannen-Gate nutzen `40`) |
 | `EXECUTION_HORIZON` | `8` | Aktionen je Inferenz-Chunk (Chunk-Länge 16) |
 | `EVAL_LAYOUT` | *(leer)* | Echte Würfel-Startlagen, z. B. `/data/eval/layout_heldout.json` (zurückgehaltene Episoden 240–300, aus `LAYOUT_HELD_OUT=1 server_rl_run.sh layout`). Leer = Zufallsbänder, die nicht zu den Realdaten passen |
+| `DR_ENABLED` | `0` | Domain-Randomisierung (Licht, Farben, Würfel-Zufall). **Zwei Defaults:** Menü und `tools/sim_cl_watchdog.sh` setzen `0` (Abnahmeprotokoll); ohne Menü gilt der Code-Default `1` (`run_g1_dex3_sim_eval.py`, `server_rl_run.sh`). Für Vergleiche daher immer explizit setzen |
+| `ZMQ_PORT` | `5555` | Port des GR00T-Policy-Servers im Sim-Container (`entrypoint_sim.sh`) |
 | `DR_SEED` | `0` | Fester Seed für Domain-Randomisierung und Würfel-Zufall; negativ = je Prozess neu. Gibt es erst seit 2026-10-13 — frühere Läufe sind ungeseedet |
 | `TASK_DESCRIPTION` | *(leer)* | Leer = aus `meta/tasks.*` des Datensatzes, Fallback `stack three block` (der einzige Trainings-Task). Vor 2026-10-13 schickte jeder Closed-Loop-Lauf `stack the blocks` |
 | `BLACK_HANDS` | `1` | Hände schwarz färben (Domain-Gap-Maßnahme) |
@@ -283,6 +290,10 @@ Variablen, die nicht im Trainings-Container, sondern in einem Host-Werkzeug wirk
 |---|---|---|
 | `KISSKI_PARTITION` | *(leer)* | Nur [`kisski_menu.sh`](../../Training/kisski_menu.sh) (Login-Knoten): gesetzt ⇒ `sbatch --partition=…`; leer = die `#SBATCH`-Zeile des Skripts (`kisski`). Seit 2026-10-13 passt das Menü die GPU-Anforderung mit an: Typ nach Partition (`kisski` → A100, `kisski-h100` → H100, `jupyter` → RTX5000), Anzahl beim Training nach `NUM_GPUS` (leer = 4 aus dem Skript) — vorher blieb `-G A100:4` fest stehen ([Review 10-13 T2](../archiv/projekt-review-2026-10-13.md#3-code-training)). Direkt per `sbatch` gilt weiter die `#SBATCH`-Zeile |
 | `KISSKI_TIME` | *(leer)* | Nur `kisski_menu.sh`: gesetzt ⇒ `sbatch --time=…`; leer = `#SBATCH --time` des Skripts (Training 48 h). Das Menü schlägt für den Open-Loop-Sweep `04:00:00` vor |
+| `GITHUB_REPO` / `GITHUB_BRANCH` | `https://github.com/Docboter/projektarbeit_humanoider_roboter.git` / Branch des Repo-Klons, sonst `main` | Nur `kisski_submit.sh`: Quelle für Klon bzw. `git pull` des Repos auf KISSKI |
+| `GROOT_FORK_DIR` / `GROOT17_FORK_DIR` | `$KISSKI_PROJECT_DIR/repo-groot` / `…/repo-groot-n17` | Nur [`kisski_open_loop_eval.sh`](../../Training/kisski_open_loop_eval.sh): GR00T-Fork-Klon auf KISSKI; sein Stand wird gegen den Pin im Dockerfile geprüft |
+| `GROOT_FORK_ALLOW_DRIFT` | `0` | Nur `kisski_open_loop_eval.sh`: `1` = Abweichung des Fork-Klons vom Pin nur warnen statt abbrechen |
+| `GROOT_BACKBONE_REPO` | *(abgeleitet)* | Wird von [`lib_groot_version.sh`](../../Training/scripts/lib_groot_version.sh) gesetzt, nicht von Hand: leer unter N1.6, `nvidia/Cosmos-Reason2-2B` unter N1.7; Grundlage der Zugriffsprüfung auf das gated Backbone vor dem Download |
 | `SKIP_GIT_PULL` | `1` | Nur `kisski_submit.sh`: `1` = den Repo-Klon auf KISSKI **nicht** aktualisieren (Default, damit ein Job den Klon nicht auf einen älteren Stand setzt); `0` = vor dem Job `git pull` |
 | `RL_SHM_SIZE` | `16g` | Nur [`server_rl_run.sh`](../../Simulation/server_rl_run.sh): `--shm-size` beim **Anlegen** des Sim-Containers (wirkt erst nach `clean`) |
 | `RL_EXEC_GPU` | *(leer)* | Nur `server_rl_run.sh`: Container-GPU-Index für einen einzelnen `docker exec`-Lauf. Leer = automatisch die Karte mit dem meisten freien Speicher (`rl` ausgenommen, der Trainer braucht beide). `RL_EXEC_GPU_AUTO=0` schaltet die Automatik ab |

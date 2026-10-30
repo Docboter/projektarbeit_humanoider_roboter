@@ -100,7 +100,8 @@ start_domain() {
   # Der Launcher setzt damit "Simulation — Was moechtest du tun?" statt nur "Was
   # moechtest du tun?" ueber seine Liste. Nach zwei Ebenen weiss man sonst nicht mehr
   # sicher, wo man gelandet ist. Beim direkten Aufruf ohne run.sh bleibt es leer.
-  export MENU_DOMAIN_LABEL="$(menu_domain_label "$domain")"
+  MENU_DOMAIN_LABEL="$(menu_domain_label "$domain")"
+  export MENU_DOMAIN_LABEL
 
   # Der aequivalente Aufruf, damit man beim naechsten Mal ohne run.sh auskommt — dieselbe
   # Rolle wie der Ein-Zeiler auf der Bestaetigungsseite des Menues.

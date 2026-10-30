@@ -33,8 +33,9 @@ Die laufend gepflegte Liste steht in \doc{next-steps.md}, Abschnitt~2.
     Co-Training tragbar ist; sonst ist N1.7 D die Alternative ohne diesen Verlust, das in der
     Simulation aber noch nicht greift. Voraussetzung ist eine Roboter-Seite nach
     \cref{sec:if-roboter}.
-  \item \textbf{Griffrate heben.} Nach der vorregistrierten Regel: mehr gerenderte Episoden
-    statt höherer Mischung. Alternativ Reinforcement Learning mit \ac{fpo}~\cite{fpo2025}, das bei flow-basierten \acp{vla} in Simulation bereits Verbesserungen gezeigt hat~\cite{pirl2025}, auf
+  \item \textbf{Griffrate heben.} Die vorregistrierte Regel sieht nach bestandenem Gate vor, den
+    Weg aufzustocken, also mehr Episoden zu rendern; eine höhere Mischung ist nicht angezeigt,
+    weil die Validierungs-\ac{mse} schon 3--9\,\% über Lauf~3 liegt (\cref{sec:erg-cotrain}). Alternativ Reinforcement Learning mit \ac{fpo}~\cite{fpo2025}, das bei flow-basierten \acp{vla} in Simulation bereits Verbesserungen gezeigt hat~\cite{pirl2025}, auf
     Modell C; der Trainer ist gebaut (nur N1.6), mit 3\,\% Griffen gibt es erstmals ein
     schwaches Startsignal (\doc{docs/weiterfuehrend/rl-anleitung.md}).
   \item \textbf{Gate-Schwelle nachschärfen:} relativ zum besten nicht co-trainierten Modell
@@ -50,7 +51,7 @@ Die laufend gepflegte Liste steht in \doc{next-steps.md}, Abschnitt~2.
 
 \begin{itemize}
   \item Die Prüfbilder des visuellen Gates und die Layout-Datei
-    \texttt{layout\_heldout\_dy3.json} liegen nur auf dem IKR-Server. Auf einem neuen Server
+    \texttt{layout\_heldout\_dy3.json} liegen nur auf dem \acs{ikr}-Server. Auf einem neuen Server
     werden sie mit \texttt{server\_rl\_run.sh layout}, \doc{tools/layout_shift.py} und
     \texttt{server\_rl\_run.sh render} neu erzeugt (\doc{docs/quickstart.md}, §2).
   \item Das Sim-Image auf Docker Hub muss nach Änderungen an \texttt{Simulation/} neu gebaut
@@ -63,8 +64,10 @@ Die laufend gepflegte Liste steht in \doc{next-steps.md}, Abschnitt~2.
 \label{sec:rl-weiterfuehrend}
 
 Cosmos-Transfer-Augmentierung~\cite{cosmostransfer2025} ist gebaut, aber nicht end-to-end
-geprüft (\doc{docs/augmentation/anleitung.md}). Der externe Simulationsdatensatz für das
-Co-Training passt schematisch nicht; ein Lauf mit der umgewandelten Fassung liegt nicht vor
+geprüft (\doc{docs/augmentation/anleitung.md}). Der extern aufgenommene Sim-Datensatz
+\texttt{Fichtl00/Cube\_Stacking\_synth} (16 Episoden, in der Simulation teleoperiert) passt
+schematisch nicht (57 statt 28 Zustandsdimensionen, 50 statt 30~fps); ein Co-Training-Lauf mit
+der umgewandelten Fassung liegt nicht vor
 (\doc{docs/training/synth-datensatz.md}). Für Fortbewegung empfiehlt die Recherche, eine
 vorhandene Lauf-Policy mit der Manipulations-Policy zu kombinieren
 (\doc{docs/weiterfuehrend/lokomotion-recherche.md}).

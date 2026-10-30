@@ -2,8 +2,9 @@
 
 > **TL;DR:** Navigations-Hub für Konzept- und Planungsdokumente zu möglichen Folgeschritten (RL,
 > Lokomotion, Live-Ansicht, CLI-Menüführung) — größtenteils recherchiert, noch nicht end-to-end
-> validiert. Ausnahmen: RL-Pipeline lief 2026-08-08 end-to-end (Lernwirkung ungezeigt, Co-Training
-> kommt zuerst), ebenso die Live-Ansicht Spur B (gebaut; kein dokumentierter Client-Test auf Hardware).
+> validiert. Ausnahmen: RL-Pipeline lief 2026-08-08 end-to-end (Lernwirkung ungezeigt; das
+> vorgeschaltete Co-Training ist gelaufen, Läufe 72–97, und liefert mit `lifted_clear` 2/60 ein
+> schwaches Startsignal), ebenso die Live-Ansicht Spur B (gebaut; kein dokumentierter Client-Test auf Hardware).
 
 Konzept- und Planungs-Dokumente für mögliche Folgeschritte — überwiegend **recherchiert, noch nicht
 end-to-end validiert**. Ausnahmen: **RL** ist gebaut und lief am 2026-08-08 erstmals end-to-end auf
@@ -12,7 +13,8 @@ RT-Core-Hardware (seither keine dokumentierten RL-Läufe; die Wirkung ist nicht 
 Sie grenzen sich von den operativen Anleitungen ([`../training/`](../training/README.md),
 [`../simulation/`](../simulation/README.md)) ab und speisen das gleichnamige Kapitel der
 Projektarbeit. Einzige operative Ausnahme hier: [rl-anleitung.md](rl-anleitung.md) — sie bleibt
-beim RL-Plan, weil RL erst nach dem Co-Training wieder ansteht; ihre Lauf-Historie liegt als
+beim RL-Plan, weil RL nach dem Co-Training ansteht — das ist seit 2026-10-29 gelaufen (Läufe 72–97,
+`lifted_clear` 2/60 = schwaches Startsignal, Stand: [next-steps.md §0](../../next-steps.md)); ihre Lauf-Historie liegt als
 [Diagnose-Chronik](../ergebnisse/diagnose-chronik.md) bei den Ergebnissen.
 
 | Dokument | Wann lesen |

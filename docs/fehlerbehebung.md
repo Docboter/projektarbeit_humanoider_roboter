@@ -161,7 +161,9 @@ Vision-Encoder produziert für synthetische Isaac-Sim-Bilder schlechtere Feature
 Messstand nach Kamera-Neukalibrierung (2026-08-08): mittlere Cosine-Distanz **0,2229**,
 `cam_left_wrist` **0,3556** — die Juni-Erstmessung (0.260 / 0.427) ist überholt.
 
-> **Stand 2026-08-14 (Läufe 29–34):** Die Greif-Diagnose der Läufe 29–31 zeigte: die Policy
+> **Stand 2026-08-14 (Läufe 29–34) — überholt**, siehe Vorbehalt und Nachtrag darunter sowie
+> [next-steps.md §0](../next-steps.md#0-projektstatus-in-kürze-stand-2026-10-29); „bestätigt“ war
+> damals ein starker Hinweis, kein Befund. Die Greif-Diagnose der Läufe 29–31 zeigte: die Policy
 > kommandiert nur ~19 % der demonstrierten Fingerspannweite; eine fehlerhafte De-Normalisierung
 > wurde ausgeschlossen. **Lauf 32** (`span`-Gate) entschied die Ursache: auf **echten** Bildern
 > erreicht dieselbe Policy 100 % der Demo-Spanne → der visuelle Domain Gap ist bestätigt.
@@ -178,11 +180,13 @@ Messstand nach Kamera-Neukalibrierung (2026-08-08): mittlere Cosine-Distanz **0,
 > Szene steht aus.** Auch das `span`-Gate (Lauf 32/33) lief auf Trainingsepisoden; die Messung auf
 > den ausgehaltenen Testepisoden (240–300) ist offen.
 >
-> **Nachtrag 2026-10-29:** Neumessung mit korrigierter Szene erfolgt: N1.6 @44000 `reached` 16/20, `lifted_clear` 0/20 (Lauf 82); N1.7 0/10 bzw. 0/20 (Läufe 54/55, 81). Messung auf Testepisoden erfolgt: `span` N1.6 vision-v2 @30000 90 %, N1.7 @44000 94 % (Läufe 57–61).
+> **Nachtrag 2026-10-29:** Neumessung mit korrigierter Szene erfolgt: N1.6 @44000 `reached` 16/20, `lifted_clear` 0/20 (Lauf 82); N1.7 0/10 bzw. 0/20 (Läufe 54/55, 81). Messung auf Testepisoden erfolgt: `span` N1.6 vision-v2 @30000 90 %, N1.7 @44000 94 % (Läufe 57–61). Der visuelle Gap ist seitdem direkt gemessen (Hand-Fehler auf Sim-Bildern ×13
+> bzw. ×36, Läufe 65/66), daneben die Registrierung Würfel↔Hand als zweiter Blocker (Lauf 62).
 
 **Lösung:** Der wirksame Hebel ist der Vision-Encoder — mit Realdaten allein aber ausgereizt.
 Nächster Schritt ist **Co-Training auf echten + gerenderten Bildern**
-([training/co-training.md](training/co-training.md), `USE_COTRAIN=1`).
+([training/co-training.md](training/co-training.md), `USE_COTRAIN=1`). *(Nachtrag 2026-10-30:
+gelaufen, Läufe 72–97 — Sim-Lücke halbiert, erste Griffe `lifted_clear` 2/60, `stacked` 0.)*
 Diagnose-Werkzeuge: [simulation/umsetzungsnotizen.md §14–15](simulation/umsetzungsnotizen.md).
 Aktuelle Messung: [ergebnisse/domain-gap-analyse.md](ergebnisse/domain-gap-analyse.md).
 Vollanalyse: [ergebnisse/lauf1-auswertung.md](ergebnisse/lauf1-auswertung.md) und

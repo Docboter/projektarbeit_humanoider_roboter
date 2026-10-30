@@ -13,7 +13,7 @@
     \toprule
     Zeit & Schritt \\
     \midrule
-    Juni 2026 & Container-Pipeline, Läufe 1 und 2 auf KISSKI; erste Sim-Eval auf gemieteten GPUs: 0/20 \\
+    Juni 2026 & Container-Pipeline, Läufe 1 und 2 auf KISSKI; erste Sim-Eval auf gemieteten \acp{gpu}: 0/20 \\
     Juli & Institutsserver (Blackwell); Referenzaufgabe RoboCasa~\cite{robocasa2024}: Basismodell 47,7\,\% gegen
            veröffentlichte 47,8\,\%, die Inferenz-Kette arbeitet korrekt \\
     August & Umstieg auf Isaac~Sim~6.0 (5.1 stürzte auf Blackwell ab); Lauf 3;
@@ -47,20 +47,20 @@ Die meiste Zeit kosteten Fehler, die plausible, aber falsche Ergebnisse lieferte
     erst, als die abgespielte Demonstration als obere Schranke gemessen wurde.
 \end{itemize}
 
-\paragraph{Ressourcen.} KISSKI hat für das Training getragen (4~A100, Warteschlange,
-Projektspeicher; ein Lauf 8 statt 21~h). Der Cluster kann aber nicht rendern. Die Simulation
+\paragraph{Ressourcen.} KISSKI hat das Training getragen (4~A100, Warteschlange,
+Projektspeicher; 44\,000 Schritte in 8 bis 12~h, \cref{tab:laeufe}). Der Cluster kann aber nicht rendern. Die Simulation
 lief erst auf Mietkarten, ab Juli auf einem Institutsserver, dessen Blackwell-GPUs den Wechsel
 auf eine Vorabversion von Isaac~Lab~3.0 erzwangen.
 
 \paragraph{KI-gestützte Entwicklung.}
 \label{sec:ki-entwicklung}
 \label{sec:entwicklungsumgebung}
-Code, Diagnoseskripte, Auswertungen und Dokumentation entstanden mit dem KI-Assistenten Claude
+Code, Diagnoseskripte, Auswertungen und Dokumentation entstanden mit dem \acs{ki}-Assistenten Claude
 Code~\cite{claudecode2025} in VS~Code. Projektanweisungen im Repository (\texttt{CLAUDE.md})
 und Anbindungen an \ac{wandb}, Hugging Face und GitHub über \ac{mcp}~\cite{mcp2024} machten ihn
 erst im Projektkontext brauchbar. Er beschleunigt die Umsetzung, erzeugt aber genau die Art
 Fehler aus der Liste oben: Ein früherer Entwurf dieser Arbeit enthielt falsch übernommene
-Zahlen. Deshalb stammt hier jede Zahl aus dem Laborbuch, und Prüfskripte vergleichen Code und
+Zahlen. Deshalb stammt hier jede Zahl aus dem Laborbuch bzw.\ den Laufauswertungen, und Prüfskripte vergleichen Code und
 Dokumentation automatisch.
 
 \section{Lessons Learned}
@@ -71,7 +71,8 @@ Dokumentation automatisch.
   \item[Obere Schranke zuerst.] Bevor ein Modell gemessen wird, muss die abgespielte
     Demonstration die Aufgabe in der Simulation lösen. Ohne diese Prüfung waren alle
     Closed-Loop-Zahlen bis Lauf~56 gegen eine Schranke von etwa null gemessen (Läufe 57, 62).
-  \item[Wirkung messen, nicht Ähnlichkeit.] Der SigLIP-Abstand der Bilder sah gut aus (0,22),
+  \item[Wirkung messen, nicht Ähnlichkeit.] Der \acs{siglip}-Abstand der Bilder sah gut aus (0,22, kleiner als
+    zwischen zwei echten Bildern mit 0,27; Lauf~22),
     die Policy verlor auf Sim-Bildern aber so viel Information wie mit schwarzen Bildern
     (Läufe 65, 66). Teacher-Forcing auf Sim-Bildern ist der schnellere und richtige Test.
   \item[Szene unabhängig gegen echte Daten prüfen.] Kameras und Gelenke wurden erst durch
@@ -79,15 +80,18 @@ Dokumentation automatisch.
   \item[Genug Episoden, feste Seeds.] Die Checkpoint-Wahl auf 6 Episoden à 300 Schritte lieferte
     ein Scheinoptimum (Lauf~3 gegen 20 à 750); ungeseedete Gate-Messungen streuten bis Faktor~2
     (Lauf~80). Kleine Closed-Loop-Stichproben trennen 1 von 0 Griffen nicht (Lauf~97).
-  \item[Regeln vorab festlegen.] Das vorregistrierte Gate (\cref{sec:erg-cotrain}) hat
-    verhindert, dass das Co-Training nachträglich passend gedeutet wurde; die Gegenproben mit
+  \item[Regeln vorab festlegen, als Zahl.] Das vorregistrierte Gate (\cref{sec:erg-cotrain})
+    hat verhindert, dass das Co-Training nachträglich passend gedeutet wurde. Seine Schwelle
+    (\enquote{deutlich über}) war aber nicht als Zahl festgelegt; die Gegenproben mit
     alten Modellen (Läufe 87, 90, 91) haben eine voreilige Deutung der Fingerspanne korrigiert.
   \item[Konfiguration am laufenden Prozess prüfen.] Ein Schalter in der Konfiguration ist kein
-    Beleg: Der Split war nicht aktiv, \enquote{cotrain\_synth\_v1} war kein Co-Training, Lauf~85
+    Beleg: Der Split war nicht aktiv, der als Co-Training gedachte Lauf \enquote{cotrain\_synth\_v1}
+    (September, mit einem externen Sim-Datensatz) trainierte laut \ac{wandb} nur auf einem
+    Datensatz und brach nach 138~s ab, Lauf~85
     lief ohne Würfelgröße. Die Umgebung eines laufenden Prozesses wird seitdem direkt gelesen.
   \item[Hardware je Teilaufgabe vorab klären.] Rendering braucht RT-Cores; dass der Cluster sie
     nicht hat, fiel erst beim Aufsetzen der Simulation auf.
   \item[Laborbuch führen.] Das fortlaufende Protokoll mit Laufnummern hat es erlaubt, nach der
-    Geometriekorrektur alle betroffenen Ergebnisse zu benennen, und ist die Quelle jeder Zahl
-    dieser Arbeit.
+    Geometriekorrektur alle betroffenen Ergebnisse zu benennen, und ist neben den
+    Laufauswertungen der Läufe 1--4 die Quelle der Zahlen dieser Arbeit.
 \end{description}

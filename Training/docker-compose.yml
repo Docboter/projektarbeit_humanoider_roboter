@@ -10,6 +10,9 @@
 # Bewusst KEIN `restart: always` und KEINE persistenten Volumes auf dem Host —
 # der Container-Filesystem ist die einzige Wahrheit (vast.ai-kompatibles Modell).
 # Wenn du den Container loeschst, sind Daten + Checkpoints weg.
+# ACHTUNG: `docker compose down` LOESCHT den Container (und damit /data samt Checkpoints)!
+# Anhalten/fortsetzen nur mit `docker compose stop` / `docker compose start`; vorher Checkpoints
+# per `docker cp groot-train:/data/g1_dex3_finetune ./checkpoints` sichern.
 #
 # Aufruf:
 #   docker compose up                 # autonomer Lauf
@@ -18,6 +21,10 @@ services:
   groot-training:
     # Ein Image je GR00T-Generation: :latest = N1.6, :latest-n17 = N1.7 (GROOT_IMAGE_TAG setzt
     # setup_and_train_container_build.sh passend zu GROOT_VERSION).
+    # ACHTUNG bei direktem `docker compose`: der Tag folgt GROOT_VERSION NICHT automatisch
+    # (compose kann nicht bedingt interpolieren). GROOT_VERSION=1.7 ohne GROOT_IMAGE_TAG zieht
+    # :latest (nur N1.6) und bricht ab — fuer N1.7 also immer beide setzen:
+    #   GROOT_VERSION=1.7 GROOT_IMAGE_TAG=latest-n17 docker compose up
     image: ${DOCKER_NAMESPACE:-lucam03}/projekt-humanoider-roboter:${GROOT_IMAGE_TAG:-latest}
     container_name: groot-train
     runtime: nvidia

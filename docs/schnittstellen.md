@@ -81,7 +81,7 @@ hier lässt sich ein eigener Client schreiben (Referenz: `Simulation/g1_dex3_sim
 | Was | Wert | Quelle |
 |---|---|---|
 | Start | `python gr00t/eval/run_gr00t_server.py --model-path <ckpt> --embodiment-tag NEW_EMBODIMENT --use-sim-policy-wrapper --port 5555` | `Simulation/scripts/entrypoint_sim.sh:362-370` |
-| Weitere Optionen | `--host` (0.0.0.0), `--device` (cuda), `--strict` (True); kein Argument für Denoising-Schritte | `app/Groot-1.6/gr00t/eval/run_gr00t_server.py:15-50` |
+| Weitere Optionen | `--host` (0.0.0.0), `--device` (cuda), `--strict` (True), `--dataset-path`, `--modality-config-path`, `--execution-horizon` (Replay-Policy: spielt Datensatz-Trajektorien statt Modellaktionen ab; Default leer, im Projekt ungenutzt); kein Argument für Denoising-Schritte | `app/Groot-1.6/gr00t/eval/run_gr00t_server.py:15-50` |
 | Optimierte Variante (nur N1.6) | `Simulation/scripts/run_groot_optimized_server.py --backend eager\|compile\|tensorrt`, gleiches Protokoll | `entrypoint_sim.sh:371-382`, `run_groot_optimized_server.py:21-29` |
 | Transport | ZMQ REP auf `tcp://<host>:5555`, Client REQ; streng eine Anfrage, dann eine Antwort | `app/Groot-1.6/gr00t/policy/server_client.py:70-71`, `client.py:103` |
 | Kodierung | msgpack. numpy-Arrays als `{"__ndarray_class__": True, "as_npy": <np.save-Bytes>}`. Der N1.7-Server antwortet im msgpack-numpy-Format `{nd, type, kind, shape, data}`, nimmt aber beide Formate an | `server_client.py:15-45`; `app/Groot-1.7/gr00t/policy/server_client.py:34-106`; `client.py:30-71` |
@@ -188,7 +188,7 @@ die Launcher fallen auf `lucam03` zurück (`server_rl_run.sh:130`).
 
 | Variable | Default | Quelle |
 |---|---|---|
-| `HF_TOKEN` | Pflicht | `entrypoint.sh:151-153` |
+| `HF_TOKEN` | Pflicht beim Download; bei `SKIP_DOWNLOAD=1` (KISSKI-Default) nur Warnung, außer N1.7 ohne gecachtes gated Backbone | `entrypoint.sh:151-158` |
 | `GROOT_VERSION` | `1.6` (`auto` liest den Checkpoint) | `Training/Dockerfile:81`, `lib_groot_version.sh:128-139` |
 | `MAX_STEPS` | 20000 (Launcher lokal 30000, KISSKI 44000) | `entrypoint.sh:99` |
 | `GLOBAL_BATCH_SIZE` / `NUM_GPUS` | 8 / 1 | `entrypoint.sh:100-101` |
@@ -235,7 +235,7 @@ gelesen von `run_g1_dex3_sim_eval.py:207-241`):
 | `EPISODE_LENGTH_S` | 0 = 300 s | immer setzen (Protokoll: 120) |
 | `EVAL_LAYOUT` | leer = Zufallslagen (Warnung) | Pfad zur Layout-JSON |
 | `EXECUTION_HORIZON` | 8 | ausgeführte Schritte je Chunk |
-| `DR_ENABLED` / `DR_SEED` | 0 (Menü) / 0 | Domain-Randomisierung, Seed |
+| `DR_ENABLED` / `DR_SEED` | 0 (Menü, `sim_cl_watchdog.sh`; Code-Default ohne Menü: 1) / 0 | Domain-Randomisierung, Seed; für Vergleiche immer explizit setzen |
 | `SCENE_CAM`, `CAM_RES_SCALE`, `CAMERA_RENDER_EVERY_N` | 1, 1, 1 | Render-Optionen; `CAMERA_RENDER_EVERY_N > 1` nur gleich `EXECUTION_HORIZON` |
 
 **Szenen-Variablen** (nur für Diagnosen und das Protokoll ab Lauf 70):

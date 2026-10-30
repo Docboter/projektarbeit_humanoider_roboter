@@ -5,8 +5,7 @@
 \label{chap:umsetzung}
 \label{chap:methoden}
 
-Die Tabellen fassen \doc{docs/schnittstellen.md} zusammen; dort steht zu jeder Angabe die
-Quelldatei im Code.
+Quelldatei im Code zu jeder Angabe: \doc{docs/schnittstellen.md}.
 
 \section{Datensatz}
 \label{sec:if-datensatz}
@@ -28,7 +27,7 @@ Quelldatei im Code.
              \texttt{left\_dex3} 14--20, \texttt{right\_dex3} 21--27 \\
     Aktionsform & Arme relativ zum Zustand, Hände absolut; Block von 16 Schritten \\
     Sprache & \texttt{annotation.human.task\_description}, Standardtext
-             \enquote{stack three block} \\
+             \texttt{stack three block} (wörtlich aus dem Datensatz) \\
     Split & \texttt{TRAIN\_TEST\_SPLIT=1}: Episoden 0--239 Training, 240--300 Test
              (Anteil 0,8 nach Episodenindex, ohne Zufall) \\
     \bottomrule
@@ -54,10 +53,12 @@ Quelldatei im Code.
               \texttt{Gr00tN1d7}; \texttt{GROOT\_VERSION=auto} liest ihn aus \\
     Ablage & Hugging Face (Projekt-Repos öffentlich), ohne Optimizer:
              \texttt{upload\_checkpoint.py --checkpoint <dir> --repo
-             luca-mue/groot-g1dex3-<lauf>-ckpt<N>} \\
+             <konto>/groot-g1dex3-<name>} \\
     \bottomrule
   \end{tabularx}
-  \caption{Checkpoint-Schnittstelle.}
+  \caption{Checkpoint-Schnittstelle. Projekt-Checkpoints unter \texttt{luca-mue/groot-g1dex3-…}:
+    \texttt{vision-v2-44000} (Lauf~3, N1.6), \texttt{n17-vision-v1-ckpt44000} (Lauf~4, N1.7),
+    \texttt{cotrain-v3-cube\{5,4\}[-n17]-ckpt44000} (Läufe 73--76).}
   \label{tab:if-checkpoint}
 \end{table}
 
@@ -108,7 +109,7 @@ Strahl auf die Tischebene; Fehler 0,3--0,4~cm gegen bekannte Lagen). Standard de
 Handgelenkkamera (\texttt{SIM\_TABLE\_SIZE}, \texttt{SIM\_WRIST\_*}).
 
 \paragraph{Ausgaben.} Je Lauf eine JSON-Datei \texttt{results\_<zeit>\_<checkpoint>.json}
-mit Kopf (Checkpoint, Layout, Parameter, 95-\%-Intervalle) und einem Eintrag je Episode.
+mit Kopf (Checkpoint, Layout, Parameter, exakte 95-\%-Intervalle nach Clopper-Pearson) und einem Eintrag je Episode.
 Abgebrochene Episoden zählen in keiner Rate.
 
 \begin{table}[htb]

@@ -51,7 +51,7 @@ verweisen hierher. Den N1.7-Detailstand pflegt
 - **Closed Loop insgesamt:** Stand 2026-10-29 weiter **0 Erfolge** (`stacked`), aber erste
   Griffe (siehe Punkt darüber). Ältere Einordnung: 0 Erfolge (N1.6 Lauf 34: `lifted` 0/10, noch alte Geometrie; N1.7
   Läufe 54/55: 0/10). Die Sim-Geometrie ist seit 2026-08-24 korrigiert; die N1.6-Neumessung mit
-  korrigierter Szene steht aus (inzwischen gemessen: Lauf 82, 0/20).
+  korrigierter Szene ergab `lifted_clear` 0/20 (Lauf 82).
 - **Stand 2026-10-15 (überholt durch den Punkt 2026-10-29) — Co-Training v3 läuft auf KISSKI, Abnahme auf dem IKR vorbereitet:**
   Läufe `render_v3_cube5`/`render_v3_cube4` (N1.6, Mischung 0,15) eingereicht, Smoke wartet auf
   GPUs (Laufnummern 73–79 reserviert). Abnahme ist ein Befehl: `server_rl_run.sh visgate`.
@@ -95,8 +95,8 @@ verweisen hierher. Den N1.7-Detailstand pflegt
   war kein Co-Training-Lauf.
 - **Cosmos-Augmentierung, RL:** Werkzeuge gebaut, **kein Ergebnis**. Cosmos ist nicht
   end-to-end geprüft (kein ~65-GB-Docker-Server verfügbar). RL ist N1.6-only und erst sinnvoll
-  ab `lifted` > 0. Mit 1–2 Griffen in 20 Episoden (N1.6 co-train) ist diese Voraussetzung
-  erstmals knapp in Sicht, aber noch nicht belastbar.
+  ab `lifted` > 0. Mit `lifted_clear` 2/60 (N1.6 co-train cube4, Läufe 88/97) ist diese
+  Voraussetzung erstmals knapp in Sicht, aber noch nicht belastbar.
 
 ## 1. Wo das Projekt steht
 
@@ -113,7 +113,9 @@ Die **Messkette ist geschlossen**. Der Reihe nach:
 
 Daraus folgt nach der vorregistrierten Regel: **Ursache ist wahrscheinlich der Domain-Gap**, nicht
 „Griff nie gelernt" — als *starker Hinweis*, nicht als Beweis (siehe Vorbehalte unten). Die Kopfzahl des
-Projekts bleibt **0 Erfolge im Closed-Loop** (0/20 früher, Lauf 34: 0/10).
+Projekts bleibt **0 Erfolge im Closed-Loop** (`stacked` überall 0). *(Nachtrag 2026-10-30: die
+früheren Griffzahlen 0/20 bzw. 0/10 aus Lauf 34 sind überholt durch das Co-Training v3 —
+`lifted_clear` 2/60 = 3 %, Läufe 88/97, siehe §0.)*
 
 ### Was seit dem 2026-08-14 passiert ist (Stand 2026-10-11)
 
@@ -238,10 +240,10 @@ ist erst nach der Registrierung aussagekräftig):
 | # | Schritt | Warum / Ausgang |
 |---|---|---|
 | 1 | **Open-Loop-MSE auf allen 61 Testepisoden**, volle Länge, getrennt nach Armen und Händen, mit trivialer Baseline (z. B. konstante Pose / letzter Zustand) | Der Sweep aus Lauf 3 nutzte nur 6 Episoden × 300 Steps; ohne Baseline ist die MSE nicht einzuordnen. Billig (`checkpoint_sweep.py`, `EVAL_NUM_TRAJ`/`EVAL_STEPS`) |
-| 2 | **`span`-Gate auf zurückgehaltenen Testepisoden** (`SPAN_TRAJ_IDS` mit Test-Indices) — für N1.7 erledigt (Läufe 54/55: Test 90 % / 94 %), für N1.6 offen | Schließt die Auswendiglern-Lücke des Lauf-32-Gates; trägt „Domain-Gap bestätigt“ vom Hinweis zum Befund |
-| 3 | **Closed-Loop-Neumessung mit der korrigierten Szene** (identisches Protokoll wie Lauf 34: 10 Episoden × 40 s, Checkpoint vision-v2-**44000** — der seit der Nachmessung 2026-10-12 validierte; bei Lauf 34 war es noch 30000), optional **Tauschtest** (echtes Bild + Sim-Zustand vs. Sim-Bild + echter Zustand) | Erst damit sind die Sim-Zahlen wieder belastbar; entscheidet, wie groß der Domain-Gap nach der Geometriekorrektur noch ist |
-| 4 | **Renderdatensatz neu erzeugen → Co-Training-Lauf** (eigener Render und/oder Synth v22 / `Cube_Stacking_synth_jointspace`); Log des Abbruchs von `cotrain_synth_v1` aus dem Trainingscontainer des IKR-Servers holen; auf KISSKI zuerst `kisski_chain.sh smoke …` | Vorregistrierte Regeln in [co-training.md](docs/training/co-training.md) / [synth-datensatz.md](docs/training/synth-datensatz.md) |
-| 5 | **RL (FPO)** erst, wenn die Policy gelegentlich einen Würfel hebt | Ohne Startsignal fehlt dem Reward der Gradient ([RL-Plan](docs/weiterfuehrend/reinforcement-learning-plan.md)) |
+| 2 | **`span`-Gate auf zurückgehaltenen Testepisoden** (`SPAN_TRAJ_IDS` mit Test-Indices) — für N1.7 erledigt (Läufe 54/55: Test 90 % / 94 %); ✅ für N1.6 @30000 erledigt (Lauf 61: 90 %), @44000 offen | Schließt die Auswendiglern-Lücke des Lauf-32-Gates; trägt „Domain-Gap bestätigt“ vom Hinweis zum Befund |
+| 3 | ✅ *erledigt (Lauf 82: N1.6 @44000, Szene aus Lauf 70, 20 × 120 s, `lifted_clear` 0/20; N1.7: Lauf 81)* **Closed-Loop-Neumessung mit der korrigierten Szene** (identisches Protokoll wie Lauf 34: 10 Episoden × 40 s, Checkpoint vision-v2-**44000** — der seit der Nachmessung 2026-10-12 validierte; bei Lauf 34 war es noch 30000), optional **Tauschtest** (echtes Bild + Sim-Zustand vs. Sim-Bild + echter Zustand) | Erst damit sind die Sim-Zahlen wieder belastbar; entscheidet, wie groß der Domain-Gap nach der Geometriekorrektur noch ist |
+| 4 | ✅ *erledigt (Render v3 Lauf 72, Trainings Läufe 73–76, Auswertung Läufe 83–97)* **Renderdatensatz neu erzeugen → Co-Training-Lauf** (eigener Render und/oder Synth v22 / `Cube_Stacking_synth_jointspace`); Log des Abbruchs von `cotrain_synth_v1` aus dem Trainingscontainer des IKR-Servers holen; auf KISSKI zuerst `kisski_chain.sh smoke …` | Vorregistrierte Regeln in [co-training.md](docs/training/co-training.md) / [synth-datensatz.md](docs/training/synth-datensatz.md) |
+| 5 | **RL (FPO)** erst, wenn die Policy gelegentlich einen Würfel hebt — seit Lauf 97 (2/60) schwaches Startsignal | Ohne Startsignal fehlt dem Reward der Gradient ([RL-Plan](docs/weiterfuehrend/reinforcement-learning-plan.md)) |
 | 6 | **Echter Roboter** | setzt belastbare Sim- bzw. Open-Loop-Zahlen voraus |
 
 Offene Entscheidung nebenbei: Umstellung der Sim auf zufälligen Würfel-Gierwinkel (gemessen: gleichverteilt
@@ -411,7 +413,7 @@ Vergleich, weshalb Lauf 34 mit 40 s wiederholt wurde.
 
 </details>
 
-### Schritt 4 — Co-Training auf gerenderten Bildern (Werkzeuge gebaut, Lauf steht aus)
+### Schritt 4 — Co-Training auf gerenderten Bildern ✅ *gelaufen (Läufe 72–97)*
 
 > **Stand 2026-10-29:** ✅ gelaufen und ausgewertet. Render v3 (Lauf 72), vier KISSKI-Trainings
 > (Läufe 73–76), Gate und Closed Loop auf dem IKR (Läufe 83–95). Ergebnis in §0 und
