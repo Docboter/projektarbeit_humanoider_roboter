@@ -34,3 +34,5 @@ _minted-*/
 
 # Diagramme aus figures/make_figures.py gehören ins Repo (Build ohne Python)
 !figures/plots/*.pdf
+# Projektkarte: fertige Varianten versioniert (Build braucht LuaLaTeX + dvisvgm)
+!figures/projektkarte/projektkarte*.pdf

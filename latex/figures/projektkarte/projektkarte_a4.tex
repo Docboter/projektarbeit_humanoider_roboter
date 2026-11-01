@@ -1,0 +1,33 @@
+% TL;DR: Projektkarte als ganzseitige Abbildung (A4 quer) für die Ausarbeitung und als Vorlage für SVG/PNG im Repo; braucht build/karte_voll.pdf aus build.sh.
+\documentclass{article}
+\usepackage[paperwidth=297mm, paperheight=210mm, margin=0mm]{geometry}
+\usepackage{libertinus-otf}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{tikz}
+\input{karte_stil}
+\pagestyle{empty}
+
+\newsavebox\legbox \newsavebox\bkbox
+\begin{document}
+\sbox\legbox{\Legende}\sbox\bkbox{\BlockerKette}
+\noindent
+\begin{tikzpicture}[remember picture, overlay, x=1mm, y=1mm]
+  \coordinate (O) at (current page.north west);
+  % Titel
+  \node[anchor=north west, inner sep=0, font=\fontsize{14}{16}\selectfont\sffamily\bfseries, text=lTrain]
+    at ($(O)+(8,-7)$) {Projektkarte: GR00T-Fine-Tuning für Unitree G1 + DEX3};
+  \node[anchor=north west, inner sep=0, font=\fontsize{8.5}{10}\selectfont\sffamily, text=black!70]
+    at ($(O)+(8,-13.2)$) {Entwicklungsweg Mai bis November 2026 – Arbeitsstränge, Erfolge,
+      Fehlschläge und Irrwege bis zum heutigen Stand};
+  \node[anchor=north east, inner sep=0, font=\fontsize{7}{8.4}\selectfont\sffamily, text=black!55, align=right]
+    at ($(O)+(289,-7.4)$) {Stand 01.11.2026 · Quellen: docs/ergebnisse/diagnose-chronik.md,\\
+      next-steps.md, docs/historie.md, Git-Historie};
+  % Karte
+  \node[anchor=north, inner sep=0] at ($(O)+(148.5,-19.5)$)
+    {\includegraphics[width=281mm]{build/karte_voll.pdf}};
+  % Blocker-Kette und Legende
+  \node[anchor=south, inner sep=0] at ($(O)+(148.5,-196)$) {\usebox\bkbox};
+  \node[anchor=south, inner sep=0] at ($(O)+(148.5,-205)$) {\usebox\legbox};
+\end{tikzpicture}
+\end{document}

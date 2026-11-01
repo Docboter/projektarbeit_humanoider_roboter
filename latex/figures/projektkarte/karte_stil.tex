@@ -1,0 +1,117 @@
+% TL;DR: Gemeinsame Farben, TikZ-Stile und Stations-Makros der Projektkarte (U-Bahn-Plan); wird von karte.tex und den Varianten eingebunden.
+%
+% Lesart der Karte
+%   Linie       = Arbeitsstrang (Farbe)
+%   Station     = Meilenstein; die Füllung zeigt den Ausgang (\Mk)
+%   Stumpfgleis = aufgegebener Weg (endet mit Prellbock)
+%   Irrweg      = gestrichelte Nebenspur: so lange galt eine falsche Annahme
+
+\usetikzlibrary{positioning, calc, patterns, shapes.geometric, fit, backgrounds, arrows.meta}
+
+% ── Linienfarben (Arbeitsstränge) ─────────────────────────────────────
+\definecolor{lInfra}{HTML}{6B7B8C}   % Infrastruktur / Rechenzugang
+\definecolor{lTrain}{HTML}{1F4E9C}   % Training N1.6 (NavyBlue wie die Ausarbeitung)
+\definecolor{lNsieben}{HTML}{8E44AD} % GR00T N1.7
+\definecolor{lCotr}{HTML}{D1477A}    % Co-Training / Daten
+\definecolor{lSim}{HTML}{0E8C7F}     % Simulation / Szene
+\definecolor{lDiag}{HTML}{E07B00}    % Evaluation / Diagnose
+\definecolor{lRL}{HTML}{8D8D8D}      % Reinforcement Learning
+\definecolor{lDoku}{HTML}{3C3C3C}    % Doku / Abgabe
+
+% ── Statusfarben (Stationen) ──────────────────────────────────────────
+\definecolor{sOk}{HTML}{2E8B3E}      % Erfolg
+\definecolor{sFail}{HTML}{C62828}    % Fehlschlag
+\definecolor{sPart}{HTML}{F2B705}    % Teilerfolg
+\definecolor{sOld}{HTML}{9E9E9E}     % verworfen / überholt
+\definecolor{phaseA}{HTML}{F4F6F9}
+\definecolor{phaseB}{HTML}{E9EDF3}
+\definecolor{hubbg}{HTML}{FFF8E1}
+
+% ── Maße (die Varianten skalieren die fertige Karte als Ganzes) ───────
+\newcommand\linew{2.6pt}
+\newcommand\fsLbl{\fontsize{6.4}{7.3}\selectfont\sffamily}
+\newcommand\fsPhase{\fontsize{7.2}{8.4}\selectfont\sffamily}
+
+\tikzset{
+  line/.style   = {line width=\linew, line cap=round, line join=round, rounded corners=4mm},
+  stub/.style   = {line width=\linew, line cap=butt, dash pattern=on 3pt off 2pt},
+  irrweg/.style = {line width=1.1pt, dash pattern=on 2.4pt off 1.6pt, line cap=round,
+                   rounded corners=2.5mm},
+  lbl/.style    = {font=\fsLbl, align=center, inner sep=0.6pt, text depth=0pt},
+  badge/.style  = {rounded corners=1.6mm, font=\fontsize{6.8}{7.6}\selectfont\sffamily\bfseries,
+                   text=white, inner xsep=1.6mm, inner ysep=1.1mm, minimum width=19mm,
+                   align=center},
+}
+
+% \Mk{status}{x,y}: Stationsmarke. status ∈ ok | fail | part | old | open
+\newcommand\Mk[2]{%
+  \begin{scope}[shift={(#2)}]
+    \fill[white] (0,0) circle (1.95mm);
+    \csname mk@#1\endcsname
+  \end{scope}}
+\makeatletter
+\newcommand\mk@ok{\fill[sOk] (0,0) circle (1.45mm);
+  \draw[white, line width=0.85pt, line cap=round, line join=round]
+    (-0.72mm,0.02mm) -- (-0.18mm,-0.58mm) -- (0.78mm,0.62mm);}
+\newcommand\mk@fail{\fill[sFail] (0,0) circle (1.45mm);
+  \draw[white, line width=0.85pt, line cap=round]
+    (-0.6mm,-0.6mm) -- (0.6mm,0.6mm) (-0.6mm,0.6mm) -- (0.6mm,-0.6mm);}
+\newcommand\mk@part{\fill[white] (0,0) circle (1.45mm);
+  \fill[sPart] (0,-1.45mm) arc (-90:90:1.45mm) -- cycle;
+  \draw[sPart!80!black, line width=0.6pt] (0,0) circle (1.2mm);}
+\newcommand\mk@old{\fill[sOld] (0,0) circle (1.45mm);
+  \draw[white, line width=0.8pt] (-0.75mm,0) -- (0.75mm,0);}
+\newcommand\mk@open{\fill[white] (0,0) circle (1.45mm);
+  \draw[black!70, line width=0.6pt, dash pattern=on 0.9pt off 0.7pt] (0,0) circle (1.2mm);}
+\makeatother
+
+% \Wende{x,y}: Wendepunkt (schwarzer Ring um die Station)
+\newcommand\Wende[1]{\draw[black, line width=0.9pt, fill=white] (#1) circle (2.55mm);}
+
+% \St[*]{status}{x}{y}{Platzierung}{Titel}{Detail}
+%   *            = Wendepunkt
+%   Platzierung  = above | below | left | right | above left | ... (Abstand fest)
+\NewDocumentCommand\St{s m m m m m m}{%
+  \IfBooleanT{#1}{\Wende{#3,#4}}%
+  \Mk{#2}{#3,#4}%
+  \node[lbl, #5=2.35mm] at (#3,#4) {{\bfseries #6}\ifx\relax#7\relax\else\\#7\fi};}
+
+% \Prellbock{x,y}{Winkel}: Ende eines Stumpfgleises (Querbalken)
+\newcommand\Prellbock[3][black]{%
+  \draw[#1, line width=1.6pt, line cap=butt] ($(#2)+(#3+90:1.7mm)$) -- ($(#2)+(#3-90:1.7mm)$);}
+
+% \Legende: Zeichenerklärung als eigenes Bild (Varianten skalieren mit \scalebox)
+\newcommand\Legende{%
+\begin{tikzpicture}[x=1cm, y=1cm, every node/.style={font=\fsLbl, anchor=west, inner sep=1pt}]
+  \Mk{ok}{0,0}\node at (0.25,0) {Erfolg};
+  \Mk{part}{1.45,0}\node at (1.7,0) {Teilerfolg};
+  \Mk{fail}{3.25,0}\node at (3.5,0) {Fehlschlag};
+  \Mk{old}{5.1,0}\node at (5.35,0) {verworfen / überholt};
+  \Wende{7.95,0}\Mk{ok}{7.95,0}\node at (8.25,0) {Wendepunkt};
+  \draw[stub, black!70] (10.1,0) -- (10.9,0); \Prellbock[black!70]{10.9,0}{0}
+  \node at (11.05,0) {Stumpfgleis = aufgegebener Weg};
+  \draw[irrweg, black!70] (15.3,0) -- (16.1,0);
+  \node at (16.2,0) {Irrweg = so lange galt eine falsche Annahme};
+  \node at (21.6,0) {L$n$ = Lauf $n$ (diagnose-chronik.md) · Zeitachse nicht maßstäblich};
+\end{tikzpicture}}
+
+% \BlockerKette: Ursachenkette als Zeile (jede gelöste Ebene legte die nächste frei)
+\newcommand\BlockerKette{%
+\begin{tikzpicture}[x=1cm, y=1cm,
+    bk/.style={draw=black!45, line width=0.5pt, fill=white, rounded corners=1.2mm,
+      font=\fsLbl, align=center, text width=31mm, minimum height=9.5mm, inner sep=1.2pt},
+    pf/.style={-{Latex[length=1.6mm]}, line width=0.9pt, black!55}]
+  \node[font=\fsLbl\bfseries, anchor=east, align=right] at (-0.25,0)
+    {Blocker-Kette:\\[-1pt]{\mdseries jede gelöste Ebene}\\[-1pt]{\mdseries legte die nächste frei}};
+  \foreach \i/\s/\t/\d in {
+      0/ok/{Kameras verdreht}/{behoben, L10–18},
+      1/ok/{Geometrie: Finger, Becken, Basis}/{behoben, L38–51},
+      2/part/{Würfel 3 cm versetzt}/{korrigiert, Ursache offen, L62},
+      3/part/{Bild-Lücke Sim ↔ Echt}/{×13 → halbiert, L66/L83},
+      4/part/{Griff}/{2/60 frei gehoben, L97},
+      5/open/{Stapeln + Robotertest}/{0/60, offen}} {
+    \node[bk] (b\i) at ({\i*3.75+1.75},0) {{\bfseries\t}\\\d};
+    \Mk{\s}{{\i*3.75+0.12},0.47}
+  }
+  \foreach \i [evaluate=\i as \j using int(\i+1)] in {0,...,4} \draw[pf] (b\i.east) -- (b\j.west);
+\end{tikzpicture}}

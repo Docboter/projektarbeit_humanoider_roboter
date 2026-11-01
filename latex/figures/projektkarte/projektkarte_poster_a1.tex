@@ -1,0 +1,141 @@
+% TL;DR: Projektkarte als Poster A1 quer (84 × 59,4 cm): U-Bahn-Plan, Ziel und Pipeline, Zahlen, Wendepunkte, Sackgassen, Lessons Learned, Ausblick; braucht build/karte_voll.pdf aus build.sh.
+\documentclass{article}
+\usepackage[paperwidth=841mm, paperheight=594mm, margin=0mm]{geometry}
+\usepackage{libertinus-otf}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{tikz}
+\usepackage[most]{tcolorbox}
+\input{karte_stil}
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+
+% ── Poster-Typografie ─────────────────────────────────────────────────
+\newcommand\pBody{\fontsize{19}{24}\selectfont\sffamily}
+\newcommand\pSmall{\fontsize{16.5}{21}\selectfont\sffamily}
+\newcommand\pBig{\fontsize{30}{34}\selectfont\sffamily\bfseries}
+
+\newtcolorbox{panel}[4][]{enhanced, width=#2, title={#4}, sharp corners=south, arc=3mm,
+  colback=white, colframe=#3, boxrule=1.2mm, toprule=0mm, titlerule=0mm,
+  colbacktitle=#3, coltitle=white,
+  fonttitle=\fontsize{24}{28}\selectfont\sffamily\bfseries,
+  left=5mm, right=5mm, top=3.5mm, bottom=3mm, toptitle=2mm, bottomtitle=2mm, #1}
+
+\newcommand\Pkt[2][lTrain]{\textcolor{#1}{\rule[0.22em]{0.42em}{0.42em}}\hspace{0.45em}#2}
+
+\newsavebox\legbox \newsavebox\bkbox
+\begin{document}
+\sbox\legbox{\Legende}\sbox\bkbox{\BlockerKette}
+\noindent
+\begin{tikzpicture}[remember picture, overlay, x=1mm, y=1mm]
+  \coordinate (O) at (current page.north west);
+
+  % ── Kopf ──────────────────────────────────────────────────────────
+  \fill[lTrain] (O) rectangle ($(O)+(841,-80)$);
+  \node[anchor=west, fill=white, rounded corners=3mm, inner sep=4mm] at ($(O)+(15,-40)$)
+    {\includegraphics[height=46mm]{../logo_hochschule.jpg}};
+  \node[anchor=north west, text=white, align=left, inner sep=0] at ($(O)+(128,-13)$) {%
+    {\fontsize{50}{56}\selectfont\sffamily\bfseries Projektkarte: GR00T-Fine-Tuning für Unitree G1 + DEX3}\\[4mm]
+    {\fontsize{26}{31}\selectfont\sffamily Entwicklungsweg Mai bis November 2026 – Arbeitsstränge,
+      Erfolge, Fehlschläge und Irrwege bis zum heutigen Stand}\\[5mm]
+    {\fontsize{21}{25}\selectfont\sffamily Maximilian Berger · Matthias Späth · Luca Mücke
+      \quad|\quad Betreuer: Prof. Dr. Matthias Lorenzen
+      \quad|\quad Hochschule für angewandte Wissenschaften Kempten}};
+  \node[anchor=north east, text=white!80!lTrain, align=right, inner sep=0,
+    font=\fontsize{17}{21}\selectfont\sffamily] at ($(O)+(826,-13)$)
+    {Projektarbeit 2026\\Stand 01.11.2026};
+
+  % ── Karte ─────────────────────────────────────────────────────────
+  \node[anchor=north west, inner sep=0] at ($(O)+(12,-90)$)
+    {\includegraphics[width=648mm]{build/karte_voll.pdf}};
+
+  % ── Blocker-Kette + Legende unter der Karte ───────────────────────
+  \node[anchor=north, inner sep=0] at ($(O)+(336,-472)$) {\scalebox{2.08}{\usebox\bkbox}};
+  \node[anchor=south, inner sep=0] at ($(O)+(420.5,-588)$) {\scalebox{2.3}{\usebox\legbox}};
+
+  % ── Rechte Spalte ─────────────────────────────────────────────────
+  \node[anchor=north west, inner sep=0] at ($(O)+(672,-90)$) {%
+  \begin{minipage}{157mm}
+  \begin{panel}{157mm}{lTrain}{Worum geht es?}\pBody\raggedright
+    NVIDIA GR00T, ein Vision-Language-Action-Modell, lernt aus echten Demonstrationen,
+    mit dem Unitree G1 und der DEX3-Hand Würfel zu stapeln. Geprüft wird in einer
+    Isaac-Lab-Simulation im geschlossenen Regelkreis.\par\smallskip
+    \centering
+    \begin{tikzpicture}[x=1mm, y=1mm, every node/.style={font=\pSmall, align=center,
+        rounded corners=2mm, draw=black!40, line width=0.5mm, fill=phaseA, text width=128mm,
+        inner sep=2.2mm}]
+      \node (a) at (0,0)   {Echte Demos\\{\color{black!60}unitreerobotics/G1\_Dex3\_BlockStacking}};
+      \node (b) at (0,-19.5) {Fine-Tuning im Docker-Image\\{\color{black!60}KISSKI, 4× A100, 44\,000 Schritte}};
+      \node (c) at (0,-39) {Checkpoint\\{\color{black!60}Hugging Face, Open-Loop-Val-MSE}};
+      \node (d) at (0,-58.5) {Closed Loop in Isaac Lab\\{\color{black!60}Institutsserver, RT-Core-GPU}};
+      \node (e) at (0,-78) {erreicht → berührt → gehoben → gestapelt};
+      \foreach \u/\v in {a/b,b/c,c/d,d/e}
+        \draw[-{Latex[length=4mm]}, line width=0.8mm, black!55, draw=black!55] (\u) -- (\v);
+    \end{tikzpicture}
+  \end{panel}
+  \vspace{4mm}
+  \begin{panel}{157mm}{lDiag}{Projekt in Zahlen}\pBody
+    \renewcommand{\arraystretch}{1.0}
+    \begin{tabular}{@{}r@{\hspace{4mm}}l@{}}
+      {\pBig 6} & Monate, 08.05.–01.11.2026\\
+      {\pBig 301} & Commits\\
+      {\pBig 97} & protokollierte Läufe\\
+      {\pBig 8} & Trainingsläufe (4 + 4 Co-Training)\\
+      {\pBig 2} & GR00T-Generationen\\
+      {\pBig 3} & Rechenorte\\
+      {\pBig 2/60} & erste freie Griffe in der Sim\\
+    \end{tabular}
+  \end{panel}
+  \vspace{4mm}
+  \begin{panel}{157mm}{lSim}{Lessons Learned}\pSmall\raggedright
+    \Pkt[lSim]{\textbf{Referenz zuerst:} erst muss die abgespielte Demo in der Sim greifen.}\par\smallskip
+    \Pkt[lSim]{\textbf{Wirkung messen, nicht Ähnlichkeit:} SigLIP 0,22 sah gut aus, Fehler ×13.}\par\smallskip
+    \Pkt[lSim]{\textbf{Szene unabhängig prüfen:} gegen Echtbilder, nicht mit demselben Code.}\par\smallskip
+    \Pkt[lSim]{\textbf{Genug Episoden, feste Seeds:} 6×300 lieferte ein Scheinoptimum.}\par\smallskip
+    \Pkt[lSim]{\textbf{Regeln vorab als Zahl:} das vorregistrierte Gate verhinderte Umdeuten.}\par\smallskip
+    \Pkt[lSim]{\textbf{Laufenden Prozess prüfen:} ein Schalter in der Konfiguration ist kein Beleg.}\par\smallskip
+    \Pkt[lSim]{\textbf{Hardware je Teilaufgabe klären:} Rendern braucht RT-Cores.}\par\smallskip
+    \Pkt[lSim]{\textbf{Laborbuch führen:} Laufnummern machten Korrekturen nachverfolgbar.}
+  \end{panel}
+  \end{minipage}};
+
+  % ── Untere Reihe ──────────────────────────────────────────────────
+  \node[anchor=north west, inner sep=0] at ($(O)+(12,-506)$) {%
+  \begin{panel}[height=68mm]{250mm}{black!75}{Wendepunkte}\pSmall
+    \renewcommand{\arraystretch}{1.0}%
+    \begin{tabular}{@{}l@{\hspace{3mm}}l@{}}
+      13.08. & span-Gate: echt 100\,\%, Sim 19\,\% Fingerspanne (L32)\\
+      24.08. & Geometrie: die Hand konnte nie schließen (L38–51)\\
+      12.10. & kein Overfitting, @44\,000 ist am besten\\
+      14.10. & Demo hebt kaum: Würfel 3 cm versetzt (L57/62)\\
+      14.10. & Sim-Bilder so schlecht wie schwarze (L65/66)\\
+      29.10. & Gate bestanden, erste Griffe 2/60 (L96/97)\\
+    \end{tabular}
+  \end{panel}};
+  \node[anchor=north west, inner sep=0] at ($(O)+(271,-506)$) {%
+  \begin{panel}[height=68mm]{290mm}{sFail}{Sackgassen \& Irrwege}\pSmall
+    \begin{minipage}[t]{137mm}
+      \Pkt[sFail]{Lauf 2: Encoder trainiert → Kollaps}\\
+      \Pkt[sFail]{Isaac Sim 5.1 stürzt ab → 6.0}\\
+      \Pkt[sFail]{Sim auf KISSKI: keine RT-Cores}\\
+      \Pkt[sFail]{cotrain\_synth\_v1: nur 1 Datensatz}\\
+      \Pkt[sOld]{Cosmos: nie Ende-zu-Ende}
+    \end{minipage}\hfill
+    \begin{minipage}[t]{137mm}
+      \Pkt[sOld]{Finger-Vorzeichen: Hand schloss nie}\\
+      \Pkt[sOld]{SigLIP-Abstand als Gap-Maß}\\
+      \Pkt[sOld]{U-Kurve @30\,000: Artefakt}\\
+      \Pkt[sOld]{Messpunkt 3× falsch (L24–28)}\\
+      \Pkt[lRL]{RL: ohne Griff kein Lernsignal}
+    \end{minipage}
+  \end{panel}};
+  \node[anchor=north west, inner sep=0] at ($(O)+(570,-506)$) {%
+  \begin{panel}[height=68mm]{259mm}{lCotr}{Ausblick}\pSmall
+    \Pkt[lCotr]{Test am echten G1: co-trainiertes cube4 gegen vision-v2}\\
+    \Pkt[lCotr]{mehr Render-Episoden statt höherer Mischung}\\
+    \Pkt[lCotr]{RL auf dem co-trainierten Modell (erstes Griffsignal)}\\
+    \Pkt[lCotr]{Gate-Schwelle relativ statt 80\,\%, Kontaktkriterium für Griffe}\\
+    \Pkt[lCotr]{Ursache des 3-cm-Versatzes und der Hänger klären}
+  \end{panel}};
+\end{tikzpicture}
+\end{document}

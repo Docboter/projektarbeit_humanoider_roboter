@@ -1,0 +1,129 @@
+% TL;DR: Projektkarte als drei Präsentationsfolien 16:9 (Gesamtkarte, Stand heute, Irrwege + Lessons Learned); braucht build/karte_kurz.pdf aus build.sh.
+\documentclass{article}
+\usepackage[paperwidth=338.67mm, paperheight=190.5mm, margin=0mm]{geometry}
+\usepackage{libertinus-otf}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{tikz}
+\input{karte_stil}
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+
+\newcommand\fBody{\fontsize{15}{19}\selectfont\sffamily}
+\newcommand\fSmall{\fontsize{12}{15}\selectfont\sffamily}
+
+% \Rahmen{Titel}{Seitenzahl}: Kopfband, Logo, Fußzeile
+\newcommand\Rahmen[2]{%
+  \coordinate (O) at (current page.north west);
+  \fill[lTrain] (O) rectangle ($(O)+(338.67,-19)$);
+  \node[anchor=west, text=white, font=\fontsize{24}{28}\selectfont\sffamily\bfseries]
+    at ($(O)+(10,-9.5)$) {#1};
+  \node[anchor=east, fill=white, rounded corners=1.2mm, inner sep=1.2mm] at ($(O)+(331,-9.5)$)
+    {\includegraphics[height=11mm]{../logo_hochschule.jpg}};
+  \node[anchor=south west, font=\fontsize{8.5}{10}\selectfont\sffamily, text=black!55]
+    at ($(O)+(10,-188)$) {GR00T-Fine-Tuning für Unitree G1 + DEX3 · Berger, Späth, Mücke ·
+      Betreuer: Prof. Dr. Matthias Lorenzen · HS Kempten · Stand 01.11.2026};
+  \node[anchor=south east, font=\fontsize{8.5}{10}\selectfont\sffamily, text=black!55]
+    at ($(O)+(328.67,-188)$) {#2/3};}
+
+\newsavebox\legbox
+\newsavebox\icOk \newsavebox\icPart \newsavebox\icFail \newsavebox\icOpen
+\begin{document}
+\sbox\legbox{\Legende}
+\sbox\icOk{\tikz[baseline=-0.7ex]{\Mk{ok}{0,0}}}\sbox\icPart{\tikz[baseline=-0.7ex]{\Mk{part}{0,0}}}
+\sbox\icFail{\tikz[baseline=-0.7ex]{\Mk{fail}{0,0}}}\sbox\icOpen{\tikz[baseline=-0.7ex]{\Mk{open}{0,0}}}
+
+% ════════════════════ Folie 1: Gesamtkarte ════════════════════════════
+\noindent\begin{tikzpicture}[remember picture, overlay, x=1mm, y=1mm]
+  \Rahmen{Projektverlauf auf einen Blick: Mai bis November 2026}{1}
+  \node[anchor=north, inner sep=0] at ($(O)+(169.3,-21.5)$)
+    {\includegraphics[height=152mm]{build/karte_kurz.pdf}};
+  \node[anchor=south, inner sep=0] at ($(O)+(169.3,-184)$) {\scalebox{1.02}{\usebox\legbox}};
+\end{tikzpicture}
+\newpage
+
+% ════════════════════ Folie 2: Stand heute ════════════════════════════
+\noindent\begin{tikzpicture}[remember picture, overlay, x=1mm, y=1mm]
+  \Rahmen{Stand heute: erste Griffe, noch kein Stapeln}{2}
+  % Diagramm Closed Loop: Anteil Episoden je Stufe
+  \begin{scope}[shift={($(O)+(14,-34)$)}]
+    \node[anchor=west, font=\fBody\bfseries] at (0,4) {Closed Loop in der Simulation (Szene aus Lauf 70, 120 s je Episode)};
+    \def\bw{150}
+    \foreach \i/\lab/\a/\na/\b/\nb in {0/erreicht/16/20/58/60, 1/berührt/17/20/60/60,
+        2/gehoben/0/20/6/60, 3/frei gehoben/0/20/2/60, 4/gestapelt/0/20/0/60} {
+      \pgfmathsetmacro\ya{-10-\i*22}
+      \node[anchor=east, font=\fBody] at (40,\ya-3.5) {\lab};
+      \fill[black!8] (43,\ya) rectangle ++(\bw,-5.5);
+      \fill[black!8] (43,\ya-7) rectangle ++(\bw,-5.5);
+      \pgfmathsetmacro\wa{\bw*\a/\na}\pgfmathsetmacro\wb{\bw*\b/\nb}
+      \ifnum\a>0 \fill[lTrain!70] (43,\ya) rectangle ++(\wa,-5.5); \fi
+      \ifnum\b>0 \fill[lCotr] (43,\ya-7) rectangle ++(\wb,-5.5); \fi
+      \node[anchor=west, font=\fSmall] at (\bw+45,\ya-2.75) {\a/\na};
+      \node[anchor=west, font=\fSmall\bfseries] at (\bw+45,\ya-9.75) {\b/\nb};
+    }
+    % Referenz: abgespielte Demo (Orakel, Lauf 69) bei "frei gehoben"
+    \draw[black, line width=0.6mm, dash pattern=on 2mm off 1.2mm] ({43+150*0.30},-69) -- ++(0,-20);
+    \node[anchor=west, font=\fSmall, align=left] at ({44.5+150*0.30},-71.3)
+      {Orakel (abgespielte Demo, Lauf 69): 6/20 = 30\,\%};
+    % Legende
+    \fill[lTrain!70] (43,-121) rectangle ++(6,-4.5);
+    \node[anchor=west, font=\fSmall] at (50,-123.2) {N1.6 vision-v2 @44k, ohne Co-Training (Lauf 82, 20 Lagen)};
+    \fill[lCotr] (43,-129) rectangle ++(6,-4.5);
+    \node[anchor=west, font=\fSmall] at (50,-131.2) {N1.6 co-trainiert, cube4 @44k (Lauf 97, 60 Lagen)};
+  \end{scope}
+  % Rechte Spalte: Blocker und nächste Schritte
+  \node[anchor=north west, text width=105mm, align=left, font=\fBody] at ($(O)+(222,-27)$) {%
+    {\bfseries Was das Co-Training gebracht hat}\par\smallskip
+    \fontsize{13.5}{18}\selectfont
+    \usebox\icOk\hspace{1.6mm} Fehler auf Sim-Bildern halbiert (0,024 → 0,012)\par
+    \usebox\icOk\hspace{1.6mm} Hand öffnet und schließt: 73\,\% der Demo-Spanne\par
+    \usebox\icPart\hspace{1.6mm} erste Griffe 2/60 (noch nicht signifikant)\par
+    \usebox\icPart\hspace{1.6mm} Echtbild-Fehler N1.6 +50–60\,\%\par
+    \bigskip
+    {\fBody\bfseries Was noch fehlt}\par\smallskip
+    \usebox\icFail\hspace{1.6mm} gestapelt: in keinem Lauf\par
+    \usebox\icFail\hspace{1.6mm} kein Test am echten Roboter\par
+    \usebox\icOpen\hspace{1.6mm} Ursache des 3-cm-Versatzes offen\par
+    \bigskip
+    {\fBody\bfseries Nächste Schritte}\par\smallskip
+    1.\ Test am G1: cube4 gegen vision-v2\par
+    2.\ mehr Render-Episoden statt höherer Mischung\par
+    3.\ RL auf dem co-trainierten Modell};
+\end{tikzpicture}
+\newpage
+
+% ════════════════════ Folie 3: Irrwege und Lessons Learned ═══════════
+\noindent\begin{tikzpicture}[remember picture, overlay, x=1mm, y=1mm]
+  \Rahmen{Wie lange galt ein Irrtum? Und was wir daraus lernen}{3}
+  \begin{scope}[shift={($(O)+(14,-32)$)}]
+    % Zeitachse: 1 Tag = 0,9 mm, Tag 0 = 01.05.2026
+    \foreach \d/\m in {0/Mai,31/Jun,61/Jul,92/Aug,123/Sep,153/Okt,184/Nov} {
+      \draw[black!25, line width=0.3mm] ({58+\d*0.78},2) -- ({58+\d*0.78},-112);
+      \node[anchor=south, font=\fSmall, text=black!60] at ({58+\d*0.78},2) {\m};
+    }
+    \foreach \i/\lab/\a/\b/\c/\txt in {
+        0/{Kameras verdreht}/29/99/lSim/{70 Tage, L10–18},
+        1/{Split nicht aktiv}/32/104/lTrain/{72 Tage, KISSKI},
+        2/{Finger-Vorzeichen}/34/115/lSim/{≥ 81 Tage, L38–46},
+        3/{Demo nie als Referenz}/33/166/lDiag/{133 Tage, L57/62},
+        4/{SigLIP als Gap-Maß}/34/166/lDiag/{132 Tage, L65/66},
+        5/{U-Kurve @30\,000}/105/164/lTrain/{59 Tage, 20×750}} {
+      \pgfmathsetmacro\yy{-10-\i*19}
+      \node[anchor=east, font=\fSmall\bfseries] at (55,\yy) {\lab};
+      \fill[\c!85, rounded corners=1.8mm] ({58+\a*0.78},\yy+4) rectangle ({58+\b*0.78},\yy-4);
+      \node[anchor=west, font=\fSmall] at ({59.5+\b*0.78},\yy) {\txt};
+    }
+    \node[anchor=north west, font=\fSmall, text=black!60, text width=200mm] at (0,-116)
+      {Balken: vom ersten Auftreten bis zur Widerlegung. Jeder Irrtum lieferte plausible Zahlen ohne
+       Fehlermeldung.};
+  \end{scope}
+  \node[anchor=north west, text width=82mm, align=left, font=\fontsize{13.5}{17}\selectfont\sffamily] at ($(O)+(246,-28)$) {%
+    {\fBody\bfseries Lessons Learned}\par\medskip
+    \textbf{Referenz zuerst:} die abgespielte Demo muss in der Sim greifen.\par\medskip
+    \textbf{Wirkung messen, nicht Ähnlichkeit:} Teacher-Forcing auf Sim-Bildern statt SigLIP.\par\medskip
+    \textbf{Szene unabhängig prüfen:} gegen Echtbilder, nicht mit demselben Code.\par\medskip
+    \textbf{Genug Episoden, feste Seeds}, Regeln vorab als Zahl.\par\medskip
+    \textbf{Laufenden Prozess prüfen:} ein Schalter ist kein Beleg.\par\medskip
+    \textbf{Laborbuch mit Laufnummern} führen.};
+\end{tikzpicture}
+\end{document}
