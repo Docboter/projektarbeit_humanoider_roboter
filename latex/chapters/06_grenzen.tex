@@ -6,65 +6,51 @@
 \label{sec:limitierungen}
 \label{sec:validitaet}
 
-Die Ergebnisse aus \cref{chap:ergebnisse} gelten nur unter Einschränkungen. Dieses Kapitel
-benennt sie, damit sich einschätzen lässt, welche Aussagen belastbar sind und welche nicht.
-
 \section{Stichprobengröße}
 \label{sec:grenzen-stichprobe}
 
-Die Closed-Loop-Messungen umfassen 10, 20 oder 60 Episoden. Das ist für seltene Ereignisse
-wenig: Ohne einen einzigen Treffer in 20 Episoden reicht das 95-\%-Intervall noch bis 17\,\%,
-bei zwei Treffern in 60 Episoden von 0,4 bis 11,5\,\%. Griffraten zwischen null und zwei von 20
-lassen sich deshalb nicht voneinander trennen. Belastbar sind nur große Unterschiede, etwa wie
-oft ein Würfel berührt wird oder wie weit sich die Hand öffnet.
+Die Closed-Loop-Messungen umfassen 10, 20 oder 60 Episoden: Ohne Treffer in 20 Episoden reicht
+das 95-\%-Intervall bis 17\,\%, bei zwei Treffern in 60 von 0,4 bis 11,5\,\%. Griffraten von null
+bis zwei aus 20 sind nicht unterscheidbar; belastbar sind nur große Unterschiede wie
+Berührrate oder Handöffnung.
 
 \section{Simulation statt Roboter}
 \label{sec:grenzen-simulation}
 
 Alle Aussagen zur Aufgabenerfüllung stammen aus der Simulation. Die Ursache des
-3-cm-Versatzes ist unbekannt und nur empirisch korrigiert, und die Korrektur ist ein
-Mittelwert: Das Demo-Replay hebt in fünf der ersten sieben Testlagen (Episoden 240--246) an,
-danach nur noch in einer von 13 (Lauf~69). Ob der Verlust von N1.6 auf Echtbildern nach dem Co-Training
-(\cref{sec:erg-cotrain}) am Roboter spürbar ist, kann nur ein Robotertest zeigen.
+3-cm-Versatzes ist unbekannt, die Korrektur nur im Mittel richtig: Das Demo-Replay hebt in fünf
+der ersten sieben Testlagen an, danach in einer von 13 (Lauf~69). Ob der Echtbild-Verlust von
+N1.6 nach dem Co-Training (\cref{sec:erg-cotrain}) am Roboter spürbar ist, zeigt nur ein Robotertest.
 
 \section{Grenzen der Metriken}
 \label{sec:grenzen-metriken}
 \label{sec:messartefakte}
 
-Die automatischen Bewertungsstufen (\cref{tab:if-stufen}) und Kennzahlen haben bekannte
-Schwächen:
+Die Bewertungsstufen (\cref{tab:if-stufen}) und Kennzahlen haben bekannte Schwächen:
 
 \begin{itemize}
-  \item Die Stufe \enquote{angehoben} (\texttt{lifted}) zählt auch einen gekippten Würfel (Schwerpunkt an der Kante +1,04~cm,
-    an der Ecke +1,83~cm). Deshalb gibt es seit dem 13.10.\ die strengere Stufe
-    \enquote{frei angehoben} (\texttt{lifted\_clear}).
-  \item Auch \enquote{frei angehoben} zählt einen Würfel, der nur auf einem anderen liegt,
-    während eine Hand in der Nähe ist (Lauf~94). Jeder Treffer muss deshalb im Video bestätigt
-    werden.
-  \item Der \acs{siglip}-Abstand~\cite{zhai2023siglip} misst nur, wie ähnlich sich die Bilder sind, nicht, was der
-    Bild-Encoder der Policy daraus macht. Als Kontrolle für das Co-Training ist er ungeeignet.
-  \item Die 80-\%-Schwelle des visuellen Gates bestehen auch alte Modelle ohne Co-Training;
-    eine Schwelle relativ zum besten nicht co-trainierten Modell derselben
-    Generation wäre strenger.
-  \item Bis zum 30.10.\ war die geforderte Turmhöhe für \enquote{gestapelt} (\texttt{stacked})
-    fest auf 8~cm gesetzt. Mit 4-cm-Würfeln misst ein perfekter Dreierturm aber genau 8~cm und
-    zählte damit kaum. Das ändert die Aussage \enquote{nie gestapelt} nicht: In keiner Episode wurde ein
-    Würfel auf einen anderen gesetzt. Seitdem gilt zwei Kanten minus 2~cm.
-  \item Kennzahlen, die ein Maximum über die Episode bilden, etwa die Fingerspanne, wachsen mit
-    der Episodenlänge. Verglichen wird deshalb nur bei gleicher Länge.
+  \item \texttt{lifted} zählt auch gekippte Würfel (Schwerpunkt +1,04~cm an der Kante,
+    +1,83~cm an der Ecke), deshalb gibt es seit dem 13.10.\ \texttt{lifted\_clear}. Auch das
+    zählt einen Würfel, der nur auf einem anderen liegt, während eine Hand in der Nähe ist
+    (Lauf~94); Treffer sind im Video zu bestätigen.
+  \item Der \acs{siglip}-Abstand~\cite{zhai2023siglip} misst nur Bildähnlichkeit, nicht, was der
+    Bild-Encoder der Policy daraus macht; als Kontrolle für das Co-Training taugt er nicht.
+  \item Die 80-\%-Schwelle des visuellen Gates bestehen auch alte Modelle ohne Co-Training.
+    Strenger wäre eine Schwelle relativ zum besten nicht co-trainierten Modell derselben
+    Generation.
+  \item Bis 30.10.\ verlangte \texttt{stacked} fest 8~cm Turmhöhe; ein perfekter Dreierturm aus
+    4-cm-Würfeln misst genau 8~cm und zählte kaum. Seitdem gilt zwei Kanten minus 2~cm;
+    \enquote{nie gestapelt} bleibt, kein Würfel wurde auf einen anderen gesetzt.
+  \item Die maximale Fingerspanne wächst mit der Episodenlänge; Vergleiche nur bei gleicher
+    Länge.
 \end{itemize}
 
-\section{Ablauf der Messungen}
+\section{Ablauf der Messungen und Vergleich der Generationen}
 \label{sec:grenzen-ablauf}
-
-Closed Loops hingen dreimal ohne Fehlermeldung mitten in einer Episode (Läufe 89, 90, 97); unvollständige Versuche wurden nicht gewertet. Lauf~85 lief
-versehentlich ohne \texttt{SIM\_CUBE\_EDGE}. Auf dem Sim-Server lag der Datensatz zeitweise
-gemischt aus v2.1- und v3.0-Dateien vor (Lauf~56); welche früheren Läufe davon betroffen
-waren, ist nicht geklärt.
-
-\section{Vergleich der Generationen}
 \label{sec:grenzen-generationen}
 
-N1.7 lief mit dem NVIDIA-Rezept (State-Dropout 0,2, andere
-Normierung). Unterschiede zwischen den Generationen sind deshalb nicht allein dem Modell
-zuzuschreiben.
+Closed Loops hingen dreimal ohne Fehlermeldung (Läufe 89, 90, 97); unvollständige Versuche
+zählen nicht. Lauf~85 lief versehentlich ohne \texttt{SIM\_CUBE\_EDGE}; auf dem Sim-Server lag der
+Datensatz zeitweise gemischt in v2.1 und v3.0 vor (Lauf~56, frühere Läufe ungeklärt). N1.7 lief
+mit dem NVIDIA-Rezept (State-Dropout 0,2, andere Normierung), Generationsunterschiede liegen also
+nicht allein am Modell.

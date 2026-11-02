@@ -6,6 +6,17 @@
 % zu lassen (reduziert "Overfull \hbox"-Warnungen bei schwer trennbarem Text).
 \setlength{\emergencystretch}{3em}
 
+% ── Gleitobjekte und Tabellenspalten ─────────────────────────────────
+% Seiten, die nur Abbildungen/Tabellen tragen, oben beginnen statt senkrecht
+% zentriert, und ohne gedehnte Lücken zwischen den Objekten.
+\makeatletter
+\setlength{\@fptop}{0pt}
+\setlength{\@fpsep}{\floatsep}
+\setlength{\@fpbot}{0pt plus 1fil}
+\makeatother
+% X-Spalten linksbündig: Blocksatz in schmalen Zellen reißt große Wortlücken.
+\renewcommand{\tabularxcolumn}[1]{>{\raggedright\arraybackslash}p{#1}}
+
 % ── Metadaten (hier anpassen!) ────────────────────────────────────────
 \newcommand{\docTitle}{Fine-Tuning von NVIDIA GR00T für humanoide Roboter-Manipulation}
 \newcommand{\docSubtitle}{Block-Stacking mit dem Unitree G1 und der DEX3-Hand}

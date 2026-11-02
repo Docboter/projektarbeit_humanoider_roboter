@@ -57,7 +57,7 @@ Trainingsschritten. \Cref{tab:if-checkpoint} zeigt, wo er abgelegt wird und was 
     Inhalt & \texttt{config.json}, Gewichte (safetensors), \texttt{experiment\_cfg/},
              \texttt{processor/}, \texttt{wandb\_config.json}, Optimizer-Zustand \\
     Version & \texttt{model\_type} in \texttt{config.json}: \texttt{Gr00tN1d6} oder
-              \texttt{Gr00tN1d7}; \texttt{GROOT\_VERSION=auto} liest ihn aus \\
+              \texttt{Gr00tN1d7}; \texttt{GROOT\_VERSION=auto} erkennt ihn \\
     Ablage & Hugging Face (Projekt-Repos öffentlich), ohne Optimizer:
              \texttt{upload\_checkpoint.py --checkpoint <dir> --repo
              <konto>/groot-g1dex3-<name>} \\
@@ -77,8 +77,8 @@ Trainingsschritten. \Cref{tab:if-checkpoint} zeigt, wo er abgelegt wird und was 
 
 Der Policy-Server verbindet Modell und Simulation. Er lädt einen Checkpoint, nimmt
 Beobachtungen entgegen und antwortet mit den nächsten Gelenkzielen. Die Simulation selbst
-enthält kein Modell, sie fragt den Server in festem Takt. Ein Roboter könnte später auf
-dieselbe Weise angebunden werden (\cref{sec:if-roboter}).
+enthält kein Modell, sie fragt den Server in festem Takt. Ein Roboter ließe sich ebenso
+anbinden (\cref{sec:if-roboter}).
 
 \subsection{Ablauf im Regelkreis}
 \label{sec:if-server-ablauf}
@@ -86,14 +86,14 @@ dieselbe Weise angebunden werden (\cref{sec:if-roboter}).
 Ein Durchlauf des Regelkreises besteht aus vier Schritten:
 
 \begin{enumerate}
-  \item Die Simulation schickt die vier Kamerabilder, die 28 Gelenkwinkel und den
-    Aufgabentext an den Server.
+  \item Die Simulation schickt vier Kamerabilder, 28 Gelenkwinkel und Aufgabentext an den
+    Server.
   \item Der Server berechnet daraus einen Block von 16 aufeinanderfolgenden Gelenkzielen für
     alle 28 Gelenke. Die Arm-Bewegungen sagt das Modell relativ zum aktuellen Zustand voraus;
     der Server rechnet sie mit dem mitgeschickten Zustand in absolute Ziele um. Jede Anfrage
     muss deshalb den aktuellen Zustand enthalten.
   \item Die Simulation führt die ersten 8 der 16 Ziele mit 30~Hz aus
-    (\texttt{EXECUTION\_HORIZON}), das dauert 267~ms.
+    (\texttt{EXECUTION\_HORIZON}, 267~ms).
   \item Danach fragt sie neu an. Die nächste Antwort muss also innerhalb von 267~ms vorliegen.
 \end{enumerate}
 
@@ -107,7 +107,7 @@ Server und Client kommunizieren über \ac{zmq} im Muster Anfrage/Antwort (REQ/RE
 \texttt{get\_modality\_config} und \texttt{kill}. Numpy-Arrays werden als
 \doc{{"__ndarray_class__": true, "as_npy": <Bytes>}} übertragen, Fehler kommen als
 \doc{{"error": <text>}} zurück. \Cref{tab:if-server} zeigt den Inhalt einer Anfrage und der
-Antwort; einen lauffähigen Beispiel-Client enthält \doc{docs/schnittstellen.md}, Abschnitt~3.
+Antwort; einen Beispiel-Client enthält \doc{docs/schnittstellen.md}.
 
 \begin{table}[htb]
   \centering
@@ -158,8 +158,8 @@ Antwort; nach einem Timeout baut er die Verbindung neu auf.
 
 Die Sim-Eval bewertet ein Modell im geschlossenen Regelkreis (Closed Loop): Die Policy steuert
 den simulierten Roboter, und die Simulation prüft laufend, wie weit die Aufgabe gediehen ist.
-Ergänzend prüft das visuelle Gate ohne Simulation vorab, wie gut ein Modell mit Bildern aus der
-Simulation zurechtkommt.
+Ergänzend prüft das visuelle Gate ohne Simulation vorab, wie gut ein Modell mit Sim-Bildern
+zurechtkommt.
 
 \subsection{Eingaben}
 \label{sec:if-sim-eingaben}
@@ -188,8 +188,8 @@ wird für sich geprüft.
     Stufe & Bedingung \\
     \midrule
     \texttt{reached} & Fingerkuppe $\le$ 4~cm von der Würfelmitte \\
-    \texttt{grasp\_attempted} & Fingerspanne des Kommandos $\ge$ 30\,\% der Demonstrationsspanne
-      von 2,094~rad \\
+    \texttt{grasp\_attempted} & Fingerspanne des Kommandos $\ge$ 30\,\% der Demo-Spanne
+      (2,094~rad) \\
     \texttt{touched} & Würfel um $>$ 1~cm verschoben \\
     \texttt{lifted} & Würfelschwerpunkt $>$ 2~cm angehoben (zählt auch Kippen) \\
     \texttt{lifted\_clear} & Würfelunterseite $>$ 2~cm über dem Tisch \emph{und} im selben
@@ -198,19 +198,18 @@ wird für sich geprüft.
       Würfelmitten $>$ 2 Kanten $-$ 2~cm (8~cm bei 5-cm-Würfeln), alle $<$ 0,05~m/s \\
     \bottomrule
   \end{tabularx}
-  \caption[Stufen der Closed-Loop-Bewertung]{Stufen der Closed-Loop-Bewertung.
-    \texttt{lifted\_clear} kam am 13.10.\ hinzu (\texttt{lifted} zählt Kippen mit);
-    alle übrigen Schwellen standen vorher fest.}
+  \caption[Stufen der Closed-Loop-Bewertung]{Stufen der Closed-Loop-Bewertung
+    (\texttt{lifted\_clear} seit 13.10., alle übrigen von Beginn an).}
   \label{tab:if-stufen}
 \end{table}
 
 \subsection{Visuelles Gate}
 \label{sec:if-sim-gate}
 
-Das Gate läuft ohne Isaac~Sim und braucht nur wenige Minuten. Die Policy sagt für dieselben
-Zustände einmal auf den Sim-Prüfbildern (\cref{tab:datensaetze}; 4 Episoden à 600 Schritte,
-Würfel 5~cm und 4~cm) und einmal auf den echten Bildern derselben Episoden die nächsten
-Aktionen vorher (teacher-forced, also ohne Rückkopplung). Kennzahl ist der Median der \ac{mse} über die
+Das Gate läuft ohne Isaac~Sim in wenigen Minuten. Die Policy sagt für dieselben Zustände
+einmal auf den Sim-Prüfbildern (\cref{tab:datensaetze}; 4 Episoden à 600 Schritte, Würfel 5
+und 4~cm) und einmal auf den echten Bildern die nächsten Aktionen vorher (teacher-forced,
+ohne Rückkopplung). Kennzahl ist der Median der \ac{mse} über die
 Hand-Dimensionen 14--27, gemittelt über die Seeds 0, 1 und 2 (Streuung etwa $\pm$5\,\%).
 Bestanden ist das Gate, wenn die Kennzahl auf beiden Sim-Prüfsets unter 80\,\% des Werts der
 Referenz derselben Generation ohne Co-Training liegt (N1.6 vision-v2 bzw.\ N1.7 vision-v1, je
@@ -221,8 +220,7 @@ Referenz derselben Generation ohne Co-Training liegt (N1.6 vision-v2 bzw.\ N1.7 
 \label{sec:if-container}
 \label{sec:docker}
 
-Training und Simulation laufen in getrennten Images. \Cref{tab:if-container} nennt die
-Einstiegspunkte und die wichtigsten Variablen.
+Training und Simulation laufen in getrennten Images (\cref{tab:if-container}).
 
 \begin{table}[htb]
   \centering
@@ -239,7 +237,7 @@ Einstiegspunkte und die wichtigsten Variablen.
       \texttt{\textasciitilde/groot-rl-data} = \texttt{/data} im Container \texttt{groot-rl} \\
     Variablen & \texttt{HF\_TOKEN} (Pflicht), \texttt{GROOT\_VERSION}, \texttt{MAX\_STEPS},
       \texttt{GLOBAL\_BATCH\_SIZE}, \texttt{NUM\_GPUS}, \texttt{TUNE\_VISUAL},
-      \texttt{USE\_COTRAIN}, \texttt{TRAIN\_TEST\_SPLIT}; vollständig in
+      \texttt{USE\_COTRAIN}, \texttt{TRAIN\_TEST\_SPLIT};
       \doc{docs/training/env-vars.md} \\
     \bottomrule
   \end{tabularx}
@@ -250,9 +248,8 @@ Einstiegspunkte und die wichtigsten Variablen.
 \section{Echter Roboter}
 \label{sec:if-roboter}
 
-Eine Anbindung an den G1 fehlt. Eine Roboter-Seite müsste die vier Kamerabilder und die 28
-Gelenkwinkel lesen, sie nach \cref{tab:if-server} an den Server schicken und die
-zurückkommenden Gelenkziele mit 30~Hz an Arme und Hände geben. Die gemessene Latenz lässt
-rund dreifache Reserve, solange der Server die \acs{gpu} allein nutzt
-(\cref{sec:if-server-betrieb}). Beine und Gleichgewicht regelt
-die Policy nicht.
+Eine Anbindung an den G1 fehlt. Sie müsste vier Kamerabilder und 28 Gelenkwinkel nach
+\cref{tab:if-server} an den Server schicken und die Gelenkziele mit 30~Hz an
+Arme und Hände geben; bei exklusiver \acs{gpu} lässt die Latenz dreifache Reserve
+(\cref{sec:if-server-betrieb}). Beine und Gleichgewicht regelt die
+Policy nicht.
