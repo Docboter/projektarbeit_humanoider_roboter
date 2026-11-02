@@ -9,12 +9,19 @@
 \label{sec:problemstellung}
 \label{sec:zielsetzung}
 
+\ac{vla}-Modelle sollen Roboter über Kamerabilder und eine Aufgabenbeschreibung in Sprache
+steuern, statt jede Bewegung einzeln zu programmieren. Vortrainierte Modelle lassen sich mit
+wenigen hundert Demonstrationen an einen neuen Roboter und eine neue Aufgabe anpassen. Ob diese
+Anpassung gelungen ist, lässt sich ohne Roboter aber nur schwer prüfen: Ein niedriger
+Trainingsfehler sagt wenig darüber, ob das Modell die Aufgabe im Regelkreis tatsächlich löst.
+Diese Lücke zwischen Training und Bewertung zieht sich durch die ganze Arbeit.
+
 Das vortrainierte \ac{vla}-Modell NVIDIA GR00T~\cite{groot2025} soll den humanoiden
 Roboter Unitree~G1 mit DEX3-Händen~\cite{unitree_g1} drei Würfel stapeln lassen. Grundlage
 sind 301 teleoperierte Demonstrationen eines öffentlichen
 Datensatzes~\cite{g1dex3dataset}. Ein Roboter stand für Tests nicht zur Verfügung; bewertet
-wird deshalb offline auf aufgezeichneten Episoden (Open Loop) und in einer Simulation in
-Isaac~Lab~\cite{isaaclab2023} (Closed Loop). Verwendet werden die Modellgenerationen N1.6 und
+wird deshalb auf aufgezeichneten Episoden (Open Loop) und in einer Simulation in
+Isaac~Lab~\cite{isaaclab2023} (Closed Loop; beide Begriffe erklärt \cref{tab:begriffe}). Verwendet werden die Modellgenerationen N1.6 und
 N1.7. Nicht Teil der Arbeit sind Fortbewegung und der Einsatz auf dem echten Roboter.
 
 Ziel sind drei Dinge: (1) ein reproduzierbares Fine-Tuning auf diesen Daten, (2) eine
@@ -27,56 +34,102 @@ können.
 
 \begin{enumerate}
   \item Das Fine-Tuning läuft reproduzierbar in einem Container, lokal und auf dem
-    \acs{kisski}-Cluster der \acs{gwdg}; bester Checkpoint ist N1.6 nach 44\,000 Schritten, N1.7 liegt im Open
-    Loop gleichauf (\cref{sec:erg-training}).
-  \item In der Simulation stapelt kein Modell einen Würfel; zwei Ursachen sind gemessen
-    (\cref{sec:erg-registrierung,sec:erg-domain-gap}).
-  \item Die Würfel liegen in der Simulation je Seite rund 3~cm zu weit innen: Abgespielte
-    menschliche Demonstrationen heben mit Korrektur in 6 von 20 Episoden einen Würfel, ohne
-    Korrektur kaum.
-  \item Auf simulierten Bildern ist der Hand-Fehler der Policy 13-mal (N1.6) bzw. 36-mal
-    (N1.7) so groß wie auf echten.
-  \item Co-Training mit gerenderten Bildern verkleinert diesen Fehler deutlich und bringt
-    die ersten Griffe der Policy (2 von 60 Episoden), die gegen 0 von 20 ohne Co-Training
-    aber statistisch nicht zu trennen sind (\cref{sec:erg-cotrain}).
+    \acs{kisski}-Cluster der \acs{gwdg}; bestes Modell ist N1.6 nach 44\,000 Schritten, N1.7
+    ist auf den echten Testaufnahmen gleich gut (\cref{sec:erg-training}).
+  \item In der Simulation stapelt keines der Modelle einen Würfel; zwei Ursachen dafür sind
+    gemessen (\cref{sec:erg-registrierung,sec:erg-domain-gap}).
+  \item Die Würfel liegen in der Simulation je Seite rund 3~cm zu weit innen: Spielt man die
+    Bewegungen aus dem Trainingsdatensatz ohne Modell ab, heben sie ohne Korrektur keinen
+    Würfel an, mit Korrektur in 6 von 20 Episoden.
+  \item Auf den Kamerabildern der Simulation ist der Fehler der Policy bei den Handbewegungen
+    13-mal (N1.6) bzw.\ 36-mal (N1.7) so groß wie auf den echten Bildern.
+  \item Co-Training mit Bildern aus der Simulation verkleinert diesen Fehler deutlich und bringt
+    die ersten Griffe der Policy, allerdings nur in 2 von 60 Episoden; ohne Co-Training war es
+    keiner von 20, ein statistisch nicht gesicherter Unterschied (\cref{sec:erg-cotrain}).
 \end{enumerate}
 
 \section{Aufbau und Verhältnis zur Dokumentation}
 \label{sec:aufbau}
 \label{sec:doku-verhaeltnis}
+
+Die Arbeit soll auch als Einstieg für alle dienen, die das Projekt weiterführen. Deshalb
+beginnt sie mit dem Gesamtsystem: \Cref{chap:system} stellt Roboter, Modell und
+Rechenumgebungen vor und benennt die verwendeten Datensätze und Modelle.
+\Cref{chap:schnittstellen} beschreibt, wie die Bausteine zusammenspielen und welche Daten sie
+austauschen, und \cref{chap:anleitung} zeigt, wie man ein Training startet und ein Modell
+misst.
+
+Die Ergebnisse folgen in \cref{chap:ergebnisse} in der Reihenfolge, in der sie aufeinander
+aufbauen: vom Training über das Scheitern in der Simulation zu den beiden gefundenen Ursachen
+und zum Co-Training als Gegenmaßnahme. \Cref{chap:grenzen} ordnet ein, wie belastbar diese
+Ergebnisse sind. \Cref{chap:projektverlauf} blickt auf den Projektverlauf zurück und hält fest,
+was sich beim nächsten Mal besser machen lässt; \cref{chap:uebergabe} schließt mit Fazit und
+offenen Punkten.
+
+Die Arbeit fasst zusammen und begründet, die Einzelheiten stehen im Repository: alle Befehle,
+Parameter und Rohwerte. Als Einstieg eignet sich \doc{README.md}, danach
+\doc{docs/quickstart.md} und \doc{docs/schnittstellen.md}. Jede Messung trägt eine Laufnummer
+(\enquote{Lauf~N}), über die sie sich dort wiederfinden lässt. Die Trainingsläufe 1--4 sind in
+\doc{docs/ergebnisse/} einzeln ausgewertet, alle weiteren im fortlaufenden Laborbuch
+\doc{docs/ergebnisse/diagnose-chronik.md}. Aus diesen Quellen stammen alle Zahlen der Arbeit;
+eine Kurzübersicht der zitierten Läufe gibt \cref{anh:laufliste}.
+
+\section{Aufteilung der Arbeit}
 \label{sec:eigenleistung}
 
-\Cref{chap:system} zeigt das System im Überblick, \cref{chap:schnittstellen} seine
-Schnittstellen und \cref{chap:anleitung}, wie man damit weiterarbeitet.
-\Cref{chap:ergebnisse} stellt die Ergebnisse als Kette dar, \cref{chap:grenzen} ihre
-Grenzen. \Cref{chap:projektverlauf} fasst Projektverlauf und Lessons Learned zusammen,
-\cref{chap:uebergabe} die offenen Punkte. Zitierte Läufe (\enquote{Lauf~N}) sind in
-\cref{anh:laufliste} aufgeführt.
-
-Befehle, Parameter und Einzelwerte stehen im Repository:
-Einstieg \doc{README.md}, dann \doc{docs/quickstart.md} und \doc{docs/schnittstellen.md}.
-Jede Messung trägt eine Laufnummer. Die Trainingsläufe 1--4 sind in
-\doc{docs/ergebnisse/} je eigens ausgewertet, alle übrigen Läufe im Laborbuch
-\doc{docs/ergebnisse/diagnose-chronik.md}; aus diesen Quellen stammen alle Zahlen der Arbeit.
-
-\Cref{tab:beitraege} zeigt, wer welche Arbeitspakete federführend bearbeitet hat.
+Zu Projektbeginn wurde die Arbeit in drei Pakete mit je einer verantwortlichen Person
+aufgeteilt (\cref{tab:plan}).
 
 \begin{table}[htb]
   \centering
-  \begin{tabularx}{\linewidth}{Xl}
+  \small
+  \begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{2.5cm}>{\raggedright\arraybackslash}Xl}
     \toprule
-    Arbeitspaket & Federführend \\
+    Bereich & Geplanter Inhalt & Verantwortlich \\
     \midrule
-    Container-Trainingspipeline, KISSKI-Anbindung (Basis-Setup gemeinsam) & Luca Mücke \\
-    Roboterkonfiguration, Datensatzkonvertierung, Split, Checkpoint-Auswahl & Luca Mücke \\
-    Simulation in Isaac~Lab (lokal und in der Cloud über vast.ai), Kalibrierung,
-      Diagnosewerkzeuge, Co-Training, RL-Pipeline (FPO, ohne Trainingsergebnis) & Luca Mücke \\
-    Replay-Videos, erste Würfellage-Bestimmung & Matthias Späth, Luca Mücke \\
-    Inferenz-Optimierung, Migration auf GR00T~N1.7 & Matthias Späth \\
-    Generative Video-Augmentierung mit Cosmos-Transfer & Maximilian Berger \\
-    Dokumentation, Bedienoberfläche, Ausarbeitung & Luca Mücke \\
+    Infrastruktur und Container & Docker-Images für Training und Simulation, Zugang zu
+      Rechenressourcen (Cluster, Institutsserver, Mietkarten), Ablage von Daten und
+      Checkpoints & Maximilian Berger \\
+    \addlinespace
+    Training & Datensatz aufbereiten, GR00T nachtrainieren, Checkpoints auswählen und auf
+      aufgezeichneten Episoden bewerten & Luca Mücke \\
+    \addlinespace
+    Simulation & Szene in Isaac~Lab aufbauen, Policy anbinden, Modelle im geschlossenen
+      Regelkreis bewerten & Matthias Späth \\
     \bottomrule
   \end{tabularx}
-  \caption{Arbeitspakete und federführende Bearbeiter.}
+  \caption{Geplante Arbeitspakete zu Projektbeginn.}
+  \label{tab:plan}
+\end{table}
+
+Im Verlauf verschoben sich die Schwerpunkte. \Cref{tab:beitraege} zeigt, wer die einzelnen
+Arbeitspakete tatsächlich federführend bearbeitet hat, gegliedert nach denselben Bereichen.
+
+\begin{table}[H]
+  \centering
+  \small
+  \begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{2.5cm}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}p{3.1cm}}
+    \toprule
+    Bereich & Arbeitspaket & Verantwortlich \\
+    \midrule
+    Infrastruktur und Container & Container-Trainingspipeline, Anbindung an KISSKI, Bedienoberfläche \texttt{run.sh} für alle Abläufe
+       & Luca Mücke \\
+    \midrule
+    Training und Daten & Roboterkonfiguration, Datensatzkonvertierung, Train/Test-Split,
+      Checkpoint-Auswahl & Luca Mücke \\
+      & Migration auf GR00T~N1.7 & Matthias Späth \\
+      & Generative Video-Augmentierung mit Cosmos-Transfer & Maximilian Berger \\
+    \midrule
+    Simulation & Isaac-Lab-Szene, Kalibrierung,
+      Diagnosewerkzeuge & Luca Mücke \\
+      & Replay-Videos, Bestimmung der Würfellage & Gemeinsam \\
+      & Inferenz-Optimierung des Policy-Servers & Matthias Späth \\
+      & Co-Training mit Bildern aus der Simulation & Luca Mücke \\
+      & RL-Pipeline mit \acs{fpo} (gebaut, ohne Trainingsergebnis) & Luca Mücke \\
+    \midrule
+     Dokumentation & Repository-Wiki, Projektarbeit-Ausarbeitung & Gemeinsam \\
+    \bottomrule
+  \end{tabularx}
+  \caption{Tatsächlich bearbeitete Arbeitspakete und verantwortliche Bearbeiter.}
   \label{tab:beitraege}
 \end{table}

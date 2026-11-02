@@ -15,22 +15,23 @@ Die drei Ziele aus \cref{sec:aufgabe} sind unterschiedlich weit erreicht.
 Modell den Demonstrationen, N1.6 und N1.7 gleichauf (\cref{sec:erg-training}).
 (2) Die Bewertung ohne Roboter steht, und sie erklärt das Scheitern in der Simulation mit
 zwei gemessenen Ursachen: Würfellage und visueller Domain-Gap. Das Co-Training mit
-gerenderten Bildern verkleinert den Gap und bringt erste Griffe (2 von 60), aber kein
-Stapeln.
+gerenderten Bildern verkleinert den Gap und bringt erste Griffe, wenn auch nur in 2 von 60
+Episoden, aber kein Stapeln.
 (3) Schnittstellen und Anleitung sind in \cref{chap:schnittstellen,chap:anleitung} und im
 Repository dokumentiert, Versionen und Reproduzierbarkeit in \cref{anh:software}. Die Aufgabe selbst, drei Würfel zu stapeln, ist nicht gelöst. Ob das
 Modell auf dem echten Roboter greift, ist offen; dieser Test steht an erster Stelle der
-folgenden Liste.
+folgenden Liste. Rückblickend wären beide Blocker vermeidbar gewesen, wenn Trainingsdaten und
+Bewertung aus derselben Umgebung gestammt hätten (\cref{sec:lessons}).
 
-\section{Offene Punkte, in dieser Reihenfolge}
+\section{Offene Punkte}
 \label{sec:offene-punkte}
 
-Die laufend gepflegte Liste steht in \doc{next-steps.md}, Abschnitt~2.
+Die folgenden Punkte sind nach Dringlichkeit geordnet. Die laufend gepflegte Liste steht in \doc{next-steps.md}, Abschnitt~2.
 
 \begin{enumerate}
-  \item \textbf{Robotertest.} Modell C (\texttt{…-cotrain-v3-cube4-ckpt44000}) gegen vision-v2
-    @44000 auf dem echten G1. Er entscheidet, ob der Echtbild-Verlust von N1.6 nach dem
-    Co-Training tragbar ist; sonst ist N1.7 D die Alternative ohne diesen Verlust, das in der
+  \item \textbf{Robotertest.} Modell C (\texttt{…-cotrain-v3-cube4-ckpt44000}) gegen N1.6 vision-v2
+    auf dem echten G1. Er entscheidet, ob der Echtbild-Verlust von N1.6 nach dem
+    Co-Training tragbar ist; sonst ist Modell D (N1.7) die Alternative ohne diesen Verlust, das in der
     Simulation aber noch nicht greift. Voraussetzung ist eine Roboter-Seite nach
     \cref{sec:if-roboter}.
   \item \textbf{Griffrate heben.} Die vorregistrierte Regel sieht nach bestandenem Gate vor, den
@@ -49,7 +50,13 @@ Die laufend gepflegte Liste steht in \doc{next-steps.md}, Abschnitt~2.
 \section{Bekannte Defekte und Stolperstellen}
 \label{sec:defekte}
 
+Einige Einschränkungen betreffen nicht die Ergebnisse, sondern die Weiterarbeit:
+
 \begin{itemize}
+  \item Der KISSKI-Zugang der Projektgruppe endet im Dezember 2026; Daten auf dem
+    Projektspeicher sind danach nicht mehr erreichbar. Checkpoints und Render-Datensätze liegen
+    öffentlich auf Hugging Face, für neue Trainings ist ein eigener Zugang nötig
+    (\cref{sec:dienste}).
   \item Die Prüfbilder des visuellen Gates und die Layout-Datei
     \texttt{layout\_heldout\_dy3.json} liegen nur auf dem \acs{ikr}-Server. Auf einem neuen Server
     werden sie mit \texttt{server\_rl\_run.sh layout}, \doc{tools/layout_shift.py} und
@@ -58,23 +65,41 @@ Die laufend gepflegte Liste steht in \doc{next-steps.md}, Abschnitt~2.
     werden (\texttt{Simulation/update\_sim\_image.sh --standalone}).
 \end{itemize}
 
-\section{Nicht weiterverfolgt}
+\section{Begonnene, nicht abgeschlossene Arbeiten}
 \label{sec:nicht-weiter}
 \label{sec:locomotion}
 \label{sec:rl-weiterfuehrend}
 
-Für die generative Augmentierung gibt es einen eigenen Container: Er variiert echte
-Trainingsvideos mit Cosmos-Transfer2.5~\cite{cosmostransfer2025} (Kanten-ControlNet,
-Beleuchtung, Hintergrund, Tischfarbe) und baut daraus einen Datensatz, den das Co-Training
-direkt einliest (\texttt{USE\_COTRAIN}). Image-Build und erste Inferenzläufe gelangen Ende
-August 2026; eine Vorabprüfung fängt Abweichungen der Framezahl ab. Ein vollständiger
-augmentierter Datensatz und ein Trainingslauf damit fehlen, weil kein Docker-Server mit den
-nötigen rund 65~GB GPU-Speicher verfügbar war.
-Die Augmentierung variiert echte Bilder und zielt damit eher auf die Robustheit am Roboter als
-auf den Gap zur Simulation (\doc{docs/augmentation/anleitung.md}). Der extern aufgenommene Sim-Datensatz
-\texttt{Fichtl00/Cube\_Stacking\_synth} (16 Episoden, in der Simulation teleoperiert) passt
-schematisch nicht (57 statt 28 Zustandsdimensionen, 50 statt 30~fps); ein Co-Training-Lauf mit
-der umgewandelten Fassung liegt nicht vor
-(\doc{docs/training/synth-datensatz.md}). Für Fortbewegung empfiehlt die Recherche, eine
-vorhandene Lauf-Policy mit der Manipulations-Policy zu kombinieren
-(\doc{docs/weiterfuehrend/lokomotion-recherche.md}).
+Drei Stränge wurden begonnen, aber nicht bis zu einem Ergebnis geführt. Sie sind so
+dokumentiert, dass sich an sie anknüpfen lässt.
+
+\subsection{Generative Video-Augmentierung}
+\label{sec:augmentierung}
+
+Für die generative Augmentierung (federführend Maximilian Berger, \cref{tab:beitraege}) gibt es
+einen eigenen Container. Er variiert echte Trainingsvideos mit
+Cosmos-Transfer2.5~\cite{cosmostransfer2025}: Ein Kanten-ControlNet hält die Geometrie fest,
+während Beleuchtung, Hintergrund und Tischfarbe wechseln. Aus den Ergebnissen baut er einen
+Datensatz, den das Co-Training direkt einliest (\texttt{USE\_COTRAIN}). Image-Build und erste
+Inferenzläufe gelangen Ende August 2026, und eine Vorabprüfung fängt Abweichungen der Framezahl
+ab. Es fehlen ein vollständiger augmentierter Datensatz und ein Trainingslauf damit, weil kein
+Docker-Server mit den nötigen rund 65~GB Grafikspeicher verfügbar war. Da die Augmentierung
+echte Bilder variiert, zielt sie eher auf Robustheit am echten Roboter als auf den Gap zur
+Simulation (\doc{docs/augmentation/anleitung.md}).
+
+\subsection{Externer Sim-Datensatz}
+\label{sec:synth-datensatz}
+
+Der extern aufgenommene Datensatz \texttt{Fichtl00/Cube\_Stacking\_synth} wurde in der
+Simulation teleoperiert und wäre damit ein Schritt in Richtung der Empfehlung aus
+\cref{sec:lessons}. Mit 16 Episoden ist er aber klein und passt schematisch nicht: Er hat 57
+statt 28 Zustandsdimensionen und 50 statt 30 Bilder pro Sekunde. Eine umgewandelte Fassung
+existiert, ein Co-Training-Lauf damit nicht (\doc{docs/training/synth-datensatz.md}).
+
+\subsection{Fortbewegung}
+\label{sec:fortbewegung}
+
+Fortbewegung war nicht Teil der Aufgabe. Das Modell kennt nur Arme und Hände, und in der
+Simulation ist der Rumpf fest verankert. Die Recherche dazu empfiehlt deshalb, wie bei NVIDIA
+und Unitree üblich, einen eigenen Lauf-Controller für Beine und Balance mit der bestehenden
+Policy für Arme und Hände zu kombinieren (\doc{docs/weiterfuehrend/lokomotion-recherche.md}).

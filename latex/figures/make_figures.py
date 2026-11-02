@@ -73,7 +73,9 @@ def gate():
         ("D N1.7 cube4 @44000", "N1.7 Co-Training 4 cm (D)", ORANGE, ""),
     ]
     panels = [("echt", "Echtbild"), ("sim5", "Sim-Prüfset 5 cm"), ("sim4", "Sim-Prüfset 4 cm")]
-    fig, axes = plt.subplots(1, 3, figsize=(6.3, 3.0), sharey=True)
+    # Gleiche x-Skala in allen drei Panels, damit die Balkenlängen direkt vergleichbar sind;
+    # die Werte stehen zusätzlich als Zahl am Balken (Echtbild-Balken sind sonst kaum lesbar).
+    fig, axes = plt.subplots(1, 3, figsize=(6.3, 3.0), sharey=True, sharex=True)
     y = list(range(len(sel)))[::-1]
     for ax, (key, title) in zip(axes, panels):
         for yi, (ck, _, color, hatch) in zip(y, sel):
@@ -91,9 +93,12 @@ def gate():
             ax.errorbar(
                 m, yi, xerr=[[m - lo], [hi - m]], fmt="none", ecolor=INK2, elinewidth=0.8, capsize=2
             )
+            ax.text(hi + 0.002, yi, de(m), va="center", ha="left", fontsize=5.5, color=INK2)
+        ax.set_xlim(0, 0.1)
+        ax.set_xticks([0, 0.05, 0.1])
         ax.set_title(title, fontsize=9, color=INK)
         ax.grid(axis="y", visible=False)
-        ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: de(v, 3)))
+        ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: de(v, 2)))
         ax.tick_params(axis="x", labelsize=7)
         ax.tick_params(axis="y", length=0)
     axes[0].set_yticks(y, [s[1] for s in sel], fontsize=8)

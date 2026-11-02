@@ -7,13 +7,20 @@
 \label{sec:verlauf}
 \label{sec:hindernisse}
 
+Das Projekt lief von April bis Oktober 2026. \Cref{tab:verlauf} zeigt die wichtigsten Schritte
+je Monat.
+
 \begin{table}[htb]
   \centering
   \begin{tabularx}{\linewidth}{lX}
     \toprule
     Zeit & Schritt \\
     \midrule
-    Juni 2026 & Container-Pipeline, Läufe 1 und 2 auf KISSKI; erste Sim-Eval auf gemieteten \acp{gpu}: 0/20 \\
+    April 2026 & Projektstart; erste Versuche parallel in allen drei Strängen: Docker-Container,
+           Isaac-Simulation und GR00T-Training; erste Tests auf Mietkarten (vast.ai, trooper.ai) \\
+    Mai & Warten auf die Freischaltung von KISSKI; erster Zugang zum \acs{ikr}-Server, noch ohne
+          die nötigen Berechtigungen; Versuche weiter auf Mietkarten \\
+    Juni & Container-Pipeline, Läufe 1 und 2 auf KISSKI; erste Sim-Eval auf gemieteten \acp{gpu}: 0/20 \\
     Juli & Institutsserver (Blackwell); Inferenz-Kette mit RoboCasa geprüft
            (\cref{sec:erg-closed-loop}) \\
     August & Umstieg auf Isaac~Sim~6.0 (5.1 stürzte auf Blackwell ab); Lauf 3;
@@ -28,7 +35,14 @@
   \label{tab:verlauf}
 \end{table}
 
-\paragraph{Fehler ohne Fehlermeldung.}
+Die ersten beiden Monate brachten wenig sichtbaren Fortschritt. Mit Docker, Isaac~Sim und dem
+Fine-Tuning großer Modelle hatte die Gruppe kaum Erfahrung, die erst gesammelt werden musste.
+Zugleich war lange unklar, auf welcher Hardware Training und Simulation laufen würden. Die drei
+Stränge wurden deshalb parallel angegangen, jeweils auf gemieteten Karten. Eine tragfähige
+Umgebung stand erst mit dem KISSKI-Zugang im Juni und dem nutzbaren \acs{ikr}-Server im Juli
+bereit; ab dann ging es deutlich schneller voran.
+
+\section{Fehler ohne Fehlermeldung}
 \label{sec:projektverlauf-fehler}
 \label{sec:vorbehalt-greifzahlen}
 \label{sec:kalibrierung}
@@ -44,17 +58,26 @@ Die meiste Zeit kosteten Fehler, die plausible, aber falsche Ergebnisse lieferte
     Zugleich standen Becken (0,85 statt 0,764~m) und Basis (5,7~cm) falsch (\cref{tab:anh-szene}). Alle Greifzahlen
     davor, auch Lauf~34, sind nur innerhalb dieser Geometrie vergleichbar.
   \item Die Würfel liegen relativ zur Hand je Seite rund 3~cm zu weit innen (Lauf~62). Gefunden
-    erst, als die abgespielte Demonstration als Referenz (Demo-Replay) gemessen wurde.
+    erst, als das Abspielen der Datensatz-Bewegungen (Demo-Replay) als Referenz gemessen
+    wurde.
 \end{itemize}
 
-\paragraph{Ressourcen.} KISSKI hat das Training getragen (4~A100, Warteschlange,
-Projektspeicher; 44\,000 Schritte in 8 bis 12~h, \cref{tab:laeufe}). Der Cluster kann aber nicht rendern. Die Simulation
-lief erst auf Mietkarten, ab Juli auf einem Institutsserver, dessen Blackwell-GPUs den Wechsel
+\section{Ressourcen und Kosten}
+\label{sec:ressourcen}
+
+Die eigenen Rechner der Gruppe reichten für keine der beiden Hauptaufgaben
+(\cref{tab:rechenumgebungen}). Bis KISSKI und der \acs{ikr}-Server nutzbar waren, liefen alle
+größeren Versuche auf gemieteten Karten bei vast.ai und trooper.ai; dafür hat die
+Projektgruppe rund 100~€ privat ausgegeben. Ab Juni hat KISSKI das Training getragen: vier
+A100, eine Warteschlange und Projektspeicher, 44\,000 Schritte in 8 bis 12~Stunden
+(\cref{tab:laeufe}). Rendern kann der Cluster aber nicht. Die Simulation lief deshalb bis Juli
+weiter auf Mietkarten und danach auf dem Institutsserver, dessen Blackwell-Karten den Wechsel
 auf eine Vorabversion von Isaac~Lab~3.0 erzwangen.
 
-\paragraph{KI-gestützte Entwicklung.}
+\section{KI-gestützte Entwicklung}
 \label{sec:ki-entwicklung}
 \label{sec:entwicklungsumgebung}
+
 Code, Diagnoseskripte, Auswertungen und Dokumentation entstanden mit dem \acs{ki}-Assistenten Claude
 Code~\cite{claudecode2025} in VS~Code. Projektanweisungen im Repository (\texttt{CLAUDE.md})
 und Anbindungen an \ac{wandb}, Hugging Face und GitHub über \ac{mcp}~\cite{mcp2024} machten ihn
@@ -64,9 +87,21 @@ erst im Projektkontext brauchbar.
 \label{sec:lessons}
 \label{sec:arbeitsmittel}
 
+Die folgenden Erkenntnisse sind als Rat für Nachfolgeprojekte gedacht; die erste ist die
+wichtigste.
+
 \begin{description}
-  \item[Referenz zuerst.] Bevor ein Modell gemessen wird, muss die abgespielte
-    Demonstration die Aufgabe in der Simulation lösen. Ohne diese Prüfung waren alle
+  \item[Zielumgebung zuerst festlegen und die Daten dort erzeugen.] Trainiert wurde auf Daten
+    vom echten Roboter, bewertet in der Simulation. Beide gemessenen Blocker, die Würfellage
+    und der visuelle Domain-Gap, sind Folgen dieses Wechsels von der Wirklichkeit in die
+    Simulation (Real-to-Sim). Die Testumgebung sollte deshalb am Projektanfang feststehen, und
+    die Trainingsdaten sollten in genau dieser Umgebung entstehen: Ist das Ziel die Simulation,
+    werden die Demonstrationen durch Teleoperation des simulierten Roboters aufgezeichnet; ist
+    das Ziel der echte Roboter, durch Teleoperation des echten Roboters, und bewertet wird dann
+    auch dort. Das Co-Training mit gerenderten Bildern war nur ein nachträglicher Behelf für
+    diese Lücke.
+  \item[Referenz zuerst.] Bevor ein Modell gemessen wird, müssen die abgespielten
+    Bewegungen aus dem Trainingsdatensatz die Aufgabe in der Simulation lösen. Ohne diese Prüfung waren alle
     Closed-Loop-Zahlen bis Lauf~56 gegen eine Referenz von etwa null gemessen (Läufe 57, 62).
   \item[Wirkung messen, nicht Ähnlichkeit.] Der \acs{siglip}-Abstand der Bilder sah gut aus (0,22, kleiner als
     zwischen zwei echten Bildern mit 0,27; Lauf~22),

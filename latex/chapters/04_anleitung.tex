@@ -6,61 +6,87 @@
 Erwartete Ausgaben je Schritt: \doc{docs/quickstart.md}. Alle Wege lassen sich auch über
 \texttt{./run.sh} starten.
 
-\section{Zugänge}
+\section{Benötigte Dienste und Rechenressourcen}
 \label{sec:zugaenge}
+\label{sec:dienste}
 
-\begin{itemize}
-  \item Hugging-Face-Token (für Downloads nötig; auf KISSKI liegen die Daten schon vor): Lizenz von \texttt{nvidia/GR00T-N1.6-3B} akzeptieren; für
-    N1.7 zusätzlich Zugang zu \texttt{nvidia/Cosmos-Reason2-2B}.
-  \item \ac{wandb}-Schlüssel: optional; ohne Schlüssel läuft das Training ohne Protokoll
-    (\texttt{USE\_WANDB=0}). Auf KISSKI protokolliert \ac{wandb} offline; die Läufe werden
-    danach vom Login-Knoten synchronisiert.
-  \item KISSKI-Konto für das Training, ein Rechner mit \acs{rt}-Core-\acs{gpu} für die Simulation
-    (\cref{tab:rechenumgebungen}).
-  \item Namensräume: Docker Hub \texttt{lucam03} (Images), GitHub \texttt{lucam06}
-    (GR00T-Fork), Hugging Face \texttt{luca-mue} (Checkpoints).
-\end{itemize}
+Das Projekt stützt sich auf mehrere externe Dienste. Die Konten der Projektgruppe sind auf
+diese zugeschnitten und werden nicht übergeben; wer weiterarbeitet, richtet eigene ein. Ohne
+eigenes Konto nutzbar sind die öffentlichen Images, Checkpoints und Render-Datensätze des
+Projekts. \Cref{tab:dienste} zeigt, welche Dienste gebraucht werden und was dafür einzurichten
+ist.
+
+\begin{table}[htb]
+  \centering
+  \small
+  \begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{2.6cm}>{\raggedright\arraybackslash}p{3.9cm}>{\raggedright\arraybackslash}X}
+    \toprule
+    Dienst & Wofür & Was einzurichten ist \\
+    \midrule
+    Hugging Face (Pflicht) & Datensatz und Basismodelle laden, Checkpoints ablegen & Konto und
+      Token (\texttt{HF\_TOKEN}); Lizenz von \texttt{nvidia/GR00T-N1.6-3B} akzeptieren, für
+      N1.7 zusätzlich Zugang zu \texttt{nvidia/Cosmos-Reason2-2B} beantragen \\
+    \addlinespace
+    \acl{wandb} (optional) & Trainingsverlauf protokollieren & Konto und Schlüssel; ohne
+      Schlüssel läuft das Training ohne Protokoll (\texttt{USE\_WANDB=0}). Auf Clustern ohne
+      Internet wird offline protokolliert und später synchronisiert \\
+    \addlinespace
+    Docker Hub & fertige Images für Training und Simulation & zum Benutzen nichts; für
+      eigene Images ein Konto, das über \texttt{DOCKER\_NAMESPACE} gesetzt wird \\
+    \addlinespace
+    GitHub & Projekt-Repository und GR00T-Fork & für Änderungen am Modellcode ein eigener
+      Fork; der Pin in den Dockerfiles zeigt dann darauf \\
+    \addlinespace
+    \acs{hpc}-Cluster, z.\,B.\ KISSKI & Training (\acs{gpu} mit 80~GB für sinnvolle
+      Batchgrößen) & eigenes Projekt beantragen; der KISSKI-Zugang der Projektgruppe endet im
+      Dezember 2026. Alternativ Mietkarten \\
+    \addlinespace
+    Rechner mit \acs{rt}-Cores & Simulation & \acs{ikr}-Server über das Institut oder
+      Mietkarte (z.\,B.\ L40, RTX~4090) bei Anbietern wie vast.ai \\
+    \bottomrule
+  \end{tabularx}
+  \caption{Benötigte Dienste und Rechenressourcen.}
+  \label{tab:dienste}
+\end{table}
+
+Die Projektkonten sind in den Skripten als Standard hinterlegt: Docker Hub \texttt{lucam03}
+(Images), GitHub \texttt{lucam06} (GR00T-Fork) und Hugging Face \texttt{luca-mue}
+(Checkpoints). Zum Lesen genügen sie, zum Schreiben müssen sie durch eigene ersetzt werden.
 
 \section{Training}
 \label{sec:anl-training}
 
-\begin{minted}{bash}
-# lokal: zieht das Image, startet Container groot-train (Standard 30 000 Schritte)
-export HF_TOKEN=hf_... WANDB_API_KEY=...
-./Training/setup_and_train_dockerhub_pull.sh        # N1.7: GROOT_VERSION=1.7 davor
-./Training/setup_and_train_dockerhub_pull.sh --resume  # nach Stopp fortsetzen
+Ein Training startet lokal über ein Skript, das das passende Image zieht und den Container
+anlegt, oder auf einem Cluster als \acs{slurm}-Job (Batch-Skript im Auszug: \cref{anh:slurm}).
+Für N1.7 wird jeweils \texttt{GROOT\_VERSION=1.7} gesetzt; auf KISSKI wird dann automatisch eine
+zweite Image-Datei aus \texttt{:latest-n17} verwendet, die vorher ebenso geholt werden muss.
 
-# KISSKI (Login-Knoten), einmalig das Image holen:
-module load apptainer
+\begin{minted}{bash}
+# lokal (Standard 30 000 Schritte); nach einem Stopp mit --resume fortsetzen
+export HF_TOKEN=hf_... WANDB_API_KEY=...
+./Training/setup_and_train_dockerhub_pull.sh
+
+# KISSKI: Image einmalig holen, dann Job abschicken (4x A100, 44 000 Schritte)
 apptainer pull $HOME/images/projekt-humanoider-roboter.sif \
     docker://lucam03/projekt-humanoider-roboter:latest
-export HF_TOKEN=hf_... WANDB_API_KEY=... GLOBAL_BATCH_SIZE=32
-sbatch --export=ALL Training/kisski_submit.sh        # 4x A100, 44 000 Schritte
-# N1.7: eigene SIF aus :latest-n17 (wird bei GROOT_VERSION=1.7 automatisch gewählt)
-apptainer pull $HOME/images/projekt-humanoider-roboter-n17.sif \
-    docker://lucam03/projekt-humanoider-roboter:latest-n17
-GROOT_VERSION=1.7 sbatch --export=ALL Training/kisski_submit.sh
+GLOBAL_BATCH_SIZE=32 sbatch --export=ALL Training/kisski_submit.sh
 \end{minted}
-
-Das SLURM-Batch-Skript steht im Auszug in \cref{anh:slurm}.
 
 Varianten werden über Umgebungsvariablen gewählt: \texttt{TUNE\_VISUAL=1} trainiert den
-Bild-Encoder mit, \texttt{USE\_COTRAIN=1} mischt gerenderte Daten bei,
-\texttt{TRAIN\_TEST\_SPLIT=1} hält die Episoden 240--300 zurück. \texttt{Training/kisski\_chain.sh}
-reiht mehrere Läufe mit anschließender Checkpoint-Auswertung hintereinander ein. Deren
-Standard sind 20 Testepisoden in voller Länge (\texttt{EVAL\_NUM\_TRAJ=20
-EVAL\_STEPS=750}); das frühere kurze Protokoll mit 6 Episoden à 300 Schritten lieferte
-Scheinoptima (\cref{sec:erg-training}). Der fertige Checkpoint wird ohne Optimizer hochgeladen:
-
-\begin{minted}{bash}
-python Simulation/scripts/upload_checkpoint.py \
-    --checkpoint <...>/checkpoint-44000 --repo luca-mue/groot-g1dex3-<lauf>-ckpt44000
-\end{minted}
+Bild-Encoder mit, \texttt{USE\_COTRAIN=1} mischt die Render-Datensätze bei, und
+\texttt{TRAIN\_TEST\_SPLIT=1} hält die Testepisoden zurück. \texttt{Training/kisski\_chain.sh}
+reiht mehrere Läufe hintereinander und wertet die Checkpoints danach nach dem Protokoll aus
+\cref{sec:erg-training} aus. Der fertige Checkpoint wird mit
+\texttt{Simulation/scripts/upload\_checkpoint.py} ohne Optimizer-Zustand auf Hugging Face
+hochgeladen.
 
 \section{Checkpoint messen}
 \label{sec:anl-messen}
 
-Auf dem Sim-Server erst prüfen, ob Image und GPU passen, dann Gate und Closed Loop:
+Gemessen wird auf dem Sim-Server in drei Schritten: Zuerst prüft \texttt{preflight}, ob Image
+und \acs{gpu} passen. Dann folgt das visuelle Gate über drei Seeds, das in wenigen Minuten
+zeigt, ob ein Modell mit Sim-Bildern zurechtkommt. Erst danach lohnt sich der Closed Loop über
+20 Testlagen à 120~s, den ein Watchdog bei Hängern neu startet.
 
 \begin{minted}{bash}
 ./Simulation/server_rl_run.sh preflight
@@ -84,6 +110,9 @@ das dy3-Layout mit \doc{tools/layout_shift.py --dy 0.03} (Befehle in \doc{docs/q
 
 \section{Häufige Fehler}
 \label{sec:anl-fehler}
+
+\Cref{tab:anl-fehler} sammelt die Fehler, die im Projekt am häufigsten auftraten, mit ihrer
+Ursache und Abhilfe.
 
 \begin{table}[htb]
   \centering
