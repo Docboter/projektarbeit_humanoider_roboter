@@ -47,24 +47,6 @@ Die folgenden Punkte sind nach Dringlichkeit geordnet. Die laufend gepflegte Lis
     Closed Loop (umgangen mit \texttt{tools/sim\_cl\_watchdog.sh}).
 \end{enumerate}
 
-\section{Bekannte Defekte und Stolperstellen}
-\label{sec:defekte}
-
-Einige Einschränkungen betreffen nicht die Ergebnisse, sondern die Weiterarbeit:
-
-\begin{itemize}
-  \item Der KISSKI-Zugang der Projektgruppe endet im Dezember 2026; Daten auf dem
-    Projektspeicher sind danach nicht mehr erreichbar. Checkpoints und Render-Datensätze liegen
-    öffentlich auf Hugging Face, für neue Trainings ist ein eigener Zugang nötig
-    (\cref{sec:dienste}).
-  \item Die Prüfbilder des visuellen Gates und die Layout-Datei
-    \texttt{layout\_heldout\_dy3.json} liegen nur auf dem \acs{ikr}-Server. Auf einem neuen Server
-    werden sie mit \texttt{server\_rl\_run.sh layout}, \doc{tools/layout_shift.py} und
-    \texttt{server\_rl\_run.sh render} neu erzeugt (\doc{docs/quickstart.md}, §2).
-  \item Das Sim-Image auf Docker Hub muss nach Änderungen an \texttt{Simulation/} neu gebaut
-    werden (\texttt{Simulation/update\_sim\_image.sh --standalone}).
-\end{itemize}
-
 \section{Begonnene, nicht abgeschlossene Arbeiten}
 \label{sec:nicht-weiter}
 \label{sec:locomotion}
