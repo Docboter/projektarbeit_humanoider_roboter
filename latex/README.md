@@ -32,6 +32,7 @@ latex/
 │   ├── 03_schnittstellen.tex    #  Datensatz, Checkpoint, Policy-Server, Sim-Eval, Container, Roboter
 │   ├── 04_anleitung.tex         #  Zugänge, Training, Checkpoint messen, häufige Fehler
 │   ├── 05_ergebnisse.tex        #  Training → Closed Loop → Blocker 1/2 → Co-Training → N1.7
+│   ├── 05b_cosmos.tex           #  Teilprojekt Cosmos-Video-Augmentierung (Kap. 6)
 │   ├── 06_grenzen.tex           #  Stichprobe, Sim ≠ Roboter, Grenzen der Metriken
 │   ├── 07_projektverlauf.tex    #  Verlauf, Fehler ohne Meldung, KI-Einsatz, Lessons Learned
 │   └── 08_uebergabe.tex         #  offene Punkte, bekannte Defekte
