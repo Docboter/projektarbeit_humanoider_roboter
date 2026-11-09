@@ -7,7 +7,7 @@
 > wuerfellage-rekonstruktion-lauf35-befund.md.
 
 **Stand:** 2026-10-11 (Verfahren: 2026-08-17, Gierwinkel: 2026-08-25) · Position: im Sim-Render auf
-rund 1 cm bestätigt (`layoutcheck`, 2026-08-22, [Befund](../archiv/wuerfellage-rekonstruktion-lauf35-befund.md) §8);
+rund 1 cm bestätigt (`layoutcheck`, 2026-08-22), mit der korrigierten Würfelebene z = 0,895 nur noch 0,2–0,3 cm Restfehler (Medianwerte 0,30 cm, [Befund](../archiv/wuerfellage-rekonstruktion-lauf35-befund.md) §8, Tabelle und Punkt 2; die Ebene steht seit 2026-08-22 im Code, ein Neumessungslauf mit ihr ist nicht dokumentiert);
 dass die **reale** Kopfkamera derselben Pose folgt, ist weiterhin nicht belegt · Vorgeschichte: [co-training.md](../training/co-training.md) §3.0/§3.2a
 
 Dieses Dokument beschreibt, **wie die Position der drei Würfel aus den realen

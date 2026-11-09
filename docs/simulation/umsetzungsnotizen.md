@@ -1,8 +1,8 @@
 # Sim-Eval Implementation Notes — Lessons Learned & aktueller Stand
 
 > **TL;DR:** Lessons Learned und Fixes der Sim-Umsetzung (Build-/Runtime-Probleme,
-> Kamera-Rekonstruktion, Open-Loop-Replay-Diagnose), Stand bis Juni 2026 — zuerst lesen vor dem
-> Sim-Setup. Neuere Erkenntnisse seit August 2026 (Isaac-Sim-6.0-Port, Kamera-Neukalibrierung,
+> Kamera-Rekonstruktion, Open-Loop-Replay-Diagnose), Stand bis Juni 2026 — Hintergrund bei Sim-Fehlern; der Einstieg ist
+> [sim-eval-anleitung.md](sim-eval-anleitung.md). Neuere Erkenntnisse seit August 2026 (Isaac-Sim-6.0-Port, Kamera-Neukalibrierung,
 > Greif-Diagnostik) stehen in
 > [../ergebnisse/diagnose-chronik.md](../ergebnisse/diagnose-chronik.md).
 
@@ -18,9 +18,9 @@ Finger-Vorzeichen und Würfel-z nachgetragen bis 2026-10-11).
 
 > **Achtung (Stand 2026-10-11):** Alle Sim-Greifzahlen vor dem 2026-08-24 (u. a. die 2,8 cm aus §13) wurden
 > mit falsch gespiegelten Fingergelenken und Beckenhöhe 0,85 m gemessen (§13.2, g1_dex3_cfg.py) und sind
-> nur historisch belegt; eine Neumessung mit der korrigierten Szene steht aus.
+> nur historisch belegt; eine Neumessung mit der korrigierten Szene folgte (Nachtrag).
 >
-> **Nachtrag 2026-10-29:** Neumessung mit korrigierter Szene erfolgt: N1.6 @44000 `reached` 16/20, `lifted_clear` 0/20 (Lauf 82); N1.7 0/10 bzw. 0/20 (Läufe 54/55, 81); Chronik Läufe 57–97.
+> **Nachtrag 2026-10-29 (überholt durch [next-steps.md §0](../../next-steps.md): Modell C, `lifted_clear` 2/60, `stacked` 0):** Neumessung mit korrigierter Szene erfolgt: N1.6 @44000 `reached` 16/20, `lifted_clear` 0/20 (Lauf 82); N1.7 0/10 bzw. 0/20 (Läufe 54/55, 81); Chronik Läufe 57–97.
 
 > **Neuere Erkenntnisse (August 2026)** — Isaac-Sim-6.0-Migration, Kamera-Pose-Bug und
 > Neukalibrierung (Sichtfeld, Montagepunkt, Stereobasis), Domain-Gap-Neumessung sowie die
@@ -240,7 +240,7 @@ Auf einer lokalen GPU (RTX 4070 Laptop, mit `docker run --gpus all`) end-to-end 
 - `import gr00t.model` (volle Server-Importkette) → **OK**
 - `run_gr00t_server.py --help` → tyro parst `ServerConfig`, `NEW_EMBODIMENT` ist gültig, kein `--no-flash-attn`
 
-> **Noch offen (nur mit echter Sim-GPU testbar):** das eigentliche Modell-Gewichte-Laden
+> **Damals noch offen (inzwischen durch zahlreiche Sim-Läufe erledigt):** das eigentliche Modell-Gewichte-Laden
 > (~6–8 GB VRAM) und die Isaac-Lab-Sim-Schleife. Der komplette Server-**Start**pfad bis zum
 > Modell-Load ist aber lokal grün.
 

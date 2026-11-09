@@ -15,7 +15,7 @@
 > `place_cubes` (Quelle jetzt über `RENDER_CUBE_SOURCE` gewählt), Orientierung "offen" (Gierwinkel seit
 > 2026-08-25 geschätzt).
 
-**Stand:** 2026-08-21 · Branch `training-luca-IKR-IS6.0-wuerfel-rekon-matthias` · HEAD `d73c6aa`
+**Stand (historisch):** 2026-08-21 · damaliger Feature-Branch `training-luca-IKR-IS6.0-wuerfel-rekon-matthias` (inzwischen gemergt, der Code liegt auf `main`) · HEAD `d73c6aa`
 **Gegenstand:** Vergleich von [wuerfellage-rekonstruktion.md](wuerfellage-rekonstruktion.md) (Verfahren
 `pick_anchored_homography` v4) mit dem tatsächlichen Code, dem älteren Co-Training-Pfad und den
 Ideen aus der Doku-Historie. Das Feature ist ein Teilschritt für den Co-Training-Datensatz

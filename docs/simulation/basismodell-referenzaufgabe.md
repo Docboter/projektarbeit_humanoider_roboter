@@ -81,9 +81,9 @@ Die Grundidee — eine vom Basismodell beherrschte Aufgabe rekonstruieren und pr
 Zweistufig: **Phase 1** validiert günstig die GR00T-Inferenz-Hälfte gegen einen Goldstandard. **Phase 2** (optional/Stretch) rekonstruiert einen base-fähigen Task in unserem Isaac Lab.
 
 ### Phase 0 — Vorbereitung (½ Tag)
-- [ ] Submodul-Stand prüfen: `examples/robocasa/` und `examples/robocasa-gr1-tabletop-tasks/` sind bereits vorhanden ([bestätigt](../../app/Groot-1.6/examples/)).
-- [ ] GPU mit RT-Cores ist für robosuite **nicht** zwingend (MuJoCo rendert ohne RTX) — Phase 1 kann auf **A100/H100 (KISSKI)** oder jeder vast.ai-GPU laufen, anders als unsere Isaac-Sim-Evals.
-- [ ] Soll-Werte fixieren: Tabelle aus [robocasa-gr1-tabletop-tasks/README.md](../../app/Groot-1.6/examples/robocasa-gr1-tabletop-tasks/README.md) als Referenz speichern.
+- [x] Submodul-Stand prüfen: `examples/robocasa/` und `examples/robocasa-gr1-tabletop-tasks/` sind bereits vorhanden ([bestätigt](../../app/Groot-1.6/examples/)).
+- [x] GPU mit RT-Cores ist für robosuite **nicht** zwingend (MuJoCo rendert ohne RTX) — Phase 1 kann auf **A100/H100 (KISSKI)** oder jeder vast.ai-GPU laufen, anders als unsere Isaac-Sim-Evals.
+- [x] Soll-Werte fixieren: Tabelle aus [robocasa-gr1-tabletop-tasks/README.md](../../app/Groot-1.6/examples/robocasa-gr1-tabletop-tasks/README.md) als Referenz speichern.
 
 ### Phase 1 — Goldstandard reproduzieren (1–2 Tage) ★ empfohlener Start
 Ziel: Zeigen, dass **unser** Setup das **Basismodell** im Closed Loop fahren und die **publizierte ø 47,6 % / 78,7 %** reproduzieren kann. Validiert: Checkpoint-Laden, `--embodiment-tag GR1`, Sim-Policy-Wrapper, Obs/Action-Konvention, ZMQ-Rollout.

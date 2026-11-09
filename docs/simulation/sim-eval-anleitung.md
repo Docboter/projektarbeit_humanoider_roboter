@@ -87,7 +87,7 @@ Ergebnis: `<konto>/projekt-humanoider-roboter-sim-standalone:<repo-branch>` (z. 
 > was ein Image enthält: das Label oben. Status:
 > [groot-n17-migration.md](../weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19).
 
-Wer das Branch-Tag nutzt, setzt
+Wer statt `:latest` ein bestimmtes Tag (`:main` oder `:<timestamp>`) nutzt, setzt
 auf dem Server `RL_IMAGE=lucam03/projekt-humanoider-roboter-sim-standalone:<tag>` bzw. trägt es
 auf vast.ai als Image ein.
 
@@ -105,13 +105,13 @@ rsync -avz --progress \
   <username>@transfer.hpc.gwdg.de:/mnt/vast-kisski/projects/kisski-humrob/data/g1_dex3_finetune/ \
   ./checkpoints/
 
-# Nur einen bestimmten Checkpoint-Step:
+# Nur einen bestimmten Checkpoint-Step (Datum/Step aus den SLURM-Logs):
 rsync -avz --progress \
-  "<username>@transfer.hpc.gwdg.de:/mnt/vast-kisski/projects/kisski-humrob/data/g1_dex3_finetune/blockstacking/g1_dex3_blockstacking_v1/checkpoints/20260602/checkpoint-110000/" \
-  ./checkpoints/checkpoint-110000/
+  "<username>@transfer.hpc.gwdg.de:/mnt/vast-kisski/projects/kisski-humrob/data/g1_dex3_finetune/blockstacking/g1_dex3_blockstacking_v1/checkpoints/<datum>/checkpoint-<step>/" \
+  ./checkpoints/checkpoint-<step>/
 ```
 
-Den Checkpoint-Pfad findest du in den SLURM-Logs:
+Fertige Checkpoints liegen auch öffentlich auf HF (`luca-mue/*`, Liste in [next-steps.md §0](../../next-steps.md); aktueller Sim-Kandidat: `luca-mue/groot-g1dex3-cotrain-v3-cube4-ckpt44000`). Den Pfad eines eigenen Laufs findest du in den SLURM-Logs:
 ```bash
 tail -f /logs/slurm-<jobid>.out | grep checkpoint
 ```
@@ -127,7 +127,7 @@ pip install huggingface_hub
 huggingface-cli repo create groot-g1dex3-checkpoint --type model --private
 
 # Checkpoint hochladen
-huggingface-cli upload luca-mue/groot-g1dex3-checkpoint ./checkpoint-110000/ --repo-type model
+huggingface-cli upload luca-mue/groot-g1dex3-checkpoint ./checkpoint-<step>/ --repo-type model
 ```
 
 Dann im Container `HF_CHECKPOINT_REPO=<dein-hf-username>/groot-g1dex3-checkpoint` setzen —
@@ -313,7 +313,7 @@ lucam03/projekt-humanoider-roboter-sim-standalone:latest
 | `HF_CHECKPOINT_REPO` | `luca-mue/groot-g1dex3-checkpoint` | Ja (für HF-Download) |
 | `ASSET_PATH` | `/data/checkpoints/groot-g1dex3-checkpoint/g1_dex3.usd` | Ja |
 | `NUM_EPISODES` | `20` | Nein (default 20) |
-| `EPISODE_LENGTH_S` | `120` | Nein — **immer setzen**: ohne Angabe läuft jede Episode bis zu 9000 Steps. Protokoll der berichteten Zahlen: 120 (40 nur für das Spannen-Gate, Lauf 96) |
+| `EPISODE_LENGTH_S` | `120` | Nein (Default `0`) — **immer setzen**: ohne Angabe läuft jede Episode bis zu 9000 Steps. Protokoll der berichteten Zahlen: 120 (40 nur für das Spannen-Gate, Lauf 96) |
 | `EXECUTION_HORIZON` | `8` | Nein (default 8) |
 | `TASK_DESCRIPTION` | `stack three block` | Nein — leer = Text aus `meta/tasks.*` des Datensatzes (`TASK_DATASET_PATH`), sonst `stack three block`. Bis 2026-10-13 war der Default `stack the blocks`, ein Text, der im Training nie vorkam; alle früheren Closed-Loop-Zahlen liefen damit ([Review §3.1](../archiv/projekt-review-2026-10-11.md#31-falscher-sprachbefehl-in-allen-closed-loop-läufen--kritisch-nachgeprüft)) |
 | `EVAL_LAYOUT` | `/data/eval/layout_heldout_dy3.json` | Nein — **empfohlen**: Protokoll-Layout (Würfel 3 cm nach außen, Herkunft: [Quickstart §2b](../quickstart.md#2b-closed-loop-protokoll-lauf-82)); Grundlage `layout_heldout.json` = echte Würfel-Startlagen der zurückgehaltenen Episoden 240–300 (erzeugen mit `LAYOUT_HELD_OUT=1 ./Simulation/server_rl_run.sh layout`). Leer = Zufallsbänder der Env, die die Startlagen der Realdaten nicht abbilden ([Review §3.2](../archiv/projekt-review-2026-10-11.md#32-würfelpositionen-in-der-eval-liegen-außerhalb-der-trainingsdaten--kritisch-teilprüfung)) |
@@ -374,7 +374,7 @@ ssh -p 12345 root@123.45.67.89
 Parallel dazu vom Laptop aus hochladen:
 ```bash
 # Checkpoint
-scp -P 12345 -r ./checkpoints/checkpoint-110000/ root@123.45.67.89:/data/checkpoints/
+scp -P 12345 -r ./checkpoints/checkpoint-<step>/ root@123.45.67.89:/data/checkpoints/
 
 # USD-Asset
 scp -P 12345 ./g1_dex3.usd root@123.45.67.89:/workspace/assets/g1_dex3.usd
@@ -690,9 +690,9 @@ scp -P <port> root@<ip>:/data/sim_videos_replay/_debug_obs_cam_*.png ./
 > vier proximale Fingergelenke fälschlich gespiegelt (die Hand konnte nie ganz schließen) und die
 > Beckenhöhe stand bei 0,85 m statt 0,764 m ([`umsetzungsnotizen.md`](umsetzungsnotizen.md) §13.2).
 > „Greifen funktioniert physikalisch" gilt daher nur eingeschränkt; eine Neumessung mit der
-> korrigierten Szene steht aus.
+> korrigierten Szene folgte (siehe Nachtrag).
 >
-> **Nachtrag 2026-10-29:** Neumessung mit korrigierter Szene erfolgt: N1.6 @44000 `reached` 16/20, `lifted_clear` 0/20 (Lauf 82); N1.7 0/10 bzw. 0/20 (Läufe 54/55, 81). Greifen ist in der korrigierten Szene möglich: Mit 3-cm-Korrektur der Würfellage hebt das Orakel in 6/20 Episoden (Lauf 69).
+> **Nachtrag 2026-10-29 (überholt durch [next-steps.md §0](../../next-steps.md): Modell C, Co-Training mit 4-cm-Würfeln, `lifted_clear` 2/60, `stacked` 0):** Neumessung mit korrigierter Szene erfolgt: N1.6 @44000 `reached` 16/20, `lifted_clear` 0/20 (Lauf 82); N1.7 0/10 bzw. 0/20 (Läufe 54/55, 81). Greifen ist in der korrigierten Szene möglich: Mit 3-cm-Korrektur der Würfellage hebt das Orakel in 6/20 Episoden (Lauf 69).
 
 ---
 
@@ -767,6 +767,7 @@ USD-Asset auf HuggingFace (`luca-mue/groot-g1dex3-checkpoint`), dann:
    HF_CHECKPOINT_REPO=luca-mue/groot-g1dex3-checkpoint
    ASSET_PATH=/data/checkpoints/groot-g1dex3-checkpoint/g1_dex3.usd
    NUM_EPISODES=20
+   EPISODE_LENGTH_S=120
    SHELL_ON_ERROR=1
    ```
 6. Disk: 60 GB → Launch

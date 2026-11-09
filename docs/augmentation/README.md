@@ -12,7 +12,7 @@ LeRobot-v2.1-Datensatz, der direkt als `COTRAIN_DATASET_PATH` in den bestehenden
 Co-Training-Pfad des Trainings-Images eingehängt werden kann — siehe
 [co-training.md](../training/co-training.md).
 
-**Stand (2026-10-13): gebaut, nicht durchgängig erprobt.** Der erste echte Lauf (2026-08-24) brach am separat gated `nvidia/Cosmos-Predict2.5-2B` ab; ein erfolgreicher Lauf ist nicht dokumentiert. Zudem fehlt im Projekt derzeit ein Docker-Server mit ~65 GB VRAM (Trooper.ai: 32 GB, KISSKI: kein Docker). Offene Punkte: [anleitung.md §7](anleitung.md).
+**Stand (2026-11-09): einmal durchgängig gelaufen, noch nicht im Training verwendet.** Am 2026-09-23 lief die Pipeline auf dem IKR-Server erstmals Ende-zu-Ende (nach dem Abbruch des ersten Versuchs am 2026-08-24 an `nvidia/Cosmos-Predict2.5-2B`). Ergebnis: HF-Datensatz `luca-mue/g1-dex3-cosmos-augmented`, ein **Testlauf** mit den Quell-Episoden 0 und 120, je 3 Stilvarianten (`AUGMENT_VARIANTS=3`), also 6 Episoden mit 6003 Frames (1173 bzw. 828 je Quelle, identisch zur Quelle); `augment_manifest.json` meldet alle 4 Kameras bei allen 6 Episoden als `ok`, `meta/modality.json` ist byte-identisch zur Quelle. Sichtprüfung: Pose und Layout bleiben erhalten, aber die stärkste Variante („warmes Licht, Holztisch") färbt trotz Prompt-Vorgabe „Roboter unverändert" die schwarzen Roboterhände weiß und einen Würfel grün. Offen: der volle Lauf über alle 240 Train-Episoden, ein Trainingslauf mit den Daten und die Dataset-Card auf HF (nur 25 Byte). Das Image liegt nicht auf Docker Hub, das Skript braucht einen Server mit ~65 GB VRAM. Details und offene Punkte: [anleitung.md §7](anleitung.md#7-offene-punkte).
 
 ## Einstieg
 

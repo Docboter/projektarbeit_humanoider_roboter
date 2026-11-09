@@ -40,7 +40,7 @@ Modell ebenfalls verfügbar, aber in diesem Container **nicht als Standardpfad g
 
 cosmos-transfer2.5 lädt zur Laufzeit **mehrere separat gated** HuggingFace-Repos nach — HF-
 Gating gilt pro Repo, nicht projektweit, auch wenn es überall dieselbe „NVIDIA Open Model
-License Agreement" ist. Bislang bekannt (Stand 2026-08-24, beim echten Durchlauf entdeckt):
+License Agreement" ist. Bislang bekannt (beim ersten Versuch am 2026-08-24 entdeckt; mit beiden freigegebenen Repos lief die Pipeline am 2026-09-23 durch):
 
 | Repo | Wofür |
 |---|---|
@@ -84,13 +84,13 @@ das jeweilige Repo nicht in der Freigabeliste des Tokens steht. Zwei Optionen:
 ./Augmentation/update_image.sh                # bauen + pushen (DOCKER_NAMESPACE mit Schreibrechten nötig)
 ```
 
-Ein Image auf Docker Hub gibt es bisher **nicht** (Stand 2026-10-13). Solange das so ist,
+Ein Image auf Docker Hub gibt es bisher **nicht** (Stand 2026-11-09; der Testlauf nutzte ein lokal gebautes Image). Solange das so ist,
 den Launcher unten mit `--skip-pull` starten — sonst versucht er, das fehlende Image zu ziehen.
 
 Baut in einer eigenen Stufe cosmos-transfer2.5 aus dem Quellcode (gepinnter Commit), fährt
 dessen eigenes `just install`-Rezept, und legt daneben eine zweite, schlanke Python-venv fürs
 Datensatz-Tooling an (Details: Kommentare im [Dockerfile](../../Augmentation/Dockerfile)).
-**Noch nicht gegen einen echten Build verifiziert** — siehe „Offene Punkte" (§7).
+Der Build lief auf dem IKR-Server (2026-09-23 Ende-zu-Ende-Lauf, siehe §7).
 
 ## 4. Run
 
@@ -172,11 +172,18 @@ gilt unverändert (`mix* = F_augmentiert / (F_augmentiert + F_echt)`), aber die 
 
 ## 7. Offene Punkte
 
+**Stand 2026-11-09:** Ende-zu-Ende-Testlauf am 2026-09-23 auf dem IKR-Server: Episoden 0 und 120,
+`AUGMENT_VARIANTS=3` -> 6 Episoden, 6003 Frames, Ergebnis `luca-mue/g1-dex3-cosmos-augmented`
+(Zahlen und Sichtbefund: [README](README.md)). Nur Modell `edge` lief. Noch nicht getan: Lauf über
+alle 240 Train-Episoden, Training mit den Daten, Prompt-Feinschliff (Roboterhände/Würfel werden
+umgefärbt). Die Punkte 2, 6 und die Build-Frage sind damit beantwortet (unten markiert).
+
 1. **Checkpoint-Größe unbestätigt.** cosmos-transfer1 lud ~300 GB; das 2B-Modell sollte
    deutlich kleiner sein — vor dem ersten vollen Lauf `df -h` prüfen.
 2. **„Parquet unverändert kopieren" setzt exakte Frame-/FPS-Erhaltung durch Cosmos voraus.**
    `AUGMENT_STRICT_FRAME_CHECK` + `ffprobe`-Vergleich in `assemble_dataset.py` ist das
-   Sicherheitsnetz — am ersten echten Output verifizieren. Konkreter Verdächtiger laut
+   Sicherheitsnetz. **Bestätigt (Testlauf 2026-09-23):** Framezahlen der 6 Ausgabe-Episoden
+   identisch zur Quelle (1173 bzw. 828), keine Verwerfung. Konkreter Verdächtiger laut
    `cosmos_transfer2/config.py`: Cosmos verarbeitet lange Videos in Chunks von
    `num_video_frames_per_chunk=93` Frames mit `num_conditional_frames` Überlappung —
    Rundungseffekte an Chunk-Grenzen könnten die Gesamt-Framezahl leicht verschieben.
@@ -184,23 +191,23 @@ gilt unverändert (`mix* = F_augmentiert / (F_augmentiert + F_echt)`), aber die 
    zwei Chunks) vor dem Volllauf und die Toleranz `AUGMENT_FRAME_TOLERANCE`. Cosmos kürzt die
    Ausgabe auf die Eingabelänge; Videos über **5000 Frames** würden abgeschnitten (Grenze auf der
    Cosmos-Seite — die Episoden des Datensatzes liegen weit darunter, ~1200 Frames bei 39 s).
-   Am ersten echten Lauf bleibt das zu bestätigen.
+   Der Testlauf bestätigt das für Episoden bis 1173 Frames.
 3. **Inferenzkosten pro Episode/Kamera bei ~65 GB VRAM unbekannt** — `AUGMENT_EPISODE_LIMIT`
    (Default `2`) ist der eingebaute Knopf für billige erste Läufe.
-4. **`AUGMENT_PROMPT_TEMPLATE`-Formulierung ist ein erster Entwurf**, nicht validiert. Die
+4. **`AUGMENT_PROMPT_TEMPLATE`-Formulierung ist ein erster Entwurf.** Der Testlauf zeigt: die stärkste Variante („warmes Licht, Holztisch") färbt Roboterhände weiß und einen Würfel grün, obwohl der Prompt den Roboter unverändert lassen soll — Prompt vor dem Volllauf nachschärfen. Die
    vier eingebauten Stil-Deskriptoren (Beleuchtung/Hintergrund/Tischfarbe) in
    `build_controlnet_specs.py` sind ein Ausgangspunkt für `AUGMENT_VARIANTS > 1`.
 5. **`convert_v3_to_v2_standalone.py`s genaue Python-Abhängigkeiten sind ungeprüft** — das
    Dockerfile installiert eine plausible Teilmenge (pandas/pyarrow/jsonlines) in die
    Tools-venv; ggf. beim ersten Build nachschärfen.
-6. **Cosmos' Ausgabe-Dateibenennung unter `-o <out_dir>` ist bis zum ersten echten Lauf
-   unbekannt** — `assemble_dataset.py` sucht daher per Glob (`*.mp4`) statt einen festen
-   Namen anzunehmen.
+6. **Cosmos' Ausgabe-Dateibenennung unter `-o <out_dir>`: geklärt (Lauf 2026-09-23).** Cosmos
+   schreibt `<name>.mp4` plus `<name>_control_edge.mp4`; `assemble_dataset.py` wählt per Glob
+   den passenden Namen und fand für alle 6 Episoden jeweils alle 4 Kameras.
 7. **Auflösung/FPS/Codec-Kompatibilität der Quellvideos mit Cosmos' Erwartung ist unbestätigt**
    — vor dem ersten vollen Lauf gegen `assets/robot_example/` im cosmos-transfer2.5-Repo
    gegenprüfen.
 8. **`AUGMENT_MODEL_VARIANT=depth` ist als Cosmos-Basismodell verfügbar, aber in diesem
-   Container nicht als Standardpfad getestet** — nur `edge` lief bisher real durch. Depth
+   Container nicht als Standardpfad getestet** — nur `edge` lief real durch (Testlauf 2026-09-23). Depth
    sollte laut Config genauso on-the-fly funktionieren (`VideoDepthAnything`), aber noch
    nicht verifiziert.
 9. **Dockerfile-Übernahme aus cosmos-transfer2.5s eigenem Dockerfile ist eine Transkription,
