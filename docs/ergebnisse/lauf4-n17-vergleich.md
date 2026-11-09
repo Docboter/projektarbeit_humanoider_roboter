@@ -148,6 +148,7 @@ N1.7 in 8/20 Episoden besser — kein belastbarer Unterschied.
   Das auf echten Bildern deutlich bessere Modell kommt im Closed Loop nicht an; die Sim steht auf
   dem Niveau von N1.6 mit `TUNE_VISUAL` (Lauf 34: 27,6 %, 0/10). Der Modellwechsel allein schließt
   den Domain-Gap also nicht.
+- **Nachtrag 2026-10-29:** Auch in der korrigierten Szene (Lauf 70) bleibt N1.7 @44000 bei `lifted` 0/20 (Lauf 81); mit Co-Training v3 berühren beide N1.7-Modelle den Würfel in 20/20 Episoden, `lifted_clear` aber je 0/20 (Läufe 89, 93). Gesamtstand: [README](README.md#ergebnisse-auf-einen-blick-stand-2026-10-29).
 - **Konfundierung:** State-Dropout 0,2 (N1.7) gegen 0 (N1.6) und die N1.7-Normierungs-Defaults —
   ein Teil des frühen Vorsprungs oder des späteren Gleichstands kann daran liegen.
 

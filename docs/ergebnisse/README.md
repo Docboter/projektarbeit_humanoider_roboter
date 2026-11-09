@@ -15,9 +15,10 @@ liegen unter [`../training/`](../training/README.md) und [`../simulation/`](../s
 | Training, Checkpoint-Wahl | N1.6 vision-v2 @44000 ist der beste Checkpoint (Val-MSE 0,00482, monoton fallend). N1.7 bestes 0,00512 @35000, nicht signifikant verschieden, 1,6× schneller | 3, 4 ([lauf4 §5](lauf4-n17-vergleich.md#5-nachgeschärfter-vergleich-20-episoden--750-steps-volle-länge)) |
 | Closed Loop ohne Co-Training | N1.6 @44000: `reached` 16/20, `lifted_clear` 0/20. N1.7 @44000: `reached` 7/20, 0/20 | 81, 82 |
 | Blocker 1: Registrierung | Abgespielte Demo-Aktionen heben kaum (`lifted_clear` 1/16). Würfel je Seite ~3 cm zu weit innen; mit Korrektur 6/20 = 30 % (KI 12–54 %) | 57–62, 69 |
-| Blocker 2: Domain-Gap | Gleicher Zustand, Sim- statt Echtbild: Hand-Fehler ×13 (N1.6), ×36 (N1.7) | 65, 66 |
-| Co-Training, Gate | MSE Hände Echtbild / Sim 5 cm / Sim 4 cm: N1.6 0,0014 / 0,0239 / 0,0221 → cube4 0,0021 / 0,0115 / 0,0104. N1.7 0,0026 / 0,0758 / 0,0666 → cube4 0,0027 / 0,0217 / 0,0123 | 80, 83, 92 |
+| Blocker 2: Domain-Gap | Gleicher Zustand, Sim- statt Echtbild: Hand-Fehler ×13 (N1.6 vision-v2 **@30000**; @44000 im Gate-Protokoll ×17, Lauf 80, nur bedingt vergleichbar), ×36 (N1.7 @44000). Szene ans Echtbild angeglichen: −40 % (N1.6 @30000), −18 % (N1.7), bleibt ×8 bzw. ×29 | 65, 66, 70, 80 |
+| Co-Training, Gate | Alle Modelle @44000; MSE Hände Echtbild / Sim 5 cm / Sim 4 cm: N1.6 0,0014 / 0,0239 / 0,0221 → cube4 0,0021 / 0,0115 / 0,0104. N1.7 0,0026 / 0,0758 / 0,0666 → cube4 0,0027 / 0,0217 / 0,0123 (N1.7 nach Co-Training bei 18–30 % des Ausgangswerts; N1.6 Echtbild +50–60 %). Sweep-Val-MSE der Co-Training-Modelle 3–9 % über Lauf 3 — nur ein Hinweis, Protokollgleichheit nicht geprüft | 73–76, 80, 83, 92 |
 | Co-Training, Closed Loop | N1.6 cube4 @44000 auf allen 60 Testlagen: `touched` 60/60, `lifted_clear` 2/60 = 3 % (KI 0,4–11,5 %), `stacked` 0. N1.7: `lifted_clear` 0/20. Gegen 0/20 ohne Co-Training nicht signifikant | 88, 89, 93, 97 |
+| Gegenproben | Alte N1.6 ohne Co-Training (Lauf 1 @110000, vision-v1 @35000) bestehen die 80-%-Gate-Schwelle ebenfalls und öffnen die Hand weit, `lifted_clear` je 0/20; Gate-beste Zwischenstände (@35000 / @40000): 1/20 bzw. 0/20 | 87, 90, 91, 94, 95 |
 | Vorregistriertes Gate | Fingerspanne 1,53 rad = 73 % der Demo gegen 0,577 rad (Lauf 34) und 0,52 rad ohne Renderdaten (p = 5 · 10⁻⁶) | 96 |
 | Offen | Kein Test auf dem Roboter; `stacked` in keinem Lauf | — |
 

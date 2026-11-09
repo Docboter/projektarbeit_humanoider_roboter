@@ -13,7 +13,7 @@
 > außerdem falsch wiedergegeben und ist korrigiert. Auch die Aussage zu `TUNE_VISUAL` in §2 ist
 > durch Lauf 34 relativiert (Fingerspanne 27,6 % statt 20,5 % mit Augmentierung, `lifted` weiter 0/10).
 >
-> **Nachtrag 2026-10-29:** Die 0 % haben zwei nachgewiesene Ursachen in der Sim: die Würfellage relativ zur Hand (~3 cm je Seite, Lauf 62) und den visuellen Domain-Gap (Lauf 66). Stand: [ergebnisse/README.md](README.md#ergebnisse-auf-einen-blick-stand-2026-10-29).
+> **Nachtrag 2026-10-29:** Die 0 % haben zwei nachgewiesene Ursachen in der Sim: die Würfellage relativ zur Hand (~3 cm je Seite, Lauf 62) und den visuellen Domain-Gap (Lauf 66). Der ×13 gilt für N1.6 vision-v2 @30000 (@44000 im Gate-Protokoll: ×17, Lauf 80). Stand: [ergebnisse/README.md](README.md#ergebnisse-auf-einen-blick-stand-2026-10-29).
 
 > **Nachtrag 2026-10-13 — Messgrößen.** Seit 2026-10-13 meldet die Eval zusätzlich **`lifted_clear`**: Würfel-Unterseite > 2 cm über dem
 > Tisch **und** im selben Schritt ein Fingerkuppen-Abstand ≤ 4 cm zur Würfelmitte (Proxy, keine

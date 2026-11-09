@@ -335,12 +335,13 @@ Befund für die Ausarbeitung.
 ## 9. Offene Punkte
 
 - **Split-Verifikation** (Abschnitt 6) — bis dahin stehen alle Zahlen unter Vorbehalt (Stand 2026-10-11: keine Prüfung dokumentiert; die W&B-Config nennt 240 Train-/61 Test-Episoden).
-- **Nachgeschärfter Sweep** mit 20 Episoden über die volle Episodenlänge (8.1).
+- **Nachgeschärfter Sweep** mit 20 Episoden über die volle Episodenlänge (8.1) — erledigt am 2026-10-12, Ergebnis: [lauf4-n17-vergleich.md §5](lauf4-n17-vergleich.md#5-nachgeschärfter-vergleich-20-episoden--750-steps-volle-länge).
 - ~~**Verhaltens-Evaluation** von checkpoint-30000~~ — erledigt am 2026-08-14 (8.3).
 - **Erneute Domain-Gap-Messung** mit dem getunten Encoder aus Lauf 3 — ist der Gap durch das
   Jitter-Training kleiner geworden als die 0,22 / 0,36 aus der letzten Messung? Nach 8.3 die
   interessanteste offene Zahl: die Fingerspanne ist um ein Drittel gestiegen, also sollte sich
   auch die Kosinus-Distanz je Kamera bewegt haben — `./Simulation/server_rl_run.sh gap`.
+  *Überholt durch Lauf 66/96:* Den Domain-Gap misst seither die Policy selbst (Hand-Fehler auf Sim- gegen Echtbild, N1.6 vision-v2 @30000 ×13, @44000 im Gate-Protokoll (Lauf 80) ×17, [Lauf 66](diagnose-chronik.md#läufe-6368-ursache-des-versatzes-bild-ablation-sim-bilder-im-open-loop), Lauf 80); die SigLIP-`gap`-Kontrolle gilt als ungeeignet ([Lauf 96](diagnose-chronik.md#lauf-96-vorregistriertes-primäres-gate-nachgeholt-fingerspanne-10--40-s-und-gap-kontrolle)).
 - **Plot-Sichtung** `open_loop_plots/ckpt30000_ep288.jpeg` (Abschnitt 4.4).
 
 ---

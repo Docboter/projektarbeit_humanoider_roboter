@@ -74,7 +74,7 @@ die reale DEX3-Hand ist schwarz, das URDF-Asset weiß, und ein Beleuchtungsfakto
 Kontrastverhältnis nicht ändern. Mit schwarzen Händen trifft der Wrist-Kontrast 68,9 bei real 65,0
 (vorher 36,1), der Kopfkamera-Kontrast 59,0 bei real 59,4.
 
-**Was offen bleibt.** `cam_left_wrist` ist mit 0,3556 weiter der Ausreißer (1,3× real↔real) und
+**Was offen bleibt** (Stand der Messung 2026-08-08; seit der Geometrie-Korrektur nicht neu gemessen, siehe Nachtrag unten). `cam_left_wrist` ist mit 0,3556 weiter der Ausreißer (1,3× real↔real) und
 verfehlt das vorab festgelegte Kriterium von < 0,35. Konsequenz nach der in
 [`diagnose-chronik.md`](diagnose-chronik.md) festgehaltenen vorregistrierten Regel: kein weiterer
 Albedo-Versuch, sondern Option 3 (`TUNE_VISUAL=1`) — vorher aber Schritt 3 (BC-Erfolgsrate in der
@@ -89,7 +89,7 @@ Sim), der die Zielgröße direkt misst statt über den Proxy.
 > korrigierten Geometrie (und mit dem `TUNE_VISUAL`-Encoder aus Lauf 3) steht aus; es gibt keine
 > neuere Gap-Messung als 2026-08-08.
 >
-> **Nachtrag 2026-10-29:** Den Domain-Gap misst seit Lauf 66 die Policy selbst (Hand-Fehler auf Sim- gegen Echtbild ×13 N1.6, ×36 N1.7). Der SigLIP-Abstand dieser Seite ist als Kontrolle ungeeignet, weil SigLIP nicht der Encoder der Policy ist (Lauf 96).
+> **Nachtrag 2026-10-29:** Den Domain-Gap misst seit Lauf 66 die Policy selbst (Hand-Fehler auf Sim- gegen Echtbild ×13 N1.6 vision-v2 @30000 [@44000 im Gate-Protokoll ×17, Lauf 80], ×36 N1.7 @44000; nach Angleichen der Szene −40 % bzw. −18 %, Lauf 70). Der SigLIP-Abstand dieser Seite ist als Kontrolle ungeeignet, weil SigLIP nicht der Encoder der Policy ist (Lauf 96).
 
 > **Nachtrag: Schritt 3 ist gelaufen.** Lauf 24 (2026-08-08) misst die BC-Erfolgsrate in der Sim
 > mit **0/20**; Lauf 30 (2026-08-12, nur 2 Episoden) schließt damit die vorregistrierte Regel, nach
