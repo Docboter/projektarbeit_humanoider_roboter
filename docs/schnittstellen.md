@@ -6,7 +6,7 @@
 > aus der sie stammt. Bedienung steht in der [Quickstart-Seite](quickstart.md), Messergebnisse
 > stehen in der [Diagnose-Chronik](ergebnisse/diagnose-chronik.md).
 
-Stand: 2026-10-29, Branch `training-luca-IKR-IS6.0`. Zeilennummern beziehen sich auf diesen
+Stand: 2026-10-29, Branch `main`. Zeilennummern beziehen sich auf diesen
 Stand; bei Abweichung gilt der Symbolname.
 
 ```
@@ -161,8 +161,8 @@ chunk = np.concatenate([act[f"action.{k}"][0] for k in
 
 | Image | Tags | Basis | Quelle |
 |---|---|---|---|
-| Training `<ns>/projekt-humanoider-roboter` | `:latest` (N1.6), `:latest-n17` (N1.7), `:latest-n16-n17` (beide); außerdem `:<branch>-<gen>`, `:<zeitstempel>-<gen>`. `latest*` nur mit `--push-latest` | `nvidia/cuda:12.8.0-devel-ubuntu22.04` | `Training/update_image.sh:150-152,270-292`, `Training/Dockerfile:38` |
-| Sim `<ns>/projekt-humanoider-roboter-sim-standalone` | `:<branch>`, `:<zeitstempel>`, `:latest` (mit `--push-latest`) | `nvcr.io/nvidia/isaac-lab:3.0.0-beta2-post1` (Isaac Sim 6.0) | `Simulation/update_sim_image.sh:53,144-158`, `Simulation/Dockerfile.standalone:48` |
+| Training `<ns>/projekt-humanoider-roboter` | `:latest` (N1.6), `:latest-n17` (N1.7), `:latest-n16-n17` (beide); außerdem `:<repo-branch>-<gen>` und `:<zeitstempel>-<gen>` (Build-Zwischenstände, nicht verwenden). `latest*` nur mit `--push-latest` | `nvidia/cuda:12.8.0-devel-ubuntu22.04` | `Training/update_image.sh:150-152,270-292`, `Training/Dockerfile:38` |
+| Sim `<ns>/projekt-humanoider-roboter-sim-standalone` | `:latest` (mit `--push-latest`, Standard der Launcher); außerdem `:<repo-branch>` und `:<zeitstempel>` (Build-Zwischenstände, nicht verwenden) | `nvcr.io/nvidia/isaac-lab:3.0.0-beta2-post1` (Isaac Sim 6.0) | `Simulation/update_sim_image.sh:53,144-158`, `Simulation/Dockerfile.standalone:48` |
 
 `<ns>` ist der Docker-Hub-Namensraum: Die Build-Skripte fragen ihn ab (`update_image.sh:161-168`),
 die Launcher fallen auf `lucam03` zurück (`server_rl_run.sh:130`).
@@ -221,7 +221,7 @@ gelesen von `run_g1_dex3_sim_eval.py:207-241`):
 - Episoden ab `n_train` sind Testlagen. Fehlt `n_train`, wird es aus `meta/info.json`
   nachgerechnet (mit Warnung, `split_math.py:79-104`).
 - Dateien: `/data/eval/layout_heldout.json` (Testlagen, `LAYOUT_HELD_OUT=1
-  server_rl_run.sh layout`, `server_rl_run.sh:1503`); `/data/eval/layout_heldout_dy3.json`
+  server_rl_run.sh layout`, `server_rl_run.sh:1496-1510`); `/data/eval/layout_heldout_dy3.json`
   (Testlagen je Seite 3 cm nach außen, Korrektur aus Lauf 62; Default von
   `tools/sim_cl_watchdog.sh:43`), erzeugt mit `tools/layout_shift.py --dy 0.03`.
 
@@ -297,7 +297,7 @@ Hand-Dimensionen (`mse_hand`):
   `finger_span_openloop.py:243-247`).
 
 Ausgabe: `sim_results/visgate_<tag>_real.json` und `visgate_<tag>_<set>.json`,
-`<tag> = <ckpt-ordner>_s<seed>` (`server_rl_run.sh:1352-1353`). Felder je Episode: `mse`,
+`<tag> = <ckpt-ordner>_s<seed>` (`server_rl_run.sh:1354`). Felder je Episode: `mse`,
 `mse_arm`, `mse_hand`, `finger_span_pred_rad`, `finger_span_gt_rad`, `ratio`
 (`finger_span_openloop.py:259-272`). Die Schwelle steht nicht im Code. Die Regel steht in
 [co-training.md §5](training/co-training.md#5-vorregistrierte-regel--was-den-lauf-zum-erfolg-oder-zum-ende-macht).

@@ -1,21 +1,21 @@
 # Plan: Doku und Ausarbeitung bis zur Abgabe
 
-> **TL;DR:** Arbeitsplan für die Abgabe der Projektarbeit (Stand 2026-10-29): Markdown-Doku auf
+> **TL;DR:** Arbeitsplan für die Abgabe der Projektarbeit (Stand 2026-11-09): Markdown-Doku auf
 > einen kurzen Einstieg plus Schnittstellen-Seite umbauen, LaTeX-Ausarbeitung kürzen und neu
 > gliedern (Schnittstellen und Anleitung zum Weiterarbeiten im Mittelpunkt), dann gemeinsam
 > prüfen. Messergebnisse stehen nicht hier, sondern in der
 > [Diagnose-Chronik](ergebnisse/diagnose-chronik.md).
 
-## Stand der Umsetzung (2026-10-29)
+## Stand der Umsetzung (2026-11-09)
 
 | Phase | Stand |
 |---|---|
 | 0 Entscheidungen | erledigt (Tabelle unten) |
 | 1 A1, A2 | erledigt: [`schnittstellen.md`](schnittstellen.md) aus dem Code (Beispiel-Client gegen den `PolicyServer` des Forks getestet), README/Quickstart neu, Status in CLAUDE.md/AGENTS.md |
 | 2 A3, A4 | erledigt: Inventur (Tabelle in A3), 6 Dateien nach [`archiv/`](archiv/README.md), „Ergebnisse auf einen Blick“, 11 veraltete Stellen mit Nachtrag, Link-Check `tools/check_links.py` in der CI |
-| 3 B1, B2 | erledigt: 8 Kapitel nach B1, 21 S. Hauptteil / 44 S. gesamt (Stand 2026-10-30, nach Ergänzung von Server-Start, Latenz, MSE-Definition, RoboCasa-Referenz und Cosmos-Stand); Abbildungen aus `latex/figures/make_figures.py` (Gate, Closed-Loop-Stufen, Fingerspanne, Orakel-Raster) plus Architektur, Echt-/Sim-Bild, erster Griff. Lernkurven Lauf 3/4 aus den Offline-Logs auf KISSKI (2026-10-30) |
-| 4 Prüfen | offen: Zahlen-Stichprobe durch die Gruppe, Fremdtest auf dem IKR-Server, Absatz-Test |
-| 5 B3 | teilweise: Zusammenfassung DE/EN neu, Literatur bereinigt (jeder Eintrag zitiert), `latex/README.md` aktualisiert. Offen: Matrikelnummern A/B, Abgabedatum, Tag. Sichtbarkeit der HF-Repos erledigt (alle `luca-mue/*` öffentlich, 2026-10-30) |
+| 3 B1, B2 | erledigt: 8 Kapitel nach B1, 21 S. Hauptteil / 44 S. gesamt (Stand 2026-10-30, historisch; aktuell 28 / 49 S., 2026-11-09; nach Ergänzung von Server-Start, Latenz, MSE-Definition, RoboCasa-Referenz und Cosmos-Stand); Abbildungen aus `latex/figures/make_figures.py` (Gate, Closed-Loop-Stufen, Fingerspanne, Orakel-Raster) plus Architektur, Echt-/Sim-Bild, erster Griff. Lernkurven Lauf 3/4 aus den Offline-Logs auf KISSKI (2026-10-30) |
+| 4 Prüfen | teilweise: Zahlen-Stichprobe erledigt (2026-11-09, Schlussdurchsicht, ~150 Zahlen geprüft; gefundene Abweichungen in der Ausarbeitung werden separat behoben). Offen: Fremdtest auf dem IKR-Server, Absatz-Test |
+| 5 B3 | teilweise: Zusammenfassung DE/EN neu, Literatur bereinigt (jeder Eintrag zitiert), `latex/README.md` aktualisiert. Matrikelnummern und Abgabedatum (09.11.2026) eingetragen. Offen: Tag. Sichtbarkeit der HF-Repos erledigt (alle `luca-mue/*` öffentlich, 2026-10-30) |
 
 **Nur auf dem IKR-Server prüfbar:**
 
@@ -192,7 +192,7 @@ Arbeiten“ als eigenes Kapitel. „Projektverlauf und Lessons Learned“ bleibt
 
 ### B3. Formales
 
-- `preamble/settings.tex`: Matrikelnummern und Abgabedatum (offen seit 2026-10-11).
+- `preamble/settings.tex`: Matrikelnummern und Abgabedatum (09.11.2026) erledigt.
 - Zusammenfassung DE/EN neu (`frontmatter/zusammenfassung.tex`), passend zur Kernaussage oben.
 - Literatur (`references.bib`) prüfen: jeder Eintrag zitiert, jede Zitierung vorhanden.
 - `latex/README.md`: Stand und Seitenzahl aktualisieren.
@@ -204,7 +204,7 @@ Arbeiten“ als eigenes Kapitel. „Projektverlauf und Lessons Learned“ bleibt
 3. **Fremdtest:** Ein Gruppenmitglied, das Kap. 4 / Quickstart nicht geschrieben hat, misst damit
    Gate und Closed Loop für einen HF-Checkpoint (auf dem IKR-Server). Was hakt, wird korrigiert.
 4. **Absatz-Test:** jeden Absatz gegen die Prüfregel oben lesen; was nichts trägt, fällt.
-5. Repo: alles gepusht, `training-luca-IKR-IS6.0` nach `main` mergen, alle anderen Branches löschen (nur `main` bleibt), Tag `abgabe-<JJJJ-MM-TT>` auf `main`. Sichtbarkeit
+5. Repo: alles gepusht, `training-luca-IKR-IS6.0` nach `main` mergen, alle anderen Branches löschen (nur `main` bleibt), Tag `abgabe-<JJJJ-MM-TT>` auf `main`. Danach die vorhandenen Repo-Klone auf KISSKI (`$KISSKI_PROJECT_DIR/repo`) und auf dem IKR-Server auf `main` umstellen (`git fetch origin && git checkout main`), weil der alte Branch verschwindet. Sichtbarkeit
    der HF-Repos: erledigt, alle `luca-mue/*`-Modelle und -Datensätze sind seit 2026-10-30 öffentlich.
 
 ## Reihenfolge

@@ -28,7 +28,7 @@ Laufende Statusquelle: [next-steps.md §0](next-steps.md); jede Zahl mit Herkunf
 | `run.sh` | Menü-Einstieg für alle Aktionen (`MENU=0` schaltet ab) |
 | `Training/` | Trainings-Image (Dockerfile, `update_image.sh`), Launcher lokal, KISSKI-Skripte (`kisski_submit.sh`, `kisski_chain.sh`), `scripts/` = Entrypoint im Image |
 | `Simulation/` | Isaac-Lab-Umgebung und Eval (`g1_dex3_sim/`), Sim-Image, `server_rl_run.sh` (alle Sim-Aktionen), Hilfsskripte im Container (`scripts/`) |
-| `Augmentation/` | Cosmos-Transfer-Augmentierung (gebaut, nicht end-to-end geprüft) |
+| `Augmentation/` | Cosmos-Transfer-Augmentierung (gebaut, einmal end-to-end gelaufen: Testlauf 2 Episoden × 3 Varianten, 2026-09-23; kein Trainingslauf damit) |
 | `app/Groot-1.6`, `app/Groot-1.7` | GR00T-Fork als Submodule (`lucam06/Isaac-GR00T`), G1-Konfiguration unter `examples/G1_DEX3/` |
 | `tools/` | Host-Werkzeuge: Menü, Doku-Prüfungen, Auswertung der Sim-Läufe |
 | `data/` | Roboter-Assets (USD, `unitree_ros`-Submodul) |

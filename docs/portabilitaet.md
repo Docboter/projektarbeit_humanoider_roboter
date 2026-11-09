@@ -231,8 +231,8 @@ haben keine RT-Cores und können die Kameras nicht rendern — Details in
 
 ### 3.2 Anderes KISSKI-Projekt
 
-Ein Knopf schaltet alle abgeleiteten Pfade um; er wirkt beim Absenden, weil in allen sechs
-Skripten `#SBATCH --export=ALL` steht und SLURM damit die Submit-Umgebung in den Job reicht:
+Ein Knopf schaltet alle abgeleiteten Pfade um; er wirkt beim Absenden, wenn mit `sbatch --export=ALL` die Submit-Umgebung in den Job gereicht wird
+(KISSKI setzt auf dem Login-Knoten `SBATCH_EXPORT=none`, das `#SBATCH --export=ALL` im Skript allein genügt dort nicht):
 
 ```bash
 # einmalig auf dem Login-Knoten
@@ -246,7 +246,7 @@ cd /mnt/vast-kisski/projects/<dein-projekt>/repo && mkdir -p logs
 # bei jedem Absenden (oder einmal in ~/.bashrc exportieren)
 export KISSKI_PROJECT_DIR=/mnt/vast-kisski/projects/<dein-projekt>
 export HF_TOKEN=hf_…
-sbatch Training/kisski_submit.sh
+sbatch --export=ALL Training/kisski_submit.sh
 ```
 
 Erwartete Ableitung aus `KISSKI_PROJECT_DIR`:
@@ -312,7 +312,7 @@ Das RoboCasa-Skript nutzt dieselbe Mechanik mit `RC_`-Präfix (`RC_HOST_DATA_DIR
 | Variable | Default | Zweck |
 |---|---|---|
 | `TRAIN_HOST_DATA_DIR` | — (kein Mount) | Host-Verzeichnis, das im Container `/data` wird. Leer = altes vast.ai-Verhalten, alles lebt im Container und stirbt mit `--destroy`. Auf einem Rechner, der **auch die Sim fährt**, gehört hier `$HOME/groot-rl-data` hin — derselbe Pfad, den `server_rl_run.sh` einhängt; sonst sieht die Sim-Eval die Checkpoints nur nach einem `docker cp` über hunderte GB. **Seit 2026-10-13 reicht der Launcher `DATA_DIR` und `WANDB_DIR` des Hosts nicht mehr in den Container** — das sind Container-Pfade, und ein Host-`DATA_DIR` (etwa aus `.env.local` oder der KISSKI-Doku) überschrieb `/data`, während `run_finetuning*.sh` `/data` erwarten. Ein Host-Verzeichnis als `/data` geht nur über diese Variable |
-| `MOUNT_SCRIPTS` | `auto` | `auto` bindet `Training/scripts` über `/scripts`, sobald das Repo daneben liegt — genau wie [`kisski_submit.sh:336`](../Training/kisski_submit.sh#L336) es seit jeher tut. `0` = der Stand im Image gilt |
+| `MOUNT_SCRIPTS` | `auto` | `auto` bindet `Training/scripts` über `/scripts`, sobald das Repo daneben liegt — genau wie [`kisski_submit.sh:388`](../Training/kisski_submit.sh#L388) es seit jeher tut. `0` = der Stand im Image gilt |
 | `CONTAINER_NAME` | `groot-train` | mehrere Läufe pro Server |
 | `DOCKER_NAMESPACE` | `lucam03` | Docker-Hub-Konto, von dem gezogen wird; `DOCKER_HUB_IMAGE` (ganzer Name) schlägt es |
 | `DOCKER_GPUS` | `all` | Wert für `docker run --gpus`, z. B. `'"device=0"'` |

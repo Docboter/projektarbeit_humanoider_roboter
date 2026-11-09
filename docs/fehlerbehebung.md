@@ -4,9 +4,6 @@
 > Lösung, mit Verweis auf die jeweilige Detail-Doku. Bei einem konkreten Fehler nachschlagen,
 > nicht linear lesen.
 
-Gebündelte Fehlerlösungen für Training und Simulation. Jeder Eintrag: **Symptom → Ursache →
-Lösung**, mit Verweis auf die jeweilige Detail-Doku.
-
 ---
 
 ## Training
@@ -41,7 +38,7 @@ gepuffert, nicht live hochgeladen (relevant v. a. auf KISSKI ohne Internet auf d
 **Lösung:** Nach dem Lauf manuell synchronisieren — Schritt für Schritt in
 [training/wandb-offline-sync.md](training/wandb-offline-sync.md). Wo Internet verfügbar ist
 (vast.ai, eigener Server), lässt sich der Default per `WANDB_MODE=online` überschreiben
-([entrypoint.sh:181](../Training/scripts/entrypoint.sh#L181)).
+([entrypoint.sh:233-237](../Training/scripts/entrypoint.sh#L233-L237)).
 
 ### 401/403 / `GatedRepoError` bei `nvidia/Cosmos-Reason2-2B`
 
@@ -184,7 +181,7 @@ Messstand nach Kamera-Neukalibrierung (2026-08-08): mittlere Cosine-Distanz **0,
 > bzw. ×36, Läufe 65/66), daneben die Registrierung Würfel↔Hand als zweiter Blocker (Lauf 62).
 
 **Lösung:** Der wirksame Hebel ist der Vision-Encoder — mit Realdaten allein aber ausgereizt.
-Nächster Schritt ist **Co-Training auf echten + gerenderten Bildern**
+Der Folgeschritt war **Co-Training auf echten + gerenderten Bildern**
 ([training/co-training.md](training/co-training.md), `USE_COTRAIN=1`). *(Nachtrag 2026-10-30:
 gelaufen, Läufe 72–97 — Sim-Lücke halbiert, erste Griffe `lifted_clear` 2/60, `stacked` 0.)*
 Diagnose-Werkzeuge: [simulation/umsetzungsnotizen.md §14–15](simulation/umsetzungsnotizen.md).

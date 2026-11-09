@@ -17,7 +17,7 @@
 
 | Konto | Wofür | Pflicht |
 |---|---|---|
-| Hugging Face, Token `hf_…` | Lizenz von `nvidia/GR00T-N1.6-3B` akzeptieren; für N1.7 Zugang zu `nvidia/Cosmos-Reason2-2B` (gated) | ja |
+| Hugging Face, Token `hf_…` | `nvidia/GR00T-N1.6-3B` ist nicht gated; für N1.7 Zugang zu `nvidia/Cosmos-Reason2-2B` (gated) | ja |
 | Weights & Biases | Lernkurven | lokal optional, KISSKI Pflicht (sonst `USE_WANDB=0`) |
 | Docker Hub (`docker login`) | nur wer eigene Images baut | nein |
 
@@ -28,7 +28,6 @@ Build-Skripte nach `DOCKER_NAMESPACE` ([portabilitaet.md](portabilitaet.md#34-ei
 ```bash
 git clone https://github.com/Docboter/projektarbeit_humanoider_roboter.git
 cd projektarbeit_humanoider_roboter
-git checkout training-luca-IKR-IS6.0
 docker run --rm --gpus all nvidia/cuda:12.8.0-base-ubuntu22.04 nvidia-smi   # GPU im Container sichtbar?
 ```
 
@@ -49,7 +48,7 @@ export HF_TOKEN=hf_... WANDB_API_KEY=...       # WANDB optional
 Erwartung:
 
 - Image `lucam03/projekt-humanoider-roboter:latest` wird gezogen, Container `groot-train` läuft.
-- Im Log: Download von Modell und Datensatz (~18 GB), Konvertierung v3.0 → v2.1, dann
+- Im Log: Download von Modell und Datensatz (Datensatz 9,2 GB), Konvertierung v3.0 → v2.1, dann
   Trainingsschritte.
 - Alle 2000 Steps entsteht ein Checkpoint unter
   `/data/g1_dex3_finetune/blockstacking/g1_dex3_blockstacking_v1/checkpoint-<N>`.
