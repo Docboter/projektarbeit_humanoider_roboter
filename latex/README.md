@@ -2,8 +2,8 @@
 
 > [!NOTE]
 > **Stand: 2026-11-09** (28 Seiten Hauptteil, Kapitel 1–9 inkl. Cosmos-Kapitel / 49 Seiten
-> gesamt, baut ohne Fehler und ohne undefinierte Referenzen). Neu gegliedert nach [`docs/abgabe-plan.md`](../docs/abgabe-plan.md)
-> Teil B: System, Schnittstellen und Anleitung zum Weiterarbeiten im Mittelpunkt, Ergebnisse
+> gesamt, baut ohne Fehler und ohne undefinierte Referenzen). Neu gegliedert nach dem
+> (inzwischen entfernten) Abgabeplan: System, Schnittstellen und Anleitung zum Weiterarbeiten im Mittelpunkt, Ergebnisse
 > als Kette bis Lauf 97 (N1.7, Orakel/Registrierung, Domain-Gap, Co-Training v3), Lessons
 > Learned als eigenes Kapitel. Matrikelnummern und Abgabedatum (09.11.2026) eingetragen.
 
@@ -77,4 +77,4 @@ Schreibt `figures/plots/*.pdf` aus `figures/daten/*.csv`. Die PDFs sind eingeche
 
 - [x] `\docAbgabedatum` in `preamble/settings.tex` (09.11.2026)
 - [ ] Ehrenwörtliche Erklärung gegen die Vorlage der Hochschule abgleichen
-- [ ] Prüfen vor der Abgabe nach `docs/abgabe-plan.md` (Zahlen-Stichprobe, Fremdtest, Absatz-Test)
+- [ ] Prüfen vor der Abgabe: Fremdtest, Absatz-Test (Zahlen-Stichprobe erledigt)

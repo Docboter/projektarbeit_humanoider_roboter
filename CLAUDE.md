@@ -28,8 +28,7 @@ open loop. Two sim blockers measured: cube registration (~3 cm too far inward, r
 visual domain gap (hand error ×13 / ×36 on sim images, run 66). Co-training v3 with sim renders
 (runs 73–97) shrinks that gap and gives first grasps (`lifted_clear` 2/60), `stacked` still 0; no
 robot test. **The status is maintained in exactly one place:
-[`next-steps.md` §0](next-steps.md)**; interfaces: [`docs/schnittstellen.md`](docs/schnittstellen.md);
-submission plan: [`docs/abgabe-plan.md`](docs/abgabe-plan.md).
+[`next-steps.md` §0](next-steps.md)**; interfaces: [`docs/schnittstellen.md`](docs/schnittstellen.md).
 Do not repeat status narrative here — link instead.
 
 ## Critical rules

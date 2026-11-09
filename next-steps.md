@@ -169,7 +169,7 @@ früheren Griffzahlen 0/20 bzw. 0/10 aus Lauf 34 sind überholt durch das Co-Tra
 
 ## 2. Nächste Schritte — in dieser Reihenfolge (Stand 2026-10-29)
 
-> **Abgabe:** Plan für Doku und Ausarbeitung in [`docs/abgabe-plan.md`](docs/abgabe-plan.md). Stand 2026-11-09: Ausarbeitung baut sauber (49 Seiten, davon 28 Hauptteil), Zahlen-Stichprobe erledigt; Abgabedatum 09.11.2026 eingetragen; offen sind Fremdtest, Absatz-Test, Merge nach `main` und Tag.
+> **Abgabe:** Stand 2026-11-09: Ausarbeitung baut sauber (49 Seiten, davon 28 Hauptteil), Zahlen-Stichprobe erledigt; Abgabedatum 09.11.2026 eingetragen; Merge nach `main` erledigt; offen sind Fremdtest, Absatz-Test und Tag. (Der frühere Abgabeplan `docs/abgabe-plan.md` ist entfernt.)
 >
 > **Stand 2026-10-29 — nach dem Co-Training v3, vor allen älteren Punkten unten:**
 > 1. ~~Griffrate belastbar machen~~ **erledigt 29.10. (Lauf 97):** C auf allen 60 Testlagen,

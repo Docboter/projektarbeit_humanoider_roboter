@@ -24,7 +24,6 @@ Dies ist die **eine** Strukturübersicht des Repos (bis 2026-10-13 stand eine zw
 │   ├── README.md              # dieser Navigations-Hub
 │   ├── quickstart.md          # Neu hier? Systemvoraussetzungen, Accounts/Tokens, Schnellstart
 │   ├── schnittstellen.md      # Datensatz, Checkpoint, Policy-Server, Sim-Eval, Werkzeuge (aus dem Code)
-│   ├── abgabe-plan.md         # Plan und Stand der Abgabe (Doku + Ausarbeitung)
 │   ├── training/              # operative Trainings-Doku (anleitung, kisski-hpc, env-vars, multi-gpu,
 │   │                          #   train-test-split, wandb-offline-sync, trainingsverfahren, co-training,
 │   │                          #   synth-datensatz)
