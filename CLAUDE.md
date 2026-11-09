@@ -151,16 +151,18 @@ On OOM, halve `GLOBAL_BATCH_SIZE` first. KISSKI partitions: `kisski` (A100 80 GB
 
 ## Where things are
 
-- **Doc hub + full repo structure tree + runtime `/data` layout:** [`docs/README.md`](docs/README.md)
+- **Doc hub:** [`docs/README.md`](docs/README.md) · **repo structure tree + runtime `/data` layout:**
+  [`docs/repo-struktur.md`](docs/repo-struktur.md)
 - **Status and priorities:** [`next-steps.md`](next-steps.md)
 - **Quickstart / accounts / tokens (SSOT):** [`docs/quickstart.md`](docs/quickstart.md)
 - **Training:** [`anleitung.md`](docs/training/anleitung.md) · [`env-vars.md`](docs/training/env-vars.md) ·
   [`kisski-hpc.md`](docs/training/kisski-hpc.md) · [`co-training.md`](docs/training/co-training.md) ·
   [`train-test-split.md`](docs/training/train-test-split.md)
 - **Simulation:** [`sim-eval-anleitung.md`](docs/simulation/sim-eval-anleitung.md) ·
-  [`umsetzungsnotizen.md`](docs/simulation/umsetzungsnotizen.md) (known fixes, read first) ·
+  [`umsetzungsnotizen.md`](docs/simulation/umsetzungsnotizen.md) (background: known fixes up to June 2026) ·
   [`live-ansicht.md`](docs/simulation/live-ansicht.md)
-- **Augmentation (Cosmos-Transfer2.5, built, not verified end-to-end):**
+- **Augmentation (Cosmos-Transfer2.5, built; one end-to-end test run 2026-09-23, 2 episodes ×
+  3 variants on HF `luca-mue/g1-dex3-cosmos-augmented`; no training run with it yet):**
   [`docs/augmentation/anleitung.md`](docs/augmentation/anleitung.md)
 - **Results:** [`docs/ergebnisse/`](docs/ergebnisse/README.md); "Lauf N" references resolve in
   [`diagnose-chronik.md`](docs/ergebnisse/diagnose-chronik.md)
