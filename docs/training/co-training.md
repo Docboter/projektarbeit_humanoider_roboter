@@ -1,27 +1,23 @@
 # Co-Training auf echten und gerenderten Bildern (Schritt 4)
 
 > **TL;DR:** Schritt 4 der Domain-Gap-Behebung: warum Co-Training auf echten + gerenderten
-> Sim-Bildern der nächste Hebel ist, und welche Werkzeuge dafür gebaut wurden (Renderer,
-> Zwei-Datensatz-Training `USE_COTRAIN=1`). Werkzeuge stehen, ein Trainingslauf mit eigenem Render-Datensatz hat es noch nicht gegeben
-> (Stand 2026-10-11).
+> Sim-Bildern der nächste Hebel war, welche Werkzeuge dafür gebaut wurden (Renderer,
+> Zwei-Datensatz-Training `USE_COTRAIN=1`) und was die Läufe 73–97 (Render v3) ergaben: Sim-Lücke
+> deutlich kleiner, erste Griffe in der Sim (`lifted_clear` 2/60), `stacked` weiterhin 0 (§ 3.5).
 > Ein **fremder** Sim-Datensatz statt des eigenen Renderers läuft über denselben
 > `USE_COTRAIN`-Pfad, braucht aber vorher eine Schema-Harmonisierung: [synth-datensatz.md](synth-datensatz.md).
 
-> **Überholt durch §3.5 (2026-10-29):** Es gibt ein Co-Training-Ergebnis (Läufe 73–97, Render v3); der Absatz unten beschreibt den Stand vom 2026-10-11.
-
-**Stand:** 2026-10-11 · Es gibt **noch kein Co-Training-Ergebnis**: kein Lauf mit dem eigenen
-Render-Datensatz, und der als Co-Training gedachte Lauf `cotrain_synth_v1` (W&B `7z81177r`) brach
-am 2026-09-07 nach 138 s ab — laut seiner W&B-Konfiguration lief er gar nicht als Co-Training
-(ein Datensatz, `tune_visual: false`; [Diagnose-Chronik](../ergebnisse/diagnose-chronik.md#nachtrag-2026-10-13-cotrain_synth_v1-wb-7z81177r-war-kein-co-training-lauf)).
-Die Handaktionen des Synth-Datensatzes waren zudem vertauscht (behoben als v22, siehe [synth-datensatz.md](synth-datensatz.md)).
-**Der Render-Datensatz muss neu erzeugt werden:** die Sim-Geometrie wurde am 2026-08-24
-korrigiert (Vorzeichenflip der vier proximalen Fingergelenke entfernt, Pelvis-Höhe 0,764 m,
-Basis x −0,057 m) — früher gerenderte Sätze (u. a. der erste volle Lauf vom 2026-08-17) zeigen
-die alte Geometrie. Historisch (2026-08-17): erster voller Renderlauf (60 Episoden),
-**Befund: Frames ab dem Griff sind falsch beschriftet** → `RENDER_STOP_AT_GRASP` (§ 3.2a) ·
-Vorgeschichte:
-[Lauf 34](../ergebnisse/diagnose-chronik.md#läufe-3334-runs2026081403-runs2026081404-der-tune_visual-checkpoint-im-closed-loop),
-[next-steps.md Schritt 4](../../next-steps.md)
+> **Historischer Kontext (Stand 2026-10-11, vor den v3-Läufen):** §§ 1–3.4 sind vor dem ersten
+> Co-Training-Ergebnis geschrieben; das Ergebnis steht in § 3.5 (Läufe 73–97, 2026-10-29). Der
+> als Co-Training gedachte Lauf `cotrain_synth_v1` (W&B `7z81177r`, 2026-09-07, nach 138 s
+> abgebrochen) war laut W&B-Konfiguration keiner (ein Datensatz, `tune_visual: false`;
+> [Diagnose-Chronik](../ergebnisse/diagnose-chronik.md#nachtrag-2026-10-13-cotrain_synth_v1-wb-7z81177r-war-kein-co-training-lauf)).
+> Der erste Renderlauf vom 2026-08-17 (60 Episoden) zeigte falsch beschriftete Frames ab dem Griff
+> → `RENDER_STOP_AT_GRASP` (§ 3.2a) und die alte Sim-Geometrie (Fix 2026-08-24: Vorzeichenflip der
+> proximalen Fingergelenke entfernt, Pelvis-Höhe 0,764 m, Basis x −0,057 m); der Datensatz wurde
+> als Render v3 neu erzeugt. Vorgeschichte:
+> [Lauf 34](../ergebnisse/diagnose-chronik.md#läufe-3334-runs2026081403-runs2026081404-der-tune_visual-checkpoint-im-closed-loop),
+> [next-steps.md](../../next-steps.md).
 
 ---
 

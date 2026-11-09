@@ -10,7 +10,8 @@ bedeutet: kein `docker run`, sondern `sbatch Training/kisski_submit.sh`. Das Doc
 wird einmalig in eine Apptainer-`.sif`-Datei umgewandelt — danach läuft alles unverändert.
 
 Zugang beantragen: [GWDG-Portal](https://docs.hpc.gwdg.de). SSH-Login-Knoten:
-`glogin-gpu.hpc.gwdg.de`.
+`glogin-gpu.hpc.gwdg.de`. Der Zugang der Projektgruppe endet im Dezember 2026; Checkpoints und
+Daten vorher von `/mnt/vast-kisski/…` sichern (Hub-Upload, siehe [Checkpoint-Export](#checkpoints-nach-dem-training-sichern)).
 
 ## Pfad-Konfiguration — zwei Variablen, sonst nichts
 
@@ -175,7 +176,7 @@ Compute-Nodes haben keinen Internet-Zugang, deshalb muss das auf dem Login-Knote
 
 ```bash
 # 1) Dieses Repo (liefert Training/scripts/ — Änderungen wirken ohne Image-Rebuild)
-git clone --branch training-luca-IKR-IS6.0 --depth 1 \
+git clone --branch main --depth 1 \
     https://github.com/Docboter/projektarbeit_humanoider_roboter.git \
     /mnt/vast-kisski/projects/kisski-humrob/repo
 
@@ -196,6 +197,21 @@ Pfade und Branch sind über `REPO_DIR`, `GITHUB_BRANCH` und `GROOT_FORK_DIR` üb
 der Klon gerade steht, sonst `main` — der `--branch` oben ist also nur der Startpunkt. Ein
 `GITHUB_TOKEN` (private Repos) wird nur noch über einen Credential-Helper aus der Umgebung
 gelesen und landet **nicht** mehr in `.git/config`.
+
+> **Bestehender Klon aus der Entwicklungszeit:** Stand der Klon auf dem Arbeitsbranch
+> `training-luca-IKR-IS6.0` (nach dem Merge auf `main` auf GitHub gelöscht), muss er einmalig auf
+> `main` umgestellt werden. Sonst nimmt `kisski_submit.sh` den Branch des Klons und bricht mit
+> `SKIP_GIT_PULL=0` beim `git pull --ff-only origin <gelöschter Branch>` ab. Ein `--depth 1`-Klon
+> kennt nur seinen einen Branch, daher zuerst `main` freischalten:
+>
+> ```bash
+> R=/mnt/vast-kisski/projects/kisski-humrob/repo
+> git -C $R remote set-branches origin main
+> git -C $R fetch --depth 1 origin main
+> git -C $R checkout main
+> ```
+>
+> Alternativ den Ordner löschen und wie oben neu klonen.
 
 > **Warum Schritt 3:** `kisski_submit.sh` und `kisski_open_loop_eval.sh` binden
 > `repo-groot/gr00t` über den Code im Image. Steht der Fork auf dem Branch-HEAD, läuft auf

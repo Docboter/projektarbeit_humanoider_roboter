@@ -72,8 +72,8 @@ Volle Variablenreferenz (inkl. `HF_HOME`, Build-Arg `GROOT_VERSIONS`):
 
 ## Vorab: Accounts & Tokens
 
-Du brauchst in jedem Fall einen HuggingFace-Account samt `HF_TOKEN` (Lizenz von
-`nvidia/GR00T-N1.6-3B` vorher akzeptieren); ein WandB-`WANDB_API_KEY` ist optional, aber
+Du brauchst in jedem Fall einen HuggingFace-Account samt `HF_TOKEN` (`nvidia/GR00T-N1.6-3B` ist nicht
+gated; für N1.7 Zugang zu `nvidia/Cosmos-Reason2-2B` beantragen); ein WandB-`WANDB_API_KEY` ist optional, aber
 empfohlen. Vollständige Tabelle inkl. Links: [Accounts und Tokens](../quickstart.md#accounts-und-tokens).
 
 ---
@@ -180,7 +180,6 @@ Submodule sind **nicht** mehr nötig — das Image bringt den Groot-1.6-Code sel
 ```bash
 git clone https://github.com/Docboter/projektarbeit_humanoider_roboter.git
 cd projektarbeit_humanoider_roboter
-git checkout training-luca-IKR-IS6.0
 ```
 
 ### B3. Token setzen
@@ -302,7 +301,6 @@ docker logs -f groot-train       # Logs verfolgen
 ```bash
 git clone https://github.com/Docboter/projektarbeit_humanoider_roboter.git
 cd projektarbeit_humanoider_roboter
-git checkout training-luca-IKR-IS6.0
 docker build -t projektarbeit-humanoider-roboter Training/   # Build-Context = Training/
 ```
 
