@@ -1,12 +1,12 @@
-# Diagnose-Chronik — Sim- und RL-Läufe 08–55
+# Diagnose-Chronik — Sim- und RL-Läufe 08–97
 
-> **TL;DR:** Chronologisches Protokoll aller Sim-/RL-Diagnoseläufe (Läufe 08–55): Kamera-Fixes,
+> **TL;DR:** Chronologisches Protokoll aller Sim-/RL-Diagnoseläufe (Läufe 08–97): Kamera-Fixes,
 > Domain-Gap-Messungen, Greif-Physik, `span`-Gate, `TUNE_VISUAL` im Closed Loop, die ersten
-> N1.7-Checkpoints in der Sim. Nachschlagewerk für die projektweiten „Lauf N“-Verweise — gezielt
+> N1.7-Checkpoints in der Sim, Orakel/Registrierung und das Co-Training v3 (Gate, Closed Loop). Nachschlagewerk für die projektweiten „Lauf N“-Verweise — gezielt
 > den passenden Abschnitt ansteuern statt komplett lesen.
 
 Chronologisches Protokoll der Diagnose-, Kalibrier- und Eval-Läufe der Isaac-Lab-Sim
-(2026-08-08 bis 2026-08-26; letzter protokollierter Lauf: 53). Entstanden am 2026-08-18 durch Aufteilung von
+(2026-08-08 bis 2026-10-14; letzter protokollierter Lauf: 72). Entstanden am 2026-08-18 durch Aufteilung von
 [rl-anleitung.md](../weiterfuehrend/rl-anleitung.md), die auf 2197 Zeilen angewachsen war und
 operative Anleitung mit Protokoll vermischte. Die Lauf-Nummern (`Lauf 8` … `Lauf 55`) sind der
 projektweit referenzierte Zähler — andere Dokumente verlinken gezielt auf einzelne Abschnitte hier.
@@ -14,8 +14,9 @@ projektweit referenzierte Zähler — andere Dokumente verlinken gezielt auf ein
 > **Stand 2026-10-11 — Vorbehalt für alle Sim-Greifzahlen vor Lauf 47:** Die Läufe 38–51 haben gezeigt,
 > dass die Sim-Geometrie bis 2026-08-24 falsch war (Vorzeichen-Flip der vier proximalen Fingergelenke —
 > die Hand konnte in keinem früheren Lauf ganz schließen —, Beckenhöhe 0,764 m, Basis x −0,057 m). Alle
-> älteren Closed-Loop-/Greif-Zahlen (u. a. Läufe 29–34) stehen unter diesem Vorbehalt; die Neumessung mit der
-> korrigierten Szene steht aus. Die Spanne-Gate-Messung auf echten Bildern (Lauf 32) nutzte die
+> älteren Closed-Loop-/Greif-Zahlen (u. a. Läufe 29–34) stehen unter diesem Vorbehalt. Mit der korrigierten
+> Szene gemessen sind bisher nur die N1.7-Läufe [54/55](#läufe-5455-die-ersten-n17-checkpoints-in-der-sim)
+> (2026-10-12/13); für N1.6 steht die Neumessung aus (Nachtrag 2026-10-13). Die Spanne-Gate-Messung auf echten Bildern (Lauf 32) nutzte die
 > Trainingsepisoden 0–4 (Verhältnis 1,00 = Obergrenze der De-Normalisierung): Auswendiglernen ist nicht
 > ausgeschlossen, „Domain-Gap bestätigt“ ist ein starker Hinweis, kein Beweis. Die Lauf-Einträge selbst
 > bleiben unverändert (Protokoll).
@@ -52,7 +53,7 @@ Für den **aktuellen Projektstatus** siehe
 | 27 | Nachmessung: Finger schließen sichtbar — die Gelenkgrenze ist nicht die Ursache ([Nachmessung](#nachmessung-runs2026080827-die-finger-schließen--die-gelenkgrenze-ist-es-nicht)) |
 | 28 | Messpunkt war zum dritten Mal falsch (distales Gelenk statt Fingerkuppe) ([Lauf 28](#lauf-28-der-messpunkt-war-zum-dritten-mal-falsch)) |
 | 29 | Würfel hebt 7,9 cm ab (`GRASP_MODE=hold`, korrigierter Messpunkt) — Greif-Physik-Blocker gefallen, mit Vorbehalt ([Lauf 29](#lauf-29-der-würfel-hebt-ab-mit-einem-vorbehalt)) |
-| 30 | Vorregistrierte Regel geschlossen: Politik kommandiert nur 19 % der Demo-Fingerspanne — greift nicht ([Lauf 30](#lauf-30-die-vorregistrierte-regel-ist-geschlossen--die-politik-greift-nicht)) |
+| 30 | Vorregistrierte Regel geschlossen: Policy kommandiert nur 19 % der Demo-Fingerspanne — greift nicht ([Lauf 30](#lauf-30-die-vorregistrierte-regel-ist-geschlossen--die-policy-greift-nicht)) |
 | 31 | Meilenstein-Leiter im Einsatz: erste messbare Würfel-Anhebung im Closed Loop (0,22–1,03 cm) ([Lauf 31](#lauf-31-runs2026081203-die-leiter-im-einsatz--und-zwei-neue-zahlen)) |
 | 32 | `span`-Gate entschieden: Median-Verhältnis 1,00 auf echten Bildern — Domain-Gap (a1) bestätigt, (a2) ausgeschlossen ([Lauf 32](#lauf-32-runs2026081301-das-span-gate-ist-entschieden--a1)) |
 | 33/34 | `TUNE_VISUAL`-Checkpoint im Closed Loop: Fingerspanne 27,6 % (statt 20,5 %), `lifted` bleibt 0/10 ([Läufe 33/34](#läufe-3334-runs2026081403-runs2026081404-der-tune_visual-checkpoint-im-closed-loop)) |
@@ -63,6 +64,40 @@ Für den **aktuellen Projektstatus** siehe
 | 53 | A/B mit und ohne Gierwinkel (`runs/20260826/01`): der Bildwinkel deckt sich **nicht** mit der Greifachse (Δ im Mittel 27° bei einer 45°-Obergrenze, n=5). Die Sichtprüfung war durch ungeseedete Domain Randomization entwertet — Seed nachgerüstet ([Lauf 53](#lauf-53-der-gierwinkel-und-die-greifachse-widersprechen-sich)) |
 | 54 | Erster N1.7-Sim-Lauf, `vision-v1` **checkpoint-15000** (2026-10-12): `lifted` 0/10, Anhebung ≤ 0,83 cm; Fingerspanne 1,93 rad, aber die Hände öffnen und schließen in der Luft ([Läufe 54/55](#läufe-5455-die-ersten-n17-checkpoints-in-der-sim)) |
 | 55 | Derselbe Lauf, **checkpoint-44000** (2026-10-13): `lifted` 0/10, Fingerspanne nur noch 25,6 % der Demo — Closed Loop auf dem Niveau von Lauf 34 (N1.6); offene Schleife dagegen MSE −60 % / −33 % gegenüber ckpt15000 ([Läufe 54/55](#läufe-5455-die-ersten-n17-checkpoints-in-der-sim)) |
+| 56 | Daumen-Check (2026-10-14, IKR-Server): `thumb_0`/`thumb_2` werden **nicht** geklemmt — USD-Grenzen umfassen alle 281 196 Frames; dabei gemischten Datensatz (v3.0-Metadaten über v2.1-Daten seit 2026-09-08) gefunden und frisch erzeugt ([Lauf 56](#lauf-56-daumen-grenzen-und-gemischter-datensatz)) |
+| 57 | Orakel-Replay, Bild-Layout `layout_heldout.json` (2026-10-14): die menschliche Demo selbst hebt in der Sim fast nie — `lifted_clear` **1/16** (KI 0,2–30 %), `stacked` 0/16; Arme folgen (RMSE 0,02 rad), Hand erreicht und schiebt den Würfel jedes Mal ([Läufe 57–61](#läufe-5761-orakel-replay-würfelgröße-griffversatz-span-n16)) |
+| 58 | Würfelgrößen-Sweep im Orakel (4,5 / 4,0 cm, je 5 Ep.): kein Lift — Würfelgröße ist nicht die Ursache ([Läufe 57–61](#läufe-5761-orakel-replay-würfelgröße-griffversatz-span-n16)) |
+| 59 | Griffversatz aus der FK der echten Hand: Griffstelle liegt 1–7 cm (Median ~3,4) neben der Bild-Würfellage, seitlich **spiegelbildlich je Hand** nach außen ([Läufe 57–61](#läufe-5761-orakel-replay-würfelgröße-griffversatz-span-n16)) |
+| 60 | Orakel mit griffverankerten Würfeln: `lifted_clear` 3/18 (KI 4–41 %) — echte Lifts bis 8,3 cm, aber kaum besser als Bild-Layout ([Läufe 57–61](#läufe-5761-orakel-replay-würfelgröße-griffversatz-span-n16)) |
+| 61 | `span` N1.6 vision-v2 **@30000** auf Test 240/255/270/285/300: Median **90 %**, MSE-Median 0,0051 ([Läufe 57–61](#läufe-5761-orakel-replay-würfelgröße-griffversatz-span-n16)) |
+| 62 | Versatz-Sweep im Orakel (14 Raster × 8 Ep.): Würfel **3 cm seitlich nach außen** verschoben → `lifted_clear` 5/8 statt 0/8; Plateau dy 3–6 cm, dx ≤ 0: 23/48 = 48 % gegen 0/24 ohne Seitenkorrektur. Die Sim greift, wenn die Würfel richtig zur Hand liegen ([Lauf 62](#lauf-62-versatz-sweep--die-würfel-liegen-3-cm-zu-weit-innen)) |
+| 63 | Ursache des Versatzes: kein einzelner Gelenk-Nullpunkt (Ellbogen 2/8, Handgelenk-Nicken 1/8, Schulter-Gier 0/8 statt 5/8) und keine mitwandernde Kopfkamera (Griffstelle 13,6 statt 3,4 cm daneben) ([Läufe 63–68](#läufe-6368-ursache-des-versatzes-bild-ablation-sim-bilder-im-open-loop)) |
+| 64 | Closed Loop N1.6 @30000 / N1.7 @44000 auf korrigiertem Layout nach 2 Ep. abgebrochen: 0/2 bzw. 0/2, Hand fährt hin, schließt halb, zieht zurück ([Läufe 63–68](#läufe-6368-ursache-des-versatzes-bild-ablation-sim-bilder-im-open-loop)) |
+| 65 | Bild-Ablation im Open Loop (9 Test-Ep.): ohne Bilder bricht der Griff ein (Spanne 58–62 %, MSE Hände ×4–9); eine Kameragruppe genügt ([Läufe 63–68](#läufe-6368-ursache-des-versatzes-bild-ablation-sim-bilder-im-open-loop)) |
+| 66 | **Teacher-forced Open Loop auf Sim-Renderbildern:** MSE Hände ×13 (N1.6) bzw. ×36 (N1.7) gegenüber echten Bildern — so schlecht wie schwarze Bilder. Visueller Domain-Gap nachgewiesen ([Läufe 63–68](#läufe-6368-ursache-des-versatzes-bild-ablation-sim-bilder-im-open-loop)) |
+| 67 | Bildvergleich echt/Sim gleicher Frame: Würfel an denselben Pixeln (Kopfkamera-Geometrie stimmt), aber Tisch zu klein, Boden-Gitter, weiße Arme; Handgelenkkamera-Pose weicht ab; Sim-Bild bei Step 0 veraltet ([Läufe 63–68](#läufe-6368-ursache-des-versatzes-bild-ablation-sim-bilder-im-open-loop)) |
+| 68 | Würfelgröße auf korrigiertem Layout: 4,0 cm 3/8, 4,5 cm 2/8, 5,0 cm 5/8 — 5 cm bleibt ([Läufe 63–68](#läufe-6368-ursache-des-versatzes-bild-ablation-sim-bilder-im-open-loop)) |
+| 69 | Orakel auf dem korrigierten Layout (Würfel 3 cm nach außen), alle 20 Test-Ep. 240–259 × 120 s: `lifted_clear` **6/20 = 30 %** (KI 12–54 %), `stacked` 0/20 (KI 0–17 %) — die obere Schranke ist jetzt deutlich über null ([Lauf 69](#lauf-69-orakel-auf-dem-korrigierten-layout)) |
+| 70 | Szene schrittweise ans Echtbild angeglichen (Tisch 2 m breit, graue Arme, Handgelenkkamera vor/tiefer, 85°): MSE Hände im teacher-forced Open Loop N1.6 0,036 → 0,022, N1.7 0,086 → 0,070 — Echtbild 0,0025; die groben Szenenmerkmale erklären nur einen kleinen Teil ([Läufe 70/71](#läufe-7071-szene-ans-echtbild-angleichen-kamera-mischung)) |
+| 71 | Kamera-Mischung (echt/Sim je Kameragruppe): N1.6 Kopf und Handgelenk gleich schädlich (je ×4, zusammen ×13); N1.7 vor allem Handgelenk (×20) ([Läufe 70/71](#läufe-7071-szene-ans-echtbild-angleichen-kamera-mischung)) |
+| 72 | Co-Training-Datensätze **v3** gerendert (5 cm und 4 cm, je 187 Trainings-Ep., 29 890 Frames, Szene aus Lauf 70, Layout aller Trainings-Ep. korrigiert); Hand↔Würfel am Griff xy-Median 3,3 / 3,2 cm; privat auf HF (seit 2026-10-30 öffentlich) ([Lauf 72](#lauf-72-co-training-datensätze-v3)) |
+| 73–76 | KISSKI-Co-Training v3, 44 000 Steps, Mischung 0,15: **73** N1.6 Render 5 cm (Job 16676490), **74** N1.6 4 cm (16676493), **75** N1.7 5 cm (16779689), **76** N1.7 4 cm (16779693); Val-MSE @44000 0,004985 / 0,005097 / 0,005248 / 0,005071, überall ≤ 0,8 % hinter dem besten Step. Erste N1.7-Versuche (19.10.) an über zwei Knoten verteilten GPUs gescheitert, behoben mit `#SBATCH -N 1` ([Läufe 73–76](#läufe-7376-co-training-läufe-v3-auf-kisski)) |
+| 77–79 | *frei* |
+| 80 | Visuelles Gate geseedet (`visgate`, Seeds 0/1/2): ungeseedet streut die MSE Hände je Episode bis ×2, der Median über 4 Ep. nur ±5 %. Ausgangswerte MSE Hände 5 / 4 cm: N1.6 @44000 **0,0239 / 0,0221** (Echtbild 0,0014), @30000 0,0214 / 0,0193, N1.7 @44000 0,0758 / 0,0666 ([Läufe 80/81](#läufe-8081-visuelles-gate-geseedet-closed-loop-n17-in-der-szene-aus-lauf-70)) |
+| 81 | Closed Loop N1.7 @44000 in der Szene aus Lauf 70 auf `layout_heldout_dy3.json`, 20 × 120 s: `lifted` **0/20** (KI 0–17 %), Fingerspanne Median 0,52 rad (~25 % der Demo) — die Szenen-Angleichung ändert den Closed Loop nicht ([Läufe 80/81](#läufe-8081-visuelles-gate-geseedet-closed-loop-n17-in-der-szene-aus-lauf-70)) |
+| 82 | Dasselbe mit N1.6 @44000: `lifted_clear` **0/20** (KI 0–17 %); aktiver als N1.7 (`reached` 16, `touched` 17, Würfel bis 17 cm geschoben, Spanne Median 0,64 rad, max. 1,43), schließt aber nicht. Das einzige `lifted` ist ein weggeschleuderter Würfel ([Lauf 82](#lauf-82-closed-loop-n16-44000-szene-aus-lauf-70)) |
+| 83 | Visuelles Gate N1.6 co-train v3 (73/74): Sim-Prüfsets halbiert (5 cm 0,0118 / 0,0115, 4 cm je 0,0104 gegen 0,0239 / 0,0221), Echtbild +50–57 % (0,0022 / 0,0021) — bestanden, Echtbild Grenzfall; keine Spezialisierung auf die Render-Würfelgröße ([Lauf 83](#lauf-83-visuelles-gate-der-co-trainierten-n16-modelle-render-v3-44000)) |
+| 84/85 | Closed Loop N1.6 co-train cube5 / cube4 (85 versehentlich mit 5-cm-Würfeln): `touched` **20/20**, Fingerspanne **1,54 / 1,59 rad** (Lauf 82: 0,64), `lifted_clear` je **1/20** — erste echte Griffe der Policy im Video; 2 Wurf-Artefakte bei cube5 ([Läufe 84/85](#läufe-8485-closed-loop-der-co-trainierten-n16-modelle-1810)) |
+| 86 | Visuelles Gate N1.7 co-train cube5 (75): 5 cm **0,0230**, 4 cm **0,0164** (Maßstab 0,0758 / 0,0666), Echtbild 0,0024 unverändert — klar bestanden; erreicht damit erst das Niveau von N1.6 ohne Co-Training ([Lauf 86](#lauf-86-visuelles-gate-co-training-n17-render-v3-cube5-44000)) |
+| 87 | Gate-Nachholprüfung der übrigen HF-Checkpoints: N1.7 vision-v1 @5000/10000/15000 durchgefallen (Echtbild ×3–6); die alten N1.6 Lauf 1 @110000 und vision-v1 @35000 unterbieten die Schwelle **ohne** Co-Training (~0,017) — die 80-%-Schwelle ist zu lax ([Lauf 87](#lauf-87-visuelles-gate-der-übrigen-hf-checkpoints-nachholprüfung)) |
+| 88 | Closed Loop N1.6 co-train cube4 mit 4-cm-Würfeln: `touched` 20/20, `lifted_clear` **2/20** (zwei echte Griffe), Spanne 1,61 rad, Abstand Median 2,3 cm — bisher bester Closed Loop ([Lauf 88](#lauf-88-closed-loop-co-training-n16-cube4-mit-4-cm-würfeln)) |
+| 89 | Closed Loop N1.7 co-train cube5 (75): `reached`/`touched` **20/20**, Spanne 1,64 rad (Lauf 81: 0,52), aber `lifted_clear` **0/20** — schiebt und kippt, kein Griff ([Lauf 89](#lauf-89-closed-loop-co-training-n17-cube5)) |
+| 90/91 | Gegenprobe: alte N1.6-Modelle ohne Co-Training, die das Gate bestanden hatten (vision-v1 @35000, Lauf 1 @110000): `lifted_clear` je **0/20**, Spanne 1,30 / 1,75 rad — die weit öffnende Hand ist kein reiner Co-Training-Effekt, Griffe zeigen nur die co-trainierten N1.6 ([Läufe 90/91](#läufe-9091-closed-loop-der-alten-n16-modelle-ohne-co-training)) |
+| 92 | Gate der restlichen v3-Checkpoints: D N1.7 cube4 @44000 **bestanden** (0,0217 / 0,0123, Echtbild 0,0027), D″ @40000, B′ @40000, C′ @35000 bestanden, A″ N1.7 @20000 **durchgefallen** (Echtbild ×3,2). Von @20000 nach @44000 werden Sim-Prüfsets schlechter, Echtbild und Sweep besser; bei N1.7 hilft der 4-cm-Render auf beiden Prüfsets mehr ([Lauf 92](#lauf-92-visuelles-gate-der-restlichen-v3-checkpoints)) |
+| 93 | Closed Loop N1.7 co-train cube4 (D, 76) mit 4-cm-Würfeln: `touched` 20/20, Spanne 1,71 rad, Medianabstand 2,1 cm (kleinster bisher), aber `lifted_clear` **0/20** — beide co-trainierten N1.7 greifen nicht ([Lauf 93](#lauf-93-closed-loop-co-training-n17-cube4-mit-4-cm-würfeln)) |
+| 94/95 | Ausnahme: Closed Loop der Gate-besten Zwischenstände C′ @35000 (4 cm) und B′ @40000: `lifted_clear` 1/20 (im Video kein freier Griff) bzw. 0/20 — der Gate-Vorsprung von 3–7 % zeigt sich im Closed Loop nicht ([Läufe 94/95](#läufe-9495-closed-loop-der-gate-besten-n16-zwischenstände-ausnahme)) |
+| 96 | Vorregistriertes primäres Gate nachgeholt (10 × 40 s): Spanne C **1,53 rad = 73 %** gegen vision-v2 @44000 0,52 rad (p = 5 · 10⁻⁶) und Lauf 34 0,577 rad — **bestanden**; gegen das alte Lauf-1-Modell (1,21 rad) nur Tendenz (p = 0,07). `gap`-Kontrolle als Messung des Co-Trainings ungeeignet (generisches SigLIP) ([Lauf 96](#lauf-96-vorregistriertes-primäres-gate-nachgeholt-fingerspanne-10--40-s-und-gap-kontrolle)) |
+| 97 | C auf allen 60 Testlagen: `lifted_clear` **2/60 = 3 %** (KI 0,4–11,5 %), `touched` 60/60, `stacked` 0/60; die 40 neuen Lagen ohne Griff — gegen 0/20 ohne Co-Training nicht zu trennen (p ≈ 0,56) ([Lauf 97](#lauf-97-closed-loop-des-besten-kandidaten-auf-allen-60-testlagen)) |
 
 ---
 
@@ -982,7 +1017,7 @@ am Video zu sehen. Deshalb protokolliert der Runner seit diesem Lauf zwei Zahlen
 | `block_shift_max_m` | größte Verschiebung eines Würfels gegenüber dem Reset-Layout |
 
 Damit trennt der nächste Lauf die beiden Lesarten quantitativ: kommt die Hand auf wenige
-Zentimeter heran und greift trotzdem nicht, ist es Wahrnehmung/Politik und `TUNE_VISUAL=1` steht;
+Zentimeter heran und greift trotzdem nicht, ist es Wahrnehmung/Policy und `TUNE_VISUAL=1` steht;
 bleibt der Abstand groß, ist es Geometrie und ein ViT-Lauf wäre verschwendet.
 
 #### Erste Messung (runs/20260808/24) — und warum sie so noch nichts entscheidet
@@ -1051,8 +1086,8 @@ Damit ist die Vorprüfung „Geometrie" endgültig erledigt: die Hand kommt hin,
 und schiebt ihn. Was fehlt, ist der Griff. Dafür bleiben zwei Erklärungen, und die vorregistrierte
 Regel („in Reichweite, greift nicht → `TUNE_VISUAL=1`") unterscheidet sie nicht:
 
-1. **Die Politik versucht keinen Griff** — die Finger bleiben starr, der Würfel wird nur
-   angestoßen. Das wäre Wahrnehmung/Politik und `TUNE_VISUAL=1` wäre richtig.
+1. **Die Policy versucht keinen Griff** — die Finger bleiben starr, der Würfel wird nur
+   angestoßen. Das wäre Wahrnehmung/Policy und `TUNE_VISUAL=1` wäre richtig.
 2. **Der Griff rutscht** — die Finger schließen, aber Reibung/Kontaktparameter halten den Würfel
    nicht. Das wäre Sim-Physik, und ein 48-h-ViT-Lauf wäre verschwendet.
 
@@ -1074,7 +1109,7 @@ HF_TOKEN=hf_... NUM_EPISODES=2 EPISODE_LENGTH_S=40 DR_ENABLED=0 \
 ```
 
 Hebt (a) den Würfel (`max_cube_lift_cm` > ~2) und ist die Fingerspanne in (b) klein →
-Politik/Wahrnehmung, `TUNE_VISUAL=1` steht. Hebt (a) nichts → zuerst die Kontaktparameter, ViT
+Policy/Wahrnehmung, `TUNE_VISUAL=1` steht. Hebt (a) nichts → zuerst die Kontaktparameter, ViT
 später. Zum Kontext: die Finger-Positionsgrenzen waren schon einmal die Ursache eines
 fallengelassenen Würfels; `_widen_finger_joint_limits()` weitet sie seit Juni auf die echte
 Dataset-Range, dieser Pfad ist also bereits abgedeckt.
@@ -1091,7 +1126,7 @@ Dataset-Range, dieser Pfad ist also bereits abgedeckt.
 | **max Würfel-Anhebung** | **0,0 cm** | **kein Würfel wird angehoben** |
 
 Aufbau: echte Dataset-Aktionen, kein Modell, kein Server, und die Würfel per `--grasp-test`
-exakt an den aufgezeichneten Greifpunkten. Unter diesen Bedingungen ist die Politik vollständig
+exakt an den aufgezeichneten Greifpunkten. Unter diesen Bedingungen ist die Policy vollständig
 aus der Kette entfernt — **und der Griff scheitert trotzdem.**
 
 Damit ist entschieden:
@@ -1186,7 +1221,7 @@ HF_TOKEN=hf_... GRASP_MODE=hold ./Simulation/server_rl_run.sh grasp
 | `finger_spread_min_cm` / `finger_close_step` | engste Greiföffnung je Hand und wann sie eintritt |
 
 **Entscheidungsregel:** `hold_ratio` > ~0,5 → die Greif-Physik trägt, und das Problem ist die
-Platzierung des Tests (bzw. im Closed Loop: die Politik trifft den Würfel nicht). `hold_ratio` ≈ 0
+Platzierung des Tests (bzw. im Closed Loop: die Policy trifft den Würfel nicht). `hold_ratio` ≈ 0
 bei Endhöhe ≈ Tischauflage → der Würfel rutscht aus der geschlossenen Hand, dann sind Kontakt und
 Reibung dran. Gegen letzteres spricht weiterhin die Konfiguration: 50 g bei `static_friction=3.0` /
 `dynamic_friction=2.5`.
@@ -1225,7 +1260,7 @@ Gelenk (Lauf 25/28). **Regel: ein Körper-Frame ist keine Kontaktfläche.** Wer 
 
 **Was dadurch neu zu lesen ist:** die „Fingerspitzen"-Abstände aus Lauf 25 (4,0 / 4,2 cm zur
 Würfelmitte) sind Abstände ab dem distalen Gelenk. Um die Kuppenlänge korrigiert liegen die echten
-Kontaktflächen im Würfel — die Politik war also in Kontaktreichweite, nicht 1,5 cm davor. Die
+Kontaktflächen im Würfel — die Policy war also in Kontaktreichweite, nicht 1,5 cm davor. Die
 Aussage „die Hand ist am Würfel" wird dadurch stärker, nicht schwächer; die 0,0 cm Anhebung bleibt
 das Rätsel.
 
@@ -1324,7 +1359,7 @@ Unabhängig davon ist der RL-Pfad **entblockiert**: ein Anheben ist in dieser Si
 Shaped Reward kann also ein Signal liefern. Die verbleibende Frage ist nicht mehr „geht es
 überhaupt", sondern „wie zuverlässig" — und das ist eine Frage, an der RL arbeiten kann.
 
-#### Lauf 30: die vorregistrierte Regel ist geschlossen — die Politik greift nicht
+#### Lauf 30: die vorregistrierte Regel ist geschlossen — die Policy greift nicht
 
 `runs/20260812/02` (2026-08-12), Closed-Loop-Eval, 2 × 40 s, `EXECUTION_HORIZON=8`, `DR_ENABLED=0`.
 Der erste Eval seit dem Einbau von `finger_span_max_rad` — damit liegt die zweite Hälfte der
@@ -1335,7 +1370,7 @@ Entscheidungsregel aus [Schritt 3](#schritt-3--bc-erfolgsrate-in-der-sim-server_
 | Dataset / menschliche Demo (Lauf 29) | **2,094 rad** ≈ 120° | — |
 | Policy, Episode 1 / 2 | **0,347 / 0,390 rad** ≈ 22° | **19 %** |
 
-Die Politik kommandiert rund ein Sechstel der Greifbewegung, die in der Demonstration steckt. Das
+Die Policy kommandiert rund ein Sechstel der Greifbewegung, die in der Demonstration steckt. Das
 ist kein misslungener Griff, sondern keiner. Die Annäherung zeigt dasselbe Muster — ab den in
 Lauf 28 korrigierten Fingerkuppen gemessen:
 
@@ -1345,7 +1380,7 @@ Lauf 28 korrigierten Fingerkuppen gemessen:
 | 2 | 14,3 → **4,6 cm** | 984 | 1,3 cm |
 
 Bei 5 cm Kantenlänge sind 4,6 cm zur Würfel*mitte* rund 2 cm zur Oberfläche: nah dran, aber die
-Finger umschließen nichts. Beide Defizite zeigen in dieselbe Richtung — die Politik produziert eine
+Finger umschließen nichts. Beide Defizite zeigen in dieselbe Richtung — die Policy produziert eine
 **zum Mittelwert gezogene, verwaschene Version** der Demonstration. Das ist die Signatur einer
 Policy, die nicht erkennt, in welcher Phase der Aufgabe sie ist, und deshalb nahe der
 Durchschnittsaktion ausgibt: das erwartete Verhalten bei Out-of-Distribution-Eingaben.
@@ -1356,7 +1391,7 @@ Durchschnittsaktion ausgibt: das erwartete Verhalten bei Out-of-Distribution-Ein
 |---|---|
 | (a) `max_cube_lift_cm` > ~2 | ✅ 7,9 cm (Lauf 29) |
 | (b) Fingerspanne klein | ✅ 19 % der Demo (Lauf 30) |
-| **Konsequenz laut Regel** | **Politik/Wahrnehmung → `TUNE_VISUAL=1`** |
+| **Konsequenz laut Regel** | **Policy/Wahrnehmung → `TUNE_VISUAL=1`** |
 
 #### Gate vor den 48 GPU-Stunden: drei Erklärungen, eine schon widerlegt
 
@@ -1569,7 +1604,7 @@ schwächste Wert und bleibt trotzdem klar über der 70-%-Schwelle.
 
 **Konsequenz für die Reihenfolge:** RL bleibt nicht der nächste Schritt. Der begründete nächste
 Lauf ist `TUNE_VISUAL=1` — die Regel dafür ist jetzt vollständig geschlossen, nicht mehr nur
-plausibel. Erst wenn die Politik in der Sim greift, hat ein Reward-Signal einen Startpunkt.
+plausibel. Erst wenn die Policy in der Sim greift, hat ein Reward-Signal einen Startpunkt.
 
 #### Läufe 33/34 (`runs/20260814/03`, `runs/20260814/04`): der TUNE_VISUAL-Checkpoint im Closed Loop
 
@@ -1636,7 +1671,7 @@ Und dieser Modus wirkt mechanisch:
 
 | Rangkorrelation (Spearman, n=10) | Wert | Lesart |
 |---|---|---|
-| Fingerspanne ~ **Anhebung** | **+0,62** | wo die Politik greift, hebt sich der Würfel am meisten |
+| Fingerspanne ~ **Anhebung** | **+0,62** | wo die Policy greift, hebt sich der Würfel am meisten |
 | Fingerspanne ~ Verschiebung | +0,05 | das Wegschieben hängt **nicht** am Griff — das ist Anstoßen |
 | Fingerspanne ~ Annäherung | −0,31 | schwach; näher dran heißt eher mehr Griff |
 
@@ -1697,7 +1732,7 @@ weiterhin keinen Startpunkt.
 ### Läufe 35–37 (`runs/20260822/01`–`03`): Die Würfellage kommt aus dem Bild, nicht aus der Hand
 
 Vollständige Auswertung mit allen Zahlen:
-[wuerfellage-rekonstruktion-lauf35-befund.md](../simulation/wuerfellage-rekonstruktion-lauf35-befund.md).
+[wuerfellage-rekonstruktion-lauf35-befund.md](../archiv/wuerfellage-rekonstruktion-lauf35-befund.md).
 Hier nur, was für spätere Läufe zählt.
 
 **Lauf 35** — erster Abnahmelauf von `replay-calibrate` (v4, 40 Episoden): 10 Anker, alle Gates
@@ -1775,7 +1810,7 @@ falsch. Gespiegelt wurden die Werte damit aus ihrer Grenze heraus, wo `set_joint
 
 #### Tragweite
 
-`_SIGN_FLIP_IDX` wirkt in `_get_observations` **und** `_pre_physics_step` — die Politik sah verdrehte
+`_SIGN_FLIP_IDX` wirkt in `_get_observations` **und** `_pre_physics_step` — die Policy sah verdrehte
 Fingerwinkel und ihre Aktionen wurden aus der Grenze gedreht. Das hebt sich nicht auf. Betroffen ist
 damit **jeder bisherige Lauf**: Eval, `grasp`, RL, Replay, Co-Training. Alle Greifzahlen dieser Chronik
 sind mit vier stillstehenden Fingergrundgelenken entstanden.
@@ -1783,7 +1818,7 @@ sind mit vier stillstehenden Fingergrundgelenken entstanden.
 Das erklärt die Kette rückwärts: Hand schließt nie → bei 101 von 116 Griffen bleibt die engste
 Kuppenöffnung über 6 cm (`scan`, 2026-08-17) → die v4-Greifanker sind unbrauchbar (Lauf 36) → der darauf
 gebaute `close_step`-Detektor misst Rauschen. Auch Lauf 26 („Griff scheitert auch ganz ohne Modell",
-`max_cube_lift_cm` 0,0) und Lauf 30 („Politik kommandiert nur 19 % der Demo-Fingerspanne") sind unter
+`max_cube_lift_cm` 0,0) und Lauf 30 („Policy kommandiert nur 19 % der Demo-Fingerspanne") sind unter
 diesem Vorbehalt neu zu lesen.
 
 #### Was geändert wurde
@@ -2145,6 +2180,19 @@ Folgerungen:
   sonst dieselbe Konfiguration, die großen Läufe hängen per `afterok` daran) ist der erste
   echte Co-Training-Start überhaupt. Im Log auf `[cotrain] Zwei Datensätze:` achten.
 
+### Nachtrag 2026-10-13: neue Messgröße `lifted_clear`, Konfidenzintervalle, ungültige Episoden
+
+Gilt für alle Läufe **ab** diesem Datum; die Einträge oben bleiben unverändert (Protokoll).
+Seit 2026-10-13 meldet die Eval zusätzlich **`lifted_clear`**: Würfel-Unterseite > 2 cm über dem
+Tisch **und** im selben Schritt ein Fingerkuppen-Abstand ≤ 4 cm zur Würfelmitte (Proxy, keine
+Kontaktsensoren), je Episode `max_clear_lift_cm`. Das alte `lifted` (Schwerpunkt-Δz > 2 cm) bleibt
+zur Vergleichbarkeit, zählt aber Kippen mit (Kante ≈ 1,0 cm, Ecke ≈ 1,8 cm Schwerpunkthub).
+Zusammenfassung und JSON tragen 95-%-Clopper-Pearson-Intervalle (`milestone_ci95`; 0/10 ⇒ 0–31 %).
+Läufe vor dem 2026-10-13 zählten Server-Fehler als misslungene Episoden.
+`lifted` in den Läufen bis 55 ist also nicht kipp-robust — die Anhebungen von 1–1,8 cm in Lauf 34
+und 55 sind mit Kippen vereinbar. Details:
+[sim-eval-anleitung.md, Schritt 7](../simulation/sim-eval-anleitung.md#schritt-7--ergebnisse-sichern).
+
 ### Läufe 54/55: die ersten N1.7-Checkpoints in der Sim
 
 Beide Läufe messen denselben KISSKI-Lauf `g1_dex3_blockstacking_vision_v1` (GR00T **N1.7**,
@@ -2207,6 +2255,12 @@ Episodenende dort. Das Öffnen und Schließen in der Luft aus Lauf 54 tritt nich
 
 „—“ heißt: für diesen Lauf nicht festgehalten, nicht null.
 
+> **Vorbehalt zum Vergleich (Nachtrag 2026-10-13):** Lauf 34 lief mit der **alten** Sim-Geometrie
+> (vor der Korrektur vom 2026-08-24: Fingervorzeichen, Becken, Basis), die Läufe 54/55 mit der
+> korrigierten. Die Spalten unterscheiden sich also nicht nur im Modell; ein N1.6-Lauf mit
+> korrigierter Szene fehlt. Bei n = 10 ist 0/10 zudem mit einer wahren Erfolgsrate von 0–31 %
+> vereinbar ([Review 10-13 §2.1 M4](../archiv/projekt-review-2026-10-13.md#21-befunde)).
+
 `span` für Lauf 55 im Einzelnen (Vorhersage/GT der Fingerspanne, MSE über alle 28 Dimensionen):
 Train 0,77 / 0,76 / 0,87 / 0,89 / 0,75, MSE 0,0056 / 0,0030 / 0,0035 / 0,0065 / 0,0015;
 Test 0,94 / 0,94 / 0,91 / 1,01 / 0,86, MSE 0,0048 / 0,0041 / 0,0039 / 0,0043 / 0,0106.
@@ -2231,3 +2285,1138 @@ Rendering.
 **Nicht gemessen:** 20 Episoden (die Abnahme laut Migrationsplan), Wrist-Kamera-Videos,
 `latency` in-process, `global_step` im Ergebnis-JSON (`trainer_state.json` ist nicht im HF-Repo).
 Videos nur stichprobenhaft als Standbilder gesichtet.
+
+### Lauf 56: Daumen-Grenzen und gemischter Datensatz
+
+**2026-10-14, `ikr-ki-server-01`**, Sim-Image `lucam03/projekt-humanoider-roboter-sim-standalone:latest`
+(Docker Hub, 2026-08-26), Container `groot-rl-hub`, Sim-Code aus dem Repo gemountet (Stand `f645522`),
+schwarzhändiges Asset. Kein Modell.
+
+**Frage (Review 10-13 S7):** Klemmt die Sim `thumb_0`/`thumb_2`, weil `_widen_finger_joint_limits`
+sie nicht weitet? **Antwort: nein.** USD-Grenzen laut Sim: `thumb_0` beidseitig [−1,047, 1,047],
+`thumb_2` links [0, 1,745], rechts [−1,745, 0]. Der ganze Datensatz (301 Episoden, 281 196 Frames)
+liegt darin: Zustand `thumb_0` [−1,010, +0,152] / [−1,006, +0,026], `thumb_2` [+0,017, +1,355] /
+[−1,041, −0,018]; Aktionen reichen bei `thumb_0` bis genau −1,047, nicht darüber. `tipcheck` mit
+4 Episoden (0–3, Frame = Bewegungsbeginn): „keine Handdimension wird geklemmt“ in allen vier.
+Details und Tabelle: [historie.md, 2026-10-14](../historie.md).
+
+**Nebenbefund: der Datensatz auf dem Server war gemischt.** Der erste `tipcheck` brach mit
+`KeyError: 'chunk_index'` ab. Unter `/data/unitreerobotics/G1_Dex3_BlockStacking_Dataset` lagen
+seit **2026-09-08 00:20** (während des Laufs `cotrain_synth_v1`, Log `finetune-cotrain-20260907-222452.log`)
+v3.0-Metadaten (`info.json`, `stats.json`, `meta/episodes/`, `tasks.parquet`), eine v3-Datei
+`data/chunk-000/file-000.parquet` und v3-Videos über den v2.1-Episodendateien vom 2026-08-22.
+Die 301 `episode_*.parquet` waren unberührt (Stichprobe 0/150/240/300 byte-gleich mit dem
+Neudownload). Der alte Stand liegt unverändert unter
+`$HOST_DATA_DIR/archiv/dataset_gemischt_20260908/`; der Datensatz wurde frisch geladen und
+konvertiert (v2.1, 301 Episoden). Welche Läufe zwischen 2026-09-08 und heute die gemischten
+Metadaten oder Videos gelesen haben, ist nicht geklärt — auf diesem Server lief seither kein
+protokollierter Sim-Lauf (54/55 liefen auf Trooper.ai).
+
+### Läufe 57–61: Orakel-Replay, Würfelgröße, Griffversatz, `span` N1.6
+
+**Gemeinsame Bedingungen (2026-10-14, `ikr-ki-server-01`, 2× RTX PRO 6000 Blackwell):** Sim-Code
+gemountet ab `f645522` (Läufe 57–60 ohne Modell, Image `…-sim-standalone` vom 2026-08-26, Container
+`groot-rl-hub`); korrigierte Geometrie (Becken 0,764 m, Basis x −0,057 m, keine Fingerspiegelung),
+schwarzhändiges Asset, 30 Hz, Exec-Horizon 8, `DR_ENABLED=0`, `DR_SEED=0`. Datensatz frisch erzeugt
+(Lauf 56). Würfel-Startlagen aus `LAYOUT_HELD_OUT=1 layout` → `/data/eval/layout_heldout.json`:
+60 der 61 Test-Episoden 240–300 (270 fällt durch die gleichmäßige Auswahl weg), alle mit drei
+Würfeln, 104/180 mit Gierwinkel, Kamera-Uneinigkeit Median 1,27 cm. Bei `NUM_EPISODES=20` sind das
+die Episoden **240–259**.
+
+**Werkzeug:** neue Aktion `oracle` (`f645522`): die Eval selbst, nur liefert statt GR00T der
+Datensatz die Aktionen der Layout-Episode; Roboter startet im aufgezeichneten Frame 0, nach dem
+Demo-Ende wird die letzte Aktion gehalten. Zusätzlich Tracking-Fehler Sim↔Aufzeichnung.
+Die vorhandenen `replay-*`-Aktionen taugten dafür nicht (verweigern Test-Episoden, eigene
+Homographie-Posen, kein `stacked`/Tracking).
+
+#### Lauf 57 — Orakel auf dem Bild-Layout (obere Schranke)
+
+`NUM_EPISODES=20 EPISODE_LENGTH_S=120`. **Abgebrochen in Episode 17** (Datensatz-Ep. 256): ab
+Step 1475 (Halte-Phase) kein Fortschritt mehr über 24 min bei laufendem Prozess (PhysX-Hänger
+vermutlich); Prozess gezielt beendet, Container unverändert. Ausgewertet aus dem Log, **n = 16**
+(240–255), Datei `sim_results/oracle_heldout_n16_from_log.json`.
+
+| Stufe | k/n | KI95 |
+|---|---|---|
+| `reached` / `grasp_attempted` / `touched` | 16/16 | 79–100 % |
+| `lifted` (Schwerpunkt) | 4/16 | 7–52 % |
+| `lifted_clear` | **1/16** (Ep. 250, Unterseite 4,7 cm) | 0,2–30 % |
+| `stacked` | **0/16** | 0–21 % |
+
+Median über Episoden: kleinster Kuppe→Würfel-Abstand 2,75 cm, Würfel-Verschiebung 6,7 cm
+(max. 30,1 cm), Anhebung 1,6 cm, Unterseite mit Hand 0,8 cm. Tracking (rad): Arme RMSE 0,021,
+Hände RMSE 0,059 (max. Einzelfehler Median 0,47), Hände am Demo-Ende 0,015. **Lesart:** Die
+Demo erreicht den Würfel jedes Mal und schließt die Hand, schiebt oder kippt ihn aber, statt ihn
+einzuschließen. Nach der vorab vereinbarten Regel ist damit die Sim (genauer: die Lage der Würfel
+relativ zur Hand, s. Lauf 59) der Blocker; Closed-Loop-Modellzahlen wären gegen eine Schranke
+von ~0 gemessen.
+
+#### Lauf 58 — Würfelgröße
+
+Neuer Schalter `SIM_CUBE_EDGE` (`af564a9`; die Env hatte 0,05 m fest eingetragen). Orakel,
+Episoden 240–244, `EPISODE_LENGTH_S=40`, GPU 1: Kante 4,5 cm und 4,0 cm → jeweils
+`lifted_clear` 0/5; Unterseite mit Hand max. 0,8 cm. Kleinere Würfel lassen die Kuppen näher
+kommen (2,1–2,7 statt 2,6–3,0 cm), werden aber eher seltener bewegt. Die Bild-Vermessung der
+Deckfläche (`topface`, 20 Trainings-Episoden 0–228, Schritt 12) ist nicht trennscharf: 3,7–5,5 cm
+je nach Schwellenregel (Otsu 5,49, q50 4,83; August, 5 Ep.: Otsu 4,94). **Die Würfelgröße ist
+nicht die Ursache.** Videos (vergrößert): die Greifbewegung stimmt in Höhe und Timing, sitzt
+aber wenige Zentimeter neben dem Würfel.
+
+#### Lauf 59 — Griffversatz aus der FK der echten Hand
+
+Kinematik ohne Physik (Skript `grip_aperture.py`, Sitzungs-Scratchpad, nicht im Repo): Gelenke
+der Test-Episoden 240–259 gesetzt, Kuppen per `get_contact_points_w`. Erster Griff je Hand =
+letzter Frame auf Würfelhöhe vor dem Anheben mit Daumen↔Finger < 8,5 cm. Ergebnis
+(`sim_results/grasp_offset.json`, 30 Griffe aus 242–259):
+
+- Kuppenöffnung der echten Hand beim Tragen 7,0–7,5 cm, nie unter ~6 cm.
+- Griffstelle (Kuppenmitte) minus Bild-Würfellage: **dx Median ≈ +1,7 cm** (vom Roboter weg),
+  **dy spiegelbildlich**: rechte Hand fast immer negativ (Median ≈ −2,6 cm), linke fast immer
+  positiv (≈ +1,9 cm); Betrag 1–7 cm, Median ~3,4 cm (vgl. „Restabstand 4,5 cm“, Läufe 49–51).
+
+Ein Fehler der Bild-Würfellage (Kamera) verschöbe beide Hände gleich; das Spiegelmuster spricht
+für Hand-/Armgeometrie — entweder echter Kinematikfehler der Sim (z. B. fehlende Taillen-/Hüft-
+gelenke im 28-dim-State, Schulterbreite) oder schlicht dafür, dass die Kuppenmitte beim Griff
+seitlich der Würfelmitte liegt. Lauf 60 sollte das trennen.
+
+#### Lauf 60 — Orakel mit griffverankerten Würfeln
+
+Layout `layout_heldout_graspanchored.json`: je erstem Griff einer Hand Würfel-xy um den Versatz
+aus Lauf 59 verschoben, 18 Episoden (242–259), `EPISODE_LENGTH_S=40`, GPU 1. Ergebnis:
+`lifted` 5/18, **`lifted_clear` 3/18** (Ep. 245: 8,3 cm, 250: 6,1 cm, 258: 5,1 cm; KI 3,6–41 %),
+`stacked` 0/18 (KI 0–18,5 %). Ep. 243: Würfel 60 cm weggeschossen (Startüberlappung), zählt nicht
+als Griff. Auf den gemeinsamen Episoden 242–255 2 gegen 1 Lift — **kein belastbarer Gewinn**.
+In Ep. 245 betrug die Verschiebung nur 0,55 cm, der Ausgang wechselte trotzdem von 0,7 auf
+8,3 cm: das blind abgespielte Orakel reagiert auf Sub-Zentimeter-Lagen. **Lesart:** Die
+Sim-Physik kann greifen und heben (drei echte Lifts); der Engpass ist die Lage Würfel↔Hand. Die
+Kuppenmitte ist aber nicht der richtige Korrekturpunkt — ein globaler Versatz-Sweep steht aus.
+
+#### Lauf 61 — `span`-Gate N1.6 auf zurückgehaltenen Episoden
+
+Checkpoint **vision-v2 @ 30 000** (`/data/checkpoints/groot-g1dex3-checkpoint`, `run_id`
+`g1_dex3_blockstacking_vision_v2`, `global_step` 30000; der validierte 44 000 liegt nur auf
+KISSKI — Messung mit 30 000 auf Wunsch, 44 000 folgt). Image `…-sim-standalone:20261014-141304`,
+Container `groot-rl-eval`, `GROOT_VERSION=1.6`, `SPAN_TRAJ_IDS="240 255 270 285 300"` (Protokoll
+wie Läufe 54/55). Vorhersage/GT der Fingerspanne: 0,90 / 0,93 / 0,87 / 0,97 / 0,85, **Median 90 %**;
+MSE 0,0057 / 0,0051 / 0,0033 / 0,0050 / 0,0080 (Median 0,0051). Vergleich N1.7 @44000 (Lauf 55):
+94 %, MSE-Median 0,0043. Auf echten Bildern zurückgehaltener Episoden kommandiert N1.6 also
+den Griff. Das vom Skript ausgegebene Fazit „Domain-Gap bestätigt“ trägt hier nicht: solange
+die Demo selbst in der Sim nicht greift (Lauf 57), trennt Closed Loop gegen Open Loop die
+Ursachen nicht. JSON: `sim_results/span_n16_vision-v2-30000_test_20261014.json`.
+
+**Nebenbefunde:** `tools/test_menu.sh` hinterlässt einen laufenden Container `groot-rl` mit
+einem `/data` im inzwischen gelöschten Temp-Verzeichnis (nicht entfernt, Entscheidung offen). Auf
+GPU 0 lief ab ~16:40 ein fremdes N1.7-Finetuning (47 GB) — Wanduhren danach nicht vergleichbar.
+
+### Lauf 62: Versatz-Sweep — die Würfel liegen ~3 cm zu weit innen
+
+**2026-10-14, 17:30–19:40**, Bedingungen wie Läufe 57–61 (Orakel, Image vom 2026-08-26, Container
+`groot-rl-hub`, beide GPUs; ab ~16:40 lief auf GPU 0 ein fremdes Finetuning). Episoden 240–247
+aus `layout_heldout.json`, `EPISODE_LENGTH_S=40`, DR aus, Seed 0. Alle drei Würfel jeder Episode
+werden verschoben: `dx` (vom Roboter weg) und `dy` **nach außen** (`+dy·sign(y)` — Würfel links
+der Mitte nach +y, rechts nach −y; das Spiegelmuster aus Lauf 59). Layouts
+`/data/eval/sweep_dx*_dy*.json`, Ergebnisse `sim_results/sweep_dx*_dy*.json`.
+
+`lifted_clear` (k/8; Muster je Episode 240…247, X = Lift):
+
+| dx \ dy | 0 | 1,5 | 3 | 4,5 | 6 |
+|---|---|---|---|---|---|
+| −1,5 | – | – | **5/8** `XXX.XX..` | 3/8 `.X.X.X..` | 4/8 `XXX..X..` |
+| 0 | 0/8 `........` | 2/8 `X..X....` | **5/8** `X.XX.XX.` | 3/8 `X....XX.` | 3/8 `..XX..X.` |
+| +1,5 | 0/8 | 2/8 `X.X.....` | 1/8 `X.......` | – | – |
+| +3 | 0/8 | 0/8 | 0/8 | – | – |
+
+`stacked` überall 0/8. Zusammengefasst: Plateau (dx ∈ {−1,5; 0}, dy ∈ {3; 4,5; 6}) **23/48 = 48 %**,
+ohne Seitenkorrektur (dy = 0, alle dx) **0/24**; dy 3 gegen dy 0 bei dx 0: 5/8 gegen 0/8 (exakter
+Fisher-Test p ≈ 0,03). Ep. 247 hebt in keiner Zelle.
+
+**Lesart.** Die Sim-Physik greift und hebt, sobald die Würfel relativ zur Hand stimmen. Der
+Engpass aller bisherigen Closed-Loop-Zahlen war (mindestens auch) die Registrierung: die Würfel
+liegen in der Sim, relativ zur Hand, je Seite **~3 cm zu weit innen**; x stimmt auf ±1,5 cm (der
++1,7-cm-x-Versatz aus Lauf 59 war ein Effekt der Kuppenmitte). Innerhalb des Plateaus (3–6 cm)
+trennt n = 8 nicht. `stacked` bleibt 0, weil das blinde Orakel nach dem ersten Griff auf Würfel
+trifft, die nicht mehr wie in der Aufnahme liegen — das ist keine Aussage über eine Policy.
+
+**Ursache noch offen.** Aus Lauf 59: der Außen-Versatz wächst mit dem Abstand vom Roboter
+(≈ +1,2 bis +1,7 cm bei x = 25 cm, +3,0 bis +4,6 cm bei x = 35 cm, Nulldurchgang beidseitig bei
+x ≈ 19 cm; R² ≈ 0,35) und nicht mit |y| (Stufenmodell R² 0,63 ≥ Skalierung 0,59). Das spricht
+eher für einen gespiegelten Winkelfehler (Schulter-/Taillen-Gierwinkel bzw. Kinematik) oder einen
+gespiegelten Gierfehler der beiden Kopfkameras als für einen reinen Maßstabsfehler der
+Rückprojektion — ein Hinweis, kein Befund. Trennender nächster Schritt: `tipcheck` am Griffframe
+(FK-Kuppen ins Realbild): liegen die projizierten Kuppen auf den echten Fingern, stimmt die
+Kinematik und die Würfellage aus dem Bild ist falsch; liegen sie innen, ist es die Kinematik.
+
+### Läufe 63–68: Ursache des Versatzes, Bild-Ablation, Sim-Bilder im Open Loop
+
+**2026-10-14, 19:45–21:15**, `ikr-ki-server-01`. Orakel-Läufe wie Lauf 62 (Container `groot-rl-hub`,
+Episoden 240–247, 40 s, DR aus, Seed 0). Modell-Läufe im Image `…-sim-standalone:20261014-141304`
+(Container `groot-rl-eval` für N1.6, `groot-rl-eval17` für N1.7). Checkpoints: N1.6 vision-v2
+**@30 000** (der validierte @44 000 liegt nur auf KISSKI), N1.7 vision-v1 @44 000 (SHA256 von
+`model-00002` = `3050114cb6d1…`, wie Lauf 55). Skripte der Kinematik-Diagnosen
+(`fk_offset_scan.py`, `obs_probe.py`) liegen nur im Sitzungs-Scratchpad.
+
+#### Lauf 63 — Woher kommt der Versatz?
+
+- **FK-Scan:** Für 46 gemessene Griffe (Lauf 59, Test- und Trainings-Episoden) je ein Nullpunktversatz
+  auf einem Armgelenk (beide Arme, gespiegelt oder gleichsinnig). Abstand Kuppenmitte↔Würfel
+  ohne Versatz 3,89 cm; beste Kandidaten Schulter-Gier gespiegelt −0,15 rad (2,37 cm),
+  Handgelenk-Nicken gleichsinnig −0,20 rad (2,35), Ellbogen gleichsinnig −0,15 (2,45) — rein
+  geometrisch nicht trennbar.
+- **Physik (neuer Schalter `JOINT_ZERO_OFFSETS`):** Orakel ohne Würfelverschiebung,
+  `lifted_clear` Ellbogen 2/8, Handgelenk-Nicken 1/8, Schulter-Gier 0/8 — keiner erreicht die
+  5/8 der Würfelverschiebung. Ein einzelner Gelenk-Nullpunkt erklärt den Versatz nicht.
+- **Kopfkamera folgt dem Becken** (`HEAD_CAM_FOLLOWS_PELVIS=1`, Gegenhypothese Review §3.4):
+  Held-out-Layout neu extrahiert, Kamera-Uneinigkeit 1,90 statt 1,27 cm, Griffstelle 13,6 statt
+  3,4 cm neben dem Würfel → **widerlegt**.
+- `tipcheck` am Griffframe (Trainings-Ep. 20/24/28/36): die projizierten Kuppen liegen 2–5 cm
+  außen neben den echten Fingern, die Handgelenk-Marken grob richtig. Das Spiegelmuster
+  findet sich auch in Trainings-Episoden. Die Ursache bleibt offen; die empirische Korrektur
+  (Würfel 3 cm nach außen) bleibt in Kraft.
+
+#### Lauf 64 — Closed Loop auf dem korrigierten Layout (abgebrochen)
+
+`layout_heldout_dy3.json` (alle 60 Test-Episoden, Würfel 3 cm nach außen), 20 × 120 s, DR aus,
+Seed 0, Prompt aus dem Datensatz („stack three block“), Exec-Horizon 8. **Nach je 2 Episoden
+abgebrochen** (Entscheidung nach Sichtung der Videos): N1.6 `lifted_clear` 0/2 (Fingerspanne
+0,74 / 1,14 rad), N1.7 0/2 (0,63 / 0,59 rad). Videos: Hand fährt in 5–10 s gezielt an einen
+Würfel, bleibt halb offen, zieht ab ~20–40 s zurück und schwebt bis zum Ende — dasselbe Bild
+wie Läufe 34/55. Logs: `sim_results/eval_n1{6,7}_dy3_abgebrochen_20261014.log`. Wanduhr
+~8,5 min je 120-s-Episode bei drei parallelen Isaac-Prozessen.
+
+#### Lauf 65 — Bild-Ablation im Open Loop
+
+Neue Option `--ablations` in `finger_span_openloop.py`. Echte Test-Episoden 240/245/250/255/260/
+270/280/290/300, volle Länge, gleiche Policy; nur die Bilder werden verfälscht. Median über 9 Ep.
+(Fingerspanne relativ zur Demo / MSE Hände):
+
+| Ablation | N1.6 @30000 | N1.7 @44000 |
+|---|---|---|
+| echte Bilder | 92 % / 0,0083 | 91 % / 0,0074 |
+| alle vier Kameras schwarz | 58 % / 0,0338 | 62 % / 0,0656 |
+| Bilder von Frame 0 eingefroren | 52 % / 0,0570 | 35 % / 0,1005 |
+| Bilder einer anderen Episode | 84 % / 0,0965 | 91 % / 0,1490 |
+| nur Kopfkameras schwarz | 81 % / 0,0101 | 89 % / 0,0128 |
+| nur Handgelenkkameras schwarz | 80 % / 0,0112 | 78 % / 0,0280 |
+
+**Lesart:** Beide Policies tragen den Griff über die Bilder, nicht über den Zustand allein; das
+Bild bestimmt vor allem den **Zeitpunkt** (fremde Episode: Spanne hoch, Fehler am größten). Eine
+Kameragruppe genügt (redundant). Die Closed-Loop-Spanne (30–55 %) liegt im Bereich „schwarz /
+eingefroren“. Der Kandidat „Zustandsverteilung“ verliert damit an Gewicht.
+JSON: `sim_results/ablation_n16_vision-v2-30000.json`, `ablation_n17_ckpt44000.json`.
+
+#### Lauf 66 — Teacher-forced Open Loop auf Sim-Renderbildern (Review §2.3 Nr. 2)
+
+Neu gerendert mit aktueller Geometrie (`render`, `RENDER_STOP_AT_GRASP=0`, `RENDER_MAX_FRAMES=600`,
+`RENDER_NO_DR=1`, Trainings-Layout um 3 cm nach außen korrigiert, Trainings-Episoden
+0/4/8/12/16/20/24/28) nach `/data/cotrain/render_teacher_dy3` (meta/stats.json aus dem echten
+Datensatz kopiert, die Policy normalisiert mit den Checkpoint-Statistiken). Dieselben Episoden
+und Frames einmal mit echten, einmal mit Sim-Bildern; Zustand und Aktion identisch. Median über 8 Ep.:
+
+| | Fingerspanne | MSE | MSE Arme | MSE Hände |
+|---|---|---|---|---|
+| N1.6 echt | 97 % | 0,0014 | 0,0008 | 0,0020 |
+| N1.6 **Sim** | **77 %** | 0,0167 | 0,0061 | **0,0269** |
+| N1.7 echt | 95 % | 0,0012 | 0,0005 | 0,0017 |
+| N1.7 **Sim** | **85 %** | 0,0357 | 0,0072 | **0,0606** |
+
+**Lesart:** Gleicher Zustand, gleiche Aktion, nur das Bild anders: der Hand-Fehler steigt um
+×13 (N1.6) bzw. ×36 (N1.7) — in derselben Größenordnung wie mit schwarzen Bildern (Lauf 65).
+Für die Policy tragen die Sim-Bilder ungefähr so viel verwertbare Information wie kein Bild.
+Das ist der direkte Nachweis des **visuellen Domain-Gaps** (Trainings-Episoden; das gilt für
+echte und Sim-Bilder gleichermaßen, Auswendiglernen verzerrt den Vergleich also nicht).
+
+#### Lauf 67 — Wie unterscheiden sich die Bilder?
+
+Episode 240, korrigiertes Layout, Orakel-Replay, Policy-Kameras bei Step 0/30/150/300 neben dem
+echten Frame gleicher Nummer (`sim_results/obs_probe/`). **Kopfkamera:** Würfel und schwarzer
+Streifen liegen in beiden Bildern an fast denselben Pixeln (±10–20 px) — die Geometrie stimmt grob.
+Abweichend ist der Inhalt: der echte Tisch füllt das Bild, der Sim-Tisch (0,8 × 0,6 m) ist schmal
+mit dunklem Boden-Gitter daneben; Arme weiß statt silbern/schwarz; kein Wand-Hintergrund; Hände
+wirken kleiner. **Handgelenkkamera:** echt entlang der Handfläche nach vorn, Sim zeigt groß den
+weißen Unterarm — die Pose weicht ab. **Step 0** zeigt in der Sim noch die Reset-Lage der Würfel
+(veralteter Puffer); erst ab Step 30 stimmt die Szene — das betrifft den ersten Chunk jeder
+Episode.
+
+#### Lauf 68 — Würfelgröße auf dem korrigierten Layout
+
+Wie Lauf 58, jetzt auf `sweep_dx0_dy3.json`: `lifted_clear` 4,0 cm **3/8**, 4,5 cm **2/8**,
+5,0 cm (Lauf 62) **5/8**. Kleinere Würfel verbessern das Orakel nicht; 5 cm bleibt.
+
+### Läufe 70/71: Szene ans Echtbild angleichen, Kamera-Mischung
+
+**2026-10-14, 21:20–22:25.** Messgröße aus Lauf 66: teacher-forced Open Loop auf frisch gerenderten
+Sim-Bildern (`render`, aktuelle Geometrie, korrigiertes Trainings-Layout `layout_dy3.json`, ohne DR,
+`RENDER_STOP_AT_GRASP=0`, 600 Frames), **Trainings-Episoden 0/4/8/12**, Median MSE der Hand-Dimensionen.
+Checkpoints wie Läufe 63–68 (N1.6 vision-v2 @30 000, N1.7 @44 000). Neue Diagnose-Schalter (Default
+unverändert): `SIM_TABLE_SIZE`, `SIM_WRIST_EYE`, `SIM_WRIST_TARGET`, `SIM_WRIST_HFOV`; Asset-Variante
+`g1_dex3_blackhands_grayarms.usd` (`recolor_hands_black.py --material ArmGray`, 14 Arm-Links grau 0,5).
+
+#### Lauf 70 — Iterationen (kumulativ)
+
+| Schritt | Änderung | N1.6 MSE Hände | N1.7 MSE Hände |
+|---|---|---|---|
+| Echtbilder (Referenz) | — | 0,0026 | 0,0024 |
+| Basis (Lauf 66) | — | 0,0359 | 0,0860 |
+| 1 | Tisch 0,8 × **2,0 m** (`SIM_TABLE_SIZE="0.8 2.0"`): kein Boden-Gitter mehr seitlich | 0,0262 | 0,0792 |
+| 2 | + graue Arme (**wirkungslos**, s. Nachtrag) | 0,0252 | 0,0796 |
+| 3A | + Handgelenkkamera Auge (0, 0, 0,10), Ziel (0,30, 0, −0,06) | 0,0234 | 0,0826 |
+| 3B | + Handgelenkkamera Auge (0,02, 0, 0,08), Ziel (0,30, 0, −0,08) | 0,0215 | 0,0744 |
+| **4a** | **+ Bildwinkel Handgelenk 85°** (statt 60,4°) | **0,0216** | **0,0704** |
+| 4b | + Bildwinkel Handgelenk 100° | 0,0220 | 0,0747 |
+
+> **Nachtrag 2026-10-15:** Die Umfärbung der Arme (`g1_dex3_blackhands_grayarms.usd`) greift beim
+> Rendern nicht — die Arme sind in allen Bildern weiterhin weiß (Sichtprüfung der v3-Renders).
+> Schritt 2 hat also nichts verändert; die Differenz 0,0262 → 0,0252 ist Rauschen. Warum die
+> Bindung an den Arm-Links nicht wirkt (im Gegensatz zu den Händen), ist offen.
+
+Gesamt −40 % (N1.6) bzw. −18 % (N1.7); Abstand zum Echtbild bleibt ×8 bzw. ×29. Sichtprüfung:
+das echte Kopfbild zeigt Hände/Arme rund doppelt so groß bei gleicher Würfellage (Parallaxe —
+Lage der echten Kamera relativ zu den Händen offen), Wand statt Boden hinter der Tischkante;
+die echte Handgelenkkamera zeigt viel mehr Szene (Tisch, Würfel, andere Hand) und die Finger
+schräg (~20–30° Roll-Versatz). **Lesart:** die groben Szenenmerkmale erklären nur einen kleinen
+Teil der Lücke; der Rest liegt im Gesamteindruck des Renderings (Licht, Material, Schatten,
+Textur, Rauschen) bzw. in Feinheiten der Kamerapose, die sich nicht mit wenigen Parametern
+schließen lassen.
+
+#### Lauf 71 — Kamera-Mischung
+
+Neue Option `--alt-dataset/--alt-cams` in `finger_span_openloop.py`: ausgewählte Kameras aus dem
+Sim-Render (Lauf 66, Basisszene, 8 Trainings-Episoden), Rest aus den echten Bildern. MSE Hände (Median):
+
+| Bilder | N1.6 | N1.7 |
+|---|---|---|
+| alle echt | 0,0020 | 0,0017 |
+| Kopf Sim, Handgelenk echt | 0,0086 (×4) | 0,0073 (×4) |
+| Kopf echt, Handgelenk Sim | 0,0090 (×4) | **0,0340 (×20)** |
+| alle Sim | 0,0269 (×13) | 0,0606 (×36) |
+
+N1.6 leidet unter beiden Gruppen gleich (überadditiv); **N1.7 vor allem unter den
+Handgelenkkameras.** Für N1.7 ist das Angleichen der Handgelenkbilder also der größte Hebel.
+
+### Lauf 69: Orakel auf dem korrigierten Layout
+
+**2026-10-14, 20:34–22:35**, Container `groot-rl-hub` (Image vom 2026-08-26, Sim-Code gemountet),
+`layout_heldout_dy3.json` (Test-Layout, alle Würfel 3 cm nach außen, Lauf 62), `NUM_EPISODES=20`
+(Episoden 240–259), `EPISODE_LENGTH_S=120`, DR aus, Seed 0, Exec-Horizon 8, 5-cm-Würfel. Lief
+parallel zu anderen Isaac-Jobs (Wanduhr nicht vergleichbar). Datensatz-Ep. 256, an der Lauf 57
+hing, lief diesmal durch.
+
+| Stufe | k/20 | KI95 |
+|---|---|---|
+| `reached` / `grasp_attempted` / `touched` | 20/20 | 83–100 % |
+| `lifted` | 7/20 | 15–59 % |
+| **`lifted_clear`** | **6/20 = 30 %** | **12–54 %** |
+| `stacked` | 0/20 | 0–17 % |
+
+Muster 240…259: `X.XX.XX........X....` (Unterseite 4,3–9,6 cm bei den Treffern). Tracking
+(Median, rad): Arme 0,021, Hände 0,059. Gegen Lauf 57 (Bild-Layout, 1/16): die Korrektur hebt die
+obere Schranke deutlich. Auffällig: die Treffer häufen sich in 240–246 (5/7), danach 1/13 — die
+3-cm-Korrektur ist ein Mittelwert und passt nicht für jede Episode gleich (Lauf 59: Versatz 1–7 cm).
+`stacked` bleibt 0, weil die blinde Demo nach dem ersten Griff auf veränderte Würfellagen trifft.
+JSON: `sim_results/oracle_dy3_20.json`. (Der Launcher meldete danach `unexpected EOF` — Folge
+einer Änderung an `server_rl_run.sh` während des Laufs; die Messung selbst endete regulär.)
+
+### Lauf 72: Co-Training-Datensätze v3
+
+**2026-10-15, 01:53–08:34**, `ikr-ki-server-01`, Image `…-sim-standalone:20261014-141304`, Container
+`groot-rl-eval`, GPU 0 (5 cm) und GPU 1 (4 cm) parallel, `render` mit Hänger-Wächter (beendet eine
+Episode nach 20 min ohne Log-Fortschritt; diese Nacht kein Hänger).
+
+- **Layout:** `layout_all240.json` — Würfellage aller 240 Trainings-Episoden aus den Kopfkameras
+  (Kamera-Uneinigkeit Median 1,20 cm; Ep. 27/86/155 mit 49–80 cm verworfen), dann alle Würfel
+  3 cm nach außen (`layout_all240_dy3.json`, Lauf 62).
+- **Episoden:** 232 angefordert = alle Trainings-Episoden ohne Prüfset 0/4/8/12, ohne 239 (hing im
+  ersten Render, 2026-10-15 00:20) und ohne 27/86/155; 45 wegen zu kurzem Griff-Fenster
+  übersprungen → **187 Episoden, 29 890 Frames** je Datensatz.
+- **Szene (Lauf 70):** `SIM_TABLE_SIZE="0.8 2.0"`, `SIM_WRIST_EYE="0.02 0.0 0.08"`,
+  `SIM_WRIST_TARGET="0.30 0.0 -0.08"`, `SIM_WRIST_HFOV=85`, schwarze Hände (graue Arme wirkungslos,
+  s. Nachtrag Lauf 70), DR an (Seed 0), `RENDER_STOP_AT_GRASP=1`. 4-cm-Satz zusätzlich
+  `SIM_CUBE_EDGE=0.04`.
+- **Konsistenz** (greifende Hand ↔ Würfel am Fensterende, Median): 5 cm 4,4 cm (xy 3,3), 4 cm
+  3,6 cm (xy 3,2); xy ≤ 4 cm in 119 bzw. 120 von 187 Episoden. Zum Vergleich: der erste,
+  kleine Render v2 (44 Ep., August-Layout) hatte xy 3,5 cm, der Render aus Lauf 66 xy 5,1 cm.
+- **Mischung:** Ausgleichspunkt F_render/(F_render+F_echt) = 29 890/(29 890+229 828) = **0,115**;
+  Presets in `Training/kisski_chain.sh` nutzen 0,15 (bewusst knapp darüber, wie co-training.md §4.2).
+- **Ablage:** `/data/cotrain/g1_dex3_rendered_v3_cube{5,4}` (131 / 129 MB), HF privat (seit 2026-10-30 öffentlich)
+  `luca-mue/g1-dex3-rendered-v3-cube5` und `…-cube4` (je 942 Dateien). `modality.json` byte-gleich
+  zum echten Datensatz.
+- Der kleine v2-Satz (`/data/cotrain/g1_dex3_rendered_v2`, 44 Ep., 7 929 Frames) bleibt lokal und
+  wird nicht verwendet.
+- **Prüfset für die Abnahme** (gleiche Szene und gleiches Layout, Trainings-Ep. 0/4/8/12, nicht im
+  Co-Training-Satz; `RENDER_STOP_AT_GRASP=0`, 600 Frames, ohne DR): `/data/cotrain/vis_gate_v3_cube5`
+  und `…_cube4`. Ausgangswert der heutigen Modelle, MSE Hände (Median über 4 Ep.; Echtbild ≈ 0,0025):
+
+  | | Prüfset 5 cm | Prüfset 4 cm |
+  |---|---|---|
+  | N1.6 vision-v2 @30 000 | 0,0208 | 0,0169 |
+  | N1.7 vision-v1 @44 000 | 0,0734 | 0,0654 |
+
+  Ein co-trainiertes Modell muss diese Werte deutlich unterbieten, bevor ein Closed Loop lohnt.
+
+  > **Überholt durch [Lauf 80](#läufe-8081-visuelles-gate-geseedet-closed-loop-n17-in-der-szene-aus-lauf-70)**
+  > (2026-10-15): diese Werte sind ungeseedete Einzelmessungen. Maßstab ist jetzt N1.6 @44000 mit
+  > Seeds 0/1/2: 0,0239 / 0,0221, Schwelle ~0,019 / 0,018.
+
+### Läufe 73–76: Co-Training-Läufe v3 auf KISSKI
+
+Vier Trainings mit den Render-v3-Sätzen aus Lauf 72, alle über `Training/kisski_chain.sh`
+(Presets `render_v3_cube5`, `render_v3_cube4`, `render_v3_cube5_n17`, `render_v3_cube4_n17`).
+Gemeinsame Konfiguration: 44 000 Steps, 4 × A100, Batch 32, LR 1e-4, Warmup 0,1, Vision-Encoder
+aufgetaut, LLM eingefroren, Color-Jitter. Echt: `G1_Dex3_BlockStacking_Dataset`, Split 0:240
+Training / 240:301 Test. Gerendert: `g1_dex3_rendered_v3_cube{5,4}` (Lauf 72, je 187 Ep.),
+Mischung **0,15 gerendert**. Checkpoints 5000…44000 (alle 5k) liegen auf KISSKI unter
+`data/g1_dex3_finetune/blockstacking_cotrain_render_v3_*`. Auf HF liegen je @44000 und für die
+Verlaufsvergleiche einzelne Zwischenstände (unten), alle ohne Optimizer, SHA256 gegen KISSKI
+geprüft. Alle Repos sind inzwischen öffentlich (Stand 29.10.; `cube{5,4}-ckpt44000` waren
+zunächst privat).
+
+| Lauf | Preset | GR00T | Render | KISSKI-Job | Laufzeit | W&B | HF-Repo @44000 |
+|---|---|---|---|---|---|---|---|
+| 73 | `render_v3_cube5` | N1.6 | 5 cm | 16676490 | 17.10. 20:13 → 18.10. 04:31 | `ir0qjm0y` | `luca-mue/groot-g1dex3-cotrain-v3-cube5-ckpt44000` |
+| 74 | `render_v3_cube4` | N1.6 | 4 cm | 16676493 | 18.10. 04:33 → 11:47 | `6i2r07hm` | `luca-mue/groot-g1dex3-cotrain-v3-cube4-ckpt44000` |
+| 75 | `render_v3_cube5_n17` | N1.7 | 5 cm | 16779689 | 24.10. 23:27 → 25.10. 09:23 | `a2g4md95` | `luca-mue/groot-g1dex3-cotrain-v3-cube5-n17-ckpt44000` |
+| 76 | `render_v3_cube4_n17` | N1.7 | 4 cm | 16779693 | 27.10. 10:39 → 18:26 | `388unxow` | `luca-mue/groot-g1dex3-cotrain-v3-cube4-n17-ckpt44000` |
+
+Zwischenstände auf HF: 73 @40000 (bester Sweep-Step), 74 @35000 (bester Sweep-Step),
+75 @20000 (früher Checkpoint), 76 @40000 (`…-cube5-ckpt40000`, `…-cube4-ckpt35000`,
+`…-cube5-n17-ckpt20000`, `…-cube4-n17-ckpt40000`).
+
+**Erste N1.7-Versuche abgebrochen:** Die Jobs 16730341 und 16730343 (19.10.) brachen nach etwa
+einer Minute mit `CUDA error: invalid device ordinal` ab. `-G A100:4` fordert nur 4 GPUs
+insgesamt an, Slurm hatte sie auf zwei Knoten verteilt (16730341: `ggpu[176,180]`, 2 + 2), und
+`torchrun --standalone --nproc_per_node=4` findet dann auf dem eigenen Knoten nur zwei Karten.
+Behoben mit `#SBATCH -N 1` in `kisski_submit.sh` (Commit `fac015c`); 75 und 76 liefen danach.
+
+Checkpoint-Sweep, Open Loop auf 20 Test-Episoden × 750 Steps, Val-MSE (Sweep-Jobs 16676492,
+16676494, 16910438, 16910439):
+
+| Step | 73 cube5 (N1.6) | 74 cube4 (N1.6) | 75 cube5 (N1.7) | 76 cube4 (N1.7) |
+|---|---|---|---|---|
+| 5000 | 0,009870 | 0,009341 | 0,010178 | 0,009674 |
+| 10000 | 0,008458 | 0,008678 | 0,007926 | 0,007832 |
+| 15000 | 0,006715 | 0,006895 | 0,007007 | 0,007386 |
+| 20000 | 0,006067 | 0,005933 | 0,005719 | 0,006007 |
+| 25000 | 0,005315 | 0,005132 | 0,005513 | 0,005512 |
+| 30000 | 0,005461 | 0,005410 | 0,005560 | 0,005561 |
+| 35000 | 0,005087 | **0,005059** | 0,005258 | **0,005031** |
+| 40000 | **0,004951** | 0,005186 | 0,005264 | 0,005266 |
+| 44000 | 0,004985 (+0,7 %) | 0,005097 (+0,8 %) | **0,005248** | 0,005071 (+0,8 %) |
+
+Fett: bester Step je Lauf; in Klammern der Abstand von @44000 zum besten. Bei allen vier liegt
+@44000 höchstens 0,8 % hinter dem besten Step, das ist Rauschen. Gemessen wird deshalb
+überall **@44000**; die Zwischenstände dienen nur dem Verlaufsvergleich (Lauf 92).[^sweep6x300]
+
+[^sweep6x300]: Für 75 und 76 gab es vorher Sweeps mit nur 6 Episoden × 300 Steps (Jobs
+    16779690 / 16779707). Sie zeigten @20000 bzw. @40000 als besten Step; mit 20 × 750 Steps
+    verschwindet das, es war Rauschen. Diese Werte werden nicht verwendet.
+
+Zum Vergleich mit der Leitplanke aus [co-training.md §5](../training/co-training.md#5-vorregistrierte-regel--was-den-lauf-zum-erfolg-oder-zum-ende-macht)
+(Lauf 3 @44000: 0,00482 im 20×750-Protokoll) liegen 73–76 um 3–9 % höher. Ob der Sweep
+dasselbe Protokoll nutzt, ist hier nicht geprüft, die Zahl ist deshalb nur ein Hinweis.
+**77–79 bleiben frei.**
+
+Sim-Messungen: Gate [Lauf 83](#lauf-83-visuelles-gate-der-co-trainierten-n16-modelle-render-v3-44000)
+(73/74), [Lauf 86](#lauf-86-visuelles-gate-co-training-n17-render-v3-cube5-44000) (75) und
+[Lauf 92](#lauf-92-visuelles-gate-der-restlichen-v3-checkpoints) (76 und alle Zwischenstände);
+Closed Loop [Läufe 84/85](#läufe-8485-closed-loop-der-co-trainierten-n16-modelle-1810),
+[Lauf 88](#lauf-88-closed-loop-co-training-n16-cube4-mit-4-cm-würfeln),
+[Lauf 89](#lauf-89-closed-loop-co-training-n17-cube5), [Lauf 93](#lauf-93-closed-loop-co-training-n17-cube4-mit-4-cm-würfeln) und
+[Läufe 94/95](#läufe-9495-closed-loop-der-gate-besten-n16-zwischenstände-ausnahme).
+
+### Läufe 80/81: Visuelles Gate geseedet, Closed Loop N1.7 in der Szene aus Lauf 70
+
+**2026-10-15, 10:30–12:50**, `ikr-ki-server-01`, Image `…-sim-standalone:20261014-141304`, Container
+`groot-rl-eval` (N1.6) und `groot-rl-eval17` (N1.7). Laufnummern 73–79 sind für die
+Co-Training-Läufe auf KISSKI reserviert. Ab etwa 10:36 lief auf beiden GPUs ein fremder
+vLLM-Server (~68 GB je Karte); Laufzeiten sind deshalb nicht vergleichbar.
+
+#### Lauf 80 — Visuelles Gate mit festem Seed
+
+Neue Aktion `server_rl_run.sh visgate` (Commit `6c05413`): teacher-forced Open Loop wie Lauf 66/72
+auf `/data/cotrain/vis_gate_v3_cube{5,4}` (Positionen 0–3 = Trainings-Ep. 0/4/8/12, 600 Steps)
+und auf den echten Bildern derselben Episoden; Kennzahl Median MSE Hände über die 4 Episoden.
+
+- **Die Messung war ungeseedet.** Die Diffusion der Policy startet aus `torch.randn`; derselbe
+  Checkpoint auf derselben Episode lieferte Echtbild Traj 4 MSE Hände 0,0062 statt 0,0032 (Lauf 66).
+  `finger_span_openloop.py --seed` seedet jetzt je Trajektorie (`seed + traj_id`).
+- **Streuung über die Seeds 0/1/2** (Median je Seed): klein, etwa ±5 %. Ein Modell, das unter
+  ~80 % der Ausgangswerte liegt, unterbietet sie also nicht zufällig.
+- N1.6 @44000 von HF (`luca-mue/groot-g1dex3-vision-v2-44000`, SHA256 der Shards
+  `0a36e78c…` / `6123d7d3…`, identisch mit KISSKI).
+
+| MSE Hände (Mittel der Seed-Mediane) | Echtbild | Prüfset 5 cm | Prüfset 4 cm |
+|---|---|---|---|
+| N1.6 vision-v2 @30000 | 0,0039 | 0,0214 (0,0206–0,0227) | 0,0193 (0,0187–0,0198) |
+| **N1.6 vision-v2 @44000** | **0,0014** | **0,0239** (0,0232–0,0243) | **0,0221** (0,0221) |
+| N1.7 vision-v1 @44000 | 0,0026 | 0,0758 (0,0735–0,0788) | 0,0666 (0,0642–0,0682) |
+
+**Lesart:** @44000 ist auf Echtbildern fast dreimal so gut wie @30000, auf den Sim-Prüfsets aber
+11–15 % schlechter — mit mehr Training spezialisiert sich das Modell weiter auf die echte
+Domäne. Maßstab für die v3-Läufe (wie Lauf 3 bis 44 000 Steps) ist deshalb **N1.6 @44000**:
+Schwelle 80 % = **0,019 (5 cm) / 0,018 (4 cm)**. Die ungeseedeten Ausgangswerte aus Lauf 72
+bleiben als Einzelmessung stehen. JSON: `sim_results/visgate_base_n1{6,7}_*_s{0,1,2}_*.json`.
+
+#### Lauf 81 — Closed Loop N1.7 @44000, Szene aus Lauf 70
+
+`layout_heldout_dy3.json` (Test-Ep. 240–259), 20 × 120 s, DR aus, Seed 0, Exec-Horizon 8,
+Prompt aus dem Datensatz, Szene wie die v3-Renders (`SIM_TABLE_SIZE="0.8 2.0"`,
+`SIM_WRIST_EYE="0.02 0.0 0.08"`, `SIM_WRIST_TARGET="0.30 0.0 -0.08"`, `SIM_WRIST_HFOV=85`; am
+laufenden Prozess geprüft). Vergleichswert für den späteren Closed Loop des co-trainierten Modells.
+
+| Stufe | k/20 |
+|---|---|
+| `reached` / `touched` | 7 / 7 |
+| `lifted` / `lifted_clear` / `stacked` | **0 / 0 / 0** (KI95 0–16,8 %) |
+
+Fingerspanne Median 0,52 rad (0,42–0,55), kleinster Abstand Kuppe↔Würfel Median 4,9 cm (bestes
+2,6 cm), größte Anhebung 1,1 cm. Eine Episode meldet 2 233,7 cm Würfelversatz (Würfel offenbar
+aus der Szene gefallen; nicht untersucht). Bild wie Läufe 55/64: Hand fährt an, bleibt halb offen.
+**Lesart:** die Szenen-Angleichung aus Lauf 70 bewegt den Closed Loop nicht — erwartbar bei einem
+Open-Loop-Fehler, der noch ×29 über dem Echtbild liegt. JSON:
+`sim_results/results_20261015-104047_groot-g1dex3-n17-vision-v1-ckpt44000.json`, Log
+`logs/cl_n17_scene70_dy3_20261015.log`, Videos `sim_videos/cl_n17_scene70_dy3/`.
+
+### Lauf 82: Closed Loop N1.6 @44000, Szene aus Lauf 70
+
+**2026-10-15, 12:50–15:19**, Container `groot-rl-eval`, Checkpoint `luca-mue/groot-g1dex3-vision-v2-44000`
+(SHA256 wie Lauf 80). Protokoll identisch mit Lauf 81 (Test-Ep. 240–259 aus
+`layout_heldout_dy3.json`, 20 × 120 s, DR aus, Seed 0, Exec-Horizon 8, Szene aus Lauf 70). Erste
+Closed-Loop-Messung des validierten N1.6-Checkpoints mit korrigierter Geometrie und korrigiertem
+Layout.
+
+| Stufe | N1.6 @44000 (Lauf 82) | N1.7 @44000 (Lauf 81) |
+|---|---|---|
+| `reached` / `touched` | **16 / 17** | 7 / 7 |
+| `lifted` | 1/20 (Artefakt, s. u.) | 0/20 |
+| `lifted_clear` / `stacked` | **0/20 / 0/20** (KI95 0–16,8 %) | 0/20 / 0/20 |
+| Fingerspanne Median (Bereich) | 0,64 rad (0,43–1,43) | 0,52 rad (0,42–0,55) |
+| kleinster Abstand Kuppe↔Würfel, Median | 3,4 cm | 4,9 cm |
+
+- **Das eine `lifted` ist kein Griff:** In Episode 17 meldet die Sim 58,9 cm Anhebung bei 5 461,5 cm
+  Versatz, Unterseite mit Hand nur 0,3 cm. Der Würfel wurde weggeschleudert (wie der Ausreißer in
+  Lauf 81). Ohne diese Episode liegt die größte Anhebung bei 1,6 cm.
+- In 6 von 20 Episoden schiebt die Hand den Würfel 4–17 cm weit. Die Spanne erreicht bis zu 1,43 rad
+  (~68 % der Demo), der Griff schließt aber nie um den Würfel.
+
+**Lesart:** N1.6 @44000 ist im Closed Loop deutlich zielstrebiger als N1.7 (erreicht und berührt
+den Würfel in 16–17 von 20 Episoden), scheitert aber am Schließen, wie Lauf 64. Das passt zum
+Gate (Lauf 80): auf Sim-Bildern liegt der Hand-Fehler ×17 über dem Echtbild. Dies ist der
+Vergleichswert für den Closed Loop der co-trainierten N1.6-Modelle. JSON:
+`sim_results/results_20261015-131931_groot-g1dex3-vision-v2-44000.json`, Log
+`logs/cl_n16_44k_scene70_dy3_20261015.log`, Videos `sim_videos/cl_n16_44k_scene70_dy3/`.
+
+### Lauf 83: Visuelles Gate der co-trainierten N1.6-Modelle (render v3, @44000)
+
+**2026-10-18, 13:56–14:04**, Container `groot-rl-eval`, GPU 1 (fremder vLLM-Server weiterhin auf beiden
+Karten). Checkpoints aus den KISSKI-Läufen 16676490 (cube5) und 16676493 (cube4), je N1.6, Mix 0,15,
+44 000 Steps: `luca-mue/groot-g1dex3-cotrain-v3-cube{5,4}-ckpt44000` (SHA256 der Shards cube5
+`fd56eda5…` / `d02b9b69…`, cube4 `3b9fda36…` / `d9dfaf20…`). Protokoll wie Lauf 80: `visgate`, Seeds
+0/1/2, Kennzahl Mittel der Seed-Mediane MSE Hände.
+
+| MSE Hände (Mittel der Seed-Mediane) | Echtbild | Prüfset 5 cm | Prüfset 4 cm |
+|---|---|---|---|
+| N1.6 vision-v2 @44000 (Lauf 80) | 0,0014 (0,0012–0,0017) | 0,0239 (0,0232–0,0243) | 0,0221 (0,0221) |
+| **co-train v3 cube5 @44000** | 0,0022 (0,0018–0,0025) | **0,0118** (0,0114–0,0122) | **0,0104** (0,0101–0,0107) |
+| **co-train v3 cube4 @44000** | 0,0021 (0,0015–0,0025) | **0,0115** (0,0108–0,0119) | **0,0104** (0,0100–0,0107) |
+| Schwelle (80 % des Maßstabs) | — | < 0,019 | < 0,018 |
+
+- **Sim-Prüfsets: bestanden, deutlich.** Beide Modelle liegen bei 48–49 % (5 cm) bzw. 47 % (4 cm) des
+  Maßstabs. Die Seed-Bereiche überlappen nicht mit dem Maßstab. Der Abstand Sim zu Echtbild sinkt
+  von ×17 auf ×5.
+- **Echtbild: rund +50 % gegenüber dem Maßstab.** Die Seed-Bereiche überlappen nur knapp. Die Werte
+  sind immer noch besser als N1.6 @30000 (0,0039). Der Arm-Fehler auf Echtbildern bleibt gleich
+  (0,0004).
+- cube5 und cube4 sind innerhalb der Seed-Streuung gleichauf, auch auf dem jeweils fremden Prüfset.
+
+JSON: `sim_results/visgate_cotrain-v3-cube{5,4}-ckpt44000_s{0,1,2}_*.json`, Log
+`logs/visgate_cotrain_v3_n16_44000_20261018.log`.
+
+**Urteil (Nachtrag 2026-10-25):** Die Sim-Prüfsets sind klar bestanden. Das Echtbild-Kriterium
+(„nicht deutlich schlechter als der Ausgangswert“) ist ein Grenzfall: absolut +0,0007/+0,0008,
+relativ +50–57 %. Bei cube5 überlappen die Seed-Bereiche nicht mehr (0,0018 gegen höchstens
+0,0017). Auf Rückfrage am 18.10. wurde der Closed Loop trotzdem gefahren (Läufe 84/85), weil er
+nur die Sim misst. Ob der Echtbild-Verlust für den realen Einsatz tragbar ist, entscheidet
+erst ein Test auf dem Roboter. Die Werte wurden am 25.10. aus den JSONs nachgerechnet und stimmen.
+
+### Läufe 84/85: Closed Loop der co-trainierten N1.6-Modelle (18.10.)
+
+**2026-10-18, 14:07–16:26**, parallel: cube5 (Lauf 73) in `groot-rl-eval` auf GPU 0, cube4
+(Lauf 74) in `groot-rl-eval17` mit `GROOT_VERSION=1.6` auf GPU 1. Dafür reicht `do_eval`
+jetzt `RL_EXEC_GPU` als `CUDA_VISIBLE_DEVICES` an den Container durch (vorher landeten zwei
+Evals auf derselben Karte). Der fremde vLLM-Server lief weiter. Protokoll wie Lauf 82:
+`layout_heldout_dy3.json` (Test-Ep. 240–259), 20 × 120 s, DR aus, Seed 0, Exec-Horizon 8,
+Prompt aus dem Datensatz, Szene aus Lauf 70. Laut Startausgabe kamen N1.6, `global_step=44000`,
+der richtige `run_id` und die 60 Testlagen an. Die Szenen-Variablen standen im Aufruf
+(Sitzungsprotokoll). Am Prozess wurden sie diesmal nicht geprüft.
+
+> **Vorbehalt Lauf 85:** Der cube4-Lauf lief **ohne `SIM_CUBE_EDGE=0.04`**, also mit 5-cm-Würfeln
+> statt mit der Würfelgröße seines Renders. Er misst damit „4-cm-trainiertes Modell auf 5-cm-Würfeln“.
+> Die protokollgerechte Messung mit 4-cm-Würfeln ist [Lauf 88](#lauf-88-closed-loop-co-training-n16-cube4-mit-4-cm-würfeln).
+
+Um 14:20 wurde die Host-Seite (`server_rl_run.sh`/`docker exec`) beendet, damit die Läufe eine
+getrennte Sitzung überstehen. Die Prozesse im Container liefen weiter und schrieben ihre JSONs
+regulär (20/20 Episoden, keine Abbrüche). Die Host-Logs enden dort, maßgeblich sind die JSONs.
+
+| Stufe (k/20, KI95) | **cube5 @44000 (84)** | **cube4 @44000, 5-cm-Würfel (85)** | N1.6 @44000 (82) | N1.7 @44000 (81) |
+|---|---|---|---|---|
+| `reached` | **19** (75–100 %) | 16 (56–94 %) | 16 | 7 |
+| `touched` | **20** (83–100 %) | **20** (83–100 %) | 17 | 7 |
+| `lifted` (ohne Artefakte) | 3 (3–38 %), davon 1 Griff | 1 (0,1–25 %) | 0 | 0 |
+| `lifted_clear` | **1** (0,1–25 %) | **1** (0,1–25 %) | 0 (0–17 %) | 0 |
+| `stacked` | 0 (0–17 %) | 0 (0–17 %) | 0 | 0 |
+| Fingerspanne Median (Bereich) | **1,54 rad** (1,43–1,65) | **1,59 rad** (1,40–1,78) | 0,64 (0,43–1,43) | 0,52 (0,42–0,55) |
+| kleinster Abstand Kuppe↔Würfel, Median (bester) | 2,7 cm (0,9) | 3,0 cm (0,9) | 3,4 cm (2,7) | 4,9 cm (2,6) |
+| größte Anhebung (ohne Artefakte) | 3,2 cm | 5,3 cm | 1,6 cm | 1,1 cm |
+| Artefakte (Würfel weggeschleudert) | 2 | 0 | 1 | 1 |
+
+- **Artefakte cube5:** Ep. 12 (Layout 251) meldet 387,5 cm Anhebung bei 8 213,5 cm Versatz. Ep. 1
+  (Layout 240) meldet 13,3 cm Anhebung, aber nur 0,03 cm Unterseite mit Hand. Im Video fliegt der
+  gelbe Würfel ~73 cm über den Tisch und bleibt links außen liegen. Beide zählen nicht als `lifted`.
+- **Videobefund cube5:** Die Hände öffnen jetzt weit (Spanne ~74 % der Demo statt ~30 %) und
+  greifen gezielt. **Ep. 10** (Layout 249) ist ein echter Griff: Die linke Hand hält den grünen
+  Würfel von ~46 s bis ~1:50 zwischen den Fingern (Unterseite 3,2 cm über dem Tisch) und setzt ihn
+  am Ende an bzw. auf den roten. `stacked` wird nicht erreicht. Ep. 2 (2,5 cm) und Ep. 13 (2,2 cm)
+  sind keine Griffe: Die Hand schiebt die Würfel zusammen bzw. drückt einen nieder, ein Würfel
+  kippt oder rutscht dabei an einen anderen (Unterseite mit Hand ≤ 0,6 cm).
+- **Videobefund cube4 (5-cm-Würfel):** **Ep. 2** (Layout 241) ist ein echter Griff: Die linke Hand
+  hält den grünen Würfel von ~1:00 bis zum Episodenende (Unterseite 3,7 cm).
+- In 14–17 von 20 Episoden wird mindestens ein Würfel ≥ 4 cm verschoben. Das Bild ist nicht mehr
+  „fährt hin, bleibt halb offen“ (Läufe 64/81/82), sondern „greift zu, schließt, verfehlt meist“.
+
+**Lesart:** Das Co-Training ändert den Closed Loop sichtbar. Die Fingerspanne verdoppelt sich
+fast, der Würfel wird in jeder Episode berührt, und zum ersten Mal hebt die Policy selbst einen
+Würfel mit der Hand an (`lifted_clear` je 1/20, KI 0,1–25 %). Statistisch ist ein Griff in 20
+Episoden noch nicht von null zu trennen. Die Spanne (Lauf 34: primäres Gate, co-training.md §5)
+ist es aber eindeutig: 1,54/1,59 rad gegen 0,64 rad, die Bereiche überlappen nicht. JSON:
+`sim_results/results_20261018-142634_cotrain-v3-cube5-ckpt44000.json` (84),
+`results_20261018-142554_cotrain-v3-cube4-ckpt44000.json` (85); Logs
+`logs/cl_cotrain_v3_cube{5,4}_scene70_dy3_20261018.log` (bis 14:20); Videos
+`sim_videos/cl_cotrain_v3_cube{5,4}_scene70_dy3/`.
+
+> **Nachtrag (2026-10-29):** Die Spanne allein ist kein Beleg für das Co-Training. Die alten
+> N1.6-Modelle ohne Co-Training öffnen ebenfalls weit (vision-v1 @35000 1,30 rad, Lauf 1 @110000
+> 1,75 rad), greifen aber nicht ([Läufe 90/91](#läufe-9091-closed-loop-der-alten-n16-modelle-ohne-co-training)).
+> Die kleine Spanne von Lauf 82 gehört zu vision-v2 @44000. Was bleibt: `touched` 20/20 und die
+> ersten echten Griffe.
+
+### Lauf 86: Visuelles Gate co-training N1.7 render v3 cube5 @44000
+
+**2026-10-25, 15:09–15:16**, `ikr-ki-server-01`, Container `groot-rl-eval17`, `GROOT_VERSION=1.7`,
+GPU 1. Wie am 15. und 18.10. belegte ein fremder vLLM-Server (`vllm serve
+Inferact-Qwen3.8-Flash-Next-NVFP4`, Port 8015, TP 2, läuft seit 2026-10-15) ~69 GB je Karte,
+frei waren ~27 GB. Checkpoint aus Lauf 75: `luca-mue/groot-g1dex3-cotrain-v3-cube5-n17-ckpt44000`,
+`run_id` `g1_dex3_blockstacking_cotrain_render_v3_cube5_n17`, `global_step` 44000, SHA256 der
+Shards `df7b4d09…` / `6bbd945e…`. Geladen im Container mit dessen eigenem `HF_TOKEN`; auf dem Host
+war keiner gesetzt, und `ensure_checkpoint` hätte ein leeres `-e HF_TOKEN=` durchgereicht.
+Protokoll wie Lauf 80: Seeds 0/1/2, Mittel der Seed-Mediane MSE Hände.
+
+| MSE Hände (Mittel der Seed-Mediane) | Echtbild | Prüfset 5 cm | Prüfset 4 cm |
+|---|---|---|---|
+| N1.7 vision-v1 @44000 (Lauf 80, Maßstab) | 0,0026 (0,0023–0,0029) | 0,0758 (0,0735–0,0788) | 0,0666 (0,0642–0,0682) |
+| **co-train v3 cube5 N1.7 @44000** | **0,0024** (0,0022–0,0026) | **0,0230** (0,0223–0,0234) | **0,0164** (0,0160–0,0169) |
+| Schwelle (80 % des N1.7-Maßstabs) | nicht deutlich schlechter | < 0,061 | < 0,053 |
+| zum Vergleich: N1.6 vision-v2 @44000 (Lauf 80) | 0,0014 | 0,0239 | 0,0221 |
+| zum Vergleich: co-train v3 cube5 N1.6 (Lauf 83) | 0,0022 | 0,0118 | 0,0104 |
+
+- **Bestanden, klar.** Die Sim-Prüfsets sinken auf 30 % (5 cm) bzw. 25 % (4 cm) des Maßstabs, das
+  Echtbild bleibt gleich (−8 %, innerhalb der Seed-Streuung). Anders als bei N1.6 (Lauf 83)
+  kostet das Co-Training bei N1.7 auf dem Echtbild nichts. Arm-Fehler Echtbild 0,0007 (Maßstab 0,0006).
+- **Gegen N1.6:** Erst mit Co-Training erreicht N1.7 auf den Sim-Prüfsets das Niveau des
+  *nicht* co-trainierten N1.6 @44000 (5 cm gleichauf, 4 cm −26 %). Gegen das co-trainierte N1.6
+  liegt es auf beiden Prüfsets etwa um den Faktor 2 zurück, auf dem Echtbild ebenfalls (0,0024
+  gegen 0,0014 bzw. 0,0022).
+- **Kreuzvergleich:** Der 5-cm-Render senkt den Fehler auf dem 4-cm-Prüfset stärker als auf dem
+  eigenen (−75 % gegen −70 %), wie bei N1.6 (Lauf 83: cube5 und cube4 auf beiden Sets gleichauf).
+  Die Würfelgröße des Renders spielt für das Gate keine erkennbare Rolle.
+
+JSON: `sim_results/visgate_cotrain-v3-cube5-n17-ckpt44000_s{0,1,2}_*.json`, Log
+`logs/visgate_cotrain_v3_cube5_n17_44000_20261025.log` (mit GPU-Belegung vor dem Lauf).
+
+### Lauf 87: Visuelles Gate der übrigen HF-Checkpoints (Nachholprüfung)
+
+**2026-10-25, 15:18–15:42**, parallel zu den Closed Loops der Läufe 88/89 (je ein Gate neben einem
+Closed Loop pro Karte): N1.7 in `groot-rl-eval17` auf GPU 1, N1.6 in `groot-rl-eval` auf GPU 0.
+Abgleich aller Repos `luca-mue/groot-g1dex3-*` gegen Chronik und `sim_results/`. Ohne Gate waren
+außer den Läufen 73–75 noch fünf Checkpoints. `cotrain-synth-v1` ist laut Nachtrag vom 13.10.
+kein Co-Training-Lauf und bleibt draußen. Die fünf sind frisch von HF nach
+`/data/checkpoints/hf-groot-g1dex3-*` geladen (ohne Optimizer), denn das alte lokale
+`groot-g1dex3-checkpoint` enthielt zeitweise vision-v2 @30000 (Lauf 61). Identität aus
+`wandb_config.json`/`trainer_state.json` geprüft. Keiner ist co-trainiert, Schwellen nach Generation
+wie in Lauf 80.
+
+| Checkpoint (HF-Repo) | `run_id` / Step | Echtbild | Prüfset 5 cm | Prüfset 4 cm | Urteil |
+|---|---|---|---|---|---|
+| `groot-g1dex3-checkpoint` (Mai) | `blockstacking_v1` (Lauf 1, ohne Vision-Tuning) / 110 000 | 0,0019 (0,0017–0,0021) | **0,0171** (0,0158–0,0178) | **0,0156** (0,0151–0,0160) | bestanden (Echtbild +36 %) |
+| `groot-g1dex3-checkpoint-vision` (Juni) | `blockstacking_vision_v1` / 35 000 | 0,0025 (0,0022–0,0027) | **0,0173** (0,0164–0,0181) | **0,0162** (0,0153–0,0172) | bestanden (Echtbild +79 %, Grenzfall) |
+| `groot-g1dex3-n17-vision-v1-ckpt5000` | `vision_v1` N1.7 / 5 000 | 0,0166 (0,0159–0,0169) | 0,0410 | 0,0329 | durchgefallen (Echtbild ×6,4) |
+| `groot-g1dex3-n17-vision-v1-ckpt10000` | `vision_v1` N1.7 / 10 000 | 0,0098 (0,0091–0,0106) | 0,0325 | 0,0264 | durchgefallen (Echtbild ×3,8) |
+| `groot-g1dex3-n17-vision-v1-ckpt15000` | `vision_v1` N1.7 / 15 000 | 0,0086 (0,0079–0,0091) | 0,0432 | 0,0389 | durchgefallen (Echtbild ×3,3) |
+| Schwelle N1.6 / N1.7 | | Maßstab 0,0014 / 0,0026 | 0,019 / 0,061 | 0,018 / 0,053 | |
+
+- **Die N1.7-Zwischenstände** liegen nur deshalb unter der Sim-Schwelle, weil sie insgesamt
+  untertrainiert sind. Auf dem Echtbild sind sie um ein Vielfaches schlechter. Kein Closed Loop
+  (für @15000 gibt es ihn ohnehin schon: Lauf 54, `lifted` 0/10).
+- **Die beiden alten N1.6-Modelle unterbieten die Schwelle ohne Co-Training.** Die 80-%-Schwelle
+  bezieht sich auf vision-v2 @44000, das sich mit langem Training besonders stark auf die
+  Realdomäne spezialisiert (Lauf 80: @30000 → @44000 Sim +11–15 %). Ein früherer oder anderer
+  Lauf liegt auf den Prüfsets schon von sich aus bei ~0,017. **Das Gate trennt also nicht
+  zuverlässig „co-trainiert“ von „nicht co-trainiert“**, der Co-Training-Effekt zeigt sich erst
+  im Abstand: Lauf 83 0,0115–0,0118 gegen 0,017. Für künftige Läufe wäre eine Schwelle relativ zum
+  besten nicht co-trainierten Modell derselben Generation strenger.
+- Das Echtbild-Kriterium hat keine feste Zahl. Auf Rückfrage gilt vision-v1 @35000 (+79 %) wie
+  die Läufe 73/74 (+50–57 %) als bestanden. Beide alten N1.6-Modelle bekommen deshalb einen
+  Closed Loop (Läufe 90/91).
+
+JSON: `sim_results/visgate_hf-groot-g1dex3-*_s{0,1,2}_*.json`, Logs
+`logs/visgate_altlaeufe_n1{6,7}_20261025.log`, Download `logs/download_altlaeufe_20261025.log`.
+
+### Lauf 88: Closed Loop co-training N1.6 cube4 mit 4-cm-Würfeln
+
+**2026-10-25, 15:12–17:28**, Container `groot-rl-eval`, GPU 0, Checkpoint aus Lauf 74
+(`luca-mue/groot-g1dex3-cotrain-v3-cube4-ckpt44000`). Das ist die protokollgerechte Wiederholung von Lauf 85:
+Protokoll wie Lauf 82, zusätzlich **`SIM_CUBE_EDGE=0.04`** wie im 4-cm-Render. Am laufenden
+Prozess geprüft: `SIM_CUBE_EDGE=0.04`, Szene aus Lauf 70, `DR_ENABLED=0`, `DR_SEED=0`,
+`CUDA_VISIBLE_DEVICES=0`, N1.6, `global_step=44000`, 60 Testlagen. Parallel liefen auf GPU 1
+der erste, hängengebliebene Versuch von Lauf 89 sowie die Gates aus Lauf 87, und der fremde
+vLLM-Server war weiter aktiv. 20/20
+Episoden, `exit 0`.
+
+| Stufe (k/20, KI95) | **cube4, 4-cm-Würfel (88)** | cube4, 5-cm-Würfel (85) | cube5 (84) | N1.6 @44000 (82) | N1.7 @44000 (81) |
+|---|---|---|---|---|---|
+| `reached` | **19** (75–100 %) | 16 | 19 | 16 | 7 |
+| `touched` | **20** (83–100 %) | 20 | 20 | 17 | 7 |
+| `lifted` (ohne Artefakte) | 4 (6–44 %), davon 2 Griffe | 1 | 3, davon 1 Griff | 0 | 0 |
+| `lifted_clear` | **2** (1,2–32 %) | 1 | 1 | 0 (0–17 %) | 0 |
+| `stacked` | 0 (0–17 %) | 0 | 0 | 0 | 0 |
+| Fingerspanne Median (Bereich) | **1,61 rad** (1,48–1,74) | 1,59 (1,40–1,78) | 1,54 (1,43–1,65) | 0,64 (0,43–1,43) | 0,52 (0,42–0,55) |
+| kleinster Abstand Kuppe↔Würfel, Median (bester) | **2,3 cm** (1,5) | 3,0 (0,9) | 2,7 (0,9) | 3,4 (2,7) | 4,9 (2,6) |
+| größte Anhebung (ohne Artefakte) | 4,8 cm (Unterseite 3,8) | 5,3 cm | 3,2 cm | 1,6 cm | 1,1 cm |
+| Artefakte (Würfel weggeschleudert) | 0 | 0 | 2 | 1 | 1 |
+
+- **Videobefund:** **Ep. 5** (Layout 244): Die linke Hand hebt den roten Würfel an und trägt ihn
+  (~1:12–1:33, Unterseite 3,8 cm). **Ep. 2** (Layout 241): Die linke Hand hält den grünen Würfel
+  von ~0:24 bis zum Episodenende (Unterseite 2,1 cm). Beides sind echte Griffe. **Ep. 6** (3,0 cm)
+  und **Ep. 20** (2,2 cm) zählen nur nach der Schwerpunkt-Metrik: Die Hand drückt bzw. kippt den
+  Würfel (Unterseite mit Hand 1,6 bzw. 0,6 cm). In Ep. 6 wird dabei der rote Würfel 25 cm
+  weggeschoben, er bleibt aber auf dem Tisch, das ist kein Wurf.
+- In 13 von 20 Episoden wird mindestens ein Würfel ≥ 4 cm verschoben.
+
+**Lesart:** Mit der Würfelgröße seines Renders ist das cube4-Modell der bisher beste Closed Loop:
+zwei echte Griffe, der kleinste Medianabstand Kuppe↔Würfel aller Läufe. Gegen die 5-cm-Würfel
+(Lauf 85) und gegen cube5 (Lauf 84) ist der Unterschied bei 1–2 Griffen in 20 Episoden
+statistisch nicht zu trennen (KI überlappen weit). Eindeutig ist der gemeinsame Sprung aller
+drei co-trainierten N1.6-Läufe gegenüber Lauf 82: Spanne ~1,6 statt 0,64 rad, `touched` 20/20.
+JSON: `sim_results/results_20261025-162853_cotrain-v3-cube4-ckpt44000.json`, Log
+`logs/cl_cotrain_v3_cube4_edge4_scene70_dy3_20261025.log`, Videos
+`sim_videos/cl_cotrain_v3_cube4_edge4_scene70_dy3/`.
+
+### Lauf 89: Closed Loop co-training N1.7 cube5
+
+**2026-10-28, 17:37–19:56**, Container `groot-rl-eval17`, `GROOT_VERSION=1.7`, GPU 1, Checkpoint
+aus Lauf 75 (`luca-mue/groot-g1dex3-cotrain-v3-cube5-n17-ckpt44000`, `global_step=44000`, `run_id`
+`…_cotrain_render_v3_cube5_n17`). Protokoll wie Lauf 82 (`layout_heldout_dy3.json`, 20 × 120 s,
+DR aus, Seed 0, Exec-Horizon 8, Prompt aus dem Datensatz, Szene aus Lauf 70), 5-cm-Würfel.
+Gestartet über `~/groot-rl-data/cl_watchdog.sh` (Hänger-Wächter: startet neu, wenn das Log 15 min
+steht), das die Szenen-Variablen fest im Aufruf setzt. Am laufenden Prozess wurden sie nicht
+geprüft; die Startausgabe bestätigt N1.7, Checkpoint, `global_step` und die 60 Testlagen. Der
+fremde vLLM-Server lief weiter. Versuch 0 lief durch: 20/20 Episoden, `rc=0`.
+
+> **Erster Versuch 25.10.:** hing nach 8 Episoden mitten in einer Episode (Hauptthread dreht,
+> Policy-Server und GPU untätig, keine Fehlermeldung); am 28.10. um 17:36 beendet und nicht
+> gewertet. Log `logs/cl_cotrain_v3_cube5_n17_scene70_dy3_20261025.log`, Videos
+> `sim_videos/cl_cotrain_v3_cube5_n17_scene70_dy3_haenger_20261025/`. Danach entstand der Wächter.
+
+| Stufe (k/20, KI95) | **N1.7 co-train cube5 (89)** | N1.6 co-train cube5 (84) | N1.6 @44000 (82) | N1.7 @44000 (81) |
+|---|---|---|---|---|
+| `reached` | **20** (83–100 %) | 19 | 16 | 7 |
+| `touched` | **20** (83–100 %) | 20 | 17 | 7 |
+| `lifted` (ohne Artefakte) | 6 (12–54 %), davon **0 Griffe** | 3, davon 1 Griff | 0 | 0 |
+| `lifted_clear` | **0** (0–17 %) | 1 | 0 (0–17 %) | 0 |
+| `stacked` | 0 (0–17 %) | 0 | 0 | 0 |
+| Fingerspanne Median (Bereich) | **1,64 rad** (1,52–1,80) | 1,54 (1,43–1,65) | 0,64 (0,43–1,43) | 0,52 (0,42–0,55) |
+| kleinster Abstand Kuppe↔Würfel, Median (bester) | 2,7 cm (0,9) | 2,7 (0,9) | 3,4 (2,7) | 4,9 (2,6) |
+| größte Anhebung (ohne Artefakte) | 3,2 cm (Unterseite mit Hand höchstens 1,8 cm) | 3,2 cm | 1,6 cm | 1,1 cm |
+| Artefakte (Würfel weggeschleudert) | 0 | 2 | 1 | 1 |
+
+- **Verhalten wie die co-trainierten N1.6-Modelle, aber ohne Griff.** Gegenüber N1.7 ohne
+  Co-Training (Lauf 81) ist der Sprung groß: `reached`/`touched` 7 → 20, Spanne 0,52 → 1,64 rad.
+  In 19 von 20 Episoden wird mindestens ein Würfel ≥ 4 cm verschoben.
+- **Videobefund:** Die sechs `lifted` entstehen durch Schieben und Kippen, keine Hand hält einen
+  Würfel frei (Unterseite mit Hand höchstens 1,8 cm, `lifted_clear` braucht 2 cm). **Ep. 10**
+  (Layout 249) kommt am nächsten heran: Die linke Hand umfasst den grünen Würfel von ~75 bis
+  ~110 s und kippt ihn an, lässt ihn dann los. **Ep. 2** (Layout 241, 3,2 cm Schwerpunkt-Anhebung)
+  ist kein Griff: Die linke Hand schiebt den grünen Würfel an den roten, danach bleiben beide
+  Hände ~70 s verschränkt über dem Tisch stehen.
+
+**Lesart:** Das Co-Training ändert das Closed-Loop-Verhalten auch bei N1.7 deutlich, erreicht
+aber nicht den ersten Griff. Gegen N1.6 co-train cube5 (Lauf 84, 1 Griff) ist 0/20 statistisch
+nicht zu trennen. JSON: `sim_results/results_20261028-185553_cotrain-v3-cube5-n17-ckpt44000.json`,
+Log `logs/cl_cotrain_v3_cube5_n17_scene70_dy3_20261028.log`, Videos
+`sim_videos/cl_cotrain_v3_cube5_n17_scene70_dy3/`.
+
+### Läufe 90/91: Closed Loop der alten N1.6-Modelle ohne Co-Training
+
+Folge aus Lauf 87: Beide alten N1.6-Modelle hatten das Gate ohne Co-Training bestanden und
+bekommen deshalb einen Closed Loop als Gegenprobe. **Lauf 90:** `groot-g1dex3-checkpoint-vision`
+(`blockstacking_vision_v1` @35000), **2026-10-28, 17:37–19:49**. **Lauf 91:**
+`groot-g1dex3-checkpoint` (`blockstacking_v1`, Lauf 1, @110000), **19:49–22:00**, direkt danach.
+Beide in `groot-rl-eval`, `GROOT_VERSION=1.6`, GPU 0, über `cl_watchdog.sh`, Protokoll wie Lauf
+82, 5-cm-Würfel. Lauf 90 lief parallel zu Lauf 89 auf GPU 1; der fremde vLLM-Server lief weiter.
+Beide 20/20 Episoden, `rc=0`, im ersten Versuch. Szenen-Variablen wie bei Lauf 89 nur über den
+Aufruf belegt.
+
+> **Erster Versuch Lauf 90 am 25.10.:** hing nach 14 Episoden wie Lauf 89, am 28.10. beendet und
+> nicht gewertet (Log `logs/cl_n16_vision_v1_35000_scene70_dy3_20261025.log`, Videos
+> `sim_videos/cl_n16_vision_v1_35000_scene70_dy3_haenger_20261025/`).
+
+| Stufe (k/20, KI95) | **vision-v1 @35000 (90)** | **v1 @110000 (91)** | N1.6 co-train cube5 (84) | N1.6 @44000 (82) | N1.7 @44000 (81) |
+|---|---|---|---|---|---|
+| Gate 5 / 4 cm (Echtbild) | 0,0173 / 0,0162 (0,0025) | 0,0171 / 0,0156 (0,0019) | 0,0118 / 0,0104 (0,0022) | 0,0239 / 0,0221 (0,0014) | 0,0758 / 0,0666 (0,0026) |
+| `reached` | **20** (83–100 %) | 16 (56–94 %) | 19 | 16 | 7 |
+| `touched` | 14 (46–88 %) | **19** (75–100 %) | 20 | 17 | 7 |
+| `lifted` (ohne Artefakte) | 1 (0,1–25 %), kein Griff | 1 (0,1–25 %), kein Griff | 3, davon 1 Griff | 0 | 0 |
+| `lifted_clear` | 0 (0–17 %) | 0 (0–17 %) | 1 | 0 | 0 |
+| `stacked` | 0 (0–17 %) | 0 (0–17 %) | 0 | 0 | 0 |
+| Fingerspanne Median (Bereich) | 1,30 rad (0,95–1,74) | **1,75 rad** (1,30–1,98) | 1,54 (1,43–1,65) | 0,64 (0,43–1,43) | 0,52 (0,42–0,55) |
+| kleinster Abstand Kuppe↔Würfel, Median (bester) | 2,7 cm (1,1) | 3,1 cm (1,9) | 2,7 (0,9) | 3,4 (2,7) | 4,9 (2,6) |
+| größte Anhebung (ohne Artefakte) | 2,1 cm (Unterseite 0,9) | 2,2 cm (Unterseite 2,0) | 3,2 cm | 1,6 cm | 1,1 cm |
+| Artefakte (Würfel weggeschleudert) | 1 | 1 | 2 | 1 | 1 |
+
+- **Artefakte:** In beiden Läufen Ep. 17 (Layout 256): Der rote Würfel fehlt schon im ersten
+  Videobild, er wird beim Start weggeschleudert (Lauf 90: 22,8 cm Anhebung, 41 m Versatz; Lauf 91:
+  29 m Versatz). Beide zählen nicht als `lifted`.
+- **Videobefund Lauf 91, Ep. 15** (Unterseite mit Hand 1,96 cm, knapp unter der 2-cm-Grenze von
+  `lifted_clear`): Die linke Hand hebt den roten Würfel in den ersten Sekunden kurz an und setzt
+  ihn wieder ab, danach nur noch Berührungen. Kein Griff.
+- **Die weit öffnende Hand ist kein reiner Co-Training-Effekt.** Lauf 1 @110000 öffnet ohne
+  Co-Training sogar weiter (1,75 rad) als die co-trainierten Modelle, vision-v1 @35000 liegt mit
+  1,30 rad dazwischen. Die kleine Spanne von Lauf 82 (0,64 rad) ist eine Eigenschaft von
+  vision-v2 @44000. Was die co-trainierten N1.6-Modelle (84/88) voraushaben, ist die Kombination:
+  `touched` 20/20, der kleinste Abstand und als einzige echte Griffe (1–2 von 20).
+
+**Lesart:** Die Gegenprobe bestätigt Lauf 87: Ein bestandenes Gate allein sagt den Closed Loop
+nicht voraus. Die alten Modelle unterbieten die Schwelle, greifen aber nicht; die co-trainierten
+N1.6-Modelle liegen im Gate ~30 % tiefer und sind die einzigen mit Griffen. Bei n = 20 und 0–2
+Griffen bleibt auch dieser Unterschied statistisch offen. JSON:
+`sim_results/results_20261028-184923_hf-groot-g1dex3-checkpoint-vision.json` (90),
+`results_20261028-210020_hf-groot-g1dex3-checkpoint.json` (91); Logs
+`logs/cl_n16_vision_v1_35000_scene70_dy3_20261028.log`, `logs/cl_n16_v1_110000_scene70_dy3_20261028.log`;
+Videos `sim_videos/cl_n16_vision_v1_35000_scene70_dy3/`, `sim_videos/cl_n16_v1_110000_scene70_dy3/`.
+
+### Lauf 92: Visuelles Gate der restlichen v3-Checkpoints
+
+**2026-10-29, 10:56–11:18**, `ikr-ki-server-01`. N1.7 in `groot-rl-eval17` (`GROOT_VERSION=1.7`, GPU 1),
+N1.6 in `groot-rl-eval` (`GROOT_VERSION=1.6`, GPU 0), parallel. Der fremde vLLM-Server (`vllm serve
+Inferact-Qwen3.8-Flash-Next-NVFP4`, Port 8015, TP 2, läuft seit 2026-10-15 10:36) belegte weiter
+~69 GB je Karte, im Log vor dem ersten Lauf vermerkt. Die fünf Checkpoints sind frisch von HF
+nach `/data/checkpoints/cotrain-v3-<name>` geladen (ohne Optimizer, mit dem `HF_TOKEN` des
+Containers; der Host hat keinen). `global_step` und `run_id` aus `trainer_state.json` /
+`wandb_config.json` passen bei allen fünf; SHA256 der Shards stehen im Log. Protokoll wie Lauf
+80: `visgate`, Seeds 0/1/2, Kennzahl Mittel der Seed-Mediane MSE Hände über die 4 Episoden je Set.
+Zusammen mit Lauf 83 und 86 sind damit alle acht v3-Checkpoints gemessen.
+
+| Checkpoint | Lauf | Echtbild | Prüfset 5 cm | Prüfset 4 cm | Urteil |
+|---|---|---|---|---|---|
+| *N1.6 vision-v2 @44000 (Maßstab N1.6)* | 80 | 0,0014 | 0,0239 | 0,0221 | Schwelle 0,019 / 0,018 |
+| B: N1.6 cube5 @44000 | 73 / 83 | 0,0022 (0,0018–0,0025) | 0,0118 (0,0114–0,0122) | 0,0104 (0,0101–0,0107) | bestanden, Echtbild Grenzfall |
+| **B′: N1.6 cube5 @40000** | 73 / 92 | 0,0023 (0,0019–0,0025) | **0,0114** (0,0110–0,0117) | **0,0100** (0,0097–0,0103) | bestanden, Echtbild Grenzfall |
+| C: N1.6 cube4 @44000 | 74 / 83 | 0,0021 (0,0015–0,0025) | 0,0115 (0,0108–0,0119) | 0,0104 (0,0100–0,0107) | bestanden, Echtbild Grenzfall |
+| **C′: N1.6 cube4 @35000** | 74 / 92 | 0,0023 (0,0018–0,0028) | **0,0107** (0,0102–0,0111) | **0,0097** (0,0094–0,0100) | bestanden, Echtbild Grenzfall |
+| *N1.7 vision-v1 @44000 (Maßstab N1.7)* | 80 | 0,0026 | 0,0758 | 0,0666 | Schwelle 0,061 / 0,053 |
+| A: N1.7 cube5 @44000 | 75 / 86 | 0,0024 (0,0022–0,0026) | 0,0230 (0,0223–0,0234) | 0,0164 (0,0160–0,0169) | bestanden |
+| **A″: N1.7 cube5 @20000** | 75 / 92 | **0,0083** (0,0078–0,0088) | 0,0158 (0,0148–0,0165) | 0,0141 (0,0138–0,0145) | **durchgefallen** (Echtbild ×3,2) |
+| **D: N1.7 cube4 @44000** | 76 / 92 | **0,0027** (0,0025–0,0028) | **0,0217** (0,0212–0,0225) | **0,0123** (0,0118–0,0125) | **bestanden** |
+| **D″: N1.7 cube4 @40000** | 76 / 92 | 0,0029 (0,0025–0,0031) | 0,0233 (0,0225–0,0241) | 0,0124 (0,0120–0,0126) | bestanden |
+
+- **N1.6 (B′, C′):** wie B und C bestanden. Die Sim-Prüfsets liegen bei 44–48 % des Maßstabs.
+  Das Echtbild ist mit 0,0023 (+64 %) derselbe Grenzfall wie in Lauf 83; nach der Rückfrage vom
+  18.10. gilt das als bestanden. Arm-Fehler Echtbild unverändert 0,0004–0,0005.
+- **N1.7 (D, D″):** klar bestanden. Sim-Prüfsets auf 29 % (5 cm) bzw. 18 % (4 cm) des
+  N1.7-Maßstabs, Echtbild gleich (0,0027 gegen 0,0026). **Gegen N1.6 @44000:** D liegt auf beiden
+  Prüfsets darunter (5 cm −9 %, 4 cm −44 %), ist auf dem Echtbild aber fast doppelt so schlecht
+  (0,0027 gegen 0,0014). Gegen das co-trainierte N1.6 (B/C) liegt D auf 5 cm um den Faktor 1,9,
+  auf 4 cm um 1,2 zurück.
+- **A″ (@20000)** hat die niedrigsten Sim-Werte aller N1.7-Checkpoints, ist aber auf dem Echtbild
+  dreimal so schlecht wie der Maßstab: dasselbe Muster wie die untertrainierten N1.7-Stände in
+  Lauf 87. Durchgefallen, kein Closed Loop.
+
+**Verlauf im Training (Gate gegen Sweep):**
+
+| Vergleich | Sweep-Val-MSE | Echtbild | Prüfset 5 cm | Prüfset 4 cm |
+|---|---|---|---|---|
+| A″ @20000 → A @44000 (N1.7 cube5) | 0,005719 → 0,005248 (−8 %) | 0,0083 → 0,0024 (−71 %) | 0,0158 → 0,0230 (**+46 %**) | 0,0141 → 0,0164 (**+16 %**) |
+| D″ @40000 → D @44000 (N1.7 cube4) | 0,005266 → 0,005071 (−4 %) | 0,0029 → 0,0027 | 0,0233 → 0,0217 (−7 %) | 0,0124 → 0,0123 |
+| B′ @40000 → B @44000 (N1.6 cube5) | 0,004951 → 0,004985 (+0,7 %) | 0,0023 → 0,0022 | 0,0114 → 0,0118 (+4 %) | 0,0100 → 0,0104 (+4 %) |
+| C′ @35000 → C @44000 (N1.6 cube4) | 0,005059 → 0,005097 (+0,8 %) | 0,0023 → 0,0021 | 0,0107 → 0,0115 (+7 %) | 0,0097 → 0,0104 (+7 %) |
+
+- **Über lange Strecken laufen Gate und Sweep auseinander:** Von @20000 nach @44000 werden Sweep
+  und Echtbild besser, die Sim-Prüfsets aber deutlich schlechter. Das ist dasselbe Muster wie bei
+  N1.6 vision-v2 (Lauf 80: @30000 → @44000 Sim +11–15 %, Echtbild besser), trotz 15 % Renderdaten
+  im Training. Mit fortschreitendem Training spezialisiert sich das Modell weiter auf die
+  Realdomäne.
+- **Auf den letzten 4 000–9 000 Steps** ist das bei N1.6 nur noch als Tendenz zu sehen (+4–7 %
+  Sim, Echtbild −4–9 %), bei C′ → C überlappen die Seed-Bereiche gerade noch. Bei N1.7 cube4
+  (D″ → D) wird alles leicht besser. Gate und Sweep widersprechen sich hier nicht: Bei 74 sind
+  C′ im Sweep und im Gate jeweils knapp vorn, bei 73 B′, bei 76 D.
+- **Kreuzvergleich 5 cm ↔ 4 cm:** Bei N1.6 spielt die Render-Würfelgröße keine Rolle (B und C
+  gleichauf, auch B′ und C′ innerhalb von 6 %). Bei N1.7 ist der 4-cm-Render auf **beiden**
+  Prüfsets besser als der 5-cm-Render: auf dem eigenen 4-cm-Set deutlich (0,0123 gegen 0,0164,
+  −25 %), auf dem 5-cm-Set knapp (0,0217 gegen 0,0230, −6 %). Der 5-cm-Render hilft beim
+  4-cm-Prüfset also, aber weniger als der passende.
+
+**Auswahl für den Closed Loop** (höchstens ein Checkpoint pro Trainingslauf, der bestandene mit
+dem besten Gate):
+
+- **Lauf 76 → D @44000** (besser als D″ auf allen drei Werten): Closed Loop mit 4-cm-Würfeln,
+  [Lauf 93](#lauf-93-closed-loop-co-training-n17-cube4-mit-4-cm-würfeln).
+- **Lauf 75 → A @44000**, A″ ist durchgefallen. Closed Loop schon gefahren (Lauf 89).
+- **Lauf 73 → B @44000** (Lauf 84). B′ liegt 3–4 % besser, die Seed-Bereiche überlappen.
+- **Lauf 74 → C @44000** (Lauf 88). C′ liegt 7 % besser, die Seed-Bereiche berühren sich; formal
+  ist C′ der Gate-Beste.
+- **Ausnahme von der Regel (Rückfrage 2026-10-29):** Weil GPU 0 neben dem Closed Loop von D frei
+  war, bekommen C′ und B′ zusätzlich einen Closed Loop ([Läufe 94/95](#läufe-9495-closed-loop-der-gate-besten-n16-zwischenstände-ausnahme)).
+  Damit hat jeder N1.6-Lauf zwei Closed Loops. Das ist bewusst so und kein Protokollfehler.
+
+JSON: `sim_results/visgate_cotrain-v3-{cube5-ckpt40000,cube4-ckpt35000,cube5-n17-ckpt20000,cube4-n17-ckpt40000,cube4-n17-ckpt44000}_s{0,1,2}_*.json`,
+Logs `logs/visgate_cotrain_v3_n1{6,7}_rest_20261029.log` (mit GPU-Belegung und SHA256),
+Download `logs/download_cotrain_v3_rest_20261029.log`. Warteschlange
+`~/groot-rl-data/gate_queue_v3.sh`.
+
+### Lauf 93: Closed Loop co-training N1.7 cube4 mit 4-cm-Würfeln
+
+**2026-10-29, 11:19–13:44**, Container `groot-rl-eval17`, `GROOT_VERSION=1.7`, GPU 1, Checkpoint D
+aus Lauf 76 (`luca-mue/groot-g1dex3-cotrain-v3-cube4-n17-ckpt44000`, `global_step=44000`, `run_id`
+`…_cotrain_render_v3_cube4_n17`), nach Lauf 92 der Gate-Beste seines Trainings. Protokoll wie
+Lauf 82, zusätzlich **`SIM_CUBE_EDGE=0.04`**, über `cl_watchdog.sh`. Am laufenden Prozess geprüft
+(`/proc/<pid>/environ`): `SIM_CUBE_EDGE=0.04`, `SIM_TABLE_SIZE=0.8 2.0`, `SIM_WRIST_EYE=0.02 0.0 0.08`,
+`SIM_WRIST_TARGET=0.30 0.0 -0.08`, `SIM_WRIST_HFOV=85`, `DR_ENABLED=0`, `DR_SEED=0`,
+`EXECUTION_HORIZON=8`, `EVAL_LAYOUT=/data/eval/layout_heldout_dy3.json`, `CUDA_VISIBLE_DEVICES=1`.
+Ab 11:27 lief parallel Lauf 94 auf GPU 0, der fremde vLLM-Server weiter. Versuch 0: 20/20
+Episoden, `rc=0`, kein Hänger.
+
+| Stufe (k/20, KI95) | **N1.7 co-train cube4, 4 cm (93)** | N1.7 co-train cube5 (89) | N1.6 co-train cube4, 4 cm (88) | N1.6 @44000 (82) | N1.7 @44000 (81) |
+|---|---|---|---|---|---|
+| `reached` | 19 (75–100 %) | 20 | 19 | 16 | 7 |
+| `touched` | **20** (83–100 %) | 20 | 20 | 17 | 7 |
+| `lifted` (ohne Artefakte) | 1 (0,1–25 %), **kein Griff** | 6, kein Griff | 4, davon 2 Griffe | 0 | 0 |
+| `lifted_clear` | **0** (0–17 %) | 0 | **2** | 0 (0–17 %) | 0 |
+| `stacked` | 0 (0–17 %) | 0 | 0 | 0 | 0 |
+| Fingerspanne Median (Bereich) | **1,71 rad** (1,58–1,85) | 1,64 (1,52–1,80) | 1,61 (1,48–1,74) | 0,64 (0,43–1,43) | 0,52 (0,42–0,55) |
+| kleinster Abstand Kuppe↔Würfel, Median (bester) | **2,1 cm** (1,1) | 2,7 (0,9) | 2,3 (1,5) | 3,4 (2,7) | 4,9 (2,6) |
+| größte Anhebung (ohne Artefakte) | 2,3 cm (Unterseite mit Hand höchstens 1,8) | 3,2 cm | 4,8 cm | 1,6 cm | 1,1 cm |
+| Artefakte (Würfel weggeschleudert) | 0 | 0 | 0 | 1 | 1 |
+
+- **Videobefund:** keine Griffe. Die Hände fahren in jeder Episode an die Würfel und schieben
+  sie, in 19 von 20 Episoden wird mindestens ein Würfel ≥ 4 cm verschoben. **Ep. 18** (Layout 257,
+  einziges `lifted`, 2,3 cm Schwerpunkt-Anhebung): Beide Hände schieben die Würfel zusammen, der
+  grüne wird an den roten gedrückt. **Ep. 17** (Layout 256, Unterseite mit Hand 1,8 cm): Die
+  linke Hand drückt den gelben Würfel zeitweise halb auf den grünen, hält ihn aber nicht.
+- Gegen N1.7 ohne Co-Training (Lauf 81) wie Lauf 89 ein großer Sprung (`touched` 7 → 20, Spanne
+  0,52 → 1,71 rad, Medianabstand 4,9 → 2,1 cm, der kleinste aller bisherigen Läufe).
+
+**Lesart:** Das bessere Gate von D gegenüber A (Lauf 92: 4 cm −25 %) zeigt sich im Closed Loop
+nur als etwas kleinerer Abstand, nicht als Griff. Beide co-trainierten N1.7-Modelle bleiben bei
+`lifted_clear` 0/20; die co-trainierten N1.6-Modelle (1–2 Griffe) sind bei n = 20 davon
+statistisch nicht zu trennen. JSON: `sim_results/results_20261029-124337_cotrain-v3-cube4-n17-ckpt44000.json`,
+Log `logs/cl_cotrain_v3_cube4_n17_edge4_scene70_dy3_20261029.log`, Videos
+`sim_videos/cl_cotrain_v3_cube4_n17_edge4_scene70_dy3/`.
+
+### Läufe 94/95: Closed Loop der Gate-besten N1.6-Zwischenstände (Ausnahme)
+
+Ausnahme von der Regel „höchstens ein Closed Loop pro Trainingslauf“, nach Rückfrage am
+29.10.: Die Läufe nutzen GPU 0, die neben Lauf 93 frei war. Grund: In Lauf 92 lagen C′ und B′ im
+Gate knapp vor C und B. Protokoll wie Lauf 82, über `cl_watchdog.sh`, Umgebung am laufenden
+Prozess geprüft (`/proc/<pid>/environ`: Szene aus Lauf 70, `DR_ENABLED=0`, `DR_SEED=0`,
+`EXECUTION_HORIZON=8`, `layout_heldout_dy3.json`). Der fremde vLLM-Server lief weiter.
+
+- **Lauf 94: C′** (`luca-mue/groot-g1dex3-cotrain-v3-cube4-ckpt35000`, `global_step=35000`, Lauf 74),
+  **2026-10-29, 11:27–13:48**, `groot-rl-eval`, `GROOT_VERSION=1.6`, GPU 0, **`SIM_CUBE_EDGE=0.04`**.
+- **Lauf 95: B′** (`luca-mue/groot-g1dex3-cotrain-v3-cube5-ckpt40000`, `global_step=40000`, Lauf 73),
+  **13:45–16:02**, nach Lauf 93 automatisch gestartet (`~/groot-rl-data/cl_after_d.sh`) in
+  `groot-rl-eval17` mit `GROOT_VERSION=1.6`, GPU 1, 5-cm-Würfel (kein `SIM_CUBE_EDGE`).
+
+Beide 20/20 Episoden, `rc=0`, ohne Hänger.
+
+| Stufe (k/20, KI95) | **C′ @35000, 4 cm (94)** | C @44000, 4 cm (88) | **B′ @40000 (95)** | B @44000 (84) | N1.6 @44000 (82) |
+|---|---|---|---|---|---|
+| Gate 5 / 4 cm (Echtbild) | 0,0107 / 0,0097 (0,0023) | 0,0115 / 0,0104 (0,0021) | 0,0114 / 0,0100 (0,0023) | 0,0118 / 0,0104 (0,0022) | 0,0239 / 0,0221 (0,0014) |
+| `reached` | 19 (75–100 %) | 19 | **20** (83–100 %) | 19 | 16 |
+| `touched` | 19 (75–100 %) | 20 | **20** (83–100 %) | 20 | 17 |
+| `lifted` (ohne Artefakte) | 2 (1,2–32 %), **kein Griff** | 4, davon 2 Griffe | 3 (3–38 %), **kein Griff** | 3, davon 1 Griff | 0 |
+| `lifted_clear` (Metrik) | 1 (0,1–25 %), im Video kein freier Griff | **2** | **0** (0–17 %) | 1 | 0 (0–17 %) |
+| `stacked` | 0 (0–17 %) | 0 | 0 (0–17 %) | 0 | 0 |
+| Fingerspanne Median (Bereich) | 1,62 rad (1,47–1,72) | 1,61 (1,48–1,74) | 1,56 rad (1,10–1,66) | 1,54 (1,43–1,65) | 0,64 (0,43–1,43) |
+| kleinster Abstand Kuppe↔Würfel, Median (bester) | 2,8 cm (1,1) | 2,3 (1,5) | 2,7 cm (0,9) | 2,7 (0,9) | 3,4 (2,7) |
+| größte Anhebung (ohne Artefakte) | 3,7 cm (Unterseite 3,3, auf dem grünen gestützt) | 4,8 cm | 2,8 cm (Unterseite 1,9) | 3,2 cm | 1,6 cm |
+| Artefakte (Würfel weggeschleudert) | 0 | 0 | 0 | 2 | 1 |
+
+- **Videobefund C′:** **Ep. 2** (Layout 241, das einzige `lifted_clear`) ist kein freier Griff.
+  Die linke Hand schiebt den roten Würfel an den grünen und kippt ihn darauf. Die Finger
+  umfassen ihn danach, er stützt sich aber auf dem grünen ab; daher kommen die 3,3 cm
+  Unterseite. Auf demselben Layout griffen C (Lauf 88) und cube4 mit 5-cm-Würfeln (Lauf 85)
+  wirklich. **Ep. 1** (Layout 240): Die rechte Hand nimmt den roten Würfel bei ~45–60 s kurz
+  zwischen die Finger (Unterseite 1,6 cm), kippt ihn und lässt ihn los. In 13 von 20 Episoden
+  wird mindestens ein Würfel ≥ 4 cm verschoben.
+- **Videobefund B′:** keine Griffe. Am knappsten ist **Ep. 16** (Layout 255, Unterseite 1,9 cm):
+  Die rechte Hand hält den roten Würfel in den ersten ~20 s knapp über dem Tisch und setzt ihn
+  ab, am Ende umfasst die linke den gelben. In allen 20 Episoden wird mindestens ein Würfel
+  ≥ 4 cm verschoben.
+
+**Lesart:** Der etwas bessere Gate-Wert der Zwischenstände (−3 bis −7 %) zeigt sich im Closed
+Loop nicht. C′ und B′ verhalten sich wie C und B (`touched` ~20/20, Spanne ~1,6 rad), greifen
+aber nicht frei; die Griffzahlen 0–2 von 20 sind bei n = 20 alle nicht voneinander zu trennen.
+Damit bleibt die Regel „@44000 messen“ gerechtfertigt, und ein Gate-Unterschied innerhalb der
+Seed-Streuung ist kein Grund für einen weiteren Closed Loop. Nebenbefund: Die
+`lifted_clear`-Metrik (Kuppe ≤ 4 cm am Würfel, Unterseite ≥ 2 cm) zählt auch einen Würfel, der
+in der Hand auf einem anderen Würfel liegt; Ergebnisse > 0 brauchen deshalb weiter den
+Videobefund. JSON: `sim_results/results_20261029-124732_cotrain-v3-cube4-ckpt35000.json` (94),
+`results_20261029-150142_cotrain-v3-cube5-ckpt40000.json` (95); Logs
+`logs/cl_cotrain_v3_cube4_35000_edge4_scene70_dy3_20261029.log`,
+`logs/cl_cotrain_v3_cube5_40000_scene70_dy3_20261029.log`; Videos
+`sim_videos/cl_cotrain_v3_cube4_35000_edge4_scene70_dy3/`, `sim_videos/cl_cotrain_v3_cube5_40000_scene70_dy3/`.
+
+### Lauf 96: Vorregistriertes primäres Gate nachgeholt (Fingerspanne 10 × 40 s) und `gap`-Kontrolle
+
+Die Regel aus [co-training.md §5](../training/co-training.md#5-vorregistrierte-regel--was-den-lauf-zum-erfolg-oder-zum-ende-macht)
+nennt als **primäres Gate** die Sim-Fingerspanne im Protokoll von Lauf 34 (10 Episoden × 40 s,
+Referenz Median 0,577 rad = 27,6 %) und als Kontrolle den Domain-Gap (`server_rl_run.sh gap`,
+Referenz Mittel 0,22). Beides fehlte nach den Läufen 83–95 noch.
+
+**Protokoll, 2026-10-29, 17:25–18:13**, `groot-rl-eval17`, `GROOT_VERSION=1.6`, GPU 1, über
+`tools/sim_cl_watchdog.sh` mit `NUM_EPISODES=10 EPISODE_LENGTH_S=40`; Umgebung am laufenden
+Prozess geprüft. Lauf 34 lief noch mit der alten Geometrie (vor 2026-08-24), DR an und
+vision-v2 @30000; das lässt sich nicht mehr wiederholen. Gemessen wurde deshalb in der heutigen
+Szene (Lauf 70, `layout_heldout_dy3.json`, Test-Ep. 240–249, DR aus, Seed 0, Exec-Horizon 8,
+5-cm-Würfel wie in Lauf 34). Neben dem Kandidaten C lief **vision-v2 @44000** unter identischen
+Bedingungen. Es ist dasselbe Rezept (Lauf 3) ohne gerenderte Daten und damit die saubere
+Vergleichsgröße. Der fremde vLLM-Server lief weiter, parallel lief Lauf 97 auf GPU 0.
+
+| 10 × 40 s | **C: co-train v3 cube4 @44000** | vision-v2 @44000 (ohne Co-Training) | Lauf 34 (Referenz, alte Geometrie) |
+|---|---|---|---|
+| Fingerspanne Median (Bereich) | **1,53 rad = 73 %** (1,41–1,62) | 0,52 rad = 25 % (0,39–1,28) | 0,577 rad = 27,6 % (0,50–1,67) |
+| Episoden ≥ 60 % der Demo | **10/10** | 1/10 | 3/10 |
+| `grasp_attempted` | 10/10 | 2/10 | 4/10 |
+| `reached` / `touched` | 10 / 10 | 8 / 6 | 9 / 10 |
+| `lifted` / `stacked` | 0 / 0 | 0 / 0 | 0 / 0 |
+| kleinster Abstand Kuppe↔Würfel, Median (bester) | 3,2 cm (2,5) | 3,2 cm (2,4) | 2,3–4,1 cm |
+| größte Anhebung | 1,7 cm | 1,6 cm | 1,68 cm |
+
+- **Primäres Gate: bestanden, deutlich** (gegen die Regel und das direkte Vergleichsrezept). C liegt mit jeder Episode über jeder Episode von
+  vision-v2 @44000 (U = 100 von 100, exakter einseitiger Rangtest p = 5 · 10⁻⁶) und über der
+  vorregistrierten Referenz (U = 89 von 100, p = 0,001 gegen Lauf 34). Nach der Regel heißt
+  „deutlich darüber“: **der Weg trägt, aufstocken.**
+- **Die Geometriekorrektur erklärt den Sprung nicht.** vision-v2 @44000 liegt in der heutigen
+  Szene mit 0,52 rad auf dem Niveau von Lauf 34 (p = 0,96 für „höher als Lauf 34“). Der
+  Unterschied kommt vom Co-Training.
+- **Gegenprobe mit den alten N1.6-Modellen** (gleiches Protokoll, **2026-10-29, 20:59–21:47**,
+  `groot-rl-eval`, GPU 0, nach Rückfrage; die beiden öffnen im 120-s-Fenster ebenfalls weit,
+  Läufe 90/91):
+
+  | 10 × 40 s | Spanne Median (Bereich) | ≥ 60 % Demo | `touched` | gegen C (U von 100, p) |
+  |---|---|---|---|---|
+  | C: co-train v3 cube4 @44000 | **1,53 rad** (1,41–1,62) | 10/10 | 10/10 | — |
+  | Lauf 1 @110000 (ohne Vision-Tuning) | 1,21 rad (0,69–1,69) | 3/10 | 7/10 (1 Artefakt) | 70, p = 0,07 |
+  | vision-v1 @35000 | 1,19 rad (0,91–1,35) | 3/10 | 5/10 | 100, p = 5 · 10⁻⁶ |
+  | vision-v2 @44000 | 0,52 rad (0,39–1,28) | 1/10 | 6/10 | 100, p = 5 · 10⁻⁶ |
+
+  Belegt ist der Spannen-Effekt damit gegen das gleiche Rezept ohne Renderdaten und gegen
+  vision-v1. Gegen das alte Lauf-1-Modell ist er nur eine Tendenz: C öffnet gleichmäßiger
+  (1,41–1,62), Lauf 1 streut stark und erreicht in drei Episoden mehr als C. Die sehr kleine
+  Spanne gehört vor allem zu vision-v2 @44000, das sich mit langem Vision-Tuning auf die
+  Realdomäne spezialisiert hat (vgl. Lauf 80). Artefakt in Lauf 1, Ep. 3 (Lage 242): 95 cm
+  Versatz bei 9,6 cm Schwerpunkt-Anhebung ohne Hand; im Video fliegt der gelbe Würfel
+  bei ~25 s hoch und vom Tisch. Zählt nicht.
+- `lifted` bleibt im 40-s-Fenster 0/10. Die Griffe aus Lauf 88 kamen erst nach 24 s bzw. 72 s
+  zustande.
+
+**`gap`-Kontrolle** (2026-10-29, `groot-rl-eval`, SigLIP auf der GPU, keine Sim):
+
+| Sim-Bilder | `cam_left_high` | `cam_right_high` | `cam_left_wrist` | `cam_right_wrist` | Mittel |
+|---|---|---|---|---|---|
+| Kamera-Dump 2026-08-22 (alte Szene, `/data/cam_dump`) | 0,124 | 0,119 | 0,365 | 0,335 | 0,236 |
+| Szene aus Lauf 70 (erstes Beobachtungsbild aus Lauf 88) | 0,225 | 0,209 | 0,352 | 0,272 | 0,265 |
+| Grundlinie real gegen real (andere Kamera) | | | | | 0,273 |
+
+- **Als Kontrolle für das Co-Training ungeeignet.** `measure_domain_gap.py` bettet mit einem
+  generischen, vortrainierten SigLIP ein, nicht mit dem Vision-Encoder des Checkpoints (Hinweis
+  im Skript seit dem Review vom 13.10.). Die Zahl ist für alle Modelle gleich, sie misst nur die
+  Szene. Mit der Szene aus Lauf 70 steigt sie sogar (0,236 → 0,265, vor allem die Kopfkameras),
+  obwohl der Hand-Fehler der Policy auf denselben Bildern stark sank (Lauf 70: N1.6 0,036 →
+  0,022). Ein Teil davon ist Bildinhalt: Der Dump zeigt die Reset-Pose, das Beobachtungsbild die
+  Testlage. Die Kontrolle, die die vorregistrierte Regel meint („hat sich die
+  Encoder-Repräsentation angenähert?“), leistet das visuelle Gate (Läufe 80, 83, 86, 92): MSE
+  Hände auf Sim-Bildern −51 bis −53 % bei N1.6.
+
+JSON: `sim_results/results_20261029-164758_cotrain-v3-cube4-ckpt44000.json` (C),
+`results_20261029-171213_groot-g1dex3-vision-v2-44000.json` (vision-v2),
+`results_20261029-202229_hf-groot-g1dex3-checkpoint-vision.json` (vision-v1),
+`results_20261029-204615_hf-groot-g1dex3-checkpoint.json` (Lauf 1); Logs
+`logs/span40_{cotrain_v3_cube4_44000,vision_v2_44000,n16_vision_v1_35000,n16_v1_110000}_scene70_dy3_20261029.log`, `logs/gap_20261029.log`,
+`logs/gap_scene70_20261029.log`; Videos `sim_videos/span40_*_scene70_dy3/`; Gap-Bilder und
+`domain_gap_results.json` unter `~/groot-rl-data/gap_20261029/{camdump_20260822,scene70}/`.
+
+### Lauf 97: Closed Loop des besten Kandidaten auf allen 60 Testlagen
+
+Kandidat C (`luca-mue/groot-g1dex3-cotrain-v3-cube4-ckpt44000`, N1.6, Lauf 74) hatte in Lauf 88
+die einzigen zwei echten Griffe, bei 2/20 mit einem KI bis 32 %. Damit die Griffrate belastbar
+wird, sind jetzt alle 60 Testlagen aus `layout_heldout_dy3.json` gefahren (Test-Ep. 240–300 ohne
+270, bei 270 fehlt ein Würfel im Layout). Die Lagen 240–259 stammen aus Lauf 88, die 40
+übrigen kamen am **2026-10-29** dazu, mit identischem Protokoll (Lauf 82: Szene aus Lauf 70,
+20 × 120 s je Lage, DR aus, Seed 0, Exec-Horizon 8, `SIM_CUBE_EDGE=0.04`) über
+`tools/sim_cl_watchdog.sh`. Dafür gibt es Teil-Layouts mit unverändertem Kopf
+(`/data/eval/layout_heldout_dy3_{260-272,273-284,285-300}.json`, die Eval nimmt die Lagen in
+sortierter Reihenfolge). Umgebung jeweils am laufenden Prozess geprüft.
+
+| Teil | Lagen | Zeit (29.10.) | Container / GPU | Episoden | `lifted_clear` |
+|---|---|---|---|---|---|
+| Lauf 88 (25.10.) | 240–259 | — | `groot-rl-eval` / 0 | 20 | 2 |
+| 97a | 260–272 | 19:03–20:26 | `groot-rl-eval` / 0 | 12 | 0 |
+| 97b | 273–284 | 20:02–21:24 | `groot-rl-eval17` (`GROOT_VERSION=1.6`) / 1 | 12 | 0 |
+| 97c | 285–300 | 18:13–20:02 | `groot-rl-eval17` (`GROOT_VERSION=1.6`) / 1 | 16 | 0 |
+
+> **Hänger:** Der erste Versuch über die Lagen 260–284 (24 Episoden, ab 17:25 auf GPU 0) blieb
+> um 18:46 in Episode 13 (Lage 273, Step 250) stehen, ohne Fehlermeldung, wie am 25.10. Der
+> Wächter schlug nach 15 min an. Statt 24 Episoden neu zu fahren, wurden die Lagen in 97a/97b
+> geteilt. Die 12 fertigen Episoden des Abbruchs gingen nicht in die Wertung ein (kein JSON);
+> laut Log hatten auch sie keinen Griff (beste Unterseite mit Hand 1,9 cm). Lage 273 lief in 97b
+> ohne Hänger durch, der Hänger hängt also nicht an der Lage. Log
+> `logs/cl_cotrain_v3_cube4_edge4_scene70_dy3_260-284_20261029.log`.
+
+| Stufe (k/n, KI95) | **C, alle 60 Testlagen** | C, Lagen 240–259 (88) | N1.6 @44000, ohne Co-Training (82) |
+|---|---|---|---|
+| `reached` | 58/60 (88–100 %) | 19/20 | 16/20 |
+| `touched` | **60/60** (94–100 %) | 20/20 | 17/20 |
+| `lifted` (ohne Artefakte) | 6/60 (4–21 %), davon 2 Griffe | 4/20 | 0/20 |
+| `lifted_clear` | **2/60 = 3 %** (0,4–11,5 %) | 2/20 (1,2–32 %) | 0/20 (0–17 %) |
+| `stacked` | **0/60** (0–6 %) | 0/20 | 0/20 |
+| Fingerspanne Median (Bereich) | 1,61 rad (1,47–1,88) | 1,61 (1,48–1,74) | 0,64 (0,43–1,43) |
+| kleinster Abstand Kuppe↔Würfel, Median (bester) | 2,5 cm (0,8) | 2,3 (1,5) | 3,4 (2,7) |
+| Episoden mit Würfel ≥ 4 cm verschoben | 46/60 | 13/20 | — |
+| Artefakte (Würfel weggeschleudert) | 0 | 0 | 1 |
+
+- **Die Griffrate liegt bei ~3 %, nicht bei 10 %.** Auf den 40 neuen Lagen gibt es keinen
+  einzigen Griff (0/40, KI 0–9 %). Beide Griffe kamen auf den Lagen 241 und 244 zustande. Auf
+  Lage 241 gab es auch die Griffe bzw. Beinahe-Griffe von Lauf 85 und Lauf 94; es gibt
+  offenbar Lagen, die der Policy leichter fallen.
+- **Gegen das gleiche Rezept ohne Renderdaten** (Lauf 82, 0/20) ist der Unterschied statistisch
+  nicht zu trennen (exakter Fisher-Test, einseitig, p ≈ 0,56). Belastbar sind die Verhaltens-
+  änderungen: `touched` 60/60 gegen 17/20, Spanne 1,61 gegen 0,64 rad, im 40-s-Fenster auch
+  im Rangtest (Lauf 96).
+- **Videobefund der neuen Lagen:** Die beiden knappsten Fälle sind kurze Griffansätze. In 97b
+  **Ep. 5** (Lage 277, Unterseite mit Hand 1,2 cm) hebt die rechte Hand den roten Würfel in den
+  ersten ~15 s kurz an und setzt ihn neben den grünen; danach greift die linke wiederholt nach
+  dem gelben, ohne ihn zu heben. In **Ep. 11** (Lage 283, 1,8 cm) fasst die rechte Hand den
+  grünen Würfel bei ~20–30 s, hebt ihn leicht an und lässt ihn los; danach schieben beide Hände
+  die Würfel in eine Reihe. Typisch für alle Teile: Die Hand öffnet weit, fährt an
+  den Würfel, schließt, verliert ihn und schiebt.
+
+**Lesart:** Das Co-Training ändert das Closed-Loop-Verhalten von N1.6 eindeutig (Hand öffnet,
+erreicht und berührt). Griffe bleiben aber selten (3 %, obere Schranke 11,5 %), und gestapelt
+wird nie. Für RL nach dem [RL-Plan](../weiterfuehrend/reinforcement-learning-plan.md) gibt es
+damit erstmals ein, wenn auch schwaches, Startsignal. JSON:
+`sim_results/results_20261025-162853_cotrain-v3-cube4-ckpt44000.json` (240–259),
+`results_20261029-192509_…` (97a), `results_20261029-202344_…` (97b),
+`results_20261029-190111_…` (97c, alle `…_cotrain-v3-cube4-ckpt44000.json`); gepoolt mit
+`python3 tools/sim_cl_summary.py <die vier JSONs>`. Logs
+`logs/cl_cotrain_v3_cube4_edge4_scene70_dy3_{260-272,273-284,285-300}_20261029.log`, Videos
+`sim_videos/cl_cotrain_v3_cube4_edge4_scene70_dy3_{260-272,273-284,285-300}/`.

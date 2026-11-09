@@ -57,6 +57,8 @@ stillen Eager-Fallback.
 
 ## Einmaliges Setup auf dem IKR-Server
 
+Beispielwerte (Benutzer, Pfad `RL_HOST_DATA_DIR` und Host an die eigene Umgebung anpassen; der Launcher-Default ist `~/groot-rl-data`):
+
 ```bash
 ssh mspaeth@ikr-ki-server-01
 cd ~/projektarbeit_humanoider_roboter
@@ -225,9 +227,6 @@ einen 3B-VLM hätte man den Backbone vorn vermutet — und es dreht die Rangfolg
 > der Wert nach dem Laden am `action_head` gesetzt werden — so, wie es
 > [`policy_latency.py`](../../Simulation/scripts/policy_latency.py) tut.
 
-Die Differenz zwischen dieser Zahl und dem `Inferenz … ms/Aufruf` aus der Eval ist der
-**Transport-Overhead** des ZMQ-Wegs (4 unkomprimierte Bilder ≈ 3,7 MB je Aufruf).
-
 > Die Balance des Roboters hängt **nicht** an dieser Schleife: der Whole-Body-Controller läuft
 > entkoppelt mit eigener, deutlich höherer Rate und folgt nur Geschwindigkeitsbefehlen der VLA
 > ([lokomotion-recherche.md §3.1](../weiterfuehrend/lokomotion-recherche.md)). Eine zu langsame
@@ -240,4 +239,5 @@ Die Differenz zwischen dieser Zahl und dem `Inferenz … ms/Aufruf` aus der Eval
 - Der WebRTC-Viewport erhält im synchronen Modus nur an Replanning-Grenzen ein neues Bild.
   Die simulierte Bewegung kann dadurch schneller, der Stream aber weniger flüssig werden.
 - Die tatsächliche Beschleunigung auf der RTX PRO 6000 Blackwell ist erst durch den auf dem
-  Server erzeugten `benchmark_report.json` belegt.
+  Server erzeugten `benchmark_report.json` belegt; ein solcher Bericht ist im Repo nicht dokumentiert
+  (nur auf dem IKR-Server prüfbar).

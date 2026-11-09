@@ -1,0 +1,140 @@
+% chapters/04_anleitung.tex
+
+\chapter{Anleitung zum Weiterarbeiten}
+\label{chap:anleitung}
+
+Erwartete Ausgaben je Schritt: \doc{docs/quickstart.md}. Alle Wege lassen sich auch über
+\texttt{./run.sh} starten.
+
+\section{Benötigte Dienste und Rechenressourcen}
+\label{sec:zugaenge}
+\label{sec:dienste}
+
+Das Projekt stützt sich auf mehrere externe Dienste. Die Konten der Projektgruppe sind auf
+diese zugeschnitten und werden nicht übergeben; wer weiterarbeitet, richtet eigene ein. Ohne
+eigenes Konto nutzbar sind die öffentlichen Images, Checkpoints und Render-Datensätze des
+Projekts. \Cref{tab:dienste} zeigt, welche Dienste gebraucht werden und was dafür einzurichten
+ist.
+
+\begin{table}[htb]
+  \centering
+  \small
+  \begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{2.6cm}>{\raggedright\arraybackslash}p{3.9cm}>{\raggedright\arraybackslash}X}
+    \toprule
+    Dienst & Wofür & Was einzurichten ist \\
+    \midrule
+    Hugging Face (Pflicht) & Datensatz und Basismodelle laden, Checkpoints ablegen & Konto und
+      Token (\texttt{HF\_TOKEN}); Lizenz von \texttt{nvidia/GR00T-N1.6-3B} akzeptieren, für
+      N1.7 zusätzlich Zugang zu \texttt{nvidia/Cosmos-Reason2-2B} beantragen \\
+    \addlinespace
+    \acl{wandb} (optional) & Trainingsverlauf protokollieren & Konto und Schlüssel; ohne
+      Schlüssel läuft das Training ohne Protokoll (\texttt{USE\_WANDB=0}). Auf Clustern ohne
+      Internet wird offline protokolliert und später synchronisiert \\
+    \addlinespace
+    Docker Hub & fertige Images für Training und Simulation & zum Benutzen nichts; für
+      eigene Images ein Konto, das über \texttt{DOCKER\_NAMESPACE} gesetzt wird \\
+    \addlinespace
+    GitHub & Projekt-Repository und GR00T-Fork & für Änderungen am Modellcode ein eigener
+      Fork; der Pin in den Dockerfiles zeigt dann darauf \\
+    \addlinespace
+    \acs{hpc}-Cluster, z.\,B.\ KISSKI & Training (\acs{gpu} mit 80~GB für sinnvolle
+      Batchgrößen) & eigenes Projekt beantragen; der KISSKI-Zugang der Projektgruppe endet im
+      Dezember 2026. Alternativ Mietkarten \\
+    \addlinespace
+    Rechner mit \acs{rt}-Cores & Simulation & \acs{ikr}-Server über das Institut oder
+      Mietkarte (z.\,B.\ L40, RTX~4090) bei Anbietern wie vast.ai \\
+    \bottomrule
+  \end{tabularx}
+  \caption{Benötigte Dienste und Rechenressourcen.}
+  \label{tab:dienste}
+\end{table}
+
+Die Projektkonten sind in den Skripten als Standard hinterlegt: Docker Hub \texttt{lucam03}
+(Images), GitHub \texttt{lucam06} (GR00T-Fork) und Hugging Face \texttt{luca-mue}
+(Checkpoints). Zum Lesen genügen sie, zum Schreiben müssen sie durch eigene ersetzt werden.
+
+\clearpage
+
+\section{Training}
+\label{sec:anl-training}
+
+Ein Training startet lokal über ein Skript, das das passende Image zieht und den Container
+anlegt, oder auf einem Cluster als \acs{slurm}-Job (Batch-Skript im Auszug: \cref{anh:slurm}).
+Für N1.7 wird jeweils \texttt{GROOT\_VERSION=1.7} gesetzt; auf KISSKI wird dann automatisch eine
+zweite Image-Datei aus \texttt{:latest-n17} verwendet, die vorher ebenso geholt werden muss.
+
+\begin{minted}{bash}
+# lokal (Standard 30 000 Schritte); nach einem Stopp mit --resume fortsetzen
+export HF_TOKEN=hf_... WANDB_API_KEY=...
+./Training/setup_and_train_dockerhub_pull.sh
+
+# KISSKI: Image einmalig holen, dann Job abschicken (4x A100, 44 000 Schritte)
+apptainer pull $HOME/images/projekt-humanoider-roboter.sif \
+    docker://lucam03/projekt-humanoider-roboter:latest
+GLOBAL_BATCH_SIZE=32 sbatch --export=ALL Training/kisski_submit.sh
+\end{minted}
+
+Varianten werden über Umgebungsvariablen gewählt: \texttt{TUNE\_VISUAL=1} trainiert den
+Bild-Encoder mit, \texttt{USE\_COTRAIN=1} mischt die Render-Datensätze bei, und
+\texttt{TRAIN\_TEST\_SPLIT=1} hält die Testepisoden zurück. \texttt{Training/kisski\_chain.sh}
+reiht mehrere Läufe hintereinander und wertet die Checkpoints danach nach dem Protokoll aus
+\cref{sec:erg-training} aus. Der fertige Checkpoint wird mit
+\texttt{Simulation/scripts/upload\_checkpoint.py} ohne Optimizer-Zustand auf Hugging Face
+hochgeladen.
+
+\section{Checkpoint messen}
+\label{sec:anl-messen}
+
+Gemessen wird auf dem Sim-Server in drei Schritten: Zuerst prüft \texttt{preflight}, ob Image
+und \acs{gpu} passen. Dann folgt das visuelle Gate über drei Seeds, das in wenigen Minuten
+zeigt, ob ein Modell mit Sim-Bildern zurechtkommt. Erst danach lohnt sich der Closed Loop über
+20 Testlagen à 120~s, den ein Watchdog bei Hängern neu startet.
+
+\begin{minted}{bash}
+./Simulation/server_rl_run.sh preflight
+# visuelles Gate, Seeds 0/1/2 (Container, GROOT_VERSION, GPU, HF-Repo ohne Konto)
+tools/sim_visgate_seeds.sh groot-rl 1.6 0 groot-g1dex3-cotrain-v3-cube4-ckpt44000
+python3 tools/sim_visgate_seeds_summary.py ~/groot-rl-data/sim_results \
+    cotrain-v3-cube4-ckpt44000
+# Closed Loop nach Protokoll (20 Testlagen x 120 s, Szene aus Lauf 70)
+SIM_CUBE_EDGE=0.04 tools/sim_cl_watchdog.sh cl_meinlauf groot-rl 0 1.6 \
+    luca-mue/groot-g1dex3-cotrain-v3-cube4-ckpt44000 \
+    /data/checkpoints/cotrain-v3-cube4-ckpt44000
+python3 tools/sim_cl_summary.py ~/groot-rl-data/sim_results/results_<...>.json
+\end{minted}
+
+\texttt{SIM\_CUBE\_EDGE=0.04} gilt nur für Modelle, die mit 4-cm-Würfeln co-trainiert wurden.
+Ein Treffer bei \texttt{lifted\_clear} zählt erst, wenn das Video unter
+\texttt{\textasciitilde/groot-rl-data/sim\_videos/<tag>/} einen Griff zeigt
+(\cref{sec:grenzen-metriken}). Die Prüfbilder des Gates liegen nur auf dem \acs{ikr}-Server; auf
+einem neuen Server müssen sie mit \texttt{server\_rl\_run.sh render} neu erzeugt werden,
+das dy3-Layout mit \doc{tools/layout_shift.py --dy 0.03} (Befehle in \doc{docs/quickstart.md}).
+
+\Needspace{14\baselineskip}
+\section{Häufige Fehler}
+\label{sec:anl-fehler}
+
+\Cref{tab:anl-fehler} sammelt die Fehler, die im Projekt am häufigsten auftraten, mit ihrer
+Ursache und Abhilfe.
+
+\begin{table}[H]
+  \centering
+  \begin{tabularx}{\linewidth}{XX}
+    \toprule
+    Symptom & Ursache und Abhilfe \\
+    \midrule
+    KISSKI-Job läuft ohne Token & \texttt{--export=ALL} fehlt; der Login-Knoten setzt
+      \texttt{SBATCH\_EXPORT=none} \\
+    KISSKI-Job bricht mit \enquote{invalid device ordinal} ab & vier GPUs auf zwei Knoten
+      verteilt; \texttt{\#SBATCH -N 1} setzen (Lauf~75) \\
+    Checkpoint lädt nicht, Warnung zu \texttt{model\_type} & falsche \texttt{GROOT\_VERSION};
+      N1.6 und N1.7 sind nicht gegenseitig ladbar \\
+    Training bricht mit Speicherfehler ab & \texttt{GLOBAL\_BATCH\_SIZE} halbieren; bei
+      Arbeitsspeicher-Abbruch weniger Datenlade-Prozesse je GPU \\
+    Closed Loop hängt ohne Fehlermeldung & bekannter Hänger (Läufe 89, 90, 97);
+      \texttt{sim\_cl\_watchdog.sh} startet nach 15~min neu \\
+    \bottomrule
+  \end{tabularx}
+  \caption{Fünf typische Fehler. Weitere: \doc{docs/fehlerbehebung.md}.}
+  \label{tab:anl-fehler}
+\end{table}

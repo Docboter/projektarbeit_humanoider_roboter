@@ -15,7 +15,7 @@ note "Der Checkpoint steht hier vorn, weil eine Erfolgsrate ohne ihn nicht vergl
 
 param CHECKPOINT_PATH path "/data/checkpoints/groot-g1dex3-checkpoint" basic \
   "Checkpoint im Container" \
-  "Was tatsaechlich gemessen wird. Lauf 3 zeigte eine U-Kurve ueber die Checkpoints — der beste lag bei 30000, der letzte war 25 % schlechter; ein Vergleich zweier Checkpoints laeuft genau ueber dieses Feld. Auf dem Host liegt der Pfad unter HOST_DATA_DIR/checkpoints/; die dort vorhandenen Checkpoints stehen als Vorschlag unter der Frage." \
+  "Was tatsaechlich gemessen wird. Die Neumessung von Lauf 3 (20 volle Test-Episoden, 2026-10-12) zeigt keine U-Kurve: die Validierungs-MSE faellt bis 44000, das ist der validierte Checkpoint. Ein Vergleich zweier Checkpoints laeuft genau ueber dieses Feld. Auf dem Host liegt der Pfad unter HOST_DATA_DIR/checkpoints/; die dort vorhandenen Checkpoints stehen als Vorschlag unter der Frage." \
   --suggest '_menu_suggest_checkpoint'
 
 # Erneut genannt, obwohl _common-sim.spec ihn schon liefert: sonst stuende das Repo in

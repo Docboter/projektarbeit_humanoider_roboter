@@ -36,12 +36,14 @@ param COTRAIN_MIX_RATIO float 0.25 basic \
 
 group "Validierung"
 param TRAIN_TEST_SPLIT bool 0 basic "80/20-Split aktivieren" \
-  "Ohne zurueckgehaltene Episoden kann checkpoint_sweep.py hinterher nichts messen."
+  "Ohne zurueckgehaltene Episoden kann checkpoint_sweep.py hinterher nichts messen. Bei USE_COTRAIN=1 ist der Default 1." \
+  --suggest '[[ "${USE_COTRAIN:-0}" == 1 ]] && echo "1|Co-Training braucht den Split: seine Abbruchregel misst auf zurueckgehaltenen ECHTEN Episoden (Default 1 bei USE_COTRAIN=1)"'
 
 group "Ablauf"
 param SKIP_DOWNLOAD bool 0 advanced "HF-Download ueberspringen"
 param SKIP_CONVERT  bool 0 advanced "Konvertierung ueberspringen"
-param SKIP_GIT_PULL bool 0 advanced "Repo-Aktualisierung ueberspringen"
+param SKIP_GIT_PULL bool 1 advanced "Repo-Aktualisierung ueberspringen" \
+  "Default 1 wie in kisski_submit.sh: Compute-Nodes haben kein Internet, der Klon wird auf dem Login-Node aktualisiert."
 param RESUME bool 0 advanced \
   "Vorhandenen Lauf fortsetzen" \
   "Der richtige Weg nach einem Walltime-Abbruch. Ohne RESUME=1 bricht der Lauf ab, wenn schon Checkpoints im Namensraum liegen."

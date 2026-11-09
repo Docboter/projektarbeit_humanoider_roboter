@@ -1,16 +1,17 @@
-# Anleitung — GR00T N1.6 Fine-tuning
+# Anleitung — GR00T N1.6 / N1.7 Fine-tuning
 
-> **TL;DR:** Schritt-für-Schritt-Anleitung zum Starten des GR00T-N1.6-Fine-tunings über die
+> **TL;DR:** Schritt-für-Schritt-Anleitung zum Starten des GR00T-Fine-tunings (N1.6 Standard,
+> N1.7 über `GROOT_VERSION=1.7` und Image `:latest-n17`) über die
 > vier Wege (vast.ai, lokal per Skript, lokal per `docker run`, KISSKI) inkl. Speicher-Modell,
 > Daten-retten und FAQ. Erste Anlaufstelle vor dem ersten Trainingsstart.
 
-Diese Anleitung beschreibt Schritt für Schritt, wie du das Fine-tuning von **GR00T N1.6** für den Unitree G1 mit DEX3-Hand startest. Die Umgebung ist als autonomer Docker-Container aufgebaut: **du gibst Env-Vars an, der Container macht den Rest.**
+Diese Anleitung beschreibt Schritt für Schritt, wie du das Fine-tuning von **GR00T N1.6** (Standard) bzw. **N1.7** (`-e GROOT_VERSION=1.7`, Image `:latest-n17`, siehe [Modellgeneration wählen](#modellgeneration-wählen--n16-oder-n17)) für den Unitree G1 mit DEX3-Hand startest. Die Umgebung ist als autonomer Docker-Container aufgebaut: **du gibst Env-Vars an, der Container macht den Rest.**
 
 ## Speicher-Modell — wichtig vorab
 
 **Es gibt keinen persistenten Storage auf dem Host.** Daten, Checkpoints und Logs leben **ausschließlich im Container-Filesystem** unter `/data`. Das hat Konsequenzen:
 
-- `docker stop` (oder `Ctrl+C`) → Container ist gestoppt, **Daten bleiben**. Mit `docker start -ai groot-train` wieder fortsetzen.
+- `docker stop` (oder `Ctrl+C`) → Container ist gestoppt, **Daten bleiben**. Mit `./Training/setup_and_train_dockerhub_pull.sh --resume` wieder fortsetzen.
 - `docker rm` (oder `--destroy` im Skript) → **alles weg**.
 - **Niemals `docker run --rm`** mit diesem Image — das löscht den Container nach Stop und damit deine Trainingsergebnisse.
 - Auf vast.ai entspricht ein Container genau einer Instanz: Stop/Start lässt den Container weiterleben, Destroy löscht alles.
@@ -41,8 +42,9 @@ der Download mit einer klaren Fehlermeldung samt Link ab.
 - Der Container nutzt intern den zweiten Codebaum `/app/Groot-1.7` (Python 3.12) statt
   `/app/Groot-1.6` (Python 3.10) — für die Bedienung ohne Unterschied.
 
-> **Ungetestet:** Es gibt bislang **keinen** abgeschlossenen N1.7-Trainingslauf — weder lokal
-> noch auf KISSKI. Details zum Umsetzungsstand:
+> **Stand:** Smoke-Tests lokal (IKR-Blackwell) und auf KISSKI bestanden, ein voller Lauf auf
+> KISSKI (44 000 Steps, 2026-10-13, [Lauf 4](../ergebnisse/lauf4-n17-vergleich.md)) ist gelaufen.
+> Der gepflegte Umsetzungsstand steht nur in
 > [groot-n17-migration.md § Stand der Umsetzung](../weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19).
 > Für KISSKI gilt zusätzlich: Modell **und** Backbone müssen vorab auf dem Login-Knoten im
 > HF-Cache liegen — siehe [kisski-hpc.md](kisski-hpc.md#schritt-2b--repos-einmalig-auf-dem-login-knoten-klonen).
@@ -70,8 +72,8 @@ Volle Variablenreferenz (inkl. `HF_HOME`, Build-Arg `GROOT_VERSIONS`):
 
 ## Vorab: Accounts & Tokens
 
-Du brauchst in jedem Fall einen HuggingFace-Account samt `HF_TOKEN` (Lizenz von
-`nvidia/GR00T-N1.6-3B` vorher akzeptieren); ein WandB-`WANDB_API_KEY` ist optional, aber
+Du brauchst in jedem Fall einen HuggingFace-Account samt `HF_TOKEN` (`nvidia/GR00T-N1.6-3B` ist nicht
+gated; für N1.7 Zugang zu `nvidia/Cosmos-Reason2-2B` beantragen); ein WandB-`WANDB_API_KEY` ist optional, aber
 empfohlen. Vollständige Tabelle inkl. Links: [Accounts und Tokens](../quickstart.md#accounts-und-tokens).
 
 ---
@@ -137,15 +139,13 @@ Instanz starten. Über **Logs / Console** im UI siehst du:
 
 ### A6. Checkpoints sichern — VOR dem Destroy!
 
-Per vast.ai SSH auf die Instanz und dann z. B. nach HuggingFace pushen:
+Per vast.ai SSH auf die Instanz, den Checkpoint aus dem Container holen und mit dem Host-Skript
+nach HuggingFace pushen (ohne `optimizer.pt`; `--include-optimizer` nimmt ihn mit):
 
 ```bash
-# In den Container hineingehen
-docker exec -it <container-name> bash
-
-# Innerhalb des Containers:
-cd /data/g1_dex3_finetune/blockstacking
-huggingface-cli upload <dein-namespace>/g1-dex3-blockstacking . --repo-type=model
+docker cp <container-name>:/data/g1_dex3_finetune/blockstacking/checkpoint-44000 ./checkpoint-44000
+python Simulation/scripts/upload_checkpoint.py --checkpoint ./checkpoint-44000 \
+    --repo <dein-namespace>/groot-g1dex3-<lauf>-ckpt44000     # HF_TOKEN aus der Umgebung
 ```
 
 Oder per `docker cp` auf den vast.ai-Host und von dort per `scp` lokal runterziehen.
@@ -180,7 +180,6 @@ Submodule sind **nicht** mehr nötig — das Image bringt den Groot-1.6-Code sel
 ```bash
 git clone https://github.com/Docboter/projektarbeit_humanoider_roboter.git
 cd projektarbeit_humanoider_roboter
-git checkout training-luca-IKR-IS6.0
 ```
 
 ### B3. Token setzen
@@ -234,9 +233,15 @@ export GLOBAL_BATCH_SIZE=16
 # Mit Ctrl+C unterbrechen (oder `docker stop groot-train`)
 # Später:
 ./Training/setup_and_train_dockerhub_pull.sh --resume
-# Alternativ direkt:
+# Alternativ von Hand (dasselbe, was --resume tut):
+touch /tmp/resume_request && docker cp /tmp/resume_request groot-train:/data/.resume_request
 docker start -ai groot-train
 ```
+
+Ein bloßes `docker start -ai groot-train` bricht ab, sobald Checkpoints existieren: Der
+Resume-Schutz (`lib_resume_guard.sh`) verlangt `RESUME=1`, und die Umgebung eines Containers
+ist ab `docker run` fest. `--resume` legt deshalb `/data/.resume_request` an, die der Schutz
+einmalig wie `RESUME=1` behandelt (seit 2026-10-30).
 
 Der Container behält Daten und Checkpoints. Beim Resume sieht der Entrypoint, dass alle Daten vorhanden sind, überspringt Download + Konvertierung und springt direkt ins Training.
 
@@ -254,6 +259,52 @@ docker rm -f groot-train
 ```
 
 > **Vorsicht:** Damit sind ALLE Daten weg — vorher `docker cp` ausführen, falls du etwas behalten willst.
+
+---
+
+## Weg C — Lokales Training mit `docker run`
+
+Wenn du das Launcher-Skript überspringen willst.
+
+```bash
+docker pull lucam03/projekt-humanoider-roboter:latest
+
+export HF_TOKEN=hf_DEIN_TOKEN WANDB_API_KEY=dein_wandb_key
+# Geheimnisse nur mit NAMEN übergeben: docker liest den Wert aus der eigenen Umgebung,
+# er steht dann nicht in `ps` / /proc/*/cmdline.
+docker run --name groot-train --gpus all --ipc=host --shm-size=16g \
+  -e HF_TOKEN -e WANDB_API_KEY \
+  -e MAX_STEPS=30000 \
+  -e GLOBAL_BATCH_SIZE=8 \
+  -it lucam03/projekt-humanoider-roboter:latest
+```
+
+> **Niemals `--rm` mitgeben** — warum, siehe [Speicher-Modell](#speicher-modell--wichtig-vorab).
+
+Fortsetzen (Anforderungsdatei für den Resume-Schutz, siehe oben):
+```bash
+touch /tmp/resume_request && docker cp /tmp/resume_request groot-train:/data/.resume_request
+docker start -ai groot-train
+```
+
+Im Hintergrund laufen lassen (statt `-it`):
+```bash
+docker run -d --name groot-train --gpus all --ipc=host --shm-size=16g \
+  -e HF_TOKEN -e WANDB_API_KEY \
+  lucam03/projekt-humanoider-roboter:latest
+
+docker logs -f groot-train       # Logs verfolgen
+```
+
+### Image selbst bauen statt zu pullen
+
+```bash
+git clone https://github.com/Docboter/projektarbeit_humanoider_roboter.git
+cd projektarbeit_humanoider_roboter
+docker build -t projektarbeit-humanoider-roboter Training/   # Build-Context = Training/
+```
+
+Build dauert ~30 Minuten (PyTorch + flash-attn). Dann ein `docker run` wie oben mit dem lokalen Image-Namen.
 
 ---
 
@@ -299,7 +350,7 @@ cd Training
 ```
 
 Jede Generation bekommt ihr eigenes Image: Das Skript taggt mit `:<repo-branch>-<gen>` (z. B.
-`:training-luca-IKR-IS6.0-GN1.7-n17`, `/`→`-`) und `:<timestamp>-<gen>`, `<gen>` = `n16` |
+`:main-n17`; Branch-Namen mit `/` werden zu `-`) und `:<timestamp>-<gen>`, `<gen>` = `n16` |
 `n17` | `n16-n17`, und pusht beide. **`:latest` wird nur mit `--push-latest` angefasst** —
 N1.6 → `:latest` (unverändert, das ziehen `setup_and_train_dockerhub_pull.sh` und die
 KISSKI-`apptainer pull`-Befehle standardmäßig), N1.7 → `:latest-n17`, `both` →
@@ -362,50 +413,6 @@ Checkpoint-Export, KISSKI-Troubleshooting): [HPC-Training auf KISSKI](kisski-hpc
 
 ---
 
-## Weg C — Lokales Training mit `docker run`
-
-Wenn du das Launcher-Skript überspringen willst.
-
-```bash
-docker pull lucam03/projekt-humanoider-roboter:latest
-
-docker run --name groot-train --gpus all --ipc=host --shm-size=16g \
-  -e HF_TOKEN=hf_DEIN_TOKEN \
-  -e WANDB_API_KEY=dein_wandb_key \
-  -e MAX_STEPS=30000 \
-  -e GLOBAL_BATCH_SIZE=8 \
-  -it lucam03/projekt-humanoider-roboter:latest
-```
-
-> **Niemals `--rm` mitgeben** — warum, siehe [Speicher-Modell](#speicher-modell--wichtig-vorab).
-
-Fortsetzen:
-```bash
-docker start -ai groot-train
-```
-
-Im Hintergrund laufen lassen (statt `-it`):
-```bash
-docker run -d --name groot-train --gpus all --ipc=host --shm-size=16g \
-  -e HF_TOKEN=... -e WANDB_API_KEY=... \
-  lucam03/projekt-humanoider-roboter:latest
-
-docker logs -f groot-train       # Logs verfolgen
-```
-
-### Image selbst bauen statt zu pullen
-
-```bash
-git clone https://github.com/Docboter/projektarbeit_humanoider_roboter.git
-cd projektarbeit_humanoider_roboter
-git checkout training-luca-IKR-IS6.0
-docker build -t projektarbeit-humanoider-roboter Training/   # Build-Context = Training/
-```
-
-Build dauert ~30 Minuten (PyTorch + flash-attn). Dann ein `docker run` wie oben mit dem lokalen Image-Namen.
-
----
-
 ## Daten retten
 
 Alles im Container muss **vor dem Destroy** exportiert werden. Drei Wege:
@@ -419,14 +426,17 @@ docker cp groot-train:/data/logs ./logs
 
 Geht bei laufendem oder gestopptem Container.
 
-### 2. Aus dem Container heraus hochladen (HuggingFace)
+### 2. Nach HuggingFace hochladen
+
+`upload_checkpoint.py` ist ein Host-Skript (nicht im Image); erst den Checkpoint wie in §1
+herauskopieren, dann:
 
 ```bash
-docker exec -it groot-train bash
-# Im Container:
-cd /data/g1_dex3_finetune/blockstacking
-huggingface-cli upload <dein-namespace>/g1-dex3-blockstacking . --repo-type=model
+python Simulation/scripts/upload_checkpoint.py --checkpoint ./checkpoints/blockstacking/checkpoint-44000 \
+    --repo <dein-namespace>/groot-g1dex3-<lauf>-ckpt44000     # HF_TOKEN aus der Umgebung
 ```
+
+Das Repo wird privat angelegt, ohne `optimizer.pt` (`--include-optimizer` nimmt ihn mit).
 
 ### 3. Auf vast.ai per SSH
 
@@ -465,9 +475,9 @@ Das Image enthält den GR00T-Code (`/app/Groot-1.6`), alle Python-Abhängigkeite
 
 1. **GPU-Check** — bricht ab, wenn keine GPU sichtbar ist
 2. **Token-Check** — bricht ab, wenn `HF_TOKEN` fehlt
-3. **Download** — falls `/data/models/GR00T-N1.6-3B` und `/data/unitreerobotics/G1_Dex3_BlockStacking_Dataset` leer sind: `huggingface-cli download` (~25 GB). Sonst übersprungen (idempotent).
+3. **Download** — läuft bei **jedem** Start (`download_data.sh`), ist aber billig, wenn alles da ist: je Teil (Modell, Datensatz, bei N1.7 das Backbone) entscheidet ein Marker unter `$DATA_DIR/.download_state/` — `<teil>.incomplete` während des Ladens, `<teil>.done` danach. Ein abgebrochener Download wird beim nächsten Start fortgesetzt, und das N1.7-Backbone wird auch dann nachgeladen, wenn Modell und Datensatz schon da sind. Beim ersten Start ~25 GB. **Neu laden erzwingen:** den Ordner des Teils löschen (z. B. `/data/models/GR00T-N1.6-3B`); nur den `.done`-Marker zu löschen genügt **nicht** — ein nicht leerer Ordner ohne `.incomplete` gilt als Altbestand und bekommt den Marker zurück. Wer weiterladen/prüfen lassen will, ohne zu löschen: `.done` durch `.incomplete` ersetzen. (Bis 2026-10-13 galt ein nicht leerer Ordner als vollständig.)
 4. **Konvertierung** — falls `modality.json` fehlt: `convert_v3_to_v2_standalone.py` + Kopieren der Modalitäts-Config. Sonst übersprungen.
-5. **W&B-Login** — falls `WANDB_API_KEY` gesetzt: `wandb login` mit dem Key.
+5. **W&B** — falls `WANDB_API_KEY` gesetzt, liest W&B den Key direkt aus der Umgebung (kein `wandb login <key>` mehr, seit 2026-10-13 — der Key stand damit in der Prozessliste).
 6. **Training** — Standard: `bash /scripts/run_finetuning.sh`; bei `USE_COTRAIN=1` `run_finetuning_cotrain.sh`, bei `TUNE_VISUAL=1` `run_finetuning_vision.sh` (Co-Training hat Vorrang). Alle rufen `gr00t/experiment/launch_finetune.py` (Co-Training: `launch_cotrain.py`) mit den Parametern aus den Env-Vars auf.
 
 Logs werden in `/data/logs/finetune-<timestamp>.log` geschrieben.
@@ -483,11 +493,11 @@ Im Container unter `/data/g1_dex3_finetune/blockstacking/`. Zum Holen siehe
 
 ### Wie unterbreche ich das Training?
 
-`Ctrl+C` (lokal) oder `docker stop groot-train`. Auf vast.ai: **Stop** der Instanz. Checkpoints werden alle 2000 Steps gespeichert (`SAVE_STEPS=2000`; im Vision-Lauf `TUNE_VISUAL=1` alle 1000), also geht maximal die letzte angefangene Periode verloren. **Wichtig:** der Container bleibt bestehen, Daten sind sicher.
+`Ctrl+C` (lokal) oder `docker stop groot-train`. Auf vast.ai: **Stop** der Instanz. Checkpoints werden alle 2000 Steps gespeichert (`SAVE_STEPS=2000`, in allen Varianten gleich; KISSKI: 5000), also geht maximal die letzte angefangene Periode verloren. **Wichtig:** der Container bleibt bestehen, Daten sind sicher.
 
 ### Wie setze ich das Training nach einem Abbruch fort?
 
-Mit dem Launcher: `./Training/setup_and_train_dockerhub_pull.sh --resume`. Manuell: `docker start -ai groot-train`. Der Entrypoint sieht, dass Daten vorhanden sind, und überspringt Download + Konvertierung.
+Mit dem Launcher: `./Training/setup_and_train_dockerhub_pull.sh --resume`. Manuell: `/data/.resume_request` per `docker cp` anlegen, dann `docker start -ai groot-train` (Abschnitt oben). Der Entrypoint sieht, dass Daten vorhanden sind, und überspringt Download + Konvertierung.
 
 > **Wichtig — was beim Resume passiert:** `docker start` bzw. `--resume` startet den
 > *Container* neu (Daten und Checkpoints bleiben erhalten), und **das Training setzt dabei

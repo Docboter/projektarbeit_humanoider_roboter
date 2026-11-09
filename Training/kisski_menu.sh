@@ -73,6 +73,39 @@ esac
 SB=( sbatch --export=ALL )
 [[ -n "${KISSKI_PARTITION:-}" ]] && SB+=( --partition="$KISSKI_PARTITION" )
 [[ -n "${KISSKI_TIME:-}" ]]      && SB+=( --time="$KISSKI_TIME" )
+
+# GPU-Anforderung passend zu Partition und NUM_GPUS (Review T2). Bis 2026-10-13 aenderte das
+# Menue nur --partition; kisski_submit.sh fordert aber fest `-G A100:4` an — auf kisski-h100
+# abgelehnt bzw. ewig in der Queue, und NUM_GPUS=1|2 belegte trotzdem vier Karten. Eine
+# sbatch-Option auf der Kommandozeile schlaegt die #SBATCH-Zeile im Skript; deshalb hier in
+# DERSELBEN Form wie im Skript (-G/--gpus bzw. --gres=gpu:…), sonst stuenden beide nebeneinander.
+# Typnamen wie in den Skripten und docs/training/kisski-hpc.md (A100, H100, RTX5000).
+gpu_type_for_partition() {
+  case "$1" in
+    kisski)      echo A100 ;;
+    kisski-h100) echo H100 ;;
+    jupyter)     echo RTX5000 ;;
+    *)           echo "" ;;      # unbekannt: Typ aus dem Skript lassen
+  esac
+}
+_gline="$(grep -m1 -E '^#SBATCH +(-G|--gpus|--gres)[ =]' "$REPO_DIR/$JOB" || true)"
+if [[ -n "$_gline" ]]; then
+  _gopt="$(sed -E 's/^#SBATCH +(-G|--gpus|--gres)[ =]+([^ ]+).*/\1/' <<<"$_gline")"
+  _gspec="$(sed -E 's/^#SBATCH +(-G|--gpus|--gres)[ =]+([^ ]+).*/\2/' <<<"$_gline")"
+  _gspec="${_gspec#gpu:}"                      # --gres=gpu:A100:1 -> A100:1
+  _gcount="${_gspec##*:}"                      # A100:4 -> 4, 1 -> 1
+  _gtype=""; [[ "$_gspec" == *:* ]] && _gtype="${_gspec%:*}"
+  _part="${KISSKI_PARTITION:-$(sed -nE 's/^#SBATCH +(-p|--partition)[ =]+([^ ]+).*/\2/p' "$REPO_DIR/$JOB" | head -1)}"
+  _ptype="$(gpu_type_for_partition "$_part")"
+  [[ -n "$_ptype" ]] && _gtype="$_ptype"
+  # NUM_GPUS gilt nur fuer das Training (kisski_submit.sh startet so viele Ranks); die
+  # Auswerte-Jobs brauchen ihre eine Karte. Leer = Default des Skripts (4).
+  [[ "$ACTION" == train && -n "${NUM_GPUS:-}" ]] && _gcount="$NUM_GPUS"
+  _gnew="${_gtype:+$_gtype:}$_gcount"
+  if [[ "$_gnew" != "$_gspec" ]]; then
+    if [[ "$_gopt" == --gres ]]; then SB+=( --gres="gpu:$_gnew" ); else SB+=( --gpus="$_gnew" ); fi
+  fi
+fi
 SB+=( "$REPO_DIR/$JOB" )
 
 # Die Env-Vars, die der Job wirklich liest — nur gesetzte weiterreichen.

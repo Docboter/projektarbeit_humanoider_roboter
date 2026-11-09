@@ -133,6 +133,8 @@ squeue -u $USER
 ---
 
 ## Env-Var-Referenz (alle Prefix `RC_`, kollisionsfrei)
+Defaults von `run_robocasa_ref_eval.sh`; der Helfer `server_robocasa_ref_run.sh` überschreibt zwei davon: `RC_N_EPISODES=100` und `RC_MODEL_PATH=nvidia/GR00T-N1.6-3B` (HF-ID).
+
 | Variable | Default | Bedeutung |
 |---|---|---|
 | `RC_PRESET` | `top` | `top` (bester Einzeltask, 78,7 %), `smoke` (1 Task/5 Ep.), `full` (alle 24), `custom` |
@@ -190,7 +192,7 @@ Verbleibend (v. a. KISSKI/Apptainer):
 1. **`git submodule update` im read-only Apptainer-Image** (KISSKI): kann fehlschlagen. Mitigation: Setup in schreibbarem Docker (Pfad A) oder `--writable-tmpfs`/Sandbox bzw. Submodul vorab klonen.
 2. **Compute-Node-Netzwerk auf KISSKI:** Setup braucht Internet; daher Setup auf dem Login-Node, Eval offline mit `RC_SKIP_SETUP=1`.
 3. **Venv-Pfad-Konsistenz:** Die `robocasa_uv`-Venv hat absolute Pfade — Setup und Eval müssen denselben Container-Mount-Pfad (`/app/Groot-1.6/gr00t/…`) verwenden.
-4. **`libGLU`** ist im Image ungeprüft; falls MuJoCo es verlangt → `MUJOCO_GL=osmesa` (CPU-Fallback, langsam).
+4. **`libGLU`:** im Docker-Lauf (Pfad A2) kein Problem; im KISSKI-Apptainer-Image ungeprüft. Falls MuJoCo es dort verlangt → `MUJOCO_GL=osmesa` (CPU-Fallback, langsam).
 5. **N1.6-vs-N1.5-Soll:** Die 47,6-%-/78,7-%-Werte stammen aus dem Submodul-README für N1.6 — als verbindliche Referenz nehmen.
 
-Diese Punkte sind erst am realen Lauf abschließend zu klären (lokal keine GPU/Docker verfügbar).
+Die verbleibenden Punkte betreffen nur Pfad B (KISSKI); er ist nicht durchgespielt.

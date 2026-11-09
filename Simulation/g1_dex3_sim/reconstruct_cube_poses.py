@@ -34,6 +34,7 @@ from replay_calibration import (  # noqa: E402
     validate_anchor_document,
 )
 from scene_geometry import CUBE_Z_CENTER  # noqa: E402
+from split_math import train_count  # noqa: E402
 
 
 HEAD_CAMS = ("cam_left_high", "cam_right_high")
@@ -56,7 +57,8 @@ def read_info(root: Path) -> dict[str, Any]:
 
 def select_episodes(info: dict[str, Any], args: argparse.Namespace) -> list[int]:
     total = int(info["total_episodes"])
-    train_stop = int(total * float(args.train_ratio))
+    # split_math = Formel aus Training/scripts/lib_split.sh (int(total*ratio)).
+    train_stop = train_count(total, args.train_ratio, validate=False)
     if args.episode_ids:
         episodes = sorted(set(int(ep) for ep in args.episode_ids))
     else:

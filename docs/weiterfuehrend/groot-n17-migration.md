@@ -3,14 +3,15 @@
 > **TL;DR:** Recherche und Migrationsplan für den Umstieg GR00T N1.6 → N1.7, plus den erreichten
 > Umsetzungsstand. N1.7 ist als **paralleler Pfad** gebaut — zweiter Code-Baum `app/Groot-1.7`,
 > Laufzeit-Auswahl per `GROOT_VERSION`, ein Image je Generation — und seit 2026-10-13 im
-> Hauptbranch. Smoke-Tests bestanden (IKR-Blackwell 2026-09-25, KISSKI 2026-10-12); der
+> Hauptbranch (heute `main`). Stand 2026-10-30. Smoke-Tests bestanden (IKR-Blackwell 2026-09-25, KISSKI 2026-10-12); der
 > Vergleichslauf (Lauf 4, 44k Steps) ist fertig: Open-Loop gleichauf mit N1.6, früheres Lernen,
 > 1,6× schneller ([lauf4-n17-vergleich.md](../ergebnisse/lauf4-n17-vergleich.md)); in der Sim
 > 0/10 `lifted` wie N1.6 (Läufe 54/55, noch mit dem alten Messaufbau). Was sich ändert (gated Cosmos-Reason2-2B-Backbone, Python 3.12/torch 2.9,
 > N1.6-Checkpoints nicht ladbar), was N1.6-only bleibt, und die 8 Phasen mit Abnahmekriterien.
 
-Recherche- und Planungsdokument. **Umsetzung als paralleler Pfad begonnen** (Stand 2026-08-19 —
-siehe [„Stand der Umsetzung"](#stand-der-umsetzung-2026-08-19) unten): Was ist GR00T N1.7, was
+Recherche- und Planungsdokument. **Als paralleler Pfad umgesetzt; voller Trainingslauf und zwei
+Sim-Läufe sind gelaufen** (Stand 2026-10-13 — siehe [„Stand der Umsetzung"](#stand-der-umsetzung-2026-08-19)
+unten, dort steht der N1.7-Status auf einen Blick): Was ist GR00T N1.7, was
 ändert sich gegenüber unserem N1.6-Stand, wie aufwendig ist der Umstieg, und in welchen Phasen
 läuft er ab. Operative Referenzen: [Training](../training/README.md) ·
 [Simulation](../simulation/README.md) · [Portabilität](../portabilitaet.md) ·
@@ -18,7 +19,7 @@ läuft er ab. Operative Referenzen: [Training](../training/README.md) ·
 verglichen wird).
 
 
-> Stand 2026-08-19. Quellen: Upstream-Repo `NVIDIA/Isaac-GR00T` (lokaler Tag-Diff `n1.6-release..n1.7-release` im Submodul, Rohdateien von `main`), HF-Model-Cards, NVIDIA-Forum. Unser Stand: Fork-Commit `26ad1f7` = `n1.6-release` + 3 Commits; Dockerfile-Pin `9508b49` (2 Commits älter — Drift, siehe §3).
+> Recherchestand 2026-08-19 (§1–§8). Quellen: Upstream-Repo `NVIDIA/Isaac-GR00T` (lokaler Tag-Diff `n1.6-release..n1.7-release` im Submodul, Rohdateien von `main`), HF-Model-Cards, NVIDIA-Forum. Unser Stand: Fork-Commit `26ad1f7` = `n1.6-release` + 3 Commits; Dockerfile-Pin `9508b49` (2 Commits älter — Drift, siehe §3).
 
 ## 0. Kurzfazit
 
@@ -31,10 +32,22 @@ verglichen wird).
 
 ## Stand der Umsetzung (2026-08-19)
 
+> **N1.7-Status auf einen Blick (Stand 2026-10-30).** Diese Box ist die **eine gepflegte Quelle**
+> für den N1.7-Stand; CLAUDE.md, README und die Anleitungen verlinken nur hierher.
+>
+> | | Stand |
+> |---|---|
+> | Code | paralleler Pfad, `GROOT_VERSION=1.6\|1.7\|auto`, seit 2026-10-13 gemergt, heute auf `main` |
+> | Images | Training: Docker Hub `:latest-n17` (seit 2026-09-29). Sim: Docker Hub `lucam03/projekt-humanoider-roboter-sim-standalone:latest` = `:20261014-141304` mit N1.6 **und** N1.7 (seit 2026-10-14; vorher nur lokal gebaut, Hub-Image N1.6-only) |
+> | Smoke-Tests | IKR-Blackwell 2026-09-25 (1 GPU, 2 GPUs, `TUNE_VISUAL`+Split, Laden + Open-Loop), KISSKI 2026-10-12 |
+> | Voller Trainingslauf | **fertig**: KISSKI 2026-10-13, 44 000 Steps, 7 h 53 min (Lauf 4); Open-Loop am Ende gleichauf mit N1.6, lernt früher, 1,6× schneller ([lauf4-n17-vergleich.md](../ergebnisse/lauf4-n17-vergleich.md)) |
+> | Sim (Closed Loop) | Läufe 54/55 (je 10 × 40 s): `lifted` 0/10 ([Chronik](../ergebnisse/diagnose-chronik.md#läufe-5455-die-ersten-n17-checkpoints-in-der-sim)). Abnahmeprotokoll (20 × 120 s, Szene Lauf 70) **gelaufen**: vision-v1 @44000 (Lauf 81), co-train v3 cube5 (Lauf 89) und cube4 (Lauf 93) je `lifted_clear` **0/20**; co-trainiert `touched` 20/20, aber kein Griff ([Lauf 81](../ergebnisse/diagnose-chronik.md#läufe-8081-visuelles-gate-geseedet-closed-loop-n17-in-der-szene-aus-lauf-70), [89](../ergebnisse/diagnose-chronik.md#lauf-89-closed-loop-co-training-n17-cube5), [93](../ergebnisse/diagnose-chronik.md#lauf-93-closed-loop-co-training-n17-cube4-mit-4-cm-würfeln)) |
+> | **Offen** | N1.7-Sim auf KISSKI (blockiert, keine RT-Cores); RL, optimiertes Inferenz-Backend, Stock-G1-Baseline und RoboCasa-Referenz bleiben N1.6-only |
+
 Umgesetzt wurde N1.7 als **paralleler Pfad neben N1.6** — nicht als Ersatz. Codebäume, Images
 und Scripts sind angepasst, Images gebaut (Docker Hub `:latest-n17` seit 2026-09-29), Smoke-Tests,
 Vergleichslauf und erste Sim-Läufe gelaufen (Phasen 3–5 unten). Seit 2026-10-13 ist der Pfad in
-`training-luca-IKR-IS6.0` gemergt. Die Überschrift trägt das Datum des ersten Umsetzungsstands;
+gemergt (heute `main`; die Feature-Branches sind gelöscht). Die Überschrift trägt das Datum des ersten Umsetzungsstands;
 die Phasen sind einzeln datiert. Der Rest dieses Dokuments (§1–§8) bleibt als
 Recherche-/Planungsgrundlage stehen; dieser Abschnitt hält den tatsächlichen Umsetzungsstand
 je Phase fest.
@@ -52,8 +65,23 @@ je Phase fest.
 **Phase 1 — Fork-Branch: fertig.** `app/Groot-1.7` zeigt auf `lucam06/Isaac-GR00T`, Branch
 `luca/g1-dex3-n17`, gepinnter Commit ursprünglich `efa0169` (= Upstream `main` `376ba89` + unser
 G1_DEX3-Beispiel/Konverter + Train/Test-Split-Patch + eine README-Notiz, erneut angewendet), seit
-2026-10-12 `cf2032d` (zusätzlich der Offline-Fix für den Backbone-Processor, nötig auf KISSKI;
-Submodul und `GROOT17_COMMIT` in beiden Dockerfiles seit 2026-10-13 gleich).
+2026-10-12 `cf2032d` (zusätzlich der Offline-Fix für den Backbone-Processor, nötig auf KISSKI),
+seit 2026-10-13 **`288d1de`** (`HF_HUB_OFFLINE`-Auswertung korrigiert, siehe unten). Submodul und
+`GROOT17_COMMIT` in beiden Dockerfiles sind gleich (prüft `tools/ci_check_pins.sh` im CI), und der
+Commit liegt auf `origin/luca/g1-dex3-n17` — die Sorge aus Review 10-13 §5, der Pin könnte wie
+früher bei N1.6 ungepusht sein, ist damit erledigt.
+
+> **Behoben in `288d1de` (2026-10-13):** Im Offline-Fix galt jeder gesetzte Wert von
+> `HF_HUB_OFFLINE` als „offline“, also auch `HF_HUB_OFFLINE=0`. Der Fix (nur `1`/`ON`/`YES`/`TRUE`,
+> Rückfall auf `TRANSFORMERS_OFFLINE`, wie `huggingface_hub` selbst) steht in
+> `gr00t/model/gr00t_n1d7/processing_gr00t_n1d7.py`; Fork-Commit gepusht, Pin in Submodul und
+> beiden Dockerfiles nachgezogen. Wirksam erst mit einem neu gebauten N1.7-Image bzw. neuer SIF.
+>
+> **`action_horizon`:** Das N1.7-Modell hat als Default `action_horizon = 40`, unser Embodiment 16.
+> Das wird über `action_mask`, die Loss-Maske und das Abschneiden der Vorhersage auf 16 abgefangen
+> (Training und Inferenz liefen damit). Noch nicht nachgesehen: ob die `config.json` eines unserer
+> N1.7-Checkpoints `"action_horizon": 40` trägt.
+
 `app/Groot-1.6` bleibt unverändert (Branch `luca/g1-dex3`). `.gitmodules` führt beide Submodule.
 
 **Phase 2 — Training-Image: fertig, Images gebaut** (`:latest-n17` seit 2026-09-29).
@@ -185,9 +213,8 @@ mit diesem Stand aktualisiert; Changelog-Eintrag in [historie.md](../historie.md
 Weiterhin gilt: **kein Image gebaut, kein N1.7-Lauf.** Alles Folgende ist statisch geprüft
 (gegen die gepinnten Fork-Commits N1.6 `9508b49` aus `Training/Dockerfile` und N1.7 `efa0169`).
 
-- **Upstream eingemergt:** `training-luca-IKR-IS6.0` (Stand 2026-09-23, 69 Commits) ist per
-  **Merge** (kein Rebase) in diesen Branch geholt — der N1.7-Branch bleibt eigenständig, der
-  spätere Rück-Merge wird kleiner. Dortige Umbenennungen (`Dockerfile.vastai` →
+- **Upstream eingemergt:** Der damalige Hauptbranch `training-luca-IKR-IS6.0` (Stand 2026-09-23, 69 Commits) wurde per
+  **Merge** (kein Rebase) in den damaligen N1.7-Branch geholt (historisch; beide sind inzwischen auf `main` zusammengeführt). Dortige Umbenennungen (`Dockerfile.vastai` →
   `Dockerfile.standalone`, `--vastai` → `--standalone`, `setup_and_train_dockerhub_pull.sh`,
   `sim-eval-anleitung.md`) sind nachgezogen; `GROOT_VERSION` läuft auch durch die neuen
   Upstream-Pfade (`run.sh`, `lib_resume_guard.sh`, `--gradient_accumulation_steps`).
@@ -230,11 +257,9 @@ Weiterhin gilt: **kein Image gebaut, kein N1.7-Lauf.** Alles Folgende ist statis
   Cache-Prüfung, die `kisski_submit.sh` sonst erst im Job (nach der Queue-Wartezeit) macht.
 - **Offen / ungetestet:** AV1-Dekodierung über torchcodec 0.8 mit dem FFmpeg 4.4 aus Ubuntu
   22.04 (der Build-Smoke-Test importiert torchcodec nur); VRAM auf der 32-GB-5090; ob
-  `nvidia/GR00T-N1.7-3B` gegen `efa0169` sauber lädt. Der Submodul-Pointer `app/Groot-1.6`
-  (`26ad1f7`) ist im Fork nicht mehr abrufbar (`git submodule update` scheitert; der Build nutzt
-  `GROOT16_COMMIT=9508b49` und ist nicht betroffen). `setup_and_train_container_build.sh`
-  „baut“ per `docker compose build`, aber `docker-compose.yml` hat seit `cb388a1` keinen
-  `build:`-Abschnitt mehr — der Schritt ist wirkungslos (bestand schon vorher).
+  `nvidia/GR00T-N1.7-3B` gegen `efa0169` sauber lädt. (Behoben 2026-10-13: Submodul-Pointer `app/Groot-1.6` auf `9508b49` umgepinnt;
+  `setup_and_train_container_build.sh` baut per `docker build` — siehe
+  [historie.md](../historie.md).)
 
 ## Smoke-Test auf dem IKR-Blackwell (2026-09-25) und Übergabe an KISSKI
 
@@ -251,8 +276,8 @@ Weiterhin gilt: **kein Image gebaut, kein N1.7-Lauf.** Alles Folgende ist statis
 | | |
 |---|---|
 | Rechner | `ikr-ki-server-01`, 2 × RTX PRO 6000 Blackwell Max-Q (96 GB) |
-| Image | `lucam03/projekt-humanoider-roboter:training-luca-IKR-IS6.0-GN1.7-n17` — auf dem Server mit `update_image.sh --groot=1.7` gebaut, gestartet mit `--skip-pull` |
-| Skripte | per Bind-Mount aus dem Repo (Branch `training-luca-IKR-IS6.0-GN1.7`, inkl. `22c3183`) |
+| Image | damals Branch-Tag `…:training-luca-IKR-IS6.0-GN1.7-n17` (historisch, heute `:latest-n17`) — auf dem Server mit `update_image.sh --groot=1.7` gebaut, gestartet mit `--skip-pull` |
+| Skripte | per Bind-Mount aus dem Repo (damaliger N1.7-Branch, inzwischen gelöscht, inkl. `22c3183`) |
 | Rezept | Augmentierung an (Color-Jitter), LR 1e-4, Warmup 5 %, `GLOBAL_BATCH_SIZE=8`, `STATE_DROPOUT_PROB` leer = N1.7-Default 0.2, ohne W&B |
 | Container | Test 0 in `groot-n17-smoke`; Tests 1–3 in `groot-n17-tests` (`SKIP_TRAIN=1`, dann von Hand in der Container-Shell) |
 
@@ -273,7 +298,7 @@ Weiterhin gilt: **kein Image gebaut, kein N1.7-Lauf.** Alles Folgende ist statis
 | Download | GR00T-N1.7-3B (~7 GB) 2:35 min · Cosmos-Reason2-2B (4,9 GB) 2:00 min · Datensatz 4:29 min |
 | v3→v2.1-Konvertierung | ~1 min, fehlerfrei; `modality_4cam.json` → `modality.json` |
 | Modell | 3 144 016 000 Parameter, davon **1 620 515 968 trainierbar (51,5 %)** ohne `TUNE_VISUAL`; DiT 1,09 Mrd., SelfAttention 0,20 Mrd. |
-| Datensatz | 301 Episoden, 276 681 Frames, 271 Shards; `stats.json`/`relative_stats.json` beim ersten Start nachgerechnet (~27 s), danach aus dem Cache |
+| Datensatz | 301 Episoden, 276 681 Trainingsfenster (= 281 196 Frames − 15 je Episode für den 16er-Aktionsblock), 271 Shards; `stats.json`/`relative_stats.json` beim ersten Start nachgerechnet (~27 s), danach aus dem Cache |
 | Anlauf | ~100 s Shard-Caching bis zum ersten Step (1 GPU, 8 Worker); ~155–200 s bei 2 GPUs (2 × 8 Worker) |
 | **Durchsatz (eingeschwungen, bs 8)** | Standard 1 GPU: **3,1–3,4 Steps/s** · Standard 2 GPUs: **2,75 Steps/s** · `TUNE_VISUAL` 1 GPU: **1,96 Steps/s** |
 | grad_norm | 0,4–1,05, einmal 3,43 im ersten Log-Schritt von Test 1 (Warmup); keine NaN/Inf |
@@ -329,11 +354,10 @@ Rechner mit mehreren GPUs ohne SLURM. Auf KISSKI setzt SLURM die Variable selbst
 Die operativen Schritte stehen in [kisski-hpc.md](../training/kisski-hpc.md), jeweils in den
 Abschnitten „Nur für `GROOT_VERSION=1.7`“. Reihenfolge:
 
-1. **SIF:** `kisski_submit.sh` erwartet für N1.7 `projekt-humanoider-roboter-n17.sif`. Die
-   Doku zieht `:latest-n17`, der hier getestete Build trägt aber den Branch-Tag
-   `:training-luca-IKR-IS6.0-GN1.7-n17`. Vor dem Pull auf Docker Hub prüfen, welcher Tag
-   existiert, und genau das getestete Image nehmen:
-   `apptainer pull $HOME/images/projekt-humanoider-roboter-n17.sif docker://lucam03/projekt-humanoider-roboter:<tag>`.
+1. **SIF:** `kisski_submit.sh` erwartet für N1.7 `projekt-humanoider-roboter-n17.sif`. Gezogen wird
+   `:latest-n17` (der damals getestete Build trug den Branch-Tag `…-GN1.7-n17`, inzwischen
+   identisch mit `:latest-n17`):
+   `apptainer pull $HOME/images/projekt-humanoider-roboter-n17.sif docker://lucam03/projekt-humanoider-roboter:latest-n17`.
 2. **Fork-Clone** `luca/g1-dex3-n17` nach `$KISSKI_PROJECT_DIR/repo-groot-n17` anlegen
    (kisski-hpc.md, Schritt 2b).
 3. **Modell + gated Backbone auf dem Login-Knoten** in den VAST-Cache laden. Die Compute-Knoten
@@ -360,8 +384,7 @@ Für einen Coding-Agent: Einstieg ist dieser Abschnitt. Die relevanten Code-Pfad
 > Anlauf. Apptainer-SIF, Offline-Cache auf VAST und 4 × A100 mit `TUNE_VISUAL` funktionieren.
 > Nötig war ein Offline-Fix im Fork (unten). Nächster Schritt: Vergleichslauf (Übergabe-Schritt 5).
 
-**Aufbau:** SIF aus `:latest-n17` (gleicher Digest wie der IKR-getestete Tag
-`:training-luca-IKR-IS6.0-GN1.7-n17`) unter `$KISSKI_PROJECT_DIR/images/`; Fork-Clone
+**Aufbau:** SIF aus `:latest-n17` (damals gleicher Digest wie der IKR-getestete Branch-Tag `…-GN1.7-n17`) unter `$KISSKI_PROJECT_DIR/images/`; Fork-Clone
 `repo-groot-n17` auf `efa0169` + Fix; Modell und Backbone per Login-Knoten in
 `data/models/GR00T-N1.7-3B` bzw. `data/hf_cache`.
 
@@ -521,7 +544,7 @@ sbatch --export=ALL -t 01:00:00 Training/kisski_submit.sh
 - **Upstream-TRT-Full-Pipeline** statt eigener DiT-only-Optimierung.
 - **RTC (Real-Time Chunking)** im Sim-Loop nutzen (`options`-Dict in `get_action`) — Latenz-Glättung.
 - **Robocasa/GR1-Referenz-Eval** (`server_robocasa_ref_run.sh`): Tags in N1.7 entfernt → entweder auf N1.6-Image belassen oder durch LIBERO/SimplerEnv-Referenz ersetzen.
-- **Stock-G1-Baseline** (`entrypoint_baseline.sh`, `g1_gripper_sim/`, `docs/simulation/baseline-eval.md`): mit N1.7 nur noch über `REAL_G1` (Keys/Dims aus dem Checkpoint lesen: `dump_unitree_g1_dims.py --embodiment real_g1_relative_eef_relative_joints`) oder auf dem `:n16`-Image belassen.
+- **Stock-G1-Baseline** (`entrypoint_baseline.sh`, `g1_gripper_sim/`, `docs/archiv/baseline-eval.md`): mit N1.7 nur noch über `REAL_G1` (Keys/Dims aus dem Checkpoint lesen: `dump_unitree_g1_dims.py --embodiment real_g1_relative_eef_relative_joints`) oder auf dem `:n16`-Image belassen.
 
 ## 7. Rückfallebene
 

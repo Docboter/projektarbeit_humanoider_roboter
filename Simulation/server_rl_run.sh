@@ -68,6 +68,7 @@
 #   HF_TOKEN, HF_CHECKPOINT_REPO (luca-mue/groot-g1dex3-checkpoint),
 #   RL_NUM_ENVS, RL_ITERATIONS, RL_ROLLOUT_STEPS, RL_LR, RL_KL_COEF, RL_CLIP,
 #   RL_MINIBATCH_SIZE, RL_FPO_MC_SAMPLES, RL_EPOCHS_PER_ITER (Speicher-Stellschrauben),
+#   RL_EXEC_HORIZON (ausgefuehrte Chunk-Schritte je Policy-Abfrage, Default 1; Eval: 8),
 #   RL_SAVE_EVERY, WANDB_API_KEY, WANDB_MODE, RL_WANDB_VIDEO_EVERY, SHELL_ON_ERROR,
 #   LIVE_VIEW, LIVE_VIEW_PORT, LIVE_VIEW_EVERY_N, LIVE_VIEW_CAMS — durchgereicht,
 #   LIVESTREAM, LIVESTREAM_PORT, LIVESTREAM_MEDIA_PORT, LIVE_KEEP_VIDEO (LIVE-Variante).
@@ -162,7 +163,7 @@ GPU_ENV=()
 # heisst cfg-Default (g1_dex3_cfg.py / camera_geometry.py). HEAD_CAM_FOLLOWS_PELVIS=1 ist
 # die Gegenhypothese aus Review 3.4: Kopfkamera wandert mit der Beckenkorrektur mit.
 GEOM_ENV=()
-for _v in ROBOT_BASE_X ROBOT_BASE_Z HEAD_CAM_FOLLOWS_PELVIS; do
+for _v in ROBOT_BASE_X ROBOT_BASE_Z HEAD_CAM_FOLLOWS_PELVIS SIM_CUBE_EDGE JOINT_ZERO_OFFSETS SIM_TABLE_SIZE SIM_WRIST_EYE SIM_WRIST_TARGET SIM_WRIST_HFOV; do
   [[ -n "${!_v:-}" ]] && GEOM_ENV+=(-e "$_v=${!_v}")
 done
 unset _v
@@ -483,8 +484,8 @@ ensure_container() {
   # -e wirkt allerdings NUR beim ANLEGEN des Containers — nach einem Wechsel einmal `$0 clean`.
   create_env+=( -e "GROOT_VERSION=$GROOT_VERSION_CONTAINER" )
   [[ -n "${HF_HOME:-}" ]]          && create_env+=( -e "HF_HOME=$HF_HOME" )
-  [[ -n "${HF_TOKEN:-}" ]]         && create_env+=( -e "HF_TOKEN=$HF_TOKEN" )
-  [[ -n "${WANDB_API_KEY:-}" ]]    && create_env+=( -e "WANDB_API_KEY=$WANDB_API_KEY" )
+  [[ -n "${HF_TOKEN:-}" ]]         && export HF_TOKEN && create_env+=( -e HF_TOKEN )
+  [[ -n "${WANDB_API_KEY:-}" ]]    && export WANDB_API_KEY && create_env+=( -e WANDB_API_KEY )
   # g1_dex3_sim aus dem Repo ÜBER die Image-Kopie mounten (Muster wie kisski_submit.sh /
   # server_robocasa_ref_run.sh): LIVE-CHECK-Iterationen an rl_finetune.py & Co. brauchen dann
   # nur `git pull` auf dem Server — kein Image-Rebuild, kein `clean`.
@@ -568,8 +569,8 @@ build_rl_env() {
     -e "CHECKPOINT_PATH=$CHECKPOINT_PATH"
     -e "ASSET_PATH=$ASSET_PATH"
   )
-  [[ -n "${HF_TOKEN:-}" ]]         && RL_ENV+=( -e "HF_TOKEN=$HF_TOKEN" )
-  [[ -n "${WANDB_API_KEY:-}" ]]    && RL_ENV+=( -e "WANDB_API_KEY=$WANDB_API_KEY" )
+  [[ -n "${HF_TOKEN:-}" ]]         && export HF_TOKEN && RL_ENV+=( -e HF_TOKEN )
+  [[ -n "${WANDB_API_KEY:-}" ]]    && export WANDB_API_KEY && RL_ENV+=( -e WANDB_API_KEY )
   # Ohne das hier wäre WANDB_MODE=online wirkungslos: entrypoint_rl.sh setzt sonst
   # stur 'offline', und die Rollout-Videos (RL_WANDB_VIDEO_EVERY) lägen unerreichbar
   # im Container statt im Dashboard.
@@ -585,6 +586,8 @@ build_rl_env() {
   [[ -n "${RL_MINIBATCH_SIZE:-}" ]]  && RL_ENV+=( -e "RL_MINIBATCH_SIZE=$RL_MINIBATCH_SIZE" )
   [[ -n "${RL_FPO_MC_SAMPLES:-}" ]]  && RL_ENV+=( -e "RL_FPO_MC_SAMPLES=$RL_FPO_MC_SAMPLES" )
   [[ -n "${RL_EPOCHS_PER_ITER:-}" ]] && RL_ENV+=( -e "RL_EPOCHS_PER_ITER=$RL_EPOCHS_PER_ITER" )
+  # Chunk-Schritte je Policy-Abfrage (Review 2026-10-13, S4; Eval: 8, Default 1).
+  [[ -n "${RL_EXEC_HORIZON:-}" ]]    && RL_ENV+=( -e "RL_EXEC_HORIZON=$RL_EXEC_HORIZON" )
   [[ -n "${RL_REF_DEVICE:-}" ]]      && RL_ENV+=( -e "RL_REF_DEVICE=$RL_REF_DEVICE" )
   # Render-/Belichtungshebel, damit ein per `cams` gefundener Wert auch im RL-Lauf gilt.
   [[ -n "${RL_AA_MODE:-}" ]]         && RL_ENV+=( -e "RL_AA_MODE=$RL_AA_MODE" )
@@ -660,7 +663,8 @@ ensure_checkpoint() {
   # --with-optimizer). Wer mehrere Checkpoints nebeneinander vergleicht, laeuft sonst in
   # genau die volle Platte, die den Abbruch oben verursacht.
   log "  (~23 GB vollstaendig; davon 13 GB optimizer.pt, die Sim und RL nie lesen.)"
-  docker exec -e "HF_TOKEN=$HF_TOKEN" -e "HUGGING_FACE_HUB_TOKEN=$HF_TOKEN" "$CONTAINER" \
+  HF_TOKEN="$HF_TOKEN" HUGGING_FACE_HUB_TOKEN="$HF_TOKEN" \
+    docker exec -e HF_TOKEN -e HUGGING_FACE_HUB_TOKEN "$CONTAINER" \
     bash -lc "huggingface-cli download '$HF_CHECKPOINT_REPO' --local-dir '$CHECKPOINT_PATH'"
   if ! checkpoint_complete "$CHECKPOINT_PATH"; then
     err "Checkpoint nach dem Download immer noch unvollstaendig: $CHECKPOINT_PATH"
@@ -704,7 +708,8 @@ ensure_dataset() {
     warn "  Backup-Kopie — rechne mit ~40 GB Spitzenbedarf unter $HOST_DATA_DIR und"
     warn "  einer knappen Stunde. Einmalig; ein 'clean' loescht ihn nicht."
     log "Download $repo -> $ds"
-    docker exec -e "HF_TOKEN=$HF_TOKEN" -e "HUGGING_FACE_HUB_TOKEN=$HF_TOKEN" "$CONTAINER" \
+    HF_TOKEN="$HF_TOKEN" HUGGING_FACE_HUB_TOKEN="$HF_TOKEN" \
+    docker exec -e HF_TOKEN -e HUGGING_FACE_HUB_TOKEN "$CONTAINER" \
       bash -lc "huggingface-cli download '$repo' --repo-type dataset --local-dir '$ds'" \
       || { err "Download fehlgeschlagen."; return 1; }
     ok "Download abgeschlossen."
@@ -1049,7 +1054,8 @@ do_eval() {
   # es findet das von ensure_black_hands erzeugte *_blackhands.usd dann einfach vor.
   # GROOT_VERSION (und ggf. HF_HOME) hier NOCHMAL mitgeben: -e beim `docker run` wirkt nur
   # beim ANLEGEN, ein Container aus einem frueheren Lauf kennt einen neuen Wert also nicht.
-  docker exec \
+  # GPU_ENV: ohne CUDA_VISIBLE_DEVICES landen zwei parallele Evals auf derselben Karte.
+  docker exec "${GPU_ENV[@]}" \
     -e "SKIP_DOWNLOAD=1" \
     -e "GROOT_VERSION=$GROOT_VERSION_CONTAINER" \
     ${HF_HOME:+-e "HF_HOME=$HF_HOME"} \
@@ -1062,6 +1068,7 @@ do_eval() {
     -e "GROOT_TRT_ENGINE_PATH=${GROOT_TRT_ENGINE_PATH:-}" \
     -e "CAMERA_RENDER_EVERY_N=${CAMERA_RENDER_EVERY_N:-1}" \
     -e "EPISODE_LENGTH_S=$ep_len" \
+    -e "SIM_VIDEO_DIR=${SIM_VIDEO_DIR:-}" \
     `# Leer = run_g1_dex3_sim_eval.py liest den Text aus meta/tasks.* des Datensatzes` \
     `# (Fallback "stack three block"). Bis 2026-10-13 stand hier "stack the blocks" -` \
     `# ein Text, den das Training nie sah (Review 3.1). Leer ueberschreibt auch das` \
@@ -1084,7 +1091,7 @@ do_eval() {
     "${LS_ENV[@]}" \
     "$CONTAINER" bash -lc "bash /scripts/entrypoint_sim.sh" 2>&1 \
     `# grep -c statt -q: -q steigt beim ersten Treffer aus, das vorgeschaltete tee bekommt` \
-    `# SIGPIPE, und unter 'set -o pipefail' (Z. 53) galt der Lauf dann als gescheitert —` \
+    `# SIGPIPE, und unter 'set -o pipefail' (Skriptkopf) galt der Lauf dann als gescheitert —` \
     `# in Lauf 24 als falscher Alarm "ohne Erfolgsmarker", obwohl der Marker da war.` \
     `# Isaac Sim schreibt nach '[eval] fertig.' noch Shutdown-Zeilen, daher trat es genau` \
     `# hier auf und bei dump/gap nicht. -c liest bis EOF und kann nicht früher schließen.` \
@@ -1098,7 +1105,7 @@ do_eval() {
   fi
   docker exec "$CONTAINER" bash -lc \
     "python3 -c \"import json;d=json.load(open('/data/sim_results/results.json'));\
-print('Erfolgsrate: %d/%d = %.1f%%' % (d['num_success'], d['num_episodes'], 100*d['success_rate']))\"" \
+print('Erfolgsrate: %d/%d = %.1f%% (%d abgebrochen)' % (d['num_success'], d.get('num_valid', d['num_episodes']), 100*d['success_rate'], d.get('num_aborted', 0)))\"" \
     2>/dev/null || true
 }
 
@@ -1330,6 +1337,61 @@ do_span() {
     || { err "Fingerspannen-Test ohne Ergebniszeile beendet (Traceback oben)."; return 1; }
 }
 
+# Visuelles Gate (Lauf 66/72): teacher-forced Open Loop auf den zurueckgehaltenen
+# Sim-Pruefsets UND auf den echten Bildern derselben Episoden. Zustand und Aktion sind
+# identisch, nur das Bild wechselt — die Differenz ist der visuelle Domain-Gap, wie die
+# Policy ihn sieht. Abnahme eines co-trainierten Checkpoints, bevor ein Closed Loop lohnt.
+# Gleiches Protokoll wie die Ausgangswerte in Lauf 72: Pruefset-Positionen 0-3 (= Trainings-
+# Ep. 0/4/8/12), 600 Steps, Median MSE Haende. Wie 'span' im GR00T-venv, ohne Isaac Sim.
+do_visgate() {
+  ensure_checkpoint
+  local sets="${VISGATE_SETS:-vis_gate_v3_cube5 vis_gate_v3_cube4}"
+  local real_ds="${SPAN_DATASET:-/data/unitreerobotics/G1_Dex3_BlockStacking_Dataset}"
+  local real_ids="${VISGATE_REAL_TRAJ_IDS:-0 4 8 12}"
+  local steps="${VISGATE_STEPS:-600}"
+  # Kennung fuer die Dateinamen: Default = Checkpoint-Ordnername, damit zwei Messungen
+  # verschiedener Modelle sich nicht ueberschreiben.
+  local tag="${VISGATE_TAG:-$(basename "$CHECKPOINT_PATH")}_s${VISGATE_SEED:-0}"
+  local out="/data/sim_results"
+
+  ensure_dataset "$real_ds" || return 1
+  local s
+  for s in $sets; do
+    docker exec "$CONTAINER" test -f "/data/cotrain/$s/meta/modality.json" \
+      || { err "Pruefset fehlt im Container: /data/cotrain/$s (Lauf 72)."; return 1; }
+  done
+
+  docker cp "$REPO_DIR/Simulation/scripts/finger_span_openloop.py" \
+            "$CONTAINER:/workspace/finger_span_openloop.py"
+
+  # $1 = Datensatz, $2 = Trajektorien (Positionen), $3 = JSON-Name
+  _visgate_one() {
+    log "visgate: $1  (Trajektorien $2, $steps Steps) -> $out/$3"
+    docker exec "${GPU_ENV[@]}" "$CONTAINER" bash -lc "
+      unset VIRTUAL_ENV
+      '$GROOT_ROOT/.venv/bin/python' /workspace/finger_span_openloop.py \
+          --model-path '$CHECKPOINT_PATH' \
+          --dataset-path '$1' \
+          --steps $steps \
+          --seed ${VISGATE_SEED:-0} \
+          --json-out '$out/$3' \
+          --traj-ids $2" 2>&1 | tee /dev/stderr \
+      | grep -c "Median Vorhersage" >/dev/null \
+      || { err "visgate auf $1 ohne Ergebniszeile beendet (Traceback oben)."; return 1; }
+  }
+
+  _visgate_one "$real_ds" "$real_ids" "visgate_${tag}_real.json" || return 1
+  for s in $sets; do
+    # Position im Pruefset, nicht episode_index: der Loader zaehlt ab 0.
+    _visgate_one "/data/cotrain/$s" "${VISGATE_GATE_TRAJ_IDS:-0 1 2 3}" \
+      "visgate_${tag}_${s}.json" || return 1
+  done
+
+  # shellcheck disable=SC2086
+  python3 "$REPO_DIR/Simulation/scripts/visgate_summary.py" \
+    --results-dir "$HOST_DATA_DIR/sim_results" --tag "$tag" --sets $sets
+}
+
 # Reine Policy-Latenz — die einzige hier messbare Zahl, die auch fuer echte Hardware gilt.
 #
 # Die Sim-Eval laeuft 3,5x langsamer als Echtzeit, aber 94 % davon sind Kamera-Rendering,
@@ -1389,7 +1451,7 @@ do_gap() {
   # HF_TOKEN nur durchreichen, wenn gesetzt — ein leerer Wert gilt huggingface_hub als
   # gesetzter, ungueltiger Token. Fuer das oeffentliche SigLIP wird er ohnehin nicht gebraucht.
   local gap_env=( -e "HF_HOME=${HF_HOME:-/data/hf_cache}" )
-  [[ -n "${HF_TOKEN:-}" ]] && gap_env+=( -e "HF_TOKEN=$HF_TOKEN" )
+  [[ -n "${HF_TOKEN:-}" ]] && export HF_TOKEN && gap_env+=( -e HF_TOKEN )
 
   # Warnung, keine Abbruchbedingung: mit DR=1 würfelt _randomize_visuals() die Dome-Intensität
   # je Episode aus [1000, 3800]. Die Frames sind dann bei EINER zufälligen Beleuchtung
@@ -1779,6 +1841,39 @@ do_tipcheck() {
   echo "  nur die Handmarken weg                   -> FK bzw. fehlende Hueftgelenke."
 }
 
+# Orakel-Replay (Review 10-13 §2.3 Nr. 1): die Eval selbst, nur spielt statt der Policy
+# der Datensatz seine aufgezeichneten Aktionen ab — gleiches Layout, gleiche 30 Hz, gleiche
+# Meilensteine. Ergebnis = obere Schranke: greift schon die Demo nicht, blockiert die Sim.
+# Kein Checkpoint, kein Server, kein HF_TOKEN (solange Datensatz und Asset liegen).
+do_oracle() {
+  ensure_asset_local || return 1
+  local ds="${ORACLE_DATASET:-/data/unitreerobotics/G1_Dex3_BlockStacking_Dataset}"
+  ensure_dataset "$ds" || return 1
+  local layout="${EVAL_LAYOUT:-/data/eval/layout_heldout.json}"
+  local eps="${NUM_EPISODES:-20}"
+  local horizon="${EXECUTION_HORIZON:-8}"
+  local ep_len="${EPISODE_LENGTH_S:-120}"
+  local out="${ORACLE_OUT:-/data/sim_results/oracle.json}"
+  local video_dir="${ORACLE_VIDEO_DIR:-/data/sim_videos/oracle}"
+  docker exec "$CONTAINER" test -f "$layout" \
+    || { err "Layout fehlt: $layout. Erst: LAYOUT_HELD_OUT=1 $0 layout"; return 1; }
+  log "Orakel-Replay: $eps Episoden aus $layout, ${ep_len}s, Exec-Horizon $horizon," \
+      "DR=${DR_ENABLED:-0}, DR_SEED=${DR_SEED:-0}"
+  docker exec -w "$SIM_DIR" "${GPU_ENV[@]}" "${GEOM_ENV[@]}" \
+    -e "DR_ENABLED=${DR_ENABLED:-0}" -e "DR_SEED=${DR_SEED:-0}" \
+    -e "SCENE_CAM=${SCENE_CAM:-1}" \
+    "$CONTAINER" env -u VIRTUAL_ENV \
+    "$ISAAC_PY" "$SIM_DIR/run_g1_dex3_sim_eval.py" --headless --enable_cameras \
+      --oracle-dataset "$ds" --layout "$layout" \
+      --num-episodes "$eps" --execution-horizon "$horizon" \
+      --episode-length-s "$ep_len" --asset-path "$ASSET_PATH" \
+      --video-dir "$video_dir" --results-file "$out" \
+    2>&1 | tee /dev/stderr | grep -c "\[eval\] fertig" >/dev/null \
+    || { err "Orakel-Replay ohne Erfolgsmarker beendet (Ausgabe oben)."; return 1; }
+  ok "Ergebnis: $HOST_DATA_DIR/${out#/data/}"
+  echo "  Videos:   $HOST_DATA_DIR/${video_dir#/data/}"
+}
+
 do_render() {
   ensure_checkpoint
   ensure_black_hands
@@ -2125,6 +2220,16 @@ Aktionen:
               (Download + v3->v2-Konvertierung + modality.json, ~18 GB, einmalig).
               SPAN_DATASET (Default /data/unitreerobotics/G1_Dex3_BlockStacking_Dataset),
               SPAN_TRAJ_IDS (Default "0 1 2 3 4"), SPAN_AUTO_FETCH=0 schaltet das Holen ab.
+  visgate     Visuelles Gate (Lauf 66/72): teacher-forced Open Loop auf den Sim-Pruefsets
+              /data/cotrain/vis_gate_v3_cube{5,4} und auf den echten Bildern derselben
+              Episoden; Tabelle MSE Haende gegen die Ausgangswerte aus Lauf 72. Abnahme
+              eines co-trainierten Checkpoints vor jedem Closed Loop. Kein Isaac Sim.
+              CHECKPOINT_PATH + HF_CHECKPOINT_REPO (Download bei Bedarf), GROOT_VERSION,
+              VISGATE_SETS ("vis_gate_v3_cube5 vis_gate_v3_cube4"), VISGATE_TAG (Default
+              Checkpoint-Ordnername), VISGATE_STEPS (600), VISGATE_REAL_TRAJ_IDS ("0 4 8 12"),
+              VISGATE_GATE_TRAJ_IDS ("0 1 2 3"), VISGATE_SEED (0; die Diffusion ist sonst
+              ungeseedet und die MSE streut je Episode bis ~x2). JSON:
+              sim_results/visgate_<tag>_s<seed>_*.json.
   layout      Wuerfellage aus den REALBILDERN lesen -> layout.json. Farbblob (rot/gruen/gelb)
               im ersten Frame, Strahl durch den Schwerpunkt auf die Wuerfelebene. Braucht
               keine GPU. Liefert 'render' BEIDES: die Wuerfellage und den Bewegungsbeginn je
@@ -2177,6 +2282,12 @@ Aktionen:
               FK (im 28-dim-State fehlen die Hueftgelenke). Braucht layout.json.
               TIPCHECK_EPISODES (4), TIPCHECK_EPISODE_IDS, TIPCHECK_FRAME (Default:
               Bewegungsbeginn aus layout.json), TIPCHECK_OUT (/data/cotrain/tipcheck).
+  oracle      ORAKEL-REPLAY: die Eval ohne Modell — spielt je Episode die aufgezeichneten
+              Aktionen der Layout-Episode bei 30 Hz ab, Roboter startet im aufgezeichneten
+              Frame 0. Obere Schranke fuer 'eval' (Review 10-13 §2.3 Nr. 1) plus Tracking-
+              Fehler Sim<->Aufzeichnung. Kein Checkpoint/Server. EVAL_LAYOUT
+              (/data/eval/layout_heldout.json), NUM_EPISODES (20), EPISODE_LENGTH_S (120),
+              ORACLE_DATASET, ORACLE_OUT (/data/sim_results/oracle.json).
   replay-prepare  Vollständigen Real-Datensatz holen/konvertieren und Schema, vier Kameras,
               30 Hz sowie 28-DoF-State/Actions prüfen. Stellt das lokale G1+DEX3-Asset
               bereit und lädt keine Modellgewichte.
@@ -2260,6 +2371,9 @@ Beispiele:
   HF_TOKEN=hf_... GRASP_MODE=hold ./Simulation/server_rl_run.sh grasp
   # Gate vor TUNE_VISUAL — greift die Policy auf ECHTEN Bildern?
   HF_TOKEN=hf_... ./Simulation/server_rl_run.sh span
+  # Abnahme eines co-trainierten Checkpoints auf den Sim-Pruefsets (vor jedem Closed Loop):
+  HF_TOKEN=hf_... HF_CHECKPOINT_REPO=luca-mue/groot-g1dex3-cotrain-v3-cube5-ckpt44000 \\
+      CHECKPOINT_PATH=/data/checkpoints/cotrain-v3-cube5-ckpt44000 ./Simulation/server_rl_run.sh visgate
   # Schritt 4 — erst der Rauchtest (2 Episoden a 60 Frames), dann der lange Lauf:
   HF_TOKEN=hf_... RENDER_EPISODES=2 RENDER_MAX_FRAMES=60 ./Simulation/server_rl_run.sh render
   HF_TOKEN=hf_... RENDER_EPISODES=60 ./Simulation/server_rl_run.sh render
@@ -2385,7 +2499,7 @@ fi
 # 'shell' bleibt ungespiegelt (interaktives -it verträgt die Pipe nicht), 'help'/'clean'
 # haben nichts zu protokollieren.
 case "$ACTION" in
-  preflight|setup|check|cams|gap|eval|grasp|span|rl|livecheck|latency|optimize|render|view|webview|layout|layoutcheck|layoutreport|topface|yawcheck|tipcheck|replay-prepare|replay-calibrate|replay-poses|replay-render) start_logging "$ACTION" ;;
+  preflight|setup|check|cams|gap|eval|grasp|span|visgate|rl|livecheck|latency|optimize|render|view|webview|layout|layoutcheck|layoutreport|topface|yawcheck|tipcheck|oracle|replay-prepare|replay-calibrate|replay-poses|replay-render) start_logging "$ACTION" ;;
 esac
 case "$ACTION" in
   rl|shell|help|clean|webview) ;;
@@ -2407,6 +2521,7 @@ case "$ACTION" in
   eval)       do_eval ;;
   grasp)      do_grasp ;;
   span)       do_span ;;
+  visgate)    do_visgate ;;
   layout)     do_layout ;;
   yawcheck)   do_yawcheck ;;
   layoutreport) do_layoutreport ;;
@@ -2417,6 +2532,7 @@ case "$ACTION" in
   replay-poses) do_replay_poses ;;
   replay-render) do_replay_render ;;
   tipcheck)   do_tipcheck ;;
+  oracle)     do_oracle ;;
   render)     do_render ;;
   latency)    do_latency ;;
   optimize)   do_optimize "${2:-all}" ;;

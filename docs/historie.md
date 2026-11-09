@@ -38,9 +38,9 @@ Umbau der `docs/`-Struktur; zugleich der erste Eintrag des Changelog-Rohmaterial
 - `docs/ergebnisse/wandb-run-charts.html.md` (Auto-Konvertierungs-Stub ohne Eigeninhalt, gelöscht)
 
 **Umbenannt / verschoben:**
-- `ergebnisse/wandb-run-auswertung.md` → [ergebnisse/lauf1-zwischenstand.md](ergebnisse/lauf1-zwischenstand.md)
+- `ergebnisse/wandb-run-auswertung.md` → [ergebnisse/lauf1-zwischenstand.md](archiv/lauf1-zwischenstand.md)
   (fügt sich ins `lauf-N`-Namensschema; war der Mid-Run-Health-Check von Lauf 1)
-- `ergebnisse/baseline-unitree-g1.md` → [simulation/baseline-eval.md](simulation/baseline-eval.md)
+- `ergebnisse/baseline-unitree-g1.md` → [simulation/baseline-eval.md](archiv/baseline-eval.md)
   (Plan-/Setup-Dokument ohne Ergebnisse; löst zugleich die Namensverwechslung mit
   `ergebnisse/basismodell-referenz-eval.md`)
 - Latenz-Messung + Denoising-Sweep aus `simulation/live-ansicht.md` →
@@ -258,7 +258,7 @@ Der eigentliche Denkfehler: Es wurde erheblicher Aufwand in die Sim-Pipeline inv
 > [ergebnisse/domain-gap-analyse.md](ergebnisse/domain-gap-analyse.md). Die folgenden Werte
 > bleiben nur als Vergleichspunkt stehen.
 
-Durchgeführt mit `google/siglip-so400m-patch14-224` (damals als identisch zum GR00T-ViT angenommen; die Annahme ist falsch, s. [Review §3.6](projekt-review-2026-10-11.md#36-falsche-annahme-im-domain-gap-skript--inkonsistenz-teilprüfung)).
+Durchgeführt mit `google/siglip-so400m-patch14-224` (damals als identisch zum GR00T-ViT angenommen; die Annahme ist falsch, s. [Review §3.6](archiv/projekt-review-2026-10-11.md#36-falsche-annahme-im-domain-gap-skript--inkonsistenz-teilprüfung)).
 Frames: `Simulation/camera_reference/` (Real) vs. `Simulation/runs/202606002/02/` (Isaac Sim).
 Script: [`Simulation/scripts/measure_domain_gap.py`](../Simulation/scripts/measure_domain_gap.py)
 
@@ -375,7 +375,7 @@ RL (SAC/PPO auf Sim) macht erst Sinn, nachdem entweder der Domain Gap gelöst is
 > **Nachtrag 2026-08:** RL ist gebaut — mit **FPO** statt SAC/PPO und nur auf dem Action-Head
 > ([rl_finetune.py](../Simulation/g1_dex3_sim/rl_finetune.py)). Die hier formulierte
 > Reihenfolge-Warnung hat sich bestätigt: die Pipeline läuft end-to-end, der Lernerfolg ist
-> unverifiziert, und die Diagnose der Läufe 29–31 verweist zurück auf Wahrnehmung/Politik statt
+> unverifiziert, und die Diagnose der Läufe 29–31 verweist zurück auf Wahrnehmung/Policy statt
 > auf RL → [weiterfuehrend/reinforcement-learning-plan.md](weiterfuehrend/reinforcement-learning-plan.md).
 
 ---
@@ -401,7 +401,7 @@ RL (SAC/PPO auf Sim) macht erst Sinn, nachdem entweder der Domain Gap gelöst is
 > **Nachtrag 2026-08:** Die Neumessung nach der Kamera-Kalibrierung senkt den Gap auf
 > **0,2229 im Mittel** und **0,3556** für `cam_left_wrist` — unter die real↔real-Baseline
 > (0,2726). Der Domain Gap bleibt ein Faktor, ist aber nicht mehr die alleinige Erklärung für
-> die 0-%-Erfolgsrate. Die Diagnose der Läufe 29–31 zeigt zusätzlich, dass die Politik nur
+> die 0-%-Erfolgsrate. Die Diagnose der Läufe 29–31 zeigt zusätzlich, dass die Policy nur
 > ~19 % der demonstrierten Greifbewegung kommandiert — eine Fehlerquelle im Modell selbst,
 > unabhängig vom Rendering.
 
@@ -454,7 +454,7 @@ Der mittlere Real→Sim-Gap (0.260) liegt leicht **unterhalb** des Real→Real-C
 
 `cam_left_wrist` hat mit **0.427** einen kritischen Ausreißer, der rund **1.6× über dem Real→Real-Baseline** liegt. Diese Kamera zeigt die Greifaktion aus nächster Nähe: synthetische Roboterhand, Tischoberfläche und Nahbereichs-Beleuchtung weichen so stark vom realen Trainings-Material ab, dass der frozen ViT das Signal nicht überträgt.
 
-Da GR00T alle 4 Kameras gleichzeitig als Input verarbeitet, genügt ein einziger kritisch-fremder Eingang, um die Politiksequenz zu destabilisieren — und das ist genau die handnahe Kamera, die für Greifentscheidungen entscheidend ist.
+Da GR00T alle 4 Kameras gleichzeitig als Input verarbeitet, genügt ein einziger kritisch-fremder Eingang, um die Policy-Sequenz zu destabilisieren — und das ist genau die handnahe Kamera, die für Greifentscheidungen entscheidend ist.
 
 ### Warum die Sim zu "sauber" ist
 
@@ -702,6 +702,244 @@ alle aktiven Werte im Job-Kopf-Log an.
 
 ---
 
+## 2026-08-13 → 2026-10-29 — next-steps.md §3 „Bisherige Schritte“ (ausgelagert 2026-11-09)
+
+Verlauf der Schritte 1–5 aus [next-steps.md](../next-steps.md), dort bis 2026-11-09 als §3. Aktueller
+Stand und offene Punkte: next-steps.md §0 und §2; Messwerte: [Diagnose-Chronik](ergebnisse/diagnose-chronik.md).
+
+
+### Schritt 1 — Checkpoint-Auswahl falsifizierbar machen ✅ *umgesetzt 2026-08-13*
+
+**Die ursprüngliche Fassung dieses Schritts lautete „`enable_open_loop_eval` im Launcher setzen".
+Das war falsch — der Schalter ist tot.** Der Befund im Fork:
+
+| Fundstelle | Befund |
+|---|---|
+| `training_config.py:100–109` | `enable_open_loop_eval`, `open_loop_eval_traj_ids`, `open_loop_eval_steps_per_traj`, `open_loop_eval_plot_indices` sind deklariert — und werden **nirgends gelesen**. |
+| `data/dataset/factory.py:26` | `assert self.config.training.eval_strategy == "no"` — ein `eval_strategy="steps"` **stürzt ab**, es evaluiert nicht. |
+| `data/dataset/factory.py:59, 79` | Der Loader bekommt fest `split="train"`, und `build()` gibt `eval_dataset=None` zurück. |
+
+In-Training-Validierung ist in diesem Fork also **strukturell nicht vorhanden**, nicht bloß
+abgeschaltet. Sie nachzurüsten hieße: Assertion entfernen, zweiten Datensatz mit `split="test"`
+bauen, Felder durch `FinetuneConfig` + `launch_finetune.py` durchreichen — also Submodul ändern,
+Fork pushen, Dockerfile-Pin nachziehen, Image neu bauen. Der `Gr00tTrainer`-Eval-Pfad ist dabei
+ungetestet (`batch_eval_metrics=True` ohne `compute_metrics`).
+
+**Stattdessen umgesetzt — Validierung nach dem Lauf, ohne Submodul-Eingriff:**
+
+| Datei | Zweck |
+|---|---|
+| [`Training/scripts/checkpoint_sweep.py`](../Training/scripts/checkpoint_sweep.py) | Lädt **jeden** `checkpoint-*` und misst MSE/MAE auf den zurückgehaltenen Episoden. Ergebnis: Tabelle über die Steps, `checkpoint_sweep.json`, bester Checkpoint. Die Metrik selbst kommt unverändert aus dem Fork (`evaluate_single_trajectory`). |
+| [`Training/scripts/lib_split.sh`](../Training/scripts/lib_split.sh) | Split-Logik, jetzt von **beiden** Trainings-Skripten geteilt; schreibt zusätzlich ein `split.json`-Protokoll. |
+| [`Training/scripts/run_finetuning_vision.sh`](../Training/scripts/run_finetuning_vision.sh) | Unterstützt jetzt `TRAIN_TEST_SPLIT` **und** `USE_AUGMENTATION` — beides fehlte dort, obwohl die Doku sie auswies. Für Lauf 3 ist genau das der relevante Pfad. |
+| [`Training/kisski_open_loop_eval.sh`](../Training/kisski_open_loop_eval.sh) | Wertet jetzt alle Checkpoints auf `test` aus statt einen einzelnen auf Trainingsdaten. |
+
+Zwei Fallen, die dabei aufgefallen sind und im Sweep abgefangen werden:
+
+1. **`gr00t/eval/open_loop_eval.py` reicht kein `split` durch.** Der Loader-Default ist
+   `split="train"` — nach einem Split-Lauf misst das Skript also **Trainings**-MSE und kann
+   Overfitting prinzipiell nicht zeigen. Genau so lief `kisski_open_loop_eval.sh` bisher.
+2. **`loader[idx]` indiziert in die gefilterte Liste.** Position 0 ist nach einem 80/20-Split die
+   Episode 240, nicht die Episode 0. Der Sweep protokolliert immer beides.
+
+Nebenbei behoben: im Reset-Pfad von `run_finetuning.sh` wurde ein nirgends definiertes `warn`
+aufgerufen — unter `set -e` hätte das den Lauf mit Exit 127 abgebrochen, sobald nach einem
+Split-Lauf einer ohne Split folgt.
+
+### Schritt 2 — Lauf 3 starten ✅ *umgesetzt 2026-08-13/14*
+
+**Gelaufen:** Run `tp1nc699` / `g1_dex3_blockstacking_vision_v2`, 44.000 Steps auf 4 GPUs,
+12 h 27 min, `TUNE_VISUAL=1` + `USE_AUGMENTATION=1` + `TRAIN_TEST_SPLIT=1`. Vollständige
+Auswertung: [`lauf3-vision-split-auswertung.md`](ergebnisse/lauf3-vision-split-auswertung.md).
+
+Das Wesentliche:
+
+| Befund | Zahl |
+|---|---|
+| Bester Checkpoint (Validierungs-MSE auf zurückgehaltenen Episoden) | **Step 30.000** — 0,00716 *(6×300-Protokoll; überholt, siehe Nachtrag: 44.000)* |
+| Letzter Checkpoint (Step 44.000) | 0,00898 → **25 % schlechter** |
+| Trainingsloss im selben Fenster 30k → 44k | 0,0131 → 0,0073 (**−44 %**) |
+
+> **Nachtrag 2026-10-12 — dieser Abschnitt ist überholt.** Die Nachschärfung aus Vorbehalt 1
+> unten (`EVAL_NUM_TRAJ=20 EVAL_STEPS=750`, Job 16633477) zeigt **keine** U-Kurve: Validierungs-MSE
+> 30.000 = 0,00519, 44.000 = 0,00482 (bester; gepaart t = 2,15, n = 20). Die Schere unten war ein
+> Artefakt der 6×300-Auswertung (nur Anfahrphase). Auch der Nebenbefund „`MAX_STEPS=30000`
+> genügt“ gilt nicht mehr. Zahlen: [lauf4-n17-vergleich.md](ergebnisse/lauf4-n17-vergleich.md) §5.
+
+Die Schere zwischen fallendem Trainingsloss und steigender Validierungs-MSE ist der erste
+gemessene Overfitting-Nachweis im Projekt. Schritt 1 hat also unmittelbar getragen: **ohne den
+Sweep wäre wieder der letzte Checkpoint ins Gate gegangen.**
+
+Zwei Vorbehalte, die vor Schritt 3 stehen:
+
+1. **Signifikanz.** Der Sweep lief mit den Defaults (6 Episoden × 300 Steps). Gegen Step
+   20.000/25.000/35.000 ist Step 30.000 statistisch **nicht** unterscheidbar (t ≤ 1,0), und
+   selbst 30.000 vs. 44.000 ist mit t = 1,45 nur ein Trend. Belastbar ist allein: *ab ~20.000
+   auskonvergiert, der letzte Checkpoint ist nicht der beste.* Nachschärfen mit
+   `EVAL_NUM_TRAJ=20 EVAL_STEPS=750` kostet einen Bruchteil des Trainings.
+2. **Split-Verifikation.** Dass der Split beim **Training** aktiv war (und nicht erst beim
+   Sweep), ist noch nicht belegt — `split.json` im Lauf-Verzeichnis und das SLURM-Log prüfen
+   ([§6 der Auswertung](ergebnisse/lauf3-vision-split-auswertung.md#6-noch-zu-verifizieren-war-der-split-beim-training-aktiv)).
+   Trifft es nicht zu, wären die Testepisoden mittrainiert und der Sweep wertlos.
+
+~~Nebenbefund für den nächsten Lauf: **`MAX_STEPS=30000` genügt** — die letzten 14.000 Steps
+(≈ 4 h auf 4 GPUs) haben die Validierung verschlechtert.~~ *Überholt (2026-10-12), siehe Nachtrag
+oben: bis 44.000 fällt die Validierungs-MSE weiter.*
+
+<details>
+<summary>Ursprüngliche Startanweisung (zur Reproduktion)</summary>
+
+Der eine Lauf, den die Beweiskette begründet:
+
+```bash
+export HF_TOKEN=hf_... WANDB_API_KEY=...
+export TUNE_VISUAL=1          # → routet auf run_finetuning_vision.sh, eigener
+                              #   blockstacking_vision-Namespace, LLM bleibt eingefroren
+export USE_AUGMENTATION=1     # Default, hier bewusst explizit — das ist der Unterschied zu Lauf 2
+export TRAIN_TEST_SPLIT=1     # 80/20, Testepisoden zurückgehalten
+export GLOBAL_BATCH_SIZE=32
+sbatch Training/kisski_submit.sh
+```
+
+Überwachung wie gewohnt: `squeue -u $USER`, `tail -f logs/slurm-<jobid>.out`.
+
+Danach — **nicht** blind den letzten Checkpoint nehmen:
+
+```bash
+export RUN_DIR=/data/g1_dex3_finetune/blockstacking_vision
+sbatch Training/kisski_open_loop_eval.sh
+```
+
+Das liefert die Validierungs-MSE je Checkpoint und benennt den besten. Erst dieser Checkpoint geht
+in Schritt 3.
+
+</details>
+
+### Schritt 3 — ✅ erledigt (2026-08-14): das `span`-Gate ist gefahren
+
+Die vorregistrierte Frage an Lauf 3 lautete **nicht** „stapelt er jetzt", sondern:
+
+> Kommandiert die Policy in der **Sim** mehr als die heutigen 19 % Fingerspanne?
+
+**Antwort: ja — 27,6 % statt 20,5 %, aber `lifted` bleibt 0/10.** Gemessen am 2026-08-14 mit
+`checkpoint-30000` (dem validierten, nicht dem letzten), zehn Episoden à 40 s, also im identischen
+Zeitfenster wie die Vergleichsmessung Lauf 31. Jede der zehn neuen Episoden liegt über jeder der
+fünf alten — vollständige Trennung, exakter einseitiger Rangtest **p = 3,3 · 10⁻⁴**. Drei Episoden
+erreichen 60–80 % der Demonstration; der alte Checkpoint blieb über sieben Episoden in einem engen
+Band von 0,35–0,49 rad. Die Anhebung läuft mit der Fingerspanne mit (Spearman **+0,62**), die
+Würfel-Verschiebung nicht (+0,05) — der Greifbefehl wirkt also mechanisch und ist kein Nebenprodukt
+von mehr Kontakt.
+
+Vollständige Auswertung inklusive Episodentabelle, Zuordnung und Vorbehalten:
+[diagnose-chronik.md, Läufe 33/34](ergebnisse/diagnose-chronik.md#läufe-3334-runs2026081403-runs2026081404-der-tune_visual-checkpoint-im-closed-loop).
+
+**Damit ist die Regel angewandt.** Sie sagte: bewegt sich die Spanne nicht deutlich über 19 %, ist
+der Vision-Pfad ausgereizt. Sie hat sich bewegt — der Pfad ist also **nicht** ausgereizt, aber
+27,6 % gegen 100 % auf echten Bildern heißt auch: er schließt den Gap nicht. Rund 48 GPU-Stunden
+haben ein Drittel des Weges gebracht. *(Nachtrag 2026-10-13: die beiden Zahlen haben verschiedene
+Nenner — 27,6 % ist die Sim-Spanne relativ zur Konstante 2,094 rad, 100 % das Verhältnis
+Vorhersage/Ground Truth auf echten Bildern, das an genau dieser De-Normalisierungsgrenze sättigt.
+„Ein Drittel des Weges“ ist deshalb kein belastbares Maß, [Review 10-13 §2.2](archiv/projekt-review-2026-10-13.md#22-zahlen--und-aussage-inkonsistenzen).)* Der Rest kommt nicht durch mehr vom Gleichen, sondern muss
+auf der **Sim-Seite** angegangen werden → Schritt 4. *(Nachtrag 2026-10-11: die 27,6 % und `lifted` 0/10 stammen aus der Zeit vor der Geometriekorrektur vom 2026-08-24 und sind neu zu messen — siehe §1 und §2.)*
+
+<details>
+<summary>Wiederholen (Belege sind gitignored)</summary>
+
+```bash
+CKPT=/data/checkpoints/groot-g1dex3-vision-v2-30000
+# Realbild-Referenz (Lauf 33: Median 1,00)
+CHECKPOINT_PATH=$CKPT HF_TOKEN=hf_... ./Simulation/server_rl_run.sh span
+# Sim-Spanne (Lauf 34: Median 0,577 rad = 27,6 %)
+NUM_EPISODES=10 EPISODE_LENGTH_S=40 CHECKPOINT_PATH=$CKPT \
+  HF_TOKEN=hf_... ./Simulation/server_rl_run.sh eval
+```
+
+`EPISODE_LENGTH_S` **immer** setzen und beim Vergleich konstant halten: ohne die Variable laufen
+Episoden bis 9000 Steps (≈ 6 h für 20 Episoden), und die Fingerspanne ist ein Maximum über die
+Episode — ein längeres Fenster hebt sie allein dadurch. Genau daran krankt Lauf 33 (60 s) als
+Vergleich, weshalb Lauf 34 mit 40 s wiederholt wurde.
+
+</details>
+
+### Schritt 4 — Co-Training auf gerenderten Bildern ✅ *gelaufen (Läufe 72–97)*
+
+> **Stand 2026-10-29:** ✅ gelaufen und ausgewertet. Render v3 (Lauf 72), vier KISSKI-Trainings
+> (Läufe 73–76), Gate und Closed Loop auf dem IKR (Läufe 83–95). Ergebnis in §0 und
+> [co-training.md §3.5](training/co-training.md#35-auswerten--zwei-messungen-nicht-eine).
+> Die Mischung war 0,15 statt der unten genannten 0,25 (187 statt 60 Episoden, co-training.md §4.2).
+
+> **Stand 2026-10-11:** der Renderdatensatz ist wegen der Geometriekorrektur vom 2026-08-24 neu zu erzeugen,
+> die Würfellage kommt inzwischen aus den Realbildern (`layout`), und mit `Cube_Stacking_synth` gibt es eine
+> zweite Co-Training-Quelle ([synth-datensatz.md](training/synth-datensatz.md)). Der erste Lauf
+> (`cotrain_synth_v1`) scheiterte am 2026-09-07. Der Text unten ist der Stand vom 2026-08-14.
+
+**Werkzeuge gebaut (2026-08-14); der Lauf ist inzwischen erfolgt (Kasten oben), der Text darunter ist der Stand vom 2026-08-14.** Vollständige Anleitung inklusive
+Rauchtest, Transportweg und Erfolgsregel: [docs/training/co-training.md](training/co-training.md).
+
+Die Eskalation ist genau das, was [lauf2 §6.2](ergebnisse/lauf2-vision-auswertung.md)
+verlangt. Das Gate aus Schritt 3 hat die Voraussetzung geliefert, unter der sich der Aufwand
+rechtfertigen lässt: der Encoder ist der wirksame Hebel (er hat die Spanne nachweislich bewegt),
+er ist nur mit Realbildern allein nicht weit genug zu bringen. Und die +0,62-Kopplung zwischen
+Fingerspanne und Anhebung sagt, woran sich ein Erfolg zeigen wird, bevor die Erfolgsrate
+reagiert: die 2-cm-Schwelle liegt nur noch 0,32 cm über der heute besten Anhebung.
+
+| Datei | Rolle |
+|---|---|
+| [`render_cotrain_dataset.py`](../Simulation/g1_dex3_sim/render_cotrain_dataset.py) | Renderer: echte Aktionen abspielen, die vier Policy-Kameras aufzeichnen, LeRobot-v2.1-Datensatz schreiben |
+| [`server_rl_run.sh render`](../Simulation/server_rl_run.sh) | Wrapper auf dem Sim-Server (beide Stufen, fortsetzbar) |
+| [`launch_cotrain.py`](../Training/scripts/launch_cotrain.py) | Trainings-Einstieg für zwei Datensätze mit `mix_ratio` |
+| [`run_finetuning_cotrain.sh`](../Training/scripts/run_finetuning_cotrain.sh) | Trainings-Launcher, Namespace `blockstacking_cotrain`, `USE_COTRAIN=1` |
+
+**Kein Submodul-Eingriff nötig.** Der Mischbetrieb steckt schon im Fork
+(`SingleDatasetConfig.mix_ratio` → `ShardedMixtureDataset`); nur der CLI-Einstieg
+`launch_finetune.py` verdrahtet einen einzigen Datensatz fest. `launch_cotrain.py` ist dessen
+Kopie mit genau einer Abweichung und liegt in `Training/scripts/` — das wird auf KISSKI als
+`/scripts` eingehängt, wirkt also ohne Fork-Push und ohne Image-Rebuild.
+
+**Der Renderer hat zwei Stufen, und das ist kein Umweg.** Der Datensatz speichert keine
+Objektposen. Würden die Aktionen abgespielt, während die Env ihre Würfel zufällig auslegt,
+entstünden Bild-Aktions-Paare, in denen der Arm dorthin greift, wo kein Würfel liegt — der
+Encoder lernte, den Würfel zu *ignorieren*. Stufe `scan` sucht deshalb erst (mit
+Kameras auf 1/10 Auflösung, also billig) je Hand den Moment des Zugreifens und den
+Fingerkuppen-Schwerpunkt dort; Stufe `render` legt die Würfel an genau diese x/y und zeichnet
+in kalibrierter Auflösung auf.
+
+**Die beiden Vorfragen sind beantwortet** (Herleitung in
+[§4 der Anleitung](training/co-training.md#4-die-beiden-entscheidungen--und-wie-sie-begründet-sind)):
+
+1. **Wie viele Episoden? → 60 für den ersten Lauf** (~3 h Wanduhr für beide Stufen, ~56 000
+   Frames). Kein Optimum, sondern das, was an einem Abend entsteht — und weil der Renderer
+   fortsetzbar ist, keine Einbahnstraße: Aufstocken auf 120 rendert nur die neuen.
+2. **Welches Verhältnis? → 0,25 gerendert.** Zwei unabhängige Argumente treffen sich dort.
+   (a) `mix_ratio` ist eine Sampling-Wahrscheinlichkeit, kein Längenverhältnis: bei 56 k
+   gerenderten gegen 224 k echten Frames sieht das Modell jedes gerenderte Bild sonst 4× so
+   oft. Gleich häufig ist es bei 56/(56+224) ≈ 0,20. (b) Die gerenderten Episoden tragen
+   **keine neuen Aktionen** — sie sind die Zwillinge von 60 der 240 Trainingsepisoden. Bei 0,5
+   verbrächte das Modell die Hälfte aller Updates auf einem Viertel des Repertoires; das ist
+   die Verengung aus Lauf 2 mit umgekehrtem Vorzeichen. Mehr Sim-Anteil kommt über **mehr
+   Episoden**, nicht über ein höheres Verhältnis.
+
+**Zurückgehaltene Episoden werden nie gerendert.** Der Renderer zieht die Grenze mit derselben
+Formel wie [`lib_split.sh`](../Training/scripts/lib_split.sh) und bricht bei explizit angegebenen
+Test-Indices ab. Sonst sähe das Modell die Testepisoden in gerenderter Form und die
+Validierungs-MSE — die einzige Zahl, die Overfitting sichtbar macht — wäre wertlos.
+
+**Vorregistriert, bevor der Lauf startet:** primäres Gate ist die Sim-Fingerspanne im
+identischen Protokoll wie Lauf 34 (10 Episoden × **40 s**, nicht verhandelbar) gegen die
+0,577 rad von dort. Leitplanke ist die Validierungs-MSE auf echten Testepisoden gegen die
+0,00716 aus Lauf 3: wird sie merklich schlechter, verdrängt das gerenderte Material echtes
+Lernen → Verhältnis senken statt weiterzurendern. (Die 0,00716 gelten nur im 6×300-Protokoll;
+im belastbareren 20×750-Protokoll ist die Lauf-3-Referenz 0,00482 bei Step 44.000 — immer mit
+demselben Protokoll vergleichen.)
+
+### Schritt 5 — RL bleibt hinten an
+
+Steht so bereits im [RL-Plan](weiterfuehrend/reinforcement-learning-plan.md): der FPO-Pfad ist
+gebaut und auf Hardware validiert, aber er wartet auf eine BC-Policy, die **überhaupt gelegentlich
+Erfolg hat**. Einem Nullpunkt-Reward fehlt das Startsignal. Nicht vorziehen.
+
+---
+
 ## 2026-08-14 → 2026-08-17 — Co-Training-Renderer: Greifpunkt aus der Fingerkinematik als Hauptweg (überholt)
 
 **Quelle:** `docs/training/co-training.md` §2 („Warum der Renderer zwei Stufen hat"), ausgelagert am 2026-08-18.
@@ -768,7 +1006,7 @@ Umsetzungsstand: [groot-n17-migration.md § Stand der Umsetzung](weiterfuehrend/
 `Training/scripts/entrypoint*.sh`/`run_finetuning*.sh` und `Simulation/scripts/entrypoint_*.sh`.
 Doku-Gegenstück: [groot-n17-migration.md](weiterfuehrend/groot-n17-migration.md),
 [env-vars.md](training/env-vars.md), [kisski-hpc.md](training/kisski-hpc.md),
-[co-training.md](training/co-training.md), [vastai-anleitung.md](simulation/vastai-anleitung.md),
+[co-training.md](training/co-training.md), [vastai-anleitung.md](simulation/sim-eval-anleitung.md) (heute Weg B in `sim-eval-anleitung.md`),
 [fehlerbehebung.md](fehlerbehebung.md), [portabilitaet.md](portabilitaet.md).
 
 ## 2026-09-25 — Upstream-Merge, ein Trainings-Image je Generation
@@ -790,3 +1028,182 @@ N1.7-Trainings-/Sim-Lauf** — vollständiger Stand:
 scheiterte erst nach dem Build. Jetzt: `DOCKER_NAMESPACE` (Umgebung, `.env.local` oder
 Rückfrage am Terminal), die Launcher ziehen von dort, ohne Angabe weiter von `lucam03`.
 Details: [portabilitaet.md § 3.4](portabilitaet.md#34-eigene-images-bauen-eigenes-docker-hub-konto).
+
+## 2026-10-13 — Zwei offene Wartungspunkte aus CLAUDE.md erledigt
+
+*Herkunft:* `CLAUDE.md` § „Open maintenance issues“ (Punkte 1 und 2), dazu
+[groot-n17-migration.md](weiterfuehrend/groot-n17-migration.md) „Offen / ungetestet“.
+
+1. **`Training/setup_and_train_container_build.sh` baute nichts** (`docker compose build` ohne
+   `build:`-Abschnitt in `docker-compose.yml`, seit `cb388a1`). War im Code bereits mit
+   `a8c8c66` (Review 2026-10-11 §4) behoben: das Skript ruft `docker build` direkt mit
+   `GROOT_VERSIONS`/`GROOT_VERSION_DEFAULT` auf und übergibt an den Pull-Launcher. Nur der
+   Eintrag in CLAUDE.md war stehen geblieben.
+2. **Submodul-Pointer `app/Groot-1.6` → `26ad1f7` war im Fork nicht abrufbar.** `26ad1f7` war
+   ein nie gepushter lokaler Commit auf `9508b49`, der nur `examples/G1_DEX3/FINETUNING_GUIDE.md`
+   änderte (max_steps 20000, save_steps 2000) — kein Code. Pointer auf `9508b49` umgepinnt
+   (= `GROOT16_COMMIT` in den Dockerfiles), `git submodule update` funktioniert wieder. Der alte
+   Stand liegt lokal als Tag `archive/unpushed-26ad1f7-guide-params` im Submodul (nicht gepusht).
+
+## 2026-10-13 — CLAUDE.md verschlankt, Status an eine Stelle (Review 10-13 D1/D5)
+
+*Herkunft:* `CLAUDE.md` (bis dahin ~57 KB, wird in jede Claude-Code-Sitzung geladen). Grund: Der
+N1.7-Stand stand dort sechsmal, teils veraltet („no full run yet“, „nothing on KISSKI“) — die
+Hauptquelle der Widersprüche aus [Review 10-13 §6](archiv/projekt-review-2026-10-13.md#6-doku-konsistenz).
+CLAUDE.md hat jetzt ~12 KB; nichts ist verloren, es steht nur an einer Stelle:
+
+| Inhalt (alt in CLAUDE.md) | jetzt in |
+|---|---|
+| Status-Narrativ (Projekt, Läufe, Vorbehalte) | [next-steps.md §0](../next-steps.md) |
+| N1.7-Status (sechsfach) | [groot-n17-migration.md, Status-Box](weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19) |
+| Env-Var-Tabelle Training | [env-vars.md](training/env-vars.md) (war schon dort) |
+| Env-Var-Tabelle Sim-Eval | [env-vars.md § Sim-Eval-Container](training/env-vars.md#sim-eval-container-entrypoint_simsh--kurzreferenz) (neu, mit den echten Defaults statt Beispielwerten) |
+| Env-Var-Tabelle Augmentation | [augmentation/anleitung.md](augmentation/anleitung.md) (war schon dort) |
+| VRAM-Tabelle inkl. N1.7-Hinweis | [env-vars.md § VRAM-Richtwerte](training/env-vars.md#vram-richtwerte) (CLAUDE.md behält eine Kurzfassung) |
+| Architekturbaum, `/data`-Layouts (Training, Augmentation) | [docs/repo-struktur.md](repo-struktur.md) (bis 2026-11-09 in docs/README.md § Projektstruktur) (zusammengeführt) |
+| Menü-Details (`MENU_*`, Gruppen, Rückweg) | [cli-menuefuehrung.md §13](weiterfuehrend/cli-menuefuehrung.md#13-nachtrag-2026-08-21--ein-einstiegspunkt-und-pfeiltasten) (war schon dort) |
+| Lange weiterfuehrend-Aufzählung | [docs/README.md](README.md) (Hub-Tabellen) |
+
+In CLAUDE.md geblieben: Überblick, Kurzstatus mit Link, Wartungspunkte-Regel, kritische Regeln
+(kein `--rm`, Speichermodell inkl. KISSKI, Skripte im Image), wichtigste Befehle, Code-Stil,
+Commit- und TL;DR-Konvention, graphify-Abschnitt, Linkliste.
+
+## 2026-10-13 — Review-10-13-Befunde umgesetzt (Doku-Nachzug)
+
+*Herkunft:* [projekt-review-2026-10-13.md](archiv/projekt-review-2026-10-13.md); Stand je Befund in dessen
+[§9](archiv/projekt-review-2026-10-13.md#9-stand-der-umsetzung-2026-10-13). Überholt sind damit u. a.
+folgende früher dokumentierte Aussagen:
+
+- **Training:** `SAVE_STEPS` war in Vision/Co-Training `1000`, `SAVE_TOTAL_LIMIT` `10` (bzw. `5`) —
+  jetzt überall 2000/15 (KISSKI 5000/40). Der Co-Training-Split war über Entrypoint/KISSKI still
+  aus (Dockerfile-`ENV TRAIN_TEST_SPLIT=0`). Ein nicht leerer Download-Ordner galt als vollständig —
+  jetzt Marker unter `$DATA_DIR/.download_state/`. Tokens standen in der Kommandozeile
+  (`-e HF_TOKEN=…`, `--env`, `wandb login <key>`), `GITHUB_TOKEN` in `.git/config`. Der
+  KISSKI-Branch war fest `training-luca-IKR-IS6.0`; `kisski_menu.sh` änderte nur die Partition,
+  nicht die GPU-Anforderung.
+- **Sim:** Server-Fehler zählten als misslungene Episoden, eine alte `results.json` konnte einen
+  Absturz verdecken, `lifted` zählte Kippen mit, Held-out-Grenze fest 240.
+- **RL:** `success` ≈ 0 per Messfehler, FPO-Ratio aus verschiedenen Ziehungen, globales
+  `env.reset()` — frühere RL-Lernsignale sind nicht belastbar.
+- **Augmentation:** keine Vorabprüfung der Framezahl, `stats.json` als Kopie der Quelle (inkl.
+  Test-Episoden), Ausgabeordner nicht geleert.
+- **Repo:** kein CI, Ruff-Konfiguration nur im Fork, `graphify-out/` getrackt.
+- **Fork:** „`cf2032d` vielleicht ungepusht“ (Review §5) — falsch, der Commit liegt auf
+  `origin/luca/g1-dex3-n17`.
+
+## 2026-10-14 — Wartungspunkt „Daumen-Grenzen“ aus CLAUDE.md geschlossen (kein Defekt)
+
+*Herkunft:* `CLAUDE.md` § „Open maintenance issues“, Punkt 1 (Review 10-13 S7): Verdacht, dass
+`_widen_finger_joint_limits` (`Simulation/g1_dex3_sim/g1_dex3_blockstack_env.py`) `thumb_0`/`thumb_2`
+nicht abdeckt und die Sim den Daumen klemmt (Datensatz-Init bis −0,71 rad).
+
+**Ergebnis: kein Klemmen, keine Code-Änderung.** Die USD-Grenzen (Ausgabe der Sim beim
+`tipcheck` auf `ikr-ki-server-01`) umfassen den gesamten Datensatz (alle 301 Episoden,
+281 196 Frames, `observation.state` und `action`):
+
+| Gelenk | USD-Grenze | Zustand min/max | Aktion min/max |
+|---|---|---|---|
+| `left_hand_thumb_0` | [−1,047, 1,047] | [−1,010, +0,152] | [−1,047, +0,211] |
+| `right_hand_thumb_0` | [−1,047, 1,047] | [−1,006, +0,026] | [−1,047, +0,091] |
+| `left_hand_thumb_2` | [0, 1,745] | [+0,017, +1,355] | [+0,014, +1,398] |
+| `right_hand_thumb_2` | [−1,745, 0] | [−1,041, −0,018] | [−1,094, −0,014] |
+
+Die −0,71 rad sind `right_hand_thumb_0` im Init-Zustand und liegen weit innerhalb von ±1,047.
+Nur die Aktion von `thumb_0` erreicht mit −1,047 genau die Grenze, überschreitet sie aber nicht.
+Erweitert werden müssen nur `thumb_1` (geschieht bereits) und die vier `_0`-Gelenke von Zeige- und
+Mittelfinger (seit 2026-08-24). Laufnummer: 56 in der
+[Diagnose-Chronik](ergebnisse/diagnose-chronik.md).
+
+## 2026-10-30 — Doku-Nachzug nach Review (veraltete Aussagen bereinigt)
+
+*Herkunft:* Review der Markdown-Doku vor der Abgabe. Überholt und korrigiert:
+
+- **Sim-Image N1.6-only** (`simulation/README.md`, `training/env-vars.md`): Docker Hub `:latest`
+  hat seit 2026-10-14 N1.6 und N1.7.
+- **„Offen: Sim-Eval nach Abnahmeprotokoll (20 Episoden)“** (`groot-n17-migration.md`,
+  `next-steps.md`): gelaufen in den Läufen 81, 89, 93, je `lifted_clear` 0/20.
+- **„Letzte Closed-Loop-Läufe 54/55, N1.6-Neumessung offen“** (`sim-eval-anleitung.md`,
+  `docs/README.md`): Läufe bis 97 liegen vor; dazu Hinweis, dass ein schlichtes `eval` nicht die
+  Protokoll-Szene von `tools/sim_cl_watchdog.sh` nutzt; vast.ai-Tabelle auf 120 s und dy3-Layout.
+- **HF-Repos privat** (`abgabe-plan.md`, `next-steps.md`, `lauf4-n17-vergleich.md`): alle
+  `luca-mue/*`-Modelle und -Datensätze sind seit 2026-10-30 öffentlich.
+- **Quickstart §2:** fehlender `setup`-Schritt (Container mit `HF_TOKEN`); Herkunft von
+  `layout_heldout_dy3.json` und der Prüfsets `vis_gate_v3_cube{5,4}` beschrieben; die
+  dy3-Layouts erzeugt jetzt `tools/layout_shift.py --dy 0.03`.
+- **`training/anleitung.md`:** Upload per `huggingface-cli upload … .` (mit `optimizer.pt`) ersetzt
+  durch `upload_checkpoint.py`.
+
+## 2026-10-30 — Code-Fehler aus dem Abgabe-Review behoben
+
+- **`stacked` mit 4-cm-Würfeln:** Die Turmhöhe war fest 0,08 m; ein perfekter Turm aus
+  4-cm-Würfeln (Mittenabstand genau 0,08) zählte nie (Läufe 88, 93, 97 betroffen, Aussage „nie
+  gestapelt“ bleibt, kein Würfel wurde aufgesetzt). Jetzt `STACK_HEIGHT_MIN = 2·Kante − 2 cm` in
+  `scene_geometry.py` (5 cm unverändert 0,08), Test `test_scene_geometry.py`. Sim-Image neu bauen.
+- **`tools/sim_cl_summary.py`:** abgebrochene Episoden zählten im Nenner mit; beim Pooling galt ein
+  Artefakt für dieselbe Episodennummer in allen Dateien. Lauf 97 (2/60) war nicht betroffen
+  (keine Artefakte, keine Abbrüche im JSON).
+- **Checkpoint-Sweep:** Default von 6 × 300 auf 20 × 750 (`kisski_open_loop_eval.sh`,
+  `checkpoint_sweep.py`); 6 × 300 lieferte in Lauf 3 einen Schein-Besten.
+- **Fortsetzen nach Stopp:** `docker start -ai groot-train` brach ab, sobald Checkpoints
+  existierten (Resume-Schutz ohne `RESUME=1`, Umgebung ab `docker run` fest). Der Launcher legt
+  mit `--resume` jetzt `/data/.resume_request` an, die `lib_resume_guard.sh` einmalig wie
+  `RESUME=1` behandelt.
+- **Secrets in der Prozessliste:** `curl -H "Authorization: Bearer …"` (`lib_groot_version.sh`,
+  auch auf dem KISSKI-Login-Knoten), `docker -e HF_TOKEN=…`/`WANDB_API_KEY=…`
+  (`server_rl_run.sh`, `server_robocasa_ref_run.sh`), `apptainer --env HF_TOKEN=…`
+  (`kisski_robocasa_ref_submit.sh`) und `hf auth login --token …` (Augmentation) übergeben den
+  Wert jetzt über Umgebung bzw. stdin/Datei.
+
+## 2026-10-30 — Kleinere Doku-Korrekturen nach Review
+
+- `next-steps.md`: Kopfzahl in §1 auf `lifted_clear` 2/60 (Läufe 88/97) nachgetragen (0/20 bzw.
+  0/10 als überholt markiert); Widerspruch „Neumessung steht aus (inzwischen gemessen)“ in §0
+  aufgelöst; „1–2 Griffe in 20 Episoden“ → 2/60; Tabelle §2: Zeilen 2–4 als erledigt markiert
+  (Läufe 61, 81/82, 72–97), RL-Zeile mit Startsignal; Überschrift Schritt 4 auf „gelaufen“.
+- `docs/README.md`: Struktur-Stand 2026-10-30, Training-Abschnitt nennt N1.7, „Abgabeplan“;
+  Strukturbaum ergänzt (`tools/check_links.py`, `tools/ci_check_pins.sh`, `Augmentation/tests/`,
+  `Simulation/runs/`, `g1_dex3_sim/README.md` und Module `eval_metrics.py`, `oracle_replay.py`,
+  `split_math.py`, `dump_policy_cams.py`, `recolor_hands_black.py`, Aktion `layoutreport`,
+  versionierte `data/`-Einträge).
+- `docs/training/anleitung.md`: Wege in Reihenfolge A, B, C, D; Titel/TL;DR nennen N1.7.
+- `docs/weiterfuehrend/README.md`: „Co-Training kommt zuerst“ → gelaufen, 2/60 als schwaches
+  Startsignal für RL.
+- `docs/training/env-vars.md`: Dockerfile-`ENV`-Liste korrigiert; `HF_TOKEN` nur beim Download
+  Pflicht; KISSKI-Defaults (`GLOBAL_BATCH_SIZE=32`, `NUM_GPUS=4`, `SKIP_DOWNLOAD=1`, Warmup 0.1
+  auch bei `USE_COTRAIN=1`); Mischung 0.15 der Render-v3-Presets; `EPISODE_LENGTH_S`-Protokoll
+  120 s; `DR_ENABLED` mit beiden Defaults; neue Zeilen für `DATASET_PATH`, `MODEL_PATH`,
+  `MODALITY_CONFIG`, `EMBODIMENT_TAG`, `HF_TOKEN_FILE`/`WANDB_KEY_FILE`, `GITHUB_REPO`/
+  `GITHUB_BRANCH`, `GROOT_FORK_DIR`, `GROOT_FORK_ALLOW_DRIFT`, `GROOT_BACKBONE_REPO`, `ZMQ_PORT`.
+- `docs/schnittstellen.md`: Server-Optionen um die Replay-Optionen ergänzt; `HF_TOKEN` und
+  `DR_ENABLED` wie in env-vars.md.
+- `docs/fehlerbehebung.md`: Domain-Gap-Notiz vom 2026-08-14 als überholt markiert, Nachträge
+  zu Läufen 62/65/66 und zum Co-Training.
+- `docs/ergebnisse/diagnose-chronik.md`: Titel/TL;DR auf Läufe 08–97.
+- Code: `tools/lib_menu.sh` (SC2318, `local` getrennt), `run.sh` (SC2155, `export` getrennt),
+  `Training/docker-compose.yml` (Warnung: `docker compose down` löscht `/data`; N1.7 braucht
+  `GROOT_IMAGE_TAG=latest-n17`).
+
+## 2026-11-09 — Abschluss-Review der Markdown-Doku für die Abgabe
+
+Vorbereitung auf den Merge nach `main` und das Löschen von `training-luca-IKR-IS6.0`.
+
+- **Branch-Verweise:** Anweisungen zeigen auf `main` (`quickstart.md`, `training/anleitung.md`,
+  `training/kisski-hpc.md` mit Hinweis zum Umstellen eines bestehenden flachen Klons,
+  `schnittstellen.md`). Nennungen alter Branches in `weiterfuehrend/` und `simulation/` sind
+  als Historie gekennzeichnet; empfohlene Image-Tags sind `:latest` / `:latest-n17`.
+- **Cosmos-Stand:** „nicht end-to-end geprüft“ ersetzt durch den Testlauf vom 2026-09-23
+  (Episoden 0 und 120 × 3 Varianten, 6003 Frames, HF `luca-mue/g1-dex3-cosmos-augmented`) in
+  `README.md`, `docs/README.md`, `next-steps.md`, `augmentation/` und `CLAUDE.md`.
+- **Fakten korrigiert:** `nvidia/GR00T-N1.6-3B` ist nicht gated (nur Cosmos-Reason2-2B);
+  Datensatz 9,2 GB statt „~18 GB“ (18,4 GB ist der HF-Speicher inkl. Historie); Domain-Gap ×13
+  gilt für N1.6 vision-v2 @30000 (@44000 im Gate-Protokoll ×17, Lauf 80); Würfellage aus dem
+  Bild 0,2–0,3 cm mit korrigierter Ebene; `sbatch --export=ALL` in `portabilitaet.md`.
+- **Stand nachgezogen:** `co-training.md` (Ergebnis Läufe 73–97), RL-Doku (kein Lauf, Startpunkt
+  Modell C), N1.7-Migration (gemergt), `abgabe-plan.md` und `latex/README.md` (28 / 49 Seiten),
+  verrutschte Zeilenverweise in `schnittstellen.md`, `fehlerbehebung.md`, `portabilitaet.md`;
+  Beispielausgabe der RL-Anleitung an den Code angeglichen.
+- **Struktur:** Verzeichnisbaum und `/data`-Layout aus `docs/README.md` nach
+  [repo-struktur.md](repo-struktur.md); im Hub neu eine Tabelle „Ich will …“, „Weiterführende
+  Arbeiten“ getrennt in „Umgesetzt“ und „Ausblick“, `umsetzungsnotizen.md` nicht mehr als „READ
+  FIRST“ markiert. `next-steps.md` §3 (Verlauf der Schritte 1–5) steht jetzt in dieser Datei
+  unter „2026-08-13 → 2026-10-29“.

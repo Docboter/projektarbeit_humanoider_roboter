@@ -1,0 +1,17 @@
+chronik_lauf,modell,episoden,episodenlaenge_s,reached,touched,lifted_ohne_artefakte,lifted_clear,stacked,artefakte,spanne_median_rad,spanne_min_rad,spanne_max_rad,abstand_median_cm,quellen_json
+81,N1.7 vision-v1 @44000,20,120,7,7,0,0,0,1,0.518,0.415,0.552,4.9,results_20261015-104047_groot-g1dex3-n17-vision-v1-ckpt44000.json
+82,N1.6 vision-v2 @44000,20,120,16,17,0,0,0,1,0.641,0.426,1.432,3.4,results_20261015-131931_groot-g1dex3-vision-v2-44000.json
+84,B N1.6 cube5 @44000,20,120,19,20,3,1,0,2,1.543,1.428,1.649,2.7,results_20261018-142634_cotrain-v3-cube5-ckpt44000.json
+85,"C N1.6 cube4 @44000, 5-cm-Würfel",20,120,16,20,1,1,0,0,1.587,1.399,1.775,3.0,results_20261018-142554_cotrain-v3-cube4-ckpt44000.json
+88,"C N1.6 cube4 @44000, 4-cm-Würfel",20,120,19,20,4,2,0,0,1.606,1.485,1.743,2.3,results_20261025-162853_cotrain-v3-cube4-ckpt44000.json
+89,A N1.7 cube5 @44000,20,120,20,20,6,0,0,0,1.643,1.525,1.804,2.7,results_20261028-185553_cotrain-v3-cube5-n17-ckpt44000.json
+90,vision-v1 @35000 (alt),20,120,20,14,1,0,0,1,1.301,0.953,1.743,2.7,results_20261028-184923_hf-groot-g1dex3-checkpoint-vision.json
+91,Lauf 1 @110000 (alt),20,120,16,19,1,0,0,1,1.753,1.301,1.984,3.1,results_20261028-210020_hf-groot-g1dex3-checkpoint.json
+93,"D N1.7 cube4 @44000, 4-cm-Würfel",20,120,19,20,1,0,0,0,1.712,1.578,1.854,2.1,results_20261029-124337_cotrain-v3-cube4-n17-ckpt44000.json
+94,"Cp N1.6 cube4 @35000, 4-cm-Würfel",20,120,19,19,2,1,0,0,1.622,1.473,1.722,2.8,results_20261029-124732_cotrain-v3-cube4-ckpt35000.json
+95,Bp N1.6 cube5 @40000,20,120,20,20,3,0,0,0,1.561,1.100,1.661,2.7,results_20261029-150142_cotrain-v3-cube5-ckpt40000.json
+88+97,"C N1.6 cube4 @44000, alle 60 Testlagen",60,120,58,60,6,2,0,0,1.606,1.468,1.878,2.5,results_20261025-162853_cotrain-v3-cube4-ckpt44000.json;results_20261029-192509_cotrain-v3-cube4-ckpt44000.json;results_20261029-202344_cotrain-v3-cube4-ckpt44000.json;results_20261029-190111_cotrain-v3-cube4-ckpt44000.json
+96,"C N1.6 cube4 @44000, 10x40 s",10,40,10,10,0,0,0,0,1.526,1.407,1.616,3.2,results_20261029-164758_cotrain-v3-cube4-ckpt44000.json
+96,"vision-v2 @44000, 10x40 s",10,40,8,6,0,0,0,0,0.518,0.388,1.284,3.2,results_20261029-171213_groot-g1dex3-vision-v2-44000.json
+96,"vision-v1 @35000, 10x40 s",10,40,9,5,0,0,0,0,1.190,0.912,1.354,2.8,results_20261029-202229_hf-groot-g1dex3-checkpoint-vision.json
+96,"Lauf 1 @110000, 10x40 s",10,40,9,8,0,0,0,1,1.208,0.685,1.694,3.3,results_20261029-204615_hf-groot-g1dex3-checkpoint.json

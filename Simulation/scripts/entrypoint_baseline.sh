@@ -267,6 +267,12 @@ APP_FLAGS+=( "${LS_APP_FLAGS[@]}" )
 livestream_banner
 echo ""
 
+# Veraltete Ergebnis-Datei vor dem Start entfernen und auf den Erfolgsmarker prüfen statt
+# auf "Datei nicht leer" (Review 2026-10-13, S5; gleiche Regel wie entrypoint_sim.sh).
+RESULTS_FILE="$DATA_DIR/sim_results/results.json"
+rm -f "$RESULTS_FILE"
+EVAL_LOG="$DATA_DIR/logs/baseline_eval_$(date +%Y%m%d-%H%M%S).log"
+
 ${ISAACLAB_PATH}/isaaclab.sh -p /workspace/g1_gripper_sim/run_g1_gripper_sim_eval.py \
     "${APP_FLAGS[@]}" \
     --server "tcp://localhost:$ZMQ_PORT" \
@@ -275,14 +281,21 @@ ${ISAACLAB_PATH}/isaaclab.sh -p /workspace/g1_gripper_sim/run_g1_gripper_sim_eva
     --execution-horizon "$EXECUTION_HORIZON" \
     --task-description  "$TASK_DESCRIPTION" \
     --video-dir      "$VIDEO_DIR" \
-    --results-file   "$DATA_DIR/sim_results/results.json" \
+    --results-file   "$RESULTS_FILE" \
     --asset-path     "$ASSET_PATH" \
-    --ping-retries   20
+    --ping-retries   20 2>&1 | tee "$EVAL_LOG" || true
 
-RESULTS_FILE="$DATA_DIR/sim_results/results.json"
+if ! grep -q "\[eval\] fertig\." "$EVAL_LOG"; then
+    err "Baseline-Eval ohne Erfolgsmarker '[eval] fertig.' beendet (Log: $EVAL_LOG)."
+    if grep -q "\[eval\] ABGEBROCHEN" "$EVAL_LOG"; then
+        err "  $(grep "\[eval\] ABGEBROCHEN" "$EVAL_LOG" | tail -1)"
+    else
+        err "Der Sim-Client ist vermutlich abgestürzt — Traceback oben bzw. im Log prüfen."
+    fi
+    exit 1
+fi
 if [[ ! -s "$RESULTS_FILE" ]]; then
-    err "Sim-Eval hat keine Ergebnis-Datei erzeugt ($RESULTS_FILE)."
-    err "Der Sim-Client ist vermutlich abgestürzt — letzte Container-Ausgaben oben prüfen."
+    err "Erfolgsmarker vorhanden, aber keine Ergebnis-Datei ($RESULTS_FILE)."
     exit 1
 fi
 

@@ -87,7 +87,14 @@ def save_episode_video(frames: list[np.ndarray], episode: int, video_dir: str) -
 def run_episode(env, client, dims, execution_horizon, task_description,
                 record_video, episode, video_dir) -> dict:
     env.reset()
-    client.reset()
+    # Server-/Kommunikationsfehler machen die Episode UNGÜLTIG statt "misslungen"
+    # (Review 2026-10-13, S1 — gleiche Regel wie run_g1_dex3_sim_eval.py).
+    error_reason = None
+    try:
+        client.reset()
+    except Exception as e:
+        error_reason = f"reset: {type(e).__name__}: {e}"
+        print(f"[Episode] Fehler bei reset: {e}", flush=True)
 
     frames: list[np.ndarray] = []
     step = 0
@@ -96,7 +103,7 @@ def run_episode(env, client, dims, execution_horizon, task_description,
     t_start = time.perf_counter()
     max_steps = int(env.cfg.episode_length_s * env.cfg.policy_hz)
 
-    while step < max_steps:
+    while step < max_steps and error_reason is None:
         obs_np = env.get_obs_for_policy()
         policy_obs = build_obs(
             ego_view=obs_np["video.ego_view"],
@@ -120,7 +127,8 @@ def run_episode(env, client, dims, execution_horizon, task_description,
         try:
             chunk = client.get_action(policy_obs)  # (T, 16)
         except Exception as e:
-            print(f"[Episode] Fehler bei get_action (Step {step}): {e}")
+            error_reason = f"get_action (Step {step}): {type(e).__name__}: {e}"
+            print(f"[Episode] Fehler bei get_action (Step {step}): {e}", flush=True)
             break
 
         for t in range(min(execution_horizon, len(chunk))):
@@ -154,6 +162,8 @@ def run_episode(env, client, dims, execution_horizon, task_description,
         save_episode_video(frames, episode, video_dir)
 
     return {
+        "error": error_reason is not None,
+        "error_reason": error_reason,
         "success": success,
         "num_steps": step,
         "duration_s": round(duration, 2),
@@ -209,27 +219,46 @@ def main():
 
     results = []
     record = bool(args.video_dir)
+    consecutive_errors = 0
+    aborted_reason = None
     for ep in range(args.num_episodes):
         print(f"--- Episode {ep + 1}/{args.num_episodes} ---")
         ep_result = run_episode(env, client, dims, args.execution_horizon,
                                 args.task_description, record, ep + 1, args.video_dir)
         ep_result["episode"] = ep + 1
         results.append(ep_result)
+        if ep_result["error"]:
+            consecutive_errors += 1
+            print(f"  Episode {ep + 1}: ABGEBROCHEN (ungültig) — {ep_result['error_reason']}")
+            if consecutive_errors >= 2:
+                aborted_reason = (f"{consecutive_errors} Episoden in Folge abgebrochen, "
+                                  f"zuletzt: {ep_result['error_reason']}")
+                print(f"[FEHLER] {aborted_reason} — Eval wird beendet.", flush=True)
+                break
+            continue
+        consecutive_errors = 0
         status = "ERFOLG" if ep_result["success"] else "misslungen"
         print(f"  Episode {ep + 1}: {status} | {ep_result['num_steps']} Steps | "
               f"{ep_result['duration_s']:.1f}s")
 
-    n_success = sum(1 for r in results if r["success"])
-    success_rate = n_success / len(results) if results else 0.0
+    # Quoten nur über gültige Episoden (abgebrochen = keine Messung).
+    valid = [r for r in results if not r["error"]]
+    n_success = sum(1 for r in valid if r["success"])
+    success_rate = n_success / len(valid) if valid else 0.0
     print()
     print("=" * 60)
-    print(f"Ergebnis: {n_success}/{len(results)} Erfolge — Success-Rate: {success_rate:.1%}")
+    print(f"Episoden: {len(valid)} gültig / {len(results) - len(valid)} abgebrochen")
+    print(f"Ergebnis: {n_success}/{len(valid)} Erfolge — Success-Rate: {success_rate:.1%}")
     print("=" * 60)
 
     summary = {
         "embodiment": "unitree_g1",
         "baseline": True,
         "num_episodes": len(results),
+        "num_valid": len(valid),
+        "num_aborted": len(results) - len(valid),
+        "aborted": aborted_reason is not None,
+        "aborted_reason": aborted_reason,
         "num_success": n_success,
         "success_rate": success_rate,
         "server": args.server,
@@ -243,6 +272,14 @@ def main():
     print(f"Ergebnisse gespeichert: {args.results_file}")
 
     client.close()
+    if aborted_reason is not None:
+        print(f"[eval] ABGEBROCHEN: {aborted_reason}", flush=True)
+        env.close()
+        simulation_app.close()
+        sys.exit(2)
+    # Erfolgsmarker: isaaclab.sh reicht den Exit-Code nicht durch; entrypoint_baseline.sh
+    # prüft auf genau diese Zeile (Review 2026-10-13, S5).
+    print("[eval] fertig.", flush=True)
     env.close()
     simulation_app.close()
 

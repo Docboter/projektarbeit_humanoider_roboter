@@ -1,0 +1,228 @@
+% chapters/02_system.tex
+
+\chapter{System im Überblick}
+\label{chap:system}
+\label{chap:grundlagen}
+
+\Cref{fig:architektur} zeigt den Weg vom Datensatz über Training und Checkpoint bis zum
+Policy-Server, den die Simulation abfragt.
+
+\begin{figure}[htb]
+  \centering
+  \resizebox{\linewidth}{!}{%
+  \begin{tikzpicture}[
+    node distance = 0.7cm and 2.0cm,
+    box/.style   = {draw, rounded corners, fill=NavyBlue!8, align=center,
+                    minimum width=3.0cm, minimum height=1.25cm, font=\small\sffamily},
+    ext/.style   = {box, fill=OliveGreen!10},
+    miss/.style  = {box, fill=white, dashed, draw=gray},
+    arrow/.style = {-{Stealth[scale=1.1]}, thick, NavyBlue!70},
+    lab/.style   = {font=\scriptsize\sffamily, align=center},
+  ]
+    \node[ext] (ds)   {Datensatz (\acs{hf})\\\scriptsize LeRobot v3.0, 301 Ep.};
+    \node[box] (tr)   [right=of ds] {Training\\\scriptsize Docker lokal /\\\scriptsize Apptainer KISSKI};
+    \node[ext] (ck)   [right=of tr] {Checkpoint (\acs{hf})\\\scriptsize \texttt{luca-mue/}\\\scriptsize \texttt{groot-g1dex3-*}};
+    \node[box] (srv)  [below=1.3cm of ck] {Policy-Server\\\scriptsize GR00T, ZMQ :5555};
+    \node[box] (sim)  [left=of srv] {Sim-Eval\\\scriptsize Isaac Lab, 30\,Hz};
+    \node[miss] (rob) [left=of sim] {Roboter G1\\\scriptsize nicht angebunden};
+
+    \draw[arrow] (ds) -- node[above, lab] {Download,\\v3.0$\to$v2.1} (tr);
+    \draw[arrow] (tr) -- node[above, lab] {Upload} (ck);
+    \draw[arrow] (ck) -- node[right, lab] {laden} (srv);
+    \draw[arrow, <->] (sim) -- node[below, lab] {Bilder, Zustand /\\16$\times$28 Ziele} (srv);
+    \draw[arrow, <->, dashed, gray] (rob.south) -- ++(0,-0.5) -| node[pos=0.25, below, lab, gray] {gleiches Protokoll} (srv.south);
+  \end{tikzpicture}}
+  \caption{Datenfluss des Systems. Grün: externe Ablagen auf Hugging Face; gestrichelt: nicht
+    umgesetzt. Formate und Ports: \cref{chap:schnittstellen}.}
+  \label{fig:architektur}
+\end{figure}
+
+\section{Plattform}
+\label{sec:plattform}
+\label{sec:humanoide-robotik}
+
+Der Unitree~G1~\cite{unitree_g1} wird mit der dreifingrigen DEX3-Hand verwendet. Gesteuert
+werden nur Arme und Hände: je sieben Gelenke pro Arm und pro Hand, zusammen 28~\acp{dof}.
+Beine und Taille bleiben in der Simulation fest. Die vier Kameras des Datensatzes (zwei am
+Kopf, eine an jedem Handgelenk) liefern Bilder mit 640$\times$480 Pixeln bei 30~Hz.
+
+\section{GR00T N1.6 und N1.7}
+\label{sec:vla}
+\label{sec:imitation-learning}
+\label{sec:flow-matching}
+
+GR00T gehört wie OpenVLA~\cite{openvla2024} und $\pi_0$~\cite{pi0_2024} zu den \acp{vla} und verbindet ein Vision-Language-Modell mit einem Aktionskopf, der per Flow
+Matching~\cite{lipman2023flow} einen Block von 16 Gelenkbefehlen erzeugt~\cite{groot2025}.
+Nachtrainiert wird per \acf{bc}~\cite{hussein2017imitation}: Das Modell lernt, zu jedem
+beobachteten Zustand die demonstrierte Aktion vorherzusagen. Der Trainings-Loss misst daher
+nur die Nachahmung, nicht den Aufgabenerfolg; weicht die Policy im Regelkreis von den
+Demonstrationen ab, summieren sich Fehler~\cite{ross2011dagger}.
+
+Standardpfad der Arbeit ist N1.6~\cite{groot_n16} mit 3,29~Mrd.\ Parametern und dem
+Backbone Eagle (Python~3.10); verwendet wird ein Fork des NVIDIA-Repositorys~\cite{groot_repo}.
+Die neuere Generation N1.7~\cite{groot_n17} hat 3,14~Mrd.\ Parameter und nutzt das
+zugangsbeschränkte Backbone Cosmos-Reason2-2B (Qwen3-VL); sie läuft in einem eigenen Image
+mit Python~3.12. Checkpoints beider Generationen sind nicht gegenseitig ladbar, die Wahl erfolgt
+über \texttt{GROOT\_VERSION}. N1.7 wurde mit den NVIDIA-Standardwerten trainiert, die vom
+N1.6-Rezept abweichen (u.\,a.\ State-Dropout 0,2 statt 0). Ein Vergleich beider Generationen
+ist deshalb immer einer von Modell \emph{und} Rezept
+(\doc{docs/weiterfuehrend/groot-n17-migration.md}).
+
+\section{Rechenumgebungen}
+\label{sec:rechenumgebungen}
+\label{sec:infrastruktur}
+\label{sec:kisski}
+
+Rechenleistung war über weite Strecken der Engpass des Projekts. Die eigenen Rechner der
+Projektgruppe reichen weder für das Training noch für die Simulation: Das Fine-Tuning von
+GR00T braucht schon bei kleinster Batchgröße mindestens 24~GB Grafikspeicher, die eigenen
+Grafikkarten haben 8 bzw.\ 12~GB. \Cref{tab:rechenumgebungen} stellt alle genutzten Umgebungen
+gegenüber.
+
+\begin{table}[htb]
+  \centering
+  \small
+  \begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{2.6cm}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}p{2.4cm}}
+    \toprule
+    Umgebung & Hardware & Einsatz & Bewertung \\
+    \midrule
+    Laptop 1 & Intel i9-13980HX, RTX 4070 Laptop (8~GB), 32~GB RAM & Entwicklung, erste
+      Container-Tests & nicht ausreichend \\
+    Desktop & AMD Ryzen 5 9600X, RTX 5070 (12~GB), 32~GB RAM & Entwicklung, erste
+      Container-Tests & nicht ausreichend \\
+    Laptop 2 & ohne dedizierte \acs{gpu} & Dokumentation, Fernzugriff & nicht ausreichend \\
+    \addlinespace
+    Mietkarten (vast.ai, trooper.ai) & je nach Angebot, u.\,a.\ mit \acs{rt}-Cores &
+      erste Trainings- und Simulationsversuche, später Sim-Eval & ausreichend, aber rund
+      100~€ privat bezahlt \\
+    KISSKI (\acs{gwdg})~\cite{kisski} & 4$\times$A100 80~GB, H100 94~GB; \acs{slurm},
+      Apptainer, max.\ 48~h je Job & Training, Open-Loop-Auswertung & ausreichend, ab Juni;
+      Zugang endet im Dezember 2026 \\
+    \acs{ikr}-Server (Institut) & 2$\times$RTX PRO 6000 (Blackwell) & Simulation, visuelles
+      Gate, Rendering & ausreichend, ab Juli; geteilt mit anderen Nutzern; häufig VRAM voll \\
+    \bottomrule
+  \end{tabularx}
+  \caption[Rechenumgebungen]{Genutzte Rechenumgebungen. Isaac~Sim braucht Raytracing-Kerne
+    (\acs{rt}-Cores); A100 und H100 haben keine, die Simulation läuft daher nie auf KISSKI.}
+  \label{tab:rechenumgebungen}
+\end{table}
+
+Bis die beiden leistungsfähigen Umgebungen nutzbar waren, vergingen rund zwei Monate: Der
+KISSKI-Zugang musste beantragt und freigeschaltet werden, auf dem \acs{ikr}-Server fehlten
+anfangs die nötigen Berechtigungen. In dieser Zeit liefen alle größeren Versuche auf
+gemieteten Karten, deren Kosten die Projektgruppe selbst getragen hat. Training und Simulation
+laufen in Containern (\acs{cuda}~12.8, \texttt{uv}), konfiguriert nur über
+Umgebungsvariablen; Checkpoints wandern über Hugging Face vom Cluster zum Sim-Server.
+
+\clearpage
+
+\section{Begriffe}
+\label{sec:begriffe}
+
+Einige Begriffe kommen in der Arbeit immer wieder vor. Sie sind teils englisch, weil sie so in
+Fachliteratur und Code verwendet werden; \cref{tab:begriffe} erklärt sie.
+
+\begin{table}[htb]
+  \centering
+  \small
+  \begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{3.2cm}X}
+    \toprule
+    Begriff & Bedeutung \\
+    \midrule
+    Policy & das nachtrainierte Modell in seiner Rolle als Steuerung: Bilder und Zustand rein,
+      Gelenkziele raus \\
+    Episode & eine Aufzeichnung oder ein Versuch der Aufgabe von Anfang bis Ende \\
+    Checkpoint, \enquote{@44000} & gespeicherter Stand eines Modells; \enquote{@44000} heißt
+      nach 44\,000 Trainingsschritten \\
+    Lauf~N & eine nummerierte Messung oder ein Training im Laborbuch
+      (\cref{anh:laufliste}) \\
+    Open Loop & Bewertung auf aufgezeichneten Episoden: Das Modell sagt Aktionen voraus, die
+      mit den aufgezeichneten verglichen, aber nicht ausgeführt werden \\
+    Closed Loop & Bewertung im geschlossenen Regelkreis: Die Aktionen des Modells werden in der
+      Simulation ausgeführt, die nächsten Bilder hängen davon ab \\
+    teacher-forced & das Modell bekommt in jedem Schritt die aufgezeichneten Bilder und Zustände,
+      nicht die Folgen seiner eigenen Vorhersagen \\
+    Demo-Replay & Abspielen der aufgezeichneten Bewegungen aus dem Datensatz in der Simulation,
+      ohne Modell; zeigt, ob die Szene die Aufgabe überhaupt zulässt \\
+    Domain-Gap & Unterschied zwischen echten und simulierten Bildern, soweit er das Modell
+      beeinflusst \\
+    Co-Training & Training auf einer Mischung aus echten und simulierten Daten \\
+    Visuelles Gate & schnelle Vorprüfung ohne Simulation: Wie stark steigt der Fehler des
+      Modells auf Sim-Bildern gegenüber echten? \\
+    Bewertungsstufen & Stufen von \enquote{Würfel erreicht} bis \enquote{Turm gestapelt}, z.\,B.\
+      \texttt{lifted\_clear} = frei angehoben (\cref{tab:if-stufen}) \\
+    \bottomrule
+  \end{tabularx}
+  \caption{Wiederkehrende Begriffe.}
+  \label{tab:begriffe}
+\end{table}
+
+\section{Datensätze und Modelle}
+\label{sec:daten-modelle}
+
+Im Projekt wurden mehrere Datensätze und Modelle verwendet, deren Namen sich teils ähneln.
+\Cref{tab:datensaetze} und \cref{tab:modelle} legen fest, welche Bezeichnung in dieser Arbeit
+was meint. Der wichtigste Unterschied: Der \emph{Unitree-Datensatz} stammt vom echten Roboter,
+alle \emph{Render-Datensätze} und Prüfbilder entstanden, indem Bewegungen aus diesem Datensatz
+in der Simulation abgespielt und mit den simulierten Kameras aufgenommen wurden.
+
+\begin{table}[htb]
+  \centering
+  \small
+  \begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{2.9cm}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}p{4.0cm}}
+    \toprule
+    Bezeichnung & Herkunft und Umfang & Verwendung \\
+    \midrule
+    Unitree-Datensatz & \texttt{unitreerobotics/}\allowbreak\texttt{G1\_Dex3\_BlockStacking\_\allowbreak Dataset} auf Hugging
+      Face~\cite{g1dex3dataset}; am echten Roboter teleoperiert, 301 Episoden mit echten
+      Kamerabildern & Training (Episoden 0--239), Test (240--300), Demo-Replay in der
+      Simulation \\
+    \addlinespace
+    Render-Datensätze v3 (5~cm, 4~cm) & 187 Trainingsepisoden des Unitree-Datensatzes in der
+      Simulation abgespielt und mit vier Sim-Kameras gerendert, 29\,890 Frames je Würfelgröße
+      (Lauf~72) & Co-Training der Modelle A--D \\
+    \addlinespace
+    Sim-Prüfbilder & 4 Trainingsepisoden auf dieselbe Weise gerendert, nicht in den
+      Render-Datensätzen enthalten & visuelles Gate \\
+    \addlinespace
+    Sim-Bilder Lauf~66 & 8 Trainingsepisoden ebenso gerendert, noch in der Szene vor
+      der Angleichung aus Lauf~70 & Messung des Domain-Gaps \\
+    \addlinespace
+    \texttt{Fichtl00/}\allowbreak\texttt{Cube\_Stacking\_\allowbreak synth} & externer, in der Simulation teleoperierter
+      Datensatz, 16 Episoden & nicht verwendet (\cref{sec:nicht-weiter}) \\
+    \bottomrule
+  \end{tabularx}
+  \caption{Datensätze und ihre Bezeichnung in dieser Arbeit.}
+  \label{tab:datensaetze}
+\end{table}
+
+Alle nachtrainierten Modelle wurden 44\,000 Schritte trainiert, außer Lauf~1. Gemessen wird,
+wenn nicht anders angegeben, der letzte Checkpoint (\enquote{@44000}). Der Experimentname
+\enquote{vision-v1} kommt in beiden Generationen vor; er wird deshalb immer mit der Generation
+genannt.
+
+\begin{table}[htb]
+  \centering
+  \small
+  \begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{2.9cm}cc>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}p{3.2cm}}
+    \toprule
+    Bezeichnung & Lauf & Gen. & Trainingsdaten & Rolle in der Arbeit \\
+    \midrule
+    Basismodell & -- & N1.6 & nur NVIDIA-Vortraining & Prüfung der Inferenz-Kette \\
+    N1.6 Lauf~1 & 1 & N1.6 & Unitree, alle 301 Episoden, Bild-Encoder eingefroren &
+      Gegenprobe (alt) \\
+    N1.6 vision-v1 & 2 & N1.6 & Unitree, alle 301 Episoden & Gegenprobe (alt) \\
+    N1.6 vision-v2 & 3 & N1.6 & Unitree, Episoden 0--239 & Referenz ohne Co-Training \\
+    N1.7 vision-v1 & 4 & N1.7 & Unitree, Episoden 0--239 & Referenz ohne Co-Training \\
+    \addlinespace
+    Modell A & 75 & N1.7 & wie Lauf~4, dazu Render-Datensatz 5~cm & Co-Training \\
+    Modell B & 73 & N1.6 & wie Lauf~3, dazu Render-Datensatz 5~cm & Co-Training \\
+    Modell C & 74 & N1.6 & wie Lauf~3, dazu Render-Datensatz 4~cm & Co-Training,
+      bestes Modell in der Simulation \\
+    Modell D & 76 & N1.7 & wie Lauf~4, dazu Render-Datensatz 4~cm & Co-Training \\
+    \bottomrule
+  \end{tabularx}
+  \caption[Modelle]{Modelle und ihre Bezeichnung in dieser Arbeit. Hugging-Face-Repositorys:
+    \cref{tab:if-checkpoint}; Trainingsparameter: \cref{tab:laeufe,tab:hparams}.}
+  \label{tab:modelle}
+\end{table}

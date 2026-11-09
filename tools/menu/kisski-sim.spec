@@ -6,7 +6,7 @@ action sim "Sim-Eval einreichen" \
   --hint "UEBERHOLT. Der Job zielt auf die jupyter-Partition, weil nur deren Quadro RTX 5000 ueberhaupt RT-Cores hat. Sie ist aber Turing und damit eine Generation zu alt fuer Isaac Sim 4.x (docs/fehlerbehebung.md). Die Anleitung dazu liegt schon im Archiv. Sim-Eval laeuft auf dem IKR-Server: ./run.sh sim eval. Das Skript bleibt als Beleg im Repo."
 
 param KISSKI_PARTITION choice jupyter basic "Partition" \
-  --options "jupyter:RTX 5000 — die einzige mit RT-Cores;kisski:A100 (kein Rendering);kisski-h100:H100 (kein Rendering)" \
+  --options "jupyter:RTX 5000 — hat RT-Cores, ist aber Turing (zu alt fuer Isaac Sim);kisski:A100 (kein Rendering);kisski-h100:H100 (kein Rendering)" \
   --override "Sim-Eval braucht RT-Cores; nur jupyter hat sie" \
   --default-from "#SBATCH --partition in kisski_sim_submit.sh"
 param NUM_EPISODES int 20 basic "Anzahl Eval-Episoden" --range 1:200

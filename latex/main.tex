@@ -51,19 +51,21 @@
   name    = {Abkürzungsverzeichnis},
 ]
 \addcontentsline{toc}{chapter}{Abkürzungsverzeichnis}
+\markboth{Abkürzungsverzeichnis}{Abkürzungsverzeichnis}% chapter* setzt keine Kopfzeile
 
 % ── Hauptteil (Arabische Seitenzahlen ab 1) ──────────────────────────
 \cleardoublepage
 \pagenumbering{arabic}
 
 \include{chapters/01_einleitung}
-\include{chapters/02_grundlagen}
-\include{chapters/03_methoden}
-\include{chapters/04_ergebnisse}
-\include{chapters/05_diskussion}
-\include{chapters/06_weiterfuehrende_arbeiten}
+\include{chapters/02_system}
+\include{chapters/03_schnittstellen}
+\include{chapters/04_anleitung}
+\include{chapters/05_ergebnisse}
+\include{chapters/05b_cosmos}
+\include{chapters/06_grenzen}
 \include{chapters/07_projektverlauf}
-\include{chapters/08_fazit}
+\include{chapters/08_uebergabe}
 
 % ── Literaturverzeichnis ─────────────────────────────────────────────
 \printbibliography[
@@ -73,6 +75,8 @@
 
 % ── Anhang (Kleine römische Seitenzahlen ab i) ───────────────────────
 \appendix
+\crefalias{chapter}{appendix}  % Anhangkapitel als \enquote{Anh.} statt \enquote{Kap.}
+\renewcommand*{\chaptermarkformat}{Anhang~\thechapter\enskip}  % Kopfzeile \enquote{Anhang X}
 \clearpage
 \pagenumbering{roman}
 \setcounter{page}{1}

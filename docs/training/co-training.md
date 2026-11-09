@@ -1,25 +1,23 @@
 # Co-Training auf echten und gerenderten Bildern (Schritt 4)
 
 > **TL;DR:** Schritt 4 der Domain-Gap-Behebung: warum Co-Training auf echten + gerenderten
-> Sim-Bildern der nächste Hebel ist, und welche Werkzeuge dafür gebaut wurden (Renderer,
-> Zwei-Datensatz-Training `USE_COTRAIN=1`). Werkzeuge stehen, ein Trainingslauf mit eigenem Render-Datensatz hat es noch nicht gegeben
-> (Stand 2026-10-11).
+> Sim-Bildern der nächste Hebel war, welche Werkzeuge dafür gebaut wurden (Renderer,
+> Zwei-Datensatz-Training `USE_COTRAIN=1`) und was die Läufe 73–97 (Render v3) ergaben: Sim-Lücke
+> deutlich kleiner, erste Griffe in der Sim (`lifted_clear` 2/60), `stacked` weiterhin 0 (§ 3.5).
 > Ein **fremder** Sim-Datensatz statt des eigenen Renderers läuft über denselben
 > `USE_COTRAIN`-Pfad, braucht aber vorher eine Schema-Harmonisierung: [synth-datensatz.md](synth-datensatz.md).
 
-**Stand:** 2026-10-11 · Es gibt **noch kein Co-Training-Ergebnis**: kein Lauf mit dem eigenen
-Render-Datensatz, und der als Co-Training gedachte Lauf `cotrain_synth_v1` (W&B `7z81177r`) brach
-am 2026-09-07 nach 138 s ab — laut seiner W&B-Konfiguration lief er gar nicht als Co-Training
-(ein Datensatz, `tune_visual: false`; [Diagnose-Chronik](../ergebnisse/diagnose-chronik.md#nachtrag-2026-10-13-cotrain_synth_v1-wb-7z81177r-war-kein-co-training-lauf)).
-Die Handaktionen des Synth-Datensatzes waren zudem vertauscht (behoben als v22, siehe [synth-datensatz.md](synth-datensatz.md)).
-**Der Render-Datensatz muss neu erzeugt werden:** die Sim-Geometrie wurde am 2026-08-24
-korrigiert (Vorzeichenflip der vier proximalen Fingergelenke entfernt, Pelvis-Höhe 0,764 m,
-Basis x −0,057 m) — früher gerenderte Sätze (u. a. der erste volle Lauf vom 2026-08-17) zeigen
-die alte Geometrie. Historisch (2026-08-17): erster voller Renderlauf (60 Episoden),
-**Befund: Frames ab dem Griff sind falsch beschriftet** → `RENDER_STOP_AT_GRASP` (§ 3.2a) ·
-Vorgeschichte:
-[Lauf 34](../ergebnisse/diagnose-chronik.md#läufe-3334-runs2026081403-runs2026081404-der-tune_visual-checkpoint-im-closed-loop),
-[next-steps.md Schritt 4](../../next-steps.md)
+> **Historischer Kontext (Stand 2026-10-11, vor den v3-Läufen):** §§ 1–3.4 sind vor dem ersten
+> Co-Training-Ergebnis geschrieben; das Ergebnis steht in § 3.5 (Läufe 73–97, 2026-10-29). Der
+> als Co-Training gedachte Lauf `cotrain_synth_v1` (W&B `7z81177r`, 2026-09-07, nach 138 s
+> abgebrochen) war laut W&B-Konfiguration keiner (ein Datensatz, `tune_visual: false`;
+> [Diagnose-Chronik](../ergebnisse/diagnose-chronik.md#nachtrag-2026-10-13-cotrain_synth_v1-wb-7z81177r-war-kein-co-training-lauf)).
+> Der erste Renderlauf vom 2026-08-17 (60 Episoden) zeigte falsch beschriftete Frames ab dem Griff
+> → `RENDER_STOP_AT_GRASP` (§ 3.2a) und die alte Sim-Geometrie (Fix 2026-08-24: Vorzeichenflip der
+> proximalen Fingergelenke entfernt, Pelvis-Höhe 0,764 m, Basis x −0,057 m); der Datensatz wurde
+> als Render v3 neu erzeugt. Vorgeschichte:
+> [Lauf 34](../ergebnisse/diagnose-chronik.md#läufe-3334-runs2026081403-runs2026081404-der-tune_visual-checkpoint-im-closed-loop),
+> [next-steps.md](../../next-steps.md).
 
 ---
 
@@ -29,8 +27,8 @@ Die Beweiskette ist geschlossen und sie zeigt in genau eine Richtung:
 
 | Befund | Zahl | Beleg |
 |---|---|---|
-| Auf **echten** Datensatz-Bildern kommandiert die Politik den vollen Griff | 100 % der Demo | Lauf 33, `span` |
-| In der **Sim** kommandiert dieselbe Politik einen Bruchteil davon | 20,5 % → **27,6 %** mit `TUNE_VISUAL` | Läufe 31 / 34 |
+| Auf **echten** Datensatz-Bildern kommandiert die Policy den vollen Griff | 100 % der Demo | Lauf 33, `span` |
+| In der **Sim** kommandiert dieselbe Policy einen Bruchteil davon | 20,5 % → **27,6 %** mit `TUNE_VISUAL` | Läufe 31 / 34 |
 | Der Sprung ist echt, nicht Rauschen | vollständige Trennung, p = 3,3 · 10⁻⁴ | Lauf 34, n = 10 gegen 5 |
 | Er reicht trotzdem nicht | `lifted` 0/10, beste Anhebung 1,68 cm von 2 cm | Lauf 34 |
 
@@ -350,7 +348,14 @@ sbatch --export=ALL Training/kisski_submit.sh
 export RUN_DIR=/data/g1_dex3_finetune/blockstacking_cotrain
 sbatch --export=ALL Training/kisski_open_loop_eval.sh
 
-# b) Simdomäne: greift die Politik jetzt mehr? (identisches Protokoll wie Lauf 34!)
+# a2) Visuelles Gate (Lauf 66/72, seit 2026-10-15): versteht die Policy die Sim-Bilder jetzt?
+#     Teacher-forced Open Loop auf den Prüfsets vis_gate_v3_cube{5,4} und auf den echten
+#     Bildern derselben Episoden, Tabelle gegen die Ausgangswerte. Kein Isaac Sim, ~2 min.
+HF_TOKEN=hf_... HF_CHECKPOINT_REPO=luca-mue/groot-g1dex3-cotrain-v3-cube5-ckpt<step> \
+    CHECKPOINT_PATH=/data/checkpoints/cotrain-v3-cube5-ckpt<step> \
+    VISGATE_SEED=0 ./Simulation/server_rl_run.sh visgate     # dann VISGATE_SEED=1, 2
+
+# b) Simdomäne: greift die Policy jetzt mehr? (identisches Protokoll wie Lauf 34!)
 NUM_EPISODES=10 EPISODE_LENGTH_S=40 CHECKPOINT_PATH=<bester ckpt> \
     HF_TOKEN=hf_... ./Simulation/server_rl_run.sh eval
 ```
@@ -358,6 +363,109 @@ NUM_EPISODES=10 EPISODE_LENGTH_S=40 CHECKPOINT_PATH=<bester ckpt> \
 `EPISODE_LENGTH_S=40` ist Pflicht und nicht verhandelbar: die Fingerspanne ist ein Maximum
 über die Episode, ein längeres Fenster hebt sie allein dadurch. Genau daran ist Lauf 33 als
 Vergleich gescheitert.
+
+**Zum visuellen Gate (a2):** Die Diffusion der Policy startet aus ungeseedetem Rauschen; ohne
+festen Seed streut die MSE Hände derselben Episode bis etwa um den Faktor 2 (Selbsttest
+2026-10-15: Echtbild Traj 4 0,0062 statt 0,0032 in Lauf 66). `visgate` seedet deshalb
+(`VISGATE_SEED`, Default 0); verglichen wird gegen die mit denselben Seeds gemessenen
+Ausgangswerte (`sim_results/visgate_base_n1{6,7}_*_s<seed>_*.json`), nicht gegen eine
+Einzelmessung. Der Closed Loop (b) lohnt erst, wenn das Modell die Ausgangswerte über alle
+Seeds deutlich unterbietet.
+
+Ausgangswerte (MSE Hände, Mittel der Mediane über die Seeds 0/1/2, Lauf 80): Maßstab für die
+v3-Läufe ist **N1.6 @44000**, weil sie wie Lauf 3 bis 44 000 Steps laufen. Die Mediane
+streuen über die Seeds nur um etwa ±5 %, „deutlich“ heißt deshalb unter ~80 %.
+
+| Checkpoint | Echtbild | Prüfset 5 cm | Prüfset 4 cm | Schwelle 80 % (5 / 4 cm) |
+|---|---|---|---|---|
+| N1.6 vision-v2 @44000 | 0,0014 | 0,0239 | 0,0221 | 0,019 / 0,018 |
+| N1.6 vision-v2 @30000 | 0,0039 | 0,0214 | 0,0193 | — |
+| N1.7 vision-v1 @44000 | 0,0026 | 0,0758 | 0,0666 | 0,061 / 0,053 (für die N1.7-Läufe) |
+
+Gate aller acht v3-Checkpoints (Chronik Läufe 83, 86, 92; Spalte „Urteil“ statt Schwelle):
+
+| Checkpoint (Chronik-Lauf Training / Gate) | Echtbild | Prüfset 5 cm | Prüfset 4 cm | Urteil |
+|---|---|---|---|---|
+| **B** co-train cube5, N1.6 @44000 (73 / 83) | 0,0022 | **0,0118** | **0,0104** | bestanden (Echtbild Grenzfall) |
+| B′ co-train cube5, N1.6 @40000 (73 / 92) | 0,0023 | 0,0114 | 0,0100 | bestanden (Echtbild Grenzfall) |
+| **C** co-train cube4, N1.6 @44000 (74 / 83) | 0,0021 | **0,0115** | **0,0104** | bestanden (Echtbild Grenzfall) |
+| C′ co-train cube4, N1.6 @35000 (74 / 92) | 0,0023 | 0,0107 | 0,0097 | bestanden (Echtbild Grenzfall) |
+| **A** co-train cube5, N1.7 @44000 (75 / 86) | 0,0024 | **0,0230** | **0,0164** | bestanden |
+| A″ co-train cube5, N1.7 @20000 (75 / 92) | 0,0083 | 0,0158 | 0,0141 | durchgefallen (Echtbild ×3,2) |
+| **D** co-train cube4, N1.7 @44000 (76 / 92) | 0,0027 | **0,0217** | **0,0123** | bestanden |
+| D″ co-train cube4, N1.7 @40000 (76 / 92) | 0,0029 | 0,0233 | 0,0124 | bestanden |
+
+**Lesart der v3-Läufe (Stand 2026-10-29): Das Co-Training hat die Sim-Lücke bei beiden
+Generationen deutlich verkleinert. Der Realdomäne schadet es bei N1.7 nicht, bei N1.6 etwas.
+Im Gate am besten ist N1.6 (Würfelgröße egal); bei N1.7 ist der 4-cm-Render vorn.**
+
+- **Sim-Lücke:** N1.6 halbiert den Hand-Fehler auf den Prüfsets (−51 % / −53 % bei @44000),
+  N1.7 drückt ihn auf 29–30 % (5 cm) bzw. 18–25 % (4 cm) des Maßstabs. Der Abstand Sim zu
+  Echtbild sinkt bei N1.6 von ×17 auf ×5, bei N1.7 von ×29 auf ×8 (D) bzw. ×10 (A).
+- **Realdomäne:** N1.7 bleibt auf dem Echtbild unverändert (0,0024 / 0,0027 gegen 0,0026,
+  innerhalb der Seed-Streuung). N1.6 wird um 50–64 % schlechter (0,0014 → 0,0021–0,0023), bleibt
+  aber deutlich besser als @30000 (0,0039), und der Arm-Fehler ändert sich nicht. Das ist der
+  Preis für die Sim-Lücke; ob er in der echten Welt spürbar ist, zeigt nur ein Robotertest. Die
+  Val-MSE aus dem KISSKI-Sweep liegt bei allen vier Läufen 3–9 % über Lauf 3
+  (Protokollgleichheit nicht geprüft).
+- **Kreuzvergleich 5 cm ↔ 4 cm:** Bei N1.6 keine Spezialisierung: Der 5-cm-Render erreicht auf
+  dem 4-cm-Prüfset denselben Wert wie der 4-cm-Render (0,0104), umgekehrt auf 5 cm 0,0118 gegen
+  0,0115. Bei N1.7 ist der 4-cm-Render auf beiden Prüfsets besser, deutlich auf dem eigenen
+  (0,0123 gegen 0,0164, −25 %), knapp auf dem fremden (0,0217 gegen 0,0230, −6 %). Der 5-cm-Render
+  hilft beim 4-cm-Prüfset also, aber weniger als der passende.
+- **N1.7 gegen N1.6:** Co-trainiertes N1.7 erreicht auf den Sim-Prüfsets das Niveau des
+  *nicht* co-trainierten N1.6 @44000 (A: 5 cm gleichauf, 4 cm −26 %; D: −9 % / −44 %). Das
+  co-trainierte N1.6 bleibt auf 5 cm etwa doppelt, auf 4 cm 1,2- bis 1,6-mal so gut, und auf dem
+  Echtbild liegt N1.6 ohnehin vorn.
+- **Verlauf im Training:** Von @20000 nach @44000 (N1.7 cube5) werden Sweep (−8 %) und Echtbild
+  (−71 %) besser, die Sim-Prüfsets schlechter (+46 % / +16 %), wie bei vision-v2 @30000 → @44000
+  (Lauf 80). Auf den letzten 4 000–9 000 Steps bleibt davon nur eine Tendenz (N1.6 +4–7 % Sim);
+  die Unterschiede zwischen @35000/@40000 und @44000 liegen in der Seed-Streuung. Gemessen und
+  weitergegeben wird deshalb weiter @44000.
+
+- **Vorsicht mit der Schwelle:** Die alten, nicht co-trainierten N1.6-Modelle (Lauf 1 @110000,
+  vision-v1 @35000) unterbieten die 80-%-Schwelle ebenfalls (~0,017, Chronik Lauf 87), und auch
+  der untertrainierte A″ läge darunter, wäre da nicht das Echtbild. Die Schwelle ist an dem stark
+  auf die Realdomäne spezialisierten vision-v2 @44000 festgemacht. Der Co-Training-Effekt zeigt
+  sich im Abstand zu diesen Modellen (0,0097–0,0118 gegen ~0,016–0,017), nicht im Überschreiten
+  der Schwelle; das Echtbild-Kriterium ist nötig, um untertrainierte Stände auszusortieren.
+
+**Closed Loop** (Protokoll Lauf 82, 20 × 120 s je Lage, Chronik Läufe 84/85/88/89/93, Zwischenstände 94/95, Gegenprobe 90/91, alle 60 Testlagen 97):
+
+| Modell | `touched` | `lifted_clear` (Griffe im Video) | Spanne Median |
+|---|---|---|---|
+| N1.6 @44000, ohne Co-Training (82) | 17/20 | 0/20 | 0,64 rad |
+| N1.6 vision-v1 @35000 / Lauf 1 @110000, ohne Co-Training (90/91) | 14 / 19 | 0 / 0 | 1,30 / 1,75 rad |
+| **B** N1.6 co-train cube5 (84) | 20/20 | 1/20 (1) | 1,54 rad |
+| B′ N1.6 co-train cube5 @40000 (95) | 20/20 | 0/20 (0) | 1,56 rad |
+| **C** N1.6 co-train cube4, 4-cm-Würfel (88) | 20/20 | **2/20** (2) | 1,61 rad |
+| **C, alle 60 Testlagen** (88 + 97) | **60/60** | **2/60 = 3 %** (2), KI 0,4–11,5 % | 1,61 rad |
+| C′ N1.6 co-train cube4 @35000, 4-cm-Würfel (94) | 19/20 | 1/20 (0, Würfel auf anderem abgestützt) | 1,62 rad |
+| N1.7 @44000, ohne Co-Training (81) | 7/20 | 0/20 | 0,52 rad |
+| **A** N1.7 co-train cube5 (89) | 20/20 | 0/20 (0) | 1,64 rad |
+| **D** N1.7 co-train cube4, 4-cm-Würfel (93) | 20/20 | 0/20 (0) | 1,71 rad |
+
+Bei beiden Generationen ändert das Co-Training das Verhalten sichtbar: Die Hand erreicht und
+berührt den Würfel in jeder Episode. Echte Griffe zeigen nur die co-trainierten N1.6-Modelle,
+und selten: Auf allen 60 Testlagen greift C zweimal (3 %, obere Schranke 11,5 %), auf den 40
+Lagen außerhalb von Lauf 88 nie. `stacked` bleibt überall 0. Gegen 0/20 ohne Co-Training ist
+die Griffrate statistisch nicht zu trennen (p ≈ 0,56). Die Gate-besten Zwischenstände
+(C′, B′, 3–7 % besser im Gate) greifen im Closed Loop nicht besser als @44000.
+
+**Vorregistriertes primäres Gate** (§5, Fingerspanne 10 × 40 s, nachgeholt in Chronik Lauf 96):
+C öffnet auf **1,53 rad = 73 %** der Demo gegen 0,577 rad in Lauf 34 und 0,52 rad beim gleichen
+Rezept ohne Renderdaten (vision-v2 @44000, gleiche Szene, p = 5 · 10⁻⁶): **bestanden, „der Weg
+trägt, aufstocken“.** Einschränkung: Das alte Lauf-1-Modell (ohne Vision-Tuning) öffnet auch
+ohne Co-Training auf 1,21 rad, gegen C nur als Tendenz getrennt (p = 0,07). Die kleine Spanne
+gehört vor allem zu vision-v2 @44000. Die vorregistrierte Kontrolle `gap` misst mit einem
+generischen SigLIP und kann den Effekt nicht zeigen; diese Rolle übernimmt das visuelle Gate.
+
+**Welche Generation, welche Würfelgröße?** Für die Sim ist **N1.6 co-train cube4 @44000** (C)
+der beste Kandidat: das beste Gate der @44000-Stände gemeinsam mit B und die einzigen zwei
+echten Griffe (2/60). Bei N1.6 ist die Render-Würfelgröße im Gate egal, im Closed Loop ist cube4 mit
+4-cm-Würfeln knapp vorn, aber nicht signifikant. Bei N1.7 hilft der 4-cm-Render im Gate
+deutlich (D), im Closed Loop greift aber keines der beiden N1.7-Modelle. Für die Realdomäne
+spricht N1.7: Das Co-Training kostet dort auf dem Echtbild nichts, bei N1.6 rund +50–60 %.
 
 ---
 
@@ -387,7 +495,15 @@ bricht ab, wenn `--episode-ids` eine zurückgehaltene Episode enthält. Andernfa
 Modell die Testepisoden in gerenderter Form, und die Validierungs-MSE des
 Checkpoint-Sweeps — die einzige Zahl, die Overfitting sichtbar macht — wäre wertlos.
 
-### 4.2 Welches Mischungsverhältnis? → **0,25 gerendert**
+### 4.2 Welches Mischungsverhältnis? → **0,25 gerendert** (erster Plan) / **0,15** (Render v3)
+
+> **Aktueller Wert für die Render-v3-Läufe: 0,15** (`render_v3_cube{5,4}[_n17]` in
+> [`kisski_chain.sh`](../../Training/kisski_chain.sh); N1.6-Läufe 16676490/16676493,
+> N1.7-Läufe 16779689/16779693). Gleiche Formel wie unten, andere Zahlen: 187 gerenderte
+> Episoden (29 890 Frames) gegen 240 echte Trainingsepisoden (229 828 Frames) ergeben
+> `mix* = 29 890 / 259 718 ≈ 0,115`; 0,15 liegt bewusst knapp darüber
+> ([Lauf 72](../ergebnisse/diagnose-chronik.md#lauf-72-co-training-datensätze-v3)).
+> Die 0,25 unten gehören zum ursprünglichen Plan mit 60 gerenderten Episoden.
 
 Zwei unabhängige Überlegungen laufen auf denselben Bereich zu:
 
@@ -490,7 +606,7 @@ Ehrlich benannt, weil jeder dieser Punkte den Lauf entwerten würde:
 | `COTRAIN_DATASET_PATH` | `/data/cotrain/g1_dex3_rendered` | Gerenderter Datensatz im Container |
 | `COTRAIN_HF_REPO` | — | HF-Dataset-Repo; wird geladen, wenn der Pfad leer ist |
 | `COTRAIN_MIX_RATIO` | `0.25` (§4.2) | Anteil gerenderter Stichproben |
-| `TRAIN_TEST_SPLIT` | `1` | Hier standardmäßig **an** — ohne Split fehlt die Leitplanke aus §5 |
+| `TRAIN_TEST_SPLIT` | `1` | Hier standardmäßig **an** — ohne Split fehlt die Leitplanke aus §5. Seit 2026-10-13 gilt das auf **allen** Startwegen; vorher war der Split über Entrypoint (Dockerfile-`ENV TRAIN_TEST_SPLIT=0`) und KISSKI still aus und nur bei direktem Skriptaufruf oder über `kisski_chain.sh` an ([Review 10-13 T1](../archiv/projekt-review-2026-10-13.md#3-code-training)). Betroffen wäre nur `cotrain_synth_v1` (2026-09-07, IKR, Entrypoint) — der war laut W&B ohnehin kein Co-Training-Lauf; einen anderen Co-Training-Lauf über diese Wege gibt es nicht |
 | `GROOT_VERSION` | `1.6` | `1.7` routet auf `launch_cotrain_n17.py` statt `launch_cotrain.py` und hängt den Checkpoints den Namespace-Suffix `_n17` an (`blockstacking_cotrain_n17`) — ungetestet |
 
 > Der Skript-Default für `COTRAIN_MIX_RATIO` stand bis 2026-10-13 auf 0.5 („zwei

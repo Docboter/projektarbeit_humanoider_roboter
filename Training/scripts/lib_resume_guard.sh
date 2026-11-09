@@ -2,7 +2,7 @@
 # TL;DR: Gesourcte Bibliothek — verhindert stilles Fortsetzen eines alten Laufs statt Neu-Training.
 # lib_resume_guard.sh — Schutz gegen stilles Fortsetzen eines alten Laufs.
 #
-# Wird von run_finetuning.sh und run_finetuning_vision.sh gesourct:
+# Wird von run_finetuning.sh, run_finetuning_vision.sh und run_finetuning_cotrain.sh gesourct:
 #
 #     source "$(dirname "${BASH_SOURCE[0]}")/lib_resume_guard.sh"
 #     resume_guard "$OUTPUT_DIR" "$EXPERIMENT_NAME" "$MAX_STEPS"
@@ -34,6 +34,10 @@ declare -F warn >/dev/null || warn() { printf '\033[1;33m ! \033[0m%s\n' "$*"; }
 # resume_guard <output_dir> <experiment_name> <max_steps>
 #
 # RESUME=1 → Fortsetzen ist gewollt (z. B. nach Walltime-Abbruch), nur Hinweis.
+# ${DATA_DIR:-/data}/.resume_request vorhanden → wie RESUME=1, einmalig (Datei wird gelöscht).
+#            Legt der Launcher mit --resume per `docker cp` in den gestoppten Container: Die
+#            Umgebung eines Containers ist ab `docker run` fest, RESUME lässt sich danach nicht
+#            mehr setzen, und ohne diesen Weg brach `docker start` nach einem Stopp hier ab.
 # sonst    → Abbruch mit Erklärung, wenn schon Checkpoints da sind.
 resume_guard() {
     local output_dir="$1" experiment_name="$2" max_steps="$3"
@@ -47,6 +51,13 @@ resume_guard() {
         return 0                      # sauberes Verzeichnis, nichts zu tun
     fi
     last_step="$last_ckpt"
+
+    local request="${DATA_DIR:-/data}/.resume_request"
+    if [[ "${RESUME:-0}" != "1" && -f "$request" ]]; then
+        log "Fortsetzen angefordert ($request, vom Launcher --resume)."
+        rm -f "$request"
+        RESUME=1
+    fi
 
     if [[ "${RESUME:-0}" == "1" ]]; then
         log "RESUME=1 — setze bei checkpoint-$last_step fort (von $max_steps Schritten)."

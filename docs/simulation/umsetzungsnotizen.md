@@ -1,8 +1,8 @@
 # Sim-Eval Implementation Notes — Lessons Learned & aktueller Stand
 
 > **TL;DR:** Lessons Learned und Fixes der Sim-Umsetzung (Build-/Runtime-Probleme,
-> Kamera-Rekonstruktion, Open-Loop-Replay-Diagnose), Stand bis Juni 2026 — zuerst lesen vor dem
-> Sim-Setup. Neuere Erkenntnisse seit August 2026 (Isaac-Sim-6.0-Port, Kamera-Neukalibrierung,
+> Kamera-Rekonstruktion, Open-Loop-Replay-Diagnose), Stand bis Juni 2026 — Hintergrund bei Sim-Fehlern; der Einstieg ist
+> [sim-eval-anleitung.md](sim-eval-anleitung.md). Neuere Erkenntnisse seit August 2026 (Isaac-Sim-6.0-Port, Kamera-Neukalibrierung,
 > Greif-Diagnostik) stehen in
 > [../ergebnisse/diagnose-chronik.md](../ergebnisse/diagnose-chronik.md).
 
@@ -18,7 +18,9 @@ Finger-Vorzeichen und Würfel-z nachgetragen bis 2026-10-11).
 
 > **Achtung (Stand 2026-10-11):** Alle Sim-Greifzahlen vor dem 2026-08-24 (u. a. die 2,8 cm aus §13) wurden
 > mit falsch gespiegelten Fingergelenken und Beckenhöhe 0,85 m gemessen (§13.2, g1_dex3_cfg.py) und sind
-> nur historisch belegt; eine Neumessung mit der korrigierten Szene steht aus.
+> nur historisch belegt; eine Neumessung mit der korrigierten Szene folgte (Nachtrag).
+>
+> **Nachtrag 2026-10-29 (überholt durch [next-steps.md §0](../../next-steps.md): Modell C, `lifted_clear` 2/60, `stacked` 0):** Neumessung mit korrigierter Szene erfolgt: N1.6 @44000 `reached` 16/20, `lifted_clear` 0/20 (Lauf 82); N1.7 0/10 bzw. 0/20 (Läufe 54/55, 81); Chronik Läufe 57–97.
 
 > **Neuere Erkenntnisse (August 2026)** — Isaac-Sim-6.0-Migration, Kamera-Pose-Bug und
 > Neukalibrierung (Sichtfeld, Montagepunkt, Stereobasis), Domain-Gap-Neumessung sowie die
@@ -238,7 +240,7 @@ Auf einer lokalen GPU (RTX 4070 Laptop, mit `docker run --gpus all`) end-to-end 
 - `import gr00t.model` (volle Server-Importkette) → **OK**
 - `run_gr00t_server.py --help` → tyro parst `ServerConfig`, `NEW_EMBODIMENT` ist gültig, kein `--no-flash-attn`
 
-> **Noch offen (nur mit echter Sim-GPU testbar):** das eigentliche Modell-Gewichte-Laden
+> **Damals noch offen (inzwischen durch zahlreiche Sim-Läufe erledigt):** das eigentliche Modell-Gewichte-Laden
 > (~6–8 GB VRAM) und die Isaac-Lab-Sim-Schleife. Der komplette Server-**Start**pfad bis zum
 > Modell-Load ist aber lokal grün.
 
@@ -295,6 +297,7 @@ nach Installation `import zmq` → OK (pyzmq 27.1.0).
 `isaaclab.sh` **schluckt den Exit-Code** des Python-Sim-Clients — der zmq-Crash führte trotzdem
 zu „Sim-Eval abgeschlossen" + Exit 0. Im Entrypoint deshalb nach dem `isaaclab.sh`-Aufruf
 geprüft, ob `results.json` tatsächlich (nicht leer) existiert; sonst Fehler + Exit 1.
+*Stand 2026-10-13:* Das reicht nicht — eine alte `results.json` konnte einen Absturz verdecken (Review 10-13 S5). Jetzt löschen alle Entrypoints die Datei vor dem Start und verlangen den Marker `[eval] fertig.`; Server-Fehler machen eine Episode ungültig (`"error": true`), nach zwei in Folge Abbruch mit Exit ≠ 0. Details: [sim-eval-anleitung.md, Schritt 7](sim-eval-anleitung.md#schritt-7--ergebnisse-sichern).
 
 ---
 
@@ -434,7 +437,7 @@ deckte einen echten Geometrie-Bug auf, den kein Training ausgleichen könnte:
 - Würfel-Startpos + Sampling in den erreichbaren Bereich: `block_x_range (0.30,0.40)`,
   `block_y_range (-0.20,0.20)`, `block_z_surface 0.895`.
 - High-Cam-Ziel `(0.5,0,0.73)→(0.40,0,0.86)` + Szenen-Cam-Ziel angehoben (Tisch ist höher).
-- Roboter NICHT abgesenkt (die weltfesten Kameras sind auf Becken z=0.85 kalibriert). *Stand 2026-10-11: die Beckenhöhe ist seit 2026-08-24 gemessen 0,764 m (Basis x −0,057 m), siehe `g1_dex3_cfg.py` und [diagnose-chronik.md](../ergebnisse/diagnose-chronik.md).*
+- Roboter NICHT abgesenkt (die weltfesten Kameras sind auf Becken z=0.85 kalibriert — der Wert steht seit 2026-10-13 als `scene_geometry.CAMERA_CALIB_BASE_Z`, nicht mehr als nackte Konstante in `camera_geometry.py`). *Stand 2026-10-11: die Beckenhöhe ist seit 2026-08-24 gemessen 0,764 m (Basis x −0,057 m), siehe `g1_dex3_cfg.py` und [diagnose-chronik.md](../ergebnisse/diagnose-chronik.md).*
 
 **Nach dem Fix (Greif-Test `--grasp-test`, Würfel exakt an die Greifpunkte gesetzt):**
 min Hand→Würfel-Distanz **5,9 cm** (war 21,6), Würfel-**Anhebung 1,0 cm**, Würfel sichtbar

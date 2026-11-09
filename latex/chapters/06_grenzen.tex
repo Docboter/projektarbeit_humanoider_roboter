@@ -1,0 +1,56 @@
+% chapters/06_grenzen.tex
+
+\chapter{Grenzen}
+\label{chap:grenzen}
+\label{chap:diskussion}
+\label{sec:limitierungen}
+\label{sec:validitaet}
+
+\section{Stichprobengröße}
+\label{sec:grenzen-stichprobe}
+
+Die Closed-Loop-Messungen umfassen 10, 20 oder 60 Episoden: Ohne Treffer in 20 Episoden reicht
+das 95-\%-Intervall bis 17\,\%, bei zwei Treffern in 60 von 0,4 bis 11,5\,\%. Griffraten von null
+bis zwei aus 20 sind nicht unterscheidbar; belastbar sind nur große Unterschiede wie
+Berührrate oder Handöffnung.
+
+\section{Simulation statt Roboter}
+\label{sec:grenzen-simulation}
+
+Alle Aussagen zur Aufgabenerfüllung stammen aus der Simulation. Die Ursache des
+3-cm-Versatzes ist unbekannt, die Korrektur nur im Mittel richtig: Das Demo-Replay hebt in fünf
+der ersten sieben Testlagen an, danach in einer von 13 (Lauf~69). Ob der Echtbild-Verlust von
+N1.6 nach dem Co-Training (\cref{sec:erg-cotrain}) am Roboter spürbar ist, zeigt nur ein Robotertest.
+
+\section{Grenzen der Metriken}
+\label{sec:grenzen-metriken}
+\label{sec:messartefakte}
+
+Die Bewertungsstufen (\cref{tab:if-stufen}) und Kennzahlen haben bekannte Schwächen:
+
+\begin{itemize}
+  \item \texttt{lifted} zählt auch gekippte Würfel (Schwerpunkt +1,04~cm an der Kante,
+    +1,83~cm an der Ecke), deshalb gibt es seit dem 13.10.\ \texttt{lifted\_clear}. Auch das
+    zählt einen Würfel, der nur auf einem anderen liegt, während eine Hand in der Nähe ist
+    (Lauf~94); Treffer sind im Video zu bestätigen.
+  \item Der \acs{siglip}-Abstand~\cite{zhai2023siglip} misst nur Bildähnlichkeit, nicht, was der
+    Bild-Encoder der Policy daraus macht; als Kontrolle für das Co-Training taugt er nicht.
+  \item Die 80-\%-Schwelle des visuellen Gates bestehen auch alte Modelle ohne Co-Training.
+    Strenger wäre eine Schwelle relativ zum besten nicht co-trainierten Modell derselben
+    Generation.
+  \item Bis 30.10.\ verlangte \texttt{stacked} fest 8~cm Turmhöhe; ein perfekter Dreierturm aus
+    4-cm-Würfeln misst genau 8~cm und zählte kaum. Seitdem gilt zwei Kanten minus 2~cm;
+    \enquote{nie gestapelt} bleibt, kein Würfel wurde auf einen anderen gesetzt.
+  \item Die maximale Fingerspanne wächst mit der Episodenlänge; Vergleiche nur bei gleicher
+    Länge.
+\end{itemize}
+
+\section{Ablauf der Messungen und Vergleich der Generationen}
+\label{sec:grenzen-ablauf}
+\label{sec:grenzen-generationen}
+
+Closed Loops hingen dreimal ohne Fehlermeldung (Läufe 89, 90, 97); unvollständige Versuche
+zählen nicht. Lauf~85 lief versehentlich ohne \texttt{SIM\_CUBE\_EDGE}; auf dem Sim-Server lag der
+Datensatz zeitweise gemischt in v2.1 und v3.0 vor (Lauf~56, frühere Läufe ungeklärt). N1.7 lief
+mit dem NVIDIA-Rezept (State-Dropout 0,2, andere Normierung), Generationsunterschiede liegen also
+nicht allein am Modell.

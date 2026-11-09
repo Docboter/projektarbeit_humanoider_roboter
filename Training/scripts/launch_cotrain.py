@@ -51,6 +51,28 @@ def load_modality_config(modality_config_path: str):
         raise FileNotFoundError(f"Modality config path does not exist: {modality_config_path}")
 
 
+def patch_merge_statistics() -> None:
+    """Sidecar-Einträge wie ``__fingerprints__`` beim Statistik-Mergen überspringen.
+
+    Der N1.7-Fork schreibt in ``meta/relative_stats.json`` einen ``__fingerprints__``-
+    Eintrag (Cache-Invalidierung). Der N1.6-Code im Image iteriert in ``merge_statistics``
+    über alle Top-Level-Keys und bricht daran mit ``KeyError: 'mean'`` ab (Smoke-Job
+    16676488). Gleiche Logik wie der Fix im N1.7-Fork: nur Einträge mit ``mean`` mergen.
+    """
+    import gr00t.data.dataset.sharded_mixture_dataset as smd
+
+    original = smd.merge_statistics
+
+    def merge_statistics(per_dataset_stats, *args, **kwargs):
+        cleaned = [
+            {k: v for k, v in s.items() if isinstance(v, dict) and "mean" in v}
+            for s in per_dataset_stats
+        ]
+        return original(cleaned, *args, **kwargs)
+
+    smd.merge_statistics = merge_statistics
+
+
 def split_own_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
     """Die beiden eigenen Flags vor tyro abfangen.
 
@@ -74,6 +96,8 @@ if __name__ == "__main__":
     # all rank workers should register for the modality config
     if ft_config.modality_config_path is not None:
         load_modality_config(ft_config.modality_config_path)
+
+    patch_merge_statistics()
 
     # ── Datensatz-Liste: echt + gerendert ─────────────────────────────────────
     # mix_ratio ist ein relatives Sampling-Gewicht; ShardedMixtureDataset normiert es

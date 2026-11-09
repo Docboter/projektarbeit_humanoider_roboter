@@ -59,6 +59,7 @@ from replay_grasp_metrics import (  # noqa: E402
     mark_episode_existing,
     summarize_grasp_trace,
 )
+from split_math import train_count  # noqa: E402
 from task_text import DEFAULT_TASK_DESCRIPTION  # noqa: E402
 import torch  # noqa: E402
 
@@ -73,7 +74,8 @@ def read_info(root: Path) -> dict:
 
 
 def select_episodes(info: dict) -> list[int]:
-    train_stop = int(int(info["total_episodes"]) * float(args.train_ratio))
+    # split_math = Formel aus Training/scripts/lib_split.sh (int(total*ratio)).
+    train_stop = train_count(int(info["total_episodes"]), args.train_ratio, validate=False)
     if args.episode_ids:
         selected = sorted(set(int(ep) for ep in args.episode_ids))
     else:

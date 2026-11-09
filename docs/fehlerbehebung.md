@@ -4,9 +4,6 @@
 > Lösung, mit Verweis auf die jeweilige Detail-Doku. Bei einem konkreten Fehler nachschlagen,
 > nicht linear lesen.
 
-Gebündelte Fehlerlösungen für Training und Simulation. Jeder Eintrag: **Symptom → Ursache →
-Lösung**, mit Verweis auf die jeweilige Detail-Doku.
-
 ---
 
 ## Training
@@ -41,7 +38,7 @@ gepuffert, nicht live hochgeladen (relevant v. a. auf KISSKI ohne Internet auf d
 **Lösung:** Nach dem Lauf manuell synchronisieren — Schritt für Schritt in
 [training/wandb-offline-sync.md](training/wandb-offline-sync.md). Wo Internet verfügbar ist
 (vast.ai, eigener Server), lässt sich der Default per `WANDB_MODE=online` überschreiben
-([entrypoint.sh:181](../Training/scripts/entrypoint.sh#L181)).
+([entrypoint.sh:233-237](../Training/scripts/entrypoint.sh#L233-L237)).
 
 ### 401/403 / `GatedRepoError` bei `nvidia/Cosmos-Reason2-2B`
 
@@ -132,7 +129,7 @@ df -h   "$RL_HOST_DATA_DIR"                        # die übliche Ursache
 `optimizer.pt` (13 GB) braucht nur ein Training-Resume, Sim und RL lesen sie nie —
 
 ```bash
-docker exec -e HF_TOKEN="$HF_TOKEN" -e HUGGING_FACE_HUB_TOKEN="$HF_TOKEN" groot-rl \
+HUGGING_FACE_HUB_TOKEN="$HF_TOKEN" docker exec -e HF_TOKEN -e HUGGING_FACE_HUB_TOKEN groot-rl \
   huggingface-cli download luca-mue/groot-g1dex3-checkpoint \
     --local-dir /data/checkpoints/groot-g1dex3-checkpoint --exclude 'optimizer.pt'
 ```
@@ -161,10 +158,12 @@ Vision-Encoder produziert für synthetische Isaac-Sim-Bilder schlechtere Feature
 Messstand nach Kamera-Neukalibrierung (2026-08-08): mittlere Cosine-Distanz **0,2229**,
 `cam_left_wrist` **0,3556** — die Juni-Erstmessung (0.260 / 0.427) ist überholt.
 
-> **Stand 2026-08-14 (Läufe 29–34):** Die Greif-Diagnose der Läufe 29–31 zeigte: die Politik
+> **Stand 2026-08-14 (Läufe 29–34) — überholt**, siehe Vorbehalt und Nachtrag darunter sowie
+> [next-steps.md §0](../next-steps.md#0-projektstatus-in-kürze-stand-2026-10-29); „bestätigt“ war
+> damals ein starker Hinweis, kein Befund. Die Greif-Diagnose der Läufe 29–31 zeigte: die Policy
 > kommandiert nur ~19 % der demonstrierten Fingerspannweite; eine fehlerhafte De-Normalisierung
 > wurde ausgeschlossen. **Lauf 32** (`span`-Gate) entschied die Ursache: auf **echten** Bildern
-> erreicht dieselbe Politik 100 % der Demo-Spanne → der visuelle Domain Gap ist bestätigt.
+> erreicht dieselbe Policy 100 % der Demo-Spanne → der visuelle Domain Gap ist bestätigt.
 > **Lauf 34** maß den daraufhin trainierten Vision-Checkpoint (`TUNE_VISUAL=1` + Jitter + Split)
 > im Closed Loop: Fingerspanne **27,6 % statt 20,5 %** (p = 3,3 · 10⁻⁴) — die Maßnahme wirkt,
 > `lifted` bleibt aber 0/10. Details: [ergebnisse/diagnose-chronik.md](ergebnisse/diagnose-chronik.md).
@@ -177,10 +176,14 @@ Messstand nach Kamera-Neukalibrierung (2026-08-08): mittlere Cosine-Distanz **0,
 > Meilensteine von Lauf 34) stehen unter diesem Vorbehalt; eine Neumessung mit der korrigierten
 > Szene steht aus.** Auch das `span`-Gate (Lauf 32/33) lief auf Trainingsepisoden; die Messung auf
 > den ausgehaltenen Testepisoden (240–300) ist offen.
+>
+> **Nachtrag 2026-10-29:** Neumessung mit korrigierter Szene erfolgt: N1.6 @44000 `reached` 16/20, `lifted_clear` 0/20 (Lauf 82); N1.7 0/10 bzw. 0/20 (Läufe 54/55, 81). Messung auf Testepisoden erfolgt: `span` N1.6 vision-v2 @30000 90 %, N1.7 @44000 94 % (Läufe 57–61). Der visuelle Gap ist seitdem direkt gemessen (Hand-Fehler auf Sim-Bildern ×13
+> bzw. ×36, Läufe 65/66), daneben die Registrierung Würfel↔Hand als zweiter Blocker (Lauf 62).
 
 **Lösung:** Der wirksame Hebel ist der Vision-Encoder — mit Realdaten allein aber ausgereizt.
-Nächster Schritt ist **Co-Training auf echten + gerenderten Bildern**
-([training/co-training.md](training/co-training.md), `USE_COTRAIN=1`).
+Der Folgeschritt war **Co-Training auf echten + gerenderten Bildern**
+([training/co-training.md](training/co-training.md), `USE_COTRAIN=1`). *(Nachtrag 2026-10-30:
+gelaufen, Läufe 72–97 — Sim-Lücke halbiert, erste Griffe `lifted_clear` 2/60, `stacked` 0.)*
 Diagnose-Werkzeuge: [simulation/umsetzungsnotizen.md §14–15](simulation/umsetzungsnotizen.md).
 Aktuelle Messung: [ergebnisse/domain-gap-analyse.md](ergebnisse/domain-gap-analyse.md).
 Vollanalyse: [ergebnisse/lauf1-auswertung.md](ergebnisse/lauf1-auswertung.md) und

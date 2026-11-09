@@ -29,6 +29,8 @@
 #   RL_SAVE_EVERY        (default 100)  Checkpoint alle N Iterationen (ganzes Modell ~6 GB/Ckpt)
 #   WANDB_API_KEY        (optional)     ohne → ohne W&B
 #   RL_WANDB_VIDEO_EVERY (default 0)    alle N Iterationen einen Rollout als W&B-Video (0 = aus)
+#   RL_EXEC_HORIZON      (default 1)    Chunk-Schritte je Policy-Abfrage (Eval: 8); liest
+#                                       rl_finetune.py selbst aus der Umgebung
 #   SHELL_ON_ERROR       (default 0)    bei Fehler in Shell fallen
 #
 # Live-Ansicht im Browser (opt-in, docs/weiterfuehrend/livestream-plan.md „Spur B"):

@@ -3,131 +3,135 @@
 \chapter{Einleitung}
 \label{chap:einleitung}
 
-\section{Motivation}
+\section{Aufgabe}
+\label{sec:aufgabe}
 \label{sec:motivation}
-
-Humanoide Roboter sollen in einer für Menschen gebauten Umgebung arbeiten und
-dort auch Manipulationsaufgaben übernehmen. Manuell programmierte
-Bewegungsabläufe lassen sich dafür nur schlecht auf neue Aufgaben übertragen.
-Einen anderen Ansatz verfolgen Foundation-Modelle für die Robotik: \acp{vla}
-werden auf großen, heterogenen Datensätzen vortrainiert und anschließend mit
-wenigen Demonstrationen an einen bestimmten Roboter und eine bestimmte Aufgabe
-angepasst~\cite{openvla2024,pi0_2024}. NVIDIA hat mit
-GR00T~N1~\cite{groot2025} ein solches offenes Modell für humanoide Roboter
-veröffentlicht; in dieser Arbeit wird die Nachfolgeversion
-GR00T~N1.6~\cite{groot_repo} verwendet.
-
-\section{Problemstellung}
 \label{sec:problemstellung}
-
-Das Stapeln von Würfeln mit einer mehrfingrigen Hand ist eine kontaktreiche
-Aufgabe, bei der Kamerabilder, Gelenkzustände und Bewegungsablauf gemeinsam
-verarbeitet werden müssen. Für das Projekt ergaben sich daraus folgende
-Herausforderungen:
-
-\begin{itemize}
-  \item Der Aktionsraum umfasst 28~\acp{dof} für Arme und Hände und kombiniert
-    relative und absolute Gelenkwerte.
-  \item Es stehen nur rund 300 teleoperierte Demonstrationen zur Verfügung.
-  \item Das Training des Modells mit 3,3~Mrd.\ Parametern benötigt
-    Rechenressourcen, die nur auf einem \ac{hpc}-Cluster verfügbar waren.
-  \item Ein Test auf dem physischen Roboter war nicht Teil des Projekts.
-    Ob die Politik die Aufgabe löst, kann daher nur in einer Simulation
-    geprüft werden, deren Bilder sich von den realen Trainingsbildern
-    unterscheiden (Domain-Gap).
-\end{itemize}
-
-Der letzte Punkt hat sich im Projektverlauf als der wichtigste herausgestellt.
-
-\section{Zielsetzung, Leitfragen und Abgrenzung}
 \label{sec:zielsetzung}
 
-Das Projekt gliedert sich in fünf Teilaufgaben, die in \cref{chap:umsetzung}
-einzeln beschrieben werden: eine reproduzierbare Container-Umgebung, das
-Training auf dem Cluster, eine Simulationsumgebung, die Validierung der
-trainierten Modelle und die dafür nötigen Entwicklungswerkzeuge. Die Arbeit
-orientiert sich an drei Leitfragen:
+\ac{vla}-Modelle sollen Roboter über Kamerabilder und eine Aufgabenbeschreibung in Sprache
+steuern, statt jede Bewegung einzeln zu programmieren. Vortrainierte Modelle lassen sich mit
+wenigen hundert Demonstrationen an einen neuen Roboter und eine neue Aufgabe anpassen. Ob diese
+Anpassung gelungen ist, lässt sich ohne Roboter aber nur schwer prüfen: Ein niedriger
+Trainingsfehler sagt wenig darüber, ob das Modell die Aufgabe im Regelkreis tatsächlich löst.
+Diese Lücke zwischen Training und Bewertung zieht sich durch die ganze Arbeit.
+
+Das vortrainierte \ac{vla}-Modell NVIDIA GR00T~\cite{groot2025} soll den humanoiden
+Roboter Unitree~G1 mit DEX3-Händen~\cite{unitree_g1} drei Würfel stapeln lassen. Grundlage
+sind 301 teleoperierte Demonstrationen eines öffentlichen
+Datensatzes~\cite{g1dex3dataset}. Ein Roboter stand für Tests nicht zur Verfügung; bewertet
+wird deshalb auf aufgezeichneten Episoden (Open Loop) und in einer Simulation in
+Isaac~Lab~\cite{isaaclab2023} (Closed Loop; beide Begriffe erklärt \cref{tab:begriffe}). Verwendet werden die Modellgenerationen N1.6 und
+N1.7. Nicht Teil der Arbeit sind Fortbewegung und der Einsatz auf dem echten Roboter.
+
+Ziel sind drei Dinge: (1) ein reproduzierbares Fine-Tuning auf diesen Daten, (2) eine
+Bewertung ohne Roboter, die zeigt, ob und warum das Modell die Aufgabe löst, und (3) eine
+Übergabe mit dokumentierten Schnittstellen und einer Anleitung, mit der andere weiterarbeiten
+können.
+
+\section{Ergebnis in fünf Sätzen}
+\label{sec:ergebnis-kurz}
 
 \begin{enumerate}
-  \item[F1] Lässt sich GR00T~N1.6 mit den verfügbaren Daten und Ressourcen
-    stabil auf den G1 mit DEX3-Hand nachtrainieren, und wie gut gibt das
-    Modell die Demonstrationen auf ungesehenen Episoden wieder?
-  \item[F2] Wie gut löst das trainierte Modell die Aufgabe in der Simulation,
-    und wie aussagekräftig ist diese Bewertung für ein Modell, das nur mit
-    realen Bildern trainiert wurde?
-  \item[F3] Woran scheitert die Politik in der Simulation, und welche
-    Schritte sind als Nächstes sinnvoll?
+  \item Das Fine-Tuning läuft reproduzierbar in einem Container, lokal und auf dem
+    \acs{kisski}-Cluster der \acs{gwdg}; bestes Modell ist N1.6 nach 44\,000 Schritten, N1.7
+    ist auf den echten Testaufnahmen gleich gut (\cref{sec:erg-training}).
+  \item In der Simulation stapelt keines der Modelle einen Würfel; zwei Ursachen dafür sind
+    gemessen (\cref{sec:erg-registrierung,sec:erg-domain-gap}).
+  \item Die Würfel liegen in der Simulation je Seite rund 3~cm zu weit innen: Spielt man die
+    Bewegungen aus dem Trainingsdatensatz ohne Modell ab, heben sie ohne Korrektur keinen
+    Würfel an, mit Korrektur in 6 von 20 Episoden.
+  \item Auf den Kamerabildern der Simulation ist der Fehler der Policy bei den Handbewegungen
+    13-mal (N1.6) bzw.\ 36-mal (N1.7) so groß wie auf den echten Bildern.
+  \item Co-Training mit Bildern aus der Simulation verkleinert diesen Fehler deutlich und bringt
+    die ersten Griffe der Policy, allerdings nur in 2 von 60 Episoden; ohne Co-Training war es
+    keiner von 20, ein statistisch nicht gesicherter Unterschied (\cref{sec:erg-cotrain}).
 \end{enumerate}
 
-Der Einsatz auf dem physischen Roboter ist nicht Teil dieser Arbeit. Die
-Lokomotion wurde nur recherchiert. Co-Training und Reinforcement Learning sind
-implementiert, ein Trainingslauf, der eine Verbesserung nachweist, steht für
-beide noch aus.
+\section{Aufbau und Verhältnis zur Dokumentation}
+\label{sec:aufbau}
+\label{sec:doku-verhaeltnis}
 
-\section{Projektkontext und Eigenleistung}
+Die Arbeit soll auch als Einstieg für alle dienen, die das Projekt weiterführen. Deshalb
+beginnt sie mit dem Gesamtsystem: \Cref{chap:system} stellt Roboter, Modell und
+Rechenumgebungen vor und benennt die verwendeten Datensätze und Modelle.
+\Cref{chap:schnittstellen} beschreibt, wie die Bausteine zusammenspielen und welche Daten sie
+austauschen, und \cref{chap:anleitung} zeigt, wie man ein Training startet und ein Modell
+misst.
+
+Die Ergebnisse folgen in \cref{chap:ergebnisse} in der Reihenfolge, in der sie aufeinander
+aufbauen: vom Training über das Scheitern in der Simulation zu den beiden gefundenen Ursachen
+und zum Co-Training als Gegenmaßnahme. \Cref{chap:cosmos} beschreibt das Teilprojekt, das
+echte Trainingsvideos mit Cosmos stilvariiert, als zweite Quelle zusätzlicher Bilder.
+\Cref{chap:grenzen} ordnet ein, wie belastbar diese
+Ergebnisse sind. \Cref{chap:projektverlauf} blickt auf den Projektverlauf zurück und hält fest,
+was sich beim nächsten Mal besser machen lässt; \cref{chap:uebergabe} schließt mit Fazit und
+offenen Punkten.
+
+Die Arbeit fasst zusammen und begründet, die Einzelheiten stehen im Repository: alle Befehle,
+Parameter und Rohwerte. Als Einstieg eignet sich \doc{README.md}, danach
+\doc{docs/quickstart.md} und \doc{docs/schnittstellen.md}. Jede Messung trägt eine Laufnummer
+(\enquote{Lauf~N}), über die sie sich dort wiederfinden lässt. Die Trainingsläufe 1--4 sind in
+\doc{docs/ergebnisse/} einzeln ausgewertet, alle weiteren im fortlaufenden Laborbuch
+\doc{docs/ergebnisse/diagnose-chronik.md}. Aus diesen Quellen stammen alle Zahlen der Arbeit;
+eine Kurzübersicht der zitierten Läufe gibt \cref{anh:laufliste}.
+
+\section{Aufteilung der Arbeit}
 \label{sec:eigenleistung}
 
-Das Projekt wurde von Maximilian Berger, Matthias Späth und Luca Mücke
-gemeinsam bearbeitet. Übernommen wurden das vortrainierte Modell samt
-Trainings-Framework (NVIDIA), der Simulator Isaac~Sim/Isaac~Lab, das
-LeRobot-Datenformat, ein öffentlicher Datensatz, das Robotermodell von
-Unitree, das SigLIP-Modell als Messwerkzeug, das RL-Verfahren \ac{fpo} sowie die
-KISSKI-Infrastruktur der GWDG. \Cref{tab:beitraege} zeigt, wer welche
-Arbeitspakete federführend bearbeitet hat.
+Zu Projektbeginn wurde die Arbeit in drei Pakete mit je einer verantwortlichen Person
+aufgeteilt (\cref{tab:plan}).
 
 \begin{table}[htb]
   \centering
-  \begin{tabularx}{\linewidth}{Xl}
+  \small
+  \begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{2.5cm}>{\raggedright\arraybackslash}Xl}
     \toprule
-    Arbeitspaket & Federführend \\
+    Bereich & Geplanter Inhalt & Verantwortlich \\
     \midrule
-    Container-Trainingspipeline und Anbindung an den KISSKI-Cluster
-      (Basis-Setup gemeinsam im Team) & Luca Mücke \\
+    Infrastruktur und Container & Docker-Images für Training und Simulation, Zugang zu
+      Rechenressourcen (Cluster, Institutsserver, Mietkarten), Ablage von Daten und
+      Checkpoints & Maximilian Berger \\
     \addlinespace
-    Roboterkonfiguration im GR00T-Code, Datensatzkonvertierung,
-      Train/Test-Split, Checkpoint-Auswahl & Luca Mücke \\
+    Training & Datensatz aufbereiten, GR00T nachtrainieren, Checkpoints auswählen und auf
+      aufgezeichneten Episoden bewerten & Luca Mücke \\
     \addlinespace
-    Simulationsumgebung in Isaac~Lab, Kalibrierung und Diagnosewerkzeuge
-      & Luca Mücke \\
-    \addlinespace
-    RL-Fine-Tuning und Co-Training-Werkzeuge & Luca Mücke \\
-    \addlinespace
-    Cloud-Simulation (vast.ai), Inferenz-Optimierung, Replay-Videos,
-      erstes Verfahren zur Bestimmung der Würfellage, Migration auf
-      GR00T~N1.7 & Matthias Späth \\
-    \addlinespace
-    Generative Video-Augmentierung mit Cosmos-Transfer (in Entwicklung)
-      & Maximilian Berger \\
-    \addlinespace
-    Projektdokumentation, Bedienoberfläche, Ausarbeitung & Luca Mücke \\
+    Simulation & Szene in Isaac~Lab aufbauen, Policy anbinden, Modelle im geschlossenen
+      Regelkreis bewerten & Matthias Späth \\
     \bottomrule
   \end{tabularx}
-  \caption{Arbeitspakete und federführende Bearbeiter.}
-  \label{tab:beitraege}
+  \caption{Geplante Arbeitspakete zu Projektbeginn.}
+  \label{tab:plan}
 \end{table}
 
-\section{Verhältnis zur Projektdokumentation}
-\label{sec:doku-verhaeltnis}
+Im Verlauf verschoben sich die Schwerpunkte. \Cref{tab:beitraege} zeigt, wer die einzelnen
+Arbeitspakete tatsächlich federführend bearbeitet hat, gegliedert nach denselben Bereichen.
 
-Im Projekt-Repository liegt eine technische Dokumentation in Markdown
-(Verzeichnis \doc{docs/}, Einstieg über \doc{docs/README.md} und
-\doc{docs/quickstart.md}). Sie enthält Kommandos, Konfigurationsparameter,
-Schritt-für-Schritt-Anleitungen, Fehlerbehebung und ein laufendes Protokoll
-aller Diagnoseläufe. Diese Ausarbeitung wiederholt diese Inhalte nicht. Sie
-beschreibt, was gemacht wurde, welche Ergebnisse und Hindernisse es gab und
-was sich daraus lernen lässt, und verweist für Details an der jeweiligen
-Stelle auf die Dokumentation. Wer auf dem Projekt aufbauen möchte, beginnt mit
-\doc{docs/quickstart.md}.
-
-\section{Aufbau der Arbeit}
-\label{sec:aufbau}
-
-\Cref{chap:grundlagen} fasst die nötigen Begriffe knapp zusammen.
-\Cref{chap:umsetzung} beschreibt die Umsetzung der fünf Teilaufgaben,
-\cref{chap:ergebnisse} die Ergebnisse, darunter die Lernkurven der
-Trainingsläufe und das Verhalten des zuletzt getesteten Modells in der
-Simulation. \Cref{chap:diskussion} ordnet die Ergebnisse ein.
-\Cref{chap:weiterfuehrend} gibt einen Überblick über weiterführende Arbeiten.
-\Cref{chap:projektverlauf} beschreibt die größten Hindernisse, die
-Arbeitsmittel einschließlich der KI-gestützten Entwicklungsumgebung und die
-Lessons Learned. \Cref{chap:fazit} beantwortet die Leitfragen.
+\begin{table}[H]
+  \centering
+  \small
+  \begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{2.5cm}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}p{3.1cm}}
+    \toprule
+    Bereich & Arbeitspaket & Verantwortlich \\
+    \midrule
+    Infrastruktur und Container & Container-Trainingspipeline, Anbindung an KISSKI, Bedienoberfläche \texttt{run.sh} für alle Abläufe
+       & Luca Mücke \\
+    \midrule
+    Training und Daten & Roboterkonfiguration, Datensatzkonvertierung, Train/Test-Split,
+      Checkpoint-Auswahl & Luca Mücke \\
+      & Migration auf GR00T~N1.7 & Matthias Späth \\
+      & Generative Video-Augmentierung mit Cosmos-Transfer & Maximilian Berger \\
+    \midrule
+    Simulation & Isaac-Lab-Szene, Kalibrierung,
+      Diagnosewerkzeuge & Luca Mücke \\
+      & Replay-Videos, Bestimmung der Würfellage & Gemeinsam \\
+      & Inferenz-Optimierung des Policy-Servers & Matthias Späth \\
+      & Co-Training mit Bildern aus der Simulation & Luca Mücke \\
+      & RL-Pipeline mit \acs{fpo} (gebaut, ohne Trainingsergebnis) & Luca Mücke \\
+    \midrule
+     Dokumentation & Repository-Wiki, Projektarbeit-Ausarbeitung & Gemeinsam \\
+    \bottomrule
+  \end{tabularx}
+  \caption{Tatsächlich bearbeitete Arbeitspakete und verantwortliche Bearbeiter.}
+  \label{tab:beitraege}
+\end{table}

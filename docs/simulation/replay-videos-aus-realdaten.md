@@ -7,7 +7,7 @@
 
 > ⚠️ **Stand 2026-08-26:** Das hier dokumentierte `pick_anchored_homography`-Verfahren (Pfad B)
 > wurde nach dem Abnahmelauf aufgegeben — Empfehlung in
-> [wuerfellage-rekonstruktion-lauf35-befund.md](wuerfellage-rekonstruktion-lauf35-befund.md) §8.
+> [wuerfellage-rekonstruktion-lauf35-befund.md](../archiv/wuerfellage-rekonstruktion-lauf35-befund.md) §8.
 > Aktuelles Verfahren ist Pfad A (`extract_block_layout` → `layout.json`), dokumentiert in
 > [wuerfellage-rekonstruktion.md](wuerfellage-rekonstruktion.md). Die Datei bleibt als Protokoll
 > erhalten.

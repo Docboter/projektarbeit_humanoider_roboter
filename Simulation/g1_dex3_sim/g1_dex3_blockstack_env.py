@@ -31,7 +31,7 @@ from isaaclab.sim import SimulationCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.math import quat_apply, sample_uniform
 import numpy as np
-from scene_geometry import CUBE_Z_CENTER, TABLE_POS, TABLE_SIZE
+from scene_geometry import CUBE_EDGE, CUBE_Z_CENTER, STACK_HEIGHT_MIN, TABLE_POS, TABLE_SIZE
 from task_text import DEFAULT_TASK_DESCRIPTION
 import torch
 
@@ -144,7 +144,7 @@ class G1Dex3BlockstackSceneCfg(InteractiveSceneCfg):
     block_0: RigidObjectCfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/block_0",
         spawn=sim_utils.CuboidCfg(
-            size=(0.05, 0.05, 0.05),
+            size=(CUBE_EDGE, CUBE_EDGE, CUBE_EDGE),   # scene_geometry.py
             rigid_props=sim_utils.RigidBodyPropertiesCfg(),
             mass_props=sim_utils.MassPropertiesCfg(mass=0.05),
             collision_props=sim_utils.CollisionPropertiesCfg(),
@@ -159,7 +159,7 @@ class G1Dex3BlockstackSceneCfg(InteractiveSceneCfg):
     block_1: RigidObjectCfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/block_1",
         spawn=sim_utils.CuboidCfg(
-            size=(0.05, 0.05, 0.05),
+            size=(CUBE_EDGE, CUBE_EDGE, CUBE_EDGE),   # scene_geometry.py
             rigid_props=sim_utils.RigidBodyPropertiesCfg(),
             mass_props=sim_utils.MassPropertiesCfg(mass=0.05),
             collision_props=sim_utils.CollisionPropertiesCfg(),
@@ -174,7 +174,7 @@ class G1Dex3BlockstackSceneCfg(InteractiveSceneCfg):
     block_2: RigidObjectCfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/block_2",
         spawn=sim_utils.CuboidCfg(
-            size=(0.05, 0.05, 0.05),
+            size=(CUBE_EDGE, CUBE_EDGE, CUBE_EDGE),   # scene_geometry.py
             rigid_props=sim_utils.RigidBodyPropertiesCfg(),
             mass_props=sim_utils.MassPropertiesCfg(mass=0.05),
             collision_props=sim_utils.CollisionPropertiesCfg(),
@@ -442,7 +442,7 @@ class G1Dex3BlockstackEnvCfg(DirectRLEnvCfg):
 
     # Erfolgsparameter
     stack_xy_tol: float = 0.03  # max. horizontaler Versatz zwischen Würfel-Mittelpunkten
-    stack_height_min: float = 0.08  # Mindesthöhe des Turms (2 × 0.05 m - Toleranz)
+    stack_height_min: float = STACK_HEIGHT_MIN  # 2 × Würfelkante − 2 cm (scene_geometry.py)
     stack_vel_max: float = 0.05  # max. Geschwindigkeit für "stabil gestapelt"
     # Dataset-Replays müssen auch nach einem erfolgreichen Zwischenzustand bis zum Ende
     # der Originalepisode weiterlaufen. Der Default bleibt für Eval/RL unverändert.
@@ -600,6 +600,7 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
 
         # Dex3-Finger-Gelenkgrenzen an die echte Dataset-Range weiten (URDF-Limits sind zu eng).
         self._widen_finger_joint_limits()
+        self._setup_joint_zero_offsets()
 
     # ------------------------------------------------------------------
     # Szene aufbauen
@@ -823,6 +824,37 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
         print(f"[Env] Dex3-Finger-Gelenkgrenzen an Dataset-Range geweitet "
               f"({len(joint_ids)} Gelenke, {len(restored)} Startwerte zurückgesetzt).",
               flush=True)
+
+    # ------------------------------------------------------------------
+    # Gelenk-Nullpunktversatz (Diagnose, JOINT_ZERO_OFFSETS)
+    # ------------------------------------------------------------------
+
+    def _setup_joint_zero_offsets(self) -> None:
+        """Nullpunktversatz zwischen Datensatz-Gelenkwinkel und Sim-Gelenk, je Gelenk.
+
+        Modelliert eine abweichende Encoder-Null zwischen echtem Roboter und URDF:
+        Sim-Gelenk = Datensatzwert + Versatz. Wirkt auf Zielwerte (_pre_physics_step), wird
+        aus der Beobachtung wieder herausgerechnet (_get_observations) und verschiebt die
+        Startpose mit. Format: ``JOINT_ZERO_OFFSETS="left_shoulder_yaw_joint:-0.15,..."``
+        (rad). Leer = kein Versatz. Diagnose aus Lauf 62/63 (Würfel ~3 cm zu weit innen).
+        """
+        names = list(ALL_JOINTS_ORDERED)
+        offset = torch.zeros(len(names), device=self.device)
+        raw = os.environ.get("JOINT_ZERO_OFFSETS", "").strip()
+        for item in filter(None, (x.strip() for x in raw.split(","))):
+            joint, value = item.split(":")
+            if joint not in names:
+                raise ValueError(f"JOINT_ZERO_OFFSETS: unbekanntes Gelenk {joint!r}")
+            offset[names.index(joint)] = float(value)
+        self.joint_zero_offset = offset          # Policy-Reihenfolge, (28,)
+        if raw:
+            ids = self._joint_ids or self._build_joint_id_mapping()
+            self.robot.data.default_joint_pos[:, ids] += offset
+            print(f"[Env] JOINT_ZERO_OFFSETS aktiv: {raw}", flush=True)
+
+    def dataset_to_sim(self, q):
+        """28-dim-Datensatzzustand (numpy) → Sim-Gelenkwinkel (mit Nullpunktversatz)."""
+        return q + self.joint_zero_offset.cpu().numpy().astype(q.dtype)
 
     # ------------------------------------------------------------------
     # Visual Domain Randomization
@@ -1090,6 +1122,7 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
         # ist die Liste leer — der Datensatz ist bereits seitenweise in USD-Konvention.
         if self._SIGN_FLIP_IDX:
             joint_pos[:, self._SIGN_FLIP_IDX] *= -1
+        joint_pos -= self.joint_zero_offset      # Sim → Datensatz-Konvention (Diagnose)
         obs["joint_pos"] = joint_pos
 
         # Kamerabilder
@@ -1167,6 +1200,7 @@ class G1Dex3BlockstackEnv(DirectRLEnv):
         actions = actions.clone()
         if self._SIGN_FLIP_IDX:
             actions[:, self._SIGN_FLIP_IDX] *= -1
+        actions += self.joint_zero_offset        # Datensatz → Sim (Diagnose, sonst 0)
 
         # actions sind bereits absolute Gelenkpositionen (alle 28 Dims) in
         # Policy-Reihenfolge → in Isaac-interne Joint-Reihenfolge umschreiben

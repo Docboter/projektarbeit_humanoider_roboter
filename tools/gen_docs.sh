@@ -202,10 +202,14 @@ fi
 
 # Doppelte Meldungen zusammenfassen: ein Parameter aus _common.spec taucht in jeder
 # Aktion auf und wuerde den Bericht sonst zwanzigfach fluten.
+# Eigene, nicht vorhersagbare Temp-Datei (frueher /tmp/.gen_docs_notes.<pid>), per trap auch bei
+# Abbruch entfernt.
+NOTES_FILE="$(mktemp "${TMPDIR:-/tmp}/gen_docs_notes.XXXXXX")" || { echo "mktemp fehlgeschlagen" >&2; exit 2; }
+trap 'rm -f "$NOTES_FILE"' EXIT
 printf '%s\n' ${NOTES[@]+"${NOTES[@]}"} \
   | sed -E 's#^(ABWEICHUNG|UNGEPRUEFT|BEWUSST) +[a-z]+/[a-z]+  #\1  #' \
-  | sort -u > /tmp/.gen_docs_notes.$$
-UNIQUE=$(grep -c . /tmp/.gen_docs_notes.$$ 2>/dev/null); UNIQUE=${UNIQUE:-0}
+  | sort -u > "$NOTES_FILE"
+UNIQUE=$(grep -c . "$NOTES_FILE" 2>/dev/null); UNIQUE=${UNIQUE:-0}
 
 if (( QUIET == 0 )); then
   echo "Abgleich Spec <-> Skript <-> Doku"
@@ -213,13 +217,13 @@ if (( QUIET == 0 )); then
   echo "  eindeutige Befunde:  $UNIQUE"
   echo ""
 fi
-grep -E '^ABWEICHUNG' /tmp/.gen_docs_notes.$$ | sed 's/^/  /'
+grep -E '^ABWEICHUNG' "$NOTES_FILE" | sed 's/^/  /'
 if (( QUIET == 0 )); then
-  grep -E '^BEWUSST'    /tmp/.gen_docs_notes.$$ | sed 's/^/  /'
-  grep -E '^UNGEPRUEFT' /tmp/.gen_docs_notes.$$ | sed 's/^/  /'
+  grep -E '^BEWUSST'    "$NOTES_FILE" | sed 's/^/  /'
+  grep -E '^UNGEPRUEFT' "$NOTES_FILE" | sed 's/^/  /'
 fi
-ABW=$(grep -cE '^ABWEICHUNG' /tmp/.gen_docs_notes.$$ 2>/dev/null); ABW=${ABW:-0}
-rm -f /tmp/.gen_docs_notes.$$
+ABW=$(grep -cE '^ABWEICHUNG' "$NOTES_FILE" 2>/dev/null); ABW=${ABW:-0}
+rm -f "$NOTES_FILE"
 
 echo ""
 if (( ABW > 0 )); then

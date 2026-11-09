@@ -56,7 +56,7 @@ uv run --no-sync "${LAUNCHER[@]}" "$GROOT_ROOT/gr00t/experiment/launch_finetune.
 ### 2. SLURM-Ressourcen + Defaults — [`Training/kisski_submit.sh`](../../Training/kisski_submit.sh)
 
 ```bash
-#SBATCH -G A100:4        # statt A100:1
+#SBATCH -G A100:4        # statt A100:1 — kisski_menu.sh setzt Typ/Anzahl seit 2026-10-13 nach Partition + NUM_GPUS
 #SBATCH -c 96            # genug CPU-Kerne (dataloader_num_workers × 4 GPUs)
 #SBATCH --mem=384G       # 256G reichten nicht — siehe "Verifikation" unten (OOM-Kill)
 # ...

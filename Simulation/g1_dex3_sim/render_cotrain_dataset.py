@@ -210,6 +210,7 @@ simulation_app = app_launcher.app
 from g1_dex3_blockstack_env import G1Dex3BlockstackEnv, G1Dex3BlockstackEnvCfg  # noqa: E402
 import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
+from split_math import train_count  # noqa: E402
 from task_text import DEFAULT_TASK_DESCRIPTION  # noqa: E402
 import torch  # noqa: E402
 
@@ -275,7 +276,7 @@ def select_episodes(info: dict, args) -> list[int]:
     Trainingsmaterial und die Validierungs-MSE des Checkpoint-Sweeps misst nichts mehr.
     """
     total = int(info["total_episodes"])
-    n_train = int(total * args.train_ratio)
+    n_train = train_count(total, args.train_ratio, validate=False)   # split_math.py
 
     if args.episode_ids:
         chosen = sorted(set(args.episode_ids))
@@ -1214,7 +1215,8 @@ def main():
     print(f"  Quelle:      {src_root}")
     print(f"  Ziel:        {out}")
     print(f"  Episoden:    {len(episodes)} → {episodes[:8]}{' …' if len(episodes) > 8 else ''}")
-    print(f"  Train-Grenze: 0:{int(int(src_info['total_episodes']) * args.train_ratio)} "
+    _n_train = train_count(int(src_info["total_episodes"]), args.train_ratio, validate=False)
+    print(f"  Train-Grenze: 0:{_n_train} "
           f"von {src_info['total_episodes']} (Test-Episoden bleiben ungerendert)")
     print(f"  Längste Ep.: {max_len} Frames → episode_length_s entsprechend gesetzt")
     cube_mode = ("keine (ABLATION)" if args.no_place_cubes

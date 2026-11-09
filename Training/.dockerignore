@@ -12,3 +12,8 @@
 scripts/**/__pycache__/
 scripts/**/*.pyc
 scripts/**/*.pyo
+
+# Veraltete Windows-Variante (run_finetuning.ps1, ohne Split/Resume-Guard): bleibt im Repo als
+# Referenz, gehoert aber nicht ins Image — im Linux-Container ist sie ohnehin nicht lauffaehig
+# (Review R7). Windows-Nutzer: WSL2 + bash /scripts/run_finetuning.sh.
+scripts/run_finetuning.ps1

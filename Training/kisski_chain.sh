@@ -9,7 +9,7 @@
 #
 # Die Trainings laufen also streng nacheinander (afterany: ein abgebrochener Lauf hält die
 # Kette nicht an), jeder Sweep direkt nach seinem Training — und nur, wenn es sauber
-# durchlief. Ausnahme: hinter dem Kurztest `smoke` hängt der nächste Lauf mit afterok. Die Läufe sind unten als Voreinstellungen hinterlegt, damit Namespace,
+# durchlief. Ausnahme: hinter einem Kurztest (`smoke*`) hängt der nächste Lauf mit afterok. Die Läufe sind unten als Voreinstellungen hinterlegt, damit Namespace,
 # Datensatz und Hyperparameter nicht bei jedem Einreichen neu getippt werden müssen.
 #
 # NUTZUNG (auf dem Login-Node, im Repo-Verzeichnis):
@@ -38,7 +38,7 @@ err()  { printf '\033[1;31m!! \033[0m %s\n' "$*" >&2; }
 # Alle synth-Läufe übernehmen die Parameter von cotrain_synth_v1
 # (docs/training/synth-datensatz.md § 6.2/§ 7), damit sie gegen ihn vergleichbar bleiben.
 # Ein Lauf = eine Zeile im case + eine Zeile in PRESETS.
-PRESETS=(smoke synth_jointspace synth_v22)
+PRESETS=(smoke synth_jointspace synth_v22 smoke_render_v3 render_v3_cube5 render_v3_cube4 render_v3_cube5_n17 render_v3_cube4_n17)
 SMOKE_STAMP="$(date +%Y%m%d-%H%M%S)"   # einmal je Aufruf: preset() läuft mehrfach
 
 preset() {
@@ -73,6 +73,52 @@ preset() {
             COTRAIN_DATASET_PATH=/data/cotrain/cube_stacking_synth_v22
             OUTPUT_DIR=/data/g1_dex3_finetune/blockstacking_cotrain_synth_v22
             EXPERIMENT_NAME=g1_dex3_blockstacking_cotrain_synth_v22 ;;
+        smoke_render_v3)
+            # Kurztest für die render_v3-Läufe (gleiche Konfiguration, 50 Schritte): erster Lauf
+            # mit dem EIGENEN Render überhaupt — Startausgabe auf "[cotrain] Zwei Datensätze:" prüfen.
+            DESCRIPTION="Kurztest: render_v3_cube5-Konfiguration, 50 Schritte, 1 h Walltime"
+            COTRAIN_DATASET_PATH=/data/cotrain/g1_dex3_rendered_v3_cube5
+            COTRAIN_MIX_RATIO="${COTRAIN_MIX_RATIO_OVERRIDE:-0.15}"
+            OUTPUT_DIR=/data/g1_dex3_finetune/smoke_cotrain_render_v3_$SMOKE_STAMP
+            EXPERIMENT_NAME=g1_dex3_smoke_cotrain_render_v3_$SMOKE_STAMP
+            RUN_ENV=(MAX_STEPS=50 SAVE_STEPS=50 SAVE_TOTAL_LIMIT=1)
+            RUN_SBATCH=(--time=01:00:00 --job-name=groot-smoke) ;;
+        render_v3_cube5)
+            # Eigener Render v3 (IKR-Server 2026-10-15, Chronik Läufe 62/70/72): korrigierte
+            # Geometrie, Würfel 3 cm nach außen, Tisch 2 m breit, Handgelenkkamera vor/tiefer/85°,
+            # 187 Trainings-Episoden bis zum Griff (29 890 Frames; Prüfset 0/4/8/12 zurückgehalten).
+            # Mischung: Ausgleichspunkt 0,115 (co-training.md §4.2), bewusst knapp darüber.
+            # HF: luca-mue/g1-dex3-rendered-v3-cube5 (privat).
+            DESCRIPTION="Co-Training echt + eigener Render v3, 5-cm-Würfel (N1.6)"
+            COTRAIN_DATASET_PATH=/data/cotrain/g1_dex3_rendered_v3_cube5
+            COTRAIN_MIX_RATIO="${COTRAIN_MIX_RATIO_OVERRIDE:-0.15}"
+            OUTPUT_DIR=/data/g1_dex3_finetune/blockstacking_cotrain_render_v3_cube5
+            EXPERIMENT_NAME=g1_dex3_blockstacking_cotrain_render_v3_cube5 ;;
+        render_v3_cube4)
+            # Wie render_v3_cube5, aber 4-cm-Würfel im Render (SIM_CUBE_EDGE=0.04).
+            # HF: luca-mue/g1-dex3-rendered-v3-cube4 (privat).
+            DESCRIPTION="Co-Training echt + eigener Render v3, 4-cm-Würfel (N1.6)"
+            COTRAIN_DATASET_PATH=/data/cotrain/g1_dex3_rendered_v3_cube4
+            COTRAIN_MIX_RATIO="${COTRAIN_MIX_RATIO_OVERRIDE:-0.15}"
+            OUTPUT_DIR=/data/g1_dex3_finetune/blockstacking_cotrain_render_v3_cube4
+            EXPERIMENT_NAME=g1_dex3_blockstacking_cotrain_render_v3_cube4 ;;
+        render_v3_cube5_n17)
+            # Wie render_v3_cube5, aber GR00T N1.7 (launch_cotrain_n17.py, eigene SIF). N1.7
+            # reagiert im Open Loop vor allem auf die Handgelenkkameras (Chronik Lauf 71).
+            DESCRIPTION="Co-Training echt + eigener Render v3, 5-cm-Würfel, GR00T N1.7"
+            COTRAIN_DATASET_PATH=/data/cotrain/g1_dex3_rendered_v3_cube5
+            COTRAIN_MIX_RATIO="${COTRAIN_MIX_RATIO_OVERRIDE:-0.15}"
+            OUTPUT_DIR=/data/g1_dex3_finetune/blockstacking_cotrain_render_v3_cube5_n17
+            EXPERIMENT_NAME=g1_dex3_blockstacking_cotrain_render_v3_cube5_n17
+            RUN_ENV=(GROOT_VERSION=1.7) ;;
+        render_v3_cube4_n17)
+            # Wie render_v3_cube4, aber GR00T N1.7 — Gegenstück zu render_v3_cube5_n17.
+            DESCRIPTION="Co-Training echt + eigener Render v3, 4-cm-Würfel, GR00T N1.7"
+            COTRAIN_DATASET_PATH=/data/cotrain/g1_dex3_rendered_v3_cube4
+            COTRAIN_MIX_RATIO="${COTRAIN_MIX_RATIO_OVERRIDE:-0.15}"
+            OUTPUT_DIR=/data/g1_dex3_finetune/blockstacking_cotrain_render_v3_cube4_n17
+            EXPERIMENT_NAME=g1_dex3_blockstacking_cotrain_render_v3_cube4_n17
+            RUN_ENV=(GROOT_VERSION=1.7) ;;
         *) return 1 ;;
     esac
 }
@@ -120,9 +166,16 @@ done
 [[ -f "$real_mod" ]] || warn "Echter Datensatz nicht gefunden ($real_mod) — modality-Vergleich übersprungen."
 # Dieselbe Fork-Prüfung wie in kisski_submit.sh, nur VOR der Warteschlange (Review 4.5).
 # Die Jobs erben GROOT_VERSION über --export=ALL; Pin und Fork-Klon hängen davon ab.
-case "${GROOT_VERSION:-1.6}" in
-    1.7|n17|N1.7|17) fork="${GROOT17_FORK_DIR:-$KISSKI_PROJECT_DIR/repo-groot-n17}"; pin_arg=GROOT17_COMMIT ;;
-    *)               fork="${GROOT_FORK_DIR:-$KISSKI_PROJECT_DIR/repo-groot}";       pin_arg=GROOT16_COMMIT ;;
+# Normalisieren mit derselben Funktion wie kisski_submit.sh: bis 2026-10-13 kannte das case
+# hier nur vier Schreibweisen, "n1.7" oder "1_7" landeten still beim N1.6-Pin (Review T5).
+# shellcheck source=scripts/lib_groot_version.sh
+source "$REPO_DIR/Training/scripts/lib_groot_version.sh"
+GROOT_VERSION="$(groot_normalize_version "${GROOT_VERSION:-1.6}")" || exit 2
+[[ "$GROOT_VERSION" == auto ]] && { err "GROOT_VERSION=auto geht beim Training nicht — 1.6 oder 1.7 setzen."; exit 2; }
+export GROOT_VERSION
+case "$GROOT_VERSION" in
+    1.7) fork="${GROOT17_FORK_DIR:-$KISSKI_PROJECT_DIR/repo-groot-n17}"; pin_arg=GROOT17_COMMIT ;;
+    *)   fork="${GROOT_FORK_DIR:-$KISSKI_PROJECT_DIR/repo-groot}";       pin_arg=GROOT16_COMMIT ;;
 esac
 pin="$(grep -oE "^ARG ${pin_arg}=[0-9a-f]{40}" "$REPO_DIR/Training/Dockerfile" 2>/dev/null \
        | head -1 | sed "s/^ARG ${pin_arg}=//" || true)"
@@ -175,14 +228,18 @@ for r in "${RUNS[@]}"; do
     )"
     sweep_id="$(
         export RUN_DIR="$OUTPUT_DIR" DATASET_PATH="$REAL_DATASET" KISSKI_PROJECT_DIR DATA_DIR
+        # GROOT_VERSION & Co. auch hier: sonst lädt der Sweep eines N1.7-Laufs die N1.6-SIF.
+        # Nur Versions-Variablen — MAX_STEPS usw. des Smoke-Tests gelten nicht für den Sweep.
+        for kv in "${RUN_ENV[@]}"; do [[ "$kv" == GROOT_VERSION=* ]] && export "$kv"; done
         submit "afterok:$train_id" Training/kisski_open_loop_eval.sh
     )"
     echo "    Training: $train_id   Sweep: $sweep_id (afterok)"
     SUMMARY+=("$r  train=$train_id  sweep=$sweep_id  → $(host_path "$OUTPUT_DIR")/checkpoint_sweep.json")
     prev="$train_id"
-    # Hinter dem Kurztest afterok statt afterany: scheitert er, sollen die großen Läufe
-    # gar nicht erst starten — genau dafür ist er da. Hängt dann als DependencyNeverSatisfied.
-    if [[ "$r" == smoke ]]; then prev_dep="afterok"; else prev_dep="afterany"; fi
+    # Hinter jedem Kurztest (smoke, smoke_render_v3, …) afterok statt afterany: scheitert er,
+    # sollen die großen Läufe gar nicht erst starten — genau dafür ist er da. Hängt dann als
+    # DependencyNeverSatisfied. Bis 2026-10-15 griff das nur für den Namen `smoke` exakt.
+    if [[ "$r" == smoke* ]]; then prev_dep="afterok"; else prev_dep="afterany"; fi
 done
 
 echo

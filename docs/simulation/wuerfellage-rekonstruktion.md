@@ -7,7 +7,7 @@
 > wuerfellage-rekonstruktion-lauf35-befund.md.
 
 **Stand:** 2026-10-11 (Verfahren: 2026-08-17, Gierwinkel: 2026-08-25) · Position: im Sim-Render auf
-rund 1 cm bestätigt (`layoutcheck`, 2026-08-22, [Befund](wuerfellage-rekonstruktion-lauf35-befund.md) §8);
+rund 1 cm bestätigt (`layoutcheck`, 2026-08-22), mit der korrigierten Würfelebene z = 0,895 nur noch 0,2–0,3 cm Restfehler (Medianwerte 0,30 cm, [Befund](../archiv/wuerfellage-rekonstruktion-lauf35-befund.md) §8, Tabelle und Punkt 2; die Ebene steht seit 2026-08-22 im Code, ein Neumessungslauf mit ihr ist nicht dokumentiert);
 dass die **reale** Kopfkamera derselben Pose folgt, ist weiterhin nicht belegt · Vorgeschichte: [co-training.md](../training/co-training.md) §3.0/§3.2a
 
 Dieses Dokument beschreibt, **wie die Position der drei Würfel aus den realen
@@ -140,7 +140,7 @@ Pixel → Kamerastrahl → Schnitt mit der Würfelebene z = 0,895 (`Z_CUBE_CENTE
 dem 0,87 m hohen Tisch ruhenden 5-cm-Würfels), im Modul
 [`camera_geometry.py`](../../Simulation/g1_dex3_sim/camera_geometry.py). Bis zum 2026-08-22 stand
 hier 0,915; die Würfel ruhen aber bei 0,895, der Rest-Bias in x war genau diese falsche Ebene
-([Befund](wuerfellage-rekonstruktion-lauf35-befund.md) §8).
+([Befund](../archiv/wuerfellage-rekonstruktion-lauf35-befund.md) §8).
 
 ### (e) Bias-Korrektur
 
@@ -357,6 +357,16 @@ Zusätzlich lehnt `extract` es ab, Einträge zu mischen, die mit anderem `--bias
 Würfelebene oder anderen Kameras entstanden sind: in der Datei wären sie nicht mehr
 unterscheidbar.
 
+> **Nachtrag 2026-10-13 — Split-Grenze in der `layout.json`.** `extract_block_layout.py` schreibt
+> jetzt `n_train`, `total_episodes` und `train_split_ratio` in den Kopf der Datei; die Eval liest
+> daraus, welche Episoden Trainings- und welche Held-out-Episoden sind (vorher fest
+> `HELD_OUT_FIRST_EPISODE = 240`, das nur bei 300 Episoden und Ratio 0,8 stimmte). Ältere Dateien
+> ohne diese Felder werden aus `meta/info.json` und `TRAIN_SPLIT_RATIO` nachgerechnet — mit
+> Warnung im Log. Die Split-Formel hat sim-seitig **eine** Quelle,
+> [`split_math.py`](../../Simulation/g1_dex3_sim/split_math.py) (Spiegel von
+> [`lib_split.sh`](../../Training/scripts/lib_split.sh)), die Layout, Render, Replay und Eval
+> gemeinsam nutzen.
+
 ## 8. Artefakte und Befehle
 
 | Artefakt | Inhalt |
@@ -376,5 +386,5 @@ unterscheidbar.
 
 Der frühere Parallelpfad B (`replay-prepare` → `replay-calibrate` → `replay-poses` →
 `replay-render`, Artefakte `replay_anchors.json`, `geometry_calibration.json`, `cube_poses.json`)
-wurde nach dem Abnahmelauf ([Befund](wuerfellage-rekonstruktion-lauf35-befund.md)) aufgegeben; sein
+wurde nach dem Abnahmelauf ([Befund](../archiv/wuerfellage-rekonstruktion-lauf35-befund.md)) aufgegeben; sein
 Protokoll steht in [replay-videos-aus-realdaten.md](replay-videos-aus-realdaten.md).

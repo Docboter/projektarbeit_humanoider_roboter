@@ -1,9 +1,9 @@
 % backmatter/erklaerung.tex — Ehrenwörtliche Erklärung
 
 \cleardoublepage
-\thispagestyle{empty}
 
 \chapter*{Ehrenwörtliche Erklärung}
+\markboth{Ehrenwörtliche Erklärung}{Ehrenwörtliche Erklärung}
 
 Wir erklären hiermit ehrenwörtlich, dass wir die vorliegende Projektarbeit
 selbstständig angefertigt und keine anderen als die angegebenen Quellen und
@@ -13,9 +13,8 @@ solche kenntlich gemacht.
 Die Arbeit wurde bisher keiner anderen Prüfungsbehörde vorgelegt und auch noch
 nicht veröffentlicht.
 
-Soweit in dieser Arbeit generative KI-Werkzeuge (z.\,B.\ Large Language Models)
-zur Unterstützung eingesetzt wurden, sind diese in \cref{anh:ki-nutzung} transparent
-dokumentiert.
+Generative KI-Werkzeuge wurden zur Unterstützung eingesetzt; Art und Umfang sind im
+folgenden Abschnitt \enquote{Erklärung zur KI-Nutzung} dokumentiert.
 
 \vspace{1.5cm}
 
@@ -31,10 +30,8 @@ dokumentiert.
 \end{tabular}
 
 % ── Anhang: KI-Nutzung (falls zutreffend, ansonsten entfernen) ────────
-\newpage
-\thispagestyle{empty}
-
 \chapter*{Erklärung zur KI-Nutzung}
+\markboth{Erklärung zur KI-Nutzung}{Erklärung zur KI-Nutzung}
 \label{anh:ki-nutzung}
 \addcontentsline{toc}{chapter}{Erklärung zur KI-Nutzung}
 
@@ -42,12 +39,12 @@ Im Rahmen dieser Projektarbeit wurden folgende KI-gestützte Werkzeuge eingesetz
 
 \begin{table}[H]
   \centering
-  \begin{tabular}{lp{5cm}p{5cm}}
+  \begin{tabular}{l>{\raggedright\arraybackslash}p{5cm}>{\raggedright\arraybackslash}p{5cm}}
     \toprule
     \textbf{Werkzeug}  & \textbf{Einsatzzweck} & \textbf{Umfang} \\
     \midrule
-    Claude Code (Anthropic) & Unterstützung bei Code-Entwicklung, Debugging
-      und Diagnose der Trainings- und Simulations-Pipeline &
+    Claude Code (Anthropic) & Unterstützung bei Code-Entwicklung, Debugging,
+      Diagnose und Auswertungsskripten der Trainings- und Simulations-Pipeline &
       projektbegleitend, einschließlich Plugins und MCP-Anbindungen
       (\cref{sec:entwicklungsumgebung}); Ergebnisse von den Verfassern
       geprüft \\
@@ -60,6 +57,6 @@ Im Rahmen dieser Projektarbeit wurden folgende KI-gestützte Werkzeuge eingesetz
 \end{table}
 
 \noindent
-Alle inhaltlichen Aussagen, Analysen und Schlussfolgerungen sind von uns selbst
-erarbeitet.
-Die vollständige Verantwortung für den Inhalt dieser Arbeit liegt bei uns.
+Code, Auswertungen und Texte sind mit KI-Unterstützung entstanden. Fragestellungen,
+Entscheidungen und Schlussfolgerungen stammen von uns; alle Ergebnisse und Zahlen haben wir
+geprüft. Die vollständige Verantwortung für den Inhalt dieser Arbeit liegt bei uns.

@@ -10,7 +10,7 @@
 **Erstellt:** 2026-10-12, Ergebnisse 2026-10-13 · **Job:** 16634862 (KISSKI; ersetzt den nicht
 gestarteten 30k-Job 16633316) · **W&B (offline):** `offline-run-20261012_192301-2v02ye81` ·
 **Modell:** GR00T N1.7 (3,14 Mrd. Parameter, Backbone Cosmos-Reason2-2B / Qwen3-VL),
-`tune_visual = true`, Color-Jitter, **80/20-Split**, Task „stack the blocks".
+`tune_visual = true`, Color-Jitter, **80/20-Split**, Task „stack three block" (einziger Task des Datensatzes).
 
 > Bezug: [Migrationsplan Phase 4](../weiterfuehrend/groot-n17-migration.md#phase-4--kisski),
 > [KISSKI-Smoke-Test](../weiterfuehrend/groot-n17-migration.md#kisski-smoke-test-2026-10-12),
@@ -148,6 +148,7 @@ N1.7 in 8/20 Episoden besser — kein belastbarer Unterschied.
   Das auf echten Bildern deutlich bessere Modell kommt im Closed Loop nicht an; die Sim steht auf
   dem Niveau von N1.6 mit `TUNE_VISUAL` (Lauf 34: 27,6 %, 0/10). Der Modellwechsel allein schließt
   den Domain-Gap also nicht.
+- **Nachtrag 2026-10-29:** Auch in der korrigierten Szene (Lauf 70) bleibt N1.7 @44000 bei `lifted` 0/20 (Lauf 81); mit Co-Training v3 berühren beide N1.7-Modelle den Würfel in 20/20 Episoden, `lifted_clear` aber je 0/20 (Läufe 89, 93). Gesamtstand: [README](README.md#ergebnisse-auf-einen-blick-stand-2026-10-29).
 - **Konfundierung:** State-Dropout 0,2 (N1.7) gegen 0 (N1.6) und die N1.7-Normierungs-Defaults —
   ein Teil des frühen Vorsprungs oder des späteren Gleichstands kann daran liegen.
 
@@ -161,4 +162,4 @@ N1.7 in 8/20 Episoden besser — kein belastbarer Unterschied.
   Logs `~/logs/slurm-ckpt-sweep-16643458.out`, `…-16643464.out`
 - Sweeps Lauf 3: `/data/g1_dex3_finetune/blockstacking_vision/g1_dex3_blockstacking_vision_v2/checkpoint_sweep_6x300_20260814.json`,
   `…/checkpoint_sweep_20x750.json`
-- HF (privat, nur Inferenzdateien): `luca-mue/groot-g1dex3-n17-vision-v1-ckpt{5000,10000,15000,44000}`
+- HF (seit 2026-10-30 öffentlich, nur Inferenzdateien): `luca-mue/groot-g1dex3-n17-vision-v1-ckpt{5000,10000,15000,44000}`

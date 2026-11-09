@@ -12,14 +12,14 @@
 
 ## Fragestellung
 
-Kann der frozen Vision Encoder von GR00T N1.6 reale Teleop-Bilder und synthetische Isaac-Sim-Bilder gleich behandeln? Gemessen wird mit dem vortrainierten SigLIP-Checkpoint als **Näherung**. Die ursprüngliche Annahme, er sei wegen `tune_visual = false` identisch mit dem Encoder der Policy, trifft nicht zu: der beste Checkpoint (vision-v2) lief mit `tune_visual = true`, und N1.6 nutzt das Eagle-Backbone. Die Zahlen sind ein allgemeiner Bildabstand, geeignet zum Vergleich von Sim-Varianten, aber keine Messung der Lücke, die die Policy sieht ([Review §3.6](../projekt-review-2026-10-11.md#36-falsche-annahme-im-domain-gap-skript--inkonsistenz-teilprüfung), korrigiert 2026-10-13).
+Kann der frozen Vision Encoder von GR00T N1.6 reale Teleop-Bilder und synthetische Isaac-Sim-Bilder gleich behandeln? Gemessen wird mit dem vortrainierten SigLIP-Checkpoint als **Näherung**. Die ursprüngliche Annahme, er sei wegen `tune_visual = false` identisch mit dem Encoder der Policy, trifft nicht zu: der beste Checkpoint (vision-v2) lief mit `tune_visual = true`, und N1.6 nutzt das Eagle-Backbone. Die Zahlen sind ein allgemeiner Bildabstand, geeignet zum Vergleich von Sim-Varianten, aber keine Messung der Lücke, die die Policy sieht ([Review §3.6](../archiv/projekt-review-2026-10-11.md#36-falsche-annahme-im-domain-gap-skript--inkonsistenz-teilprüfung), korrigiert 2026-10-13).
 
 ---
 
 ## Methodik
 
 **Modell:** `google/siglip-so400m-patch14-224`
-Da `tune_visual = false`, sind die Gewichte identisch mit dem frozen GR00T-ViT — das 6 GB GR00T-Modell ist nicht nötig.
+Vortrainierter SigLIP-Checkpoint als Näherung — das 6 GB GR00T-Modell ist dafür nicht nötig. (Ursprünglich stand hier, die Gewichte seien wegen `tune_visual = false` identisch mit dem GR00T-ViT; das trifft nicht zu, siehe die korrigierte Fragestellung oben.)
 
 **Script:** [`Simulation/scripts/measure_domain_gap.py`](../../Simulation/scripts/measure_domain_gap.py)
 
@@ -74,7 +74,7 @@ die reale DEX3-Hand ist schwarz, das URDF-Asset weiß, und ein Beleuchtungsfakto
 Kontrastverhältnis nicht ändern. Mit schwarzen Händen trifft der Wrist-Kontrast 68,9 bei real 65,0
 (vorher 36,1), der Kopfkamera-Kontrast 59,0 bei real 59,4.
 
-**Was offen bleibt.** `cam_left_wrist` ist mit 0,3556 weiter der Ausreißer (1,3× real↔real) und
+**Was offen bleibt** (Stand der Messung 2026-08-08; seit der Geometrie-Korrektur nicht neu gemessen, siehe Nachtrag unten). `cam_left_wrist` ist mit 0,3556 weiter der Ausreißer (1,3× real↔real) und
 verfehlt das vorab festgelegte Kriterium von < 0,35. Konsequenz nach der in
 [`diagnose-chronik.md`](diagnose-chronik.md) festgehaltenen vorregistrierten Regel: kein weiterer
 Albedo-Versuch, sondern Option 3 (`TUNE_VISUAL=1`) — vorher aber Schritt 3 (BC-Erfolgsrate in der
@@ -88,11 +88,15 @@ Sim), der die Zielgröße direkt misst statt über den Proxy.
 > Kamera-Anteil verschoben haben — besonders bei `cam_left_wrist`. Eine Neumessung mit der
 > korrigierten Geometrie (und mit dem `TUNE_VISUAL`-Encoder aus Lauf 3) steht aus; es gibt keine
 > neuere Gap-Messung als 2026-08-08.
+>
+> **Nachtrag 2026-10-29:** Den Domain-Gap misst seit Lauf 66 die Policy selbst (Hand-Fehler auf Sim- gegen Echtbild ×13 N1.6 vision-v2 @30000 [@44000 im Gate-Protokoll ×17, Lauf 80], ×36 N1.7 @44000; nach Angleichen der Szene −40 % bzw. −18 %, Lauf 70). Der SigLIP-Abstand dieser Seite ist als Kontrolle ungeeignet, weil SigLIP nicht der Encoder der Policy ist (Lauf 96).
 
-> **Nachtrag: Schritt 3 ist gelaufen.** Lauf 30 (2026-08-12) misst die BC-Erfolgsrate in der Sim
-> mit **0/20**. Nach der vorregistrierten Regel ist `TUNE_VISUAL=1` damit bestätigt. Lauf 30 zeigt
-> zusätzlich, dass die Politik nur ~19 % der demonstrierten Fingerspannweite kommandiert — der
-> Befund zeigt also auf Wahrnehmung/Politik, nicht nur auf das Rendering. (Vorbehalt: Lauf 30
+> **Nachtrag: Schritt 3 ist gelaufen.** Lauf 24 (2026-08-08) misst die BC-Erfolgsrate in der Sim
+> mit **0/20**; Lauf 30 (2026-08-12, nur 2 Episoden) schließt damit die vorregistrierte Regel, nach
+> der `TUNE_VISUAL=1` als bestätigt gilt (zur Belastbarkeit siehe
+> [Review 10-13 §2.1 M2](../archiv/projekt-review-2026-10-13.md#21-befunde)). Lauf 30 zeigt
+> zusätzlich, dass die Policy nur ~19 % der demonstrierten Fingerspannweite kommandiert — der
+> Befund zeigt also auf Wahrnehmung/Policy, nicht nur auf das Rendering. (Vorbehalt: Lauf 30
 > entstand mit dem später als fehlerhaft erkannten Fingerzustand der Sim, Läufe 38–46; und das
 > `span`-Gate, das den Domain-Gap „bestätigte", wurde auf Trainingsepisoden gemessen.) Details:
 > [`diagnose-chronik.md`](diagnose-chronik.md).

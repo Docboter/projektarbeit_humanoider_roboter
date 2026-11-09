@@ -4,6 +4,8 @@
 > BC-Checkpoint bis zum laufenden RL-Training auf einer RT-Core-GPU, plus die Diagnose-Werkzeuge
 > `gap`/`eval`/`grasp`/`span`. Status und Lauf-Historie im Banner direkt darunter.
 
+> **Aktueller Stand (2026-11-09):** Die Pipeline ist gebaut und technisch lauffähig (N1.6-only), es gibt aber **keinen RL-Trainingslauf und kein RL-Ergebnis**; die Trainer-Korrekturen vom 2026-10-13 sind nicht auf Hardware geprüft. Empfohlener Startpunkt ist Modell C (`luca-mue/groot-g1dex3-cotrain-v3-cube4-ckpt44000`, 2/60 Griffe = schwaches Signal). Maßgeblich ist der Nachtrag 2026-11-09 im Banner unten, ältere Nachträge sind Historie; Gesamtstatus: [next-steps.md §0](../../next-steps.md).
+
 Ziel: Den feingetunten GR00T-N1.6-**BC-Checkpoint** per **Reinforcement Learning (FPO)** in der
 Isaac-Lab-Block-Stacking-Sim weiter verfeinern — auf einer **RT-Core-GPU** (L40 / RTX 4090 / A6000
 oder ein eigener Server mit RT-Core-GPU, z. B. RTX PRO 6000 Blackwell). RL trainiert die Policy
@@ -20,6 +22,25 @@ statt nur Aktions-Nachahmung (Hintergrund: [reinforcement-learning-plan.md](rein
 > RL danach. Lernwirkung des RL selbst weiter offen. **Stand 2026-10-11:** seit 2026-08-08 kein
 > dokumentierter RL-Lauf; die Sim-Geometrie wurde am 2026-08-24 korrigiert (Fingerspiegelung, Beckenhöhe,
 > Basis x), die Greif-Zahlen der Chronik sind neu zu messen.
+>
+> **Nachtrag 2026-10-29:** Neumessung mit korrigierter Szene erfolgt: N1.6 @44000 `reached` 16/20, `lifted_clear` 0/20 (Lauf 82); N1.7 0/10 bzw. 0/20 (Läufe 54/55, 81). Messung auf Testepisoden erfolgt: `span` N1.6 vision-v2 @30000 90 %, N1.7 @44000 94 % (Läufe 57–61). Co-Training v3 liegt vor (Läufe 73–97, `lifted_clear` 2/60); ein RL-Lauf seit 2026-08-08 fehlt weiterhin.
+>
+> **Nachtrag 2026-11-09 (Abgabestand):** Es gibt weiterhin **keinen RL-Trainingslauf und kein RL-Ergebnis**; die Pipeline (FPO) ist gebaut, N1.6-only. Als RL-Startpunkt vorgesehen ist Modell C (`luca-mue/groot-g1dex3-cotrain-v3-cube4-ckpt44000`, Lauf 74); `lifted_clear` 2/60 (3 %) ist nur ein schwaches Startsignal. Weiterführende Arbeit, nicht Teil der Abgabe. Status: [next-steps.md §0](../../next-steps.md).
+>
+> **Nachtrag 2026-10-13 — frühere RL-Lernsignale sind nicht belastbar.** Drei Fehler im Trainer
+> sind behoben (Review 10-13 S2–S4): (1) `success` war durch einen Messfehler praktisch immer ≈ 0
+> (gelesen, nachdem `_reset_idx` das Flag schon gelöscht hatte) — jetzt vor dem Auto-Reset aus
+> `terminated` gezählt; (2) die FPO-Ratio verglich `old_logp`/`new_logp` aus **verschiedenen**
+> Rausch- und `t`-Ziehungen — jetzt werden die Seeds beim Rollout gespeichert und im Update
+> wiederverwendet, und Iteration 0 schreibt eine Zeile `[rl] Ratio-Selbsttest …` (max|r−1| sollte
+> ≲ 1e-3 sein); (3) das globale `env.reset()` nach jedem `done` ist entfernt, Timeouts werden mit
+> Truncation-Bootstrap behandelt. Neu: `RL_EXEC_HORIZON` (Default 1; mit 8 wie in der Eval).
+> **Noch nicht auf Hardware geprüft.** Verifikation auf dem IKR-Server:
+> 1. `RL_ITERATIONS=2 RL_NUM_ENVS=2 ./Simulation/server_rl_run.sh rl` — läuft durch, Ratio-Selbsttest
+>    in Iteration 0 ≈ 1.
+> 2. Dasselbe mit `RL_EXEC_HORIZON=8`.
+>
+> Die Eval meldet außerdem die kipp-robuste Stufe `lifted_clear`; RL erst, wenn sie > 0 ist.
 >
 > **Status & Details:** [reinforcement-learning-plan.md](reinforcement-learning-plan.md) (die eine
 > gepflegte Statusquelle) · **Lauf-Historie:** [diagnose-chronik.md](../ergebnisse/diagnose-chronik.md).
@@ -172,7 +193,7 @@ HuggingFace hoch — identisch zur Sim-Eval, [sim-eval-anleitung.md Schritt 2](.
 # Modell-Repo (einmalig, privat reicht)
 huggingface-cli repo create groot-g1dex3-checkpoint --type model --private
 # besten BC-Checkpoint hochladen
-huggingface-cli upload luca-mue/groot-g1dex3-checkpoint ./checkpoint-30000/ --repo-type model   # z. B. der beste Sweep-Checkpoint
+huggingface-cli upload luca-mue/groot-g1dex3-checkpoint ./checkpoint-44000/ --repo-type model   # z. B. der beste Sweep-Checkpoint (vision-v2: 44000)
 ```
 
 Im Container `HF_CHECKPOINT_REPO=<hf-user>/groot-g1dex3-checkpoint` setzen → der Entrypoint lädt
@@ -189,7 +210,7 @@ Ein Checkpoint ist **ein Verzeichnis**. Mehrere liegen einfach nebeneinander unt
 `CHECKPOINT_PATH`:
 
 ```bash
-CHECKPOINT_PATH=/data/checkpoints/vision-v2-30000 \
+CHECKPOINT_PATH=/data/checkpoints/vision-v2-44000 \
 NUM_EPISODES=10 EPISODE_LENGTH_S=40 ./Simulation/server_rl_run.sh eval
 ```
 
@@ -200,8 +221,8 @@ Vergleichslauf ist damit Abschreiben statt Suchen.
 Einen zweiten Checkpoint danebenlegen — der einfachste Weg ist der Bind-Mount, kein `docker cp`:
 
 ```bash
-mkdir -p "$RL_HOST_DATA_DIR/checkpoints/vision-v2-30000"
-rsync -a .../checkpoint-30000/ "$RL_HOST_DATA_DIR/checkpoints/vision-v2-30000/"
+mkdir -p "$RL_HOST_DATA_DIR/checkpoints/vision-v2-44000"
+rsync -a .../checkpoint-44000/ "$RL_HOST_DATA_DIR/checkpoints/vision-v2-44000/"
 ```
 
 Alternativ aus einem anderen HF-Repo, dann **beide** Variablen zusammen:
@@ -265,7 +286,7 @@ lucam03/projekt-humanoider-roboter-sim-standalone:latest
 | `RL_LR` | `1e-5` | Nein |
 | `RL_KL_COEF` | `0.1` | Nein (KL gegen BC, gegen Reward-Hacking) |
 | `RL_CLIP` | `0.2` | Nein |
-| `WANDB_API_KEY` | `...` | Empfohlen (Erfolgsrate-Logging) |
+| `WANDB_API_KEY` | `...` | Empfohlen (Erfolgsrate-Logging); der Entrypoint loggt standardmäßig **offline** (`WANDB_MODE=offline`), für Live-Dashboard `WANDB_MODE=online` setzen |
 | `SHELL_ON_ERROR` | `1` | **Empfohlen** (bei Fehler in Shell statt Container-Tod) |
 
 > **Erst klein anfangen:** Der Render-Durchsatz mit 4 Kameras bestimmt das machbare `RL_NUM_ENVS`
@@ -310,10 +331,10 @@ vastai ssh <instance-id>            # SSH-Befehl
 ```text
 [rl] device=cuda  num_envs=8
 [rl] trainierbare Tensoren: ...
-[rl] iter 0000  reward=+0.123  success=0.000
-[rl] iter 0001  reward=+0.187  success=0.000
+[rl] iter 0000  reward=+0.123  success=0.000 (0/0 Episoden)  pol=…  kl=…  val=…
+[rl] iter 0001  reward=+0.187  success=0.000 (0/3 Episoden)  pol=…  kl=…  val=…
 ...
-[rl] Checkpoint gespeichert: /data/g1_dex3_rl/rl-checkpoint-50
+[rl] Checkpoint gespeichert: /data/g1_dex3_rl/rl-checkpoint-100   # alle RL_SAVE_EVERY (Default 100) Iterationen
 ```
 
 **Hauptmetrik ist die Erfolgsrate, NICHT der Loss** (RL-Plan §5/Gruppe 3). In W&B
@@ -484,7 +505,7 @@ Ergebnis: `$HOST_DATA_DIR/sim_results/results.json`, Videos je Episode in `$HOST
 Befunde: [diagnose-chronik.md](../ergebnisse/diagnose-chronik.md#schritt-3--bc-erfolgsrate-in-der-sim-server_rl_runsh-eval).
 
 **`grasp` — Greif-Physik isoliert testen.** Setzt die Würfel direkt an die aufgezeichneten Greifpunkte
-und spielt echte Dataset-Aktionen ab, ganz ohne Modell — trennt Politik/Wahrnehmung von Sim-Physik.
+und spielt echte Dataset-Aktionen ab, ganz ohne Modell — trennt Policy/Wahrnehmung von Sim-Physik.
 `GRASP_MODE=hold` verzichtet zusätzlich auf die Platzierungs-Annahme und misst reines Halten.
 Aufruf: `HF_TOKEN=... ./Simulation/server_rl_run.sh grasp` (bzw. mit `GRASP_MODE=hold`).
 Ergebnis: stdout-Tabelle (Haltequote, `max_cube_lift_cm` je Hand) + `replay_episode0.mp4`.

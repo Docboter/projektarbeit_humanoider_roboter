@@ -73,9 +73,21 @@ angemeldete Konto) und merkt es sich auf Wunsch in `.env.local`; `server_rl_run.
 dann automatisch von dort. Ohne Angabe ziehen die Launcher vom Team-Konto `lucam03`.
 
 Ergebnis: `<konto>/projekt-humanoider-roboter-sim-standalone:<repo-branch>` (z. B.
-`:training-luca-IKR-IS6.0-GN1.7`) und `:<timestamp>` auf Docker Hub; `:latest` nur mit
+`:main`) und `:<timestamp>` auf Docker Hub; `:latest` nur mit
 `--push-latest`. Herkunft (Repo-Branch/-Commit, `GROOT_VERSIONS`) steht in OCI-Labels:
-`docker inspect --format '{{json .Config.Labels}}' <image>`. Wer das Branch-Tag nutzt, setzt
+`docker inspect --format '{{json .Config.Labels}}' <image>`.
+
+> **N1.7 im Sim-Image (Stand 2026-10-14):** Seit 2026-10-14 enthält
+> `lucam03/projekt-humanoider-roboter-sim-standalone:latest` (= `:20261014-141304`, Revision
+> `df09981`, Label `de.humrob.groot-versions: "1.6 1.7"`) beide Generationen; ein `docker pull`
+> genügt, kein Rebuild. ~~Das Sim-Image auf Docker Hub ist weiterhin N1.6-only~~ (überholt durch
+> diesen Push; die N1.7-Läufe 54/55 liefen noch mit einem lokal gebauten Image). Nach einem
+> eigenen lokalen Build weiterhin `RL_SKIP_PULL=1` setzen, sonst zieht `preflight` den
+> gleichnamigen Tag von Docker Hub über den lokalen Build. Prüfen,
+> was ein Image enthält: das Label oben. Status:
+> [groot-n17-migration.md](../weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19).
+
+Wer statt `:latest` ein bestimmtes Tag (`:main` oder `:<timestamp>`) nutzt, setzt
 auf dem Server `RL_IMAGE=lucam03/projekt-humanoider-roboter-sim-standalone:<tag>` bzw. trägt es
 auf vast.ai als Image ein.
 
@@ -93,13 +105,13 @@ rsync -avz --progress \
   <username>@transfer.hpc.gwdg.de:/mnt/vast-kisski/projects/kisski-humrob/data/g1_dex3_finetune/ \
   ./checkpoints/
 
-# Nur einen bestimmten Checkpoint-Step:
+# Nur einen bestimmten Checkpoint-Step (Datum/Step aus den SLURM-Logs):
 rsync -avz --progress \
-  "<username>@transfer.hpc.gwdg.de:/mnt/vast-kisski/projects/kisski-humrob/data/g1_dex3_finetune/blockstacking/g1_dex3_blockstacking_v1/checkpoints/20260602/checkpoint-110000/" \
-  ./checkpoints/checkpoint-110000/
+  "<username>@transfer.hpc.gwdg.de:/mnt/vast-kisski/projects/kisski-humrob/data/g1_dex3_finetune/blockstacking/g1_dex3_blockstacking_v1/checkpoints/<datum>/checkpoint-<step>/" \
+  ./checkpoints/checkpoint-<step>/
 ```
 
-Den Checkpoint-Pfad findest du in den SLURM-Logs:
+Fertige Checkpoints liegen auch öffentlich auf HF (`luca-mue/*`, Liste in [next-steps.md §0](../../next-steps.md); aktueller Sim-Kandidat: `luca-mue/groot-g1dex3-cotrain-v3-cube4-ckpt44000`). Den Pfad eines eigenen Laufs findest du in den SLURM-Logs:
 ```bash
 tail -f /logs/slurm-<jobid>.out | grep checkpoint
 ```
@@ -115,7 +127,7 @@ pip install huggingface_hub
 huggingface-cli repo create groot-g1dex3-checkpoint --type model --private
 
 # Checkpoint hochladen
-huggingface-cli upload luca-mue/groot-g1dex3-checkpoint ./checkpoint-110000/ --repo-type model
+huggingface-cli upload luca-mue/groot-g1dex3-checkpoint ./checkpoint-<step>/ --repo-type model
 ```
 
 Dann im Container `HF_CHECKPOINT_REPO=<dein-hf-username>/groot-g1dex3-checkpoint` setzen —
@@ -229,18 +241,24 @@ Container-Erstellung, Checkpoint-Auswahl, Eval-Schleife:
 ./Simulation/server_rl_run.sh eval
 ```
 
+> **Protokoll-Szene der berichteten Zahlen (Läufe 81–97):** Ein schlichtes `eval` nutzt die
+> cfg-Defaults (Tisch, Handgelenkkamera, Layout, Episodenlänge) und ist damit **nicht** mit den
+> berichteten Zahlen vergleichbar. Die Protokoll-Szene setzt nur
+> [`tools/sim_cl_watchdog.sh`](../../tools/sim_cl_watchdog.sh) (Z. 41–45):
+> `NUM_EPISODES=20 EPISODE_LENGTH_S=120 DR_ENABLED=0 DR_SEED=0`,
+> `EVAL_LAYOUT=/data/eval/layout_heldout_dy3.json`, `SIM_TABLE_SIZE="0.8 2.0"`,
+> `SIM_WRIST_EYE="0.02 0.0 0.08"`, `SIM_WRIST_TARGET="0.30 0.0 -0.08"`, `SIM_WRIST_HFOV=85`.
+> Aufruf und Voraussetzungen (dy3-Layout): [Quickstart §2b](../quickstart.md#2b-closed-loop-protokoll-lauf-82).
+
 Der Launcher fragt, welcher Checkpoint gemessen wird, und schlägt die unter
 `HOST_DATA_DIR/checkpoints/` vorhandenen vor. Host-spezifische Pfade kommen aus der
 gitignorierten `.env.local` (Template: [`.env.local.example`](../../.env.local.example),
 siehe [../portabilitaet.md](../portabilitaet.md)). Die weiteren Aktionen — Replay-Diagnose
 (`grasp`), Domain-Gap (`gap`), Live-Ansicht, RL — und die Fehlersuche stehen in
 [../weiterfuehrend/rl-anleitung.md](../weiterfuehrend/rl-anleitung.md); die
-Env-Var-Referenz in [CLAUDE.md](../../CLAUDE.md) gilt für beide Wege.
+Env-Var-Referenz in [env-vars.md § Sim-Eval-Container](../training/env-vars.md#sim-eval-container-entrypoint_simsh--kurzreferenz) gilt für beide Wege.
 
-Der letzte Closed-Loop-Lauf mit trainierter Policy war Lauf 34 (2026-08-14, 10 Episoden × 40 s,
-Checkpoint `groot-g1dex3-vision-v2-30000`): 0/10 Erfolge, kein Würfel angehoben. Er stammt noch
-aus der Szene vor den Geometrie-Korrekturen vom 2026-08-24; Neumessung offen. Einzelheiten:
-[../ergebnisse/diagnose-chronik.md](../ergebnisse/diagnose-chronik.md).
+Aktueller Closed-Loop-Stand (Läufe bis 97): [next-steps.md §0](../../next-steps.md).
 
 Die Schritte 4-7 unten betreffen nur **Weg B (vast.ai)**.
 
@@ -295,20 +313,23 @@ lucam03/projekt-humanoider-roboter-sim-standalone:latest
 | `HF_CHECKPOINT_REPO` | `luca-mue/groot-g1dex3-checkpoint` | Ja (für HF-Download) |
 | `ASSET_PATH` | `/data/checkpoints/groot-g1dex3-checkpoint/g1_dex3.usd` | Ja |
 | `NUM_EPISODES` | `20` | Nein (default 20) |
-| `EPISODE_LENGTH_S` | `40` | Nein — **empfohlen**: ohne Angabe läuft jede Episode bis zu 9000 Steps; 20 Episoden können dann Stunden dauern |
+| `EPISODE_LENGTH_S` | `120` | Nein (Default `0`) — **immer setzen**: ohne Angabe läuft jede Episode bis zu 9000 Steps. Protokoll der berichteten Zahlen: 120 (40 nur für das Spannen-Gate, Lauf 96) |
 | `EXECUTION_HORIZON` | `8` | Nein (default 8) |
-| `TASK_DESCRIPTION` | `stack three block` | Nein — leer = Text aus `meta/tasks.*` des Datensatzes (`TASK_DATASET_PATH`), sonst `stack three block`. Bis 2026-10-13 war der Default `stack the blocks`, ein Text, der im Training nie vorkam; alle früheren Closed-Loop-Zahlen liefen damit ([Review §3.1](../projekt-review-2026-10-11.md#31-falscher-sprachbefehl-in-allen-closed-loop-läufen--kritisch-nachgeprüft)) |
-| `EVAL_LAYOUT` | `/data/eval/layout_heldout.json` | Nein — **empfohlen**: echte Würfel-Startlagen der zurückgehaltenen Episoden 240–300 (erzeugen mit `LAYOUT_HELD_OUT=1 ./Simulation/server_rl_run.sh layout`). Leer = Zufallsbänder der Env, die die Startlagen der Realdaten nicht abbilden ([Review §3.2](../projekt-review-2026-10-11.md#32-würfelpositionen-in-der-eval-liegen-außerhalb-der-trainingsdaten--kritisch-teilprüfung)) |
+| `TASK_DESCRIPTION` | `stack three block` | Nein — leer = Text aus `meta/tasks.*` des Datensatzes (`TASK_DATASET_PATH`), sonst `stack three block`. Bis 2026-10-13 war der Default `stack the blocks`, ein Text, der im Training nie vorkam; alle früheren Closed-Loop-Zahlen liefen damit ([Review §3.1](../archiv/projekt-review-2026-10-11.md#31-falscher-sprachbefehl-in-allen-closed-loop-läufen--kritisch-nachgeprüft)) |
+| `EVAL_LAYOUT` | `/data/eval/layout_heldout_dy3.json` | Nein — **empfohlen**: Protokoll-Layout (Würfel 3 cm nach außen, Herkunft: [Quickstart §2b](../quickstart.md#2b-closed-loop-protokoll-lauf-82)); Grundlage `layout_heldout.json` = echte Würfel-Startlagen der zurückgehaltenen Episoden 240–300 (erzeugen mit `LAYOUT_HELD_OUT=1 ./Simulation/server_rl_run.sh layout`). Leer = Zufallsbänder der Env, die die Startlagen der Realdaten nicht abbilden ([Review §3.2](../archiv/projekt-review-2026-10-11.md#32-würfelpositionen-in-der-eval-liegen-außerhalb-der-trainingsdaten--kritisch-teilprüfung)) |
+| `DR_ENABLED` | `0` | Nein — Protokoll: 0 (DR aus) |
+| `SIM_TABLE_SIZE`, `SIM_WRIST_EYE`, `SIM_WRIST_TARGET`, `SIM_WRIST_HFOV` | `0.8 2.0` / `0.02 0.0 0.08` / `0.30 0.0 -0.08` / `85` | Nein — Protokoll-Szene (Lauf 70); leer = cfg-Default, dann nicht mit den berichteten Zahlen vergleichbar |
 | `DR_SEED` | `0` | Nein (default 0) — fixiert Domain Randomization und Würfel-Zufall, damit A/B-Läufe vergleichbar sind; negativ = pro Prozess neu auswürfeln |
 | `SHELL_ON_ERROR` | `1` | Empfohlen (für Debugging) |
 | `BLACK_HANDS` | `1` | Nein (default 1) — färbt die Hände schwarz (Domain-Gap-Fix) |
 | `LIVE_VIEW` | `1` | Nein (default 0) — MJPEG-Live-Ansicht im Browser, Port `LIVE_VIEW_PORT` (8900) |
-| `GROOT_VERSION` | `auto` | Nein (default `auto`) — erkennt N1.6 vs. N1.7 aus dem `model_type` in der Checkpoint-`config.json`; explizit `1.6` oder `1.7` erzwingt eine Generation. `1.7` braucht zusätzlich Zugang zum **gated** Backbone `nvidia/Cosmos-Reason2-2B`. Ungetestet mit echtem N1.7-Checkpoint — siehe [groot-n17-migration.md](../weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19) |
+| `GROOT_VERSION` | `auto` | Nein (default `auto`) — erkennt N1.6 vs. N1.7 aus dem `model_type` in der Checkpoint-`config.json`; explizit `1.6` oder `1.7` erzwingt eine Generation. `1.7` braucht zusätzlich Zugang zum **gated** Backbone `nvidia/Cosmos-Reason2-2B`. Mit echten N1.7-Checkpoints gelaufen (u. a. Läufe 81, 89, 93) — siehe [groot-n17-migration.md](../weiterfuehrend/groot-n17-migration.md#stand-der-umsetzung-2026-08-19) |
 | `HF_HOME` | — | Nein (default `$DATA_DIR/hf_cache`) — nur für N1.7 relevant: hier landet das Cosmos-Reason2-2B-Backbone, das bei jedem Checkpoint-Laden erneut vom Hub gezogen wird, wenn es nicht schon im Cache liegt |
 
 > Die vollständige Env-Var-Referenz des Sim-Containers steht in
-> [CLAUDE.md](../../CLAUDE.md) („Sim eval"); dort sind auch `LIVE_VIEW_EVERY_N`,
-> `LIVE_VIEW_CAMS` und die `LIVESTREAM*`-Variablen beschrieben.
+> [env-vars.md § Sim-Eval-Container](../training/env-vars.md#sim-eval-container-entrypoint_simsh--kurzreferenz);
+> dort sind auch `LIVE_VIEW_EVERY_N`, `LIVE_VIEW_CAMS` und die `LIVESTREAM*`-Variablen beschrieben
+> (Abschnitte „Live-Ansicht“ und „LIVE-Variante“).
 
 > **Flash-Attention:** Das Modell (Eagle-Block2A-2B-v2) erfordert `flash_attention_2`
 > zwingend; es ist im Image installiert. Es gibt **keine** Möglichkeit, es abzuschalten —
@@ -353,7 +374,7 @@ ssh -p 12345 root@123.45.67.89
 Parallel dazu vom Laptop aus hochladen:
 ```bash
 # Checkpoint
-scp -P 12345 -r ./checkpoints/checkpoint-110000/ root@123.45.67.89:/data/checkpoints/
+scp -P 12345 -r ./checkpoints/checkpoint-<step>/ root@123.45.67.89:/data/checkpoints/
 
 # USD-Asset
 scp -P 12345 ./g1_dex3.usd root@123.45.67.89:/workspace/assets/g1_dex3.usd
@@ -384,9 +405,10 @@ tail -f /data/logs/groot_server.log
 
 Erfolgreicher Start sieht so aus:
 ```text
-Loading model from /data/checkpoints/groot-g1dex3-checkpoint ...
-Server listening on tcp://0.0.0.0:5555
+Server is ready and listening on tcp://0.0.0.0:5555
 ```
+
+(Meldung aus `app/Groot-1.6/gr00t/policy/server_client.py:119`.)
 
 ### Isaac-Lab-Output direkt beobachten
 
@@ -401,16 +423,26 @@ tail -f /data/logs/entrypoint.log
 ```
 
 ### Fortschritt ablesen
+Format der Ausgabe (`run_g1_dex3_sim_eval.py:794-925`; Werte in spitzen Klammern):
+
 ```text
 --- Episode 1/20 ---
-  Episode 1: ERFOLG | 142 Steps | 4.7s
---- Episode 2/20 ---
-  Episode 2: misslungen | 300 Steps | 10.0s
+  Episode 1: misslungen | <steps> Steps | <s>s | <kuppe>-Würfel-Abstand <a> → <b> cm (Step <n>) | Würfel verschoben max. <c> cm | Fingerspanne <r> rad | Anhebung max. <d> cm (Unterseite mit Hand <e> cm)
+      Meilensteine: reached → grasp_attempted → touched
 ...
 ============================================================
-Ergebnis: 12/20 Erfolge — Success-Rate: 60.0%
+Episoden: 20 gültig / 0 abgebrochen
+  Meilenstein-Leiter (gültige Episoden, die die Stufe erreichen):
+    reached           <k>/20  ####
+    ...
+  95-%-Konfidenzintervalle (Clopper-Pearson, exakt):
+    lifted_clear     <k>/20 …
 ============================================================
+Ergebnisse gespeichert: /data/sim_results/results.json (Archiv: results_<zeit>_<ckpt>.json)
+[eval] fertig.
 ```
+
+`ERFOLG` statt `misslungen` heißt `stacked`; das kam bisher in keinem Lauf vor.
 
 ### VRAM-Auslastung prüfen
 ```bash
@@ -436,18 +468,41 @@ scp -P <port> -r root@<ip>:/data/sim_videos/ ./sim_videos/
 scp -P <port> root@<ip>:/data/logs/groot_server.log ./groot_server.log
 ```
 
-`results.json` enthält:
+**Ergebnisdateien (seit 2026-10-13):** `/data/sim_results/results.json` ist immer die Kopie des
+**neuesten** Laufs; daneben bleibt je Lauf ein Archiv `results_<Zeitstempel>_<Checkpoint>.json`
+liegen. Das Log jedes Laufs steht unter `$DATA_DIR/logs/sim_eval_<ts>.log` (Baseline:
+`baseline_eval_<ts>.log`). Alle Entrypoints (Sim, Baseline, KISSKI) löschen vor dem Start die alte
+Ergebnisdatei und werten einen Lauf nur mit dem Marker `[eval] fertig.` im Log als erfolgreich —
+eine liegen gebliebene `results.json` kann einen Absturz also nicht mehr verdecken.
+
+**Abbruch-Semantik:** Ein Server-Fehler (z. B. `get_action`-Timeout) macht die Episode
+**ungültig**, nicht misslungen: Sie bekommt `"error": true` und `"error_reason"`, der
+ZMQ-Socket wird neu aufgebaut. Nach **zwei Fehlern in Folge** bricht die Eval mit Exit ≠ 0 ab.
+Die Zusammenfassung lautet „N gültig / M abgebrochen“; alle Raten beziehen sich nur auf gültige
+Episoden. *Läufe vor dem 2026-10-13 zählten Server-Fehler als normale Fehlschläge.*
+
+`results.json` enthält u. a. (gekürzt):
 ```json
 {
-  "num_episodes": 20,
-  "num_success": 12,
-  "success_rate": 0.6,
+  "num_episodes": 20, "num_valid": 20, "num_aborted": 0, "aborted": false, "aborted_reason": null,
+  "num_success": 0, "success_rate": 0.0, "checkpoint": {"path": "…", "run_id": "…", "global_step": 44000}, "task_description": "stack three block",
+  "milestone_ci95": {"lifted_clear": {"k": 0, "n": 20, "rate": 0.0, "ci95": [0.0, 0.1684]}, "…": {}},
   "episodes": [
-    {"episode": 1, "success": true, "num_steps": 142, "duration_s": 4.7},
+    {"episode": 1, "error": false, "error_reason": null, "max_clear_lift_cm": 0.4,
+     "milestones": {"reached": true, "touched": true, "lifted": false, "lifted_clear": false}},
     ...
   ]
 }
 ```
+
+`lifted_clear` (neu): Würfel-**Unterseite** > 2 cm über dem Tisch **und** im selben Schritt eine
+Hand am Würfel (Fingerkuppen-Abstand zur Würfelmitte ≤ 4 cm — ein Proxy, Kontaktsensoren gibt
+es in der Env nicht). Je Episode steht `max_clear_lift_cm` (Unterseite über dem Tisch, nur Würfel
+mit Handkontakt-Proxy). Das alte `lifted` (Schwerpunkt-Δz > 2 cm) bleibt zur Vergleichbarkeit, ist aber nicht
+kipp-robust. `milestone_ci95` sind exakte 95-%-Clopper-Pearson-Intervalle.
+
+> Änderungen an `Simulation/g1_gripper_sim/` (Baseline) und `Simulation/scripts/` wirken erst
+> nach einem **Neubau des Sim-Images** — beide werden ins Image kopiert.
 
 ---
 
@@ -635,7 +690,9 @@ scp -P <port> root@<ip>:/data/sim_videos_replay/_debug_obs_cam_*.png ./
 > vier proximale Fingergelenke fälschlich gespiegelt (die Hand konnte nie ganz schließen) und die
 > Beckenhöhe stand bei 0,85 m statt 0,764 m ([`umsetzungsnotizen.md`](umsetzungsnotizen.md) §13.2).
 > „Greifen funktioniert physikalisch" gilt daher nur eingeschränkt; eine Neumessung mit der
-> korrigierten Szene steht aus.
+> korrigierten Szene folgte (siehe Nachtrag).
+>
+> **Nachtrag 2026-10-29 (überholt durch [next-steps.md §0](../../next-steps.md): Modell C, Co-Training mit 4-cm-Würfeln, `lifted_clear` 2/60, `stacked` 0):** Neumessung mit korrigierter Szene erfolgt: N1.6 @44000 `reached` 16/20, `lifted_clear` 0/20 (Lauf 82); N1.7 0/10 bzw. 0/20 (Läufe 54/55, 81). Greifen ist in der korrigierten Szene möglich: Mit 3-cm-Korrektur der Würfellage hebt das Orakel in 6/20 Episoden (Lauf 69).
 
 ---
 
@@ -710,6 +767,7 @@ USD-Asset auf HuggingFace (`luca-mue/groot-g1dex3-checkpoint`), dann:
    HF_CHECKPOINT_REPO=luca-mue/groot-g1dex3-checkpoint
    ASSET_PATH=/data/checkpoints/groot-g1dex3-checkpoint/g1_dex3.usd
    NUM_EPISODES=20
+   EPISODE_LENGTH_S=120
    SHELL_ON_ERROR=1
    ```
 6. Disk: 60 GB → Launch

@@ -1,0 +1,64 @@
+% chapters/08_uebergabe.tex
+
+\chapter{Übergabe}
+\label{chap:uebergabe}
+\label{chap:fazit}
+\label{chap:weiterfuehrend}
+\label{sec:ausblick}
+\label{sec:konsequenz}
+
+\section{Fazit}
+\label{sec:fazit}
+
+Die drei Ziele aus \cref{sec:aufgabe} sind unterschiedlich weit erreicht.
+(1) Das Fine-Tuning läuft reproduzierbar lokal und auf KISSKI; auf echten Bildern folgt das
+Modell den Demonstrationen, N1.6 und N1.7 gleichauf (\cref{sec:erg-training}).
+(2) Die Bewertung ohne Roboter steht und erklärt das Scheitern in der Simulation mit zwei
+gemessenen Ursachen, Würfellage und visuellem Domain-Gap. Das Co-Training mit gerenderten
+Bildern verkleinert den Gap und bringt erste Griffe (2 von 60 Episoden), aber kein Stapeln.
+(3) Schnittstellen und Anleitung sind in \cref{chap:schnittstellen,chap:anleitung} und im
+Repository dokumentiert, Versionen und Reproduzierbarkeit in \cref{anh:software}.
+Die Aufgabe selbst, drei Würfel zu stapeln, ist nicht gelöst, und ob das Modell auf dem echten
+Roboter greift, ist offen. Rückblickend wären beide Blocker vermeidbar gewesen, wenn
+Trainingsdaten und Bewertung aus derselben Umgebung gestammt hätten (\cref{sec:lessons}).
+
+\section{Offene Punkte}
+\label{sec:offene-punkte}
+\label{sec:nicht-weiter}
+\label{sec:locomotion}
+\label{sec:rl-weiterfuehrend}
+\label{sec:synth-datensatz}
+\label{sec:fortbewegung}
+
+Punkte 1--4 sind nach Dringlichkeit geordnet, 5 und 6 begonnen, aber nicht abgeschlossen. Die
+gepflegte Liste steht in \doc{next-steps.md}, Abschnitt~2, die Video-Augmentierung in
+\cref{sec:cosmos-ergebnis}.
+
+\begin{enumerate}
+  \item \textbf{Robotertest.} Modell C (\texttt{…-cotrain-v3-cube4-ckpt44000}) gegen N1.6
+    vision-v2 auf dem echten G1. Er entscheidet, ob der Echtbild-Verlust von N1.6 nach dem
+    Co-Training tragbar ist; sonst ist Modell D (N1.7) die Alternative, das ohne diesen Verlust
+    auskommt, in der Simulation aber noch nicht greift. Voraussetzung ist eine Roboter-Seite
+    nach \cref{sec:if-roboter}.
+  \item \textbf{Griffrate heben.} Nach bestandenem Gate sieht die vorregistrierte Regel vor,
+    mehr Episoden zu rendern, aber keine höhere Mischung, weil die Validierungs-\ac{mse} schon
+    3--9\,\% über Lauf~3 liegt (\cref{sec:erg-cotrain}). Alternativ Reinforcement Learning mit
+    \ac{fpo}~\cite{fpo2025}, das bei flow-basierten \acp{vla} in Simulation
+    Verbesserungen gezeigt hat~\cite{pirl2025}, auf Modell C; der Trainer ist gebaut (nur
+    N1.6), 3\,\% Griffe sind ein schwaches Startsignal
+    (\doc{docs/weiterfuehrend/rl-anleitung.md}).
+  \item \textbf{Metriken nachschärfen:} Gate-Schwelle relativ zum besten nicht co-trainierten
+    Modell der Generation, Echtbild-Kriterium als feste Zahl; Kontaktkriterium für
+    \texttt{lifted\_clear}.
+  \item \textbf{Ursachen offen:} 3-cm-Versatz der Würfellage (Lauf~63), Hänger im Closed Loop
+    (\cref{tab:anl-fehler}).
+  \item \textbf{Externer Sim-Datensatz:} \texttt{Fichtl00/Cube\_Stacking\_synth} wurde in der
+    Simulation teleoperiert und entspräche der Empfehlung aus \cref{sec:lessons}, ist mit 16
+    Episoden aber klein und passt schematisch nicht (57 statt 28 Zustandsdimensionen, 50 statt
+    30~Hz). Eine umgewandelte Fassung existiert, ein Co-Training-Lauf nicht
+    (\doc{docs/training/synth-datensatz.md}).
+  \item \textbf{Fortbewegung} (nicht Teil der Aufgabe): Das Modell kennt nur Arme und Hände, der
+    Rumpf ist in der Simulation fest. Empfohlen ist, wie bei NVIDIA und Unitree, ein eigener
+    Lauf-Controller für Beine und Balance neben der Policy
+    (\doc{docs/weiterfuehrend/lokomotion-recherche.md}).
+\end{enumerate}

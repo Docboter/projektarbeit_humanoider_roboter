@@ -180,11 +180,13 @@ groot_check_backbone_access() {
         echo "lib_groot_version: curl fehlt — Zugriff auf $repo nicht geprüft." >&2
         return 0
     fi
-    local -a hdr=()
-    [[ -n "$token" ]] && hdr=(-H "Authorization: Bearer $token")
+    # Header über stdin (-H @-), nicht als Argument: sonst steht der Token für bis zu 20 s
+    # in der Prozessliste (auf dem KISSKI-Login-Knoten für alle sichtbar).
+    local hdr_line=""
+    [[ -n "$token" ]] && hdr_line="Authorization: Bearer $token"
     local code
-    code="$(curl -s -o /dev/null -I -w '%{http_code}' --max-time 20 "${hdr[@]}" \
-        "https://huggingface.co/$repo/resolve/main/config.json" 2>/dev/null)" || code="000"
+    code="$(printf '%s\n' "$hdr_line" | curl -s -o /dev/null -I -w '%{http_code}' --max-time 20 \
+        -H @- "https://huggingface.co/$repo/resolve/main/config.json" 2>/dev/null)" || code="000"
     case "$code" in
         2??|3??) return 0 ;;
         401) echo "lib_groot_version: KEIN Zugriff auf $repo (HTTP 401) — HF_TOKEN fehlt oder ist ungültig." >&2 ;;

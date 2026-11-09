@@ -154,7 +154,9 @@ APPTAINER_ARGS=(
     --env "RC_RESULTS_DIR=/data/robocasa_ref"
 )
 [[ -n "$RC_TASKS" ]] && APPTAINER_ARGS+=(--env "RC_TASKS=$RC_TASKS")
-[[ -n "${HF_TOKEN:-}" ]] && APPTAINER_ARGS+=(--env "HF_TOKEN=$HF_TOKEN")
+# Token über APPTAINERENV_ statt --env NAME=wert: sonst steht er in der Prozessliste des
+# geteilten Knotens (wie kisski_submit.sh, Review T4).
+[[ -n "${HF_TOKEN:-}" ]] && export APPTAINERENV_HF_TOKEN="$HF_TOKEN"
 
 if [[ -d "$GROOT_FORK_DIR/gr00t" ]]; then
     APPTAINER_ARGS+=(--bind "$GROOT_FORK_DIR/gr00t:/app/Groot-1.6/gr00t")

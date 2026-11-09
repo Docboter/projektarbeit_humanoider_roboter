@@ -11,7 +11,7 @@ Partial-Finetune auf Unitree G1 + DEX3, Task „stack three block" (einziger Tas
 
 > Dies ist die **abschließende** Auswertung des ersten kompletten Laufs (175.000 Steps,
 > abgeschlossen). Die mitlaufende Momentaufnahme während des Trainings steht in
-> [`lauf1-zwischenstand.md`](lauf1-zwischenstand.md); dieses Dokument ergänzt sie um
+> [`lauf1-zwischenstand.md`](../archiv/lauf1-zwischenstand.md); dieses Dokument ergänzt sie um
 > die **Verhaltens-Evaluation** (Sim-Closed-Loop, Replay, Open-Loop) und das Gesamtfazit.
 
 ---
@@ -138,7 +138,7 @@ gedeckelt.
 
 **Strukturelle Lücke: keine Eval-Metrik.** `eval_strategy = "no"`,
 `enable_open_loop_eval = false` → kein Val-Signal, keine fundierte Checkpoint-Auswahl,
-Overfitting prinzipiell unsichtbar (Details in [`lauf1-zwischenstand.md`](lauf1-zwischenstand.md), Abschnitt 3).
+Overfitting prinzipiell unsichtbar (Details in [`lauf1-zwischenstand.md`](../archiv/lauf1-zwischenstand.md), Abschnitt 3).
 
 ### Nachgemessen 2026-08-13: Step 1000 gegen Step 175000
 
@@ -184,6 +184,8 @@ zweites Mal weitgehend ausgeschlossen, und die Trainingspipeline ist entlastet.
 > zudem ist 2,0944 rad zugleich das De-Normalisierungs-Maximum. Auswendiglernen der Greifbewegung
 > ist damit nicht ausgeschlossen; die Messung auf zurückgehaltenen Episoden steht aus. „Domain-Gap
 > bestätigt" ist deshalb die plausibelste, nicht die einzig mögliche Lesart.
+>
+> **Nachtrag 2026-10-29:** Messung auf Testepisoden erfolgt: `span` N1.6 vision-v2 @30000 90 %, N1.7 @44000 94 % (Läufe 57–61). Als Blocker nachgewiesen sind seither Registrierung und Domain-Gap (Läufe 62, 66).
 
 ---
 
@@ -228,7 +230,7 @@ Greif-Demos oder Gewichtung der Finger-Dims.
 
 | Zweck | Datei |
 |---|---|
-| W&B-Trainingsmetriken (Mid-Run-Snapshot) | [`lauf1-zwischenstand.md`](lauf1-zwischenstand.md) · [`wandb-run-charts.html`](wandb-run-charts.html) |
+| W&B-Trainingsmetriken (Mid-Run-Snapshot) | [`lauf1-zwischenstand.md`](../archiv/lauf1-zwischenstand.md) · [`wandb-run-charts.html`](wandb-run-charts.html) |
 | Diagnose 1 — Dataset-Replay (Sim/Config) | [`Simulation/kisski_replay_submit.sh`](../../Simulation/kisski_replay_submit.sh) · `Simulation/scripts/entrypoint_replay.sh` |
 | Diagnose 2 — Open-Loop-Modell-Eval | [`Training/kisski_open_loop_eval.sh`](../../Training/kisski_open_loop_eval.sh) · `gr00t/eval/open_loop_eval.py` |
 | Closed-Loop-Sim-Eval | `Simulation/kisski_sim_submit.sh` · `Simulation/g1_dex3_sim/run_g1_dex3_sim_eval.py` |
@@ -293,6 +295,8 @@ Die wesentlichen Fixes:
 > 0,85 → 0,764 m und Basis x −0,057 m. Alle Greifzahlen dieses Dokuments (Replay 2,8 cm,
 > Closed Loop) stammen aus der alten Geometrie; Neumessung steht aus. Siehe
 > [diagnose-chronik.md](diagnose-chronik.md#läufe-3846-runs2026082302-runs202608240512-die-fingergrundgelenke-standen-still).
+>
+> **Nachtrag 2026-10-29:** Neumessung mit korrigierter Szene erfolgt: N1.6 @44000 `reached` 16/20, `lifted_clear` 0/20 (Lauf 82); N1.7 0/10 bzw. 0/20 (Läufe 54/55, 81).
 ### 8.3 Closed-Loop-Diagnose bestätigt
 
 Das Closed-Loop-Verhalten mit `checkpoint-175000` auf vast.ai (L40):

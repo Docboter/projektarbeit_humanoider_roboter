@@ -105,16 +105,33 @@ class PolicyClient:
                  timeout_ms: int = 20_000):
         self._dims = dims
         self._ctx = zmq.Context()
-        self._sock = self._ctx.socket(zmq.REQ)
-        self._sock.setsockopt(zmq.RCVTIMEO, timeout_ms)
-        self._sock.setsockopt(zmq.SNDTIMEO, timeout_ms)
-        self._sock.setsockopt(zmq.LINGER, 0)
-        self._sock.connect(server_url)
+        self._url = server_url
+        self._timeout_ms = timeout_ms
+        self._sock = self._make_socket()
         print(f"[PolicyClient] Verbunden mit {server_url}")
 
+    def _make_socket(self):
+        sock = self._ctx.socket(zmq.REQ)
+        sock.setsockopt(zmq.RCVTIMEO, self._timeout_ms)
+        sock.setsockopt(zmq.SNDTIMEO, self._timeout_ms)
+        sock.setsockopt(zmq.LINGER, 0)
+        sock.connect(self._url)
+        return sock
+
     def _send_recv(self, request: dict):
-        self._sock.send(MsgSerializer.to_bytes(request))
-        raw = self._sock.recv()
+        # Nach einem Timeout steht ein REQ-Socket im falschen Zustand (jedes weitere send
+        # wirft EFSM) — verwerfen und neu verbinden, wie g1_dex3_sim/client.py (Review
+        # 2026-10-13, S1).
+        try:
+            self._sock.send(MsgSerializer.to_bytes(request))
+            raw = self._sock.recv()
+        except zmq.ZMQError:
+            try:
+                self._sock.close(0)
+            except zmq.ZMQError:
+                pass
+            self._sock = self._make_socket()
+            raise
         resp = MsgSerializer.from_bytes(raw)
         if isinstance(resp, dict) and "error" in resp:
             raise RuntimeError(f"Server-Fehler: {resp['error']}")
@@ -126,7 +143,7 @@ class PolicyClient:
                 resp = self._send_recv({"endpoint": "ping"})
                 print(f"[PolicyClient] ping ok (Versuch {attempt}): {resp}")
                 return True
-            except zmq.error.Again:
+            except zmq.ZMQError:   # Again (Timeout) und EFSM
                 print(f"[PolicyClient] Server nicht bereit ({attempt}/{retries}), warte {delay}s …")
                 time.sleep(delay)
         return False

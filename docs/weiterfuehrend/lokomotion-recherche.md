@@ -7,7 +7,7 @@
 > **Frage:** Aktuell steht der Roboter fix an einer Position und manipuliert nur den Tisch.
 > Was ist nötig, damit er sich **bewegen** (laufen, drehen, neu positionieren) kann?
 >
-> **Stand:** 2026-06-05 (Code-Verweise am 2026-10-11 nachgeführt) · reine Recherche (Code-Analyse + Internetquellen), noch keine Umsetzung.
+> **Stand:** 2026-06-05 (Code-Verweise am 2026-10-11 nachgeführt) · reine Recherche (Code-Analyse + Internetquellen), noch keine Umsetzung. **Stand 2026-11-09:** Lokomotion ist nicht Teil des Projekts und wurde nie umgesetzt; das Dokument bleibt reine Recherche.
 
 ---
 

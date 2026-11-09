@@ -6,9 +6,20 @@
 % zu lassen (reduziert "Overfull \hbox"-Warnungen bei schwer trennbarem Text).
 \setlength{\emergencystretch}{3em}
 
+% ── Gleitobjekte und Tabellenspalten ─────────────────────────────────
+% Seiten, die nur Abbildungen/Tabellen tragen, oben beginnen statt senkrecht
+% zentriert, und ohne gedehnte Lücken zwischen den Objekten.
+\makeatletter
+\setlength{\@fptop}{0pt}
+\setlength{\@fpsep}{\floatsep}
+\setlength{\@fpbot}{0pt plus 1fil}
+\makeatother
+% X-Spalten linksbündig: Blocksatz in schmalen Zellen reißt große Wortlücken.
+\renewcommand{\tabularxcolumn}[1]{>{\raggedright\arraybackslash}p{#1}}
+
 % ── Metadaten (hier anpassen!) ────────────────────────────────────────
-\newcommand{\docTitle}{Fine-Tuning von NVIDIA GR00T N1.6 für humanoide Roboter-Manipulation}
-\newcommand{\docSubtitle}{Block-Stacking mit dem Unitree G1 und DEX3-Hand}
+\newcommand{\docTitle}{Fine-Tuning von NVIDIA GR00T für humanoide Roboter-Manipulation}
+\newcommand{\docSubtitle}{Block-Stacking mit dem Unitree G1 und der DEX3-Hand}
 % Verfasser: Die Projektarbeit ist eine gemeinsame Arbeit dreier Studierender.
 % \docAuthorA/B/C und die zugehörigen Matrikelnummern werden auf dem Titelblatt
 % und in der ehrenwörtlichen Erklärung einzeln ausgegeben; \docAuthors ist die
@@ -16,16 +27,15 @@
 \newcommand{\docAuthorA}{Maximilian Berger}
 \newcommand{\docAuthorB}{Matthias Späth}
 \newcommand{\docAuthorC}{Luca Mücke}
-% TODO vor Abgabe: Matrikelnummern A/B und Abgabedatum eintragen
-\newcommand{\docMatrikelA}{[Matrikelnummer]}
-\newcommand{\docMatrikelB}{[Matrikelnummer]}
+\newcommand{\docMatrikelA}{451842}
+\newcommand{\docMatrikelB}{540135}
 \newcommand{\docMatrikelC}{539698}
 \newcommand{\docAuthors}{\docAuthorA, \docAuthorB, \docAuthorC}
 \newcommand{\docBetreuer}{Prof. Dr. Matthias Lorenzen}
 \newcommand{\docHochschule}{Hochschule für angewandte Wissenschaften Kempten}
 \newcommand{\docFachbereich}{Fakultät Elektrotechnik}
 \newcommand{\docStudiengang}{Master Automatisierungstechnik und Robotik}
-\newcommand{\docAbgabedatum}{[TT.\,MM.\,JJJJ]}
+\newcommand{\docAbgabedatum}{09.11.2026}
 
 % ── Hyperref-Konfiguration ────────────────────────────────────────────
 \hypersetup{
@@ -180,6 +190,10 @@
 
 % ── acro-Konfiguration ────────────────────────────────────────────────
 \acsetup{make-links = true}
+% acro schaltet in Gleitumgebungen (table, figure) die Zählung standardmäßig ab
+% (patch/floats); ein \ac nur in einer Tabelle (z. B. \ac{slurm}) fehlte dann im
+% Abkürzungsverzeichnis. Deshalb hier aus: \ac zählt auch in Gleitumgebungen.
+\acsetup{patch/floats = false}
 
 \DeclareAcronym{vla}{
   short = VLA,
@@ -312,4 +326,32 @@
 \DeclareAcronym{sft}{
   short = SFT,
   long  = Supervised Fine-Tuning,
+}
+\DeclareAcronym{ki}{
+  short = KI,
+  long  = Künstliche Intelligenz,
+}
+\DeclareAcronym{ikr}{
+  short = IKR,
+  long  = Institut für angewandte Künstliche Intelligenz und Robotik der Hochschule Kempten,
+}
+\DeclareAcronym{gwdg}{
+  short = GWDG,
+  long  = Gesellschaft für wissenschaftliche Datenverarbeitung mbH Göttingen,
+}
+\DeclareAcronym{kisski}{
+  short = KISSKI,
+  long  = KI-Servicezentrum für sensible und kritische Infrastrukturen,
+}
+\DeclareAcronym{cuda}{
+  short = CUDA,
+  long  = Compute Unified Device Architecture,
+}
+\DeclareAcronym{siglip}{
+  short = SigLIP,
+  long  = Sigmoid Loss for Language-Image Pre-Training,
+}
+\DeclareAcronym{rt}{
+  short = RT,
+  long  = Raytracing,
 }

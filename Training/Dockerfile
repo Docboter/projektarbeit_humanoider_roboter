@@ -108,7 +108,7 @@ RUN if [[ " ${GROOT_VERSIONS} " == *" 1.6 "* ]]; then \
 # /opt/uv/python (bewusst NICHT unter /root, damit es unter Apptainer/KISSKI ohne $HOME-
 # Überlagerung sichtbar bleibt). jsonlines ist in N1.7 bereits reguläre Abhängigkeit.
 # Pin aktualisieren: ./update_image.sh --update-commit (setzt beide Commits).
-ARG GROOT17_COMMIT=cf2032dc26ea2a961823f124b9bf50f17be7f7e5
+ARG GROOT17_COMMIT=288d1de41647808d5117a8a7a30a2c783381a8ef
 ENV UV_PYTHON_INSTALL_DIR=/opt/uv/python
 RUN if [[ " ${GROOT_VERSIONS} " == *" 1.7 "* ]]; then \
         git clone --branch luca/g1-dex3-n17 https://github.com/lucam06/Isaac-GR00T.git /app/Groot-1.7 \
@@ -175,6 +175,9 @@ COPY --chmod=755 scripts/ /scripts/
 # scripts/run_finetuning*.sh übereinstimmen — tools/gen_docs.sh prüft genau das.
 # GROOT_VERSION wählt die Modellgeneration (1.6 = bisheriges Verhalten, 1.7 = Cosmos-Backbone);
 # der Entrypoint schaltet PATH/VIRTUAL_ENV dann auf die passende venv um (lib_groot_version.sh).
+# TRAIN_TEST_SPLIT steht bewusst NICHT hier: sein Default haengt vom Verfahren ab (Co-Training
+# 1, sonst 0) und wird in entrypoint.sh gesetzt. Ein ENV TRAIN_TEST_SPLIT=0 ueberstimmte das
+# `:-1` in run_finetuning_cotrain.sh, der Co-Training-Lauf trainierte ohne Split (Review T1).
 ENV MAX_STEPS=20000 \
     GLOBAL_BATCH_SIZE=8 \
     NUM_GPUS=1 \
@@ -189,7 +192,6 @@ ENV MAX_STEPS=20000 \
     TUNE_VISUAL=0 \
     USE_COTRAIN=0 \
     USE_RL=0 \
-    TRAIN_TEST_SPLIT=0 \
     TRAIN_SPLIT_RATIO=0.8 \
     USE_AUGMENTATION=1
 

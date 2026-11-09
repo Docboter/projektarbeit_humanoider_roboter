@@ -10,7 +10,8 @@ bedeutet: kein `docker run`, sondern `sbatch Training/kisski_submit.sh`. Das Doc
 wird einmalig in eine Apptainer-`.sif`-Datei umgewandelt — danach läuft alles unverändert.
 
 Zugang beantragen: [GWDG-Portal](https://docs.hpc.gwdg.de). SSH-Login-Knoten:
-`glogin-gpu.hpc.gwdg.de`.
+`glogin-gpu.hpc.gwdg.de`. Der Zugang der Projektgruppe endet im Dezember 2026; Checkpoints und
+Daten vorher von `/mnt/vast-kisski/…` sichern (Hub-Upload, siehe [Checkpoint-Export](#checkpoints-nach-dem-training-sichern)).
 
 ## Pfad-Konfiguration — zwei Variablen, sonst nichts
 
@@ -50,8 +51,12 @@ Vollständige Referenz und Migrationsschritte: [portabilitaet.md](../portabilita
 | `kisski` | NVIDIA A100 | 80 GB | 48 h |
 | `kisski-h100` | NVIDIA H100 | 94 GB | 48 h |
 
-`kisski_submit.sh` verwendet standardmäßig `-p kisski` (A100). Für H100 in der Datei
-`#SBATCH -p kisski` auf `#SBATCH -p kisski-h100` und `-G A100:1` auf `-G H100:1` ändern.
+`kisski_submit.sh` verwendet standardmäßig `-p kisski` mit `-G A100:4`. **Über
+[`kisski_menu.sh`](../../Training/kisski_menu.sh)** (seit 2026-10-13) wählt man die Partition, und
+das Menü gibt die passende GPU-Anforderung mit: `--gpus=A100:$NUM_GPUS` bzw. `--gpus=H100:$NUM_GPUS`
+(bei Skripten mit `--gres` entsprechend `--gres=gpu:…`; leeres `NUM_GPUS` = die 4 aus dem Skript).
+Die `#SBATCH`-Zeile von Hand ändern muss nur, wer `sbatch` direkt aufruft. `-c 96` und
+`--mem=384G` bleiben dabei fest — das Menü passt sie nicht an.
 
 > ### ⚠️ RL-Fine-tuning (`USE_RL`) läuft auf KISSKI **nicht**
 >
@@ -171,7 +176,7 @@ Compute-Nodes haben keinen Internet-Zugang, deshalb muss das auf dem Login-Knote
 
 ```bash
 # 1) Dieses Repo (liefert Training/scripts/ — Änderungen wirken ohne Image-Rebuild)
-git clone --branch training-luca-IKR-IS6.0 --depth 1 \
+git clone --branch main --depth 1 \
     https://github.com/Docboter/projektarbeit_humanoider_roboter.git \
     /mnt/vast-kisski/projects/kisski-humrob/repo
 
@@ -188,6 +193,25 @@ git -C /mnt/vast-kisski/projects/kisski-humrob/repo-groot checkout "$PIN"
 ```
 
 Pfade und Branch sind über `REPO_DIR`, `GITHUB_BRANCH` und `GROOT_FORK_DIR` überschreibbar.
+`GITHUB_BRANCH` ist seit 2026-10-13 nicht mehr fest eingetragen: Default ist der Branch, auf dem
+der Klon gerade steht, sonst `main` — der `--branch` oben ist also nur der Startpunkt. Ein
+`GITHUB_TOKEN` (private Repos) wird nur noch über einen Credential-Helper aus der Umgebung
+gelesen und landet **nicht** mehr in `.git/config`.
+
+> **Bestehender Klon aus der Entwicklungszeit:** Stand der Klon auf dem Arbeitsbranch
+> `training-luca-IKR-IS6.0` (nach dem Merge auf `main` auf GitHub gelöscht), muss er einmalig auf
+> `main` umgestellt werden. Sonst nimmt `kisski_submit.sh` den Branch des Klons und bricht mit
+> `SKIP_GIT_PULL=0` beim `git pull --ff-only origin <gelöschter Branch>` ab. Ein `--depth 1`-Klon
+> kennt nur seinen einen Branch, daher zuerst `main` freischalten:
+>
+> ```bash
+> R=/mnt/vast-kisski/projects/kisski-humrob/repo
+> git -C $R remote set-branches origin main
+> git -C $R fetch --depth 1 origin main
+> git -C $R checkout main
+> ```
+>
+> Alternativ den Ordner löschen und wie oben neu klonen.
 
 > **Warum Schritt 3:** `kisski_submit.sh` und `kisski_open_loop_eval.sh` binden
 > `repo-groot/gr00t` über den Code im Image. Steht der Fork auf dem Branch-HEAD, läuft auf
@@ -226,14 +250,14 @@ module load apptainer
 
 # Gated Backbone — HF_TOKEN muss vorher auf https://huggingface.co/nvidia/Cosmos-Reason2-2B
 # freigeschaltet sein (gleiches Konto wie der Token):
+export APPTAINERENV_HF_TOKEN="$HF_TOKEN"   # statt --env HF_TOKEN=…: Token nicht in ps/cmdline
 apptainer exec --bind /mnt/vast-kisski/projects/kisski-humrob/data:/data \
-    --env HF_TOKEN=$HF_TOKEN --env HF_HOME=/data/hf_cache \
+    --env HF_HOME=/data/hf_cache \
     $HOME/images/projekt-humanoider-roboter-n17.sif \
     huggingface-cli download nvidia/Cosmos-Reason2-2B
 
 # Basismodell
 apptainer exec --bind /mnt/vast-kisski/projects/kisski-humrob/data:/data \
-    --env HF_TOKEN=$HF_TOKEN \
     $HOME/images/projekt-humanoider-roboter-n17.sif \
     huggingface-cli download nvidia/GR00T-N1.7-3B --local-dir /data/models/GR00T-N1.7-3B
 ```
@@ -477,14 +501,15 @@ Die wichtigsten Stellschrauben in [Training/kisski_submit.sh](../../Training/kis
 
 ```bash
 #SBATCH -p kisski          # Partition: kisski (A100 80GB) oder kisski-h100 (H100 94GB)
-#SBATCH -G A100:4          # Anzahl GPUs — bei kisski-h100 auf H100:4 ändern
+#SBATCH -G A100:4          # Anzahl GPUs — kisski_menu.sh überschreibt Typ/Anzahl passend zur Partition
 #SBATCH -c 96              # CPU-Kerne
 #SBATCH --mem=384G         # RAM
 #SBATCH -t 48:00:00        # Walltime (max. 48h)
 ```
 
-> Das sind die **aktuellen Multi-GPU-Werte** (4× A100). Für einen 1-GPU-Lauf lassen sich `-G`,
-> `-c` und `--mem` entsprechend reduzieren; Hintergrund und Messung in
+> Das sind die **aktuellen Multi-GPU-Werte** (4× A100). `kisski_menu.sh` setzt `-G` passend zu
+> Partition und `NUM_GPUS`; `-c` und `--mem` bleiben fest und lassen sich für einen 1-GPU-Lauf
+> nur im Skript (oder per eigener `sbatch`-Option) reduzieren; Hintergrund und Messung in
 > [multi-gpu.md](multi-gpu.md) — mit 4 GPUs reichten 256 GB RAM nicht (OOM-Kill der Dataloader).
 
 Trainings-Parameter werden entweder dauerhaft im Script geändert oder pro Lauf vor `sbatch`

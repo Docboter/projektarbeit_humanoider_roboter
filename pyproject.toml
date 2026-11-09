@@ -1,0 +1,46 @@
+# TL;DR: Ruff-Konfiguration fuer den eigenen Code ausserhalb der Forks (Training/, Simulation/,
+# Augmentation/, tools/) — gespiegelt aus app/Groot-1.6/pyproject.toml. Kein installierbares Paket.
+#
+# Die Forks unter app/ behalten ihre eigene Konfiguration; ruff nimmt pro Datei das naechste
+# pyproject.toml, darum stoert diese Datei dort nicht. Genutzt von .github/workflows/ci.yml.
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+extend-exclude = [
+    "app",
+    "data",
+    "latex",
+    "graphify-out",
+    "logs",
+    "*.ipynb",
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = true
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+# Isaac-Lab-Skripte: AppLauncher muss vor jedem isaaclab/omni-Import starten bzw. sys.path wird
+# vor dem Import ergaenzt — E402 ist dort Absicht, kein Fehler.
+"Simulation/g1_dex3_sim/convert_urdf_to_usd.py" = ["E402"]
+"Simulation/g1_dex3_sim/dump_policy_cams.py" = ["E402"]
+"Simulation/g1_dex3_sim/run_g1_dex3_replay.py" = ["E402"]
+"Simulation/g1_dex3_sim/run_g1_dex3_sim_eval.py" = ["E402"]
+"Simulation/g1_gripper_sim/g1_gripper_cfg.py" = ["E402"]
+"Simulation/g1_gripper_sim/run_g1_gripper_sim_eval.py" = ["E402"]
+
+[tool.ruff.lint.isort]
+case-sensitive = false
+combine-as-imports = true
+force-sort-within-sections = true
+force-wrap-aliases = false
+split-on-trailing-comma = false
+lines-after-imports = 2
+section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]

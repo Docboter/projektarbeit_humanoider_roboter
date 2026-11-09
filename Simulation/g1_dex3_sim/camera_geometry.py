@@ -95,7 +95,9 @@ class G1Dex3CameraCfg:
     hfov_deg: float = 75.0
     # Handgelenks- und Szenenkamera behalten vorerst ihr bisheriges Sichtfeld (focal 18.0 =
     # 60,4°) — für die ist keine Overlay-Iteration dokumentiert, ein Wechsel wäre geraten.
-    hfov_wrist_deg: float = 60.4
+    # SIM_WRIST_HFOV: Diagnose-Override (Chronik Lauf 70+), die echte Handgelenkkamera zeigt
+    # deutlich mehr Szene als 60,4°.
+    hfov_wrist_deg: float = float(os.environ.get("SIM_WRIST_HFOV", "60.4"))
     hfov_scene_deg: float = 60.4
 
     # Sensorbreite in mm. Isaac Lab leitet die vertikale Apertur aus dem Seitenverhältnis ab.
@@ -180,17 +182,17 @@ class G1Dex3CameraCfg:
         high_target_x, high_target_z = 0.34, 0.915
         # Gegenhypothese zu OFFEN (Review §3.4): HEAD_CAM_FOLLOWS_PELVIS=1 verschiebt Auge
         # UND Blickziel starr um denselben Versatz wie die Basis (ROBOT_BASE_X − 0,
-        # ROBOT_BASE_Z − 0,85) — Nickwinkel bleibt, die Transformation Kamera→Torso
-        # entspricht dann wieder dem URDF-d435_link. Default 0, damit sich laufende
+        # ROBOT_BASE_Z − CAMERA_CALIB_BASE_Z, letzteres = 0,85, s. scene_geometry) —
+        # Nickwinkel bleibt, die Transformation Kamera→Torso entspricht dann wieder dem URDF-d435_link. Default 0, damit sich laufende
         # Vergleiche nicht still ändern. Entscheiden per tipcheck + layoutcheck in beiden
         # Varianten, und zwar VOR dem Neu-Rendern des Co-Training-Datensatzes; layout, render,
         # eval und tipcheck müssen dabei dieselbe Einstellung sehen (server_rl_run.sh
         # reicht sie über GEOM_ENV an jeden Aufruf durch).
         hx = hz = 0.0
         if os.environ.get("HEAD_CAM_FOLLOWS_PELVIS", "0") == "1":
-            from scene_geometry import ROBOT_BASE_X, ROBOT_BASE_Z
+            from scene_geometry import CAMERA_CALIB_BASE_Z, ROBOT_BASE_X, ROBOT_BASE_Z
             hx = ROBOT_BASE_X - 0.0
-            hz = ROBOT_BASE_Z - 0.85
+            hz = ROBOT_BASE_Z - CAMERA_CALIB_BASE_Z
         self.head_cam_shift = (hx, 0.0, hz)
         high_target_x, high_target_z = high_target_x + hx, high_target_z + hz
         left_high_eye  = (0.0537 + hx,  0.025, 1.3239 + hz)   # halbe Stereobasis links
@@ -225,6 +227,14 @@ class G1Dex3CameraCfg:
         wrist_eye = (-0.04, 0.0, 0.10)
         left_wrist_target  = (0.26, 0.0, -0.06)
         right_wrist_target = (0.26, 0.0, -0.06)
+        # Diagnose-Overrides (Chronik Lauf 70+): Pose gegen die Open-Loop-Metrik statt gegen
+        # ein Standbild justieren. "x y z" im Wrist-Yaw-Link-Frame, für beide Hände gleich.
+        _eye = os.environ.get("SIM_WRIST_EYE", "").split()
+        _tgt = os.environ.get("SIM_WRIST_TARGET", "").split()
+        if len(_eye) == 3:
+            wrist_eye = tuple(float(v) for v in _eye)
+        if len(_tgt) == 3:
+            left_wrist_target = right_wrist_target = tuple(float(v) for v in _tgt)
         # Iter 8 — ROLL-Korrektur: Pitch/Blickrichtung stimmten, aber die Hand stand im Sim
         # VERTIKAL, im Real liegt sie HORIZONTAL (Finger nach rechts statt nach unten) → ~90°
         # Roll-Versatz. Ursache: look_at nutzte default world_up=(0,0,1), was im rotierten

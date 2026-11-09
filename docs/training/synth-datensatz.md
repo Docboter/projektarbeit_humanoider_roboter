@@ -12,13 +12,13 @@
 > `Cube_Stacking_synth_jointspace` (§ 10).
 > Nicht hier: das Co-Training-Verfahren selbst ([co-training.md](co-training.md)).
 
-**Stand:** 2026-10-11 · Handaktions-Fehler in v21 gefunden und behoben (§ 10.1); Neu-Export
+**Stand der Synth-Linie: 2026-10-11** (das Co-Training-Ergebnis vom 2026-10-29 stammt aus dem eigenen Render, [co-training.md § 3.5](co-training.md)) · Handaktions-Fehler in v21 gefunden und behoben (§ 10.1); Neu-Export
 `_jointspace` harmonisiert (§ 10.2); zwei Läufe als KISSKI-Kette vorbereitet (§ 10.4).
 `cotrain_synth_v1` (W&B `7z81177r`) ist am 2026-09-07 nach 138 s **abgebrochen** und hat kein
 Ergebnis geliefert — laut seiner W&B-Konfiguration war er aber gar **kein Co-Training-Lauf** (ein
 Datensatz, `tune_visual: false`, IKR-Server statt KISSKI; Befund in der
 [Diagnose-Chronik](../ergebnisse/diagnose-chronik.md#nachtrag-2026-10-13-cotrain_synth_v1-wb-7z81177r-war-kein-co-training-lauf)); die beiden Wiederholungsläufe (`synth_jointspace`, `synth_v22`) liegen in
-W&B bisher nicht vor — es gibt **kein Co-Training-Ergebnis**.
+W&B nicht vor — es gibt **kein Ergebnis mit dem Synth-Datensatz**.
 
 ---
 

@@ -10,6 +10,10 @@
 > alle Greif-Zahlen unten stammen aus der alten Geometrie, eine Neumessung steht aus. Nächster Schritt
 > ist Co-Training ([co-training.md](../training/co-training.md)); der einzige Co-Training-Lauf
 > (`cotrain_synth_v1`) brach am 2026-09-07 nach 138 s ab.
+>
+> **Nachtrag 2026-10-29:** Neumessung mit korrigierter Szene erfolgt: N1.6 @44000 `reached` 16/20, `lifted_clear` 0/20 (Lauf 82); N1.7 0/10 bzw. 0/20 (Läufe 54/55, 81). Co-Training v3 liegt vor (Läufe 73–97, erste Griffe `lifted_clear` 2/60); RL-Läufe gibt es weiterhin keine.
+>
+> **Nachtrag 2026-11-09 (Abgabestand):** Es gibt weiterhin **keinen RL-Trainingslauf und kein RL-Ergebnis**; die Pipeline (FPO) ist gebaut, N1.6-only. Als RL-Startpunkt vorgesehen ist Modell C (`luca-mue/groot-g1dex3-cotrain-v3-cube4-ckpt44000`, Lauf 74); `lifted_clear` 2/60 (3 %) ist nur ein schwaches Startsignal. Weiterführende Arbeit, nicht Teil der Abgabe. Status: [next-steps.md §0](../../next-steps.md).
 
 > **Status: Pipeline läuft end-to-end, Lernwirkung noch offen.** Dieses Dokument beschreibt
 > Motivation, Bausteine und Phasen-Plan.
@@ -38,11 +42,11 @@
 >
 > **⛔ RL ist trotzdem nicht der nächste Schritt (Lauf 30, 2026-08-12).** Die BC-Baseline steht bei
 > **0/20**, und die vorregistrierte Regel sagt dafür: einem Nullpunkt-Reward fehlt das Startsignal.
-> Lauf 30 liefert die Begründung — die Politik kommandiert **0,39 rad Fingerspanne gegen 2,09 rad
+> Lauf 30 liefert die Begründung — die Policy kommandiert **0,39 rad Fingerspanne gegen 2,09 rad
 > in der Demonstration (19 %)**, versucht also gar keinen Griff. Die Regel zeigt damit auf
-> **Wahrnehmung/Politik** (`TUNE_VISUAL=1`), nicht auf RL. Der FPO-Pfad bleibt gebaut und auf
+> **Wahrnehmung/Policy** (`TUNE_VISUAL=1`), nicht auf RL. Der FPO-Pfad bleibt gebaut und auf
 > Hardware validiert — er wartet auf eine BC-Policy, die überhaupt gelegentlich Erfolg hat.
-> Details: [diagnose-chronik.md](../ergebnisse/diagnose-chronik.md#lauf-30-die-vorregistrierte-regel-ist-geschlossen--die-politik-greift-nicht).
+> Details: [diagnose-chronik.md](../ergebnisse/diagnose-chronik.md#lauf-30-die-vorregistrierte-regel-ist-geschlossen--die-policy-greift-nicht).
 >
 > **✅ Bestätigt durch das `span`-Gate (Lauf 32, 2026-08-13).** Dieselbe Policy auf **echten
 > Datensatz-Bildern** erreicht ein Median-Verhältnis von **1,00** (fünf Trajektorien, 0,84–1,01) —
@@ -77,8 +81,16 @@
 >   `USE_RL`-Hinweis-Schalter im BC-Entrypoint, RL-Env-Vars in [env-vars.md](../training/env-vars.md).
 >
 > **Noch offen:** Lernkurve über viele Iterationen (Hyperparameter ungetunt) und Render-Durchsatz
-> bei produktivem `num_envs`. Die **BC-Baseline ist inzwischen gemessen** (0/20, Lauf 30) und
+> bei produktivem `num_envs`. Die **BC-Baseline ist inzwischen gemessen** (0/20 in Lauf 24, bestätigt
+> durch Lauf 30 mit 2 Episoden) und
 > taugt als Vergleichsmaßstab erst wieder, wenn sie über null liegt.
+>
+> **Nachtrag 2026-10-13:** Die Lernsignale aller bisherigen RL-Läufe sind nicht belastbar — `success`
+> war per Messfehler ≈ 0, die FPO-Ratio nutzte verschiedene Rausch-/`t`-Ziehungen, und ein globales
+> `env.reset()` brach laufende Trajektorien ab. Alle drei sind behoben (Seeds gespeichert und
+> wiederverwendet, Ratio-Selbsttest in Epoche 0, Erfolg vor dem Auto-Reset gezählt,
+> Truncation-Bootstrap, neu `RL_EXEC_HORIZON`), **auf Hardware aber noch nicht geprüft**. Schritte:
+> [rl-anleitung.md, Status](rl-anleitung.md).
 >
 > **GPU-/Render-Pfad (Gruppe 0) — geklärt (2026-08-05 bis -08):** der Server vom
 > [RoboCasa-Referenz-Eval](../simulation/robocasa-referenz-eval.md) (2× RTX PRO 6000 Blackwell) hat

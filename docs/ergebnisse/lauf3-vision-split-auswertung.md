@@ -1,16 +1,17 @@
 # Auswertung — dritter Trainingsdurchlauf, Vision-Encoder **mit** Split & Augmentierung (`g1_dex3_blockstacking_vision_v2`)
 
 > **TL;DR:** Auswertung des dritten Trainingslaufs (Vision-Encoder + Color-Jitter + 80/20-Split) —
-> erste echte Validierung mit zurückgehaltenen Episoden. Checkpoint-Sweep belegt Overfitting
-> (U-Kurve, bester Checkpoint 30.000). Kurzfazit in §1. Stand 2026-10-11: es gibt keinen neueren
-> Trainingslauf; die Closed-Loop-Zahlen (§8.3) stammen aus der alten Sim-Geometrie.
+> erste echte Validierung mit zurückgehaltenen Episoden. Der ursprüngliche Sweep (6 × 300 Steps)
+> deutete Overfitting an (U-Kurve, bester Checkpoint 30.000) — **überholt** durch die Nachmessung
+> 20 × 750 ([lauf4-n17-vergleich.md §5](lauf4-n17-vergleich.md#5-nachgeschärfter-vergleich-20-episoden--750-steps-volle-länge)): keine U-Kurve, bester Checkpoint 44.000.
+> Kurzfazit in §1; die Closed-Loop-Zahlen (§8.3) stammen aus der alten Sim-Geometrie.
 
 > **Nachtrag 2026-10-12 — Overfitting-Befund widerlegt.** Die in §8.1 empfohlene Nachmessung
 > (20 Test-Episoden, volle Länge 750 Steps, Job 16633477) zeigt **keine** U-Kurve: Die
 > Validierungs-MSE fällt monoton bis 44.000 (0,00482), und 44.000 ist signifikant besser als
 > 30.000 (0,00519; gepaart t = 2,15, n = 20). Die U-Kurve unten war ein Artefakt von 6 Episoden
 > à 300 Steps (nur Anfahrphase). §4.1, §5 und die Empfehlung §8.2 („`MAX_STEPS=30000`
-> genügt“) gelten damit **nicht** mehr. Zahlen: [lauf4-n17-vergleich.md](lauf4-n17-vergleich.md) §5.
+> genügt“) gelten damit **nicht** mehr. Zahlen: [lauf4-n17-vergleich.md §5](lauf4-n17-vergleich.md#5-nachgeschärfter-vergleich-20-episoden--750-steps-volle-länge).
 
 **Erstellt:** 2026-08-14 · **Run-ID:** `tp1nc699` (W&B-Projekt `gr00t-g1-dex3`, Entity
 `projektarbeit_humanoider_roboter`) · **Modell:** GR00T N1.6 (3,29 Mrd. Parameter),
@@ -24,7 +25,7 @@ Finetune mit aufgetautem Vision-Encoder (`tune_visual = true`), Color-Jitter akt
 > `TUNE_VISUAL=1`, aber diesmal **mit** Augmentierung — Lauf 2 hatte gar keinen Jitter.
 >
 > Datengrundlage: die W&B-Kurven von `tp1nc699` und der Checkpoint-Sweep
-> [`Simulation/runs/20260814/01/checkpoint_sweep.json`](../../Simulation/runs/20260814/01/checkpoint_sweep.json).
+> `Simulation/runs/20260814/01/checkpoint_sweep.json` (nur lokal, `Simulation/runs/` ist gitignored).
 
 > **Nachtrag 2026-10-11 — was seit diesem Dokument passiert ist.** (1) Die Closed-Loop-Messung
 > (Lauf 34, §8.3) lief vor der Korrektur vom 2026-08-24: vier proximale Fingergelenke standen durch
@@ -32,7 +33,7 @@ Finetune mit aufgetautem Vision-Encoder (`tune_visual = true`), Color-Jitter akt
 > ([Chronik, Läufe 38–51](diagnose-chronik.md#läufe-3846-runs2026082302-runs202608240512-die-fingergrundgelenke-standen-still)).
 > Der Vergleich 27,6 % vs. 20,5 % bleibt innerhalb derselben Geometrie gültig, die Absolutwerte
 > und `lifted 0/10` sind neu zu messen. (2) Das `span`-Verhältnis 1,00 auf echten Bildern bezieht
-> sich auf Trainingsepisoden; es fehlt die Messung auf zurückgehaltenen Episoden. (3) Ob Lauf 2
+> sich auf Trainingsepisoden; es fehlt die Messung auf zurückgehaltenen Episoden (Nachtrag 2026-10-29: Messung auf Testepisoden erfolgt: `span` N1.6 vision-v2 @30000 90 %, N1.7 @44000 94 % (Läufe 57–61); Neumessung mit korrigierter Szene erfolgt: N1.6 @44000 `reached` 16/20, `lifted_clear` 0/20 (Lauf 82); N1.7 0/10 bzw. 0/20 (Läufe 54/55, 81)). (3) Ob Lauf 2
 > wirklich ohne Jitter lief, ist ungeklärt (siehe Vorbehalt in
 > [lauf2-vision-auswertung.md](lauf2-vision-auswertung.md) §6.1). (4) Der nächste Schritt ist
 > Co-Training; `cotrain_synth_v1` brach am 2026-09-07 nach 138 s ab, ein neuer Lauf gab es nicht
@@ -136,9 +137,12 @@ Action-Horizon 16.
 | 40.000 | 0,00855 | 0,0419 | 0,0071 | 0,0052 | 0,0114 | 0,0031 | 0,0136 | 0,0108 |
 | 44.000 | 0,00898 | 0,0418 | 0,0068 | 0,0049 | 0,0118 | 0,0032 | 0,0138 | 0,0134 |
 
-RMSE bei Step 30.000: **0,085** in normierten Aktionseinheiten.
+RMSE bei Step 30.000: **0,085 rad**. (Korrigiert 2026-10-13: hier stand „in normierten Aktionseinheiten“. Der Fork vergleicht in `gr00t/eval/open_loop_eval.py` die *de-normierten* Policy-Aktionen mit den Rohaktionen des Datensatzes, die Einheit ist also die der Gelenkwinkel.)
 
 ### 4.1 Overfitting ist erstmals sichtbar
+
+> **Überholt durch [lauf4-n17-vergleich.md §5](lauf4-n17-vergleich.md#5-nachgeschärfter-vergleich-20-episoden--750-steps-volle-länge):** Mit 20 vollen Test-Episoden ist die
+> U-Kurve weg; der Abschnitt bleibt als Protokoll der ursprünglichen 6-Episoden-Messung stehen.
 
 Von Step 30.000 bis 44.000:
 
@@ -288,7 +292,8 @@ sbatch Training/kisski_open_loop_eval.sh
 ### 8.2 Für den nächsten Lauf: `MAX_STEPS=30000` genügt
 
 > **Überholt (2026-10-12):** Die Nachmessung aus §8.1 zeigt bis 44.000 weiter fallende
-> Validierungs-MSE — siehe Nachtrag oben.
+> Validierungs-MSE — `MAX_STEPS=30000` genügt also **nicht**, 44.000 ist der bessere Checkpoint.
+> Siehe Nachtrag oben und [lauf4-n17-vergleich.md §5](lauf4-n17-vergleich.md#5-nachgeschärfter-vergleich-20-episoden--750-steps-volle-länge).
 
 Die letzten 14.000 Steps (≈ 4 h auf 4 GPUs) haben die Validierung verschlechtert. Bei
 gleicher Konfiguration ist alles jenseits von ~30.000 Steps verschenkte Rechenzeit — vorbehalten
@@ -313,7 +318,7 @@ mechanisch, statt nur Nebenprodukt von mehr Kontakt zu sein.
 
 **Einordnung für diesen Lauf:** damit ist `TUNE_VISUAL=1` **mit** Augmentierung als Maßnahme
 belegt — die Gegenprobe zu [`lauf2-vision-auswertung.md`](lauf2-vision-auswertung.md) §6.2 ist
-bestanden, wo derselbe Schalter *ohne* Jitter zum Politik-Kollaps führte (Vorbehalt zur
+bestanden, wo derselbe Schalter *ohne* Jitter zum Policy-Kollaps führte (Vorbehalt zur
 Jitter-Zuschreibung: siehe Nachtrag oben). Der Gap ist damit
 allerdings nicht geschlossen: 27,6 % in der Sim gegen 100 % auf echten Bildern (Letzteres auf
 Trainingsepisoden gemessen, s. Nachtrag oben). Die vollständige
@@ -330,12 +335,13 @@ Befund für die Ausarbeitung.
 ## 9. Offene Punkte
 
 - **Split-Verifikation** (Abschnitt 6) — bis dahin stehen alle Zahlen unter Vorbehalt (Stand 2026-10-11: keine Prüfung dokumentiert; die W&B-Config nennt 240 Train-/61 Test-Episoden).
-- **Nachgeschärfter Sweep** mit 20 Episoden über die volle Episodenlänge (8.1).
+- **Nachgeschärfter Sweep** mit 20 Episoden über die volle Episodenlänge (8.1) — erledigt am 2026-10-12, Ergebnis: [lauf4-n17-vergleich.md §5](lauf4-n17-vergleich.md#5-nachgeschärfter-vergleich-20-episoden--750-steps-volle-länge).
 - ~~**Verhaltens-Evaluation** von checkpoint-30000~~ — erledigt am 2026-08-14 (8.3).
 - **Erneute Domain-Gap-Messung** mit dem getunten Encoder aus Lauf 3 — ist der Gap durch das
   Jitter-Training kleiner geworden als die 0,22 / 0,36 aus der letzten Messung? Nach 8.3 die
   interessanteste offene Zahl: die Fingerspanne ist um ein Drittel gestiegen, also sollte sich
   auch die Kosinus-Distanz je Kamera bewegt haben — `./Simulation/server_rl_run.sh gap`.
+  *Überholt durch Lauf 66/96:* Den Domain-Gap misst seither die Policy selbst (Hand-Fehler auf Sim- gegen Echtbild, N1.6 vision-v2 @30000 ×13, @44000 im Gate-Protokoll (Lauf 80) ×17, [Lauf 66](diagnose-chronik.md#läufe-6368-ursache-des-versatzes-bild-ablation-sim-bilder-im-open-loop), Lauf 80); die SigLIP-`gap`-Kontrolle gilt als ungeeignet ([Lauf 96](diagnose-chronik.md#lauf-96-vorregistriertes-primäres-gate-nachgeholt-fingerspanne-10--40-s-und-gap-kontrolle)).
 - **Plot-Sichtung** `open_loop_plots/ckpt30000_ep288.jpeg` (Abschnitt 4.4).
 
 ---
@@ -345,7 +351,7 @@ Befund für die Ausarbeitung.
 | Zweck | Quelle |
 |---|---|
 | W&B-Trainingsmetriken Lauf 3 | Run `tp1nc699`, Projekt `gr00t-g1-dex3` |
-| Checkpoint-Sweep (Rohdaten) | [`Simulation/runs/20260814/01/checkpoint_sweep.json`](../../Simulation/runs/20260814/01/checkpoint_sweep.json) |
+| Checkpoint-Sweep (Rohdaten) | `Simulation/runs/20260814/01/checkpoint_sweep.json` (nur lokal, `Simulation/runs/` ist gitignored) |
 | Sweep-Werkzeug | [`Training/scripts/checkpoint_sweep.py`](../../Training/scripts/checkpoint_sweep.py) |
 | Split-Mechanismus | [`Training/scripts/lib_split.sh`](../../Training/scripts/lib_split.sh) · [train-test-split.md](../training/train-test-split.md) |
 | Resume-Guard (Vorgeschichte `m5vcsjg9`) | [`Training/scripts/lib_resume_guard.sh`](../../Training/scripts/lib_resume_guard.sh) |

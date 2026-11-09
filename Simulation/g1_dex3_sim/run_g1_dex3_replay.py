@@ -329,8 +329,8 @@ def main():
         p = hand_low[h]
         print(f"[Replay]   tiefster {lbl[h] if h < 2 else h}-Hand-Punkt (Welt): "
               f"x={p[0]:.3f} y={p[1]:.3f} z={p[2]:.3f}", flush=True)
-    # init_cube_z ist die Würfel-MITTE (block_z_surface = Tisch 0.89 + halbe Kantenlänge
-    # 0.025), nicht die Oberkante — die Zeile war bis Lauf 26 falsch beschriftet, und genau
+    # init_cube_z ist die Würfel-MITTE (block_z_surface = Tisch TABLE_HEIGHT 0.87 + halbe
+    # Kantenlänge 0.025, s. scene_geometry.py; vor dem Fix vom 2026-08-24 Tisch 0.89), nicht die Oberkante — die Zeile war bis Lauf 26 falsch beschriftet, und genau
     # solche Beschriftungen haben hier schon einmal zu einem falschen Schluss geführt.
     cz = float(init_cube_z[0])
     print(f"[Replay]   (Würfel-MITTE z≈{cz:.3f}, Oberkante z≈{cz + 0.025:.3f}; "

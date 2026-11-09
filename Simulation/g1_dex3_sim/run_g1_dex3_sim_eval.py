@@ -1,6 +1,6 @@
 # TL;DR: Closed-Loop-Eval: verbindet Sim mit GR00T-Policy-Server per ZMQ; `server_rl_run.sh eval`.
 """
-Closed-Loop-Eval-Runner für GR00T N1.6 auf G1 + Dex3 in Isaac Lab.
+Closed-Loop-Eval-Runner für GR00T (N1.6 oder N1.7, s. GROOT_VERSION) auf G1 + Dex3 in Isaac Lab.
 
 Startet den Isaac-Lab-Sim-Client, verbindet sich mit dem GR00T-Policy-Server
 (der in einem separaten Container läuft) und führt N Episoden durch.
@@ -95,6 +95,13 @@ parser.add_argument(
          "Leer = Zufallsbänder aus der Env-Cfg (Startlagen, die so nie im Training "
          "vorkamen — Review §3.2). Default aus EVAL_LAYOUT."
 )
+parser.add_argument(
+    "--oracle-dataset", type=str, default=os.environ.get("ORACLE_DATASET", ""),
+    help="Orakel-Replay statt Policy (Review 10-13 §2.3 Nr. 1): spielt je Episode die "
+         "aufgezeichneten Aktionen der Layout-Episode aus diesem Datensatz (v2.1) ab, "
+         "Roboter startet im aufgezeichneten Frame 0. Kein Server nötig; verlangt --layout. "
+         "Misst zusätzlich den Tracking-Fehler Sim↔Aufzeichnung (oracle_replay.py)."
+)
 
 # Isaac-Lab-eigene Argumente hinzufügen und parsen
 AppLauncher.add_app_launcher_args(parser)
@@ -109,10 +116,20 @@ simulation_app = app_launcher.app
 # ---------------------------------------------------------------------------
 
 from client import PolicyClient, build_obs
+from eval_metrics import (
+    HAND_CONTACT_PROXY_M,
+    LIFT_CLEAR_THRESHOLD_M,
+    clopper_pearson,
+    format_rate_ci,
+    lifted_clear_step,
+)
 from g1_dex3_blockstack_env import G1Dex3BlockstackEnv, G1Dex3BlockstackEnvCfg
 from g1_dex3_cfg import CAMERA_CFG
 import numpy as np
-from task_text import resolve_task_description
+from oracle_replay import OracleReplayClient, load_episode_arrays
+from scene_geometry import CUBE_EDGE, TABLE_HEIGHT
+from split_math import layout_train_count
+from task_text import DEFAULT_DATASET_PATH, resolve_task_description
 import torch
 
 
@@ -181,10 +198,11 @@ def checkpoint_fingerprint(path: str) -> dict:
 # Würfel-Startlagen
 # ---------------------------------------------------------------------------
 
-# Grenze der zurückgehaltenen Episoden: int(301 * 0.8) = 240, wie Training, Sweep und
-# render_cotrain_dataset.select_episodes rechnen (lib_split.sh, TRAIN_SPLIT_RATIO=0.8).
-HELD_OUT_FIRST_EPISODE = 240
-
+# Grenze der zurückgehaltenen Episoden: bis 2026-10-13 fest 240 (= int(301 * 0.8)), was
+# nur für den echten Datensatz mit Ratio 0,8 stimmt (Review 2026-10-13, S6). Jetzt steht
+# n_train im Kopf der layout.json (extract_block_layout.py, Formel split_math.py =
+# Training/scripts/lib_split.sh); ältere Dateien rechnet split_math.layout_train_count
+# aus meta/info.json + TRAIN_SPLIT_RATIO nach — mit Warnung.
 
 def load_eval_layout(path: str) -> tuple[list[dict], dict]:
     """layout.json → (Einträge für cfg.block_layout, Zusammenfassung fürs Ergebnis-JSON).
@@ -205,15 +223,41 @@ def load_eval_layout(path: str) -> tuple[list[dict], dict]:
         entries.append({"key": key, "cubes": cubes[:3], "yaws": rec.get("cubes_yaw_deg")})
     if not entries:
         raise SystemExit(f"--layout {path}: keine Episode mit allen drei Würfeln.")
-    train_eps = [int(e["key"]) for e in entries if int(e["key"]) < HELD_OUT_FIRST_EPISODE]
+    n_train, n_train_source = layout_train_count(
+        raw, dataset_fallback=os.environ.get("TASK_DATASET_PATH") or DEFAULT_DATASET_PATH)
+    if n_train_source != "layout.json":
+        print(f"[layout] {n_train_source}", flush=True)
+    # None = Grenze unbekannt: dann lieber KEINE Aussage als eine falsche.
+    train_eps = (None if n_train is None
+                 else [int(e["key"]) for e in entries if int(e["key"]) < n_train])
     info = {
         "path": path,
         "split": raw.get("split", "unbekannt"),
+        "n_train": n_train,
+        "n_train_source": n_train_source,
         "episodes": [int(e["key"]) for e in entries],
         "skipped_incomplete": skipped,
         "from_training_episodes": train_eps,
     }
     return entries, info
+
+
+def set_robot_state(env: G1Dex3BlockstackEnv, state: np.ndarray) -> None:
+    """Roboter auf einen aufgezeichneten 28-dim-Zustand (Policy-Reihenfolge) setzen.
+
+    Für das Orakel-Replay: derselbe Weg wie run_dataset_replay_videos.set_robot_state.
+    """
+    if env._joint_ids is None:
+        env._joint_ids = env._build_joint_id_mapping()
+    q = np.asarray(state, dtype=np.float32).copy()
+    if env._SIGN_FLIP_IDX:
+        q[env._SIGN_FLIP_IDX] *= -1
+    q = env.dataset_to_sim(q)
+    full = env.robot.data.joint_pos.clone()
+    for policy_idx, isaac_idx in enumerate(env._joint_ids):
+        full[:, isaac_idx] = float(q[policy_idx])
+    env.robot.write_joint_state_to_sim(full, torch.zeros_like(full))
+    env.robot.set_joint_position_target(full)
 
 
 # ---------------------------------------------------------------------------
@@ -234,6 +278,12 @@ TOUCH_THRESHOLD_M = 0.01
 # Anhebung. Schwelle aus der vorregistrierten Regel in rl-anleitung.md ("hebt (a)
 # den Würfel, max_cube_lift_cm > ~2"). Zum Vergleich: Lauf 29 erreichte 7,9 cm.
 LIFT_THRESHOLD_M = 0.02
+# `lifted_clear` (Review 2026-10-13, M3): die Schwerpunkt-Metrik oben zählt einen auf die
+# Ecke gekippten Würfel schon fast mit (+1,8 cm). Die kipp-robuste Variante misst die
+# Würfel-UNTERSEITE gegen die Tischoberkante (> LIFT_CLEAR_THRESHOLD_M = 2 cm) und
+# verlangt im selben Schritt Handkontakt. Kontaktsensoren hat die Env nicht; Proxy ist
+# der Fingerkuppen-Abstand zur Würfelmitte <= HAND_CONTACT_PROXY_M (4 cm), s.
+# eval_metrics.py. `lifted` bleibt für die Vergleichbarkeit mit älteren Läufen stehen.
 # Fingerspanne des Kommandos. Referenz ist die menschliche Demonstration aus
 # replay_episode0.npz: 2,094 rad über die Episode (Lauf 29). 30 % davon trennt
 # "hat einen Griff versucht" von dem 0,39-rad-Zucken aus Lauf 30 (19 %).
@@ -268,7 +318,14 @@ def run_episode(
     if env.cfg.camera_render_every_n > 1:
         env.force_policy_camera_render()
     obs_dict, _ = env.reset()
-    client.reset()
+    # Fehler beim Server-Reset sind derselbe Fall wie bei get_action: die Episode ist
+    # ungültig, nicht misslungen (s. error_reason unten).
+    error_reason = None
+    try:
+        client.reset()
+    except Exception as e:
+        error_reason = f"reset: {type(e).__name__}: {e}"
+        print(f"[Episode] Fehler bei reset: {e}", flush=True)
     layout_key = (getattr(env, "last_layout_keys", None) or [None])[0]
 
     frames: list[np.ndarray] = []
@@ -308,6 +365,12 @@ def run_episode(
     # Kontakt-Solver setzt die Würfel direkt nach dem Reset noch zurecht, das zählte
     # sonst als Anhebung (derselbe Fehler, den die Karenzzeit bei block_shift behebt).
     max_cube_lift = 0.0
+    # Kipp-robuste Anhebung: größte Unterseiten-Höhe über dem Tisch eines Würfels MIT
+    # Handkontakt (Proxy) und ob dabei die Schwelle fiel. Tischoberkante in Weltkoordinaten
+    # = Env-Ursprung + TABLE_HEIGHT (eine Quelle: scene_geometry.py).
+    lifted_clear = False
+    max_clear_lift = 0.0
+    table_top_z = float(env.scene.env_origins[0, 2]) + TABLE_HEIGHT
 
     # Taille: hat keine Aktuatorgruppe, nur die Wurzel ist fixiert (g1_dex3_cfg.py). Größte
     # Abweichung der waist_*-Gelenke von der Startpose belegt, ob der Torso absackt und die
@@ -337,7 +400,7 @@ def run_episode(
     last_sensor_tokens = None
     reported_static_sensor_tokens = False
 
-    while step < max_steps:
+    while step < max_steps and error_reason is None:
         if env.cfg.camera_render_every_n > 1:
             if env.cfg.camera_render_every_n != execution_horizon:
                 raise RuntimeError(
@@ -402,7 +465,11 @@ def run_episode(
         try:
             chunk = client.get_action(policy_obs)  # np.ndarray (16, 28)
         except Exception as e:
-            print(f"[Episode] Fehler bei get_action (Step {step}): {e}")
+            # Bis 2026-10-13 nur print + break: die Episode zählte als normales 0-Ergebnis,
+            # ein Server-Timeout sah aus wie eine misslungene Policy (Review S1). Jetzt ist
+            # sie UNGÜLTIG (error=True) und geht in keine Quote ein.
+            error_reason = f"get_action (Step {step}): {type(e).__name__}: {e}"
+            print(f"[Episode] Fehler bei get_action (Step {step}): {e}", flush=True)
             break
         _dt_infer = time.perf_counter() - _t0
         t_infer += _dt_infer
@@ -427,6 +494,17 @@ def run_episode(
                 # z-Differenz gegen das eingeschwungene Layout, größter Wert über alle Würfel
                 lift = float((block_pos_last[:, 2] - block_pos_start[:, 2]).max())
                 max_cube_lift = max(max_cube_lift, lift)
+                # lifted_clear: Pose + Handabstand je Würfel, im selben Schritt.
+                cube_quat = np.stack(
+                    [b.data.root_quat_w[0].cpu().numpy() for b in env.blocks])
+                hand_dist = torch.cdist(
+                    env.get_contact_points_w()[0:1],
+                    torch.stack([b.data.root_pos_w[0] for b in env.blocks]).unsqueeze(0),
+                )[0].amin(dim=0).cpu().numpy()                     # (n_cubes,)
+                ok_clear, clear = lifted_clear_step(
+                    block_pos_last, cube_quat, hand_dist, table_top_z, CUBE_EDGE / 2)
+                lifted_clear = lifted_clear or ok_clear
+                max_clear_lift = max(max_clear_lift, clear)
 
             hand_cmd = np.asarray(chunk[t][14:28], dtype=float)
             np.minimum(hand_cmd_min, hand_cmd, out=hand_cmd_min)
@@ -499,6 +577,10 @@ def run_episode(
     )
 
     return {
+        # error=True: Episode wegen eines Server-/Kommunikationsfehlers abgebrochen. Sie
+        # ist kein Messergebnis und zählt in keine Quote (Review 2026-10-13, S1).
+        "error": error_reason is not None,
+        "error_reason": error_reason,
         "success": success,
         "num_steps": step,
         "duration_s": round(duration, 2),
@@ -534,6 +616,8 @@ def run_episode(
         "block_shift_m": [round(float(v), 4) for v in block_shift],
         "finger_span_max_rad": round(float(finger_span.max()), 4),
         "max_cube_lift_cm": round(max_cube_lift * 100, 2),
+        # Unterseite über Tisch, nur Würfel mit Handkontakt-Proxy (s. lifted_clear).
+        "max_clear_lift_cm": round(max_clear_lift * 100, 2),
         "waist_drift_max_rad": round(waist_drift, 4),
         # Gestufte Meilensteine: jede Stufe für sich auswertbar, damit ein 0/20 beim
         # Stapeln nicht mehr die einzige Information der Episode ist.
@@ -544,6 +628,7 @@ def run_episode(
             ),
             "touched": bool(block_shift.max() > TOUCH_THRESHOLD_M),
             "lifted": bool(max_cube_lift > LIFT_THRESHOLD_M),
+            "lifted_clear": bool(lifted_clear),
             "stacked": bool(success),
         },
     }
@@ -588,13 +673,26 @@ def main():
     layout_info: dict = {"path": "", "note": "Zufallsbänder (kein --layout / EVAL_LAYOUT)"}
     if args.layout:
         cfg.block_layout, layout_info = load_eval_layout(args.layout)
+    oracle = bool(args.oracle_dataset)
+    if oracle and not args.layout:
+        raise SystemExit("--oracle-dataset verlangt --layout: die Episode, deren Aktionen "
+                         "abgespielt werden, ist die Layout-Episode.")
 
     print("=" * 60)
-    print("GR00T N1.6 — G1+Dex3 Closed-Loop Sim Eval")
+    # Version aus dem Entrypoint (lib_groot_version.sh exportiert GROOT_VERSION nach der
+    # Auflösung aus dem Checkpoint); bis 2026-10-13 stand hier fest "N1.6", auch bei N1.7.
+    _gv = os.getenv("GROOT_VERSION", "").strip()
+    _gv = f"N{_gv}" if _gv in ("1.6", "1.7") else "(Version nicht übergeben)"
+    if oracle:
+        print("ORAKEL-REPLAY — aufgezeichnete Aktionen statt Policy (obere Schranke)")
+        print(f"  Datensatz:        {args.oracle_dataset}")
+    else:
+        print(f"GR00T {_gv} — G1+Dex3 Closed-Loop Sim Eval")
     print("=" * 60)
     # Zuerst, nicht zuletzt: bei einem Abbruch mitten im Lauf steht die Herkunft dann
     # trotzdem im Log, auch wenn es nie zur Ergebnis-Datei kommt.
-    ckpt = checkpoint_fingerprint(args.checkpoint_path)
+    ckpt = ({"path": "", "note": "Orakel-Replay, kein Modell"} if oracle
+            else checkpoint_fingerprint(args.checkpoint_path))
     print(f"  Checkpoint:       {ckpt.get('path') or '(unbekannt)'}")
     print(
         f"                    run_id={ckpt.get('run_id', '?')}  "
@@ -614,9 +712,12 @@ def main():
     if args.layout:
         print(f"  Würfel-Start:     {len(cfg.block_layout)} echte Lagen aus {args.layout} "
               f"(Split: {layout_info['split']})")
-        if layout_info["from_training_episodes"]:
+        if layout_info["from_training_episodes"] is None:
+            print(f"  [WARNUNG] Split-Grenze unbekannt ({layout_info['n_train_source']}) — "
+                  "ob die Lagen aus Trainings-Episoden stammen, ist nicht prüfbar.")
+        elif layout_info["from_training_episodes"]:
             print(f"  [WARNUNG] {len(layout_info['from_training_episodes'])} Lagen stammen aus "
-                  f"TRAININGS-Episoden (< {HELD_OUT_FIRST_EPISODE}) — Memorisierung nicht "
+                  f"TRAININGS-Episoden (< {layout_info['n_train']}) — Memorisierung nicht "
                   "ausgeschlossen. Für die Messung: layout mit LAYOUT_HELD_OUT=1 erzeugen.")
     else:
         print("  Würfel-Start:     Zufallsbänder — NICHT die Startlagen der Realdaten "
@@ -635,38 +736,72 @@ def main():
 
     print("[Phase A] Sim läuft.")
 
-    # Phase D: ZMQ-Verbindung aufbauen
-    print(f"[Phase D] Verbinde mit GR00T-Server: {args.server}")
-    client = PolicyClient(server_url=args.server, timeout_ms=20_000)
+    if oracle:
+        client = OracleReplayClient(args.execution_horizon,
+                                    on_reset=lambda state: set_robot_state(env, state))
+    else:
+        # Phase D: ZMQ-Verbindung aufbauen
+        print(f"[Phase D] Verbinde mit GR00T-Server: {args.server}")
+        client = PolicyClient(server_url=args.server, timeout_ms=20_000)
 
-    if not client.ping(retries=args.ping_retries, delay=5.0):
-        print("[FEHLER] Server nicht erreichbar. Abbruch.")
-        env.close()
-        sys.exit(1)
+    # Orakel: kein Server, kein Dummy-Aufruf (der Client hat vor load() keine Episode).
+    if not oracle:
+        if not client.ping(retries=args.ping_retries, delay=5.0):
+            print("[FEHLER] Server nicht erreichbar. Abbruch.")
+            env.close()
+            sys.exit(1)
 
-    print("[Phase D] Server erreichbar — starte Eval-Schleife.")
-    print()
+        print("[Phase D] Server erreichbar — starte Eval-Schleife.")
+        print()
 
-    # Dummy-Test (Phase D Abnahme): get_action mit synthetischer Obs
-    dummy_rgb = np.zeros((CAMERA_CFG.height, CAMERA_CFG.width, 3), dtype=np.uint8)
-    dummy_joint = np.zeros(28, dtype=np.float32)
-    dummy_obs = build_obs(
-        dummy_rgb, dummy_rgb, dummy_rgb, dummy_rgb, dummy_joint,
-        task_description=args.task_description,
-    )
-    dummy_chunk = client.get_action(dummy_obs)
-    assert dummy_chunk.shape == (16, 28), f"Unerwartete Chunk-Shape: {dummy_chunk.shape}"
-    print(f"[Phase D] Dummy-get_action OK: shape={dummy_chunk.shape}")
-    print()
+        # Dummy-Test (Phase D Abnahme): get_action mit synthetischer Obs
+        dummy_rgb = np.zeros((CAMERA_CFG.height, CAMERA_CFG.width, 3), dtype=np.uint8)
+        dummy_joint = np.zeros(28, dtype=np.float32)
+        dummy_obs = build_obs(
+            dummy_rgb, dummy_rgb, dummy_rgb, dummy_rgb, dummy_joint,
+            task_description=args.task_description,
+        )
+        # Der erste Aufruf ist der teuerste (torch.compile/TensorRT-Warmup, CUDA-Graphen) und
+        # kann den 20-s-Timeout reißen. Der Client baut seinen Socket danach neu auf, ein
+        # zweiter Versuch trifft den dann warmen Server (Review 2026-10-13, S1).
+        dummy_chunk = None
+        for _attempt in range(1, 4):
+            try:
+                dummy_chunk = client.get_action(dummy_obs)
+                break
+            except Exception as e:
+                print(f"[Phase D] Dummy-get_action Versuch {_attempt}/3 fehlgeschlagen: "
+                      f"{type(e).__name__}: {e}", flush=True)
+        if dummy_chunk is None:
+            print("[FEHLER] Policy-Server liefert keine Aktion. Abbruch.", flush=True)
+            client.close()
+            env.close()
+            sys.exit(1)
+        assert dummy_chunk.shape == (16, 28), f"Unerwartete Chunk-Shape: {dummy_chunk.shape}"
+        print(f"[Phase D] Dummy-get_action OK: shape={dummy_chunk.shape}")
+        print()
 
     # Eval-Schleife
     results = []
     record = bool(args.video_dir)
+    # Zwei Fehler in Folge = der Server ist weg oder hängt. Weiterlaufen lieferte nur
+    # weitere ungültige Episoden, die man sonst für ein plausibles 0/N hielte.
+    max_consecutive_errors = 2
+    consecutive_errors = 0
+    aborted_reason = None
 
     for ep in range(args.num_episodes):
         print(f"--- Episode {ep + 1}/{args.num_episodes} ---")
         if cfg.block_layout:
             env.layout_index = ep   # Lage ep (reihum), s. _place_blocks_from_layout
+        if oracle:
+            # Dieselbe Episode wie die Würfellage (gleiche Indexregel wie
+            # _place_blocks_from_layout), sonst passte die Demo nicht zu den Würfeln.
+            oracle_ep = int(cfg.block_layout[ep % len(cfg.block_layout)]["key"])
+            client.load(oracle_ep, *load_episode_arrays(args.oracle_dataset, oracle_ep))
+            print(f"  Orakel: Datensatz-Episode {oracle_ep}, {client.demo_steps} Steps "
+                  f"({client.demo_steps / cfg.policy_hz:.1f} s), danach letzte Aktion halten",
+                  flush=True)
         ep_result = run_episode(
             env=env,
             client=client,
@@ -677,7 +812,27 @@ def main():
             video_dir=args.video_dir,
         )
         ep_result["episode"] = ep + 1
+        if oracle:
+            ep_result["oracle_episode"] = oracle_ep
+            ep_result["oracle_tracking"] = trk = client.tracking_summary()
+            if trk.get("samples"):
+                print(f"  Tracking Sim↔Aufzeichnung (RMSE / max, rad): Arme "
+                      f"{trk['rmse_arm']:.3f} / {trk['max_abs_arm']:.3f} · Hände "
+                      f"{trk['rmse_hand']:.3f} / {trk['max_abs_hand']:.3f} · Hände am Ende "
+                      f"{trk['final_hand_rmse']:.3f}", flush=True)
         results.append(ep_result)
+
+        if ep_result["error"]:
+            consecutive_errors += 1
+            print(f"  Episode {ep + 1}: ABGEBROCHEN (ungültig) — {ep_result['error_reason']}",
+                  flush=True)
+            if consecutive_errors >= max_consecutive_errors:
+                aborted_reason = (f"{consecutive_errors} Episoden in Folge abgebrochen, "
+                                  f"zuletzt: {ep_result['error_reason']}")
+                print(f"[FEHLER] {aborted_reason} — Eval wird beendet.", flush=True)
+                break
+            continue
+        consecutive_errors = 0
 
         status = "ERFOLG" if ep_result["success"] else "misslungen"
         print(
@@ -689,28 +844,35 @@ def main():
             f"(Step {ep_result['min_reach_step']}) | "
             f"Würfel verschoben max. {ep_result['block_shift_max_m'] * 100:.1f} cm | "
             f"Fingerspanne {ep_result['finger_span_max_rad']:.2f} rad | "
-            f"Anhebung max. {ep_result['max_cube_lift_cm']:.1f} cm"
+            f"Anhebung max. {ep_result['max_cube_lift_cm']:.1f} cm "
+            f"(Unterseite mit Hand {ep_result['max_clear_lift_cm']:.1f} cm)"
         )
         reached_stages = [k for k, v in ep_result["milestones"].items() if v]
         print(f"      Meilensteine: {' → '.join(reached_stages) if reached_stages else '(keiner)'}")
 
-    # Auswertung
-    n_success = sum(1 for r in results if r["success"])
-    success_rate = n_success / len(results) if results else 0.0
+    # Auswertung — Quoten NUR über gültige Episoden. Eine abgebrochene Episode ist kein
+    # Misserfolg der Policy, sondern keine Messung.
+    valid = [r for r in results if not r["error"]]
+    n_aborted = len(results) - len(valid)
+    n_success = sum(1 for r in valid if r["success"])
+    success_rate = n_success / len(valid) if valid else 0.0
     print()
     print("=" * 60)
-    print(f"Ergebnis: {n_success}/{len(results)} Erfolge — Success-Rate: {success_rate:.1%}")
+    print(f"Episoden: {len(valid)} gültig / {n_aborted} abgebrochen"
+          f"{' (Lauf vorzeitig beendet)' if aborted_reason else ''}")
+    print(f"Ergebnis: {n_success}/{len(valid)} Erfolge — Success-Rate: {success_rate:.1%}")
     # Bei 0 Erfolgen ist das die eigentliche Information: kam die Hand nie an einen Würfel
     # (Geometrie), oder stand sie daneben ohne zu greifen (Wahrnehmung/Politik)?
-    if results:
-        frame = results[0]["reach_frame"]
-        reaches = sorted(r["min_reach_m"] for r in results)
-        shifts = [r["block_shift_max_m"] for r in results]
+    milestone_ci: dict = {}
+    if valid:
+        frame = valid[0]["reach_frame"]
+        reaches = sorted(r["min_reach_m"] for r in valid)
+        shifts = [r["block_shift_max_m"] for r in valid]
         n_touched = sum(1 for s in shifts if s > 0.01)
         # Wie weit hat die Politik den Abstand gegenüber der Ausgangspose verkleinert?
         # Werte um 0 heißen: die beste Annäherung der Episode war der Reset selbst, der
         # Roboter hat sich also nie auf einen Würfel zubewegt.
-        gains = sorted(r["reach_start_m"] - r["min_reach_m"] for r in results)
+        gains = sorted(r["reach_start_m"] - r["min_reach_m"] for r in valid)
         print(
             f"  Min. {frame}-Würfel-Abstand: bester {reaches[0] * 100:.1f} cm, "
             f"Median {reaches[len(reaches) // 2] * 100:.1f} cm"
@@ -720,18 +882,24 @@ def main():
             f"Median {gains[len(gains) // 2] * 100:.1f} cm"
         )
         print(f"  Episoden mit bewegtem Würfel (>1 cm nach Einschwingen): "
-              f"{n_touched}/{len(results)}")
-        spans = sorted(r["finger_span_max_rad"] for r in results)
+              f"{n_touched}/{len(valid)}")
+        spans = sorted(r["finger_span_max_rad"] for r in valid)
         median_span = spans[len(spans) // 2]
         print(
             f"  Fingerspanne (Kommando): Median {median_span:.2f} rad "
             f"= {median_span / DEMO_FINGER_SPAN_RAD:.0%} der Demonstration "
             f"({DEMO_FINGER_SPAN_RAD:.2f} rad)"
         )
-        lifts = sorted(r["max_cube_lift_cm"] for r in results)
+        lifts = sorted(r["max_cube_lift_cm"] for r in valid)
         print(
-            f"  Würfel-Anhebung: beste {lifts[-1]:.1f} cm, "
+            f"  Würfel-Anhebung (Schwerpunkt): beste {lifts[-1]:.1f} cm, "
             f"Median {lifts[len(lifts) // 2]:.1f} cm"
+        )
+        clears = sorted(r["max_clear_lift_cm"] for r in valid)
+        print(
+            f"  Würfel-Unterseite über Tisch (mit Hand, Proxy <= "
+            f"{HAND_CONTACT_PROXY_M * 100:.0f} cm): beste {clears[-1]:.1f} cm, "
+            f"Median {clears[len(clears) // 2]:.1f} cm"
         )
         print()
         # Die Leiter als Ganzes: an welcher Stufe bricht es ab? Das ist die Zahl, gegen
@@ -743,20 +911,56 @@ def main():
         # angestoßen hat — Handfläche oder Fingerglieder. Genau das zeigen die Zahlen aus
         # Lauf 30 (Würfel 3,8 cm verschoben bei 6,3 cm Kuppenabstand). Eine erzwungene
         # Monotonie würde diesen Fall unsichtbar machen.
-        print("  Meilenstein-Leiter (Episoden, die die Stufe erreichen):")
-        for stage in ("reached", "grasp_attempted", "touched", "lifted", "stacked"):
-            n = sum(1 for r in results if r["milestones"][stage])
-            bar = "#" * round(20 * n / len(results))
-            print(f"    {stage:<16} {n:>3}/{len(results)}  {bar}")
+        print("  Meilenstein-Leiter (gültige Episoden, die die Stufe erreichen):")
+        for stage in ("reached", "grasp_attempted", "touched", "lifted", "lifted_clear",
+                      "stacked"):
+            n = sum(1 for r in valid if r["milestones"][stage])
+            bar = "#" * round(20 * n / len(valid))
+            print(f"    {stage:<16} {n:>3}/{len(valid)}  {bar}")
+        # Clopper-Pearson 95 % (Review 2026-10-13, M4): bei n = 10 bis 20 ist das
+        # Intervall so breit, dass zwei Läufe mit 0/10 und 1/10 sich NICHT unterscheiden.
+        print("  95-%-Konfidenzintervalle (Clopper-Pearson, exakt):")
+        for stage in ("lifted", "lifted_clear", "stacked"):
+            n = sum(1 for r in valid if r["milestones"][stage])
+            print(f"    {stage:<16} {format_rate_ci(n, len(valid))}")
+            milestone_ci[stage] = {"k": n, "n": len(valid)}
+        if oracle:
+            trks = [r["oracle_tracking"] for r in valid if r["oracle_tracking"].get("samples")]
+            if trks:
+                print("  Orakel-Tracking (Median über Episoden, rad):")
+                for key in ("rmse_arm", "rmse_hand", "max_abs_hand", "final_hand_rmse"):
+                    print(f"    {key:<16} {float(np.median([t[key] for t in trks])):.3f}")
     print("=" * 60)
+
+    # KI-Grenzen fürs JSON (gleiche Funktion wie die Ausgabe oben).
+    for stage, rec in milestone_ci.items():
+        lo, hi = clopper_pearson(rec["k"], rec["n"])
+        rec.update({"rate": rec["k"] / rec["n"], "ci95": [round(lo, 4), round(hi, 4)]})
 
     # Ergebnisse speichern
     summary = {
+        # num_episodes = durchgeführte Episoden (gültig + abgebrochen); Quoten beziehen
+        # sich auf num_valid. Bis 2026-10-13 zählte jede Episode als gültig (Review S1).
         "num_episodes": len(results),
+        "num_episodes_requested": args.num_episodes,
+        "num_valid": len(valid),
+        "num_aborted": n_aborted,
+        "aborted": aborted_reason is not None,
+        "aborted_reason": aborted_reason,
         "num_success": n_success,
         "success_rate": success_rate,
-        # Ohne dieses Feld ist ein Ergebnis nicht zuordenbar: die Datei liegt immer unter
-        # demselben Pfad und wird von jedem Lauf überschrieben.
+        "milestone_ci95": milestone_ci,
+        "lifted_clear_definition": {
+            "bottom_above_table_m": LIFT_CLEAR_THRESHOLD_M,
+            "hand_contact": "Proxy: Fingerkuppen-Abstand zur Würfelmitte <= "
+                            f"{HAND_CONTACT_PROXY_M} m (keine Kontaktsensoren in der Env)",
+        },
+        # "oracle_replay" = aufgezeichnete Aktionen statt Policy (--oracle-dataset).
+        "policy": "oracle_replay" if oracle else "groot",
+        "oracle_dataset": args.oracle_dataset or None,
+        "groot_version": "" if oracle else os.getenv("GROOT_VERSION", ""),
+        # Ohne dieses Feld ist ein Ergebnis nicht zuordenbar (s. auch die Archivkopie
+        # mit Zeitstempel + Checkpoint-Name unten).
         "checkpoint": ckpt,
         "server": args.server,
         "task_description": args.task_description,
@@ -775,20 +979,37 @@ def main():
     }
     summary["episode_length_s"] = cfg.episode_length_s
     summary["max_steps_per_episode"] = int(cfg.episode_length_s * cfg.policy_hz)
-    Path(args.results_file).parent.mkdir(parents=True, exist_ok=True)
-    with open(args.results_file, "w") as f:
-        json.dump(summary, f, indent=2)
-    print(f"Ergebnisse gespeichert: {args.results_file}")
+    results_path = Path(args.results_file)
+    results_path.parent.mkdir(parents=True, exist_ok=True)
+    # Je Lauf eine eigene Datei (Zeitstempel + Checkpoint-Name), damit ein Folgelauf das
+    # Ergebnis nicht überschreibt; --results-file bleibt als "neuester Lauf" (Kopie)
+    # bestehen, alle Leser (server_rl_run.sh, optimize, KISSKI) lesen weiter dort.
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    ckpt_name = ("oracle" if oracle else
+                 Path(args.checkpoint_path).name if args.checkpoint_path else "unbekannt")
+    ckpt_name = "".join(c if c.isalnum() or c in "-_." else "_" for c in ckpt_name) or "ckpt"
+    archive = results_path.with_name(
+        f"{results_path.stem}_{stamp}_{ckpt_name}{results_path.suffix or '.json'}")
+    payload = json.dumps(summary, indent=2)
+    archive.write_text(payload)
+    results_path.write_text(payload)
+    print(f"Ergebnisse gespeichert: {results_path} (Archiv: {archive.name})")
+
+    # Aufräumen
+    client.close()
+    if aborted_reason is not None:
+        # KEIN Erfolgsmarker: die Entrypoints werten ihn aus (isaaclab.sh reicht den
+        # Exit-Code nicht zuverlässig durch). Exit != 0 trotzdem, für direkte Aufrufe.
+        print(f"[eval] ABGEBROCHEN: {aborted_reason}", flush=True)
+        env.close()
+        simulation_app.close()
+        sys.exit(2)
     # Erfolgsmarker wie in dump_camera_poses.py / measure_domain_gap.py: isaaclab.sh gibt
     # den Exit-Code des Pythons NICHT durch (ein Traceback endet trotzdem mit 0), ein
     # Abbruch mitten in der Eval-Schleife bliebe sonst unbemerkt.
     print("[eval] fertig.", flush=True)
-
-    # Aufräumen
-    client.close()
     env.close()
     simulation_app.close()
-
 
 if __name__ == "__main__":
     main()

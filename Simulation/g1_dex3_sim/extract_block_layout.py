@@ -64,6 +64,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from camera_geometry import CAMERA_CFG, PinholeCamera  # noqa: E402
 from scene_geometry import CUBE_Z_CENTER  # noqa: E402
+from split_math import split_record, train_count  # noqa: E402
 
 
 # Würfelreihenfolge = block_0/1/2 aus g1_dex3_blockstack_env.py. Die Farben dort sind an die
@@ -879,8 +880,12 @@ def select_episodes(root: Path, args) -> list[int]:
     with open(root / "meta" / "info.json") as fh:
         info = json.load(fh)
     total = int(info["total_episodes"])
-    n_train = int(total * args.train_ratio)
+    # Formel aus split_math (= Training/scripts/lib_split.sh). Ohne Validierung, weil
+    # --train-ratio 1.0 (Training ohne Split) für den Train-Pfad zulässig bleibt; der
+    # Held-out-Pfad prüft unten selbst, dass es Test-Episoden gibt.
+    n_train = train_count(total, args.train_ratio, validate=False)
     if getattr(args, "held_out", False):
+        train_count(total, args.train_ratio)   # leerer Test-Split -> ValueError
         # Nur für die EVAL (Startlagen, run_g1_dex3_sim_eval.py --layout): gelesen wird
         # allein das Startbild, es entsteht kein Trainingsbild. render_cotrain_dataset.py
         # wählt seine Episoden selbst und rührt diese nie an.
@@ -905,6 +910,19 @@ def select_episodes(root: Path, args) -> list[int]:
     return sorted({int(round(i)) for i in np.linspace(0, n_train - 1, n)})
 
 
+def _split_fields(root: Path, args) -> dict:
+    """total_episodes / train_split_ratio / n_train für den layout.json-Kopf."""
+    with open(root / "meta" / "info.json") as fh:
+        total = int(json.load(fh)["total_episodes"])
+    try:
+        return split_record(total, args.train_ratio)
+    except ValueError:
+        # Ratio 1.0 o. ä.: kein Test-Split. Trotzdem festhalten, was galt.
+        return {"total_episodes": total, "train_split_ratio": float(args.train_ratio),
+                "n_train": train_count(total, args.train_ratio, validate=False),
+                "formula": "int(total*ratio), wie Training/scripts/lib_split.sh"}
+
+
 def header_mismatch(existing: dict, wanted: dict) -> str:
     """Was an einer vorhandenen layout.json nicht zum laufenden Aufruf passt (leer = passt).
 
@@ -925,6 +943,9 @@ def header_mismatch(existing: dict, wanted: dict) -> str:
         reasons.append(f"Datensatz {existing['source_dataset']}")
     if existing.get("split", "train") != wanted.get("split", "train"):
         reasons.append(f"Split {existing.get('split', 'train')} statt {wanted['split']}")
+    if (existing.get("n_train") is not None and wanted.get("n_train") is not None
+            and existing["n_train"] != wanted["n_train"]):
+        reasons.append(f"Split-Grenze n_train={existing['n_train']} statt {wanted['n_train']}")
     return ", ".join(reasons)
 
 
@@ -940,6 +961,10 @@ def run_extract(args) -> int:
               "z_plane": Z_CUBE_CENTER, "source_dataset": str(root),
               # "test" = zurückgehaltene Episoden, nur als Eval-Startlagen (--held-out)
               "split": "test" if getattr(args, "held_out", False) else "train"}
+    # Split-Grenze mitschreiben (Review 2026-10-13, S6): die Eval liest n_train von hier,
+    # statt 240 fest anzunehmen — ein Synth-Satz oder eine andere Ratio beschriftet
+    # Episoden sonst still falsch.
+    layout.update(_split_fields(root, args))
     # Bestehende Datei IMMER laden. Bis 2026-08-25 fing --overwrite mit einem leeren Dict
     # an; zusammen mit --episode-ids blieben danach nur die neu gerechneten Episoden übrig
     # und der Rest war weg — samt der teuren Bewegungsbeginne. Gemeint war --overwrite nie
@@ -956,6 +981,8 @@ def run_extract(args) -> int:
                   flush=True)
             return 1
         old.setdefault("episodes", {})
+        # Ältere Dateien ohne Split-Felder bekommen sie jetzt nachgetragen.
+        old.update(_split_fields(root, args))
         layout = old
 
     for k, ep in enumerate(episodes, 1):
