@@ -4,7 +4,7 @@
 > — inzwischen umgesetzt (Status-Banner unten). Erklärt Architektur, Parameter-Spezifikation als
 > einzige Quelle und, in §12, die Abweichungen vom ursprünglichen Plan.
 
-> **Status: umgesetzt am 2026-08-20** auf `training-luca-IKR-IS6.0`. Alle sieben Phasen
+> **Status: umgesetzt am 2026-08-20** (damals auf dem inzwischen gelöschten Branch `training-luca-IKR-IS6.0`, heute auf `main`). Alle sieben Phasen
 > stehen, mit zwei bewussten Abweichungen vom Plan (Phase 5 und §4.4) — siehe
 > [§12 Umsetzungsstand](#12-umsetzungsstand). Der Plantext unten bleibt als
 > Begründungsprotokoll erhalten; wo die Umsetzung abweicht, steht es dort.
@@ -65,8 +65,7 @@ Aufwand: **1–2 Tage** für den tragenden Teil (Engine + `eval` + Trainings-Lau
 
 ## 1. Befund am bestehenden Code
 
-Ursprünglich erhoben auf `training-luca-IKR-IS6.0-GN1.7`; die Spalte „hier" ist auf
-`training-luca-IKR-IS6.0` vor der Umsetzung nachgezählt worden.
+Ursprünglich erhoben auf dem damaligen N1.7-Branch `training-luca-IKR-IS6.0-GN1.7` (inzwischen gelöscht); die Spalte „hier" ist auf dem damaligen Hauptbranch `training-luca-IKR-IS6.0` vor der Umsetzung nachgezählt worden.
 
 | Befund | GN1.7 | hier |
 |---|---|---|
@@ -192,10 +191,10 @@ sind nicht im Image — Menüänderungen kosten so nie einen Build. Zusätzlich 
 gemeinsames `tools/` die Doppelablage, die bei den *im Image* liegenden Bibliotheken durch die
 Docker-`COPY`-Grenze erzwungen wird — für die Host-Launcher gilt diese Grenze nicht.
 
-> **Branch-Hinweis:** Der Plan wurde auf `training-luca-IKR-IS6.0-GN1.7` erhoben. `GROOT_VERSION`
-> ist dort die Laufzeit-Auswahl zwischen N1.6 und N1.7; auf `training-luca-IKR-IS6.0` existiert die
-> Variable **nicht** — alle `GROOT_VERSION`-Nennungen unten entfallen hier ersatzlos, bis der
-> N1.7-Pfad gemerged ist. Am Rest des Plans ändert das nichts.
+> **Branch-Hinweis (historisch):** Der Plan wurde auf dem damaligen N1.7-Branch erhoben; dort war
+> `GROOT_VERSION` die Laufzeit-Auswahl zwischen N1.6 und N1.7, auf dem damaligen Hauptbranch gab es
+> sie noch nicht. Seit dem Merge (2026-10-13) liegt alles auf `main`, die `GROOT_VERSION`-Nennungen
+> unten gelten also uneingeschränkt.
 
 ### 3.2 Die Spezifikations-DSL
 
@@ -701,8 +700,8 @@ dieser beiden Angaben meldet der Bericht als `UNGEPRUEFT`. Derzeit sind es null.
 ### 12.4 Was bewusst nicht gebaut wurde
 
 - **`update_image.sh` / `update_sim_image.sh`** (§4.4). Der Plan nennt als Hauptgewinn die
-  Frage „auch `:latest` pushen?" (`--push-latest`). Dieses Flag existiert auf
-  `training-luca-IKR-IS6.0` **nicht** — es kam auf dem N1.7-Branch dazu. Übrig blieben
+  Frage „auch `:latest` pushen?" (`--push-latest`). Dieses Flag existierte auf
+  dem damaligen Hauptbranch **nicht** — es kam auf dem N1.7-Branch dazu und ist seit dem Merge auf `main`. Übrig blieben
   vier selbsterklärende Flags (`--no-cache`, `--skip-push`, `--dry-run`,
   `--update-commit`); dafür lohnt ein Menü nicht. Nach einem Merge des N1.7-Pfads neu zu
   bewerten.

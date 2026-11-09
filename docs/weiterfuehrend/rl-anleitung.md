@@ -4,6 +4,8 @@
 > BC-Checkpoint bis zum laufenden RL-Training auf einer RT-Core-GPU, plus die Diagnose-Werkzeuge
 > `gap`/`eval`/`grasp`/`span`. Status und Lauf-Historie im Banner direkt darunter.
 
+> **Aktueller Stand (2026-11-09):** Die Pipeline ist gebaut und technisch lauffähig (N1.6-only), es gibt aber **keinen RL-Trainingslauf und kein RL-Ergebnis**; die Trainer-Korrekturen vom 2026-10-13 sind nicht auf Hardware geprüft. Empfohlener Startpunkt ist Modell C (`luca-mue/groot-g1dex3-cotrain-v3-cube4-ckpt44000`, 2/60 Griffe = schwaches Signal). Maßgeblich ist der Nachtrag 2026-11-09 im Banner unten, ältere Nachträge sind Historie; Gesamtstatus: [next-steps.md §0](../../next-steps.md).
+
 Ziel: Den feingetunten GR00T-N1.6-**BC-Checkpoint** per **Reinforcement Learning (FPO)** in der
 Isaac-Lab-Block-Stacking-Sim weiter verfeinern — auf einer **RT-Core-GPU** (L40 / RTX 4090 / A6000
 oder ein eigener Server mit RT-Core-GPU, z. B. RTX PRO 6000 Blackwell). RL trainiert die Policy
@@ -23,17 +25,19 @@ statt nur Aktions-Nachahmung (Hintergrund: [reinforcement-learning-plan.md](rein
 >
 > **Nachtrag 2026-10-29:** Neumessung mit korrigierter Szene erfolgt: N1.6 @44000 `reached` 16/20, `lifted_clear` 0/20 (Lauf 82); N1.7 0/10 bzw. 0/20 (Läufe 54/55, 81). Messung auf Testepisoden erfolgt: `span` N1.6 vision-v2 @30000 90 %, N1.7 @44000 94 % (Läufe 57–61). Co-Training v3 liegt vor (Läufe 73–97, `lifted_clear` 2/60); ein RL-Lauf seit 2026-08-08 fehlt weiterhin.
 >
+> **Nachtrag 2026-11-09 (Abgabestand):** Es gibt weiterhin **keinen RL-Trainingslauf und kein RL-Ergebnis**; die Pipeline (FPO) ist gebaut, N1.6-only. Als RL-Startpunkt vorgesehen ist Modell C (`luca-mue/groot-g1dex3-cotrain-v3-cube4-ckpt44000`, Lauf 74); `lifted_clear` 2/60 (3 %) ist nur ein schwaches Startsignal. Weiterführende Arbeit, nicht Teil der Abgabe. Status: [next-steps.md §0](../../next-steps.md).
+>
 > **Nachtrag 2026-10-13 — frühere RL-Lernsignale sind nicht belastbar.** Drei Fehler im Trainer
 > sind behoben (Review 10-13 S2–S4): (1) `success` war durch einen Messfehler praktisch immer ≈ 0
 > (gelesen, nachdem `_reset_idx` das Flag schon gelöscht hatte) — jetzt vor dem Auto-Reset aus
 > `terminated` gezählt; (2) die FPO-Ratio verglich `old_logp`/`new_logp` aus **verschiedenen**
 > Rausch- und `t`-Ziehungen — jetzt werden die Seeds beim Rollout gespeichert und im Update
-> wiederverwendet, und Epoche 0 schreibt eine Zeile `[rl] Ratio-Selbsttest …` (max|r−1| sollte
+> wiederverwendet, und Iteration 0 schreibt eine Zeile `[rl] Ratio-Selbsttest …` (max|r−1| sollte
 > ≲ 1e-3 sein); (3) das globale `env.reset()` nach jedem `done` ist entfernt, Timeouts werden mit
 > Truncation-Bootstrap behandelt. Neu: `RL_EXEC_HORIZON` (Default 1; mit 8 wie in der Eval).
 > **Noch nicht auf Hardware geprüft.** Verifikation auf dem IKR-Server:
 > 1. `RL_ITERATIONS=2 RL_NUM_ENVS=2 ./Simulation/server_rl_run.sh rl` — läuft durch, Ratio-Selbsttest
->    in Epoche 0 ≈ 1.
+>    in Iteration 0 ≈ 1.
 > 2. Dasselbe mit `RL_EXEC_HORIZON=8`.
 >
 > Die Eval meldet außerdem die kipp-robuste Stufe `lifted_clear`; RL erst, wenn sie > 0 ist.
@@ -282,7 +286,7 @@ lucam03/projekt-humanoider-roboter-sim-standalone:latest
 | `RL_LR` | `1e-5` | Nein |
 | `RL_KL_COEF` | `0.1` | Nein (KL gegen BC, gegen Reward-Hacking) |
 | `RL_CLIP` | `0.2` | Nein |
-| `WANDB_API_KEY` | `...` | Empfohlen (Erfolgsrate-Logging) |
+| `WANDB_API_KEY` | `...` | Empfohlen (Erfolgsrate-Logging); der Entrypoint loggt standardmäßig **offline** (`WANDB_MODE=offline`), für Live-Dashboard `WANDB_MODE=online` setzen |
 | `SHELL_ON_ERROR` | `1` | **Empfohlen** (bei Fehler in Shell statt Container-Tod) |
 
 > **Erst klein anfangen:** Der Render-Durchsatz mit 4 Kameras bestimmt das machbare `RL_NUM_ENVS`
@@ -327,10 +331,10 @@ vastai ssh <instance-id>            # SSH-Befehl
 ```text
 [rl] device=cuda  num_envs=8
 [rl] trainierbare Tensoren: ...
-[rl] iter 0000  reward=+0.123  success=0.000
-[rl] iter 0001  reward=+0.187  success=0.000
+[rl] iter 0000  reward=+0.123  success=0.000 (0/0 Episoden)  pol=…  kl=…  val=…
+[rl] iter 0001  reward=+0.187  success=0.000 (0/3 Episoden)  pol=…  kl=…  val=…
 ...
-[rl] Checkpoint gespeichert: /data/g1_dex3_rl/rl-checkpoint-50
+[rl] Checkpoint gespeichert: /data/g1_dex3_rl/rl-checkpoint-100   # alle RL_SAVE_EVERY (Default 100) Iterationen
 ```
 
 **Hauptmetrik ist die Erfolgsrate, NICHT der Loss** (RL-Plan §5/Gruppe 3). In W&B

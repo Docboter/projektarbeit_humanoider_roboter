@@ -12,6 +12,8 @@
 > (`cotrain_synth_v1`) brach am 2026-09-07 nach 138 s ab.
 >
 > **Nachtrag 2026-10-29:** Neumessung mit korrigierter Szene erfolgt: N1.6 @44000 `reached` 16/20, `lifted_clear` 0/20 (Lauf 82); N1.7 0/10 bzw. 0/20 (Läufe 54/55, 81). Co-Training v3 liegt vor (Läufe 73–97, erste Griffe `lifted_clear` 2/60); RL-Läufe gibt es weiterhin keine.
+>
+> **Nachtrag 2026-11-09 (Abgabestand):** Es gibt weiterhin **keinen RL-Trainingslauf und kein RL-Ergebnis**; die Pipeline (FPO) ist gebaut, N1.6-only. Als RL-Startpunkt vorgesehen ist Modell C (`luca-mue/groot-g1dex3-cotrain-v3-cube4-ckpt44000`, Lauf 74); `lifted_clear` 2/60 (3 %) ist nur ein schwaches Startsignal. Weiterführende Arbeit, nicht Teil der Abgabe. Status: [next-steps.md §0](../../next-steps.md).
 
 > **Status: Pipeline läuft end-to-end, Lernwirkung noch offen.** Dieses Dokument beschreibt
 > Motivation, Bausteine und Phasen-Plan.

@@ -6,6 +6,7 @@
 
 **Status:** **Spur B gebaut** ([`live_view.py`](../../Simulation/g1_dex3_sim/live_view.py), 2026-08-08) ·
 **Spur A gebaut** (2026-08-13, D1–D4 + D6 behoben) — **für beide kein dokumentierter Client-Test auf Hardware** (Stand 2026-10-11; die Zeitmessung vom 2026-08-13 mit `LIVESTREAM=2` belegt nur die Eval-Laufzeit, keine Client-Verbindung) ·
+**Stand 2026-11-09:** unverändert, der Hardware-Test der Live-Ansicht ist weiter nicht belegt ([next-steps.md](../../next-steps.md)); `server_rl_run.sh` bietet `view`, `webview` und `livecheck`. Weiterführende Arbeit, nicht Teil der Abgabe ·
 **Erstellt:** 2026-06-02 · **Revision v2:** 2026-08-07 · **v3:** 2026-08-08 · **v4:** 2026-08-13
 
 > ## Umsetzungsstand

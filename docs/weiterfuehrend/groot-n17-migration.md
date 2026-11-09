@@ -3,7 +3,7 @@
 > **TL;DR:** Recherche und Migrationsplan für den Umstieg GR00T N1.6 → N1.7, plus den erreichten
 > Umsetzungsstand. N1.7 ist als **paralleler Pfad** gebaut — zweiter Code-Baum `app/Groot-1.7`,
 > Laufzeit-Auswahl per `GROOT_VERSION`, ein Image je Generation — und seit 2026-10-13 im
-> Hauptbranch. Smoke-Tests bestanden (IKR-Blackwell 2026-09-25, KISSKI 2026-10-12); der
+> Hauptbranch (heute `main`). Stand 2026-10-30. Smoke-Tests bestanden (IKR-Blackwell 2026-09-25, KISSKI 2026-10-12); der
 > Vergleichslauf (Lauf 4, 44k Steps) ist fertig: Open-Loop gleichauf mit N1.6, früheres Lernen,
 > 1,6× schneller ([lauf4-n17-vergleich.md](../ergebnisse/lauf4-n17-vergleich.md)); in der Sim
 > 0/10 `lifted` wie N1.6 (Läufe 54/55, noch mit dem alten Messaufbau). Was sich ändert (gated Cosmos-Reason2-2B-Backbone, Python 3.12/torch 2.9,
@@ -37,7 +37,7 @@ verglichen wird).
 >
 > | | Stand |
 > |---|---|
-> | Code | paralleler Pfad, `GROOT_VERSION=1.6\|1.7\|auto`, seit 2026-10-13 im Branch `training-luca-IKR-IS6.0` gemergt |
+> | Code | paralleler Pfad, `GROOT_VERSION=1.6\|1.7\|auto`, seit 2026-10-13 gemergt, heute auf `main` |
 > | Images | Training: Docker Hub `:latest-n17` (seit 2026-09-29). Sim: Docker Hub `lucam03/projekt-humanoider-roboter-sim-standalone:latest` = `:20261014-141304` mit N1.6 **und** N1.7 (seit 2026-10-14; vorher nur lokal gebaut, Hub-Image N1.6-only) |
 > | Smoke-Tests | IKR-Blackwell 2026-09-25 (1 GPU, 2 GPUs, `TUNE_VISUAL`+Split, Laden + Open-Loop), KISSKI 2026-10-12 |
 > | Voller Trainingslauf | **fertig**: KISSKI 2026-10-13, 44 000 Steps, 7 h 53 min (Lauf 4); Open-Loop am Ende gleichauf mit N1.6, lernt früher, 1,6× schneller ([lauf4-n17-vergleich.md](../ergebnisse/lauf4-n17-vergleich.md)) |
@@ -47,7 +47,7 @@ verglichen wird).
 Umgesetzt wurde N1.7 als **paralleler Pfad neben N1.6** — nicht als Ersatz. Codebäume, Images
 und Scripts sind angepasst, Images gebaut (Docker Hub `:latest-n17` seit 2026-09-29), Smoke-Tests,
 Vergleichslauf und erste Sim-Läufe gelaufen (Phasen 3–5 unten). Seit 2026-10-13 ist der Pfad in
-`training-luca-IKR-IS6.0` gemergt. Die Überschrift trägt das Datum des ersten Umsetzungsstands;
+gemergt (heute `main`; die Feature-Branches sind gelöscht). Die Überschrift trägt das Datum des ersten Umsetzungsstands;
 die Phasen sind einzeln datiert. Der Rest dieses Dokuments (§1–§8) bleibt als
 Recherche-/Planungsgrundlage stehen; dieser Abschnitt hält den tatsächlichen Umsetzungsstand
 je Phase fest.
@@ -213,9 +213,8 @@ mit diesem Stand aktualisiert; Changelog-Eintrag in [historie.md](../historie.md
 Weiterhin gilt: **kein Image gebaut, kein N1.7-Lauf.** Alles Folgende ist statisch geprüft
 (gegen die gepinnten Fork-Commits N1.6 `9508b49` aus `Training/Dockerfile` und N1.7 `efa0169`).
 
-- **Upstream eingemergt:** `training-luca-IKR-IS6.0` (Stand 2026-09-23, 69 Commits) ist per
-  **Merge** (kein Rebase) in diesen Branch geholt — der N1.7-Branch bleibt eigenständig, der
-  spätere Rück-Merge wird kleiner. Dortige Umbenennungen (`Dockerfile.vastai` →
+- **Upstream eingemergt:** Der damalige Hauptbranch `training-luca-IKR-IS6.0` (Stand 2026-09-23, 69 Commits) wurde per
+  **Merge** (kein Rebase) in den damaligen N1.7-Branch geholt (historisch; beide sind inzwischen auf `main` zusammengeführt). Dortige Umbenennungen (`Dockerfile.vastai` →
   `Dockerfile.standalone`, `--vastai` → `--standalone`, `setup_and_train_dockerhub_pull.sh`,
   `sim-eval-anleitung.md`) sind nachgezogen; `GROOT_VERSION` läuft auch durch die neuen
   Upstream-Pfade (`run.sh`, `lib_resume_guard.sh`, `--gradient_accumulation_steps`).
@@ -277,8 +276,8 @@ Weiterhin gilt: **kein Image gebaut, kein N1.7-Lauf.** Alles Folgende ist statis
 | | |
 |---|---|
 | Rechner | `ikr-ki-server-01`, 2 × RTX PRO 6000 Blackwell Max-Q (96 GB) |
-| Image | `lucam03/projekt-humanoider-roboter:training-luca-IKR-IS6.0-GN1.7-n17` — auf dem Server mit `update_image.sh --groot=1.7` gebaut, gestartet mit `--skip-pull` |
-| Skripte | per Bind-Mount aus dem Repo (Branch `training-luca-IKR-IS6.0-GN1.7`, inkl. `22c3183`) |
+| Image | damals Branch-Tag `…:training-luca-IKR-IS6.0-GN1.7-n17` (historisch, heute `:latest-n17`) — auf dem Server mit `update_image.sh --groot=1.7` gebaut, gestartet mit `--skip-pull` |
+| Skripte | per Bind-Mount aus dem Repo (damaliger N1.7-Branch, inzwischen gelöscht, inkl. `22c3183`) |
 | Rezept | Augmentierung an (Color-Jitter), LR 1e-4, Warmup 5 %, `GLOBAL_BATCH_SIZE=8`, `STATE_DROPOUT_PROB` leer = N1.7-Default 0.2, ohne W&B |
 | Container | Test 0 in `groot-n17-smoke`; Tests 1–3 in `groot-n17-tests` (`SKIP_TRAIN=1`, dann von Hand in der Container-Shell) |
 
@@ -355,11 +354,10 @@ Rechner mit mehreren GPUs ohne SLURM. Auf KISSKI setzt SLURM die Variable selbst
 Die operativen Schritte stehen in [kisski-hpc.md](../training/kisski-hpc.md), jeweils in den
 Abschnitten „Nur für `GROOT_VERSION=1.7`“. Reihenfolge:
 
-1. **SIF:** `kisski_submit.sh` erwartet für N1.7 `projekt-humanoider-roboter-n17.sif`. Die
-   Doku zieht `:latest-n17`, der hier getestete Build trägt aber den Branch-Tag
-   `:training-luca-IKR-IS6.0-GN1.7-n17`. Vor dem Pull auf Docker Hub prüfen, welcher Tag
-   existiert, und genau das getestete Image nehmen:
-   `apptainer pull $HOME/images/projekt-humanoider-roboter-n17.sif docker://lucam03/projekt-humanoider-roboter:<tag>`.
+1. **SIF:** `kisski_submit.sh` erwartet für N1.7 `projekt-humanoider-roboter-n17.sif`. Gezogen wird
+   `:latest-n17` (der damals getestete Build trug den Branch-Tag `…-GN1.7-n17`, inzwischen
+   identisch mit `:latest-n17`):
+   `apptainer pull $HOME/images/projekt-humanoider-roboter-n17.sif docker://lucam03/projekt-humanoider-roboter:latest-n17`.
 2. **Fork-Clone** `luca/g1-dex3-n17` nach `$KISSKI_PROJECT_DIR/repo-groot-n17` anlegen
    (kisski-hpc.md, Schritt 2b).
 3. **Modell + gated Backbone auf dem Login-Knoten** in den VAST-Cache laden. Die Compute-Knoten
@@ -386,8 +384,7 @@ Für einen Coding-Agent: Einstieg ist dieser Abschnitt. Die relevanten Code-Pfad
 > Anlauf. Apptainer-SIF, Offline-Cache auf VAST und 4 × A100 mit `TUNE_VISUAL` funktionieren.
 > Nötig war ein Offline-Fix im Fork (unten). Nächster Schritt: Vergleichslauf (Übergabe-Schritt 5).
 
-**Aufbau:** SIF aus `:latest-n17` (gleicher Digest wie der IKR-getestete Tag
-`:training-luca-IKR-IS6.0-GN1.7-n17`) unter `$KISSKI_PROJECT_DIR/images/`; Fork-Clone
+**Aufbau:** SIF aus `:latest-n17` (damals gleicher Digest wie der IKR-getestete Branch-Tag `…-GN1.7-n17`) unter `$KISSKI_PROJECT_DIR/images/`; Fork-Clone
 `repo-groot-n17` auf `efa0169` + Fix; Modell und Backbone per Login-Knoten in
 `data/models/GR00T-N1.7-3B` bzw. `data/hf_cache`.
 
