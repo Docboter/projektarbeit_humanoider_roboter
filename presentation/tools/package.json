@@ -1,0 +1,12 @@
+{
+  "name": "groot-praesentation-tools",
+  "private": true,
+  "description": "PDF-Export und Lite-Standbilder der 3D-Praesentation (Playwright).",
+  "type": "module",
+  "scripts": {
+    "export": "node export_pdf.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.63.0"
+  }
+}

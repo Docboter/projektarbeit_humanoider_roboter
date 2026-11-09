@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<!-- TL;DR: Einstieg der 3D-Präsentation „Die Reise eines Griffs“. Offline lauffähig per Doppelklick
+     oder `python -m http.server`; Tasten: siehe H. Anleitung: presentation/README.md -->
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <title>Fine-Tuning von NVIDIA GR00T · Unitree G1 + DEX3</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="stage">
+    <canvas id="gl" width="1920" height="1080" aria-hidden="true"></canvas>
+    <div id="lite" aria-hidden="true"><img id="liteA" alt=""><img id="liteB" alt=""></div>
+    <div id="veil"></div>
+    <div id="overlay">
+      <div id="scrim"></div>
+      <div id="slide" class="slide" aria-live="polite"></div>
+      <div id="source"></div>
+      <div id="pageno"></div>
+      <div id="progress"><i></i></div>
+    </div>
+  </div>
+  <div id="black"></div>
+  <div id="fps"></div>
+  <div id="help">
+    <h3>Tasten</h3>
+    <table>
+      <tr><td>→ · Leertaste · Klick</td><td>nächster Schritt</td></tr>
+      <tr><td>← · Rechtsklick</td><td>vorheriger Schritt</td></tr>
+      <tr><td>Zahl + Enter</td><td>zu Station springen</td></tr>
+      <tr><td>B</td><td>schwarzer Bildschirm</td></tr>
+      <tr><td>F</td><td>Vollbild</td></tr>
+      <tr><td>P</td><td>Sprecheransicht (zweites Fenster)</td></tr>
+      <tr><td>H</td><td>diese Hilfe</td></tr>
+    </table>
+    <p>URL: <code>#12</code> springt zu Station 12 · <code>?lite=1</code> Standbilder statt 3D · <code>?fps=1</code> Bildrate</p>
+  </div>
+  <noscript><p style="color:#fff;padding:2em">Diese Präsentation braucht JavaScript.</p></noscript>
+
+  <script src="vendor/three/three.min.js"></script>
+  <script src="assets/images.js"></script>
+  <script src="assets/data.js"></script>
+  <script src="assets/robot.js"></script>
+  <script src="js/robot.js"></script>
+  <script src="js/world.js"></script>
+  <script src="js/charts.js"></script>
+  <script src="js/stations.js"></script>
+  <script src="js/speaker.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
