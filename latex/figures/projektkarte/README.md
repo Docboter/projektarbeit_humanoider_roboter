@@ -1,6 +1,6 @@
 # Projektkarte (U-Bahn-Plan des Projekts)
 
-> **TL;DR:** Eine Abbildung, die das ganze Projekt zusammenfasst: Entwicklungsweg Mai bis
+> **TL;DR:** Eine Abbildung, die das ganze Projekt zusammenfasst: Entwicklungsweg April bis
 > November 2026 als U-Bahn-Plan mit Erfolgen, Fehlschlägen, Sackgassen und Fehlannahmen bis zum
 > Stand 01.11.2026. Sie liegt in vier Varianten vor (Ausarbeitung, Poster, Folien, Repo) und wird
 > aus einer TikZ-Quelle gebaut. Die Zahlen selbst stehen in
@@ -12,7 +12,8 @@
 
 | Datei | Format | Zweck |
 |---|---|---|
-| [`projektkarte_a4.pdf`](projektkarte_a4.pdf) | A4 quer | ganzseitige Abbildung in der Ausarbeitung |
+| [`karte_bild.tex`](karte_bild.tex) | TikZ, nativ | Abbildung 8.1 der Ausarbeitung (eigene Querseite, siehe unten) |
+| [`projektkarte_a4.pdf`](projektkarte_a4.pdf) | A4 quer | eigenständiges PDF, Vorlage für SVG und PNG |
 | [`projektkarte_poster_a1.pdf`](projektkarte_poster_a1.pdf) | A1 quer, 84 × 59,4 cm | Poster: Karte, Ziel und Pipeline, Zahlen, Wendepunkte, Sackgassen, Lessons Learned, Ausblick |
 | [`projektkarte_folien.pdf`](projektkarte_folien.pdf) | 3 Folien, 16:9 | 1. Gesamtkarte (reduziert), 2. Stand heute, 3. Wie lange galt ein Irrtum? |
 | [`projektkarte.svg`](projektkarte.svg), [`projektkarte.png`](projektkarte.png) | wie A4 | README und Doku im Repo (SVG skaliert verlustfrei, PNG mit 200 dpi) |
@@ -40,10 +41,11 @@
 latex/figures/projektkarte/build.sh      # LuaLaTeX, dvisvgm, pdftoppm; Zwischendateien in build/
 ```
 
-Die Karte selbst steht nur in [`karte.tex`](karte.tex); Farben, Stationsmarken, Legende und
-Blocker-Kette stehen in [`karte_stil.tex`](karte_stil.tex). `karte.tex` wird zweimal gebaut:
-`voll` (alle Beschriftungen, für A4, Poster und Repo) und `kurz` (nur Wendepunkte und mit `!`
-markierte Stationen, größere Schrift, für die Folie).
+Die Karte selbst steht nur in [`karte_bild.tex`](karte_bild.tex); Farben, Stationsmarken, Legende
+und Blocker-Kette stehen in [`karte_stil.tex`](karte_stil.tex). [`karte.tex`](karte.tex) ist nur der
+Rahmen für `build.sh` und wird zweimal gebaut: `voll` (alle Beschriftungen, für A4, Poster und Repo)
+und `kurz` (nur Wendepunkte und mit `!` markierte Stationen, größere Schrift, für die Folie). Die
+Ausarbeitung bindet `karte_bild.tex` direkt ein und braucht `build.sh` nicht.
 
 Eine Station ergänzen:
 
@@ -55,19 +57,19 @@ Eine Station ergänzen:
 
 ## In die Ausarbeitung einbinden
 
-Die A4-Variante ist für eine eigene Querseite gebaut. Im Satzspiegel (DIV=12, gut 22 × 16 cm)
-würde die Schrift auf etwa 5 pt schrumpfen. Eine eigene Seite mit `pdfpages` behält die Schrift
-bei rund 6 pt:
+Die Ausarbeitung setzt die Karte nativ als Abbildung 8.1 auf eine eigene Querseite in
+[`07_projektverlauf.tex`](../../chapters/07_projektverlauf.tex). Gebaut wird sie mit `latexmk` wie
+der Rest; Änderungen an `karte_bild.tex` erscheinen dort ohne `build.sh`. Die Bausteine:
 
-```latex
-% preamble/packages.tex
-\usepackage{pdfpages}
-% z. B. am Anfang von Kapitel 7 oder als Anhang
-\includepdf[landscape=true, pagecommand={\thispagestyle{empty}}]{figures/projektkarte/projektkarte_a4.pdf}
-```
-
-Für eine nummerierte Abbildung mit Bildunterschrift eignet sich `sidewaysfigure` (Paket
-`rotating`) mit `\includegraphics[width=\textheight]{…}`. Die Karte wird dann kleiner.
+- **Präambel** ([`packages.tex`](../../preamble/packages.tex)): `pdflscape` (Seite im PDF gedreht),
+  `geometry` mit `pass` (nur `\newgeometry` für diese Seite, der KOMA-Satzspiegel bleibt) und
+  `\input` von `karte_stil.tex`.
+- **Seitenstil** `nurseitenzahl` ([`settings.tex`](../../preamble/settings.tex)): ohne Kopfzeile,
+  die sonst quer durch die Karte liefe.
+- **Kapitel:** Die Querseite steht direkt vor Abschnitt 8.2, damit dieser nicht von ihr
+  zerteilt wird. Ränder 12–22 mm, Karte + Blocker-Kette + Legende per `\resizebox` auf die
+  Seitenbreite (Faktor ≈ 0,89, Schrift ≈ 5,7 pt), Bildunterschrift mit `\captionof`, Label
+  `fig:projektkarte`. Die Definitionen aus `karte_bild.tex` bleiben in der Tabellenzelle lokal.
 
 ## Quellen
 
