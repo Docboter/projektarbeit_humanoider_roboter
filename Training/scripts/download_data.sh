@@ -12,7 +12,7 @@
 # nvidia/Cosmos-Reason2-2B in den HF_HOME-Cache geladen (kein --local-dir,
 # damit from_pretrained() den Cache trifft).
 #
-# Vollstaendigkeit (seit 2026-10-13, Review T5): jeder Teil-Download bekommt einen Marker unter
+# Vollstaendigkeit (seit 2026-10-13): jeder Teil-Download bekommt einen Marker unter
 # $DATA_DIR/.download_state/ — <teil>.incomplete waehrend des Ladens, <teil>.done danach. Bis
 # dahin galt ein Ordner schon als vollstaendig, sobald er nicht leer war; ein abgebrochener
 # Download wurde so nie fortgesetzt. Bereits fertige Teile ueberspringt das Skript, deshalb ruft

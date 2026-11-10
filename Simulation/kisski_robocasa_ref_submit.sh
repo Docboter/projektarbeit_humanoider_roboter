@@ -155,7 +155,7 @@ APPTAINER_ARGS=(
 )
 [[ -n "$RC_TASKS" ]] && APPTAINER_ARGS+=(--env "RC_TASKS=$RC_TASKS")
 # Token über APPTAINERENV_ statt --env NAME=wert: sonst steht er in der Prozessliste des
-# geteilten Knotens (wie kisski_submit.sh, Review T4).
+# geteilten Knotens (wie kisski_submit.sh).
 [[ -n "${HF_TOKEN:-}" ]] && export APPTAINERENV_HF_TOKEN="$HF_TOKEN"
 
 if [[ -d "$GROOT_FORK_DIR/gr00t" ]]; then

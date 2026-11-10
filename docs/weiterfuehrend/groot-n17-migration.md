@@ -68,7 +68,7 @@ G1_DEX3-Beispiel/Konverter + Train/Test-Split-Patch + eine README-Notiz, erneut 
 2026-10-12 `cf2032d` (zusätzlich der Offline-Fix für den Backbone-Processor, nötig auf KISSKI),
 seit 2026-10-13 **`288d1de`** (`HF_HUB_OFFLINE`-Auswertung korrigiert, siehe unten). Submodul und
 `GROOT17_COMMIT` in beiden Dockerfiles sind gleich (prüft `tools/ci_check_pins.sh` im CI), und der
-Commit liegt auf `origin/luca/g1-dex3-n17` — die Sorge aus Review 10-13 §5, der Pin könnte wie
+Commit liegt auf `origin/luca/g1-dex3-n17` — die Sorge, der Pin könnte wie
 früher bei N1.6 ungepusht sein, ist damit erledigt.
 
 > **Behoben in `288d1de` (2026-10-13):** Im Offline-Fix galt jeder gesetzte Wert von

@@ -268,7 +268,7 @@ livestream_banner
 echo ""
 
 # Veraltete Ergebnis-Datei vor dem Start entfernen und auf den Erfolgsmarker prüfen statt
-# auf "Datei nicht leer" (Review 2026-10-13, S5; gleiche Regel wie entrypoint_sim.sh).
+# auf "Datei nicht leer" (gleiche Regel wie entrypoint_sim.sh).
 RESULTS_FILE="$DATA_DIR/sim_results/results.json"
 rm -f "$RESULTS_FILE"
 EVAL_LOG="$DATA_DIR/logs/baseline_eval_$(date +%Y%m%d-%H%M%S).log"

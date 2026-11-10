@@ -3,7 +3,7 @@ action oracle "Orakel-Replay: Demo-Aktionen statt Policy (obere Schranke)" \
   --rank 31 \
   --group "Messen" \
   --needs "layout mit LAYOUT_HELD_OUT=1" \
-  --hint  "Die Eval ohne Modell: je Episode spielt der Datensatz seine aufgezeichneten Aktionen bei 30 Hz ab, auf derselben Wuerfellage, mit denselben Meilensteinen wie 'eval'. Greift schon die Demo nicht, ist die Sim der Blocker und jedes Policy-Training geht ins Leere (Review 10-13 §2.3 Nr. 1). Misst zusaetzlich den Tracking-Fehler Sim<->Aufzeichnung." \
+  --hint  "Die Eval ohne Modell: je Episode spielt der Datensatz seine aufgezeichneten Aktionen bei 30 Hz ab, auf derselben Wuerfellage, mit denselben Meilensteinen wie 'eval'. Greift schon die Demo nicht, ist die Sim der Blocker und jedes Policy-Training geht ins Leere. Misst zusaetzlich den Tracking-Fehler Sim<->Aufzeichnung." \
   --state '[[ -f "${HOST_DATA_DIR:-$HOME/groot-rl-data}/eval/layout_heldout.json" ]] && echo "✓ layout_heldout.json liegt vor" || echo "! braucht vorher LAYOUT_HELD_OUT=1 layout"'
 
 param HF_TOKEN secret "" expert "HuggingFace-Token" "Nur noetig, wenn der Datensatz noch fehlt." \

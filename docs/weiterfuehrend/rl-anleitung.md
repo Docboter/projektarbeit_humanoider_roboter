@@ -28,7 +28,7 @@ statt nur Aktions-Nachahmung (Hintergrund: [reinforcement-learning-plan.md](rein
 > **Nachtrag 2026-11-09 (Abgabestand):** Es gibt weiterhin **keinen RL-Trainingslauf und kein RL-Ergebnis**; die Pipeline (FPO) ist gebaut, N1.6-only. Als RL-Startpunkt vorgesehen ist Modell C (`luca-mue/groot-g1dex3-cotrain-v3-cube4-ckpt44000`, Lauf 74); `lifted_clear` 2/60 (3 %) ist nur ein schwaches Startsignal. Weiterführende Arbeit, nicht Teil der Abgabe. Status: [next-steps.md §0](../../next-steps.md).
 >
 > **Nachtrag 2026-10-13 — frühere RL-Lernsignale sind nicht belastbar.** Drei Fehler im Trainer
-> sind behoben (Review 10-13 S2–S4): (1) `success` war durch einen Messfehler praktisch immer ≈ 0
+> sind behoben: (1) `success` war durch einen Messfehler praktisch immer ≈ 0
 > (gelesen, nachdem `_reset_idx` das Flag schon gelöscht hatte) — jetzt vor dem Auto-Reset aus
 > `terminated` gezählt; (2) die FPO-Ratio verglich `old_logp`/`new_logp` aus **verschiedenen**
 > Rausch- und `t`-Ziehungen — jetzt werden die Seeds beim Rollout gespeichert und im Update

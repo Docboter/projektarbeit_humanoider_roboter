@@ -194,7 +194,7 @@ Auf KISSKI als Job: [`Training/kisski_open_loop_eval.sh`](../../Training/kisski_
 | `RL_MINIBATCH_SIZE` | `64` | `(t, env)`-Paare je Update-Schritt |
 | `RL_FPO_MC_SAMPLES` | `4` | K Ziehungen für den FPO-Proxy. Skaliert Speicher **und** Rechenzeit linear — erster Hebel bei OOM |
 | `RL_EPOCHS_PER_ITER` | `2` | PPO-Epochen je Rollout |
-| `RL_EXEC_HORIZON` | `1` | Ausgeführte Chunk-Schritte je Policy-Abfrage (`--exec-horizon`, erlaubt 1 bis Chunk-Länge 16). `1` = bisheriges Verhalten (jeden Schritt neu planen); die **Eval führt 8** je Chunk aus — mit `8` optimiert RL dasselbe Verhalten, das gemessen wird (Review 10-13 S4) |
+| `RL_EXEC_HORIZON` | `1` | Ausgeführte Chunk-Schritte je Policy-Abfrage (`--exec-horizon`, erlaubt 1 bis Chunk-Länge 16). `1` = bisheriges Verhalten (jeden Schritt neu planen); die **Eval führt 8** je Chunk aus — mit `8` optimiert RL dasselbe Verhalten, das gemessen wird |
 | `RL_REF_DEVICE` | `auto` | Gerät des eingefrorenen Referenzmodells (KL). `auto` = zweite sichtbare GPU, `same` = wie die Policy, sonst z. B. `cuda:1`. Entlastet die Trainingskarte um ~6–7 GB; mit nur einer GPU wirkungslos |
 | `RL_WANDB_VIDEO_EVERY` | `0` | Alle N Iterationen einen Rollout als Video ins W&B-Dashboard (`0` = aus). Braucht `WANDB_API_KEY`; ohne `moviepy` fällt der Trainer automatisch auf einen Filmstreifen aus Einzelbildern zurück |
 
@@ -288,7 +288,7 @@ Variablen, die nicht im Trainings-Container, sondern in einem Host-Werkzeug wirk
 
 | Variable | Default | Beschreibung |
 |---|---|---|
-| `KISSKI_PARTITION` | *(leer)* | Nur [`kisski_menu.sh`](../../Training/kisski_menu.sh) (Login-Knoten): gesetzt ⇒ `sbatch --partition=…`; leer = die `#SBATCH`-Zeile des Skripts (`kisski`). Seit 2026-10-13 passt das Menü die GPU-Anforderung mit an: Typ nach Partition (`kisski` → A100, `kisski-h100` → H100, `jupyter` → RTX5000), Anzahl beim Training nach `NUM_GPUS` (leer = 4 aus dem Skript) — vorher blieb `-G A100:4` fest stehen ([Review 10-13 T2](../archiv/projekt-review-2026-10-13.md#3-code-training)). Direkt per `sbatch` gilt weiter die `#SBATCH`-Zeile |
+| `KISSKI_PARTITION` | *(leer)* | Nur [`kisski_menu.sh`](../../Training/kisski_menu.sh) (Login-Knoten): gesetzt ⇒ `sbatch --partition=…`; leer = die `#SBATCH`-Zeile des Skripts (`kisski`). Seit 2026-10-13 passt das Menü die GPU-Anforderung mit an: Typ nach Partition (`kisski` → A100, `kisski-h100` → H100, `jupyter` → RTX5000), Anzahl beim Training nach `NUM_GPUS` (leer = 4 aus dem Skript) — vorher blieb `-G A100:4` fest stehen. Direkt per `sbatch` gilt weiter die `#SBATCH`-Zeile |
 | `KISSKI_TIME` | *(leer)* | Nur `kisski_menu.sh`: gesetzt ⇒ `sbatch --time=…`; leer = `#SBATCH --time` des Skripts (Training 48 h). Das Menü schlägt für den Open-Loop-Sweep `04:00:00` vor |
 | `GITHUB_REPO` / `GITHUB_BRANCH` | `https://github.com/Docboter/projektarbeit_humanoider_roboter.git` / Branch des Repo-Klons, sonst `main` | Nur `kisski_submit.sh`: Quelle für Klon bzw. `git pull` des Repos auf KISSKI |
 | `GROOT_FORK_DIR` / `GROOT17_FORK_DIR` | `$KISSKI_PROJECT_DIR/repo-groot` / `…/repo-groot-n17` | Nur [`kisski_open_loop_eval.sh`](../../Training/kisski_open_loop_eval.sh): GR00T-Fork-Klon auf KISSKI; sein Stand wird gegen den Pin im Dockerfile geprüft |

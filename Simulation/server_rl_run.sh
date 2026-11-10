@@ -161,7 +161,7 @@ GPU_ENV=()
 # Szenengeometrie-Schalter, die JEDER Sim-Aufruf sehen muss — sonst rechnet layout mit einer
 # anderen Kamera als eval oder tipcheck. Nur gesetzte Variablen werden durchgereicht; leer
 # heisst cfg-Default (g1_dex3_cfg.py / camera_geometry.py). HEAD_CAM_FOLLOWS_PELVIS=1 ist
-# die Gegenhypothese aus Review 3.4: Kopfkamera wandert mit der Beckenkorrektur mit.
+# die Gegenhypothese: Kopfkamera wandert mit der Beckenkorrektur mit.
 GEOM_ENV=()
 for _v in ROBOT_BASE_X ROBOT_BASE_Z HEAD_CAM_FOLLOWS_PELVIS SIM_CUBE_EDGE JOINT_ZERO_OFFSETS SIM_TABLE_SIZE SIM_WRIST_EYE SIM_WRIST_TARGET SIM_WRIST_HFOV; do
   [[ -n "${!_v:-}" ]] && GEOM_ENV+=(-e "$_v=${!_v}")
@@ -586,7 +586,7 @@ build_rl_env() {
   [[ -n "${RL_MINIBATCH_SIZE:-}" ]]  && RL_ENV+=( -e "RL_MINIBATCH_SIZE=$RL_MINIBATCH_SIZE" )
   [[ -n "${RL_FPO_MC_SAMPLES:-}" ]]  && RL_ENV+=( -e "RL_FPO_MC_SAMPLES=$RL_FPO_MC_SAMPLES" )
   [[ -n "${RL_EPOCHS_PER_ITER:-}" ]] && RL_ENV+=( -e "RL_EPOCHS_PER_ITER=$RL_EPOCHS_PER_ITER" )
-  # Chunk-Schritte je Policy-Abfrage (Review 2026-10-13, S4; Eval: 8, Default 1).
+  # Chunk-Schritte je Policy-Abfrage (Eval: 8, Default 1).
   [[ -n "${RL_EXEC_HORIZON:-}" ]]    && RL_ENV+=( -e "RL_EXEC_HORIZON=$RL_EXEC_HORIZON" )
   [[ -n "${RL_REF_DEVICE:-}" ]]      && RL_ENV+=( -e "RL_REF_DEVICE=$RL_REF_DEVICE" )
   # Render-/Belichtungshebel, damit ein per `cams` gefundener Wert auch im RL-Lauf gilt.
@@ -1031,7 +1031,7 @@ do_eval() {
     log "  Wuerfel-Start: echte Lagen aus $EVAL_LAYOUT"
   else
     warn "Wuerfel starten in den Zufallsbaendern der Env-Cfg - Lagen, die so im Training"
-    warn "  nie vorkamen (Review 3.2). Fuer vergleichbare Zahlen erst"
+    warn "  nie vorkamen. Fuer vergleichbare Zahlen erst"
     warn "    LAYOUT_HELD_OUT=1 $0 layout"
     warn "  und dann  EVAL_LAYOUT=/data/eval/layout_heldout.json $0 eval"
   fi
@@ -1071,7 +1071,7 @@ do_eval() {
     -e "SIM_VIDEO_DIR=${SIM_VIDEO_DIR:-}" \
     `# Leer = run_g1_dex3_sim_eval.py liest den Text aus meta/tasks.* des Datensatzes` \
     `# (Fallback "stack three block"). Bis 2026-10-13 stand hier "stack the blocks" -` \
-    `# ein Text, den das Training nie sah (Review 3.1). Leer ueberschreibt auch das` \
+    `# ein Text, den das Training nie sah. Leer ueberschreibt auch das` \
     `# alte ENV eines noch nicht neu gebauten Images; entrypoint_sim.sh wird gesynct.` \
     -e "TASK_DESCRIPTION=${TASK_DESCRIPTION:-}" \
     -e "TASK_DATASET_PATH=${TASK_DATASET_PATH:-/data/unitreerobotics/G1_Dex3_BlockStacking_Dataset}" \
@@ -1841,7 +1841,7 @@ do_tipcheck() {
   echo "  nur die Handmarken weg                   -> FK bzw. fehlende Hueftgelenke."
 }
 
-# Orakel-Replay (Review 10-13 §2.3 Nr. 1): die Eval selbst, nur spielt statt der Policy
+# Orakel-Replay: die Eval selbst, nur spielt statt der Policy
 # der Datensatz seine aufgezeichneten Aktionen ab — gleiches Layout, gleiche 30 Hz, gleiche
 # Meilensteine. Ergebnis = obere Schranke: greift schon die Demo nicht, blockiert die Sim.
 # Kein Checkpoint, kein Server, kein HF_TOKEN (solange Datensatz und Asset liegen).
@@ -2284,7 +2284,7 @@ Aktionen:
               Bewegungsbeginn aus layout.json), TIPCHECK_OUT (/data/cotrain/tipcheck).
   oracle      ORAKEL-REPLAY: die Eval ohne Modell — spielt je Episode die aufgezeichneten
               Aktionen der Layout-Episode bei 30 Hz ab, Roboter startet im aufgezeichneten
-              Frame 0. Obere Schranke fuer 'eval' (Review 10-13 §2.3 Nr. 1) plus Tracking-
+              Frame 0. Obere Schranke fuer 'eval' plus Tracking-
               Fehler Sim<->Aufzeichnung. Kein Checkpoint/Server. EVAL_LAYOUT
               (/data/eval/layout_heldout.json), NUM_EPISODES (20), EPISODE_LENGTH_S (120),
               ORACLE_DATASET, ORACLE_OUT (/data/sim_results/oracle.json).

@@ -34,7 +34,7 @@ import sys
 import numpy as np
 
 
-# Szenengeometrie aus dem Dex3-Pfad teilen (Review §3.5): /workspace/g1_dex3_sim liegt im
+# Szenengeometrie aus dem Dex3-Pfad teilen: /workspace/g1_dex3_sim liegt im
 # Image neben diesem Verzeichnis. append statt insert, damit nichts von hier überschattet wird.
 _DEX3_DIR = str(Path(__file__).resolve().parent.parent / "g1_dex3_sim")
 if _DEX3_DIR not in sys.path:

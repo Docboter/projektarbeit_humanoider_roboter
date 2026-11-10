@@ -961,7 +961,7 @@ def run_extract(args) -> int:
               "z_plane": Z_CUBE_CENTER, "source_dataset": str(root),
               # "test" = zurückgehaltene Episoden, nur als Eval-Startlagen (--held-out)
               "split": "test" if getattr(args, "held_out", False) else "train"}
-    # Split-Grenze mitschreiben (Review 2026-10-13, S6): die Eval liest n_train von hier,
+    # Split-Grenze mitschreiben: die Eval liest n_train von hier,
     # statt 240 fest anzunehmen — ein Synth-Satz oder eine andere Ratio beschriftet
     # Episoden sonst still falsch.
     layout.update(_split_fields(root, args))

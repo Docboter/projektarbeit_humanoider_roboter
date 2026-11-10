@@ -11,7 +11,7 @@
 # Bis 2026-10-13 lief hier jeder Schritt in einem eigenen `docker compose run --rm` ohne
 # Volume: die Downloads fehlten beim Konvertieren, die Konvertierung beim Training, die
 # Checkpoints gingen mit dem Container verloren; dazu rief er run_finetuning.sh direkt auf
-# (an der Entrypoint-Weiche vorbei) und erzwang USE_WANDB=1 (Review 4.1).
+# (an der Entrypoint-Weiche vorbei) und erzwang USE_WANDB=1.
 #
 # Läuft das Skript außerhalb eines Checkouts (Bootstrap), klont es zuerst das Repo nach
 # REPO_DIR und startet sich von dort neu.
@@ -51,7 +51,7 @@ LOCAL_IMAGE="${LOCAL_IMAGE:-projektarbeit-humanoider-roboter:local}"
 REPO_URL="https://github.com/Docboter/projektarbeit_humanoider_roboter.git"
 # Branch des Bootstrap-Klons: REPO_BRANCH=… schlaegt alles; sonst der Branch des Checkouts, in
 # dem dieses Skript liegt (falls es in einem liegt), sonst main. Bis 2026-10-13 stand hier fest
-# training-luca-IKR-IS6.0 (Review R5). Detached HEAD zaehlt nicht als Branch.
+# training-luca-IKR-IS6.0. Detached HEAD zaehlt nicht als Branch.
 _repo_branch="$(git -C "$SCRIPT_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
 [[ "$_repo_branch" == "HEAD" ]] && _repo_branch=""
 REPO_BRANCH="${REPO_BRANCH:-${_repo_branch:-main}}"

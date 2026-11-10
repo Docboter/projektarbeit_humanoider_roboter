@@ -88,7 +88,7 @@ pick_sif() {   # erste EXISTIERENDE Datei gewinnt; sonst der erste Kandidat, dam
 
 # ── Konfiguration ─────────────────────────────────────────────────────────────
 # Ein Image je GR00T-Generation: N1.7 liegt als eigene SIF daneben (aus :latest-n17).
-# GROOT_VERSION VOR der SIF-Wahl normalisieren (Review 5.2a): sonst bekam z. B. "n1.7" oder
+# GROOT_VERSION VOR der SIF-Wahl normalisieren: sonst bekam z. B. "n1.7" oder
 # "N17" die N1.6-SIF, und der Entrypoint brach erst nach der Wartezeit in der Queue ab. Die Lib
 # liegt im Repo-Klon (REPO_DIR, Default unten identisch); fehlt sie, gilt nur 1.6.
 GROOT_LIB="${REPO_DIR:-$KISSKI_PROJECT_DIR/repo}/Training/scripts/lib_groot_version.sh"
@@ -122,7 +122,7 @@ REPO_DIR="${REPO_DIR:-$KISSKI_PROJECT_DIR/repo}"
 # Branch: der, auf dem der Repo-Klon gerade steht (GITHUB_BRANCH=… schlaegt das), sonst main.
 # Bis 2026-10-13 stand hier ein fester Arbeitsbranch (erst training-luca-KISSKI, dann
 # training-luca-IKR-IS6.0) — der brach, sobald ein anderer Branch der Arbeitsstand wurde, und
-# mit SKIP_GIT_PULL=0 setzte ein Job den Klon auf den alten Stand zurueck (Review R5).
+# mit SKIP_GIT_PULL=0 setzte ein Job den Klon auf den alten Stand zurueck.
 # Detached HEAD (z. B. ein ausgecheckter Commit) zaehlt nicht als Branch -> main.
 _repo_branch="$(git -C "$REPO_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
 [[ "$_repo_branch" == "HEAD" ]] && _repo_branch=""
@@ -190,7 +190,7 @@ SAVE_TOTAL_LIMIT="${SAVE_TOTAL_LIMIT:-40}"
 # keine zurückgehaltenen Episoden und die Checkpoint-Auswahl bliebe blind.
 # Default je Verfahren wie in entrypoint.sh: Co-Training braucht den Split (run_finetuning_
 # cotrain.sh), sonst 0. Bis 2026-10-13 reichte dieses Skript fuer USE_COTRAIN=1 eine feste 0
-# weiter (Review T1). Ein ausdruecklich gesetzter Wert gilt immer.
+# weiter. Ein ausdruecklich gesetzter Wert gilt immer.
 if [[ "$USE_COTRAIN" != "1" ]]; then
     TRAIN_TEST_SPLIT="${TRAIN_TEST_SPLIT:-0}"
 else
@@ -301,7 +301,7 @@ if [[ "$SKIP_GIT_PULL" == "1" ]]; then
 else
     # Bei privaten Repos: export GITHUB_TOKEN=ghp_... vor sbatch setzen.
     # Der Token geht NICHT mehr in die Klon-URL: dort landete er bis 2026-10-13 dauerhaft in
-    # $REPO_DIR/.git/config (und in der Prozessliste, Review T4). Stattdessen ein Credential-
+    # $REPO_DIR/.git/config (und in der Prozessliste). Stattdessen ein Credential-
     # Helper, der ihn zur Laufzeit aus der Umgebung liest — argv enthaelt nur den Variablennamen.
     GIT_AUTH=()
     if [[ -n "${GITHUB_TOKEN:-}" ]]; then
@@ -392,7 +392,7 @@ echo "    Skripte aus Repo: ${REPO_DIR}/Training/scripts"
 # Nur groot_normalize_version() — eine reine Funktion ohne Exports. groot_resolve()
 # exportiert u. a. HF_HOME aus $DATA_DIR; hier auf dem Host ist das der VAST-Pfad, und
 # Apptainer reicht die Host-Umgebung in den Container durch — dort würde er das
-# HF_HOME=/data/hf_cache des Images überdecken (Review 5.2f). Die übrigen Werte
+# HF_HOME=/data/hf_cache des Images überdecken. Die übrigen Werte
 # (Wurzelverzeichnis, Namespace-Suffix) daher hier explizit; den Rest löst der Entrypoint.
 source "${REPO_DIR}/Training/scripts/lib_groot_version.sh"
 GROOT_VERSION="$(groot_normalize_version "$GROOT_VERSION")" || exit 1
@@ -441,7 +441,7 @@ if [[ ! -d "$GROOT_FORK_DIR/examples/G1_DEX3" ]]; then
     echo "       git clone --branch $FORK_BRANCH_HINT --depth 1 https://github.com/lucam06/Isaac-GR00T.git $GROOT_FORK_DIR" >&2
     exit 1
 fi
-# Fork-Stand gegen den Pin des Images pruefen (Review 4.5). Der Bind unten ueberdeckt den
+# Fork-Stand gegen den Pin des Images pruefen. Der Bind unten ueberdeckt den
 # gr00t-Code im Image; stand repo-groot auf dem Branch-HEAD statt auf dem Pin, lief auf
 # KISSKI anderer Code als im Image (2026-10-11: HEAD dd87740 "(in testing!)" statt 9508b49).
 # Der Pin steht im Dockerfile des Repo-Klons als ARG GROOT16_COMMIT / GROOT17_COMMIT
@@ -488,7 +488,7 @@ echo "    G1_DEX3-Config aus Fork: $GROOT_FORK_DIR/examples/G1_DEX3"
 echo "    gr00t-Modul aus Fork:    $GROOT_FORK_DIR/gr00t"
 
 # Geheimnisse NICHT als --env KEY=WERT: das stand in der Prozessliste des Knotens und war auf
-# geteilten KISSKI-Knoten fuer andere Nutzer lesbar (Review T4). APPTAINERENV_<NAME> setzt die
+# geteilten KISSKI-Knoten fuer andere Nutzer lesbar. APPTAINERENV_<NAME> setzt die
 # Variable im Container aus der Umgebung, ohne dass der Wert in argv erscheint.
 [[ -n "${HF_TOKEN:-}" ]]      && export APPTAINERENV_HF_TOKEN="$HF_TOKEN"
 [[ -n "${WANDB_API_KEY:-}" ]] && export APPTAINERENV_WANDB_API_KEY="$WANDB_API_KEY"

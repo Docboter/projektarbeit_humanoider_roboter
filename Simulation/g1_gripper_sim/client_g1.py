@@ -120,8 +120,7 @@ class PolicyClient:
 
     def _send_recv(self, request: dict):
         # Nach einem Timeout steht ein REQ-Socket im falschen Zustand (jedes weitere send
-        # wirft EFSM) — verwerfen und neu verbinden, wie g1_dex3_sim/client.py (Review
-        # 2026-10-13, S1).
+        # wirft EFSM) — verwerfen und neu verbinden, wie g1_dex3_sim/client.py.
         try:
             self._sock.send(MsgSerializer.to_bytes(request))
             raw = self._sock.recv()

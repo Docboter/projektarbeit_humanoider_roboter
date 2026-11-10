@@ -111,8 +111,8 @@ def parse_args() -> argparse.Namespace:
                    help="K (noise,t)-Ziehungen fuer den Proxy. Env: RL_FPO_MC_SAMPLES.")
     # Wie viele Schritte eines Aktions-Chunks je Policy-Abfrage ausgefuehrt werden. Bis
     # 2026-10-13 fest 1 (nur Chunk-Schritt 0, jeden Schritt neu geplant), waehrend die Eval
-    # 8 ausfuehrt — RL optimierte damit ein anderes Verhalten, als gemessen wird (Review
-    # 2026-10-13, S4). Eine RL-Transition umfasst H Env-Schritte; Reward = diskontierte
+    # 8 ausfuehrt — RL optimierte damit ein anderes Verhalten, als gemessen wird.
+    # Eine RL-Transition umfasst H Env-Schritte; Reward = diskontierte
     # Summe darin, GAE rechnet mit gamma**H. Default 1 = bisheriges Verhalten.
     p.add_argument("--exec-horizon", type=int, default=_env_int("RL_EXEC_HORIZON", 1),
                    help="Ausgefuehrte Chunk-Schritte je Policy-Abfrage (1..Chunk-Laenge; "
@@ -263,8 +263,8 @@ def fpo_logprob_proxy(model, inputs_with_action, k_samples, torch, seeds=None, r
     hoeherer Proxy == niedrigerer FM-Loss == hoehere (implizite) Likelihood.
 
     FPO verlangt fuer old/new DIESELBEN (eps, t)-Ziehungen, sonst ist die Ratio schon vor
-    dem ersten Update != 1 und misst Monte-Carlo-Rauschen statt einer Policy-Aenderung
-    (Review 2026-10-13, S2). Gr00tN1d6ActionHead.forward (gr00t_n1d6.py, forward) zieht:
+    dem ersten Update != 1 und misst Monte-Carlo-Rauschen statt einer Policy-Aenderung.
+    Gr00tN1d6ActionHead.forward (gr00t_n1d6.py, forward) zieht:
       - noise = torch.randn(actions.shape, device=actions.device)   -> CUDA-Generator
       - t = self.beta_dist.sample([B])  (Beta mit CPU-Parametern)    -> CPU-Generator
       - ggf. torch.rand fuer state dropout (state_dropout_prob > 0)  -> CUDA-Generator
@@ -443,7 +443,7 @@ def main() -> None:
         # Speicher fuer den Rollout
         buf_logp, buf_val, buf_rew, buf_done, buf_inputs, buf_state = [], [], [], [], [], []
         buf_seeds = []
-        # Erfolg je abgeschlossener Episode, VOR dem Auto-Reset gezaehlt (Review S4): bis
+        # Erfolg je abgeschlossener Episode, VOR dem Auto-Reset gezaehlt: bis
         # 2026-10-13 stand hier env._episode_success.mean() NACH dem Rollout — _reset_idx
         # hatte das Flag bei jeder fertigen Episode da schon geloescht, die Zahl war ~0.
         # terminated == _check_success() (terminate_on_success=True), wie in der Eval.
@@ -504,7 +504,7 @@ def main() -> None:
                 term = terminated.bool() & alive
                 trunc = time_out.bool() & ~terminated.bool() & alive
                 rew_acc += disc * reward.float() * alive.float()
-                # Truncation-Bootstrap (Review S4): ein Timeout ist kein echtes Episodenende.
+                # Truncation-Bootstrap: ein Timeout ist kein echtes Episodenende.
                 # Der Wert des Folgezustands fehlt (die Env hat schon zurueckgesetzt) —
                 # Naeherung wie rsl_rl: V(s_t) des Chunk-Startzustands, diskontiert auf den
                 # Schritt NACH dem Timeout (gamma**(h+1)).
@@ -523,7 +523,7 @@ def main() -> None:
             buf_inputs.append((inputs_with_action, norm_action.detach()))
             buf_state.append(state)
             buf_seeds.append(seeds)
-            # Kein env.reset() hier (Review S3): DirectRLEnv setzt fertige Envs in step()
+            # Kein env.reset() hier: DirectRLEnv setzt fertige Envs in step()
             # selbst zurueck (_reset_idx nur fuer diese env_ids), und der naechste
             # get_obs_batched() liest deren neuen Zustand. Ein globales reset() brach bei
             # num_envs > 1 die laufenden Trajektorien ohne done ab, und GAE bootstrapte

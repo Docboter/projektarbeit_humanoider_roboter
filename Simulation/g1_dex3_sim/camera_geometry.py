@@ -180,7 +180,7 @@ class G1Dex3CameraCfg:
         # Sie darf NICHT mitgezogen werden, wenn die Würfelebene korrigiert wird — die
         # Ebene steht in Z_CUBE_CENTER, hier steht die Kamera.
         high_target_x, high_target_z = 0.34, 0.915
-        # Gegenhypothese zu OFFEN (Review §3.4): HEAD_CAM_FOLLOWS_PELVIS=1 verschiebt Auge
+        # Gegenhypothese zu OFFEN: HEAD_CAM_FOLLOWS_PELVIS=1 verschiebt Auge
         # UND Blickziel starr um denselben Versatz wie die Basis (ROBOT_BASE_X − 0,
         # ROBOT_BASE_Z − CAMERA_CALIB_BASE_Z, letzteres = 0,85, s. scene_geometry) —
         # Nickwinkel bleibt, die Transformation Kamera→Torso entspricht dann wieder dem URDF-d435_link. Default 0, damit sich laufende

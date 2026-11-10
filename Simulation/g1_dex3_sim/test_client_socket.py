@@ -1,4 +1,4 @@
-# TL;DR: CPU-Test: PolicyClient baut seinen REQ-Socket nach Timeout neu auf (Review S1, kein EFSM).
+# TL;DR: CPU-Test: PolicyClient baut seinen REQ-Socket nach Timeout neu auf (kein EFSM).
 """python -m pytest Simulation/g1_dex3_sim/test_client_socket.py
 
 Ein lokaler REP-Server beantwortet die ERSTE Anfrage absichtlich nicht. Vorher stand der

@@ -400,7 +400,7 @@ else
 
     # Geheimnisse nur mit NAMEN uebergeben (`-e HF_TOKEN`): docker liest den Wert dann aus der
     # eigenen Umgebung. Bis 2026-10-13 stand `-e HF_TOKEN=<wert>` in argv — sichtbar in `ps`
-    # fuer jeden Nutzer des Rechners und im Klartext in der --dry-run-Ausgabe (Review T4).
+    # fuer jeden Nutzer des Rechners und im Klartext in der --dry-run-Ausgabe.
     # Dafuer muessen beide exportiert sein; aus .env.local (`: "${HF_TOKEN:=…}"`) sind sie
     # sonst nur Shell-Variablen.
     export HF_TOKEN
@@ -430,7 +430,7 @@ else
     # dann nur noch das Ende zu sehen bekommen.
     # DATA_DIR und WANDB_DIR fehlen hier bewusst: das sind Container-Pfade (/data …), ein
     # Host-Wert aus .env.local oder der KISSKI-Doku haette /data im Container verbogen
-    # (Review T3). Ein Host-Verzeichnis als /data: TRAIN_HOST_DATA_DIR.
+    #. Ein Host-Verzeichnis als /data: TRAIN_HOST_DATA_DIR.
     for _v in TUNE_VISUAL USE_COTRAIN COTRAIN_MIX_RATIO COTRAIN_DATASET_PATH \
               COTRAIN_HF_REPO TRAIN_TEST_SPLIT TRAIN_SPLIT_RATIO USE_AUGMENTATION \
               USE_RL SKIP_DOWNLOAD SKIP_CONVERT SKIP_TRAIN SHELL_ON_ERROR \

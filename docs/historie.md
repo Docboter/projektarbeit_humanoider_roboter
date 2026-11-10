@@ -258,7 +258,7 @@ Der eigentliche Denkfehler: Es wurde erheblicher Aufwand in die Sim-Pipeline inv
 > [ergebnisse/domain-gap-analyse.md](ergebnisse/domain-gap-analyse.md). Die folgenden Werte
 > bleiben nur als Vergleichspunkt stehen.
 
-Durchgeführt mit `google/siglip-so400m-patch14-224` (damals als identisch zum GR00T-ViT angenommen; die Annahme ist falsch, s. [Review §3.6](archiv/projekt-review-2026-10-11.md#36-falsche-annahme-im-domain-gap-skript--inkonsistenz-teilprüfung)).
+Durchgeführt mit `google/siglip-so400m-patch14-224` (damals als identisch zum GR00T-ViT angenommen; die Annahme ist falsch, s. [Domain-Gap-Analyse](ergebnisse/domain-gap-analyse.md)).
 Frames: `Simulation/camera_reference/` (Real) vs. `Simulation/runs/202606002/02/` (Isaac Sim).
 Script: [`Simulation/scripts/measure_domain_gap.py`](../Simulation/scripts/measure_domain_gap.py)
 
@@ -839,7 +839,7 @@ der Vision-Pfad ausgereizt. Sie hat sich bewegt — der Pfad ist also **nicht** 
 haben ein Drittel des Weges gebracht. *(Nachtrag 2026-10-13: die beiden Zahlen haben verschiedene
 Nenner — 27,6 % ist die Sim-Spanne relativ zur Konstante 2,094 rad, 100 % das Verhältnis
 Vorhersage/Ground Truth auf echten Bildern, das an genau dieser De-Normalisierungsgrenze sättigt.
-„Ein Drittel des Weges“ ist deshalb kein belastbares Maß, [Review 10-13 §2.2](archiv/projekt-review-2026-10-13.md#22-zahlen--und-aussage-inkonsistenzen).)* Der Rest kommt nicht durch mehr vom Gleichen, sondern muss
+„Ein Drittel des Weges“ ist deshalb kein belastbares Maß.)* Der Rest kommt nicht durch mehr vom Gleichen, sondern muss
 auf der **Sim-Seite** angegangen werden → Schritt 4. *(Nachtrag 2026-10-11: die 27,6 % und `lifted` 0/10 stammen aus der Zeit vor der Geometriekorrektur vom 2026-08-24 und sind neu zu messen — siehe §1 und §2.)*
 
 <details>
@@ -1036,7 +1036,7 @@ Details: [portabilitaet.md § 3.4](portabilitaet.md#34-eigene-images-bauen-eigen
 
 1. **`Training/setup_and_train_container_build.sh` baute nichts** (`docker compose build` ohne
    `build:`-Abschnitt in `docker-compose.yml`, seit `cb388a1`). War im Code bereits mit
-   `a8c8c66` (Review 2026-10-11 §4) behoben: das Skript ruft `docker build` direkt mit
+   `a8c8c66` behoben: das Skript ruft `docker build` direkt mit
    `GROOT_VERSIONS`/`GROOT_VERSION_DEFAULT` auf und übergibt an den Pull-Launcher. Nur der
    Eintrag in CLAUDE.md war stehen geblieben.
 2. **Submodul-Pointer `app/Groot-1.6` → `26ad1f7` war im Fork nicht abrufbar.** `26ad1f7` war
@@ -1045,11 +1045,11 @@ Details: [portabilitaet.md § 3.4](portabilitaet.md#34-eigene-images-bauen-eigen
    (= `GROOT16_COMMIT` in den Dockerfiles), `git submodule update` funktioniert wieder. Der alte
    Stand liegt lokal als Tag `archive/unpushed-26ad1f7-guide-params` im Submodul (nicht gepusht).
 
-## 2026-10-13 — CLAUDE.md verschlankt, Status an eine Stelle (Review 10-13 D1/D5)
+## 2026-10-13 — CLAUDE.md verschlankt, Status an eine Stelle
 
 *Herkunft:* `CLAUDE.md` (bis dahin ~57 KB, wird in jede Claude-Code-Sitzung geladen). Grund: Der
 N1.7-Stand stand dort sechsmal, teils veraltet („no full run yet“, „nothing on KISSKI“) — die
-Hauptquelle der Widersprüche aus [Review 10-13 §6](archiv/projekt-review-2026-10-13.md#6-doku-konsistenz).
+Hauptquelle der Widersprüche in der Doku.
 CLAUDE.md hat jetzt ~12 KB; nichts ist verloren, es steht nur an einer Stelle:
 
 | Inhalt (alt in CLAUDE.md) | jetzt in |
@@ -1068,10 +1068,9 @@ In CLAUDE.md geblieben: Überblick, Kurzstatus mit Link, Wartungspunkte-Regel, k
 (kein `--rm`, Speichermodell inkl. KISSKI, Skripte im Image), wichtigste Befehle, Code-Stil,
 Commit- und TL;DR-Konvention, graphify-Abschnitt, Linkliste.
 
-## 2026-10-13 — Review-10-13-Befunde umgesetzt (Doku-Nachzug)
+## 2026-10-13 — Korrekturen an Code und Messaufbau (Doku-Nachzug)
 
-*Herkunft:* [projekt-review-2026-10-13.md](archiv/projekt-review-2026-10-13.md); Stand je Befund in dessen
-[§9](archiv/projekt-review-2026-10-13.md#9-stand-der-umsetzung-2026-10-13). Überholt sind damit u. a.
+*Herkunft:* Durchsicht von Code und Doku am 2026-10-13. Überholt sind damit u. a.
 folgende früher dokumentierte Aussagen:
 
 - **Training:** `SAVE_STEPS` war in Vision/Co-Training `1000`, `SAVE_TOTAL_LIMIT` `10` (bzw. `5`) —
@@ -1088,12 +1087,12 @@ folgende früher dokumentierte Aussagen:
 - **Augmentation:** keine Vorabprüfung der Framezahl, `stats.json` als Kopie der Quelle (inkl.
   Test-Episoden), Ausgabeordner nicht geleert.
 - **Repo:** kein CI, Ruff-Konfiguration nur im Fork, `graphify-out/` getrackt.
-- **Fork:** „`cf2032d` vielleicht ungepusht“ (Review §5) — falsch, der Commit liegt auf
+- **Fork:** „`cf2032d` vielleicht ungepusht“ — falsch, der Commit liegt auf
   `origin/luca/g1-dex3-n17`.
 
 ## 2026-10-14 — Wartungspunkt „Daumen-Grenzen“ aus CLAUDE.md geschlossen (kein Defekt)
 
-*Herkunft:* `CLAUDE.md` § „Open maintenance issues“, Punkt 1 (Review 10-13 S7): Verdacht, dass
+*Herkunft:* `CLAUDE.md` § „Open maintenance issues“, Punkt 1: Verdacht, dass
 `_widen_finger_joint_limits` (`Simulation/g1_dex3_sim/g1_dex3_blockstack_env.py`) `thumb_0`/`thumb_2`
 nicht abdeckt und die Sim den Daumen klemmt (Datensatz-Init bis −0,71 rad).
 

@@ -49,7 +49,7 @@ import sys
 # Versionsabhängig (N1.6 vs. N1.7): wird von lib_groot_version.sh (groot_resolve)
 # exportiert, wenn das aufrufende Trainings-Skript sie gesourct hat. Freistehend (ohne diesen
 # Kontext) fiel das Skript bis 2026-10-13 immer auf /app/Groot-1.6 zurück — im N1.7-Image der
-# falsche (leere) Baum (Review T5). Jetzt in der Reihenfolge der Lib:
+# falsche (leere) Baum. Jetzt in der Reihenfolge der Lib:
 #   1. ein GROOT_ROOT, der KEIN Standardpfad ist, gilt als explizit;
 #   2. GROOT_VERSION (gleiche Schreibweisen wie groot_normalize_version);
 #   3. der Baum der laufenden venv (sys.prefix = /app/Groot-1.x/.venv);
@@ -279,7 +279,7 @@ def main() -> int:
     if info_json.is_file():
         with open(info_json) as f:
             splits = json.load(f).get("splits", {})
-    # Seit 2026-10-13 harte Fehler statt Warnungen (Review 4.3): eine Warnung im Log einer
+    # Seit 2026-10-13 harte Fehler statt Warnungen: eine Warnung im Log einer
     # SLURM-Kette liest niemand, die MSE-Tabelle darunter schon.
     problems: list[str] = []
     if args.split not in splits:
@@ -445,7 +445,7 @@ def main() -> int:
         # EINMAL bauen und für alle Checkpoints wiederverwenden. Der Loader liest den Split
         # aus info.json; neu gebaut je Checkpoint, konnte ein paralleler Trainingslauf
         # (kisski_chain.sh: Sweep läuft neben dem nächsten Training, das per split_apply
-        # info.json umschreibt) die Episoden mitten im Sweep austauschen (Review 4.3).
+        # info.json umschreibt) die Episoden mitten im Sweep austauschen.
         # Die Modality-Konfiguration ist innerhalb eines Laufs für alle Checkpoints gleich.
         if loader is None:
             loader = LeRobotEpisodeLoader(

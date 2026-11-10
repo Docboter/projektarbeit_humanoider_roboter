@@ -105,7 +105,7 @@ def test_unnormalised_quaternion_is_tolerated():
 # Clopper-Pearson
 # ---------------------------------------------------------------------------
 
-def test_cp_zero_successes_match_the_review():
+def test_cp_zero_successes_match_known_bounds():
     assert clopper_pearson(0, 10) == (0.0, pytest.approx(0.3085, abs=5e-4))
     assert clopper_pearson(0, 20) == (0.0, pytest.approx(0.1684, abs=5e-4))
 

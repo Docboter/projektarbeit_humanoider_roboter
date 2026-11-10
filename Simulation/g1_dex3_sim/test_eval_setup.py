@@ -1,5 +1,5 @@
 # TL;DR: CPU-Tests für den Eval-Messaufbau: Task-Text, gemeinsame Geometrie, Held-out-Layout.
-"""Prüft die Isaac-freien Teile der Korrekturen aus dem Review vom 2026-10-11, §3.
+"""Prüft die Isaac-freien Teile der Korrekturen am Eval-Messaufbau vom 2026-10-13.
 
     python -m pytest Simulation/g1_dex3_sim/test_eval_setup.py
 """

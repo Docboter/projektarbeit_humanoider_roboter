@@ -127,7 +127,7 @@ Quellen:
 |---|---|---|---|
 | ✅ | [`g1_dex3_cfg.py`](../../Simulation/g1_dex3_sim/g1_dex3_cfg.py) (Aktuator-Kommentar zu Armen/Händen) | Kommentar behauptete „Arme = relative Deltas, im Loop addiert" — Code wendet **alle 28 Dims absolut** an. Widersprach der korrekten `_pre_physics_step`-Docstring. | **Erledigt 2026-08-21:** Kommentar auf ABSOLUTE Targets korrigiert, plus die gemessenen Tracking-Werte als Beleg gegen die wiederkehrende „PD-Gains zu weich"-These. |
 | 🟠 | [`g1_dex3_blockstack_env.py`](../../Simulation/g1_dex3_sim/g1_dex3_blockstack_env.py) (`dr_enabled`, Z. ~452) | `dr_enabled=True` bei Eval bringt für eingefrorenen Encoder nichts (s. §2). Unverändert offen: Default ist weiter `True` (`DR_ENABLED=0` schaltet ab). | Für Eval auf `False` (oder als Trainings-Augmentierung verschieben). |
-| 🟠 | [`g1_dex3_blockstack_env.py`](../../Simulation/g1_dex3_sim/g1_dex3_blockstack_env.py) (`policy_hz`, `dt`, `decimation`, Z. ~405–419) | ~~`policy_hz=30.0`, real aber 28,57 Hz (`dt=1/200`, `decimation=7`)~~ — **behoben 2026-10-13:** `dt=1/210` → echte 30 Hz (Review §3.3). | erledigt |
+| 🟠 | [`g1_dex3_blockstack_env.py`](../../Simulation/g1_dex3_sim/g1_dex3_blockstack_env.py) (`policy_hz`, `dt`, `decimation`, Z. ~405–419) | ~~`policy_hz=30.0`, real aber 28,57 Hz (`dt=1/200`, `decimation=7`)~~ — **behoben 2026-10-13:** `dt=1/210` → echte 30 Hz. | erledigt |
 | 🟡 | [`g1_dex3_blockstack_env.py`](../../Simulation/g1_dex3_sim/g1_dex3_blockstack_env.py) (`_check_success`, Z. ~1303) | Erfolg verlangt vollständige 3er-Säule (alle Paare xy<3 cm + Höhe>8 cm + stabil). | Gegen die echte Dataset-Task abgleichen (stapelt sie 2 oder 3?). |
 
 ---

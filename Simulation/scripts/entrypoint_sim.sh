@@ -492,7 +492,7 @@ fi
 
 # Veraltete Ergebnis-Datei VOR dem Start entfernen: bis 2026-10-13 prüfte die Abfrage
 # unten nur "Datei nicht leer" — nach einem Absturz meldete der Lauf mit der results.json
-# des VORIGEN Laufs Erfolg (Review 2026-10-13, S5). Die Eval schreibt zusätzlich je Lauf
+# des VORIGEN Laufs Erfolg. Die Eval schreibt zusätzlich je Lauf
 # ein Archiv results_<Zeitstempel>_<Checkpoint>.json daneben; results.json ist der neueste.
 RESULTS_FILE="$DATA_DIR/sim_results/results.json"
 rm -f "$RESULTS_FILE"

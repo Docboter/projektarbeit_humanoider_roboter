@@ -88,7 +88,7 @@ def run_episode(env, client, dims, execution_horizon, task_description,
                 record_video, episode, video_dir) -> dict:
     env.reset()
     # Server-/Kommunikationsfehler machen die Episode UNGÜLTIG statt "misslungen"
-    # (Review 2026-10-13, S1 — gleiche Regel wie run_g1_dex3_sim_eval.py).
+    # (gleiche Regel wie run_g1_dex3_sim_eval.py).
     error_reason = None
     try:
         client.reset()
@@ -278,7 +278,7 @@ def main():
         simulation_app.close()
         sys.exit(2)
     # Erfolgsmarker: isaaclab.sh reicht den Exit-Code nicht durch; entrypoint_baseline.sh
-    # prüft auf genau diese Zeile (Review 2026-10-13, S5).
+    # prüft auf genau diese Zeile.
     print("[eval] fertig.", flush=True)
     env.close()
     simulation_app.close()

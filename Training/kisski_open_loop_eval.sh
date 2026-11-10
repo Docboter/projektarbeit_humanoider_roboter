@@ -84,7 +84,7 @@ elif [[ "$GROOT_VERSION" != "1.6" ]]; then
     echo "FEHLER: GROOT_VERSION=$GROOT_VERSION angefordert, aber $GROOT_LIB fehlt (REPO_DIR korrekt?)." >&2
     exit 1
 fi
-# SIF erst NACH der Normalisierung wählen (Review 5.2a): sonst bekam z. B. GROOT_VERSION=n1.7
+# SIF erst NACH der Normalisierung wählen: sonst bekam z. B. GROOT_VERSION=n1.7
 # die N1.6-SIF, und der Fehler fiel erst nach der Wartezeit in der Queue auf.
 # Ein Image je GR00T-Generation: N1.7 liegt als eigene SIF daneben (aus :latest-n17).
 case "$GROOT_VERSION" in 1.7) SIF_SUFFIX="-n17" ;; *) SIF_SUFFIX="" ;; esac
@@ -177,7 +177,7 @@ if [[ -d "$REPO_DIR/Training/scripts" ]]; then
     echo "    Skripte:    $REPO_DIR/Training/scripts (Bind-Mount)"
 fi
 
-# Fork-Stand gegen den Pin des Images pruefen (Review 4.5). Der Bind unten ueberdeckt den
+# Fork-Stand gegen den Pin des Images pruefen. Der Bind unten ueberdeckt den
 # gr00t-Code im Image; stand repo-groot auf dem Branch-HEAD statt auf dem Pin, lief auf
 # KISSKI anderer Code als im Image (2026-10-11: HEAD dd87740 "(in testing!)" statt 9508b49).
 # Der Pin steht im Dockerfile des Repo-Klons als ARG GROOT16_COMMIT / GROOT17_COMMIT
@@ -233,7 +233,7 @@ SWEEP_ARGS=(
     --plot-dir       "$EVAL_PLOT_DIR"
 )
 [[ -n "$EVAL_CHECKPOINTS" ]] && SWEEP_ARGS+=(--checkpoints "$EVAL_CHECKPOINTS")
-# Ohne test-Split oder bei abweichendem split.json bricht der Sweep ab (Review 4.3).
+# Ohne test-Split oder bei abweichendem split.json bricht der Sweep ab.
 [[ "${ALLOW_TRAIN_SPLIT:-0}" == "1" ]] && SWEEP_ARGS+=(--allow-train-split)
 
 echo "==> Starte Checkpoint-Sweep …"

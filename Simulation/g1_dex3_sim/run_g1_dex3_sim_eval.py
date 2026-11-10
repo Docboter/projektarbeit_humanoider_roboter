@@ -93,11 +93,11 @@ parser.add_argument(
     help="layout.json aus extract_block_layout.py (am besten mit --held-out erzeugt): "
          "Würfel starten an echten Startlagen samt Gierwinkel, reihum je Episode. "
          "Leer = Zufallsbänder aus der Env-Cfg (Startlagen, die so nie im Training "
-         "vorkamen — Review §3.2). Default aus EVAL_LAYOUT."
+         "vorkamen). Default aus EVAL_LAYOUT."
 )
 parser.add_argument(
     "--oracle-dataset", type=str, default=os.environ.get("ORACLE_DATASET", ""),
-    help="Orakel-Replay statt Policy (Review 10-13 §2.3 Nr. 1): spielt je Episode die "
+    help="Orakel-Replay statt Policy: spielt je Episode die "
          "aufgezeichneten Aktionen der Layout-Episode aus diesem Datensatz (v2.1) ab, "
          "Roboter startet im aufgezeichneten Frame 0. Kein Server nötig; verlangt --layout. "
          "Misst zusätzlich den Tracking-Fehler Sim↔Aufzeichnung (oracle_replay.py)."
@@ -199,7 +199,7 @@ def checkpoint_fingerprint(path: str) -> dict:
 # ---------------------------------------------------------------------------
 
 # Grenze der zurückgehaltenen Episoden: bis 2026-10-13 fest 240 (= int(301 * 0.8)), was
-# nur für den echten Datensatz mit Ratio 0,8 stimmt (Review 2026-10-13, S6). Jetzt steht
+# nur für den echten Datensatz mit Ratio 0,8 stimmt. Jetzt steht
 # n_train im Kopf der layout.json (extract_block_layout.py, Formel split_math.py =
 # Training/scripts/lib_split.sh); ältere Dateien rechnet split_math.layout_train_count
 # aus meta/info.json + TRAIN_SPLIT_RATIO nach — mit Warnung.
@@ -278,7 +278,7 @@ TOUCH_THRESHOLD_M = 0.01
 # Anhebung. Schwelle aus der vorregistrierten Regel in rl-anleitung.md ("hebt (a)
 # den Würfel, max_cube_lift_cm > ~2"). Zum Vergleich: Lauf 29 erreichte 7,9 cm.
 LIFT_THRESHOLD_M = 0.02
-# `lifted_clear` (Review 2026-10-13, M3): die Schwerpunkt-Metrik oben zählt einen auf die
+# `lifted_clear`: die Schwerpunkt-Metrik oben zählt einen auf die
 # Ecke gekippten Würfel schon fast mit (+1,8 cm). Die kipp-robuste Variante misst die
 # Würfel-UNTERSEITE gegen die Tischoberkante (> LIFT_CLEAR_THRESHOLD_M = 2 cm) und
 # verlangt im selben Schritt Handkontakt. Kontaktsensoren hat die Env nicht; Proxy ist
@@ -374,7 +374,7 @@ def run_episode(
 
     # Taille: hat keine Aktuatorgruppe, nur die Wurzel ist fixiert (g1_dex3_cfg.py). Größte
     # Abweichung der waist_*-Gelenke von der Startpose belegt, ob der Torso absackt und die
-    # Kopfkamera damit eine andere Perspektive bekommt (Review §3.8).
+    # Kopfkamera damit eine andere Perspektive bekommt.
     waist_ids = [i for i, n in enumerate(env.robot.joint_names) if "waist" in n]
     waist_start = env.robot.data.joint_pos[0, waist_ids].clone() if waist_ids else None
     waist_drift = 0.0
@@ -466,7 +466,7 @@ def run_episode(
             chunk = client.get_action(policy_obs)  # np.ndarray (16, 28)
         except Exception as e:
             # Bis 2026-10-13 nur print + break: die Episode zählte als normales 0-Ergebnis,
-            # ein Server-Timeout sah aus wie eine misslungene Policy (Review S1). Jetzt ist
+            # ein Server-Timeout sah aus wie eine misslungene Policy. Jetzt ist
             # sie UNGÜLTIG (error=True) und geht in keine Quote ein.
             error_reason = f"get_action (Step {step}): {type(e).__name__}: {e}"
             print(f"[Episode] Fehler bei get_action (Step {step}): {e}", flush=True)
@@ -578,7 +578,7 @@ def run_episode(
 
     return {
         # error=True: Episode wegen eines Server-/Kommunikationsfehlers abgebrochen. Sie
-        # ist kein Messergebnis und zählt in keine Quote (Review 2026-10-13, S1).
+        # ist kein Messergebnis und zählt in keine Quote.
         "error": error_reason is not None,
         "error_reason": error_reason,
         "success": success,
@@ -645,13 +645,13 @@ def main():
         cfg.scene.robot.spawn.usd_path = args.asset_path
     cfg.execution_horizon = args.execution_horizon
     # Der Text muss genau der aus dem Training sein. Bis 2026-10-13 stand hier fest
-    # "stack the blocks", der Datensatz kennt nur "stack three block" (Review §3.1).
+    # "stack the blocks", der Datensatz kennt nur "stack three block".
     args.task_description, task_source = resolve_task_description(args.task_description)
     cfg.task_description = args.task_description
     cfg.dr_enabled = os.getenv("DR_ENABLED", "1") != "0"
     # DR_SEED macht die Ziehung reproduzierbar (je Episode ein eigener Strom). Default 0:
     # ohne festen Seed sind A/B-Läufe, die sich in genau einem Faktor unterscheiden
-    # sollen, nicht vergleichbar (Review §3.7). Negativ oder leer = wie früher pro Prozess
+    # sollen, nicht vergleichbar. Negativ oder leer = wie früher pro Prozess
     # auswürfeln (gleiche Konvention wie RENDER_DR_SEED). Derselbe Seed fixiert auch den
     # Torch-Zufall, aus dem die Zufallsbänder die Würfellagen ziehen.
     _dr_seed = os.getenv("DR_SEED", "0").strip()
@@ -721,7 +721,7 @@ def main():
                   "ausgeschlossen. Für die Messung: layout mit LAYOUT_HELD_OUT=1 erzeugen.")
     else:
         print("  Würfel-Start:     Zufallsbänder — NICHT die Startlagen der Realdaten "
-              "(Review §3.2). Echte Lagen: EVAL_LAYOUT=<layout.json>")
+              ". Echte Lagen: EVAL_LAYOUT=<layout.json>")
     print(
         f"  Episodenlaenge:   {cfg.episode_length_s:.0f}s "
         f"= {int(cfg.episode_length_s * cfg.policy_hz)} Steps"
@@ -763,7 +763,7 @@ def main():
         )
         # Der erste Aufruf ist der teuerste (torch.compile/TensorRT-Warmup, CUDA-Graphen) und
         # kann den 20-s-Timeout reißen. Der Client baut seinen Socket danach neu auf, ein
-        # zweiter Versuch trifft den dann warmen Server (Review 2026-10-13, S1).
+        # zweiter Versuch trifft den dann warmen Server.
         dummy_chunk = None
         for _attempt in range(1, 4):
             try:
@@ -917,7 +917,7 @@ def main():
             n = sum(1 for r in valid if r["milestones"][stage])
             bar = "#" * round(20 * n / len(valid))
             print(f"    {stage:<16} {n:>3}/{len(valid)}  {bar}")
-        # Clopper-Pearson 95 % (Review 2026-10-13, M4): bei n = 10 bis 20 ist das
+        # Clopper-Pearson 95 %: bei n = 10 bis 20 ist das
         # Intervall so breit, dass zwei Läufe mit 0/10 und 1/10 sich NICHT unterscheiden.
         print("  95-%-Konfidenzintervalle (Clopper-Pearson, exakt):")
         for stage in ("lifted", "lifted_clear", "stacked"):
@@ -940,7 +940,7 @@ def main():
     # Ergebnisse speichern
     summary = {
         # num_episodes = durchgeführte Episoden (gültig + abgebrochen); Quoten beziehen
-        # sich auf num_valid. Bis 2026-10-13 zählte jede Episode als gültig (Review S1).
+        # sich auf num_valid. Bis 2026-10-13 zählte jede Episode als gültig.
         "num_episodes": len(results),
         "num_episodes_requested": args.num_episodes,
         "num_valid": len(valid),
@@ -970,7 +970,7 @@ def main():
         "camera_render_every_n": cfg.camera_render_every_n,
         "inference_backend": os.getenv("GROOT_INFERENCE_BACKEND", "eager"),
         "scene_camera_enabled": os.getenv("SCENE_CAM", "1") not in ("0", "false", "no"),
-        # Messaufbau, damit zwei Läufe vergleichbar sind (Review §3.7 / §8 Eval-Manifest)
+        # Messaufbau, damit zwei Läufe vergleichbar sind
         "cube_layout": layout_info,
         "domain_randomization": {"enabled": cfg.dr_enabled, "seed": cfg.dr_seed},
         "physics_dt": cfg.sim.dt,

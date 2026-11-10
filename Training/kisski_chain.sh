@@ -52,7 +52,7 @@ preset() {
     TRAIN_SPLIT_RATIO=0.8
     case "$1" in
         smoke)
-            # Review 4.9: cotrain_synth_v1 starb nach 138 s, Ursache ungeklärt. Bevor zwei
+            # cotrain_synth_v1 starb nach 138 s, Ursache ungeklärt. Bevor zwei
             # 44k-Läufe (~400 GB Checkpoints) loslaufen, dieselbe Konfiguration — 4 GPUs,
             # 4 Worker, beide Datensätze — für 50 Schritte, plus ein Checkpoint für den Sweep.
             # Absichtlich NICHT 1 GPU: ein RAM-OOM aus 2 Datensätzen × 4 Workern × 4 Ranks
@@ -164,10 +164,10 @@ for r in "${RUNS[@]}"; do
     fi
 done
 [[ -f "$real_mod" ]] || warn "Echter Datensatz nicht gefunden ($real_mod) — modality-Vergleich übersprungen."
-# Dieselbe Fork-Prüfung wie in kisski_submit.sh, nur VOR der Warteschlange (Review 4.5).
+# Dieselbe Fork-Prüfung wie in kisski_submit.sh, nur VOR der Warteschlange.
 # Die Jobs erben GROOT_VERSION über --export=ALL; Pin und Fork-Klon hängen davon ab.
 # Normalisieren mit derselben Funktion wie kisski_submit.sh: bis 2026-10-13 kannte das case
-# hier nur vier Schreibweisen, "n1.7" oder "1_7" landeten still beim N1.6-Pin (Review T5).
+# hier nur vier Schreibweisen, "n1.7" oder "1_7" landeten still beim N1.6-Pin.
 # shellcheck source=scripts/lib_groot_version.sh
 source "$REPO_DIR/Training/scripts/lib_groot_version.sh"
 GROOT_VERSION="$(groot_normalize_version "${GROOT_VERSION:-1.6}")" || exit 2
@@ -220,7 +220,7 @@ for r in "${RUNS[@]}"; do
     [[ ${#RUN_ENV[@]} -gt 0 ]] && echo "    ${RUN_ENV[*]}  ${RUN_SBATCH[*]}"
     train_id="$(
         # KISSKI_PROJECT_DIR/DATA_DIR mit: die Vorabprüfung oben lief gegen genau diese
-        # Pfade; ohne Export rechnete der Job mit seinen eigenen Defaults (Review 4.7).
+        # Pfade; ohne Export rechnete der Job mit seinen eigenen Defaults.
         export USE_COTRAIN COTRAIN_DATASET_PATH COTRAIN_MIX_RATIO TRAIN_TEST_SPLIT \
                TRAIN_SPLIT_RATIO OUTPUT_DIR EXPERIMENT_NAME KISSKI_PROJECT_DIR DATA_DIR
         [[ ${#RUN_ENV[@]} -gt 0 ]] && export "${RUN_ENV[@]}"

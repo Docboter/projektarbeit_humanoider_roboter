@@ -107,7 +107,7 @@ invoke_cmd() {
         return
     fi
     # `if ! "$@"` liesse in $? nur noch das Ergebnis der Negation (immer 0) stehen — der
-    # Exit-Code wurde deshalb bis 2026-10-13 stets als 0 gemeldet (Review T5).
+    # Exit-Code wurde deshalb bis 2026-10-13 stets als 0 gemeldet.
     local rc=0
     "$@" || rc=$?
     if [[ $rc -ne 0 ]]; then
@@ -213,7 +213,7 @@ log "Schritt 2/4 — Isaac-GR00T Commit pruefen"
 # (seit dem N1.7-Pfad zwei Pins; die alte Form `checkout <sha>` gibt es nicht mehr).
 read_pin() {  # $1 = ARG-Name; leer, wenn der Pin fehlt
     # `|| true`: ohne Treffer scheitert grep, und unter `set -euo pipefail` beendete
-    # current="$(read_pin …)" das Skript ohne Meldung — die Warnung in check_pin kam nie (Review 5.2b).
+    # current="$(read_pin …)" das Skript ohne Meldung — die Warnung in check_pin kam nie.
     { grep -oE "^ARG $1=[0-9a-f]{40}" "$DOCKERFILE" || true; } | head -n1 | sed "s/^ARG $1=//"
 }
 check_pin() {  # $1 = Label, $2 = ARG-Name, $3 = Branch

@@ -1,4 +1,4 @@
-# TL;DR: CPU-Test: FPO-Proxy mit gespeicherten Seeds ist reproduzierbar (Ratio == 1, Review S2).
+# TL;DR: CPU-Test: FPO-Proxy mit gespeicherten Seeds ist reproduzierbar (Ratio == 1).
 """python -m pytest Simulation/g1_dex3_sim/test_rl_fpo.py
 
 Ein Attrappen-Modell zieht Rauschen und t wie Gr00tN1d6ActionHead.forward (randn auf dem

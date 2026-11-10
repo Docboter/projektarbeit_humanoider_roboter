@@ -1,6 +1,6 @@
 # TL;DR: VERALTET (2026-10-13) — Windows-Host-Skript, startet das Finetuning per docker compose exec.
 #
-# VERALTET, wird nicht mehr nachgezogen (Review 4.7). Gegenüber run_finetuning.sh fehlen
+# VERALTET, wird nicht mehr nachgezogen. Gegenüber run_finetuning.sh fehlen
 # --no-sync, Train/Test-Split, Resume-Guard, USE_AUGMENTATION, GRADIENT_ACCUMULATION_STEPS
 # und die TUNE_VISUAL/USE_COTRAIN-Weiche; Color-Jitter ist fest eingetragen, die Defaults
 # weichen ab (MaxSteps 30000, SaveSteps 1000/5, 2 Worker gegenüber 20000, 2000/10, 8).
@@ -83,7 +83,7 @@ function Dc { docker compose -f $ComposeFile @Args }
 
 # ── 1. Container-Status ───────────────────────────────────────────────────────
 # Ein Image je Generation (docker-compose.yml: :${GROOT_IMAGE_TAG:-latest}); für 1.7 das
-# N1.7-Image wählen und working_dir passend setzen (Review 5.2e). Ein schon laufender
+# N1.7-Image wählen und working_dir passend setzen. Ein schon laufender
 # Container behält sein Image — die venv-Prüfung unten fängt das ab.
 $env:GROOT_VERSION = $GrootVersion
 if ($GrootVersion -eq "1.7" -and -not $env:GROOT_IMAGE_TAG) { $env:GROOT_IMAGE_TAG = "latest-n17" }
@@ -162,7 +162,7 @@ Log "Training startet — abbrechen mit Ctrl+C (Container läuft weiter)."
 ""
 
 # Ein Prozess ohne torchrun: auf GPU 0 festlegen. Sieht er mehrere Karten, greift unter N1.7
-# DataParallel und stürzt ab (gleicher Pin wie run_finetuning.sh, Commit 22c3183; Review 5.2e).
+# DataParallel und stürzt ab (gleicher Pin wie run_finetuning.sh, Commit 22c3183).
 Dc exec -T -e CUDA_VISIBLE_DEVICES=0 --workdir $GrootRoot $Service @TrainCmd 2>&1 | Tee-Object -FilePath $LogFile
 $ExitCode = $LASTEXITCODE
 

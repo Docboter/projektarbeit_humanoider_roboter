@@ -2,7 +2,7 @@
 """
 Domain-Gap-Naeherung: Real- (Teleop-) gegen Sim-Frames durch ein vortrainiertes SigLIP.
 
-NAEHERUNG, NICHT DIE WAHRNEHMUNG DER POLICY (korrigiert 2026-10-13, Review §3.6). Frueher
+NAEHERUNG, NICHT DIE WAHRNEHMUNG DER POLICY (korrigiert 2026-10-13). Frueher
 stand hier, die ViT-Gewichte seien wegen tune_visual=false identisch mit
 google/siglip-so400m-patch14-224. Das trifft nicht zu:
   * Der beste Checkpoint (vision-v2, Lauf 2/3) wurde mit tune_visual=true trainiert —
@@ -301,7 +301,7 @@ def main() -> None:
     payload = {
         "model": args.model,
         "note": "Naeherung mit vortrainiertem SigLIP, nicht der Vision-Tower der Policy "
-                "(Review 3.6)",
+                "",
         "real_dir": str(real_dir),
         "sim_dir": str(sim_dir),
         "per_camera": results,

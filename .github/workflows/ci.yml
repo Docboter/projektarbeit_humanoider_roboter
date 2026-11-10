@@ -1,4 +1,4 @@
-# TL;DR: Minimales CI ohne GPU (Review 2026-10-13, R2): Menue-/Doku-Checks, ruff, shellcheck, Isaac-freie Sim-Tests, lib_groot_version-Gleichheit und Pin-Abgleich Dockerfile <-> Submodul.
+# TL;DR: Minimales CI ohne GPU: Menue-/Doku-Checks, ruff, shellcheck, Isaac-freie Sim-Tests, lib_groot_version-Gleichheit und Pin-Abgleich Dockerfile <-> Submodul.
 #
 # Bewusst klein: keine Images, kein Isaac, kein torch. Submodule werden NICHT geklont — der
 # Pin-Check liest die gitlinks aus dem Index (tools/ci_check_pins.sh).

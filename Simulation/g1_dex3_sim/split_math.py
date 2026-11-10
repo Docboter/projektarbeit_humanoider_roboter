@@ -10,7 +10,7 @@ eine Eval-Lage wird falsch als "held-out" beschriftet:
 
 Bis 2026-10-13 stand die Formel einzeln in extract_block_layout.py,
 reconstruct_cube_poses.py, render_cotrain_dataset.py, run_dataset_replay_videos.py,
-dazu die feste Konstante 240 in run_g1_dex3_sim_eval.py (Review 2026-10-13, R4/S6).
+dazu die feste Konstante 240 in run_g1_dex3_sim_eval.py.
 Ändert sich lib_split.sh, muss diese Datei mitziehen (test_split_math.py prüft das
 gegen den Quelltext von lib_split.sh, solange der im Repo liegt).
 

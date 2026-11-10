@@ -111,7 +111,7 @@ USE_COTRAIN="${USE_COTRAIN:-0}"
 # TRAIN_TEST_SPLIT: Default je Verfahren. Co-Training braucht den Split (Abbruchregel ueber die
 # Validierungs-MSE auf zurueckgehaltenen ECHTEN Episoden, run_finetuning_cotrain.sh), sonst bleibt
 # es beim bisherigen 0. Bis 2026-10-13 erzwangen Dockerfile-ENV und ein festes `:-0` hier die 0
-# auch fuer USE_COTRAIN=1 (Review T1). Ein ausdruecklich gesetzter Wert gilt immer.
+# auch fuer USE_COTRAIN=1. Ein ausdruecklich gesetzter Wert gilt immer.
 if [[ "$USE_COTRAIN" != "1" ]]; then
     TRAIN_TEST_SPLIT="${TRAIN_TEST_SPLIT:-0}"
 else
@@ -123,7 +123,7 @@ export TRAIN_TEST_SPLIT USE_AUGMENTATION
 export MAX_STEPS GLOBAL_BATCH_SIZE NUM_GPUS WANDB_PROJECT
 
 # Vor GPU-Check, Download und Konvertierung: bis 2026-10-13 kam die Ablehnung erst nach dem
-# ~25-GB-Download und der Konvertierung (Review 4.7).
+# ~25-GB-Download und der Konvertierung.
 # USE_RL=1 → RL-Fine-tuning gewünscht, läuft aber NICHT in diesem BC-Image (kein Isaac Sim).
 # Ehrlicher Hinweis-Schalter: präzise auf den RL-Pfad lenken statt still BC zu fahren.
 if [[ "$USE_RL" == "1" ]]; then
@@ -181,7 +181,7 @@ mkdir -p "$DATA_DIR/models" \
 # ── Download ──────────────────────────────────────────────────────────────────
 # Versionsabhängig: GROOT_MODEL_NAME kommt aus lib_groot_version.sh (groot_resolve).
 # Exportiert, damit download_data.sh (Ziel) und run_finetuning*.sh (MODEL_PATH) denselben Pfad
-# nutzen — vorher wirkte ein gesetztes MODEL_DIR nur auf die Vorhanden-Prüfung (Review 5.2g).
+# nutzen — vorher wirkte ein gesetztes MODEL_DIR nur auf die Vorhanden-Prüfung.
 export MODEL_DIR="${MODEL_DIR:-$DATA_DIR/models/$GROOT_MODEL_NAME}"
 export MODEL_PATH="${MODEL_PATH:-$MODEL_DIR}"
 DATASET_DIR="$DATA_DIR/unitreerobotics/G1_Dex3_BlockStacking_Dataset"
@@ -189,7 +189,7 @@ MODALITY_FILE="$DATASET_DIR/meta/modality.json"
 
 # Bis 2026-10-13 stand hier eine "Ordner nicht leer"-Heuristik: ein abgebrochener Download galt
 # als vollstaendig, und bei vorhandenem Modell + Datensatz wurde das N1.7-Backbone nie geladen
-# (Review T5). Jetzt entscheidet download_data.sh je Teil ueber .done-Marker unter
+#. Jetzt entscheidet download_data.sh je Teil ueber .done-Marker unter
 # $DATA_DIR/.download_state/ und ueberspringt Fertiges selbst — der Aufruf ist also billig,
 # wenn alles da ist, und laeuft deshalb bei jedem Start.
 log "Schritt 1/3 — Download (Modell + Datensatz${GROOT_BACKBONE_REPO:+ + Backbone})"
@@ -229,7 +229,7 @@ if [[ -n "${WANDB_API_KEY:-}" ]]; then
     # Offline nur auf dem Cluster: Compute-Nodes haben kein Internet, Runs landen unter
     # $WANDB_DIR/wandb/offline-run-*/ und werden danach auf dem Login-Node per "wandb sync"
     # hochgeladen. Lokal und auf vast.ai gibt es Netz — dort bis 2026-10-13 ebenfalls offline,
-    # was jeden Lauf erst nach einem manuellen Sync sichtbar machte (Review 4.7).
+    # was jeden Lauf erst nach einem manuellen Sync sichtbar machte.
     # Ein gesetztes WANDB_MODE (kisski_submit.sh setzt offline) hat immer Vorrang.
     if [[ -n "${APPTAINER_NAME:-}${SINGULARITY_NAME:-}${SLURM_JOB_ID:-}" ]]; then
         export WANDB_MODE="${WANDB_MODE:-offline}"

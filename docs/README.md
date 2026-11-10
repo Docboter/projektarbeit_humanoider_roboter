@@ -119,7 +119,7 @@ gesamter Projektstand in [next-steps.md §0](../next-steps.md).
 
 ## Archiv
 
-Abgeschlossene Pläne, Reviews und Zwischenstände: [archiv/](archiv/README.md). Ältere
+Abgeschlossene Pläne und Zwischenstände: [archiv/](archiv/README.md). Ältere
 Sim-Planungsdokumente liegen weiter unter [simulation/archiv/](simulation/archiv/), weil der Code
 auf sie verweist.
 

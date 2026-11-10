@@ -168,7 +168,7 @@ class G1GripperBlockstackSceneCfg(InteractiveSceneCfg):
 @configclass
 class G1GripperBlockstackEnvCfg(DirectRLEnvCfg):
     sim: SimulationCfg = SimulationCfg(
-        dt=1.0 / 210.0,   # 210/7 = 30 Hz wie Datensatz und Dex3-Env (Review §3.3)
+        dt=1.0 / 210.0,   # 210/7 = 30 Hz wie Datensatz und Dex3-Env
         render_interval=7,
     )
     scene: G1GripperBlockstackSceneCfg = G1GripperBlockstackSceneCfg(num_envs=1, env_spacing=2.0)

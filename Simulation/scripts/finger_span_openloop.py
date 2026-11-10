@@ -129,7 +129,7 @@ def span_per_group(actions: np.ndarray, group_slices: dict[str, slice]) -> dict[
     return out
 
 
-# Bild-Ablation (Review 10-13 §2.3 Nr. 3): wie stark hängt die Vorhersage an den Bildern?
+# Bild-Ablation: wie stark hängt die Vorhersage an den Bildern?
 # "none" = echte Bilder; die übrigen verfälschen sie gezielt, Zustand und Sprache bleiben echt.
 ABLATIONS = ("none", "black", "freeze", "swap_episode", "black_head", "black_wrist")
 

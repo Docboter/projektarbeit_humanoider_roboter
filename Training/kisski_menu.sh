@@ -74,7 +74,7 @@ SB=( sbatch --export=ALL )
 [[ -n "${KISSKI_PARTITION:-}" ]] && SB+=( --partition="$KISSKI_PARTITION" )
 [[ -n "${KISSKI_TIME:-}" ]]      && SB+=( --time="$KISSKI_TIME" )
 
-# GPU-Anforderung passend zu Partition und NUM_GPUS (Review T2). Bis 2026-10-13 aenderte das
+# GPU-Anforderung passend zu Partition und NUM_GPUS. Bis 2026-10-13 aenderte das
 # Menue nur --partition; kisski_submit.sh fordert aber fest `-G A100:4` an — auf kisski-h100
 # abgelehnt bzw. ewig in der Queue, und NUM_GPUS=1|2 belegte trotzdem vier Karten. Eine
 # sbatch-Option auf der Kommandozeile schlaegt die #SBATCH-Zeile im Skript; deshalb hier in

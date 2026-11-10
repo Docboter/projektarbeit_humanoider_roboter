@@ -12,6 +12,7 @@ from pathlib import Path
 
 from PIL import Image
 
+
 ORDNER = Path(__file__).resolve().parent.parent / "latex" / "figures" / "signes"
 GRAU_MAX = 60  # max(R,G,B) - min(R,G,B) darunter gilt ein Pixel als grau/schwarz
 RAND = 4  # px Rand nach dem Beschnitt
@@ -38,9 +39,9 @@ def aufbereiten(quelle: Path, nur_farbig: bool) -> Path:
                 continue
             # Weiß herausrechnen, damit Kanten nicht blass werden
             a = deckung / 255
-            px[x, y] = tuple(max(0, min(255, round((c - (1 - a) * 255) / a))) for c in (r, g, b)) + (
-                deckung,
-            )
+            px[x, y] = tuple(
+                max(0, min(255, round((c - (1 - a) * 255) / a))) for c in (r, g, b)
+            ) + (deckung,)
     box = bild.getchannel("A").point(lambda v: 255 if v > 24 else 0).getbbox()
     if box:
         box = (

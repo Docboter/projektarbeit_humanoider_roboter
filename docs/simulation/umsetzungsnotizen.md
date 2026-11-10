@@ -297,7 +297,7 @@ nach Installation `import zmq` → OK (pyzmq 27.1.0).
 `isaaclab.sh` **schluckt den Exit-Code** des Python-Sim-Clients — der zmq-Crash führte trotzdem
 zu „Sim-Eval abgeschlossen" + Exit 0. Im Entrypoint deshalb nach dem `isaaclab.sh`-Aufruf
 geprüft, ob `results.json` tatsächlich (nicht leer) existiert; sonst Fehler + Exit 1.
-*Stand 2026-10-13:* Das reicht nicht — eine alte `results.json` konnte einen Absturz verdecken (Review 10-13 S5). Jetzt löschen alle Entrypoints die Datei vor dem Start und verlangen den Marker `[eval] fertig.`; Server-Fehler machen eine Episode ungültig (`"error": true`), nach zwei in Folge Abbruch mit Exit ≠ 0. Details: [sim-eval-anleitung.md, Schritt 7](sim-eval-anleitung.md#schritt-7--ergebnisse-sichern).
+*Stand 2026-10-13:* Das reicht nicht — eine alte `results.json` konnte einen Absturz verdecken. Jetzt löschen alle Entrypoints die Datei vor dem Start und verlangen den Marker `[eval] fertig.`; Server-Fehler machen eine Episode ungültig (`"error": true`), nach zwei in Folge Abbruch mit Exit ≠ 0. Details: [sim-eval-anleitung.md, Schritt 7](sim-eval-anleitung.md#schritt-7--ergebnisse-sichern).
 
 ---
 

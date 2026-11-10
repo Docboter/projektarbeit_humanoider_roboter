@@ -4,7 +4,7 @@
 Der echte Datensatz `unitreerobotics/G1_Dex3_BlockStacking_Dataset` hat genau eine
 Aufgabe: "stack three block" (aus `meta/tasks.parquet` auf HF gelesen, 2026-10-11).
 Bis 2026-10-13 schickten alle Closed-Loop-Pfade fest "stack the blocks" — einen Text,
-der im Training nie vorkam (projekt-review-2026-10-11.md §3.1). Deshalb hier eine
+der im Training nie vorkam. Deshalb hier eine
 Stelle, die den Text aus dem Datensatz liest und nur ersatzweise auf die Konstante
 zurückfällt.
 

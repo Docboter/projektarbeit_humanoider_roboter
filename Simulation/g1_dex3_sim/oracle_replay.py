@@ -1,5 +1,5 @@
 # TL;DR: Isaac-freier Orakel-Client: spielt aufgezeichnete Aktionen statt Policy-Chunks ab.
-"""Orakel-Replay für die Closed-Loop-Eval (Review 2026-10-13 §2.3, Experiment 1).
+"""Orakel-Replay für die Closed-Loop-Eval.
 
 Ersetzt in ``run_g1_dex3_sim_eval.py`` den ZMQ-``PolicyClient`` durch einen Client, der die
 aufgezeichneten Ground-Truth-Aktionen einer Datensatz-Episode in Chunks ausgibt. Alles

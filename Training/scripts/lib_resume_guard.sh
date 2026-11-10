@@ -83,7 +83,7 @@ resume_guard() {
     err "Gewollt? Dann RESUME=1 setzen."
     err "Neuer Lauf? Dann einen eigenen Namespace wählen, z. B.:"
     # Nur bei numerischem _vN-Suffix hochzählen; sonst endete $(( … )) unter set -u in
-    # "unbound variable" bzw. einem Syntaxfehler, und der Vorschlag ging verloren (Review 4.4).
+    # "unbound variable" bzw. einem Syntaxfehler, und der Vorschlag ging verloren.
     local suggestion="${experiment_name}_v2"
     if [[ "$experiment_name" =~ ^(.*)_v([0-9]+)$ ]]; then
         suggestion="${BASH_REMATCH[1]}_v$(( BASH_REMATCH[2] + 1 ))"

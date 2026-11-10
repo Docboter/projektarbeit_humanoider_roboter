@@ -145,7 +145,7 @@ APPTAINER_ARGS=(
     --env "GROOT_VERSION=$GROOT_VERSION"
 )
 # Geheimnisse ueber APPTAINERENV_<NAME> statt --env KEY=WERT — sonst stuenden sie in der
-# Prozessliste des (geteilten) Knotens (Review T4).
+# Prozessliste des (geteilten) Knotens.
 [[ -n "${HF_TOKEN:-}" ]] && export APPTAINERENV_HF_TOKEN="$HF_TOKEN"
 if [[ -n "${WANDB_API_KEY:-}" ]]; then
     export APPTAINERENV_WANDB_API_KEY="$WANDB_API_KEY"

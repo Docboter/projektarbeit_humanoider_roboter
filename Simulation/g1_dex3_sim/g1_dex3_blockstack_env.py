@@ -394,7 +394,7 @@ class G1Dex3BlockstackEnvCfg(DirectRLEnvCfg):
     sim: SimulationCfg = _make_sim_cfg(
         # 210 Hz Physik / 7 = exakt 30 Hz Policy-Takt, wie der Datensatz (30 fps). Bis
         # 2026-10-13 war es 1/200 → 28,57 Hz: jeder Aktionsblock lief ~5 % zu langsam,
-        # obwohl policy_hz=30 angenommen wird (Review §3.3). Dieselbe Zeitbasis nutzt
+        # obwohl policy_hz=30 angenommen wird. Dieselbe Zeitbasis nutzt
         # run_dataset_replay_videos.py (dt = 1 / (fps * decimation)) schon länger.
         dt=1.0 / 210.0,
         render_interval=7, # = decimation: ein Render je Policy-Step
@@ -419,7 +419,7 @@ class G1Dex3BlockstackEnvCfg(DirectRLEnvCfg):
     # Block-Sampling-Bereich der Zufallsbänder. Hergeleitet aus dem Replay mit der ALTEN
     # Basisposition (vor dem Geometrie-Fix vom 2026-08-24: Hände greifen bei x≈0.35,
     # y≈±0.19, z≈0.92) und deshalb kein Abbild der Realdaten: dort liegt x bei 0,23–0,50 m,
-    # und die Farben verteilen sich anders über y (Review §3.2). Für Messungen, die mit dem
+    # und die Farben verteilen sich anders über y. Für Messungen, die mit dem
     # Training vergleichbar sein sollen, block_layout setzen (Eval: --layout / EVAL_LAYOUT).
     # z = Tischoberfläche (0.87) + halbe Würfelhöhe.
     block_x_range: tuple[float, float] = (0.30, 0.40)
@@ -432,7 +432,7 @@ class G1Dex3BlockstackEnvCfg(DirectRLEnvCfg):
     # Vergleichen nichts still ändert; (0, 90) macht die Streuung an.
     # Bei einem 4-zähligen Würfel deckt 0…90° bereits alle Lagen ab.
     block_yaw_range_deg: tuple[float, float] = (0.0, 0.0)
-    # Echte Startlagen statt Zufallsbänder (Review §3.2). Liste von Einträgen
+    # Echte Startlagen statt Zufallsbänder. Liste von Einträgen
     # {"key": str, "cubes": [[x, y] × 3], "yaws": [Grad|None × 3]} in Würfelreihenfolge
     # rot/grün/gelb (= block_0/1/2 = CUBE_COLORS in extract_block_layout.py). Jeder Reset
     # nimmt den nächsten Eintrag, reihum. Die Zufallsbänder bilden die Startlagen der
@@ -449,7 +449,7 @@ class G1Dex3BlockstackEnvCfg(DirectRLEnvCfg):
     terminate_on_success: bool = True
 
     # Task-Beschreibung (geht ans Language-Modell). Muss der Text aus dem Training sein —
-    # der Datensatz kennt nur "stack three block" (task_text.py, Review §3.1). Die Eval
+    # der Datensatz kennt nur "stack three block" (task_text.py). Die Eval
     # überschreibt ihn mit dem aus dem Datensatz gelesenen Text; RL nutzt diesen Default.
     task_description: str = DEFAULT_TASK_DESCRIPTION
 

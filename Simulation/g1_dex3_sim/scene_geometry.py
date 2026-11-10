@@ -3,7 +3,7 @@
 
 Bis 2026-10-13 standen diese Zahlen einzeln in jeder Datei. Die Baseline-Gripper-Sim
 behielt dabei die Geometrie von vor dem Fix vom 2026-08-24 (Tisch 0,89, Würfel 0,915,
-Becken 0,85), Baseline- und Dex3-Zahlen waren damit nicht vergleichbar (Review §3.5).
+Becken 0,85), Baseline- und Dex3-Zahlen waren damit nicht vergleichbar.
 
 Isaac-frei, damit auch die CPU-Werkzeuge (extract_block_layout.py, Tests) es importieren.
 Die Kamerapose steht bewusst NICHT hier, sondern in camera_geometry.py — sie ist gegen

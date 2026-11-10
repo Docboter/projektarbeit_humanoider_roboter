@@ -41,7 +41,7 @@ param DR_ENABLED bool 0 basic \
   --override "Messlauf ohne Randomisierung; das Skript laesst sie sonst offen"
 param EVAL_LAYOUT path "" advanced \
   "Echte Wuerfel-Startlagen (layout.json)" \
-  "Leer = Zufallsbaender der Env-Cfg; dort liegt rot immer bei y<-0,1 m, in den Realdaten im Median bei +0,11 m (Review 3.2). Fuer vergleichbare Zahlen vorher 'LAYOUT_HELD_OUT=1 layout' fahren und /data/eval/layout_heldout.json eintragen." \
+  "Leer = Zufallsbaender der Env-Cfg; dort liegt rot immer bei y<-0,1 m, in den Realdaten im Median bei +0,11 m. Fuer vergleichbare Zahlen vorher 'LAYOUT_HELD_OUT=1 layout' fahren und /data/eval/layout_heldout.json eintragen." \
   --default-from "leer = Zufallsbaender"
 
 param DR_SEED int 0 advanced \

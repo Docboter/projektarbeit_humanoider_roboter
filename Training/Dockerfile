@@ -177,7 +177,7 @@ COPY --chmod=755 scripts/ /scripts/
 # der Entrypoint schaltet PATH/VIRTUAL_ENV dann auf die passende venv um (lib_groot_version.sh).
 # TRAIN_TEST_SPLIT steht bewusst NICHT hier: sein Default haengt vom Verfahren ab (Co-Training
 # 1, sonst 0) und wird in entrypoint.sh gesetzt. Ein ENV TRAIN_TEST_SPLIT=0 ueberstimmte das
-# `:-1` in run_finetuning_cotrain.sh, der Co-Training-Lauf trainierte ohne Split (Review T1).
+# `:-1` in run_finetuning_cotrain.sh, der Co-Training-Lauf trainierte ohne Split.
 ENV MAX_STEPS=20000 \
     GLOBAL_BATCH_SIZE=8 \
     NUM_GPUS=1 \

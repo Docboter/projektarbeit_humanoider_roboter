@@ -114,7 +114,7 @@ class PolicyClient:
         Antwort": jedes weitere send() wirft EFSM ("Operation cannot be accomplished in
         current state"). Bis 2026-10-13 wurde er nie neu aufgebaut — nach EINEM Timeout
         (z. B. kalter compile/TRT-Erstaufruf über 20 s) scheiterte jeder weitere Aufruf
-        der Eval, und das sah aus wie ein plausibles 0/N (Review 2026-10-13, S1).
+        der Eval, und das sah aus wie ein plausibles 0/N.
         LINGER 0: die unbeantwortete Anfrage wird beim close() verworfen, nicht gepuffert.
         """
         try:

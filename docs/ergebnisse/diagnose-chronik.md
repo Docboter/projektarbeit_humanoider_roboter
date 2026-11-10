@@ -2153,7 +2153,7 @@ den 61 % aus dem Vollauslauf in Lauf 52.
 
 ### Nachtrag 2026-10-13: `cotrain_synth_v1` (W&B `7z81177r`) war kein Co-Training-Lauf
 
-Ausgelesen aus der W&B-Konfiguration und den Systemmetriken des Laufs (Review §4.9):
+Ausgelesen aus der W&B-Konfiguration und den Systemmetriken des Laufs:
 
 | Feld | Wert | Erwartet bei Co-Training |
 |---|---|---|
@@ -2171,7 +2171,7 @@ Folgerungen:
   Die Synth-Daten waren also gar nicht beteiligt. „Erster Co-Training-Lauf gescheitert“ ist damit
   falsch; es gab bisher **keinen** Co-Training-Lauf. Warum das Routing nicht griff (altes Image ohne
   `USE_COTRAIN`-Weiche, Variable nicht angekommen oder Aufruf von Hand), lässt W&B nicht erkennen.
-- Ein RAM-OOM des Hosts ist ausgeschlossen. Die vermutete Ursache aus dem Review (2 Datensätze ×
+- Ein RAM-OOM des Hosts ist ausgeschlossen. Die zunächst vermutete Ursache (2 Datensätze ×
   4 Worker × 4 Ranks) trifft nicht zu — es gab nur einen Datensatz und 2 Ranks.
 - Die eigentliche Absturzursache steht nur im Log: `/data/logs/finetune-*.log` vom 2026-09-07 im
   Trainingscontainer des IKR-Servers (`docker cp groot-train:/data/logs ./logs-groot-train`)
@@ -2259,7 +2259,7 @@ Episodenende dort. Das Öffnen und Schließen in der Luft aus Lauf 54 tritt nich
 > (vor der Korrektur vom 2026-08-24: Fingervorzeichen, Becken, Basis), die Läufe 54/55 mit der
 > korrigierten. Die Spalten unterscheiden sich also nicht nur im Modell; ein N1.6-Lauf mit
 > korrigierter Szene fehlt. Bei n = 10 ist 0/10 zudem mit einer wahren Erfolgsrate von 0–31 %
-> vereinbar ([Review 10-13 §2.1 M4](../archiv/projekt-review-2026-10-13.md#21-befunde)).
+> vereinbar.
 
 `span` für Lauf 55 im Einzelnen (Vorhersage/GT der Fingerspanne, MSE über alle 28 Dimensionen):
 Train 0,77 / 0,76 / 0,87 / 0,89 / 0,75, MSE 0,0056 / 0,0030 / 0,0035 / 0,0065 / 0,0015;
@@ -2292,7 +2292,7 @@ Videos nur stichprobenhaft als Standbilder gesichtet.
 (Docker Hub, 2026-08-26), Container `groot-rl-hub`, Sim-Code aus dem Repo gemountet (Stand `f645522`),
 schwarzhändiges Asset. Kein Modell.
 
-**Frage (Review 10-13 S7):** Klemmt die Sim `thumb_0`/`thumb_2`, weil `_widen_finger_joint_limits`
+**Frage:** Klemmt die Sim `thumb_0`/`thumb_2`, weil `_widen_finger_joint_limits`
 sie nicht weitet? **Antwort: nein.** USD-Grenzen laut Sim: `thumb_0` beidseitig [−1,047, 1,047],
 `thumb_2` links [0, 1,745], rechts [−1,745, 0]. Der ganze Datensatz (301 Episoden, 281 196 Frames)
 liegt darin: Zustand `thumb_0` [−1,010, +0,152] / [−1,006, +0,026], `thumb_2` [+0,017, +1,355] /
@@ -2465,7 +2465,7 @@ Episoden 240–247, 40 s, DR aus, Seed 0). Modell-Läufe im Image `…-sim-stand
 - **Physik (neuer Schalter `JOINT_ZERO_OFFSETS`):** Orakel ohne Würfelverschiebung,
   `lifted_clear` Ellbogen 2/8, Handgelenk-Nicken 1/8, Schulter-Gier 0/8 — keiner erreicht die
   5/8 der Würfelverschiebung. Ein einzelner Gelenk-Nullpunkt erklärt den Versatz nicht.
-- **Kopfkamera folgt dem Becken** (`HEAD_CAM_FOLLOWS_PELVIS=1`, Gegenhypothese Review §3.4):
+- **Kopfkamera folgt dem Becken** (`HEAD_CAM_FOLLOWS_PELVIS=1`, Gegenhypothese):
   Held-out-Layout neu extrahiert, Kamera-Uneinigkeit 1,90 statt 1,27 cm, Griffstelle 13,6 statt
   3,4 cm neben dem Würfel → **widerlegt**.
 - `tipcheck` am Griffframe (Trainings-Ep. 20/24/28/36): die projizierten Kuppen liegen 2–5 cm
@@ -2504,7 +2504,7 @@ Kameragruppe genügt (redundant). Die Closed-Loop-Spanne (30–55 %) liegt im Be
 eingefroren“. Der Kandidat „Zustandsverteilung“ verliert damit an Gewicht.
 JSON: `sim_results/ablation_n16_vision-v2-30000.json`, `ablation_n17_ckpt44000.json`.
 
-#### Lauf 66 — Teacher-forced Open Loop auf Sim-Renderbildern (Review §2.3 Nr. 2)
+#### Lauf 66 — Teacher-forced Open Loop auf Sim-Renderbildern
 
 Neu gerendert mit aktueller Geometrie (`render`, `RENDER_STOP_AT_GRASP=0`, `RENDER_MAX_FRAMES=600`,
 `RENDER_NO_DR=1`, Trainings-Layout um 3 cm nach außen korrigiert, Trainings-Episoden
@@ -3339,7 +3339,7 @@ Vergleichsgröße. Der fremde vLLM-Server lief weiter, parallel lief Lauf 97 auf
 
 - **Als Kontrolle für das Co-Training ungeeignet.** `measure_domain_gap.py` bettet mit einem
   generischen, vortrainierten SigLIP ein, nicht mit dem Vision-Encoder des Checkpoints (Hinweis
-  im Skript seit dem Review vom 13.10.). Die Zahl ist für alle Modelle gleich, sie misst nur die
+  im Skript seit dem 13.10.). Die Zahl ist für alle Modelle gleich, sie misst nur die
   Szene. Mit der Szene aus Lauf 70 steigt sie sogar (0,236 → 0,265, vor allem die Kopfkameras),
   obwohl der Hand-Fehler der Policy auf denselben Bildern stark sank (Lauf 70: N1.6 0,036 →
   0,022). Ein Teil davon ist Bildinhalt: Der Dump zeigt die Reset-Pose, das Beobachtungsbild die

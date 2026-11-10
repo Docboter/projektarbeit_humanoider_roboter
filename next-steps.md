@@ -88,9 +88,9 @@ verweisen hierher. Den N1.7-Detailstand pflegt
 - **Ursache des Closed-Loop-Versagens nicht identifiziert** (Stand 2026-10-13; teilweise
   überholt durch die Orakel-Befunde oben — mindestens die Würfellage relativ zur Hand ist ein
   Blocker). „Domain-Gap bestätigt“ ist ein
-  starker Hinweis, kein Befund — Closed und Open Loop unterscheiden sich in mehreren Faktoren
-  ([Review 10-13 §2.1](docs/archiv/projekt-review-2026-10-13.md#21-befunde)); billige trennende
-  Experimente: [Review 10-13 §2.3](docs/archiv/projekt-review-2026-10-13.md#23-empfohlene-experimente-nach-kostennutzen).
+  starker Hinweis, kein Befund — Closed und Open Loop unterscheiden sich in mehreren Faktoren.
+  Trennende Experimente (Orakel-Replay, Bild-Ablation, Open Loop auf Sim-Bildern): Läufe 57–69 in der
+  [Diagnose-Chronik](docs/ergebnisse/diagnose-chronik.md).
 - **Co-Training:** seit 2026-10-29 mit Ergebnis (siehe oben). `cotrain_synth_v1` (2026-09-07)
   war kein Co-Training-Lauf.
 - **Cosmos-Augmentierung, RL:** Werkzeuge gebaut, **kein Ergebnis**. Cosmos lief einmal

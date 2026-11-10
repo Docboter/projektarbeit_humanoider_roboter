@@ -316,7 +316,7 @@ SIM_APPTAINER_ARGS=(
 )
 
 # Veraltete Ergebnis-Datei entfernen und auf den Erfolgsmarker prüfen statt auf ihre
-# bloße Existenz (Review 2026-10-13, S5): isaaclab.sh reicht den Exit-Code nicht durch.
+# bloße Existenz: isaaclab.sh reicht den Exit-Code nicht durch.
 rm -f "$DATA_DIR/sim_results.json"
 EVAL_LOG="$DATA_DIR/sim_eval_${SLURM_JOB_ID:-$(date +%Y%m%d-%H%M%S)}.log"
 # set +e: unter `set -e` + pipefail bräche ein Exit != 0 das Skript ab, bevor der

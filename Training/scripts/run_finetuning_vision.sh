@@ -32,7 +32,7 @@ groot_resolve || { echo "FEHLER: GR00T-Versionsauflösung fehlgeschlagen (GROOT_
 
 # ── Trainings-Parameter (alle via Env-Var überschreibbar) ─────────────────────
 # DATA_DIR: Container-seitige Datenwurzel (Default /data wie Dockerfile-ENV und entrypoint.sh).
-# Bis 2026-10-13 waren die Pfade unten fest auf /data codiert (Review T5).
+# Bis 2026-10-13 waren die Pfade unten fest auf /data codiert.
 DATA_DIR="${DATA_DIR:-/data}"
 MODEL_PATH="${MODEL_PATH:-$DATA_DIR/models/$GROOT_MODEL_NAME}"
 DATASET_PATH="${DATASET_PATH:-$DATA_DIR/unitreerobotics/G1_Dex3_BlockStacking_Dataset}"
@@ -43,7 +43,7 @@ MODALITY_CONFIG="${MODALITY_CONFIG:-$GROOT_ROOT/examples/G1_DEX3/g1_dex3_config.
 EMBODIMENT_TAG="${EMBODIMENT_TAG:-NEW_EMBODIMENT}"
 
 # 20000 wie Dockerfile-ENV und entrypoint.sh — im Image wirkt ohnehin das ENV; der Wert hier
-# griff nur bei einem Aufruf außerhalb des Images und stand bis 2026-10-13 auf 30000 (Review 4.6).
+# griff nur bei einem Aufruf außerhalb des Images und stand bis 2026-10-13 auf 30000.
 # Plattform-Defaults setzen die Launcher: lokal 30000, KISSKI 44000.
 MAX_STEPS="${MAX_STEPS:-20000}"
 GLOBAL_BATCH_SIZE="${GLOBAL_BATCH_SIZE:-8}" #8
@@ -54,7 +54,7 @@ DATALOADER_WORKERS="${DATALOADER_WORKERS:-8}"
 # man damit die Batchgroesse des Referenzlaufs, statt sie senken und das Optimierungs-
 # regime mitaendern zu muessen. 1 = aus, verhaelt sich exakt wie bisher.
 GRADIENT_ACCUMULATION_STEPS="${GRADIENT_ACCUMULATION_STEPS:-1}"
-# Checkpoints: einheitlich in allen drei Trainings-Skripten (Review T5). Bis 2026-10-13 standen
+# Checkpoints: einheitlich in allen drei Trainings-Skripten. Bis 2026-10-13 standen
 # vision/cotrain auf 1000/5 — bei einem 44k-Lauf blieben nur die letzten fuenf Checkpoints, zu
 # wenig fuer checkpoint_sweep.py (der beste muss nicht am Ende liegen). 2000/15 haelt jeden
 # Checkpoint eines Laufs bis 30000 Schritte (Default des Pull-Launchers), bei 44k die letzten
@@ -152,8 +152,8 @@ if [[ "$USE_WANDB" == "1" ]]; then
         cd "$GROOT_ROOT"
         # wandb.init() liest WANDB_API_KEY selbst aus der Umgebung — ein Login ist nicht noetig.
         # Bis 2026-10-13 stand hier `wandb login --relogin "$WANDB_API_KEY"`: der Key lag damit
-        # in der Prozessliste (auf geteilten Knoten fuer andere lesbar) und in ~/.netrc (Review
-        # T4). Jetzt nur noch eine Vorab-Pruefung des Keys gegen den Server, ohne ihn in argv.
+        # in der Prozessliste (auf geteilten Knoten fuer andere lesbar) und in ~/.netrc.
+        # Jetzt nur noch eine Vorab-Pruefung des Keys gegen den Server, ohne ihn in argv.
         if uv run --no-sync python -c "import sys, wandb; sys.exit(0 if wandb.login(verify=True) else 1)" &>/dev/null; then
             log "W&B-Login OK"
         else
@@ -223,7 +223,7 @@ else
     TRAIN_CMD+=(--color_jitter_params brightness 0 contrast 0 saturation 0 hue 0)
     # Auch State-Dropout aus: "Aug aus" heißt keine Regularisierung durch Modell-Defaults.
     # Ohne Flag trainierte N1.7 hier mit seinem Default 0,2, und ein gesetztes
-    # STATE_DROPOUT_PROB wurde ignoriert (Review 5.2d). Gesetzt = gilt auch hier.
+    # STATE_DROPOUT_PROB wurde ignoriert. Gesetzt = gilt auch hier.
     TRAIN_CMD+=(--state_dropout_prob "${STATE_DROPOUT_PROB:-0}")
 fi
 
@@ -248,7 +248,7 @@ echo
 
 cd "$GROOT_ROOT"
 # set +e: unter "set -euo pipefail" beendet eine scheiternde Pipe das Skript sofort, die
-# Fehlermeldung unten mit Exit-Code und Log-Pfad erschiene dann nie (Review 4.2).
+# Fehlermeldung unten mit Exit-Code und Log-Pfad erschiene dann nie.
 set +e
 "${TRAIN_CMD[@]}" 2>&1 | tee "$LOG_FILE"
 EXIT_CODE=${PIPESTATUS[0]}

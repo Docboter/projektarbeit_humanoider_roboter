@@ -7,14 +7,14 @@ Isaac-frei (nur numpy + Standardbibliothek), damit die Tests auf der CPU laufen.
    Die alte Metrik ``lifted`` vergleicht die SCHWERPUNKT-Höhe gegen das eingeschwungene
    Layout (> 2 cm). Ein 5-cm-Würfel, der auf eine Kante kippt, hebt seinen Schwerpunkt
    dabei um 2,5·(√2 − 1) ≈ 1,04 cm, auf eine Ecke um 2,5·(√3 − 1) ≈ 1,83 cm — knapp
-   unter der Schwelle, aber ohne dass er je vom Tisch abhob (Review 2026-10-13, M3).
+   unter der Schwelle, aber ohne dass er je vom Tisch abhob.
    ``lifted_clear`` misst stattdessen den TIEFSTEN Punkt des Würfels (Pose + halbe
    Kante): der liegt beim Kippen weiter auf dem Tisch, beim echten Anheben darüber.
    Zusätzlich muss im SELBEN Schritt eine Hand am Würfel sein (s. Kontakt-Proxy dort),
    sonst zählt ein geworfener oder abprallender Würfel mit.
 
 2. ``clopper_pearson``
-   Exaktes 95-%-Konfidenzintervall einer Erfolgsquote k/n (Review M4: 0/10 heißt
+   Exaktes 95-%-Konfidenzintervall einer Erfolgsquote k/n (0/10 heißt
    0–30,8 %, 0/20 heißt 0–16,8 %). Ohne scipy: Bisektion auf der Binomial-CDF.
 """
 
