@@ -15,8 +15,8 @@ Das beste Modell ist N1.6 nach 44\,000 Trainingsschritten; N1.7 erreicht auf den
 Testaufnahmen (Open Loop) dieselbe Güte. In der Simulation stapelt keines der Modelle. Zwei
 Ursachen wurden gemessen. Erstens liegen die Würfel in der Simulation relativ zur Hand je Seite
 rund 3~cm zu weit innen: Spielt man die aufgezeichneten Bewegungen aus dem Datensatz ohne
-Modell ab, heben sie erst mit einer Korrektur dieser Lage einen Würfel an, dann in knapp einem
-Drittel der Episoden. Zweitens kann die Policy mit den Kamerabildern, die Isaac~Lab von der
+Modell ab, heben sie ohne Korrektur dieser Lage nur in einer von 16 Episoden einen Würfel an,
+mit Korrektur in knapp einem Drittel der Episoden. Zweitens kann die Policy mit den Kamerabildern, die Isaac~Lab von der
 nachgebauten Szene rendert, kaum etwas anfangen: Ihr Fehler bei den Handbewegungen ist dort
 13-mal (N1.6) bzw.\ 36-mal (N1.7) so groß wie auf den echten Bildern derselben Episoden.
 
@@ -47,8 +47,9 @@ policy server and simulation are documented.
 The best model is N1.6 after 44\,000 training steps; N1.7 reaches the same quality on the real
 test recordings (open loop). No model stacks in simulation. Two causes were measured. First,
 relative to the hand, the cubes in simulation lie about 3~cm too far inward on each side: when
-the recorded motions from the dataset are replayed without a model, they lift a cube only after
-this position is corrected, and then in almost a third of the episodes. Second, the policy can
+the recorded motions from the dataset are replayed without a model, they lift a cube in only one
+of 16 episodes without correcting this position, and in almost a third of the episodes with the
+correction. Second, the policy can
 make little use of the camera images that Isaac~Lab renders of the reconstructed scene: its hand
 error there is 13 times (N1.6) or 36 times (N1.7) as large as on the real images of the same
 episodes.
