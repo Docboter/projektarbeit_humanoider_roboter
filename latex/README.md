@@ -5,7 +5,7 @@
 > gesamt, baut ohne Fehler und ohne undefinierte Referenzen). Neu gegliedert nach dem
 > (inzwischen entfernten) Abgabeplan: System, Schnittstellen und Anleitung zum Weiterarbeiten im Mittelpunkt, Ergebnisse
 > als Kette bis Lauf 97 (N1.7, Orakel/Registrierung, Domain-Gap, Co-Training v3), Lessons
-> Learned als eigenes Kapitel. Matrikelnummern und Abgabedatum (09.11.2026) eingetragen.
+> Learned als eigenes Kapitel. Matrikelnummern und Abgabedatum (10.11.2026) eingetragen.
 
 ## Zweck
 
@@ -37,7 +37,7 @@ latex/
 │   └── 08_uebergabe.tex         #  offene Punkte, bekannte Defekte
 ├── backmatter/
 │   ├── anhang.tex           # Datensatz, SLURM, Software, Trainingsdynamik, Szene
-│   └── erklaerung.tex       # Ehrenwörtliche Erklärung ← prüfen
+│   └── erklaerung.tex       # Ehrenwörtliche Erklärung (Ort/Datum, Unterschriften)
 ├── figures/                 # Abbildungen; plots/ aus make_figures.py (daten/*.csv)
 ├── references.bib           # Literatur
 ├── Makefile / .latexmkrc    # Build-Konfiguration
@@ -64,6 +64,20 @@ lualatex -shell-escape main.tex
 Hilfs- und Cache-Dateien (`*.aux`, `_minted/`, …) sowie das PDF sind über `.gitignore`
 ausgeschlossen.
 
+## Unterschriften (nur lokal)
+
+Die ehrenwörtliche Erklärung setzt die Unterschriften aus `figures/signes/<Name>_frei.png` auf
+die Linien. Der Ordner ist über `.gitignore` ausgeschlossen und darf **nie** eingecheckt werden,
+weil das Repo öffentlich ist. Die Rohbilder (`Max.png`, `Matthias.png`, `Luca.png`) dort ablegen
+und freistellen:
+
+```bash
+python3 tools/unterschriften_aufbereiten.py   # aus dem Repo-Wurzelverzeichnis
+```
+
+Fehlen die Bilder, bleiben die Linien leer und der Build läuft trotzdem. Das fertige PDF
+enthält die Unterschriften und gehört deshalb ebenfalls nicht ins Repo (`*.pdf` ist ignoriert).
+
 ## Abbildungen neu erzeugen
 
 ```bash
@@ -75,6 +89,6 @@ Schreibt `figures/plots/*.pdf` aus `figures/daten/*.csv`. Die PDFs sind eingeche
 
 ## Offen
 
-- [x] `\docAbgabedatum` in `preamble/settings.tex` (09.11.2026)
+- [x] `\docAbgabedatum` in `preamble/settings.tex` (10.11.2026)
 - [ ] Ehrenwörtliche Erklärung gegen die Vorlage der Hochschule abgleichen
 - [ ] Prüfen vor der Abgabe: Fremdtest, Absatz-Test (Zahlen-Stichprobe erledigt)

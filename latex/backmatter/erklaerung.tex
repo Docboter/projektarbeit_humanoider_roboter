@@ -18,14 +18,23 @@ folgenden Abschnitt \enquote{Erklärung zur KI-Nutzung} dokumentiert.
 
 \vspace{1.5cm}
 
+% Unterschriftenlinie; liegt figures/signes/<Name>_frei.png vor, steht die Unterschrift darauf.
+% Die Bilder sind git-ignoriert (öffentliches Repo) und entstehen lokal mit
+% tools/unterschriften_aufbereiten.py. Fehlen sie, bleibt die Linie leer und der Build läuft.
+\newcommand{\Unterschrift}[1]{%
+  \IfFileExists{figures/signes/#1_frei.png}%
+    {\rlap{\hspace{2mm}\smash{\raisebox{-2.5mm}{%
+      \includegraphics[height=13mm, width=5.6cm, keepaspectratio]{signes/#1_frei}}}}}{}%
+  \underline{\hspace{6cm}}}
+
 \noindent
 \begin{tabular}{@{}ll}
-  Ort, Datum: & \underline{\hspace{6cm}} \\[1.5cm]
-  Unterschrift: & \underline{\hspace{6cm}} \\[0.3cm]
+  Ort, Datum: & \underline{\makebox[6cm][l]{Kempten, den 10.11.2026}} \\[1.5cm]
+  Unterschrift: & \Unterschrift{Max} \\[0.3cm]
                & \docAuthorA \\[1.2cm]
-  Unterschrift: & \underline{\hspace{6cm}} \\[0.3cm]
+  Unterschrift: & \Unterschrift{Matthias} \\[0.3cm]
                & \docAuthorB \\[1.2cm]
-  Unterschrift: & \underline{\hspace{6cm}} \\[0.3cm]
+  Unterschrift: & \Unterschrift{Luca} \\[0.3cm]
                & \docAuthorC \\
 \end{tabular}
 

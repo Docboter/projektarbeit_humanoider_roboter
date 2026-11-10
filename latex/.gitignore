@@ -36,3 +36,6 @@ _minted-*/
 !figures/plots/*.pdf
 # Projektkarte: fertige Varianten versioniert (Build braucht LuaLaTeX + dvisvgm)
 !figures/projektkarte/projektkarte*.pdf
+
+# Unterschriften: NIE versionieren (Repo ist öffentlich); liegen nur lokal
+figures/signes/
