@@ -17,20 +17,22 @@
 % Im Kurzmodus: Beschriftung nur für Wendepunkte (*) und Schlüsselstationen (!)
 \ifkurz
   \RenewDocumentCommand\St{s t! m m m m m m}{%
-    \IfBooleanT{#1}{\Wende{#4,#5}}%
+    \IfBooleanTF{#1}{\Wende{#4,#5}\def\sep{\lblsepW}}{\def\sep{\lblsep}}%
     \Mk{#3}{#4,#5}%
-    \IfBooleanTF{#1}{\node[lbl, #6=2.35mm] at (#4,#5) {{\bfseries #7}};}{%
-      \IfBooleanT{#2}{\node[lbl, #6=2.35mm] at (#4,#5) {{\bfseries #7}};}}}
+    \IfBooleanTF{#1}{\node[lbl, #6=\sep] at (#4,#5) {{\bfseries #7}};}{%
+      \IfBooleanT{#2}{\node[lbl, #6=\sep] at (#4,#5) {{\bfseries #7}};}}}
 \else
   \RenewDocumentCommand\St{s t! m m m m m m}{%
-    \IfBooleanT{#1}{\Wende{#4,#5}}%
+    \IfBooleanTF{#1}{\Wende{#4,#5}\def\sep{\lblsepW}}{\def\sep{\lblsep}}%
     \Mk{#3}{#4,#5}%
-    \node[lbl, #6=2.35mm] at (#4,#5) {{\bfseries #7}\ifx\relax#8\relax\else\\#8\fi};}
+    \node[lbl, #6=\sep] at (#4,#5) {{\bfseries #7}\ifx\relax#8\relax\else\\#8\fi};}
 \fi
 \newcommand\Detail[1]{\ifkurz\else#1\fi}
+\newcommand\fsHub{\fsLbl} % Schrift der Balken im Kasten
 \ifkurz % Folie: größere Schrift, weniger Text
   \renewcommand\fsLbl{\fontsize{8.4}{9.4}\selectfont\sffamily}
   \renewcommand\fsPhase{\fontsize{8.4}{9.6}\selectfont\sffamily}
+  \renewcommand\fsHub{\fontsize{7.2}{8.2}\selectfont\sffamily}
   \tikzset{badge/.append style={font=\fontsize{8}{8.8}\selectfont\sffamily\bfseries, minimum width=19mm, inner xsep=1mm}}
 \fi
 
@@ -52,10 +54,10 @@
 \begin{scope}[on background layer]
   \foreach \xa/\xb/\cc/\nam/\dat in {
       0.0/4.8/phaseA/{Aufbau \& erste Läufe}/{08.05.–05.06.},
-      4.8/6.6/white/{Pause}/{Prüfungen\\Juni–Juli},
+      4.8/6.6/white/{Prüfungs-\\phase}/{Juni–Juli,\\reduziert},
       6.6/11.6/phaseA/{Sim auf Blackwell, Diagnose}/{01.–14.08.},
-      11.6/14.8/phaseB/{Geometrie-Jagd}/{15.–26.08.},
-      14.8/17.0/phaseA/{Synth-Daten \& N1.7}/{27.08.–11.10.},
+      11.6/14.8/phaseB/{Geometrieabgleich}/{15.–26.08.},
+      14.8/17.0/phaseA/{Synthesedaten \& N1.7}/{27.08.–11.10.},
       17.0/20.4/phaseB/{Nachmessen \& Registrierung}/{12.–14.10.},
       20.4/23.8/phaseA/{Co-Training v3}/{15.–29.10.}} {
     \pgfmathsetlengthmacro\tw{(\xb-\xa)*1cm-2mm}
@@ -65,6 +67,12 @@
   }
   \fill[pattern=north east lines, pattern color=black!12] (4.8,1.25) rectangle (6.6,-14.05);
   \draw[black!35, line width=0.4pt] (0,1.25) -- (23.8,1.25);
+  % Monatsanfänge, innerhalb der Phasen linear umgerechnet (z. B. 01.06. = Tag 24 von 28 in Phase 1)
+  \foreach \x/\m in {4.11/Jun, 5.6/Jul, 6.6/Aug, 15.04/Sep, 16.51/Okt} {
+    \draw[black!35, line width=0.4pt] (\x,1.25) -- (\x,1.1);
+    \node[font=\fontsize{5.4}{6}\selectfont\sffamily, text=black!50, anchor=north west,
+      inner sep=0.4pt] at (\x,1.2) {1.\,\m};
+  }
 \end{scope}
 
 % ── Linien-Plaketten links ────────────────────────────────────────────
@@ -83,7 +91,7 @@
 % Training N1.6
 \draw[line, lTrain] (-0.25,\yT) -- (\xH,\yT);
 \draw[stub, lTrain] (2.5,\yT) -- (3.05,-2.6) -- (3.7,-2.6); \Prellbock[lTrain]{3.7,-2.6}{0}
-% Irrweg U-Kurve (14.08. → 12.10.)
+% Fehlannahme U-Kurve (14.08. → 12.10.)
 \draw[irrweg, lTrain] (11.25,\yT) -- (11.7,-2.48) -- (16.95,-2.48) -- (17.25,\yT);
 
 % N1.7 (zweigt am 19.08. ab)
@@ -95,12 +103,12 @@
 
 % Simulation / Szene
 \draw[line, lSim] (-0.25,\yS) -- (\xH,\yS);
-% Irrweg Finger-Vorzeichen (≤ 04.06. → 24.08.)
+% Fehlannahme Finger-Vorzeichen (≤ 04.06. → 24.08.)
 \draw[irrweg, lSim] (3.55,\yS) -- (4.25,-8.3) -- (13.5,-8.3) -- (13.95,\yS);
 
 % Evaluation / Diagnose
 \draw[line, lDiag] (-0.25,\yD) -- (\xH,\yD);
-% Irrweg SigLIP-Abstand (04.06. → 14.10.)
+% Fehlannahme SigLIP-Abstand (04.06. → 14.10.)
 \draw[irrweg, lDiag] (3.3,\yD) -- (3.95,-10.95) -- (18.6,-10.95) -- (19.0,\yD);
 
 % RL
@@ -121,60 +129,68 @@
 \St{ok}{3.75}{\yI}{above}{Sim auf Miet-GPU}{vast.ai}
 \St{fail}{3.45}{-0.55}{right}{Sim auf KISSKI}{\Detail{keine RT-Cores}}
 \St{ok}{5.6}{\yI}{above}{Institutsserver}{Blackwell, Juli}
-\St{fail}{7.2}{-0.55}{right}{Isaac Sim 5.1}{\Detail{stürzt ab}}
+\St{fail}{7.2}{-0.55}{right}{Isaac Sim 5.1}{\Detail{instabil}}
 \St*{ok}{7.6}{\yI}{above}{Isaac Sim 6.0}{08.08.}
 \St{ok}{12.4}{\yI}{above}{./run.sh-Menüs}{20.08.}
 \St{ok}{15.6}{\yI}{above}{Image je Generation}{29.09.}
 \St{ok}{18.4}{\yI}{above}{CI + Reviews}{13.10.}
-\St{part}{22.4}{\yI}{above}{Watchdog}{Hänger, Ursache offen}
+\St{part}{22.4}{\yI}{above}{Watchdog}{Prozess hängt, Ursache offen}
 
 % Training N1.6
-\St!{ok}{1.6}{\yT}{above}{Lauf 1}{175k Schritte, Encoder fest}
-\St{fail}{3.7}{-2.6}{right}{Lauf 2: Encoder trainiert}{\Detail{Policy kollabiert}}
+\St!{ok}{1.6}{\yT}{above}{T1}{175k Schritte, Encoder fest}
+\St{fail}{3.7}{-2.6}{right}{T2: Encoder trainiert}{\Detail{Policy kollabiert}}
 \St{ok}{9.65}{\yT}{above}{Split aktiv}{13.08.}
-\St*{ok}{11.25}{\yT}{above}{Lauf 3}{Vision + Jitter + Split}
-\node[lbl, lTrain, font=\fsLbl\itshape] at (15.35,-2.74) {Irrweg: U-Kurve, »Optimum @30k«};
-\St*{ok}{17.25}{\yT}{above}{Nachmessung 20×750}{@44\,000 am besten}
-\St{part}{22.7}{\yT}{above}{N1.6 cube4 @44k}{greift 2/60, stapelt 0}
+\St*{ok}{11.25}{\yT}{above}{T3}{Vision + Jitter + Split}
+\node[lbl, lTrain, font=\fsLbl\itshape] at (15.35,-2.74) {Fehlannahme: U-Kurve, »Optimum @30k«};
+\St*{ok}{17.25}{\yT}{above}{Nachmessung T3}{20×750: @44k am besten}
+\St{part}{22.7}{\yT}{above}{N1.6 cube4 @44k}{frei gehoben 2/60,\\gestapelt 0/60}
 
 % N1.7
 \St!{ok}{14.25}{\yN}{below}{N1.7-Pfad}{19.08.}
-\St{ok}{17.25}{\yN}{below}{Lauf 4 (N1.7)}{gleichauf, 1,6× schneller}
+\St{ok}{17.25}{\yN}{below}{T4 (N1.7)}{gleichauf, 1,6× schneller}
 \St{fail}{19.2}{\yN}{above}{N1.7 in der Sim}{hebt 0/10 (L54/55)}
-\St{part}{22.7}{\yN}{above}{N1.7 co-trainiert}{greift 0/20}
+\St{part}{22.7}{\yN}{above}{N1.7 co-trainiert}{frei gehoben 0/20}
 
 % Co-Training / Daten
 \St{old}{12.2}{\yC}{above}{Render v1}{Greifpunkt verworfen}
 \St{part}{13.8}{-5.65}{right}{Cosmos-Transfer}{\Detail{nie Ende-zu-Ende}}
-\St{fail}{15.1}{\yC}{above}{cotrain\_synth\_v1}{kein Co-Training}
-\St{part}{17.15}{\yC}{below}{Fremd-Synthdaten}{Finger vertauscht}
+\St{fail}{15.1}{\yC}{above}{Synth. Datensatz v1}{kein Co-Training}
+\St{part}{17.4}{\yC}{below}{Externe Synthesedaten}{Fingerzuordnung vertauscht}
 \St{ok}{19.7}{\yC}{above}{Render-Daten v3}{187 Ep. (L72)}
 \Mk{ok}{21.2,\yT}\Mk{ok}{21.2,\yN}\Mk{ok}{21.2,\yC}
 \node[lbl, below=3.2mm] at (21.2,\yC) {{\bfseries Co-Training v3}\Detail{\\4× 44k (L73–76)}};
+\ifkurz % Folie: größere Schrift, kürzerer Titel, sonst stößt er an den Kasten
 \St*{ok}{22.7}{\yC}{above}{Lücke halbiert}{MSE 0,024→0,012}
+\else
+\St*{ok}{22.7}{\yC}{above}{Bildlücke halbiert}{MSE 0,024→0,012}
+\fi
 
 % Simulation / Szene
 \St!{ok}{1.6}{\yS}{above}{G1 + DEX3}{in Isaac Lab}
-\node[lbl, lSim, font=\fsLbl\itshape] at (6.45,-8.07) {Irrweg: Finger-Vorzeichen – Hand schließt nie};
-\St{ok}{8.2}{\yS}{above}{Würfel fallen}{Offset (L8/9)}
+\node[lbl, lSim, font=\fsLbl\itshape] at (6.95,-8.07) {Fehlannahme: Finger-Vorzeichen – Hand schließt nie};
+\St{ok}{8.2}{\yS}{above}{Würfel-Startlage}{Env-Versatz behoben (L8/9)}
 \St*{ok}{9.6}{\yS}{below}{Kameras verdreht}{96–137° (L10–18)}
 \St{part}{11.0}{\yS}{above}{Greifphysik}{hebt 7,9 cm (L29)}
-\St*{ok}{13.95}{\yS}{above}{Geometrie-Jagd}{Finger, Becken, Basis}
-\St*{ok}{18.3}{\yS}{above}{Würfel 3 cm innen}{Orakel 0→48\,\% (L62)}
-\St{part}{20.0}{\yS}{below}{Szene ans Echtbild}{Handfehler −40\,\%}
+\St*{ok}{13.95}{\yS}{above}{Geometrieabgleich}{Finger, Becken, Basis}
+\St*{ok}{18.3}{\yS}{above}{Würfel 3 cm zu weit innen}{Demo hebt 6/20 (L62/69)}
+\St{part}{20.0}{\yS}{below}{Szenenabgleich}{Handfehler −40\,\% (L70)}
 
 % Evaluation / Diagnose
-\St!{fail}{1.8}{\yD}{above}{Erste Sim-Eval}{Lauf 1: 0/20}
+\St!{fail}{1.8}{\yD}{above}{Erste Sim-Eval}{Modell T1: 0/20}
 \St{old}{3.95}{-10.95}{left}{SigLIP-Gap}{0,26 / 0,43}
-\node[lbl, lDiag, font=\fsLbl\itshape] at (11.3,-11.22) {Irrweg: SigLIP-Abstand als Maß der Lücke (0,22 sah »gut« aus)};
+\node[lbl, lDiag, font=\fsLbl\itshape] at (11.3,-11.22) {Fehlannahme: SigLIP-Abstand als Maß der Lücke (0,22 sah »gut« aus)};
 \St*{ok}{6.0}{\yD}{above}{RoboCasa-Referenz}{47,7\,\% ≈ 47,8\,\%}
 \St{fail}{8.4}{\yD}{above}{Messpunkt 3× falsch}{(L24–28)}
-\St*{ok}{9.8}{\yD}{below}{span-Gate}{Echt 100\,\%, Sim 19\,\%}
-\St{part}{11.3}{\yD}{above}{Lauf 3 im Closed Loop}{0/10 (L34)}
-\St*{fail}{16.9}{\yD}{above}{Orakel-Replay}{hebt 1/16 (L57)}
+\St*{ok}{9.8}{\yD}{below}{Fingerspannen-Gate}{echt 100\,\%, Sim 19\,\% (L32)}
+\St{part}{11.3}{\yD}{above}{T3 im Closed Loop}{0/10 (L34)}
+\ifkurz % Folie: unter die Linie, sonst stößt sie an »Bild-Ablation«
+\St*{fail}{16.9}{\yD}{below}{Demo-Wiedergabe}{}
+\else
+\St*{fail}{16.9}{\yD}{above}{Demo-Wiedergabe}{hebt 1/16 (L57)}
+\fi
 \St*{ok}{19.0}{\yD}{above}{Bild-Ablation}{Fehler ×13 / ×36}
-\St{ok}{20.6}{\yD}{above}{Gate geseedet}{(L80)}
-\St*{ok}{21.85}{\yD}{below}{Vorregistr. Gate}{p = 5·10⁻⁶ (L96)}
+\St{ok}{20.6}{\yD}{above}{Fester Seed}{Gate (L80)}
+\St*{ok}{21.85}{\yD}{below}{Vorregistrierter Test}{p = 5·10⁻⁶ (L96)}
 \St{part}{23.1}{\yD}{above}{60 Testlagen}{2/60 (L97)}
 
 % RL
@@ -192,24 +208,24 @@
 % ════════════════════════════ STAND HEUTE ═════════════════════════════
 \begin{scope}[shift={(\xH,0)}]
   \draw[black, line width=1.2pt, fill=hubbg, rounded corners=3mm] (0,1.25) rectangle (2.75,-14.05);
-  \node[font=\fontsize{9}{10}\selectfont\sffamily\bfseries, anchor=north] at (1.375,1.1) {Stand heute};
-  \node[font=\fsLbl, anchor=north, black!65] at (1.375,0.6) {01.11.2026};
+  \node[font=\fontsize{9}{10}\selectfont\sffamily\bfseries, anchor=north, align=center]
+    at (1.375,1.1) {Stand\\[-1pt]01.11.2026};
   % Einmündungen
   \foreach \y/\cc in {\yI/lInfra,\yT/lTrain,\yN/lNsieben,\yC/lCotr,\yS/lSim,\yD/lDiag,\yK/lDoku}
     \fill[\cc] (0,\y) circle (1.3mm);
   \node[font=\fsLbl, text width=24.5mm, align=left, anchor=north west] at (0.15,-0.35) {%
     \ifkurz {\bfseries Bestes Modell}\\N1.6 @44k\\[3pt]{\bfseries Sim-Kandidat}\\co-trainiert
-    \else {\bfseries Bestes Modell}\\N1.6 vision-v2 @44k\\Val-MSE 0,00482\\[2pt]
+    \else {\bfseries Bestes Modell}\\N1.6 vision-v2 (T3) @44k\\Val-MSE 0,00482\\[2pt]
     {\bfseries Bester Sim-Kandidat}\\N1.6 co-trainiert,\\cube4 @44k (L74)\fi};
   % Trichter Closed Loop (L97, 60 Testlagen)
-  \node[font=\fsLbl\bfseries, anchor=west] at (0.18,-3.95) {Closed Loop (L97)};
-  \foreach \i/\lab/\k/\n in {0/erreicht/58/60, 1/berührt/60/60, 2/gehoben/6/60,
+  \node[font=\fsHub\bfseries, anchor=west] at (0.18,-3.95) {Closed Loop (L97)};
+  \foreach \i/\lab/\k/\n in {0/Kontakt/60/60, 1/{Hand ≤ 4 cm}/58/60, 2/gehoben/6/60,
       3/frei gehoben/2/60, 4/gestapelt/0/60} {
     \pgfmathsetmacro\w{2.35*\k/\n}
     \fill[black!10] (0.2,{-4.45-\i*0.62}) rectangle (2.55,{-4.68-\i*0.62});
     \ifnum\k>0 \fill[lDiag] (0.2,{-4.45-\i*0.62}) rectangle ({0.2+\w},{-4.68-\i*0.62}); \fi
-    \node[font=\fsLbl, anchor=south west, inner sep=0.5pt] at (0.18,{-4.43-\i*0.62}) {\lab};
-    \node[font=\fsLbl\bfseries, anchor=south east, inner sep=0.5pt] at (2.57,{-4.43-\i*0.62}) {\k/\n};
+    \node[font=\fsHub, anchor=south west, inner sep=0.5pt] at (0.18,{-4.43-\i*0.62}) {\lab};
+    \node[font=\fsHub\bfseries, anchor=south east, inner sep=0.5pt] at (2.57,{-4.43-\i*0.62}) {\k/\n};
   }
   \node[font=\fsLbl, text width=24.5mm, align=left, anchor=north west] at (0.15,-7.65) {%
     \ifkurz
@@ -222,11 +238,11 @@
     \else
     {\bfseries Zwei Blocker}\\
     {\color{sPart!70!black}\textbullet} Würfel 3 cm versetzt\\
-    \hphantom{\textbullet} Orakel 6/20 (L69)\\
+    \hphantom{\textbullet} Demo hebt 6/20 (L69)\\
     {\color{sPart!70!black}\textbullet} Bild-Lücke ×13\\
     \hphantom{\textbullet} halbiert, nicht weg\\[3pt]
     {\bfseries Offen}\\
-    {\color{sFail}\textbullet} gestapelt: 0\\
+    {\color{sFail}\textbullet} Griff 2/60, Stapeln 0\\
     {\color{sFail}\textbullet} kein Robotertest\\
     {\color{black!50}\textbullet} RL ohne Ergebnis\\[3pt]
     {\bfseries Nächster Schritt}\\

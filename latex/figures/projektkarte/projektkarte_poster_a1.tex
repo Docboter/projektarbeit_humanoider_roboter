@@ -37,7 +37,7 @@
   \node[anchor=north west, text=white, align=left, inner sep=0] at ($(O)+(128,-13)$) {%
     {\fontsize{50}{56}\selectfont\sffamily\bfseries Projektkarte: GR00T-Fine-Tuning für Unitree G1 + DEX3}\\[4mm]
     {\fontsize{26}{31}\selectfont\sffamily Entwicklungsweg Mai bis November 2026 – Arbeitsstränge,
-      Erfolge, Fehlschläge und Irrwege bis zum heutigen Stand}\\[5mm]
+      Erfolge, Fehlschläge und Fehlannahmen bis zum Stand 01.11.2026}\\[5mm]
     {\fontsize{21}{25}\selectfont\sffamily Maximilian Berger · Matthias Späth · Luca Mücke
       \quad|\quad Betreuer: Prof. Dr. Matthias Lorenzen
       \quad|\quad Hochschule für angewandte Wissenschaften Kempten}};
@@ -104,27 +104,27 @@
   \begin{panel}[height=68mm]{250mm}{black!75}{Wendepunkte}\pSmall
     \renewcommand{\arraystretch}{1.0}%
     \begin{tabular}{@{}l@{\hspace{3mm}}l@{}}
-      13.08. & span-Gate: echt 100\,\%, Sim 19\,\% Fingerspanne (L32)\\
+      13.08. & Fingerspannen-Gate: echt 100\,\%, Sim 19\,\% (L32)\\
       24.08. & Geometrie: die Hand konnte nie schließen (L38–51)\\
-      12.10. & kein Overfitting, @44\,000 ist am besten\\
+      12.10. & kein Overfitting, T3 @44k ist am besten\\
       14.10. & Demo hebt kaum: Würfel 3 cm versetzt (L57/62)\\
       14.10. & Sim-Bilder so schlecht wie schwarze (L65/66)\\
       29.10. & Gate bestanden, erste Griffe 2/60 (L96/97)\\
     \end{tabular}
   \end{panel}};
   \node[anchor=north west, inner sep=0] at ($(O)+(271,-506)$) {%
-  \begin{panel}[height=68mm]{290mm}{sFail}{Sackgassen \& Irrwege}\pSmall
+  \begin{panel}[height=68mm]{290mm}{sFail}{Sackgassen \& Fehlannahmen}\pSmall
     \begin{minipage}[t]{137mm}
-      \Pkt[sFail]{Lauf 2: Encoder trainiert → Kollaps}\\
-      \Pkt[sFail]{Isaac Sim 5.1 stürzt ab → 6.0}\\
+      \Pkt[sFail]{T2: Encoder trainiert → Kollaps}\\
+      \Pkt[sFail]{Isaac Sim 5.1 instabil → 6.0}\\
       \Pkt[sFail]{Sim auf KISSKI: keine RT-Cores}\\
-      \Pkt[sFail]{cotrain\_synth\_v1: nur 1 Datensatz}\\
+      \Pkt[sFail]{Synth. Datensatz v1: nur 1 Datensatz}\\
       \Pkt[sOld]{Cosmos: nie Ende-zu-Ende}
     \end{minipage}\hfill
     \begin{minipage}[t]{137mm}
       \Pkt[sOld]{Finger-Vorzeichen: Hand schloss nie}\\
       \Pkt[sOld]{SigLIP-Abstand als Gap-Maß}\\
-      \Pkt[sOld]{U-Kurve @30\,000: Artefakt}\\
+      \Pkt[sOld]{U-Kurve @30k: Artefakt}\\
       \Pkt[sOld]{Messpunkt 3× falsch (L24–28)}\\
       \Pkt[lRL]{RL: ohne Griff kein Lernsignal}
     \end{minipage}
@@ -135,7 +135,7 @@
     \Pkt[lCotr]{mehr Render-Episoden statt höherer Mischung}\\
     \Pkt[lCotr]{RL auf dem co-trainierten Modell (erstes Griffsignal)}\\
     \Pkt[lCotr]{Gate-Schwelle relativ statt 80\,\%, Kontaktkriterium für Griffe}\\
-    \Pkt[lCotr]{Ursache des 3-cm-Versatzes und der Hänger klären}
+    \Pkt[lCotr]{Ursachen des 3-cm-Versatzes und der Prozess-Hänger klären}
   \end{panel}};
 \end{tikzpicture}
 \end{document}

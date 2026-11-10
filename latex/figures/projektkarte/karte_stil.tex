@@ -4,7 +4,7 @@
 %   Linie       = Arbeitsstrang (Farbe)
 %   Station     = Meilenstein; die Füllung zeigt den Ausgang (\Mk)
 %   Stumpfgleis = aufgegebener Weg (endet mit Prellbock)
-%   Irrweg      = gestrichelte Nebenspur: so lange galt eine falsche Annahme
+%   Fehlannahme = gestrichelte Nebenspur (Stil irrweg): so lange galt eine falsche Annahme
 
 \usetikzlibrary{positioning, calc, patterns, shapes.geometric, fit, backgrounds, arrows.meta}
 
@@ -71,10 +71,13 @@
 % \St[*]{status}{x}{y}{Platzierung}{Titel}{Detail}
 %   *            = Wendepunkt
 %   Platzierung  = above | below | left | right | above left | ... (Abstand fest)
+% Abstand der Beschriftung zur Marke; Wendepunkte brauchen mehr wegen des Rings
+\newcommand\lblsep{2.35mm}
+\newcommand\lblsepW{3.3mm}
 \NewDocumentCommand\St{s m m m m m m}{%
-  \IfBooleanT{#1}{\Wende{#3,#4}}%
+  \IfBooleanTF{#1}{\Wende{#3,#4}\def\sep{\lblsepW}}{\def\sep{\lblsep}}%
   \Mk{#2}{#3,#4}%
-  \node[lbl, #5=2.35mm] at (#3,#4) {{\bfseries #6}\ifx\relax#7\relax\else\\#7\fi};}
+  \node[lbl, #5=\sep] at (#3,#4) {{\bfseries #6}\ifx\relax#7\relax\else\\#7\fi};}
 
 % \Prellbock{x,y}{Winkel}: Ende eines Stumpfgleises (Querbalken)
 \newcommand\Prellbock[3][black]{%
@@ -91,8 +94,8 @@
   \draw[stub, black!70] (10.1,0) -- (10.9,0); \Prellbock[black!70]{10.9,0}{0}
   \node at (11.05,0) {Stumpfgleis = aufgegebener Weg};
   \draw[irrweg, black!70] (15.3,0) -- (16.1,0);
-  \node at (16.2,0) {Irrweg = so lange galt eine falsche Annahme};
-  \node at (21.6,0) {L$n$ = Lauf $n$ (diagnose-chronik.md) · Zeitachse nicht maßstäblich};
+  \node at (16.2,0) {Fehlannahme = Dauer bis zur Widerlegung};
+  \node at (20.55,0) {T$n$ = Trainingslauf $n$ · L$n$ = Diagnoselauf $n$ · Zeitachse nicht maßstäblich};
 \end{tikzpicture}}
 
 % \BlockerKette: Ursachenkette als Zeile (jede gelöste Ebene legte die nächste frei)

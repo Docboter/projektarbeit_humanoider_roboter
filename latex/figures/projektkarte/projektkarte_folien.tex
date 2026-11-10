@@ -1,4 +1,4 @@
-% TL;DR: Projektkarte als drei Präsentationsfolien 16:9 (Gesamtkarte, Stand heute, Irrwege + Lessons Learned); braucht build/karte_kurz.pdf aus build.sh.
+% TL;DR: Projektkarte als drei Präsentationsfolien 16:9 (Gesamtkarte, Stand heute, Fehlannahmen + Lessons Learned); braucht build/karte_kurz.pdf aus build.sh.
 \documentclass{article}
 \usepackage[paperwidth=338.67mm, paperheight=190.5mm, margin=0mm]{geometry}
 \usepackage{libertinus-otf}
@@ -49,7 +49,7 @@
   \begin{scope}[shift={($(O)+(14,-34)$)}]
     \node[anchor=west, font=\fBody\bfseries] at (0,4) {Closed Loop in der Simulation (Szene aus Lauf 70, 120 s je Episode)};
     \def\bw{150}
-    \foreach \i/\lab/\a/\na/\b/\nb in {0/erreicht/16/20/58/60, 1/berührt/17/20/60/60,
+    \foreach \i/\lab/\a/\na/\b/\nb in {0/Kontakt/17/20/60/60, 1/{Hand ≤ 4 cm}/16/20/58/60,
         2/gehoben/0/20/6/60, 3/frei gehoben/0/20/2/60, 4/gestapelt/0/20/0/60} {
       \pgfmathsetmacro\ya{-10-\i*22}
       \node[anchor=east, font=\fBody] at (40,\ya-3.5) {\lab};
@@ -61,10 +61,10 @@
       \node[anchor=west, font=\fSmall] at (\bw+45,\ya-2.75) {\a/\na};
       \node[anchor=west, font=\fSmall\bfseries] at (\bw+45,\ya-9.75) {\b/\nb};
     }
-    % Referenz: abgespielte Demo (Orakel, Lauf 69) bei "frei gehoben"
+    % Referenz: abgespielte Demo (Lauf 69) bei "frei gehoben"
     \draw[black, line width=0.6mm, dash pattern=on 2mm off 1.2mm] ({43+150*0.30},-69) -- ++(0,-20);
     \node[anchor=west, font=\fSmall, align=left] at ({44.5+150*0.30},-71.3)
-      {Orakel (abgespielte Demo, Lauf 69): 6/20 = 30\,\%};
+      {Abgespielte Demo (Lauf 69): 6/20 = 30\,\%};
     % Legende
     \fill[lTrain!70] (43,-121) rectangle ++(6,-4.5);
     \node[anchor=west, font=\fSmall] at (50,-123.2) {N1.6 vision-v2 @44k, ohne Co-Training (Lauf 82, 20 Lagen)};
@@ -92,7 +92,7 @@
 \end{tikzpicture}
 \newpage
 
-% ════════════════════ Folie 3: Irrwege und Lessons Learned ═══════════
+% ════════════════════ Folie 3: Fehlannahmen und Lessons Learned ═══════════
 \noindent\begin{tikzpicture}[remember picture, overlay, x=1mm, y=1mm]
   \Rahmen{Wie lange galt ein Irrtum? Und was wir daraus lernen}{3}
   \begin{scope}[shift={($(O)+(14,-32)$)}]
