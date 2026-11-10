@@ -154,6 +154,8 @@
 \setkomafont{pageheadfoot}{\small\sffamily}
 \addtokomafont{pagehead}{\color{NavyBlue!75}}  % Kopftext in Akzentfarbe
 \setkomafont{pagenumber}{\sffamily}
+% Nur Seitenzahl, ohne Kopfzeile: für die Querseite der Projektkarte (Kapitel Projektverlauf)
+\newpairofpagestyles{nurseitenzahl}{\cfoot*{\pagemark}}
 
 % ── Aufzählungen ─────────────────────────────────────────────────────
 \setlist{noitemsep, topsep=0.5\baselineskip}

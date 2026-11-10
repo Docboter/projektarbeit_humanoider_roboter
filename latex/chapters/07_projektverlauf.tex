@@ -7,7 +7,7 @@
 \label{sec:verlauf}
 \label{sec:hindernisse}
 
-Das Projekt lief von April bis Oktober 2026. \Cref{tab:verlauf} zeigt die wichtigsten Schritte
+Das Projekt lief von April bis November 2026. \Cref{tab:verlauf} zeigt die wichtigsten Schritte
 je Monat.
 
 \begin{table}[htb]
@@ -17,15 +17,17 @@ je Monat.
     Zeit & Schritt \\
     \midrule
     April 2026 & Projektstart; erste Versuche parallel in allen drei Strängen: Docker-Container,
-           Isaac-Simulation und GR00T-Training; erste Tests auf Mietkarten (vast.ai, trooper.ai) \\
-    Mai & Warten auf die Freischaltung von KISSKI; erster Zugang zum \acs{ikr}-Server, noch ohne
-          die nötigen Berechtigungen; Versuche weiter auf Mietkarten \\
-    Juni & Container-Pipeline, Läufe 1 und 2 auf KISSKI; erste Sim-Eval auf gemieteten \acp{gpu}: 0/20 \\
+           Isaac-Simulation und GR00T-Training; erste Tests auf eigenen Rechnern unter Windows
+           und auf Mietkarten (vast.ai, trooper.ai) \\
+    Mai & KISSKI freigeschaltet, Container-Pipeline, Lauf~1 auf KISSKI; erster Zugang zum
+          \acs{ikr}-Server, noch ohne die nötigen Berechtigungen; Sim-Versuche weiter auf Mietkarten \\
+    Juni & Lauf~2 auf KISSKI; erste Sim-Eval auf gemieteten \acp{gpu}: 0/20 \\
     Juli & Institutsserver (Blackwell); Inferenz-Kette mit RoboCasa geprüft
            (\cref{sec:erg-closed-loop}) \\
     August & Umstieg auf Isaac~Sim~6.0 (5.1 stürzte auf Blackwell ab); Lauf 3;
-             Kameras neu kalibriert; Szenengeometrie korrigiert (24.08.) \\
-    September & GR00T~N1.7 als paralleler Pfad, eigenes Image \\
+             Kameras neu kalibriert; Szenengeometrie korrigiert (24.08.);
+             GR00T~N1.7 als paralleler Pfad (19.08.) \\
+    September & eigenes Image je GR00T-Generation \\
     Oktober & Lauf~4 (N1.7); Demo-Replay und Würfellage, Domain-Gap gemessen (Läufe 57--71);
               Co-Training v3 (Läufe 72--97) \\
     \bottomrule
@@ -37,10 +39,38 @@ je Monat.
 
 Die ersten beiden Monate brachten wenig sichtbaren Fortschritt. Mit Docker, Isaac~Sim und dem
 Fine-Tuning großer Modelle hatte die Gruppe kaum Erfahrung, die erst gesammelt werden musste.
-Zugleich war lange unklar, auf welcher Hardware Training und Simulation laufen würden. Die drei
-Stränge wurden deshalb parallel angegangen, jeweils auf gemieteten Karten. Eine tragfähige
-Umgebung stand erst mit dem KISSKI-Zugang im Juni und dem nutzbaren \acs{ikr}-Server im Juli
+Zugleich war lange unklar, auf welcher Hardware Training und Simulation laufen würden. Die
+eigenen Rechner unter Windows schieden schnell aus: Für das Training reichte der Grafikspeicher
+nicht, die Simulation lief dort nicht. Ab Mai lief deshalb alles unter Linux in
+Docker-Containern, und die drei Stränge wurden parallel auf gemieteten Karten angegangen. Eine tragfähige
+Umgebung stand erst mit dem KISSKI-Zugang im Mai und dem nutzbaren \acs{ikr}-Server im Juli
 bereit; ab dann ging es deutlich schneller voran.
+
+\Cref{fig:projektkarte} fasst den Verlauf als Liniennetz zusammen. Jede Linie ist ein
+Arbeitsstrang, jede Station ein Meilenstein; die Füllung zeigt, ob er gelang. Gestrichelte
+Nebenspuren zeigen, wie lange eine falsche Annahme galt. Trainingsläufe sind mit T bezeichnet
+(Lauf~3 im Text ist T3), Diagnoseläufe der Simulation mit L.
+
+% Projektkarte als eigene Querseite mit schmaleren Rändern; Quelle: figures/projektkarte/karte_bild.tex
+% Steht direkt vor 8.2, damit der Abschnitt nicht von der Querseite zerteilt wird.
+\newgeometry{left=12mm, right=12mm, top=10mm, bottom=16mm, footskip=8mm}%
+\begin{landscape}
+  \thispagestyle{nurseitenzahl}% die Kopfzeile liefe quer durch die Karte
+  \centering
+  \resizebox{\linewidth}{!}{%
+    \begin{tabular}{@{}c@{}}
+      \input{figures/projektkarte/karte_bild}\\[3mm]
+      \BlockerKette\\[2mm]
+      \Legende
+    \end{tabular}}%
+  \captionof{figure}[Projektkarte: Entwicklungsweg April bis November 2026]{Projektkarte:
+    Entwicklungsweg von April bis November 2026 mit Arbeitssträngen, Erfolgen, Fehlschlägen
+    und Fehlannahmen, Stand 01.11.2026. Die Zeitachse ist nach Ereignisdichte gestreckt.
+    Eigene Darstellung nach \doc{docs/ergebnisse/diagnose-chronik.md},
+    \doc{next-steps.md}, \doc{docs/historie.md} und der Git-Historie.}%
+  \label{fig:projektkarte}
+\end{landscape}%
+\restoregeometry
 
 \section{Fehler ohne Fehlermeldung}
 \label{sec:projektverlauf-fehler}
@@ -68,7 +98,7 @@ Die meiste Zeit kosteten Fehler, die plausible, aber falsche Ergebnisse lieferte
 Die eigenen Rechner der Gruppe reichten für keine der beiden Hauptaufgaben
 (\cref{tab:rechenumgebungen}). Bis KISSKI und der \acs{ikr}-Server nutzbar waren, liefen alle
 größeren Versuche auf gemieteten Karten bei vast.ai und trooper.ai; dafür hat die
-Projektgruppe rund 100~€ privat ausgegeben. Ab Juni hat KISSKI das Training getragen: vier
+Projektgruppe rund 100~€ privat ausgegeben. Ab Mai hat KISSKI das Training getragen: vier
 A100, eine Warteschlange und Projektspeicher, 44\,000 Schritte in 8 bis 12~Stunden
 (\cref{tab:laeufe}). Rendern kann der Cluster aber nicht. Die Simulation lief deshalb bis Juli
 weiter auf Mietkarten und danach auf dem Institutsserver, dessen Blackwell-Karten den Wechsel

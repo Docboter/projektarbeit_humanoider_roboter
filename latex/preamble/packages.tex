@@ -80,6 +80,11 @@
 \usepackage{pgfplots}
 \pgfplotsset{compat=1.18}
 
+% ── Projektkarte (Kapitel Projektverlauf): eigene Querseite ───────────
+\usepackage{pdflscape}          % Querseite, im PDF gedreht angezeigt
+\usepackage[pass]{geometry}     % nur \newgeometry für diese Seite; Satzspiegel bleibt KOMA
+\input{figures/projektkarte/karte_stil}
+
 % ── Literaturverzeichnis ──────────────────────────────────────────────
 \usepackage[
   style      = ieee,      % IEEE-Zitierstil (alternativ: authoryear, apa)
